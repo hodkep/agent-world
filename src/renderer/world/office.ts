@@ -165,6 +165,8 @@ function buildOffice() {
     { kind: 'frame', x: 27, y: 0, w: 1, variant: 2 }
   ]
 
+  // Standing in front of the kanban board, where planning agents work and present their plans.
+  const whiteboard: Spot[] = [9, 11, 8, 12, 10].map((x) => ({ x, y: 2, facing: 'up' as const, ox: 0, seated: false }))
   const seats = [...desks, ...interns, ...sofas]
   const rows = buildRows(furniture, seats)
   const walkway = (xs: number[], y: number): Spot[] => xs.map((x) => ({ x, y, facing: 'down', ox: 0, seated: false }))
@@ -177,6 +179,8 @@ function buildOffice() {
     desks,
     interns,
     sofas,
+    whiteboard,
+    kanban: decor.find((d) => d.kind === 'kanban')!,
     // ponytail: fixed overflow spots per room; a second floor per repo is the real fix when these fill up.
     overflow: {
       desk: walkway([3, 5, 7, 9, 11, 13, 15], 5),

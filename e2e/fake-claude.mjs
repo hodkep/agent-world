@@ -38,7 +38,7 @@ if (process.env.FAKE_COST) {
 }
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
-process.stdin.on('data', (d) => process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
 
 // FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
 async function sendViaOffice(to, message) {
@@ -99,6 +99,39 @@ await sleep(pause)
 if (myName && myName === sendFrom) {
   await hook('PreToolUse', { tool_name: 'mcp__agent-world__send_message', tool_input: { to: sendTo, message: sendText.join(':') } })
   await sendViaOffice(sendTo, sendText.join(':'))
+}
+// FAKE_PLAN=1: plan mode — tasks, a plan, then Claude's plan menu drawn in the terminal and driven by keys.
+if (process.env.FAKE_PLAN) {
+  const pm = { permission_mode: 'plan' }
+  for (const [id, subject] of [['1', 'Write hello.txt'], ['2', 'Check it']])
+    await hook('PostToolUse', { ...pm, tool_name: 'TaskCreate', tool_input: { subject }, tool_response: { task: { id, subject } } })
+  await hook('PostToolUse', { ...pm, tool_name: 'TaskUpdate', tool_input: { taskId: '1', status: 'in_progress' }, tool_response: { success: true, taskId: '1', statusChange: { from: 'pending', to: 'in_progress' } } })
+  const plan = '# Plan: add hello.txt\n\n## Steps\n1. Create hello.txt with hi.\n2. Run cat hello.txt.'
+  await hook('PreToolUse', { ...pm, tool_name: 'ExitPlanMode', tool_input: { plan } })
+  await hook('PermissionRequest', { ...pm, tool_name: 'ExitPlanMode', tool_input: { plan } })
+  const options = ['Yes, auto-accept edits', 'Yes, manually approve edits', 'Tell Claude what to change']
+  let at = 0
+  const draw = () =>
+    process.stdout.write(
+      `\x1b[2J\x1b[H Claude has written up a plan and is ready to execute. Would\r\n you like to proceed?\r\n` +
+        options.map((o, i) => `${i === at ? ' ❯' : '  '} ${i + 1}. ${o}`).join('\r\n') + '\r\n'
+    )
+  draw()
+  await new Promise((resolve) => {
+    process.stdin.setRawMode?.(true)
+    const onKey = (d) => {
+      const k = String(d)
+      if (k === '\x1b[B') at = Math.min(2, at + 1)
+      else if (k === '\x1b[A') at = Math.max(0, at - 1)
+      else if (k === '\r') {
+        process.stdin.off('data', onKey)
+        process.stdout.write(`\x1b[2J\x1b[Hchose option ${at + 1}\r\n`)
+        return resolve()
+      }
+      draw()
+    }
+    process.stdin.on('data', onKey)
+  })
 }
 await hook('Stop')
 // FAKE_CLEAR=1: behave like /clear — a new Claude session id in the same terminal, then more work.

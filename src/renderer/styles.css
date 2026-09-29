@@ -142,3 +142,16 @@ aside:not(.wide) .change-list { width: 190px; }
 .switches { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .switches select { font-size: 12px; padding: 2px 4px; }
 .switches button { font-size: 12px; padding: 2px 8px; }
+
+.plan-card { flex-direction: column; align-items: stretch; background: #1c2230; gap: 6px; }
+.plan-head { color: var(--text); }
+.plan-text { margin: 0; max-height: 28vh; overflow: auto; background: #0c0b12; padding: 8px; font-family: Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; color: var(--text); box-shadow: 0 0 0 2px var(--ink); }
+.plan-card input { flex: 1; font: inherit; color: var(--text); background: #0c0b12; border: 2px solid var(--ink); padding: 4px 6px; min-width: 0; }
+.plan-card input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tasks { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.task { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.task .mark { width: 8px; height: 8px; flex: none; box-shadow: 0 0 0 1px var(--muted); }
+.task.is-in_progress .mark { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); box-shadow: 0 0 0 1px var(--accent); }
+.task.is-completed { color: var(--muted); text-decoration: line-through; }
+.task.is-completed .mark { background: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

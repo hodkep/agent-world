@@ -17,8 +17,6 @@ interface Options {
   onPermission: (r: PermissionRequest) => void
   onPermissionSettled: (id: string) => void
   onStatus: (s: AgentStats, agentId: string) => void
-  /** A plan is ready for review (the ExitPlanMode tool). */
-  onPlan: (p: { agentId: string; plan: string }) => void
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -91,11 +89,10 @@ export async function startHookServer(o: Options) {
     const p = payload as Record<string, unknown>
     if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') {
       // A hook "allow" does not approve a plan (the session stays in plan mode), so let Claude show its own
-      // plan menu and hand the plan to the app, which answers that menu for the user.
+      // plan menu; the app watches the screen for it and answers it for the user. The plan text itself
+      // arrives with the PreToolUse event.
       if (p.tool_name === 'ExitPlanMode') {
-        const plan = typeof (p.tool_input as Record<string, unknown>)?.plan === 'string' ? ((p.tool_input as Record<string, unknown>).plan as string) : ''
         o.onEvent({ type: 'activity', agentId, sessionId: p.session_id, activity: 'permission', tool: 'ExitPlanMode', detail: 'plan ready for review' })
-        o.onPlan({ agentId, plan })
         return void res.writeHead(200).end()
       }
       return holdPermission(p, res, agentId)

@@ -3,6 +3,7 @@ import 'pixi.js/unsafe-eval'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
 import type { Activity } from '../../shared/types'
 import { Character } from './character'
+import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawExterior, drawFloors, drawFurniture } from './furniture'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
@@ -33,7 +34,8 @@ type Purpose = Exclude<Place, 'gone'>
 const POOLS: Record<Purpose, Spot[]> = {
   desk: [...OFFICE.desks, ...OFFICE.overflow.desk],
   intern: [...OFFICE.interns, ...OFFICE.overflow.intern],
-  lounge: [...OFFICE.sofas, ...OFFICE.overflow.lounge]
+  lounge: [...OFFICE.sofas, ...OFFICE.overflow.lounge],
+  whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
 const EXTERIOR_MARGIN = 24
@@ -52,6 +54,8 @@ export class OfficeWorld {
   private readonly inbox = new Map<string, number>()
   private readonly flights: Flight[] = []
   private readonly mail = new Graphics()
+  private readonly board = new Graphics()
+  private boardKey = ''
   private ambient!: Ambient
   private readonly root = new Container()
   private readonly layer = new Container({ sortableChildren: true })
@@ -87,6 +91,8 @@ export class OfficeWorld {
     const shadows = new Graphics()
     this.root.addChild(drawExterior(OFFICE.map, EXTERIOR_MARGIN), drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
+    this.board.zIndex = TILE * 2
+    this.layer.addChild(this.board)
     const f = drawFurniture(OFFICE.furniture, OFFICE.decor, this.layer, shadows, COFFEE_SPOUT)
     this.screens = f.screens
     this.ambient = f.ambient
@@ -193,10 +199,10 @@ export class OfficeWorld {
     return c
   }
 
-  private route(c: Character, activity: Activity, intern: boolean, detail?: string) {
+  private route(c: Character, activity: Activity, intern: boolean, detail?: string, mode?: string) {
     c.activity = activity
     c.detail = detail
-    const place = placeFor(activity, intern)
+    const place = placeFor(activity, intern, mode)
     if (place === 'gone') return
     c.goTo(place === 'desk' || place === 'intern' ? c.home : this.claim(c.key, place))
   }
@@ -213,7 +219,7 @@ export class OfficeWorld {
       c.role = roleOf(a.state)
       c.selected = a.selected
       c.contextPct = a.contextPct
-      this.route(c, a.state.activity, false, a.state.detail)
+      this.route(c, a.state.activity, false, a.state.detail, a.state.mode)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
 
@@ -232,7 +238,43 @@ export class OfficeWorld {
         this.release(key)
         c.goTo(OFFICE.door)
       }
+    this.drawBoard(agents)
     this.firstSync = false
+  }
+
+  /**
+   * The kanban board shows every agent's live task list as sticky notes in that agent's colour (to do, doing,
+   * done). An agent with a plan but no tasks yet shows its plan steps in "to do".
+   */
+  private drawBoard(agents: AgentView[]) {
+    const cols: { color: number; dim: boolean }[][] = [[], [], []]
+    for (const a of agents) {
+      if (placeFor(a.state.activity, false) === 'gone') continue
+      const color = paletteFor(a.id, 'senior').c
+      const tasks = a.state.tasks ?? []
+      if (tasks.length) for (const t of tasks) cols[t.status === 'pending' ? 0 : t.status === 'in_progress' ? 1 : 2]!.push({ color, dim: false })
+      else for (const _ of a.state.planSteps ?? []) cols[0]!.push({ color, dim: true })
+    }
+    const key = JSON.stringify(cols)
+    if (key === this.boardKey) return
+    this.boardKey = key
+    const g = this.board
+    g.clear()
+    const bx = OFFICE.kanban.x * TILE
+    const by = OFFICE.kanban.y * TILE
+    const colW = Math.floor((OFFICE.kanban.w * TILE - 8) / 3)
+    const PER_ROW = 3
+    const MAX = PER_ROW * 3
+    cols.forEach((col, c) =>
+      col.slice(0, MAX).forEach((n, i) => {
+        const x = bx + 5 + c * colW + (i % PER_ROW) * 7
+        const y = by + 11 + Math.floor(i / PER_ROW) * 5
+        g.rect(x, y, 6, 4).fill(n.color)
+        // Plan steps are proposals, not tasks yet: drawn hollow.
+        if (n.dim) g.rect(x + 1, y + 1, 4, 2).fill(0xf2f4f8)
+        else g.rect(x, y, 6, 1).fill({ color: 0xffffff, alpha: 0.35 })
+      })
+    )
   }
 
   private tick(dt: number) {

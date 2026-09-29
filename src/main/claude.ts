@@ -8,7 +8,10 @@ const OBSERVED = [
   'SubagentStart',
   'SubagentStop',
   'SessionStart',
-  'SessionEnd'
+  'SessionEnd',
+  'PreCompact',
+  'PostCompact',
+  'StopFailure'
 ] as const
 
 // Observation hooks must never slow Claude down; if the app is gone they fail fast and are ignored.

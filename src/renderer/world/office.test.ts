@@ -37,7 +37,7 @@ describe('office pathfinding', () => {
 
 describe('office layout', () => {
   it('every seat and spot is reachable from the entrance', () => {
-    const all = [...OFFICE.desks, ...OFFICE.interns, ...OFFICE.sofas, ...Object.values(OFFICE.overflow).flat()]
+    const all = [...OFFICE.desks, ...OFFICE.interns, ...OFFICE.sofas, ...OFFICE.whiteboard, ...Object.values(OFFICE.overflow).flat()]
     for (const s of all) expect(findPath(OFFICE.map, OFFICE.door, s), `${s.x},${s.y}`).not.toBeNull()
   })
 

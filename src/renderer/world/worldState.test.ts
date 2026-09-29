@@ -78,3 +78,44 @@ describe('work done', () => {
     expect(w[s]!.files).toBe(1)
   })
 })
+
+describe('plans, tasks and modes', () => {
+  const ev = (e: object) => ({ agentId: s, sessionId: s, ...e }) as Parameters<typeof applyEvent>[1]
+
+  it('planning agents work at the whiteboard; the same work outside plan mode is at the desk', () => {
+    expect(placeFor('researching', false, 'plan')).toBe('whiteboard')
+    expect(placeFor('permission', false, 'plan')).toBe('whiteboard')
+    expect(placeFor('researching', false, 'default')).toBe('desk')
+    expect(placeFor('idle', false, 'plan')).toBe('lounge')
+  })
+
+  it('a blocked agent (rate limit, overload) waits in the lounge; compacting stays at the desk', () => {
+    expect(placeFor('blocked', false)).toBe('lounge')
+    expect(placeFor('compacting', false)).toBe('desk')
+  })
+
+  it('remembers the permission mode from events', () => {
+    const w = applyEvent(emptyWorld(), ev({ type: 'activity', activity: 'researching', mode: 'plan' }))
+    expect(w[s]!.mode).toBe('plan')
+  })
+
+  it('keeps the latest plan and its steps', () => {
+    const w = applyEvent(emptyWorld(), ev({ type: 'plan', plan: '# p', steps: ['a', 'b'] }))
+    expect(w[s]).toMatchObject({ plan: '# p', planSteps: ['a', 'b'] })
+  })
+
+  it('builds the task list from create and update events, and forgets deleted tasks', () => {
+    let w = applyEvent(emptyWorld(), ev({ type: 'task', id: '1', subject: 'Write hello.txt', status: 'pending' }))
+    w = applyEvent(w, ev({ type: 'task', id: '2', subject: 'Check it', status: 'pending' }))
+    w = applyEvent(w, ev({ type: 'task', id: '1', status: 'in_progress' }))
+    w = applyEvent(w, ev({ type: 'task', id: '2', status: 'deleted' }))
+    expect(w[s]!.tasks).toEqual([{ id: '1', subject: 'Write hello.txt', status: 'in_progress' }])
+  })
+
+  it('a new session (after /clear) starts with an empty task list and no plan', () => {
+    let w = applyEvent(emptyWorld(), ev({ type: 'task', id: '1', subject: 'x', status: 'pending' }))
+    w = applyEvent(w, ev({ type: 'plan', plan: '# p', steps: [] }))
+    w = applyEvent(w, { type: 'session-start', agentId: s, sessionId: 'new' })
+    expect(w[s]).toMatchObject({ tasks: [], plan: null })
+  })
+})

@@ -31,6 +31,8 @@ export function App() {
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
+  const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
+  const [feedback, setFeedback] = useState('')
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
@@ -63,6 +65,7 @@ export function App() {
       window.aw.onAgentStats((id, s) => setStats((all) => ({ ...all, [id]: s }))),
       window.aw.onBudgetAlert((id, level) => setBudgetAlerts((all) => ({ ...all, [id]: level }))),
       window.aw.onSelectAgent((id) => select(id)),
+      window.aw.onPlanMenu((id, open) => setPlanMenus((m) => ({ ...m, [id]: open }))),
       window.aw.onTrustPrompt((agentId, path) =>
         setTrusts((t) => {
           const { [agentId]: _, ...rest } = t
@@ -96,7 +99,8 @@ export function App() {
   const current = agents.find((a) => a.id === selected) ?? null
   // A pending permission must never sit behind a collapsed panel.
   const pendingTrust = Object.entries(trusts)
-  const showPanel = panelOpen || hiring || asks.length > 0 || pendingTrust.length > 0
+  const pendingPlans = agents.filter((a) => planMenus[a.id])
+  const showPanel = panelOpen || hiring || asks.length > 0 || pendingTrust.length > 0 || pendingPlans.length > 0
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -175,7 +179,7 @@ export function App() {
           </span>
         )}
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length + pendingTrust.length > 0}>
+        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length + pendingTrust.length + pendingPlans.length > 0}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
@@ -208,6 +212,33 @@ export function App() {
               ))}
             </section>
           )}
+          {pendingPlans.map((a) => (
+            <section key={a.id} className="plan-card" aria-label={`${a.name}'s plan`}>
+              <div className="plan-head">
+                <b>{a.name}</b> has a plan ready
+              </div>
+              <pre className="plan-text">{world[a.id]?.plan || 'The plan is shown in the terminal.'}</pre>
+              <div className="land">
+                <button className="primary" onClick={() => run(() => window.aw.answerPlan(a.id, 0))}>
+                  Approve · auto-accept edits
+                </button>
+                <button onClick={() => run(() => window.aw.answerPlan(a.id, 1))}>Approve · review each edit</button>
+              </div>
+              <form
+                className="land"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void run(async () => {
+                    await window.aw.answerPlan(a.id, 2, feedback)
+                    setFeedback('')
+                  })
+                }}
+              >
+                <input value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="What should change?" aria-label="Plan feedback" />
+                <button type="submit">Keep planning</button>
+              </form>
+            </section>
+          ))}
           {asks.length > 0 && (
             <section className="asks" aria-label="Permission requests">
               {asks.map((r) => (
@@ -270,6 +301,17 @@ export function App() {
                       +{cur.linesAdded} −{cur.linesRemoved}
                     </span>
                   </div>
+                )}
+                {state?.tasks && state.tasks.length > 0 && (
+                  <ul className="tasks" aria-label="Tasks">
+                    {state.tasks.map((t) => (
+                      <li key={t.id} className={`task is-${t.status}`}>
+                        <span className="mark" aria-hidden="true" />
+                        {t.subject}
+                        <span className="sr-only"> ({t.status.replace('_', ' ')})</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
                 {(state?.activity ?? 'asleep') !== 'asleep' && (
                   <div className="switches" title={between ? 'Switch for the next turn' : 'Available between turns'}>

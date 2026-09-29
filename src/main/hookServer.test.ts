@@ -11,9 +11,7 @@ async function setup(permissionTimeoutMs = 5_000) {
   const asks: PermissionRequest[] = []
   const settled: string[] = []
   const stats: unknown[] = []
-  const plans: unknown[] = []
   server = await startHookServer({
-    onPlan: (p) => plans.push(p),
     onStatus: (s) => stats.push(s),
     agentForToken: (t) => (t === 'secret' ? 'a1' : null),
     permissionTimeoutMs,
@@ -21,7 +19,7 @@ async function setup(permissionTimeoutMs = 5_000) {
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled, stats, plans }
+  return { server, events, asks, settled, stats }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -104,13 +102,12 @@ describe('hook server', () => {
     expect(stats).toEqual([])
   })
 
-  it('does not hold plan approval: Claude shows its own plan menu, and the app surfaces the plan', async () => {
-    const { server, asks, plans, events } = await setup()
+  it('does not hold plan approval: Claude shows its own plan menu, which the app answers from the screen', async () => {
+    const { server, asks, events } = await setup()
     const res = await post(server.url, { session_id: 's1', hook_event_name: 'PermissionRequest', tool_name: 'ExitPlanMode', tool_input: { plan: '# Plan\n1. do it' } })
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('')
     expect(asks).toEqual([])
-    expect(plans).toEqual([{ agentId: 'a1', plan: '# Plan\n1. do it' }])
     expect(events.at(-1)).toMatchObject({ activity: 'permission', detail: 'plan ready for review' })
   })
 })

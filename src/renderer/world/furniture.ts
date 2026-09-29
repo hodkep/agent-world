@@ -456,17 +456,13 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
         break
       }
       case 'kanban': {
+        // The board is live: the world draws each agent's tasks and plan steps onto it.
         const w = d.w * TILE
         box(g, px + 2, py + 5, w - 4, 22, 0xa8b0c2)
         r(g, px + 3, py + 6, w - 6, 20, 0xf2f4f8)
         const cols = [0xe05050, 0xe0b030, 0x40b060]
         const colW = Math.floor((w - 8) / 3)
-        for (let c = 0; c < 3; c++) {
-          const cx = px + 5 + c * colW
-          r(g, cx, py + 8, colW - 3, 1, cols[c]!)
-          const notes = 2 + Math.floor(rand() * 3)
-          for (let n = 0; n < notes; n++) r(g, cx + (n % 2) * 8, py + 11 + Math.floor(n / 2) * 6, 6, 5, [0xf6e27a, 0xf4a8c8, 0xa8e0a8, 0x9ccaf4][Math.floor(rand() * 4)]!)
-        }
+        for (let c = 0; c < 3; c++) r(g, px + 5 + c * colW, py + 8, colW - 3, 1, cols[c]!)
         r(g, px + w - 12, py + 27, 8, 2, 0x707888)
         break
       }

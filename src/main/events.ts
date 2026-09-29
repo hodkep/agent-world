@@ -1,10 +1,23 @@
 import { basename } from 'node:path'
-import type { Activity, RawEvent } from '../shared/types'
+import type { Activity, RawEvent, TaskStatus } from '../shared/types'
 
 const RESEARCH = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LSP', 'ToolSearch'])
 const IMPLEMENT = new Set(['Edit', 'Write', 'NotebookEdit'])
 const DELEGATE = new Set(['Agent', 'Task'])
 const MAX_DETAIL = 60
+const MAX_STEPS = 8
+const TASK_STATUSES = new Set(['pending', 'in_progress', 'completed', 'deleted'])
+
+/** Numbered and bulleted lines of a markdown plan, as plain text for sticky notes. */
+export function planSteps(plan: string) {
+  return plan
+    .split('\n')
+    .map((l) => /^\s*(?:\d+[.)]|[-*])\s+(.+)$/.exec(l)?.[1])
+    .filter((l): l is string => !!l)
+    .map((l) => l.replace(/\*\*|__|`/g, '').trim())
+    .filter(Boolean)
+    .slice(0, MAX_STEPS)
+}
 
 type Payload = Record<string, unknown>
 
@@ -34,22 +47,51 @@ export function normalize(payload: unknown): RawEvent | null {
   const event = str(p.hook_event_name)
   if (!sessionId || !event) return null
   const subagentId = str(p.agent_id)
+  const mode = str(p.permission_mode)
   const activity = (a: Activity, tool?: string, detail?: string): RawEvent => ({
     type: 'activity',
     sessionId,
     ...(subagentId && { subagentId }),
     activity: a,
     ...(tool && { tool }),
-    ...(detail && { detail })
+    ...(detail && { detail }),
+    ...(mode && { mode })
   })
+  const input = (p.tool_input && typeof p.tool_input === 'object' ? p.tool_input : {}) as Payload
+  const response = (p.tool_response && typeof p.tool_response === 'object' ? p.tool_response : {}) as Payload
 
   switch (event) {
     case 'PreToolUse': {
       const tool = str(p.tool_name) ?? 'unknown'
+      if (tool === 'ExitPlanMode') {
+        const plan = str(input.plan) ?? ''
+        return { type: 'plan', sessionId, plan, steps: planSteps(plan) }
+      }
       return activity(activityFor(tool), tool, describeTool(p.tool_input))
     }
+    case 'PostToolUse': {
+      const tool = str(p.tool_name)
+      if (tool === 'TaskCreate') {
+        const task = (response.task ?? {}) as Payload
+        const id = str(task.id)
+        return id ? { type: 'task', sessionId, id, subject: str(task.subject) ?? str(input.subject) ?? '', status: 'pending' } : null
+      }
+      if (tool === 'TaskUpdate') {
+        const id = str(response.taskId) ?? str(input.taskId)
+        const change = (response.statusChange ?? {}) as Payload
+        const status = str(change.to) ?? str(input.status)
+        if (!id) return null
+        return { type: 'task', sessionId, id, ...(status && TASK_STATUSES.has(status) && { status: status as TaskStatus }), ...(str(input.subject) && { subject: str(input.subject) }) }
+      }
+      return activity('thinking')
+    }
+    case 'PreCompact':
+      return activity('compacting', undefined, str(p.trigger) === 'manual' ? 'compacting on request' : 'context full, compacting')
+    case 'PostCompact':
+      return activity(str(p.trigger) === 'manual' ? 'idle' : 'thinking')
+    case 'StopFailure':
+      return activity('blocked', undefined, (str(p.error_type) ?? 'error').replace(/_/g, ' '))
     case 'UserPromptSubmit':
-    case 'PostToolUse':
     case 'PostToolUseFailure':
       return activity('thinking')
     case 'Stop':

@@ -96,4 +96,38 @@ describe('normalize hook payload → AgentEvent', () => {
     const e = normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'x'.repeat(200) } })
     expect(e && e.type === 'activity' && e.detail?.length).toBe(60)
   })
+
+  // Shapes below are from real Claude Code 2.1.284 hook payloads captured with AW_HOOK_LOG.
+  it('carries the permission mode, so planning agents can stand at the whiteboard', () => {
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', permission_mode: 'plan', tool_name: 'Read', tool_input: { file_path: '/a.md' } })).toMatchObject({ mode: 'plan' })
+  })
+
+  it('a created task comes from TaskCreate\'s response, with its id and subject', () => {
+    expect(
+      normalize({ ...base, hook_event_name: 'PostToolUse', tool_name: 'TaskCreate', tool_input: { subject: 'Write hello.txt', description: 'x' }, tool_response: { task: { id: '1', subject: 'Write hello.txt' } } })
+    ).toEqual({ type: 'task', sessionId: 's1', id: '1', subject: 'Write hello.txt', status: 'pending' })
+  })
+
+  it('a task status change comes from TaskUpdate', () => {
+    expect(
+      normalize({ ...base, hook_event_name: 'PostToolUse', tool_name: 'TaskUpdate', tool_input: { taskId: '1', status: 'completed' }, tool_response: { success: true, taskId: '1', statusChange: { from: 'pending', to: 'completed' } } })
+    ).toEqual({ type: 'task', sessionId: 's1', id: '1', status: 'completed' })
+  })
+
+  it('a plan comes from ExitPlanMode, with its steps pulled out for the whiteboard', () => {
+    const plan = '# Plan: add hello.txt\n\n## Steps\n1. Create `hello.txt` with **hi**.\n2. Run `cat hello.txt` to confirm.\n\n## Notes\n- keep it small'
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: { plan } })).toEqual({
+      type: 'plan',
+      sessionId: 's1',
+      plan,
+      steps: ['Create hello.txt with hi.', 'Run cat hello.txt to confirm.', 'keep it small']
+    })
+  })
+
+  it('compaction and API failures become activities', () => {
+    expect(normalize({ ...base, hook_event_name: 'PreCompact', trigger: 'auto' })).toMatchObject({ activity: 'compacting' })
+    expect(normalize({ ...base, hook_event_name: 'PostCompact', trigger: 'auto' })).toMatchObject({ activity: 'thinking' })
+    expect(normalize({ ...base, hook_event_name: 'PostCompact', trigger: 'manual' })).toMatchObject({ activity: 'idle' })
+    expect(normalize({ ...base, hook_event_name: 'StopFailure', error_type: 'rate_limit' })).toMatchObject({ activity: 'blocked', detail: 'rate limit' })
+  })
 })

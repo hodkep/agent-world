@@ -11,7 +11,7 @@ import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
-import { answerTrust, inputReady, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, inputReady, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
@@ -45,6 +45,7 @@ let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
+const planOpen = new Set<string>()
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
 const lastCost = new Map<string, number>()
@@ -120,7 +121,7 @@ function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
 
 function refreshAttention() {
   // Dock badge: things only the user can unblock.
-  app.setBadgeCount(pendingPermissions.size + trustOpen.size)
+  app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size)
   // Keep the machine awake while any live agent is mid-turn.
   const working = agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
   if (working && awakeBlocker === null) awakeBlocker = powerSaveBlocker.start('prevent-app-suspension')
@@ -153,6 +154,7 @@ function trackTurns(e: AgentEvent) {
     persist()
   }
   if (e.type === 'session-start') mailbox.ready(a.id)
+  else if (e.type === 'task' || e.type === 'plan') return
   else if (e.type === 'activity' && !e.subagentId) {
     // A conversation exists once a turn has begun; only then can a relaunch use --resume.
     if (!a.started) {
@@ -194,6 +196,15 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         send('trust-prompt', a.id, null)
         refreshAttention()
       }
+      const plan = !!planMenu(text)
+      if (plan !== planOpen.has(a.id)) {
+        if (plan) {
+          planOpen.add(a.id)
+          notify('permission', a, 'Has a plan ready for your review.')
+        } else planOpen.delete(a.id)
+        send('plan-menu', a.id, plan)
+        refreshAttention()
+      }
     })
   })
   p.onExit(() => {
@@ -211,6 +222,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     lastCost.delete(a.id)
     refreshAttention()
     if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
+    if (planOpen.delete(a.id)) send('plan-menu', a.id, false)
     send('pty-exit', a.id)
     send('agent-event', { type: 'session-end', agentId: a.id, sessionId: a.sessionId })
   })
@@ -244,11 +256,7 @@ async function main() {
       refreshAttention()
       send('permission-settled', id)
     },
-    onStatus: onStats,
-    onPlan: ({ agentId, plan }) => {
-      send('plan', agentId, plan)
-      notify('permission', byId(agentId), 'Has a plan ready for your review.')
-    }
+    onStatus: onStats
   })
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -347,6 +355,22 @@ async function main() {
     screens.get(id)?.resize(cols, rows)
   })
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
+  ipcMain.handle('answer-plan', async (_, id: string, choice: 0 | 1 | 2, feedback?: string) => {
+    const io = {
+      screen: () => screens.get(id)?.text() ?? '',
+      write: (keys: string) => sessions.get(id)?.write(keys),
+      sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+    }
+    if (!(await answerMenu(io, planMenu, choice))) throw new Error('Could not answer the plan menu; answer it in the terminal.')
+    // "Tell Claude what to change" opens an input for the feedback; paste it as one line of plain text.
+    const text = feedback?.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
+    if (choice === 2 && text) {
+      await io.sleep(400)
+      io.write(`\x1b[200~${text}\x1b[201~`)
+      await io.sleep(150)
+      io.write('\r')
+    }
+  })
   ipcMain.on('answer-trust', (_, id: string, trust: boolean) => {
     void answerTrust(
       {

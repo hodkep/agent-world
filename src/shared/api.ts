@@ -46,8 +46,10 @@ export interface AwApi {
   onAgentMessage(cb: (m: AgentMessage) => void): () => void
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
-  /** An agent's plan is ready for review (markdown). */
-  onPlan(cb: (agentId: string, plan: string) => void): () => void
+  /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */
+  onPlanMenu(cb: (agentId: string, open: boolean) => void): () => void
+  /** 0: approve and auto-accept edits · 1: approve, review each edit · 2: keep planning, with feedback. */
+  answerPlan(agentId: string, choice: 0 | 1 | 2, feedback?: string): Promise<void>
   /** A notification was clicked: bring that agent up. */
   onSelectAgent(cb: (agentId: string) => void): () => void
   code: CodeApi

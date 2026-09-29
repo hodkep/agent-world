@@ -7,11 +7,15 @@ export type Activity =
   | 'delegating'
   | 'waiting'
   | 'permission'
+  | 'compacting'
+  | 'blocked'
   | 'asleep'
 
 /** What a hook payload says, in the app's terms. `sessionId` is Claude's, and changes on /clear. */
 export type RawEvent =
-  | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string }
+  | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string; mode?: string }
+  | { type: 'task'; sessionId: string; id: string; subject?: string; status?: TaskStatus }
+  | { type: 'plan'; sessionId: string; plan: string; steps: string[] }
   | { type: 'subagent-start'; sessionId: string; subagentId: string; subagentType: string }
   | { type: 'subagent-stop'; sessionId: string; subagentId: string }
   | { type: 'session-start'; sessionId: string }
@@ -19,6 +23,8 @@ export type RawEvent =
 
 /** A hook event attributed to the agent whose per-agent token sent it. */
 export type AgentEvent = RawEvent & { agentId: string }
+
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
 
 export type Decision = 'allow' | 'deny'
 
