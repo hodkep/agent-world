@@ -4,7 +4,7 @@ import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
-const git = async (cwd: string, ...args: string[]) => (await run('git', args, { cwd })).stdout.trim()
+export const git = async (cwd: string, ...args: string[]) => (await run('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 })).stdout.trim()
 
 export class DirtyWorktreeError extends Error {
   constructor(readonly path: string, readonly status: string) {
@@ -26,8 +26,10 @@ const slug = (repoPath: string) => `${basename(repoPath)}-${createHash('sha1').u
 export async function createWorktree(o: { repoPath: string; name: string; rootDir: string }) {
   const branch = `aw/${o.name}`
   const path = join(o.rootDir, slug(o.repoPath), o.name)
+  // The branch the agent starts from is what its diff is measured against and where it merges back.
+  const base = await git(o.repoPath, 'rev-parse', '--abbrev-ref', 'HEAD')
   await git(o.repoPath, 'worktree', 'add', '-b', branch, path)
-  return { path, branch }
+  return { path, branch, base }
 }
 
 export async function removeWorktree(o: { repoPath: string; path: string; force?: boolean }) {

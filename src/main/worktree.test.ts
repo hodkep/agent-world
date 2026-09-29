@@ -33,6 +33,7 @@ describe('worktrees', () => {
   it('creates an isolated worktree on aw/<name> outside the repo', async () => {
     const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
     expect(wt.branch).toBe('aw/ada')
+    expect(wt.base).toBe('main')
     expect(wt.path.startsWith(join(root, 'my-repo-'))).toBe(true)
     expect(existsSync(join(wt.path, 'README.md'))).toBe(true)
     expect(git(wt.path, 'branch', '--show-current')).toBe('aw/ada')

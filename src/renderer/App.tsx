@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentMessage, AgentRecord, PermissionRequest } from '../shared/types'
+import { CodePanel } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -25,10 +26,13 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(true)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
+  const [view, setView] = useState<'terminal' | 'code'>('terminal')
+  const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
   const select = (id: string) => {
     setSelected(id)
+    setView('terminal')
     setFocusTick((n) => n + 1)
   }
   const stage = useRef<HTMLDivElement>(null)
@@ -159,7 +163,7 @@ export function App() {
       </header>
       <main>
         <div className="stage" ref={stage} />
-        <aside hidden={!showPanel}>
+        <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
           {pendingTrust.length > 0 && (
             <section className="asks" aria-label="Workspace trust">
               {pendingTrust.map(([agentId, path]) => (
@@ -256,11 +260,25 @@ export function App() {
               ))}
             </section>
           )}
-          <div className="terminals">
+          {current && (
+            <div className="tabs" role="tablist" aria-label="Agent view">
+              <button role="tab" aria-selected={view === 'terminal'} onClick={() => (setView('terminal'), setFocusTick((n) => n + 1))}>
+                Terminal
+              </button>
+              <button role="tab" aria-selected={view === 'code'} onClick={() => setView('code')}>
+                Code
+              </button>
+              <button className="push" onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
+                {wide ? 'Narrow' : 'Expand'}
+              </button>
+            </div>
+          )}
+          <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
-              <TerminalView key={a.id} agentId={a.id} visible={a.id === selected} focusTick={focusTick} />
+              <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
+          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} />}
         </aside>
       </main>
     </div>

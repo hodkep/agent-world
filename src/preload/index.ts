@@ -26,7 +26,18 @@ const api: AwApi = {
   onPermission: on('permission'),
   onPermissionSettled: on('permission-settled'),
   onTrustPrompt: on('trust-prompt'),
-  onAgentMessage: on('agent-message')
+  onAgentMessage: on('agent-message'),
+  code: {
+    changes: (id) => ipcRenderer.invoke('code:changes', id),
+    diff: (id, path) => ipcRenderer.invoke('code:diff', id, path),
+    files: (id) => ipcRenderer.invoke('code:files', id),
+    read: (id, path) => ipcRenderer.invoke('code:read', id, path),
+    write: (id, path, content) => ipcRenderer.invoke('code:write', id, path, content),
+    commit: (id, message) => ipcRenderer.invoke('code:commit', id, message),
+    discard: (id, path) => ipcRenderer.invoke('code:discard', id, path),
+    merge: (id) => ipcRenderer.invoke('code:merge', id),
+    pr: (id) => ipcRenderer.invoke('code:pr', id)
+  }
 }
 
 contextBridge.exposeInMainWorld('aw', api)

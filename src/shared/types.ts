@@ -32,6 +32,8 @@ export interface AgentRecord {
   repoPath: string
   cwd: string
   branch: string | null
+  /** Branch the worktree was created from; null for agents working directly in a folder. */
+  base?: string | null
   // Whether a claude session with this id has been started before, so relaunch must use --resume.
   started: boolean
 }

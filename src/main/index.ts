@@ -14,7 +14,8 @@ import { answerTrust, inputReady, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
-import { DirtyWorktreeError, createWorktree, isGitRepo, removeWorktree } from './worktree'
+import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { DirtyWorktreeError, createWorktree, git, isGitRepo, removeWorktree } from './worktree'
 
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 const AGENTS_FILE = join(HOME, 'agents.json')
@@ -173,7 +174,7 @@ async function main() {
   ipcMain.handle('add-agent', async (_, folder: string) => {
     const name = nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, started: false }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -199,6 +200,37 @@ async function main() {
     buffers.delete(id)
     persist()
     return { ok: true }
+  })
+  // Code operations act on one agent's worktree; every handler resolves the agent first.
+  const worktreeOf = async (id: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    if (!a.branch) throw new Error(`${a.name} works directly in ${a.cwd}, not in a git worktree.`)
+    return { a, base: a.base ?? (await git(a.repoPath, 'rev-parse', '--abbrev-ref', 'HEAD')) }
+  }
+  ipcMain.handle('code:changes', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    return { base, branch: a.branch, files: await changes(a.cwd, base) }
+  })
+  ipcMain.handle('code:diff', async (_, id: string, path: string) => {
+    const { a, base } = await worktreeOf(id)
+    const current = await readWorktreeFile(a.cwd, path).catch(() => '')
+    return { original: await originalContent(a.cwd, base, path), current }
+  })
+  ipcMain.handle('code:files', async (_, id: string) => listFiles((await worktreeOf(id)).a.cwd))
+  ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile((await worktreeOf(id)).a.cwd, path))
+  ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await worktreeOf(id)).a.cwd, path, content))
+  ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await worktreeOf(id)).a.cwd, message))
+  ipcMain.handle('code:discard', async (_, id: string, path: string) => discardFile((await worktreeOf(id)).a.cwd, path))
+  ipcMain.handle('code:merge', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    await mergeInto(a.repoPath, a.branch!, base)
+    return base
+  })
+  ipcMain.handle('code:pr', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    await pushBranch(a.cwd, a.branch!)
+    return createPr(a.cwd, a.branch!, base)
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => sessions.get(id)?.write(data))

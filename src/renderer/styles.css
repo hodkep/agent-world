@@ -85,3 +85,34 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .message.is-queued .status { color: var(--accent); }
 .message.is-delivered .status { color: var(--ok); }
 .message.is-dropped .status { color: var(--danger); }
+aside.wide { width: min(72vw, 1200px); }
+.terminals[hidden] { display: none; }
+.tabs { display: flex; gap: 4px; padding: 6px 8px 0; border-bottom: 2px solid var(--ink); }
+.tabs [role='tab'] { border-bottom: none; }
+.tabs [role='tab'][aria-selected='true'] { background: #0c0b12; color: var(--accent); }
+.code { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.code > .tabs { padding-top: 6px; }
+.changes { flex: 1; min-height: 0; display: flex; }
+.change-list { width: 240px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-right: 2px solid var(--ink); min-height: 0; }
+aside:not(.wide) .change-list { width: 190px; }
+.change-list ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
+.change-list li { display: flex; }
+.change-list li.on .file { background: #2e2a18; border-color: var(--accent); }
+.change-list .file { flex: 1; min-width: 0; text-align: left; font-family: Menlo, Consolas, monospace; font-size: 12px; padding: 3px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: none; border-color: transparent; background: transparent; }
+.change-list .file .mark { display: inline-block; width: 14px; font-weight: 700; }
+.change-list .file .dir { color: var(--muted); }
+.is-added .mark { color: var(--ok); }
+.is-modified .mark { color: var(--accent); }
+.is-deleted .mark { color: var(--danger); }
+.change-list .discard { padding: 0 6px; box-shadow: none; background: transparent; border-color: transparent; color: var(--muted); }
+.change-list .discard:hover { color: var(--danger); }
+.change-list .empty { color: var(--muted); padding: 6px; }
+.change-head { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.change-head button { margin-left: auto; padding: 0 6px; }
+.change-list input { font: inherit; color: var(--text); background: #0c0b12; border: 2px solid var(--ink); padding: 4px 6px; min-width: 0; }
+.change-list input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.land { display: flex; gap: 6px; flex-wrap: wrap; }
+.land input { flex: 1; }
+.notice { color: var(--ok); margin: 0; font-size: 12px; word-break: break-all; }
+.change-list .error { margin: 0; font-size: 12px; }
+.diff { flex: 1; min-width: 0; min-height: 0; }
