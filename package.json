@@ -1,0 +1,43 @@
+{
+  "name": "agent-world",
+  "version": "0.0.1",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "test": "vitest run",
+    "test:e2e": "electron-vite build && playwright test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "postinstall": "electron-rebuild -f -w node-pty"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "node-pty"
+    ]
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.4.5",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0",
+    "pixi.js": "^8.21.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}

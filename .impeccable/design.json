@@ -1,0 +1,665 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-29T16:42:14.255297+00:00",
+  "title": "Design System: agent-world",
+  "extensions": {
+    "colorMeta": {
+      "night-bg": {
+        "role": "neutral",
+        "displayName": "Night Bg",
+        "canonical": "#12101a",
+        "tonalRamp": [
+          "#211d2f",
+          "#3a3353",
+          "#534a78",
+          "#6c609c",
+          "#8d83b3",
+          "#aea7c9",
+          "#cfcbdf",
+          "#f0eff5"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#1a1726",
+        "tonalRamp": [
+          "#211d30",
+          "#393354",
+          "#524978",
+          "#6b5f9d",
+          "#8c82b3",
+          "#ada6c9",
+          "#cfcbdf",
+          "#f0eff5"
+        ]
+      },
+      "panel-raised": {
+        "role": "neutral",
+        "displayName": "Panel Raised",
+        "canonical": "#221e33",
+        "tonalRamp": [
+          "#201c30",
+          "#393255",
+          "#51487a",
+          "#6a5d9e",
+          "#8b81b5",
+          "#ada6ca",
+          "#cecae0",
+          "#f0eff6"
+        ]
+      },
+      "navy-line": {
+        "role": "neutral",
+        "displayName": "Navy Line",
+        "canonical": "#2c3350",
+        "tonalRamp": [
+          "#1b1f31",
+          "#303757",
+          "#454f7d",
+          "#5967a2",
+          "#7e89b8",
+          "#a3abcd",
+          "#c9cee1",
+          "#eff0f6"
+        ]
+      },
+      "rim-ink": {
+        "role": "neutral",
+        "displayName": "Rim Ink",
+        "canonical": "#08070c",
+        "tonalRamp": [
+          "#201c30",
+          "#393255",
+          "#51477a",
+          "#6a5d9f",
+          "#8b80b5",
+          "#ada5cb",
+          "#cecae0",
+          "#f0eff6"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Text",
+        "canonical": "#e4e4ee",
+        "tonalRamp": [
+          "#1e1e2f",
+          "#343453",
+          "#4b4b76",
+          "#61619a",
+          "#8484b2",
+          "#a8a8c8",
+          "#ccccdf",
+          "#efeff5"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#a4a2b8",
+        "tonalRamp": [
+          "#22212b",
+          "#3c3a4c",
+          "#56546d",
+          "#706d8f",
+          "#908da8",
+          "#b0aec1",
+          "#d1cfdb",
+          "#f1f1f4"
+        ]
+      },
+      "brass": {
+        "role": "primary",
+        "displayName": "Brass",
+        "canonical": "#f2c230",
+        "tonalRamp": [
+          "#483705",
+          "#7f6108",
+          "#b68c0b",
+          "#edb60f",
+          "#f3c742",
+          "#f7d879",
+          "#fae8b0",
+          "#fdf8e7"
+        ]
+      },
+      "wood": {
+        "role": "neutral",
+        "displayName": "Wood",
+        "canonical": "#8e5b34",
+        "tonalRamp": [
+          "#382415",
+          "#633f24",
+          "#8d5b34",
+          "#b87643",
+          "#c9956c",
+          "#d9b497",
+          "#e9d3c2",
+          "#f8f1ec"
+        ]
+      },
+      "alarm-red": {
+        "role": "tertiary",
+        "displayName": "Alarm Red",
+        "canonical": "#d83a3a",
+        "tonalRamp": [
+          "#400d0d",
+          "#711616",
+          "#a12020",
+          "#d22a2a",
+          "#de5858",
+          "#e88888",
+          "#f1b9b9",
+          "#fbeaea"
+        ]
+      },
+      "work-green": {
+        "role": "tertiary",
+        "displayName": "Work Green",
+        "canonical": "#5f9e5f",
+        "tonalRamp": [
+          "#1d301d",
+          "#335433",
+          "#487948",
+          "#5e9d5e",
+          "#82b482",
+          "#a6caa6",
+          "#cbe0cb",
+          "#eff5ef"
+        ]
+      },
+      "think-cyan": {
+        "role": "tertiary",
+        "displayName": "Think Cyan",
+        "canonical": "#6ad0e0",
+        "tonalRamp": [
+          "#0d393f",
+          "#176470",
+          "#218fa0",
+          "#2bbad0",
+          "#59cbdc",
+          "#89dae7",
+          "#bae9f1",
+          "#eaf8fb"
+        ]
+      },
+      "select-gold": {
+        "role": "secondary",
+        "displayName": "Select Gold",
+        "canonical": "#ffe066",
+        "tonalRamp": [
+          "#4c3d00",
+          "#876b00",
+          "#c19a00",
+          "#fbc800",
+          "#ffd637",
+          "#ffe271",
+          "#ffeeab",
+          "#fffae6"
+        ]
+      },
+      "object-ink": {
+        "role": "neutral",
+        "displayName": "Object Ink",
+        "canonical": "#14111c",
+        "tonalRamp": [
+          "#221d30",
+          "#3c3354",
+          "#564978",
+          "#705f9c",
+          "#9082b3",
+          "#b0a7c9",
+          "#d0cbdf",
+          "#f1eff5"
+        ]
+      },
+      "figure-ink": {
+        "role": "neutral",
+        "displayName": "Figure Ink",
+        "canonical": "#1a1522",
+        "tonalRamp": [
+          "#241d2f",
+          "#403353",
+          "#5b4a77",
+          "#77609b",
+          "#9583b2",
+          "#b4a7c9",
+          "#d3cbdf",
+          "#f2eff5"
+        ]
+      },
+      "wall-navy": {
+        "role": "neutral",
+        "displayName": "Wall Navy",
+        "canonical": "#2c3350",
+        "tonalRamp": [
+          "#1b1f31",
+          "#303757",
+          "#454f7d",
+          "#5967a2",
+          "#7e89b8",
+          "#a3abcd",
+          "#c9cee1",
+          "#eff0f6"
+        ]
+      },
+      "wall-trim": {
+        "role": "neutral",
+        "displayName": "Wall Trim",
+        "canonical": "#3c4568",
+        "tonalRamp": [
+          "#1c2031",
+          "#313955",
+          "#47517a",
+          "#5c6a9f",
+          "#808bb6",
+          "#a5adcb",
+          "#cacee0",
+          "#eff0f6"
+        ]
+      },
+      "plank-a": {
+        "role": "neutral",
+        "displayName": "Plank A",
+        "canonical": "#8e5b34",
+        "tonalRamp": [
+          "#382415",
+          "#633f24",
+          "#8d5b34",
+          "#b87643",
+          "#c9956c",
+          "#d9b497",
+          "#e9d3c2",
+          "#f8f1ec"
+        ]
+      },
+      "plank-b": {
+        "role": "neutral",
+        "displayName": "Plank B",
+        "canonical": "#87552f",
+        "tonalRamp": [
+          "#392414",
+          "#643f23",
+          "#8f5a32",
+          "#ba7541",
+          "#cb946a",
+          "#dab396",
+          "#e9d2c1",
+          "#f8f1ec"
+        ]
+      },
+      "plank-c": {
+        "role": "neutral",
+        "displayName": "Plank C",
+        "canonical": "#94613a",
+        "tonalRamp": [
+          "#372416",
+          "#613f26",
+          "#8b5b36",
+          "#b57647",
+          "#c7956f",
+          "#d7b499",
+          "#e7d3c3",
+          "#f8f2ed"
+        ]
+      },
+      "plank-seam": {
+        "role": "neutral",
+        "displayName": "Plank Seam",
+        "canonical": "#6a4124",
+        "tonalRamp": [
+          "#392313",
+          "#653e22",
+          "#905831",
+          "#bc7340",
+          "#cc9269",
+          "#dbb295",
+          "#ead2c0",
+          "#f9f1ec"
+        ]
+      },
+      "lounge-carpet": {
+        "role": "neutral",
+        "displayName": "Lounge Carpet",
+        "canonical": "#4a6a96",
+        "tonalRamp": [
+          "#192433",
+          "#2d405a",
+          "#405b81",
+          "#5377a8",
+          "#7995bd",
+          "#a0b4d0",
+          "#c7d3e3",
+          "#eef2f7"
+        ]
+      },
+      "check-light": {
+        "role": "neutral",
+        "displayName": "Check Light",
+        "canonical": "#e4e4ec",
+        "tonalRamp": [
+          "#20202d",
+          "#38384f",
+          "#505071",
+          "#686894",
+          "#8989ac",
+          "#acacc4",
+          "#cecedc",
+          "#f0f0f4"
+        ]
+      },
+      "check-dark": {
+        "role": "neutral",
+        "displayName": "Check Dark",
+        "canonical": "#26262f",
+        "tonalRamp": [
+          "#22222a",
+          "#3c3c4b",
+          "#56566b",
+          "#70708b",
+          "#9090a5",
+          "#b0b0bf",
+          "#d1d1da",
+          "#f1f1f4"
+        ]
+      },
+      "server-floor": {
+        "role": "neutral",
+        "displayName": "Server Floor",
+        "canonical": "#3a3f4d",
+        "tonalRamp": [
+          "#21242c",
+          "#3a3f4d",
+          "#535a6e",
+          "#6c758f",
+          "#8d94a9",
+          "#aeb3c2",
+          "#cfd2db",
+          "#f0f1f4"
+        ]
+      },
+      "desk-top": {
+        "role": "neutral",
+        "displayName": "Desk Top",
+        "canonical": "#c68e57",
+        "tonalRamp": [
+          "#392613",
+          "#654322",
+          "#906031",
+          "#bc7d40",
+          "#cc9a69",
+          "#dbb895",
+          "#ead5c0",
+          "#f9f2ec"
+        ]
+      },
+      "crt-shell": {
+        "role": "neutral",
+        "displayName": "Crt Shell",
+        "canonical": "#d9d5c8",
+        "tonalRamp": [
+          "#2d2a1f",
+          "#504a37",
+          "#726a4f",
+          "#958a67",
+          "#ada589",
+          "#c5bfab",
+          "#ddd9cd",
+          "#f5f3f0"
+        ]
+      },
+      "raspberry-sofa": {
+        "role": "neutral",
+        "displayName": "Raspberry Sofa",
+        "canonical": "#b03f5e",
+        "tonalRamp": [
+          "#38141e",
+          "#632435",
+          "#8e334c",
+          "#b94263",
+          "#ca6b85",
+          "#da96a9",
+          "#e9c1cc",
+          "#f8ecf0"
+        ]
+      },
+      "leaf": {
+        "role": "neutral",
+        "displayName": "Leaf",
+        "canonical": "#3f8f4f",
+        "tonalRamp": [
+          "#17351d",
+          "#295e34",
+          "#3b864a",
+          "#4dae60",
+          "#74c283",
+          "#9cd4a7",
+          "#c5e5cb",
+          "#edf7ef"
+        ]
+      },
+      "rack": {
+        "role": "neutral",
+        "displayName": "Rack",
+        "canonical": "#2a2e39",
+        "tonalRamp": [
+          "#20242c",
+          "#393f4e",
+          "#525a6f",
+          "#6b7591",
+          "#8c94aa",
+          "#adb3c3",
+          "#cfd2db",
+          "#f0f1f4"
+        ]
+      },
+      "bubble-paper": {
+        "role": "neutral",
+        "displayName": "Bubble Paper",
+        "canonical": "#f6f6fa",
+        "tonalRamp": [
+          "#1b1b31",
+          "#303057",
+          "#45457c",
+          "#5a5aa2",
+          "#7e7eb7",
+          "#a4a4cc",
+          "#c9c9e1",
+          "#efeff6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "Header brand, bitmap font at 3x via PixelWord."
+      },
+      "world-label": {
+        "displayName": "World Label",
+        "purpose": "Character name tags on the canvas."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Panel copy and buttons."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Agent names."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Terminal-derived strings."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Live role value only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "button-bevel",
+        "value": "inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25)",
+        "purpose": "Shell buttons at rest."
+      },
+      {
+        "name": "button-pressed",
+        "value": "inset 0 2px 0 rgb(0 0 0 / 0.3)",
+        "purpose": "Active button."
+      },
+      {
+        "name": "dot-rim",
+        "value": "0 0 0 2px var(--ink)",
+        "purpose": "Roster state dot rim."
+      },
+      {
+        "name": "world-drop",
+        "value": "black rect, alpha 0.22 furniture / 0.4 characters",
+        "purpose": "Hard pixel shadows under objects in the canvas."
+      }
+    ],
+    "motion": [
+      {
+        "name": "permission-blink",
+        "value": "steps(2) 0.6s infinite",
+        "purpose": "Roster permission dot; off under reduced motion."
+      },
+      {
+        "name": "walk",
+        "value": "5 tiles/s, frame swap 130ms",
+        "purpose": "Character walk cycle."
+      },
+      {
+        "name": "breathe",
+        "value": "1px every 700ms",
+        "purpose": "Idle life."
+      },
+      {
+        "name": "blink",
+        "value": "140ms every 4000ms",
+        "purpose": "Eye blink."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "panel",
+        "value": "min(38vw, 560px)"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default square bevelled shell button.",
+      "html": "<button class=\"ds-btn\">Deny</button>",
+      "css": ".ds-btn{font:13px ui-sans-serif,system-ui,sans-serif;color:var(--text,#e4e4ee);background:var(--panel-2,#221e33);border:2px solid var(--ink,#08070c);border-radius:0;padding:4px 10px;cursor:pointer;box-shadow:inset 0 2px 0 rgb(255 255 255/.06),inset 0 -2px 0 rgb(0 0 0/.25)}.ds-btn:hover{background:#2c2742}.ds-btn:active{box-shadow:inset 0 2px 0 rgb(0 0 0/.3)}.ds-btn:focus-visible{outline:2px solid var(--accent,#f2c230);outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one brass action per context.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Approve</button>",
+      "css": ".ds-btn{font:13px ui-sans-serif,system-ui,sans-serif;color:var(--text,#e4e4ee);background:var(--panel-2,#221e33);border:2px solid var(--ink,#08070c);border-radius:0;padding:4px 10px;cursor:pointer;box-shadow:inset 0 2px 0 rgb(255 255 255/.06),inset 0 -2px 0 rgb(0 0 0/.25)}.ds-btn:hover{background:#2c2742}.ds-btn:active{box-shadow:inset 0 2px 0 rgb(0 0 0/.3)}.ds-btn:focus-visible{outline:2px solid var(--accent,#f2c230);outline-offset:2px}.ds-btn-primary{background:var(--accent,#f2c230);color:var(--ink,#08070c);font-weight:700}.ds-btn-primary:hover{background:#f8d04c}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Only for destroying work.",
+      "html": "<button class=\"ds-btn ds-btn-danger\">Discard changes</button>",
+      "css": ".ds-btn{font:13px ui-sans-serif,system-ui,sans-serif;color:var(--text,#e4e4ee);background:var(--panel-2,#221e33);border:2px solid var(--ink,#08070c);border-radius:0;padding:4px 10px;cursor:pointer;box-shadow:inset 0 2px 0 rgb(255 255 255/.06),inset 0 -2px 0 rgb(0 0 0/.25)}.ds-btn:hover{background:#2c2742}.ds-btn:active{box-shadow:inset 0 2px 0 rgb(0 0 0/.3)}.ds-btn:focus-visible{outline:2px solid var(--accent,#f2c230);outline-offset:2px}.ds-btn-danger{background:var(--danger,#d83a3a)}"
+    },
+    {
+      "name": "Roster Row",
+      "kind": "nav",
+      "refersTo": "agent-row",
+      "description": "Agent list row: state dot, name, live role label, mono activity.",
+      "html": "<button class=\"ds-row\" aria-pressed=\"true\"><span class=\"ds-dot\"></span><b>margaret</b><span class=\"ds-role\">senior</span><span class=\"ds-act\">running</span></button>",
+      "css": ".ds-row{font:13px ui-sans-serif,system-ui,sans-serif;color:var(--text,#e4e4ee);background:var(--panel-2,#221e33);border:2px solid var(--ink,#08070c);border-radius:0;padding:4px 10px;cursor:pointer;box-shadow:inset 0 2px 0 rgb(255 255 255/.06),inset 0 -2px 0 rgb(0 0 0/.25)}.ds-row:hover{background:#2c2742}.ds-row:active{box-shadow:inset 0 2px 0 rgb(0 0 0/.3)}.ds-row:focus-visible{outline:2px solid var(--accent,#f2c230);outline-offset:2px}.ds-row{display:grid;grid-template-columns:10px 1fr auto 96px;gap:8px;align-items:center;text-align:left;padding:5px 8px;width:360px}.ds-row[aria-pressed=true]{background:#2e2a18;border-color:#f2c230}.ds-dot{width:8px;height:8px;background:#5f9e5f;box-shadow:0 0 0 2px #08070c}.ds-role{color:#f2c230;text-transform:uppercase;font-size:11px;letter-spacing:.08em}.ds-act{color:#a4a2b8;font:12px Menlo,Consolas,monospace}"
+    },
+    {
+      "name": "Permission Band",
+      "kind": "card",
+      "refersTo": "permission-band",
+      "description": "Pending permission request at the top of the panel.",
+      "html": "<div class=\"ds-ask\"><div><b>grace</b> wants <code>Bash</code><div class=\"ds-detail\">rm -rf dist</div></div><button class=\"ds-btn ds-btn-primary\">Approve</button><button class=\"ds-btn\">Deny</button></div>",
+      "css": ".ds-btn{font:13px ui-sans-serif,system-ui,sans-serif;color:var(--text,#e4e4ee);background:var(--panel-2,#221e33);border:2px solid var(--ink,#08070c);border-radius:0;padding:4px 10px;cursor:pointer;box-shadow:inset 0 2px 0 rgb(255 255 255/.06),inset 0 -2px 0 rgb(0 0 0/.25)}.ds-btn:hover{background:#2c2742}.ds-btn:active{box-shadow:inset 0 2px 0 rgb(0 0 0/.3)}.ds-btn:focus-visible{outline:2px solid var(--accent,#f2c230);outline-offset:2px}.ds-btn-primary{background:#f2c230;color:#08070c;font-weight:700}.ds-ask{display:flex;gap:8px;align-items:center;background:#2a1620;color:#e4e4ee;padding:10px 12px;border-bottom:2px solid #08070c;font:13px ui-sans-serif,system-ui,sans-serif}.ds-ask>div{flex:1}.ds-detail{color:#a4a2b8;font:12px Menlo,Consolas,monospace}"
+    },
+    {
+      "name": "Name Tag",
+      "kind": "custom",
+      "refersTo": "name-tag",
+      "description": "World name tag: bitmap label on translucent ink plate (shown at 4x).",
+      "html": "<span class=\"ds-tag\">MARGARET</span>",
+      "css": ".ds-tag{display:inline-block;background:rgb(12 10 18/.82);color:#ffe066;font:bold 10px Menlo,monospace;letter-spacing:.1em;padding:2px 6px;border-radius:0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night-Shift Office",
+    "overview": "A top-down 16px pixel office seen after dark: wood-plank workroom under a navy back wall, CRT desks, a meeting table, a server closet with blinking racks, a blue-carpet lounge with raspberry sofas, a checker kitchen, all inked with thick near-black room outlines and set in a grass-and-road exterior. Every pixel is drawn in code; nothing is a raster asset. The world is the interface: where a character stands, what its screen shows and what floats over its head are the agent's state.\n\nThe app shell around the canvas is lifted from the same building. Its surfaces are the night sky and navy wall, its accent is the brass of the boss's crown and the wordmark, its edges are the same 2px ink rim the rooms wear. The shell is quiet and dense so the office carries the colour; it never becomes a dashboard of status cards.",
+    "keyCharacteristics": [
+      "Place = state: activity is read from location, screen animation and bubble, not from badges.",
+      "Integer device-pixel scaling; every art pixel is the same size on every screen.",
+      "One 16px tile grid; characters are 16x24 sprites standing with feet on the tile's bottom edge.",
+      "One bitmap font (3x5, 5 wide for m/n/w) shared by world labels and the shell wordmark.",
+      "Hard ink outlines everywhere: 1px on objects and figures, 2px on rooms and shell chrome.",
+      "Zero radius, zero gradients, stepped (never eased) animation."
+    ],
+    "rules": [
+      {
+        "name": "The One Building Rule",
+        "body": "Every room colour comes from the one `P` palette, and the shell's neutrals are taken from it (night, navy wall, wood, brass). A new room or panel adds to `P` or `:root`; it never brings its own hexes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Same Meaning Rule",
+        "body": "A state colour means the same state in the world and the panel: red is permission in the roster dot, the bubble and the monitor. Never reuse alarm red for decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Font Rule",
+        "body": "Any text drawn inside the world, or any display text in the shell, uses the bitmap font at integer scale. No anti-aliased type on the canvas.",
+        "section": "typography"
+      },
+      {
+        "name": "The Live Label Rule",
+        "body": "The uppercase brass label only ever carries a live data value (the agent's role). It is not a section heading or eyebrow.",
+        "section": "typography"
+      },
+      {
+        "name": "The Integer Pixel Rule",
+        "body": "Scale is an integer in device pixels, divided by devicePixelRatio for layout; textures use nearest filtering and antialias is off. Never fractional-scale the art.",
+        "section": "layout"
+      },
+      {
+        "name": "The Place Is State Rule",
+        "body": "Activity picks the spot (`purposeFor` in World.ts): running goes to the server consoles; interns work at the meeting-table laptops; waiting goes to the coffee machine; idle and asleep go to the lounge sofas; delegating stands at the head of the meeting table; everything else (thinking, researching, implementing, permission) sits at the agent's own CRT desk. Desk and intern seats are permanent homes; other spots are borrowed and released. New agents enter through the front door; leaving agents walk out of it.",
+        "section": "layout"
+      },
+      {
+        "name": "The Inked Edge Rule",
+        "body": "Every drawn object gets a 1px dark rim and every room a 2px one; that rim is what keeps things legible at 2-3x. Shell chrome follows it with 2px rim-ink borders.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** draw every new asset in code on the 16px grid, with a 1px ink rim, from the `P` palette.",
+      "**Do** map every new visual state to a real agent state and a place in the office, and mirror it in the side panel.",
+      "**Do** keep scale integer in device pixels and filtering nearest.",
+      "**Do** render world text and display text with the bitmap font.",
+      "**Do** keep shell chrome to 2px rim-ink borders, 0 radius and the inset bevel.",
+      "**Do** step animations (frame swaps, `steps()`), and stop blinking under reduced motion."
+    ],
+    "donts": [
+      "**Don't** show agent state as a grid of status cards or badges; it lives in the office.",
+      "**Don't** import raster art, sprite sheets or icon fonts.",
+      "**Don't** round corners, add gradients, or use soft cast shadows in the shell.",
+      "**Don't** use alarm red or brass for decoration; they mean permission and primary/rank.",
+      "**Don't** let a tag or bubble cover another; route new overlays through `spread`.",
+      "**Don't** hide the permission queue behind a collapsed panel."
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+import { describe, expect, it } from 'vitest'
+import { hookSettings, launchArgs } from './claude'
+
+describe('claude launch', () => {
+  it('starts a fresh session with a fixed id and name', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).toEqual([
+      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json'
+    ])
+  })
+
+  it('resumes a session that already ran', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: true, settingsFile: '/s.json' })).toEqual([
+      '--resume', 'abc', '--settings', '/s.json'
+    ])
+  })
+
+  it('routes every watched event to our HTTP hook with the token', () => {
+    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', permissionTimeoutSec: 300 })
+    const pre = s.hooks.PreToolUse[0]!.hooks[0]!
+    expect(pre).toMatchObject({ type: 'http', url: 'http://127.0.0.1:9/hook', headers: { Authorization: 'Bearer t0k' } })
+    expect(Object.keys(s.hooks).sort()).toEqual(
+      ['Notification', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SessionEnd', 'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit'].sort()
+    )
+  })
+
+  it('gives Claude a longer permission hook timeout than ours, so our fallback answer always lands first', () => {
+    const s = hookSettings({ url: 'u', token: 't', permissionTimeoutSec: 300 })
+    expect(s.hooks.PermissionRequest[0]!.hooks[0]!.timeout).toBeGreaterThan(300)
+    expect(s.hooks.PreToolUse[0]!.hooks[0]!.timeout).toBeLessThanOrEqual(5)
+  })
+})

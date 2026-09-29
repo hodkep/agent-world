@@ -1,0 +1,100 @@
+import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import type { AgentEvent, Decision, PermissionRequest } from '../shared/types'
+import { describeTool, normalize } from './events'
+
+// Write tool payloads carry whole files; anything past this is not a legit hook call.
+const MAX_BODY = 10 * 1024 * 1024
+
+interface Options {
+  token: string
+  permissionTimeoutMs: number
+  onEvent: (e: AgentEvent) => void
+  onPermission: (r: PermissionRequest) => void
+  onPermissionSettled: (id: string) => void
+}
+
+function readBody(req: IncomingMessage): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    let size = 0
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => {
+      size += c.length
+      if (size > MAX_BODY) {
+        resolve(null)
+        req.destroy()
+      } else chunks.push(c)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
+function authorized(req: IncomingMessage, token: string) {
+  const got = Buffer.from(req.headers.authorization ?? '')
+  const want = Buffer.from(`Bearer ${token}`)
+  return got.length === want.length && timingSafeEqual(got, want)
+}
+
+export async function startHookServer(o: Options) {
+  const pending = new Map<string, (d: Decision | null) => void>()
+
+  const holdPermission = (payload: Record<string, unknown>, res: ServerResponse) => {
+    const id = randomUUID()
+    const sessionId = String(payload.session_id)
+    const subagentId = typeof payload.agent_id === 'string' ? payload.agent_id : undefined
+    const tool = typeof payload.tool_name === 'string' ? payload.tool_name : 'unknown'
+    const detail = describeTool(payload.tool_input) ?? tool
+
+    const settle = (d: Decision | null) => {
+      if (!pending.delete(id)) return
+      clearTimeout(timer)
+      o.onPermissionSettled(id)
+      // An empty answer means "no decision": Claude shows its own terminal dialog instead.
+      if (d) res.setHeader('content-type', 'application/json').end(
+        JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: d } } })
+      )
+      else res.end()
+    }
+    const timer = setTimeout(() => settle(null), o.permissionTimeoutMs)
+    pending.set(id, settle)
+    res.on('close', () => settle(null))
+
+    o.onEvent({ type: 'activity', sessionId, ...(subagentId && { subagentId }), activity: 'permission', tool, detail })
+    o.onPermission({ id, sessionId, tool, detail })
+  }
+
+  const server = createServer(async (req, res) => {
+    if (req.method !== 'POST' || req.url !== '/hook') return void res.writeHead(404).end()
+    if (!authorized(req, o.token)) return void res.writeHead(401).end()
+    const body = await readBody(req)
+    if (body === null) return void res.writeHead(413).end()
+
+    let payload: unknown
+    try {
+      payload = JSON.parse(body)
+    } catch {
+      return void res.writeHead(400).end()
+    }
+    const p = payload as Record<string, unknown>
+    if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') return holdPermission(p, res)
+
+    const event = normalize(payload)
+    if (event) o.onEvent(event)
+    res.writeHead(200).end()
+  })
+
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  const { port } = server.address() as AddressInfo
+
+  return {
+    url: `http://127.0.0.1:${port}/hook`,
+    decide: (id: string, d: Decision) => pending.get(id)?.(d),
+    close: () => {
+      for (const settle of [...pending.values()]) settle(null)
+      server.closeAllConnections()
+      server.close()
+    }
+  }
+}
