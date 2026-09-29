@@ -3,6 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
@@ -33,6 +34,7 @@ export function App() {
   const [hiring, setHiring] = useState(false)
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [feedback, setFeedback] = useState('')
+  const [palette, setPalette] = useState(false)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
@@ -97,6 +99,16 @@ export function App() {
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && current) {
+        e.preventDefault()
+        setPalette(true)
+      }
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [current])
   // A pending permission must never sit behind a collapsed panel.
   const pendingTrust = Object.entries(trusts)
   const pendingPlans = agents.filter((a) => planMenus[a.id])
@@ -163,6 +175,17 @@ export function App() {
 
   return (
     <div className="app">
+      {palette && current && (
+        <Palette
+          agentId={current.id}
+          agentName={current.name}
+          onClose={() => {
+            setPalette(false)
+            setFocusTick((n) => n + 1)
+          }}
+          onRun={(name, args) => run(() => window.aw.runCommand(current.id, name, args))}
+        />
+      )}
       <header>
         <h1>
           <PixelWord text="agent world" />
@@ -335,6 +358,11 @@ export function App() {
                 )}
               </div>
               {(state?.activity ?? 'asleep') === 'asleep' && <button onClick={() => wake(current)}>Wake</button>}
+              {(state?.activity ?? 'asleep') !== 'asleep' && (
+                <button onClick={() => setPalette(true)} title="Run a command, skill or custom slash command (⌘K)">
+                  Commands
+                </button>
+              )}
               <button onClick={() => remove(current.id)}>Remove</button>
             </section>
           ) : (

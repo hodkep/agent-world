@@ -155,3 +155,15 @@ aside:not(.wide) .change-list { width: 190px; }
 .task.is-completed { color: var(--muted); text-decoration: line-through; }
 .task.is-completed .mark { background: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.palette { padding: 0; width: min(640px, 90vw); background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
+.palette::backdrop { background: rgb(8 7 12 / 0.55); }
+.palette input { width: 100%; font: inherit; font-size: 15px; color: var(--text); background: #0c0b12; border: 0; border-bottom: 2px solid var(--ink); padding: 12px 14px; }
+.palette input:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+.palette ul { list-style: none; margin: 0; padding: 4px; max-height: 50vh; overflow: auto; }
+.palette li { display: grid; grid-template-columns: minmax(120px, auto) 1fr auto; gap: 10px; align-items: baseline; padding: 6px 10px; cursor: pointer; }
+.palette li[aria-selected='true'] { background: #2e2a18; outline: 1px solid var(--accent); outline-offset: -1px; }
+.palette .name { font-family: Menlo, Consolas, monospace; color: var(--accent); }
+.palette .desc { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .src { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.palette .empty { color: var(--muted); cursor: default; }

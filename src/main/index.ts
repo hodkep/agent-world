@@ -9,6 +9,7 @@ import type { RemoveResult } from '../shared/api'
 import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
+import { commandLine, listCommands } from './commands'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { answerMenu, answerTrust, inputReady, planMenu, trustPrompt } from './prompts'
@@ -355,6 +356,16 @@ async function main() {
     screens.get(id)?.resize(cols, rows)
   })
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
+  ipcMain.handle('list-commands', (_, id: string) => {
+    const a = byId(id)
+    return a ? listCommands(a.cwd, homedir()) : []
+  })
+  ipcMain.handle('run-command', (_, id: string, name: string, args: string) => {
+    const p = sessions.get(id)
+    if (!p) throw new Error('That agent is not running.')
+    if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
+    p.write(`${commandLine(name, args)}\r`)
+  })
   ipcMain.handle('answer-plan', async (_, id: string, choice: 0 | 1 | 2, feedback?: string) => {
     const io = {
       screen: () => screens.get(id)?.text() ?? '',

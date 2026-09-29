@@ -8,6 +8,13 @@ export interface Changes {
   files: { path: string; status: ChangeStatus }[]
 }
 
+export interface PaletteCommand {
+  name: string
+  description: string
+  source: 'built-in' | 'project skill' | 'project command' | 'your skill' | 'your command'
+  args: boolean
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -48,6 +55,9 @@ export interface AwApi {
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */
   onPlanMenu(cb: (agentId: string, open: boolean) => void): () => void
+  listCommands(agentId: string): Promise<PaletteCommand[]>
+  /** Types /name args into the agent's terminal, between turns only. */
+  runCommand(agentId: string, name: string, args: string): Promise<void>
   /** 0: approve and auto-accept edits · 1: approve, review each edit · 2: keep planning, with feedback. */
   answerPlan(agentId: string, choice: 0 | 1 | 2, feedback?: string): Promise<void>
   /** A notification was clicked: bring that agent up. */
