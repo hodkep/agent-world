@@ -1,8 +1,9 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { AgentEvent, Decision, PermissionRequest } from '../shared/types'
+import type { AgentEvent, AgentStats, Decision, PermissionRequest } from '../shared/types'
 import { describeTool, normalize } from './events'
+import { parseStatus, statusText } from './status'
 
 // Write tool payloads carry whole files; anything past this is not a legit hook call.
 const MAX_BODY = 10 * 1024 * 1024
@@ -13,6 +14,7 @@ interface Options {
   onEvent: (e: AgentEvent) => void
   onPermission: (r: PermissionRequest) => void
   onPermissionSettled: (id: string) => void
+  onStatus: (s: AgentStats) => void
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -66,7 +68,7 @@ export async function startHookServer(o: Options) {
   }
 
   const server = createServer(async (req, res) => {
-    if (req.method !== 'POST' || req.url !== '/hook') return void res.writeHead(404).end()
+    if (req.method !== 'POST' || (req.url !== '/hook' && req.url !== '/status')) return void res.writeHead(404).end()
     if (!authorized(req, o.token)) return void res.writeHead(401).end()
     const body = await readBody(req)
     if (body === null) return void res.writeHead(413).end()
@@ -76,6 +78,12 @@ export async function startHookServer(o: Options) {
       payload = JSON.parse(body)
     } catch {
       return void res.writeHead(400).end()
+    }
+    if (req.url === '/status') {
+      const stats = parseStatus(payload)
+      if (!stats) return void res.writeHead(400).end()
+      o.onStatus(stats)
+      return void res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(statusText(stats))
     }
     const p = payload as Record<string, unknown>
     if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') return holdPermission(p, res)

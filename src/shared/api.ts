@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessage, AgentRecord, Decision, PermissionRequest } from './types'
+import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -25,7 +25,9 @@ export interface CodeApi {
 export interface AwApi {
   pickFolder(): Promise<string | null>
   listAgents(): Promise<AgentRecord[]>
-  addAgent(folder: string): Promise<AgentRecord>
+  addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
+  /** Relaunch the agent's session with a different model or effort (between turns only). */
+  reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void
@@ -42,5 +44,9 @@ export interface AwApi {
   /** Claude's "trust this folder?" menu opened (path) or closed (null) in an agent's terminal. */
   onTrustPrompt(cb: (agentId: string, path: string | null) => void): () => void
   onAgentMessage(cb: (m: AgentMessage) => void): () => void
+  onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
+  onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
+  /** A notification was clicked: bring that agent up. */
+  onSelectAgent(cb: (agentId: string) => void): () => void
   code: CodeApi
 }

@@ -10,14 +10,16 @@ async function setup(permissionTimeoutMs = 5_000) {
   const events: AgentEvent[] = []
   const asks: PermissionRequest[] = []
   const settled: string[] = []
+  const stats: unknown[] = []
   server = await startHookServer({
+    onStatus: (s) => stats.push(s),
     token: 'secret',
     permissionTimeoutMs,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled }
+  return { server, events, asks, settled, stats }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -82,5 +84,21 @@ describe('hook server', () => {
   it('ignores decisions for unknown or already settled requests', async () => {
     const { server } = await setup()
     expect(() => server.decide('nope', 'allow')).not.toThrow()
+  })
+
+  it('takes statusline updates and answers with the text for Claude\'s status bar', async () => {
+    const { server, stats } = await setup()
+    const url = server.url.replace(/\/hook$/, '/status')
+    const res = await post(url, { session_id: 's1', model: { display_name: 'Opus' }, context_window: { used_percentage: 12 }, cost: { total_cost_usd: 1.5 } })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('Agent World · Opus · context 12% · $1.50')
+    expect(stats).toMatchObject([{ sessionId: 's1', model: 'Opus', contextPct: 12, costUsd: 1.5 }])
+  })
+
+  it('status updates need the token too', async () => {
+    const { server, stats } = await setup()
+    const res = await post(server.url.replace(/\/hook$/, '/status'), { session_id: 's1' }, 'wrong')
+    expect(res.status).toBe(401)
+    expect(stats).toEqual([])
   })
 })

@@ -116,3 +116,29 @@ aside:not(.wide) .change-list { width: 190px; }
 .notice { color: var(--ok); margin: 0; font-size: 12px; word-break: break-all; }
 .change-list .error { margin: 0; font-size: 12px; }
 .diff { flex: 1; min-width: 0; min-height: 0; }
+
+.office-cost { font-family: Menlo, Consolas, monospace; color: var(--accent); padding: 0 6px; }
+.hire { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); }
+.hire-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.hire label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.hire label.grow { flex: 1; }
+.hire label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.hire .hint { font-size: 11px; color: var(--muted); }
+.hire input:not([type='checkbox']), .hire select, .hire textarea, .switches select {
+  font: inherit; font-size: 13px; color: var(--text); background: #0c0b12; border: 2px solid var(--ink); padding: 4px 6px; border-radius: 0; min-width: 0;
+}
+.hire textarea { resize: vertical; }
+.hire input:focus-visible, .hire select:focus-visible, .hire textarea:focus-visible, .switches select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.agent-row { grid-template-columns: 10px 1fr auto 96px 52px; }
+.agent-row .cost { font-family: Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); text-align: right; }
+.budget-near, .agent-row.budget-near .cost { color: var(--accent) !important; }
+.budget-over, .agent-row.budget-over .cost { color: #ff8a8a !important; font-weight: 700; }
+.meters { display: flex; gap: 10px; flex-wrap: wrap; font-family: Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.meters .ctx { display: inline-flex; align-items: center; gap: 4px; }
+.meters .bar { display: inline-block; width: 60px; height: 6px; background: #0c0b12; box-shadow: 0 0 0 1px var(--ink); }
+.meters .bar > span { display: block; height: 100%; background: var(--ok); }
+.meters .bar > span.warm { background: var(--accent); }
+.meters .bar > span.hot { background: var(--danger); }
+.switches { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.switches select { font-size: 12px; padding: 2px 4px; }
+.switches button { font-size: 12px; padding: 2px 8px; }

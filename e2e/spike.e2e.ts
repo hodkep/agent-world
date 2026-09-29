@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { launchApp } from './launch'
+import { hire, launchApp } from './launch'
 
 const FAKE = resolve(__dirname, 'fake-claude.mjs')
 
@@ -28,7 +28,7 @@ test('hire an agent, watch it work, approve its permission from the world', asyn
     await page.reload()
     await expect(page.locator('.stage canvas')).toBeVisible()
 
-    await page.getByRole('button', { name: '+ Agent' }).click()
+    await hire(page)
     const ask = page.locator('.ask')
     await expect(ask).toContainText('wants Bash', { timeout: 15_000 })
     await expect(ask).toContainText('pnpm test')

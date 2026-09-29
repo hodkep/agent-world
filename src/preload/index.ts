@@ -12,7 +12,8 @@ const on =
 const api: AwApi = {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   listAgents: () => ipcRenderer.invoke('list-agents'),
-  addAgent: (folder) => ipcRenderer.invoke('add-agent', folder),
+  addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
+  reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   wakeAgent: (id) => ipcRenderer.invoke('wake-agent', id),
   removeAgent: (id, mode) => ipcRenderer.invoke('remove-agent', id, mode),
   ptyWrite: (id, data) => ipcRenderer.send('pty-write', id, data),
@@ -27,6 +28,9 @@ const api: AwApi = {
   onPermissionSettled: on('permission-settled'),
   onTrustPrompt: on('trust-prompt'),
   onAgentMessage: on('agent-message'),
+  onAgentStats: on('agent-stats'),
+  onBudgetAlert: on('budget-alert'),
+  onSelectAgent: on('select-agent'),
   code: {
     changes: (id) => ipcRenderer.invoke('code:changes', id),
     diff: (id, path) => ipcRenderer.invoke('code:diff', id, path),

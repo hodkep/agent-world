@@ -22,7 +22,20 @@ const hook = async (event, extra = {}) => {
 }
 
 console.log(`fake claude · session ${sessionId} · cwd ${process.cwd()}`)
+console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 await hook('SessionStart', { source: 'startup' })
+// Like real Claude: a killed session still reports SessionEnd on its way out.
+for (const sig of ['SIGHUP', 'SIGTERM']) process.on(sig, () => void hook('SessionEnd', { reason: 'other' }).finally(() => process.exit(0)))
+// FAKE_COST=0.9 posts one statusline update the way Claude's statusline command would.
+if (process.env.FAKE_COST) {
+  const status = /(http\S+\/status)/.exec(settings.statusLine.command)[1]
+  const res = await fetch(status, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42 }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
+  })
+  console.log(`status bar: ${await res.text()}`)
+}
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
 process.stdin.on('data', (d) => process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))

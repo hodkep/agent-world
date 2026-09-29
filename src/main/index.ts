@@ -3,10 +3,11 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { BrowserWindow, app, dialog, ipcMain } from 'electron'
+import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import type { AgentEvent, AgentRecord, Decision } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision } from '../shared/types'
+import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
@@ -46,7 +47,14 @@ const sessions = new Map<string, pty.IPty>()
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 const screens = new Map<string, Screen>()
-const lastActivity = new Map<string, string>()
+const lastActivity = new Map<string, Activity>()
+const lastCost = new Map<string, number>()
+const pendingPermissions = new Set<string>()
+// Agents being relaunched in place: their exit is not a departure.
+const restarting = new Set<string>()
+// Last size the panel gave each terminal, so a relaunch comes back at the size the user sees.
+const sizes = new Map<string, { cols: number; rows: number }>()
+let awakeBlocker: number | null = null
 // Set once the local servers are up; every spawned agent gets its own MCP identity file.
 let office: { mcpUrl: string } | null = null
 // Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
@@ -91,13 +99,56 @@ function mcpFileFor(a: AgentRecord) {
   return file
 }
 
+// ---- attention: notifications, dock badge, keep-awake ---------------------------------------
+
+function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
+  if (!Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
+  const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
+  n.on('click', () => {
+    win?.show()
+    win?.focus()
+    if (agent) send('select-agent', agent.id)
+  })
+  n.show()
+}
+
+function refreshAttention() {
+  // Dock badge: things only the user can unblock.
+  app.setBadgeCount(pendingPermissions.size + trustOpen.size)
+  // Keep the machine awake while any live agent is mid-turn.
+  const working = agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
+  if (working && awakeBlocker === null) awakeBlocker = powerSaveBlocker.start('prevent-app-suspension')
+  else if (!working && awakeBlocker !== null) {
+    powerSaveBlocker.stop(awakeBlocker)
+    awakeBlocker = null
+  }
+}
+
+function onStats(s: AgentStats) {
+  const a = agents.find((x) => x.sessionId === s.sessionId)
+  if (!a) return
+  send('agent-stats', a.id, s)
+  const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
+  lastCost.set(a.id, s.costUsd)
+  if (alert) {
+    const budget = a.options!.budgetUsd!.toFixed(2)
+    notify('budget', a, alert === 'over' ? `Over its $${budget} budget ($${s.costUsd.toFixed(2)} spent).` : `At 80% of its $${budget} budget.`)
+    send('budget-alert', a.id, alert)
+  }
+}
+
 // Hook events tell the mailbox when each agent can take a new prompt.
 function trackTurns(e: AgentEvent) {
   const a = agents.find((x) => x.sessionId === e.sessionId)
   if (!a) return
   if (e.type === 'session-start') mailbox.ready(a.id)
-  else if (e.type === 'session-end') mailbox.gone(a.id)
   else if (e.type === 'activity' && !e.subagentId) {
+    // A conversation exists once a turn has begun; only then can a relaunch use --resume.
+    if (!a.started) {
+      a.started = true
+      persist()
+    }
+    if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
     lastActivity.set(a.id, e.activity)
     if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
     else mailbox.busy(a.id)
@@ -106,16 +157,13 @@ function trackTurns(e: AgentEvent) {
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
-  const args = launchArgs({ ...a, settingsFile: SETTINGS_FILE, mcpFile: mcpFileFor(a), permissionMode: PERMISSION_MODE })
-  const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols: COLS, rows: ROWS, cwd: a.cwd, env })
+  const args = launchArgs({ ...a, settingsFile: SETTINGS_FILE, mcpFile: mcpFileFor(a), permissionMode: PERMISSION_MODE, options: a.options })
+  const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
+  const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
-  const screen = new Screen(COLS, ROWS)
+  const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
   sessions.set(a.id, p)
-  if (!a.started) {
-    a.started = true
-    persist()
-  }
   p.onData((d) => {
     const b = buffers.get(a.id) ?? { text: '', end: 0 }
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
@@ -129,16 +177,28 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       if (trust && !trustOpen.has(a.id)) {
         trustOpen.add(a.id)
         send('trust-prompt', a.id, trust.path || a.cwd)
-      } else if (!trust && trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
+        notify('trust', a, 'Needs you to trust its workspace before it can start.')
+        refreshAttention()
+      } else if (!trust && trustOpen.delete(a.id)) {
+        send('trust-prompt', a.id, null)
+        refreshAttention()
+      }
     })
   })
   p.onExit(() => {
     sessions.delete(a.id)
+    if (restarting.delete(a.id)) {
+      screens.get(a.id)?.dispose()
+      screens.delete(a.id)
+      return spawn(a, env)
+    }
     for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
     screens.get(a.id)?.dispose()
     screens.delete(a.id)
     mailbox.gone(a.id)
     lastActivity.delete(a.id)
+    lastCost.delete(a.id)
+    refreshAttention()
     if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
     send('pty-exit', a.id)
     send('agent-event', { type: 'session-end', sessionId: a.sessionId })
@@ -156,11 +216,25 @@ async function main() {
     token,
     permissionTimeoutMs: PERMISSION_TIMEOUT_SEC * 1000,
     onEvent: (e) => {
+      // Only the terminal process exiting means the agent left. SessionEnd also fires on /clear and when we
+      // relaunch a session to switch model, while the agent carries on.
+      if (e.type === 'session-end') return
       trackTurns(e)
+      refreshAttention()
       send('agent-event', e)
     },
-    onPermission: (r) => send('permission', r),
-    onPermissionSettled: (id) => send('permission-settled', id)
+    onPermission: (r) => {
+      pendingPermissions.add(r.id)
+      refreshAttention()
+      send('permission', r)
+      notify('permission', agents.find((x) => x.sessionId === r.sessionId), `Wants to use ${r.tool}: ${r.detail}`)
+    },
+    onPermissionSettled: (id) => {
+      pendingPermissions.delete(id)
+      refreshAttention()
+      send('permission-settled', id)
+    },
+    onStatus: onStats
   })
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -170,17 +244,19 @@ async function main() {
   })
   office = { mcpUrl: mcp.url }
   // Token rotates every launch; the file is only readable by this user.
-  writeFileSync(SETTINGS_FILE, JSON.stringify(hookSettings({ url: hooks.url, token, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC })), { mode: 0o600 })
+  writeFileSync(SETTINGS_FILE, JSON.stringify(hookSettings({ url: hooks.url, token, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })), { mode: 0o600 })
 
   ipcMain.handle('pick-folder', async () => {
     const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
   ipcMain.handle('list-agents', () => agents)
-  ipcMain.handle('add-agent', async (_, folder: string) => {
-    const name = nextName()
+  ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
+    const clean = wanted?.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20)
+    if (clean && agents.some((a) => a.name === clean)) throw new Error(`There is already an agent named ${clean}.`)
+    const name = clean || nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -238,9 +314,23 @@ async function main() {
     await pushBranch(a.cwd, a.branch!)
     return createPr(a.cwd, a.branch!, base)
   })
+  // Switching model or effort relaunches the same session with new flags. Claude's own /model would also
+  // save the choice as the user's global default, which an app must not change behind their back.
+  ipcMain.handle('agent-reconfigure', (_, id: string, change: Pick<AgentOptions, 'model' | 'effort'>) => {
+    const a = byId(id)
+    const p = sessions.get(id)
+    if (!a || !p) throw new Error('That agent is not running.')
+    if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
+    a.options = { ...a.options, ...(change.model && { model: change.model }), ...(change.effort && { effort: change.effort }) }
+    persist()
+    restarting.add(id)
+    mailbox.restarting(id)
+    p.kill()
+  })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => sessions.get(id)?.write(data))
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => {
+    sizes.set(id, { cols, rows })
     sessions.get(id)?.resize(cols, rows)
     screens.get(id)?.resize(cols, rows)
   })

@@ -1,4 +1,4 @@
-import { _electron as electron } from '@playwright/test'
+import { type Page, _electron as electron } from '@playwright/test'
 import { rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -13,4 +13,16 @@ export async function launchApp(env: Record<string, string>, tmp: string) {
     rmSync(tmp, { recursive: true, force: true })
   }
   return { app, shutdown }
+}
+
+/** Open the hire form and hire with its defaults (or the given field values). */
+export async function hire(page: Page, fields: { name?: string; model?: string; budget?: string; instructions?: string } = {}) {
+  await page.getByRole('button', { name: '+ Agent' }).click()
+  const form = page.getByRole('form', { name: 'Hire an agent' })
+  if (fields.name) await form.getByLabel('Name').fill(fields.name)
+  if (fields.model) await form.getByLabel('Model').selectOption(fields.model)
+  if (fields.budget) await form.getByLabel('Budget (USD)').fill(fields.budget)
+  if (fields.instructions) await form.getByLabel('Extra instructions').fill(fields.instructions)
+  await form.getByRole('button', { name: 'Hire' }).click()
+  await form.waitFor({ state: 'detached' })
 }

@@ -25,6 +25,20 @@ export interface PermissionRequest {
   detail: string
 }
 
+export type PermissionMode = 'manual' | 'acceptEdits' | 'plan' | 'auto' | 'dontAsk'
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/** Chosen in the hire dialog; applied as launch flags every time the agent starts. */
+export interface AgentOptions {
+  model?: string
+  effort?: Effort
+  permissionMode?: PermissionMode
+  /** Soft cap: the app warns as the session's cost approaches it (Claude only enforces budgets in --print mode). */
+  budgetUsd?: number
+  instructions?: string
+  chrome?: boolean
+}
+
 export interface AgentRecord {
   id: string
   name: string
@@ -34,8 +48,9 @@ export interface AgentRecord {
   branch: string | null
   /** Branch the worktree was created from; null for agents working directly in a folder. */
   base?: string | null
-  // Whether a claude session with this id has been started before, so relaunch must use --resume.
+  // Whether the session has a saved conversation (a turn has begun), so relaunch must use --resume.
   started: boolean
+  options?: AgentOptions
 }
 
 export interface AgentMessage {
@@ -45,4 +60,17 @@ export interface AgentMessage {
   text: string
   status: 'queued' | 'delivered' | 'dropped'
   at: number
+}
+
+/** Live numbers from Claude's statusline feed. */
+export interface AgentStats {
+  sessionId: string
+  model: string | null
+  contextPct: number | null
+  costUsd: number
+  linesAdded: number
+  linesRemoved: number
+  effort: string | null
+  fast: boolean
+  fiveHourPct: number | null
 }

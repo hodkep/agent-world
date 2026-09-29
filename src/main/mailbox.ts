@@ -79,6 +79,11 @@ export class Mailbox {
     if ((this.state.get(agentId) ?? 'starting') === 'starting') this.turnEnded(agentId)
   }
 
+  /** The terminal is being relaunched; hold mail (don't drop it) until the new one shows its input box. */
+  restarting(agentId: string) {
+    this.state.set(agentId, 'starting')
+  }
+
   busy(agentId: string) {
     this.state.set(agentId, 'busy')
   }

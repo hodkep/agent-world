@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentRecord, PermissionRequest } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest } from '../shared/types'
 import { CodePanel } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
+import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
@@ -29,6 +30,9 @@ export function App() {
   const [view, setView] = useState<'terminal' | 'code'>('terminal')
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
+  const [hiring, setHiring] = useState(false)
+  const [stats, setStats] = useState<Record<string, AgentStats>>({})
+  const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
   const select = (id: string) => {
     setSelected(id)
@@ -56,6 +60,9 @@ export function App() {
           office.current?.sendMail(m.fromId, m.toId)
         }
       }),
+      window.aw.onAgentStats((id, s) => setStats((all) => ({ ...all, [id]: s }))),
+      window.aw.onBudgetAlert((id, level) => setBudgetAlerts((all) => ({ ...all, [id]: level }))),
+      window.aw.onSelectAgent((id) => select(id)),
       window.aw.onTrustPrompt((agentId, path) =>
         setTrusts((t) => {
           const { [agentId]: _, ...rest } = t
@@ -82,14 +89,16 @@ export function App() {
 
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
     )
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
   // A pending permission must never sit behind a collapsed panel.
   const pendingTrust = Object.entries(trusts)
-  const showPanel = panelOpen || asks.length > 0 || pendingTrust.length > 0
+  const showPanel = panelOpen || hiring || asks.length > 0 || pendingTrust.length > 0
+  const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
+  const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.sessionId] : undefined
   const nameOf = useMemo(() => new Map(agents.map((a) => [a.sessionId, a])), [agents])
 
@@ -114,14 +123,18 @@ export function App() {
       }
     })
 
-  const add = () =>
+  const hire = (options: AgentOptions, name: string) =>
     run(async () => {
       if (!folder) return
-      const a = await window.aw.addAgent(folder)
+      const a = await window.aw.addAgent(folder, options, name)
+      setHiring(false)
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', sessionId: a.sessionId, activity: 'idle' }))
-      setSelected(a.id)
+      select(a.id)
     })
+
+  const switchTo = (change: Parameters<typeof window.aw.reconfigure>[1]) => current && run(() => window.aw.reconfigure(current.id, change))
+  const between = !state || ['idle', 'waiting'].includes(state.activity)
 
   const wake = (a: AgentRecord) =>
     run(async () => {
@@ -153,9 +166,14 @@ export function App() {
         <button onClick={pick} title={folder ?? ''}>
           {folder ? folder.split(/[\\/]/).pop() : 'Open folder…'}
         </button>
-        <button className="primary" onClick={add} disabled={!folder}>
+        <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
         </button>
+        {officeCost > 0 && (
+          <span className="office-cost" title="Spent by all agents this session">
+            ${officeCost.toFixed(2)}
+          </span>
+        )}
         {error && <span className="error">{error}</span>}
         <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length + pendingTrust.length > 0}>
           {showPanel ? 'Hide panel' : 'Show panel'}
@@ -164,6 +182,7 @@ export function App() {
       <main>
         <div className="stage" ref={stage} />
         <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
+          {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
           {pendingTrust.length > 0 && (
             <section className="asks" aria-label="Workspace trust">
               {pendingTrust.map(([agentId, path]) => (
@@ -211,11 +230,12 @@ export function App() {
                 const st = world[a.sessionId]
                 const activity = st?.activity ?? 'asleep'
                 return (
-                  <button key={a.id} className={`agent-row is-${activity}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
+                  <button key={a.id} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
                     <span className="dot" aria-hidden="true" />
                     <span className="name">{a.name}</span>
                     <span className="role">{st ? roleOf(st) : 'senior'}</span>
                     <span className="activity">{activity}</span>
+                    <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
                   </button>
                 )
               })}
@@ -229,6 +249,48 @@ export function App() {
                   {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
                   {state?.detail ? ` · ${state.detail}` : ''}
                 </div>
+                {cur && (
+                  <div className="meters" aria-label="Session usage">
+                    <span>{cur.model ?? 'model ?'}</span>
+                    {cur.effort && <span>effort {cur.effort}</span>}
+                    {cur.fast && <span>fast</span>}
+                    {cur.contextPct !== null && (
+                      <span className="ctx" title={`${Math.round(cur.contextPct)}% of the context window used`}>
+                        <span className="bar">
+                          <span style={{ width: `${Math.min(100, cur.contextPct)}%` }} className={cur.contextPct > 80 ? 'hot' : cur.contextPct > 60 ? 'warm' : ''} />
+                        </span>
+                        {Math.round(cur.contextPct)}%
+                      </span>
+                    )}
+                    <span className={budgetAlerts[current.id] ? `budget-${budgetAlerts[current.id]}` : ''}>
+                      ${cur.costUsd.toFixed(2)}
+                      {current.options?.budgetUsd ? ` / $${current.options.budgetUsd.toFixed(2)}` : ''}
+                    </span>
+                    <span>
+                      +{cur.linesAdded} −{cur.linesRemoved}
+                    </span>
+                  </div>
+                )}
+                {(state?.activity ?? 'asleep') !== 'asleep' && (
+                  <div className="switches" title={between ? 'Switch for the next turn' : 'Available between turns'}>
+                    <select aria-label="Model" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ model: e.target.value })}>
+                      <option value="">Switch model…</option>
+                      {MODELS.filter((m) => m.value).map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select aria-label="Effort" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ effort: e.target.value as Effort })}>
+                      <option value="">Effort…</option>
+                      {EFFORTS.filter((m) => m.value).map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               {(state?.activity ?? 'asleep') === 'asleep' && <button onClick={() => wake(current)}>Wake</button>}
               <button onClick={() => remove(current.id)}>Remove</button>

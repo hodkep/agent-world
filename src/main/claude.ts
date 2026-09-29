@@ -16,23 +16,53 @@ const OBSERVE_TIMEOUT_SEC = 5
 // Claude's own cancel must come after our server's fallback answer, or the user gets no dialog at all.
 const PERMISSION_GRACE_SEC = 30
 
-export function hookSettings(o: { url: string; token: string; permissionTimeoutSec: number }) {
+import type { AgentOptions } from '../shared/types'
+
+// The statusline command gets Claude's live session JSON on stdin; curl relays it to the app, and the app's
+// reply is what Claude shows in its status bar. Windows PowerShell aliases `curl`, so name the real binary.
+function statusLine(url: string, token: string, platform: NodeJS.Platform) {
+  const curl = platform === 'win32' ? 'curl.exe' : 'curl'
+  return {
+    type: 'command',
+    command: `${curl} -s --max-time 2 -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data-binary @- ${url}`
+  }
+}
+
+export function hookSettings(o: { url: string; token: string; permissionTimeoutSec: number; platform: NodeJS.Platform }) {
   const hook = (timeout: number) => [
     { hooks: [{ type: 'http', url: o.url, timeout, headers: { Authorization: `Bearer ${o.token}` } }] }
   ]
   const hooks: Record<string, ReturnType<typeof hook>> = {}
   for (const e of OBSERVED) hooks[e] = hook(OBSERVE_TIMEOUT_SEC)
   hooks.PermissionRequest = hook(o.permissionTimeoutSec + PERMISSION_GRACE_SEC)
-  return { hooks } as { hooks: Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>> }
+  return {
+    hooks: hooks as Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>>,
+    statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.token, o.platform)
+  }
 }
 
-export function launchArgs(o: { sessionId: string; name: string; started: boolean; settingsFile: string; mcpFile?: string; permissionMode?: string }) {
-  const base = o.started
+export function launchArgs(o: {
+  sessionId: string
+  name: string
+  started: boolean
+  settingsFile: string
+  mcpFile?: string
+  /** App-wide default (AW_PERMISSION_MODE); a per-agent option overrides it. */
+  permissionMode?: string
+  options?: AgentOptions
+}) {
+  const args = o.started
     ? ['--resume', o.sessionId, '--settings', o.settingsFile]
     : ['--session-id', o.sessionId, '--name', o.name, '--settings', o.settingsFile]
-  if (o.mcpFile) base.push('--mcp-config', o.mcpFile)
-  if (o.permissionMode) base.push('--permission-mode', o.permissionMode)
-  return base
+  if (o.mcpFile) args.push('--mcp-config', o.mcpFile)
+  const opt = o.options ?? {}
+  if (opt.model) args.push('--model', opt.model)
+  if (opt.effort) args.push('--effort', opt.effort)
+  const mode = opt.permissionMode ?? o.permissionMode
+  if (mode) args.push('--permission-mode', mode)
+  if (opt.instructions?.trim()) args.push('--append-system-prompt', opt.instructions.trim())
+  if (opt.chrome) args.push('--chrome')
+  return args
 }
 
 /** Per-agent MCP config: same office server for everyone, a token of its own that identifies it. */
@@ -49,3 +79,4 @@ const USER_CLAUDE_VARS = /^CLAUDE_CODE_(USE_|SKIP_.*_AUTH|MAX_OUTPUT_TOKENS|API_
 export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([k]) => !HOST_SESSION_VARS.test(k) || USER_CLAUDE_VARS.test(k)))
 }
+

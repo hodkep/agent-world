@@ -131,4 +131,11 @@ describe('mailbox', () => {
     box.send('a1', 'linus', 'line one\n\tline two')
     expect(delivered[0]!.text).toContain('line one\n\tline two')
   })
+
+  it('an agent restarting (to switch model) keeps its mail and gets it once its terminal is back', () => {
+    box.restarting('a2')
+    expect(box.send('a1', 'linus', 'after restart')).toBe('queued')
+    box.started('a2')
+    expect(delivered.map((d) => d.to)).toEqual(['a2'])
+  })
 })

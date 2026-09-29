@@ -29,8 +29,40 @@ describe('claude launch', () => {
     })
   })
 
+  it('launches with the options chosen when hiring', () => {
+    const args = launchArgs({
+      sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json',
+      options: { model: 'sonnet', effort: 'high', permissionMode: 'acceptEdits', instructions: 'Prefer small commits.', chrome: true }
+    })
+    expect(args).toEqual([
+      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json',
+      '--model', 'sonnet', '--effort', 'high', '--permission-mode', 'acceptEdits', '--append-system-prompt', 'Prefer small commits.', '--chrome'
+    ])
+  })
+
+  it('a resumed session relaunches with its current model and effort, so switching never touches global settings', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: true, settingsFile: '/s.json', options: { model: 'opus', effort: 'max' } })).toEqual([
+      '--resume', 'abc', '--settings', '/s.json', '--model', 'opus', '--effort', 'max'
+    ])
+  })
+
+  it('an explicit hire option wins over the app-wide permission mode', () => {
+    const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', permissionMode: 'manual', options: { permissionMode: 'plan' } })
+    expect(args.slice(-2)).toEqual(['--permission-mode', 'plan'])
+  })
+
+  it('pipes the statusline JSON to the app with curl, and curl.exe on Windows', () => {
+    const mac = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'darwin' })
+    expect(mac.statusLine).toEqual({
+      type: 'command',
+      command: 'curl -s --max-time 2 -X POST -H "Authorization: Bearer t" -H "Content-Type: application/json" --data-binary @- http://127.0.0.1:9/status'
+    })
+    const win = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'win32' })
+    expect(win.statusLine.command.startsWith('curl.exe ')).toBe(true)
+  })
+
   it('routes every watched event to our HTTP hook with the token', () => {
-    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', permissionTimeoutSec: 300 })
+    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', permissionTimeoutSec: 300, platform: 'darwin' })
     const pre = s.hooks.PreToolUse[0]!.hooks[0]!
     expect(pre).toMatchObject({ type: 'http', url: 'http://127.0.0.1:9/hook', headers: { Authorization: 'Bearer t0k' } })
     expect(Object.keys(s.hooks).sort()).toEqual(
@@ -39,7 +71,7 @@ describe('claude launch', () => {
   })
 
   it('gives Claude a longer permission hook timeout than ours, so our fallback answer always lands first', () => {
-    const s = hookSettings({ url: 'u', token: 't', permissionTimeoutSec: 300 })
+    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'darwin' })
     expect(s.hooks.PermissionRequest[0]!.hooks[0]!.timeout).toBeGreaterThan(300)
     expect(s.hooks.PreToolUse[0]!.hooks[0]!.timeout).toBeLessThanOrEqual(5)
   })
@@ -65,3 +97,4 @@ describe('agent environment', () => {
     expect(env).toEqual({ CLAUDE_CODE_USE_BEDROCK: '1', ANTHROPIC_API_KEY: 'k', ANTHROPIC_BASE_URL: 'u', AWS_REGION: 'r' })
   })
 })
+

@@ -17,6 +17,8 @@ export interface AgentView {
   selected: boolean
   /** Messages from other agents waiting for this one to finish its turn. */
   inbox: number
+  /** Share of the context window used, from Claude's statusline feed; null until the first update. */
+  contextPct: number | null
 }
 
 interface Flight {
@@ -210,6 +212,7 @@ export class OfficeWorld {
       const c = this.ensure(a.id, a.name, 'senior', a.id, a.state.activity)
       c.role = roleOf(a.state)
       c.selected = a.selected
+      c.contextPct = a.contextPct
       this.route(c, a.state.activity, false, a.state.detail)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)

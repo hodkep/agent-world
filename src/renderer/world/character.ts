@@ -52,7 +52,9 @@ export class Character {
   leaving = false
   activity: Activity = 'idle'
   detail?: string
+  contextPct: number | null = null
   private seated = false
+  private readonly gauge = new Graphics()
   role: Role
   selected = false
 
@@ -74,7 +76,7 @@ export class Character {
     this.blinkPhase = (key.charCodeAt(0) * 97 + key.length * 31) % 4000
     this.icon.anchor.set(0.5)
     this.bubble.addChild(this.bubbleBg, this.icon)
-    this.tag.addChild(this.tagBg, this.tagText)
+    this.tag.addChild(this.tagBg, this.tagText, this.gauge)
     this.view.addChild(this.ring, this.shadow, this.body, this.arms)
     this.overlay.addChild(this.fx, this.fxText, this.leader, this.bubble, this.marker, this.tag)
     for (const c of [this.view, this.overlay]) {
@@ -382,5 +384,13 @@ export class Character {
     }
     this.tag.x = TILE / 2 - Math.floor(w / 2)
     this.tag.y = TILE + 1 + this.tagDy
+    // Context gauge along the bottom of the name tag: how full this agent's context window is.
+    const g = this.gauge
+    g.clear()
+    if (this.contextPct !== null) {
+      const pct = Math.max(0, Math.min(100, this.contextPct))
+      g.rect(0, TAG_H, w, 2).fill(0x0c0a12)
+      g.rect(0, TAG_H, Math.max(1, Math.round((w * pct) / 100)), 1).fill(pct > 80 ? 0xd83a3a : pct > 60 ? 0xf2c230 : 0x5f9e5f)
+    }
   }
 }

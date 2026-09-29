@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { launchApp } from './launch'
+import { hire, launchApp } from './launch'
 
 test('closing the window with a live agent does not crash the main process', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-quit-'))
@@ -20,7 +20,7 @@ test('closing the window with a live agent does not crash the main process', asy
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    await page.getByRole('button', { name: '+ Agent' }).click()
+    await hire(page)
     await expect(page.locator('.term-host:visible')).toContainText('fake claude')
 
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close()).catch(() => {})
