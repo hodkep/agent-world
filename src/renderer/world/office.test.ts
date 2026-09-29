@@ -37,12 +37,17 @@ describe('office pathfinding', () => {
 
 describe('office layout', () => {
   it('every seat and spot is reachable from the entrance', () => {
-    const all = [...OFFICE.desks, ...OFFICE.interns, ...OFFICE.sofas, ...OFFICE.consoles, ...OFFICE.coffee, ...OFFICE.bossHeads, ...Object.values(OFFICE.overflow).flat()]
+    const all = [...OFFICE.desks, ...OFFICE.interns, ...OFFICE.sofas, ...Object.values(OFFICE.overflow).flat()]
     for (const s of all) expect(findPath(OFFICE.map, OFFICE.door, s), `${s.x},${s.y}`).not.toBeNull()
   })
 
-  it('has room for 8 seniors and 6 interns', () => {
+  it('has room for 8 seniors, 6 interns and 11 resting agents', () => {
     expect(OFFICE.desks).toHaveLength(8)
     expect(OFFICE.interns).toHaveLength(6)
+    expect(OFFICE.sofas).toHaveLength(11)
+  })
+
+  it('has no server room any more', () => {
+    expect(OFFICE.rows.join('')).not.toContain('g')
   })
 })

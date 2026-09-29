@@ -6,7 +6,7 @@ import { Character } from './character'
 import { type Ambient, type Screen, drawExterior, drawFloors, drawFurniture } from './furniture'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
-import { type AgentState, roleOf } from './worldState'
+import { type AgentState, type Place, placeFor, roleOf } from './worldState'
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
 
@@ -17,16 +17,14 @@ export interface AgentView {
   selected: boolean
 }
 
-type Purpose = 'desk' | 'intern' | 'lounge' | 'console' | 'coffee' | 'boss'
+type Purpose = Exclude<Place, 'gone'>
 
 const POOLS: Record<Purpose, Spot[]> = {
   desk: [...OFFICE.desks, ...OFFICE.overflow.desk],
   intern: [...OFFICE.interns, ...OFFICE.overflow.intern],
-  lounge: [...OFFICE.sofas, ...OFFICE.overflow.lounge],
-  console: [...OFFICE.consoles, ...OFFICE.overflow.console],
-  coffee: [...OFFICE.coffee, ...OFFICE.overflow.coffee],
-  boss: OFFICE.bossHeads
+  lounge: [...OFFICE.sofas, ...OFFICE.overflow.lounge]
 }
+const MAX_PILE = 14
 const EXTERIOR_MARGIN = 24
 const MIN_ZOOM = 2
 const MAX_ZOOM = 8
@@ -34,19 +32,12 @@ const DRAG_THRESHOLD = 4
 // The coffee machine's spout, for the steam effect.
 const COFFEE_SPOUT = { x: 22 * TILE + 55, y: 15 * TILE - 13 }
 
-function purposeFor(activity: Activity, intern: boolean): Purpose {
-  if (activity === 'running') return 'console'
-  if (intern) return 'intern'
-  if (activity === 'waiting') return 'coffee'
-  if (activity === 'idle' || activity === 'asleep') return 'lounge'
-  if (activity === 'delegating') return 'boss'
-  return 'desk'
-}
-
 export class OfficeWorld {
   private readonly chars = new Map<string, Character>()
   private readonly claims = new Map<Purpose, Map<string, Spot>>()
   private screens = new Map<string, Screen>()
+  private readonly piles = new Map<string, Graphics>()
+  private readonly files = new Map<string, number>()
   private ambient!: Ambient
   private readonly root = new Container()
   private readonly layer = new Container({ sortableChildren: true })
@@ -178,7 +169,8 @@ export class OfficeWorld {
     if (existing) return existing
     const intern = role === 'intern'
     const home = this.claim(key, intern ? 'intern' : 'desk')
-    const start = this.firstSync ? this.claim(key, purposeFor(activity, intern)) : OFFICE.door
+    const place = placeFor(activity, intern)
+    const start = this.firstSync && place !== 'gone' ? this.claim(key, place) : OFFICE.door
     const c = new Character(key, label, role, home, start, OFFICE.map, () => this.onSelect(agentId))
     this.chars.set(key, c)
     this.layer.addChild(c.view)
@@ -186,27 +178,33 @@ export class OfficeWorld {
     return c
   }
 
-  private route(c: Character, activity: Activity, intern: boolean) {
+  private route(c: Character, activity: Activity, intern: boolean, detail?: string) {
     c.activity = activity
-    const purpose = purposeFor(activity, intern)
-    c.goTo(purpose === 'desk' || purpose === 'intern' ? c.home : this.claim(c.key, purpose))
+    c.detail = detail
+    const place = placeFor(activity, intern)
+    if (place === 'gone') return
+    c.goTo(place === 'desk' || place === 'intern' ? c.home : this.claim(c.key, place))
   }
 
   sync(agents: AgentView[]) {
     const live = new Set<string>()
+    this.files.clear()
     for (const a of agents) {
+      // A session that is not running is out of the office until it is woken or re-hired.
+      if (placeFor(a.state.activity, false) === 'gone') continue
       live.add(a.id)
       const c = this.ensure(a.id, a.name, 'senior', a.id, a.state.activity)
       c.role = roleOf(a.state)
       c.selected = a.selected
-      this.route(c, a.state.activity, false)
+      this.route(c, a.state.activity, false, a.state.detail)
+      this.files.set(a.id, a.state.files)
 
       for (const [iid, intern] of Object.entries(a.state.interns)) {
         const key = `${a.id}/${iid}`
         live.add(key)
         const ic = this.ensure(key, intern.type, 'intern', a.id, intern.activity)
         ic.selected = a.selected
-        this.route(ic, intern.activity, true)
+        this.route(ic, intern.activity, true, intern.detail)
       }
     }
     for (const [key, c] of this.chars)
@@ -222,7 +220,6 @@ export class OfficeWorld {
   private tick(dt: number) {
     const t = performance.now()
     const atScreen = new Map<string, Activity>()
-    let coffeeBusy = false
     for (const [key, c] of this.chars) {
       c.update(dt, t)
       if (c.leaving && c.arrived) {
@@ -232,11 +229,49 @@ export class OfficeWorld {
         continue
       }
       if (c.arrived) atScreen.set(`${c.at.x},${c.at.y}`, c.activity)
-      if (OFFICE.coffee.some((s) => c.isAt(s))) coffeeBusy = true
     }
+    this.drawPiles()
     this.untangle()
     for (const [spot, s] of this.screens) s.draw(atScreen.get(spot) ?? null, t)
-    this.ambient.update(t, coffeeBusy)
+    this.ambient.update(t)
+  }
+
+  // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.
+  private drawPiles() {
+    const owners = new Map<string, number>()
+    for (const [key, count] of this.files) {
+      const c = this.chars.get(key)
+      if (c && count > 0 && OFFICE.desks.includes(c.home)) owners.set(`${c.home.x},${c.home.y - 1}`, count)
+    }
+    for (const [desk, g] of this.piles) if (!owners.has(desk)) g.clear()
+    for (const [desk, count] of owners) {
+      let g = this.piles.get(desk)
+      const [dx, dy] = desk.split(',').map(Number) as [number, number]
+      if (!g) {
+        g = new Graphics()
+        // Above this desk's art, below the agent sitting at it.
+        g.zIndex = (dy + 1) * TILE + 0.5
+        this.layer.addChild(g)
+        this.piles.set(desk, g)
+      }
+      g.clear()
+      for (let pile = 0; pile * MAX_PILE < Math.min(count, MAX_PILE * 2); pile++) {
+        const sheets = Math.min(MAX_PILE, count - pile * MAX_PILE)
+        const x = dx * TILE + 2 + pile * 6
+        // Sheet edges read as stacked paper: pale 1px edges with ink only down the sides and under the pile.
+        const bottom = dy * TILE + 11
+        g.rect(x - 1, bottom, 8, 1).fill(0x14111c)
+        for (let i = 0; i < sheets; i++) {
+          const y = bottom - 1 - i
+          const skew = i % 3 === 1 ? 1 : 0
+          g.rect(x - 1 + skew, y, 1, 1).fill(0x14111c)
+          g.rect(x + 6 + skew, y, 1, 1).fill(0x14111c)
+          g.rect(x + skew, y, 6, 1).fill(i % 2 ? 0xe4ddc4 : 0xfaf8f0)
+        }
+        g.rect(x - 1, bottom - sheets - 1, 8, 1).fill(0x14111c)
+        g.rect(x, bottom - sheets, 6, 1).fill(0xffffff)
+      }
+    }
   }
 
   // Tags push downward and bubbles upward until none cover another.

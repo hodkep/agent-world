@@ -23,6 +23,9 @@ export class Character {
   private readonly shadow = new Graphics()
   private readonly ring = new Graphics()
   private readonly leader = new Graphics()
+  private readonly fx = new Graphics()
+  private readonly fxText = new Sprite()
+  private fxTextKey = ''
   private readonly body = new Sprite()
   private readonly arms = new Graphics()
   private readonly bubble = new Container()
@@ -48,6 +51,8 @@ export class Character {
   bubbleDy = 0
   leaving = false
   activity: Activity = 'idle'
+  detail?: string
+  private seated = false
   role: Role
   selected = false
 
@@ -71,7 +76,7 @@ export class Character {
     this.bubble.addChild(this.bubbleBg, this.icon)
     this.tag.addChild(this.tagBg, this.tagText)
     this.view.addChild(this.ring, this.shadow, this.body, this.arms)
-    this.overlay.addChild(this.leader, this.bubble, this.marker, this.tag)
+    this.overlay.addChild(this.fx, this.fxText, this.leader, this.bubble, this.marker, this.tag)
     for (const c of [this.view, this.overlay]) {
       c.eventMode = 'static'
       c.cursor = 'pointer'
@@ -107,8 +112,9 @@ export class Character {
   }
 
   get bubbleBox(): Box | null {
-    if (this.activity === 'idle') return null
-    return { id: this.key, x: this.view.x + TILE / 2 - 6, y: this.view.y + this.top - 12, w: 13, h: 12 }
+    if (this.activity === 'idle' || this.effect()) return null
+    const atDesk = this.seated && this.goal.facing === 'up'
+    return { id: this.key, x: this.view.x + (atDesk ? TILE : TILE / 2 - 6), y: this.view.y + this.top + (atDesk ? -1 : -12), w: 13, h: 12 }
   }
 
   update(dtMs: number, t: number) {
@@ -155,7 +161,9 @@ export class Character {
       this.ring.rect(15 + pulse, TILE - 2, 1, 2).fill(0xffe066)
       this.ring.rect(1 - pulse, TILE, 14 + pulse * 2, 1).fill(0xffe066)
     }
+    this.seated = seated
     this.drawArms(seated, view, t)
+    this.drawEffect(t)
     this.drawBubble(t)
     this.drawMarker(t)
     this.drawTag()
@@ -213,8 +221,115 @@ export class Character {
     }
   }
 
+  /** Big states get a scene instead of a bubble: a hologram for commands, a thought web, a page being written. */
+  private effect(): 'hologram' | 'thought' | 'writing' | null {
+    if (this.activity === 'thinking') return 'thought'
+    if (!this.seated) return null
+    if (this.activity === 'running') return 'hologram'
+    if (this.activity === 'implementing') return 'writing'
+    return null
+  }
+
+  private caption(text: string, color: number, x: number, y: number) {
+    const key = `${text}/${color}`
+    if (key !== this.fxTextKey) {
+      this.fxTextKey = key
+      this.fxText.texture = pixelTexture(textPixels(text), { '#': color }, `fx/${key}`)
+    }
+    this.fxText.visible = true
+    this.fxText.x = x
+    this.fxText.y = y
+  }
+
+  private drawEffect(t: number) {
+    const g = this.fx
+    g.clear()
+    this.fxText.visible = false
+    const kind = this.effect()
+    if (kind === 'hologram') this.drawHologram(g, t)
+    else if (kind === 'thought') this.drawThought(g, t)
+    else if (kind === 'writing') this.drawWriting(g, t)
+  }
+
+  // A sci-fi projection rising from the desk: cyan panel, scanlines, scrolling output, the live command on top.
+  private drawHologram(g: Graphics, t: number) {
+    const W = 48
+    const H = 28
+    const x0 = TILE / 2 - W / 2
+    const y0 = this.top - 30 - H
+    const flicker = 0.85 + 0.15 * Math.sin(t / 37) * Math.sin(t / 91)
+    const cyan = 0x5ae4ff
+    const emitterY = this.top - 18
+    g.poly([TILE / 2 - 2, emitterY, TILE / 2 + 2, emitterY, x0 + W - 4, y0 + H, x0 + 4, y0 + H]).fill({ color: cyan, alpha: 0.1 * flicker })
+    g.rect(x0, y0, W, H).fill({ color: 0x0a3a50, alpha: 0.55 * flicker })
+    for (let y = 0; y < H; y += 2) g.rect(x0, y0 + y, W, 1).fill({ color: cyan, alpha: 0.06 })
+    // Corner brackets: two 4px strokes at each corner of the projection.
+    for (const [cx, cy, sx, sy] of [[x0, y0, 1, 1], [x0 + W - 1, y0, -1, 1], [x0, y0 + H - 1, 1, -1], [x0 + W - 1, y0 + H - 1, -1, -1]] as const) {
+      g.rect(sx > 0 ? cx : cx - 3, cy, 4, 1).fill({ color: cyan, alpha: 0.95 })
+      g.rect(cx, sy > 0 ? cy : cy - 3, 1, 4).fill({ color: cyan, alpha: 0.95 })
+    }
+    g.rect(x0 + 2, y0 + 9, W - 4, 1).fill({ color: cyan, alpha: 0.4 })
+    const scroll = Math.floor(t / 90)
+    for (let row = 0; row < 6; row++) {
+      const n = scroll + row
+      const len = 6 + ((n * 13) % (W - 12))
+      const glitch = n % 17 === 0 ? 1 : 0
+      g.rect(x0 + 3 + glitch, y0 + 11 + row * 2, len, 1).fill({ color: n % 5 === 0 ? 0x8aff9a : cyan, alpha: 0.85 * flicker })
+    }
+    const progress = (t / 1800) % 1
+    g.rect(x0 + 3, y0 + H - 4, W - 6, 1).fill({ color: cyan, alpha: 0.25 })
+    g.rect(x0 + 3, y0 + H - 4, Math.round((W - 6) * progress), 1).fill({ color: 0x8aff9a, alpha: 0.9 })
+    const cmd = (this.detail ?? 'running').replace(/\s+/g, ' ').slice(0, 11)
+    this.caption(cmd, cyan, x0 + 3, y0 + 2)
+  }
+
+  // A small web of thoughts orbiting the head, lighting up one link at a time.
+  private drawThought(g: Graphics, t: number) {
+    const cx = TILE / 2
+    // At a desk the web floats above the monitor rather than over it.
+    const cy = this.seated && this.goal.facing === 'up' ? this.top - 30 : this.top - 8
+    const nodes = 5
+    const spin = t / 900
+    const lit = Math.floor(t / 180) % nodes
+    for (let i = 0; i < nodes; i++) {
+      const a = spin + (i * Math.PI * 2) / nodes
+      const nx = Math.round(cx + Math.cos(a) * 8)
+      const ny = Math.round(cy + Math.sin(a) * 4)
+      const on = i === lit
+      const steps = 6
+      for (let k = 1; k < steps; k++) g.rect(Math.round(cx + ((nx - cx) * k) / steps), Math.round(cy + ((ny - cy) * k) / steps), 1, 1).fill({ color: 0xb08aff, alpha: on ? 0.9 : 0.25 })
+      g.rect(nx - 1, ny - 1, 3, 3).fill({ color: 0x14111c, alpha: 0.6 })
+      g.rect(nx, ny, 1, 1).fill(on ? 0xffffff : 0x9ad8ff)
+    }
+    const pulse = Math.floor(t / 300) % 2
+    g.rect(cx - 1 - pulse, cy - 1 - pulse, 3 + pulse * 2, 3 + pulse * 2).fill({ color: 0xb08aff, alpha: 0.5 })
+    g.rect(cx, cy, 1, 1).fill(0xffffff)
+  }
+
+  // A page floating beside the agent fills line by line; the file being written is named above it.
+  private drawWriting(g: Graphics, t: number) {
+    const cycle = 2600
+    const p = (t % cycle) / cycle
+    const x0 = TILE + 1
+    const y0 = this.top - 14 - Math.round(p * 3)
+    const W = 14
+    const H = 16
+    g.rect(x0 - 1, y0 - 1, W + 2, H + 2).fill({ color: 0x14111c, alpha: 0.8 })
+    g.rect(x0, y0, W, H).fill({ color: 0xf8f6ee, alpha: 0.95 })
+    const lines = 6
+    const done = p * lines
+    for (let i = 0; i < lines; i++) {
+      const full = [10, 8, 11, 6, 9, 7][i]!
+      const len = i < Math.floor(done) ? full : i === Math.floor(done) ? Math.round(full * (done % 1)) : 0
+      if (len > 0) g.rect(x0 + 2, y0 + 3 + i * 2, len, 1).fill(i === 0 ? 0x4a6ad0 : 0x5a5a6a)
+      if (i === Math.floor(done)) g.rect(x0 + 2 + len, y0 + 2 + i * 2, 1, 3).fill(0xd83a3a)
+    }
+    const name = (this.detail ?? 'writing').slice(0, 10)
+    this.caption(name, 0xf6e27a, x0, y0 - 7)
+  }
+
   private drawBubble(t: number) {
-    const show = this.activity !== 'idle'
+    const show = this.activity !== 'idle' && !this.effect()
     this.bubble.visible = show
     if (!show) {
       this.leader.clear()
@@ -230,8 +345,10 @@ export class Character {
     g.rect(0, 6, 1, 1).fill(0x14111c)
     this.icon.texture = iconTexture(this.activity, alarm ? (blink ? 0xffffff : 0xc02020) : 0x14111c)
     this.icon.x = 0.5
-    this.bubble.x = TILE / 2
-    this.bubble.y = this.top - 7 + this.bubbleDy + Math.round(Math.sin(t / 400))
+    // Facing a desk, the bubble moves beside the head so it never covers the monitor.
+    const atDesk = this.seated && this.goal.facing === 'up'
+    this.bubble.x = atDesk ? TILE + 6 : TILE / 2
+    this.bubble.y = (atDesk ? this.top + 4 : this.top - 7) + this.bubbleDy + Math.round(Math.sin(t / 400))
     this.leader.clear()
     if (this.bubbleDy < 0) {
       // Pushed up to clear a neighbour: a dotted leader keeps it tied to this head.

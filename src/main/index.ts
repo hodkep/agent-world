@@ -7,7 +7,7 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import type { AgentRecord, Decision } from '../shared/types'
-import { hookSettings, launchArgs } from './claude'
+import { agentEnv, hookSettings, launchArgs } from './claude'
 import { trustAnswerKeys, trustPrompt } from './prompts'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
@@ -17,6 +17,8 @@ const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 const AGENTS_FILE = join(HOME, 'agents.json')
 const SETTINGS_FILE = join(HOME, 'hook-settings.json')
 const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
+// Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
+const PERMISSION_MODE = process.env.AW_PERMISSION_MODE
 const PERMISSION_TIMEOUT_SEC = 300
 const SCROLLBACK = 256 * 1024
 // Enough of the tail to hold the trust menu, small enough to scan on every chunk.
@@ -56,7 +58,7 @@ function nextName() {
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
-  const p = pty.spawn(CLAUDE_BIN, launchArgs({ ...a, settingsFile: SETTINGS_FILE }), { name: 'xterm-256color', cols: 100, rows: 30, cwd: a.cwd, env })
+  const p = pty.spawn(CLAUDE_BIN, launchArgs({ ...a, settingsFile: SETTINGS_FILE, permissionMode: PERMISSION_MODE }), { name: 'xterm-256color', cols: 100, rows: 30, cwd: a.cwd, env })
   sessions.set(a.id, p)
   if (!a.started) {
     a.started = true
@@ -85,7 +87,7 @@ async function main() {
   await app.whenReady()
   mkdirSync(HOME, { recursive: true })
   agents = loadAgents(AGENTS_FILE)
-  const env = { ...process.env, PATH: loginShellPath() }
+  const env = { ...agentEnv(process.env), PATH: loginShellPath() }
 
   const token = randomBytes(24).toString('hex')
   const hooks = await startHookServer({

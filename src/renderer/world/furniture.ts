@@ -37,8 +37,6 @@ const P = {
   leafLit: 0x5aae62,
   pot: 0x9a6340,
   potDark: 0x74482c,
-  rack: 0x2a2e39,
-  rackFace: 0x1d2029,
   metal: 0xc8ccd6,
   metalDark: 0x9aa0ae
 }
@@ -93,12 +91,6 @@ export function drawFloors(map: OfficeMap): Graphics {
         case 'k':
           for (let cy = 0; cy < 2; cy++) for (let cx = 0; cx < 2; cx++) r(g, px + cx * 8, py + cy * 8, 8, 8, (x * 2 + cx + y * 2 + cy) % 2 ? P.checkA : P.checkB)
           break
-        case 'g':
-          r(g, px, py, TILE, TILE, P.srv)
-          r(g, px + TILE - 1, py, 1, TILE, P.srvLine)
-          r(g, px, py + TILE - 1, TILE, 1, P.srvLine)
-          for (let i = 3; i < 13; i += 3) for (let j = 3; j < 13; j += 3) r(g, px + i, py + j, 1, 1, P.srvLine)
-          break
         case 'F':
           r(g, px, py, TILE, TILE, P.wall)
           if (map.at(x, y - 1) !== 'F') r(g, px, py, TILE, 3, P.wallTop)
@@ -128,7 +120,7 @@ export function drawFloors(map: OfficeMap): Graphics {
 function floorUnder(map: OfficeMap, x: number, y: number) {
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-2, 0], [2, 0], [0, 2], [0, -2]] as const) {
     const t = map.at(x + dx, y + dy)
-    if ('wbkg'.includes(t)) return t
+    if ('wbk'.includes(t)) return t
   }
   return 'w'
 }
@@ -202,7 +194,7 @@ export class Screen {
 
 interface Built {
   screens: Map<string, Screen>
-  leds: { x: number; y: number; phase: number; color: number }[]
+  arcades: { x: number; y: number }[]
 }
 
 function place(layer: Container, z: number, draw: (g: G) => void) {
@@ -248,12 +240,8 @@ function drawPiece(f: Furniture, layer: Container, built: Built, rand: () => num
         box(g, px + 9, py + 7, 13, 4, P.key)
         for (let k = 0; k < 5; k++) r(g, px + 11 + k * 2, py + 8, 1, 1, P.keyDot)
         box(g, px + 24, py + 7, 3, 4, P.key)
-        const mug = [0xe05050, 0x50a0e0, 0xf0f0f0, 0x60c070][Math.floor(rand() * 4)]!
-        if (rand() < 0.6) box(g, px + 3, py + 4, 4, 5, mug)
-        else {
-          r(g, px + 2, py + 5, 6, 4, 0xf4f4f0)
-          r(g, px + 3, py + 4, 6, 4, 0xe8e8e0)
-        }
+        // The left corner is left clear for the agent's growing pile of finished pages.
+        if (rand() < 0.5) box(g, px + 27, py + 3, 3, 4, [0xe05050, 0x50a0e0, 0xf0f0f0, 0x60c070][Math.floor(rand() * 4)]!)
       })
       const s = new Screen(px + 11, py - 5, 10, 7, bottom + 1)
       built.screens.set(`${f.x},${f.y + 1}`, s)
@@ -392,32 +380,31 @@ function drawPiece(f: Furniture, layer: Container, built: Built, rand: () => num
         r(g, px + 7, py - 5, 2, 3, P.leaf)
       })
       break
-    case 'rack': {
-      place(layer, bottom, (g) => {
-        box(g, px + 1, py - 18, TILE - 2, 34, P.rack)
-        for (let u = 0; u < 6; u++) {
-          r(g, px + 3, py - 16 + u * 5, TILE - 6, 4, P.rackFace)
-          r(g, px + 9, py - 15 + u * 5, 3, 1, 0x3a3f4d)
-          built.leds.push({ x: px + 4, y: py - 15 + u * 5, phase: rand() * 10, color: rand() > 0.3 ? 0x40e070 : 0xe0b040 })
-          built.leds.push({ x: px + 6, y: py - 15 + u * 5, phase: rand() * 10, color: 0x40c0e0 })
-        }
-      })
-      if (f.x % 2 === 1 || f.x === 27) {
-        const s = new Screen(px + 4, py + 11, 8, 4, bottom + 1)
-        built.screens.set(`${f.x},${f.y + 1}`, s)
-        layer.addChild(s.g)
-      }
-      break
-    }
-    case 'ups':
-      place(layer, bottom, (g) => {
-        box(g, px + 1, py - 4, TILE - 2, h + 2, 0x4a4f5e)
-        for (let i = 0; i < 8; i++) r(g, px + 3, py - 1 + i * 3, TILE - 6, 1, 0x2e323d)
-        r(g, px + 4, py + h - 6, 3, 2, 0x40e070)
-      })
-      break
     case 'plant':
       place(layer, bottom, (g) => plantSprite(g, px + 8, bottom - 1, rand))
+      break
+    case 'beanbag': {
+      // Drawn in front of the sitter: the bag swallows their lower half.
+      const [fill, dark, lit] = ([[0xe07a3a, 0xb05a24, 0xf09a5a], [0x3aa0a0, 0x247a7a, 0x5ac0c0], [0x8a5ab0, 0x6a3a90, 0xaa7ad0]] as const)[f.x % 3]!
+      place(layer, py + TILE + 3, (g) => {
+        g.ellipse(px + 8, py + 12, 8, 5).fill(P.ink)
+        g.ellipse(px + 8, py + 12, 7, 4).fill(fill)
+        g.ellipse(px + 8, py + 14, 6, 2).fill(dark)
+        r(g, px + 4, py + 9, 5, 1, lit)
+      })
+      break
+    }
+    case 'arcade':
+      place(layer, bottom, (g) => {
+        box(g, px + 1, py - 14, TILE - 2, 30, 0x2a2140)
+        r(g, px + 2, py - 13, TILE - 4, 4, 0xe05090)
+        r(g, px + 3, py - 12, TILE - 6, 2, 0xf6e27a)
+        box(g, px + 2, py - 8, TILE - 4, 9, 0x0c0c16)
+        r(g, px + 3, py + 3, TILE - 6, 3, 0x3a3060)
+        r(g, px + 5, py + 4, 2, 1, 0xe04040)
+        r(g, px + 9, py + 4, 2, 1, 0x40c0e0)
+      })
+      built.arcades.push({ x: px + 3, y: py - 7 })
       break
     case 'cooler':
       place(layer, bottom, (g) => {
@@ -511,15 +498,13 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
         }
         break
       }
-      case 'cables':
-        for (let i = 0; i < 4; i++) r(g, px, py + 6 + i * 2, d.w * TILE, 1, [0x3a70c0, 0xe0b040, 0xc04040, 0x40a060][i]!)
-        r(g, px, py + 5, d.w * TILE, 1, 0x1a1e2c)
-        r(g, px, py + 14, d.w * TILE, 1, 0x1a1e2c)
+      case 'tv': {
+        // Wall TV over the lounge; its picture is animated in the ambient pass.
+        const w = d.w * TILE
+        box(g, px + 2, py + 3, w - 4, 24, 0x1a1a22)
+        r(g, px + w / 2 - 3, py + 27, 6, 2, 0x2a2a32)
         break
-      case 'extinguisher':
-        box(g, px + 5, py + 16, 6, 12, 0xd03030)
-        r(g, px + 6, py + 14, 3, 3, P.ink)
-        break
+      }
       case 'wallplant':
         plantSprite(g, px + 8, py + 31, rand, false)
         break
@@ -530,16 +515,17 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
 }
 
 export interface Ambient {
-  update(t: number, coffeeBusy: boolean): void
+  update(t: number): void
 }
 
 export function drawFurniture(furniture: Furniture[], decor: WallDecor[], layer: Container, shadows: Graphics, coffee: { x: number; y: number }) {
-  const built: Built = { screens: new Map(), leds: [] }
+  const built: Built = { screens: new Map(), arcades: [] }
   const rand = rng(42)
   for (const d of decor) drawDecor(d, layer, rand)
   for (const f of furniture) drawPiece(f, layer, built, rand, shadows)
 
   const clockDecor = decor.find((d) => d.kind === 'clock')
+  const tvDecor = decor.find((d) => d.kind === 'tv')
   const clock = new Graphics()
   clock.zIndex = TILE * 2
   layer.addChild(clock)
@@ -550,11 +536,17 @@ export function drawFurniture(furniture: Furniture[], decor: WallDecor[], layer:
   return {
     screens: built.screens,
     ambient: {
-      update(t, coffeeBusy) {
+      update(t) {
         fx.clear()
-        for (const l of built.leds) if (Math.sin(t / 170 + l.phase * 3) > -0.35) r(fx, l.x, l.y, 1, 1, l.color)
-        if (coffeeBusy)
-          for (let i = 0; i < 3; i++) {
+        for (const a of built.arcades) {
+          const f = Math.floor(t / 220)
+          r(fx, a.x, a.y, TILE - 6, 7, 0x10102a)
+          r(fx, a.x + (f % 8), a.y + 2, 2, 2, 0xf6e27a)
+          r(fx, a.x + ((f * 3) % 9), a.y + 5, 1, 1, 0xe05090)
+        }
+        if (tvDecor) drawTv(fx, tvDecor.x * TILE + 3, tvDecor.y * TILE + 4, tvDecor.w * TILE - 6, 22, t)
+        // The coffee machine is always on: gentle steam from the spout.
+        for (let i = 0; i < 2; i++) {
             const k = (t / 450 + i / 3) % 1
             r(fx, coffee.x + Math.round(Math.sin(k * 6 + i) * 1.5), coffee.y - k * 10, 1, 1, 0xffffff, 1 - k)
           }
@@ -638,4 +630,14 @@ export function drawExterior(map: OfficeMap, margin: number): Graphics {
     g.circle(tx + 3, ty - 1, 4).fill(0x245a34)
   }
   return g
+}
+
+// The lounge TV plays a slow sunset-over-the-city loop.
+function drawTv(g: G, x: number, y: number, w: number, h: number, t: number) {
+  const sky = [0x2a2050, 0x5a2a70, 0xb04a6a, 0xe0805a]
+  sky.forEach((c, i) => r(g, x, y + Math.floor((i * h) / 4), w, Math.ceil(h / 4), c))
+  const sun = Math.floor(t / 600) % 10
+  r(g, x + w / 2 - 3, y + 8 + (sun > 5 ? 10 - sun : sun) / 2, 6, 5, 0xf6d27a)
+  for (let i = 0; i < w; i += 4) r(g, x + i, y + h - 6 - ((i * 7) % 5), 3, 6 + ((i * 7) % 5), 0x14101e)
+  r(g, x, y, w, 1, 0xffffff, 0.08)
 }

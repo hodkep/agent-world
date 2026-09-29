@@ -63,7 +63,7 @@ export function App() {
 
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, state: world[a.sessionId] ?? { activity: 'asleep', interns: {} } }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 } }))
     )
   })
 

@@ -5,10 +5,10 @@ export interface Pt {
 
 export const TILE = 16
 
-// Floors: w wood · b lounge carpet · k kitchen checker · g server tiles · E entrance
+// Floors: w wood · b lounge carpet · k kitchen checker · E entrance
 // Walls:  # solid wall · F back-wall face.  Furniture tiles become X (blocked) or S (seat).
 // S tiles are destinations only: characters may end a walk on a sofa, never walk across one.
-const FLOORS = new Set(['.', 'w', 'b', 'k', 'g', 'E'])
+const FLOORS = new Set(['.', 'w', 'b', 'k', 'E'])
 
 export interface OfficeMap {
   w: number
@@ -71,11 +71,11 @@ export interface Spot extends Pt {
 }
 
 export type Furniture =
-  | { kind: 'desk' | 'meeting' | 'sofa-top' | 'sofa-bottom' | 'coffee-table' | 'counter' | 'fridge' | 'rack' | 'ups'; x: number; y: number; w: number; h: number }
-  | { kind: 'plant' | 'cooler' | 'printer' | 'bin' | 'bistro' | 'chair-desk' | 'chair-top' | 'chair-bottom'; x: number; y: number; w: number; h: number }
+  | { kind: 'desk' | 'meeting' | 'sofa-top' | 'sofa-bottom' | 'coffee-table' | 'counter' | 'fridge' | 'arcade'; x: number; y: number; w: number; h: number }
+  | { kind: 'plant' | 'cooler' | 'printer' | 'bin' | 'bistro' | 'beanbag' | 'chair-desk' | 'chair-top' | 'chair-bottom'; x: number; y: number; w: number; h: number }
 
 export type WallDecor =
-  | { kind: 'shelf' | 'kanban' | 'vine' | 'clock' | 'frame' | 'cables' | 'extinguisher' | 'wallplant' | 'window'; x: number; y: number; w: number; variant?: number }
+  | { kind: 'shelf' | 'kanban' | 'vine' | 'clock' | 'frame' | 'tv' | 'wallplant' | 'window'; x: number; y: number; w: number; variant?: number }
 
 export const W = 30
 export const H = 17
@@ -86,6 +86,7 @@ const DESK_XS = [2, 6, 10, 14]
 const DESK_ROWS = [3, 7]
 const TABLE = { x: 5, y: 11, w: 6, h: 2 }
 const INTERN_XS = [5, 7, 9]
+const BEANBAG_XS = [20, 22, 24]
 
 function buildRows(furniture: Furniture[], seats: Pt[]) {
   const grid: string[][] = Array.from({ length: H }, () => Array.from({ length: W }, () => '#'))
@@ -95,12 +96,10 @@ function buildRows(furniture: Furniture[], seats: Pt[]) {
   fill(WORK.x0, WORK.x1, 0, 1, 'F')
   fill(WORK.x0, WORK.x1, 2, 15, 'w')
   fill(RIGHT.x0, RIGHT.x1, 0, 1, 'F')
-  fill(RIGHT.x0, RIGHT.x1, 2, 6, 'g')
-  fill(RIGHT.x0, RIGHT.x1, 8, 8, 'F')
-  fill(RIGHT.x0, RIGHT.x1, 9, 12, 'b')
+  fill(RIGHT.x0, RIGHT.x1, 2, 12, 'b')
   fill(RIGHT.x0, RIGHT.x1, 13, 15, 'k')
-  // Doorways: workroom→server room, workroom→lounge, and the entrance.
-  fill(18, 18, 3, 4, 'g')
+  // Two doorways from the workroom into the lounge, and the entrance.
+  fill(18, 18, 3, 4, 'b')
   fill(18, 18, 10, 11, 'b')
   fill(8, 9, 16, 16, 'E')
   for (const f of furniture) if (!f.kind.startsWith('chair')) fill(f.x, f.x + f.w - 1, f.y, f.y + f.h - 1, 'X')
@@ -129,29 +128,28 @@ function buildOffice() {
     { kind: 'cooler', x: 17, y: 2, w: 1, h: 1 },
     { kind: 'printer', x: 16, y: 14, w: 2, h: 1 },
     { kind: 'bin', x: 2, y: 15, w: 1, h: 1 },
-    ...[20, 21, 22, 23, 25, 26, 27].map((x) => ({ kind: 'rack' as const, x, y: 2, w: 1, h: 1 })),
-    { kind: 'ups', x: 28, y: 5, w: 1, h: 2 },
-    { kind: 'sofa-top', x: 22, y: 9, w: 4, h: 1 },
-    { kind: 'sofa-bottom', x: 22, y: 12, w: 4, h: 1 },
-    { kind: 'coffee-table', x: 23, y: 11, w: 2, h: 1 },
-    { kind: 'plant', x: 19, y: 9, w: 1, h: 1 },
-    { kind: 'plant', x: 28, y: 9, w: 1, h: 1 },
+    // Lounge, upper half: bean bags in front of the wall TV, arcade cabinets in the corner.
+    ...BEANBAG_XS.map((x) => ({ kind: 'beanbag' as const, x, y: 4, w: 1, h: 1 })),
+    { kind: 'arcade', x: 27, y: 2, w: 1, h: 1 },
+    { kind: 'arcade', x: 28, y: 2, w: 1, h: 1 },
+    { kind: 'plant', x: 19, y: 2, w: 1, h: 1 },
+    // Lounge, lower half: sofas facing each other across a coffee table.
+    { kind: 'sofa-top', x: 22, y: 8, w: 4, h: 1 },
+    { kind: 'coffee-table', x: 23, y: 10, w: 2, h: 1 },
+    { kind: 'sofa-bottom', x: 22, y: 11, w: 4, h: 1 },
+    { kind: 'plant', x: 19, y: 8, w: 1, h: 1 },
+    { kind: 'plant', x: 28, y: 8, w: 1, h: 1 },
     { kind: 'counter', x: 22, y: 15, w: 6, h: 1 },
     { kind: 'fridge', x: 28, y: 14, w: 1, h: 2 },
     { kind: 'bistro', x: 20, y: 14, w: 1, h: 1 }
   )
 
-  const sofas: Spot[] = [22, 23, 24, 25].flatMap((x) => [
-    { x, y: 9, facing: 'down' as const, ox: 0, seated: true },
-    { x, y: 12, facing: 'up' as const, ox: 0, seated: true }
-  ])
-  const consoles: Spot[] = [21, 23, 25, 27].map((x) => ({ x, y: 3, facing: 'up' as const, ox: 0, seated: false }))
-  const coffee: Spot[] = [23, 25, 26].map((x) => ({ x, y: 14, facing: 'down' as const, ox: 0, seated: false }))
-  const bossHeads: Spot[] = [
-    { x: TABLE.x + TABLE.w, y: TABLE.y, facing: 'down', ox: 0, seated: false },
-    { x: TABLE.x - 1, y: TABLE.y, facing: 'down', ox: 0, seated: false },
-    { x: TABLE.x + TABLE.w, y: TABLE.y + 1, facing: 'down', ox: 0, seated: false },
-    { x: TABLE.x - 1, y: TABLE.y + 1, facing: 'down', ox: 0, seated: false }
+  const sofas: Spot[] = [
+    ...[22, 23, 24, 25].flatMap((x) => [
+      { x, y: 8, facing: 'down' as const, ox: 0, seated: true },
+      { x, y: 11, facing: 'up' as const, ox: 0, seated: true }
+    ]),
+    ...BEANBAG_XS.map((x) => ({ x, y: 4, facing: 'up' as const, ox: 0, seated: true }))
   ]
 
   const decor: WallDecor[] = [
@@ -161,13 +159,10 @@ function buildOffice() {
     { kind: 'kanban', x: 8, y: 0, w: 5 },
     { kind: 'shelf', x: 14, y: 0, w: 3, variant: 2 },
     { kind: 'vine', x: 17, y: 0, w: 1 },
-    { kind: 'cables', x: 19, y: 0, w: 10 },
-    { kind: 'extinguisher', x: 24, y: 0, w: 1 },
-    { kind: 'wallplant', x: 19, y: 7, w: 1 },
-    { kind: 'frame', x: 21, y: 7, w: 1, variant: 0 },
-    { kind: 'frame', x: 23, y: 7, w: 2, variant: 1 },
-    { kind: 'frame', x: 26, y: 7, w: 1, variant: 2 },
-    { kind: 'wallplant', x: 28, y: 7, w: 1 }
+    { kind: 'frame', x: 19, y: 0, w: 1, variant: 0 },
+    { kind: 'tv', x: 20, y: 0, w: 5 },
+    { kind: 'frame', x: 25, y: 0, w: 2, variant: 1 },
+    { kind: 'frame', x: 27, y: 0, w: 1, variant: 2 }
   ]
 
   const seats = [...desks, ...interns, ...sofas]
@@ -182,16 +177,11 @@ function buildOffice() {
     desks,
     interns,
     sofas,
-    consoles,
-    coffee,
-    bossHeads,
     // ponytail: fixed overflow spots per room; a second floor per repo is the real fix when these fill up.
     overflow: {
       desk: walkway([3, 5, 7, 9, 11, 13, 15], 5),
       intern: walkway([2, 3, 13, 15], 14),
-      lounge: walkway([20, 21, 26, 27], 11),
-      console: walkway([20, 22, 24, 26], 5),
-      coffee: walkway([21, 22, 24], 13)
+      lounge: walkway([20, 21, 23, 25, 26, 27], 6)
     }
   }
 }

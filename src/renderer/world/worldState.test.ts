@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEvent, emptyWorld, roleOf } from './worldState'
+import { applyEvent, emptyWorld, placeFor, roleOf } from './worldState'
 
 const s = 's1'
 
@@ -42,5 +42,39 @@ describe('world state', () => {
     const a = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'thinking' })
     applyEvent(a, { type: 'activity', sessionId: s, activity: 'idle' })
     expect(a[s]!.activity).toBe('thinking')
+  })
+})
+
+describe('place follows state', () => {
+  it('active agents sit at their desk, finished ones rest in the lounge, dead ones leave', () => {
+    for (const a of ['thinking', 'researching', 'implementing', 'running', 'delegating', 'permission'] as const) expect(placeFor(a, false), a).toBe('desk')
+    expect(placeFor('idle', false)).toBe('lounge')
+    expect(placeFor('waiting', false)).toBe('lounge')
+    expect(placeFor('asleep', false)).toBe('gone')
+  })
+
+  it('interns always work at the meeting table while they exist', () => {
+    expect(placeFor('running', true)).toBe('intern')
+    expect(placeFor('idle', true)).toBe('intern')
+  })
+})
+
+describe('work done', () => {
+  it('each file written or edited adds a sheet to the agent\'s pile', () => {
+    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Write', detail: 'a.ts' })
+    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Edit', detail: 'a.ts' })
+    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'running', tool: 'Bash', detail: 'ls' })
+    expect(w[s]!.files).toBe(2)
+  })
+
+  it('a permission request for a write is not a second sheet', () => {
+    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Write' })
+    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'permission', tool: 'Write' })
+    expect(w[s]!.files).toBe(1)
+  })
+
+  it('interns\' edits count toward their boss\'s pile', () => {
+    const w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, subagentId: 'i1', activity: 'implementing', tool: 'Edit' })
+    expect(w[s]!.files).toBe(1)
   })
 })
