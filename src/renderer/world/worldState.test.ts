@@ -5,42 +5,42 @@ const s = 's1'
 
 describe('world state', () => {
   it('tracks the latest activity and detail per session', () => {
-    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'researching', tool: 'Grep', detail: 'foo' })
-    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Edit', detail: 'a.ts' })
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'researching', tool: 'Grep', detail: 'foo' })
+    w = applyEvent(w, { type: 'activity', agentId: s, sessionId: s, activity: 'implementing', tool: 'Edit', detail: 'a.ts' })
     expect(w[s]).toMatchObject({ activity: 'implementing', detail: 'a.ts' })
   })
 
   it('an agent is senior until it has live interns, then it is the boss', () => {
-    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'thinking' })
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'thinking' })
     expect(roleOf(w[s]!)).toBe('senior')
-    w = applyEvent(w, { type: 'subagent-start', sessionId: s, subagentId: 'i1', subagentType: 'Explore' })
+    w = applyEvent(w, { type: 'subagent-start', agentId: s, sessionId: s, subagentId: 'i1', subagentType: 'Explore' })
     expect(roleOf(w[s]!)).toBe('boss')
-    w = applyEvent(w, { type: 'subagent-stop', sessionId: s, subagentId: 'i1' })
+    w = applyEvent(w, { type: 'subagent-stop', agentId: s, sessionId: s, subagentId: 'i1' })
     expect(roleOf(w[s]!)).toBe('senior')
   })
 
   it('subagent activity goes to the intern, not the boss', () => {
-    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'delegating' })
-    w = applyEvent(w, { type: 'subagent-start', sessionId: s, subagentId: 'i1', subagentType: 'Explore' })
-    w = applyEvent(w, { type: 'activity', sessionId: s, subagentId: 'i1', activity: 'researching', detail: 'x.md' })
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'delegating' })
+    w = applyEvent(w, { type: 'subagent-start', agentId: s, sessionId: s, subagentId: 'i1', subagentType: 'Explore' })
+    w = applyEvent(w, { type: 'activity', agentId: s, sessionId: s, subagentId: 'i1', activity: 'researching', detail: 'x.md' })
     expect(w[s]!.activity).toBe('delegating')
     expect(w[s]!.interns.i1).toMatchObject({ type: 'Explore', activity: 'researching', detail: 'x.md' })
   })
 
   it('activity for an intern we never saw start still creates it', () => {
-    const w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, subagentId: 'i9', activity: 'running' })
+    const w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, subagentId: 'i9', activity: 'running' })
     expect(w[s]!.interns.i9).toMatchObject({ activity: 'running' })
   })
 
   it('session end puts the agent to sleep and sends interns home', () => {
-    let w = applyEvent(emptyWorld(), { type: 'subagent-start', sessionId: s, subagentId: 'i1', subagentType: 'x' })
-    w = applyEvent(w, { type: 'session-end', sessionId: s })
+    let w = applyEvent(emptyWorld(), { type: 'subagent-start', agentId: s, sessionId: s, subagentId: 'i1', subagentType: 'x' })
+    w = applyEvent(w, { type: 'session-end', agentId: s, sessionId: s })
     expect(w[s]).toMatchObject({ activity: 'asleep', interns: {} })
   })
 
   it('does not mutate the previous state', () => {
-    const a = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'thinking' })
-    applyEvent(a, { type: 'activity', sessionId: s, activity: 'idle' })
+    const a = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'thinking' })
+    applyEvent(a, { type: 'activity', agentId: s, sessionId: s, activity: 'idle' })
     expect(a[s]!.activity).toBe('thinking')
   })
 })
@@ -61,20 +61,20 @@ describe('place follows state', () => {
 
 describe('work done', () => {
   it('each file written or edited adds a sheet to the agent\'s pile', () => {
-    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Write', detail: 'a.ts' })
-    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Edit', detail: 'a.ts' })
-    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'running', tool: 'Bash', detail: 'ls' })
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'implementing', tool: 'Write', detail: 'a.ts' })
+    w = applyEvent(w, { type: 'activity', agentId: s, sessionId: s, activity: 'implementing', tool: 'Edit', detail: 'a.ts' })
+    w = applyEvent(w, { type: 'activity', agentId: s, sessionId: s, activity: 'running', tool: 'Bash', detail: 'ls' })
     expect(w[s]!.files).toBe(2)
   })
 
   it('a permission request for a write is not a second sheet', () => {
-    let w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, activity: 'implementing', tool: 'Write' })
-    w = applyEvent(w, { type: 'activity', sessionId: s, activity: 'permission', tool: 'Write' })
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, activity: 'implementing', tool: 'Write' })
+    w = applyEvent(w, { type: 'activity', agentId: s, sessionId: s, activity: 'permission', tool: 'Write' })
     expect(w[s]!.files).toBe(1)
   })
 
   it('interns\' edits count toward their boss\'s pile', () => {
-    const w = applyEvent(emptyWorld(), { type: 'activity', sessionId: s, subagentId: 'i1', activity: 'implementing', tool: 'Edit' })
+    const w = applyEvent(emptyWorld(), { type: 'activity', agentId: s, sessionId: s, subagentId: 'i1', activity: 'implementing', tool: 'Edit' })
     expect(w[s]!.files).toBe(1)
   })
 })

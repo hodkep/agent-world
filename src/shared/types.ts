@@ -9,17 +9,22 @@ export type Activity =
   | 'permission'
   | 'asleep'
 
-export type AgentEvent =
+/** What a hook payload says, in the app's terms. `sessionId` is Claude's, and changes on /clear. */
+export type RawEvent =
   | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string }
   | { type: 'subagent-start'; sessionId: string; subagentId: string; subagentType: string }
   | { type: 'subagent-stop'; sessionId: string; subagentId: string }
   | { type: 'session-start'; sessionId: string }
   | { type: 'session-end'; sessionId: string }
 
+/** A hook event attributed to the agent whose per-agent token sent it. */
+export type AgentEvent = RawEvent & { agentId: string }
+
 export type Decision = 'allow' | 'deny'
 
 export interface PermissionRequest {
   id: string
+  agentId: string
   sessionId: string
   tool: string
   detail: string

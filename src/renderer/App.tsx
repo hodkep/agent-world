@@ -47,7 +47,7 @@ export function App() {
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
       setAgents(list)
-      setWorld((w) => list.reduce((acc, a) => applyEvent(acc, { type: 'session-end', sessionId: a.sessionId }), w))
+      setWorld((w) => list.reduce((acc, a) => applyEvent(acc, { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
     })
     const offs = [
       window.aw.onAgentEvent((e) => setWorld((w) => applyEvent(w, e))),
@@ -89,7 +89,7 @@ export function App() {
 
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
     )
   })
 
@@ -99,8 +99,8 @@ export function App() {
   const showPanel = panelOpen || hiring || asks.length > 0 || pendingTrust.length > 0
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
-  const state = current ? world[current.sessionId] : undefined
-  const nameOf = useMemo(() => new Map(agents.map((a) => [a.sessionId, a])), [agents])
+  const state = current ? world[current.id] : undefined
+  const nameOf = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
 
   const run = async (f: () => Promise<void>) => {
     setError(null)
@@ -129,7 +129,7 @@ export function App() {
       const a = await window.aw.addAgent(folder, options, name)
       setHiring(false)
       setAgents((xs) => [...xs, a])
-      setWorld((w) => applyEvent(w, { type: 'activity', sessionId: a.sessionId, activity: 'idle' }))
+      setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
     })
 
@@ -139,7 +139,7 @@ export function App() {
   const wake = (a: AgentRecord) =>
     run(async () => {
       await window.aw.wakeAgent(a.id)
-      setWorld((w) => applyEvent(w, { type: 'activity', sessionId: a.sessionId, activity: 'idle' }))
+      setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
     })
 
   const remove = (id: string, mode?: 'discard' | 'keep-worktree') =>
@@ -213,7 +213,7 @@ export function App() {
               {asks.map((r) => (
                 <div key={r.id} className="ask">
                   <div>
-                    <b>{nameOf.get(r.sessionId)?.name ?? 'agent'}</b> wants <code>{r.tool}</code>
+                    <b>{nameOf.get(r.agentId)?.name ?? 'agent'}</b> wants <code>{r.tool}</code>
                     <div className="detail">{r.detail}</div>
                   </div>
                   <button className="primary" onClick={() => decide(r, 'allow')}>
@@ -227,7 +227,7 @@ export function App() {
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents">
               {agents.map((a) => {
-                const st = world[a.sessionId]
+                const st = world[a.id]
                 const activity = st?.activity ?? 'asleep'
                 return (
                   <button key={a.id} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>

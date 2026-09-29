@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { AgentEvent, AgentStats, Decision, PermissionRequest } from '../shared/types'
@@ -9,12 +9,13 @@ import { parseStatus, statusText } from './status'
 const MAX_BODY = 10 * 1024 * 1024
 
 interface Options {
-  token: string
+  /** Each agent's hooks and statusline carry its own token; the token says which agent is talking. */
+  agentForToken: (token: string) => string | null
   permissionTimeoutMs: number
   onEvent: (e: AgentEvent) => void
   onPermission: (r: PermissionRequest) => void
   onPermissionSettled: (id: string) => void
-  onStatus: (s: AgentStats) => void
+  onStatus: (s: AgentStats, agentId: string) => void
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -33,16 +34,11 @@ function readBody(req: IncomingMessage): Promise<string | null> {
   })
 }
 
-function authorized(req: IncomingMessage, token: string) {
-  const got = Buffer.from(req.headers.authorization ?? '')
-  const want = Buffer.from(`Bearer ${token}`)
-  return got.length === want.length && timingSafeEqual(got, want)
-}
 
 export async function startHookServer(o: Options) {
   const pending = new Map<string, (d: Decision | null) => void>()
 
-  const holdPermission = (payload: Record<string, unknown>, res: ServerResponse) => {
+  const holdPermission = (payload: Record<string, unknown>, res: ServerResponse, agentId: string) => {
     const id = randomUUID()
     const sessionId = String(payload.session_id)
     const subagentId = typeof payload.agent_id === 'string' ? payload.agent_id : undefined
@@ -63,13 +59,15 @@ export async function startHookServer(o: Options) {
     pending.set(id, settle)
     res.on('close', () => settle(null))
 
-    o.onEvent({ type: 'activity', sessionId, ...(subagentId && { subagentId }), activity: 'permission', tool, detail })
-    o.onPermission({ id, sessionId, tool, detail })
+    o.onEvent({ type: 'activity', agentId, sessionId, ...(subagentId && { subagentId }), activity: 'permission', tool, detail })
+    o.onPermission({ id, agentId, sessionId, tool, detail })
   }
 
   const server = createServer(async (req, res) => {
     if (req.method !== 'POST' || (req.url !== '/hook' && req.url !== '/status')) return void res.writeHead(404).end()
-    if (!authorized(req, o.token)) return void res.writeHead(401).end()
+    const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1]
+    const agentId = bearer ? o.agentForToken(bearer) : null
+    if (!agentId) return void res.writeHead(401).end()
     const body = await readBody(req)
     if (body === null) return void res.writeHead(413).end()
 
@@ -82,14 +80,14 @@ export async function startHookServer(o: Options) {
     if (req.url === '/status') {
       const stats = parseStatus(payload)
       if (!stats) return void res.writeHead(400).end()
-      o.onStatus(stats)
+      o.onStatus(stats, agentId)
       return void res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(statusText(stats))
     }
     const p = payload as Record<string, unknown>
-    if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') return holdPermission(p, res)
+    if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') return holdPermission(p, res, agentId)
 
     const event = normalize(payload)
-    if (event) o.onEvent(event)
+    if (event) o.onEvent({ ...event, agentId })
     res.writeHead(200).end()
   })
 

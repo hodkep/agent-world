@@ -20,7 +20,6 @@ import { DirtyWorktreeError, createWorktree, git, isGitRepo, removeWorktree } fr
 
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 const AGENTS_FILE = join(HOME, 'agents.json')
-const SETTINGS_FILE = join(HOME, 'hook-settings.json')
 const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
 // Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
 const PERMISSION_MODE = process.env.AW_PERMISSION_MODE
@@ -56,7 +55,7 @@ const restarting = new Set<string>()
 const sizes = new Map<string, { cols: number; rows: number }>()
 let awakeBlocker: number | null = null
 // Set once the local servers are up; every spawned agent gets its own MCP identity file.
-let office: { mcpUrl: string } | null = null
+let office: { mcpUrl: string; hookUrl: string } | null = null
 // Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
 const agentTokens = new Map<string, string>()
 // Claude needs a moment after SessionStart/Stop before its input box accepts a paste.
@@ -88,15 +87,22 @@ function nextName() {
   }
 }
 
-function mcpFileFor(a: AgentRecord) {
-  if (!office) return undefined
-  const file = join(HOME, 'mcp', `${a.id}.json`)
-  mkdirSync(join(HOME, 'mcp'), { recursive: true })
+/**
+ * A fresh token per launch, written into this agent's own hook settings and MCP config (user-only files).
+ * Every hook call, statusline update and MCP request carries it, and the token alone says which agent is talking.
+ */
+function agentFiles(a: AgentRecord) {
+  if (!office) throw new Error('Local servers are not running yet.')
+  const dir = join(HOME, 'agents', a.id)
+  mkdirSync(dir, { recursive: true })
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  writeFileSync(file, JSON.stringify(mcpConfig({ url: office.mcpUrl, agentToken })), { mode: 0o600 })
-  return file
+  const settingsFile = join(dir, 'settings.json')
+  const mcpFile = join(dir, 'mcp.json')
+  writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: office.hookUrl, token: agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })), { mode: 0o600 })
+  writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: office.mcpUrl, agentToken })), { mode: 0o600 })
+  return { settingsFile, mcpFile }
 }
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
@@ -124,8 +130,8 @@ function refreshAttention() {
   }
 }
 
-function onStats(s: AgentStats) {
-  const a = agents.find((x) => x.sessionId === s.sessionId)
+function onStats(s: AgentStats, agentId: string) {
+  const a = byId(agentId)
   if (!a) return
   send('agent-stats', a.id, s)
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
@@ -139,8 +145,13 @@ function onStats(s: AgentStats) {
 
 // Hook events tell the mailbox when each agent can take a new prompt.
 function trackTurns(e: AgentEvent) {
-  const a = agents.find((x) => x.sessionId === e.sessionId)
+  const a = byId(e.agentId)
   if (!a) return
+  // /clear (and fork) start a new Claude session in the same terminal; resume must follow the new one.
+  if (e.sessionId !== a.sessionId) {
+    a.sessionId = e.sessionId
+    persist()
+  }
   if (e.type === 'session-start') mailbox.ready(a.id)
   else if (e.type === 'activity' && !e.subagentId) {
     // A conversation exists once a turn has begun; only then can a relaunch use --resume.
@@ -157,7 +168,7 @@ function trackTurns(e: AgentEvent) {
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
-  const args = launchArgs({ ...a, settingsFile: SETTINGS_FILE, mcpFile: mcpFileFor(a), permissionMode: PERMISSION_MODE, options: a.options })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
@@ -201,7 +212,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     refreshAttention()
     if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
     send('pty-exit', a.id)
-    send('agent-event', { type: 'session-end', sessionId: a.sessionId })
+    send('agent-event', { type: 'session-end', agentId: a.id, sessionId: a.sessionId })
   })
 }
 
@@ -211,9 +222,8 @@ async function main() {
   agents = loadAgents(AGENTS_FILE)
   const env = { ...agentEnv(process.env), PATH: loginShellPath() }
 
-  const token = randomBytes(24).toString('hex')
   const hooks = await startHookServer({
-    token,
+    agentForToken: (t) => agentTokens.get(t) ?? null,
     permissionTimeoutMs: PERMISSION_TIMEOUT_SEC * 1000,
     onEvent: (e) => {
       // Only the terminal process exiting means the agent left. SessionEnd also fires on /clear and when we
@@ -227,7 +237,7 @@ async function main() {
       pendingPermissions.add(r.id)
       refreshAttention()
       send('permission', r)
-      notify('permission', agents.find((x) => x.sessionId === r.sessionId), `Wants to use ${r.tool}: ${r.detail}`)
+      notify('permission', byId(r.agentId), `Wants to use ${r.tool}: ${r.detail}`)
     },
     onPermissionSettled: (id) => {
       pendingPermissions.delete(id)
@@ -242,9 +252,7 @@ async function main() {
       agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
     send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply })
   })
-  office = { mcpUrl: mcp.url }
-  // Token rotates every launch; the file is only readable by this user.
-  writeFileSync(SETTINGS_FILE, JSON.stringify(hookSettings({ url: hooks.url, token, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })), { mode: 0o600 })
+  office = { mcpUrl: mcp.url, hookUrl: hooks.url }
 
   ipcMain.handle('pick-folder', async () => {
     const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })

@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import type { Activity, AgentEvent } from '../shared/types'
+import type { Activity, RawEvent } from '../shared/types'
 
 const RESEARCH = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LSP', 'ToolSearch'])
 const IMPLEMENT = new Set(['Edit', 'Write', 'NotebookEdit'])
@@ -27,14 +27,14 @@ export function describeTool(input: unknown): string | undefined {
   return raw?.slice(0, MAX_DETAIL)
 }
 
-export function normalize(payload: unknown): AgentEvent | null {
+export function normalize(payload: unknown): RawEvent | null {
   if (!payload || typeof payload !== 'object') return null
   const p = payload as Payload
   const sessionId = str(p.session_id)
   const event = str(p.hook_event_name)
   if (!sessionId || !event) return null
   const subagentId = str(p.agent_id)
-  const activity = (a: Activity, tool?: string, detail?: string): AgentEvent => ({
+  const activity = (a: Activity, tool?: string, detail?: string): RawEvent => ({
     type: 'activity',
     sessionId,
     ...(subagentId && { subagentId }),

@@ -13,7 +13,7 @@ async function setup(permissionTimeoutMs = 5_000) {
   const stats: unknown[] = []
   server = await startHookServer({
     onStatus: (s) => stats.push(s),
-    token: 'secret',
+    agentForToken: (t) => (t === 'secret' ? 'a1' : null),
     permissionTimeoutMs,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asks.push(r),
@@ -48,14 +48,14 @@ describe('hook server', () => {
     const res = await post(server.url, { session_id: 's1', hook_event_name: 'Stop' })
     expect(res.status).toBe(200)
     expect(await res.text()).toBe('')
-    expect(events).toEqual([{ type: 'activity', sessionId: 's1', activity: 'idle' }])
+    expect(events).toEqual([{ type: 'activity', agentId: 'a1', sessionId: 's1', activity: 'idle' }])
   })
 
   it('holds a permission request until the user allows it', async () => {
     const { server, asks, events } = await setup()
     const pending = post(server.url, permission)
     await until(() => asks.length === 1)
-    expect(asks[0]).toMatchObject({ sessionId: 's1', tool: 'Bash', detail: 'rm -rf build' })
+    expect(asks[0]).toMatchObject({ agentId: 'a1', sessionId: 's1', tool: 'Bash', detail: 'rm -rf build' })
     expect(events.at(-1)).toMatchObject({ activity: 'permission', detail: 'rm -rf build' })
 
     server.decide(asks[0]!.id, 'allow')

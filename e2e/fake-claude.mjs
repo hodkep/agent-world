@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 const args = process.argv.slice(2)
 const flag = (name) => args[args.indexOf(name) + 1]
 const settings = JSON.parse(readFileSync(flag('--settings'), 'utf8'))
-const sessionId = flag('--session-id') ?? flag('--resume')
+let sessionId = flag('--session-id') ?? flag('--resume')
 const { url, headers } = settings.hooks.PreToolUse[0].hooks[0]
 const pause = Number(process.env.FAKE_DELAY_MS ?? 150)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -101,4 +101,10 @@ if (myName && myName === sendFrom) {
   await sendViaOffice(sendTo, sendText.join(':'))
 }
 await hook('Stop')
+// FAKE_CLEAR=1: behave like /clear — a new Claude session id in the same terminal, then more work.
+if (process.env.FAKE_CLEAR) {
+  sessionId = `cleared-${sessionId}`
+  await hook('SessionStart', { source: 'clear' })
+  await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'after-clear' } })
+}
 console.log('done, waiting for input')

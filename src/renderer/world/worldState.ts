@@ -14,6 +14,7 @@ export interface AgentState {
   files: number
 }
 
+/** Keyed by agent id: an agent's Claude session id changes on /clear, its identity does not. */
 export type World = Record<string, AgentState>
 export type Role = 'boss' | 'senior' | 'intern'
 export type Place = 'desk' | 'intern' | 'lounge' | 'gone'
@@ -33,7 +34,7 @@ export const emptyWorld = (): World => ({})
 export const roleOf = (a: AgentState): Role => (Object.keys(a.interns).length > 0 ? 'boss' : 'senior')
 
 export function applyEvent(world: World, e: AgentEvent): World {
-  const prev = world[e.sessionId] ?? { activity: 'idle', interns: {}, files: 0 }
+  const prev = world[e.agentId] ?? { activity: 'idle', interns: {}, files: 0 }
   const next: AgentState = { ...prev, interns: { ...prev.interns } }
 
   switch (e.type) {
@@ -58,5 +59,5 @@ export function applyEvent(world: World, e: AgentEvent): World {
       next.files = 0
       break
   }
-  return { ...world, [e.sessionId]: next }
+  return { ...world, [e.agentId]: next }
 }
