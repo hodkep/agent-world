@@ -80,3 +80,8 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .dirty pre { margin: 0; max-height: 120px; overflow: auto; background: var(--ink); padding: 6px; }
 .terminals { flex: 1; min-height: 0; background: #0c0b12; }
 .term-host { height: 100%; padding: 8px 10px; }
+.messages { flex-direction: column; align-items: stretch; gap: 6px; max-height: 22vh; overflow: auto; }
+.message .status { float: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.message.is-queued .status { color: var(--accent); }
+.message.is-delivered .status { color: var(--ok); }
+.message.is-dropped .status { color: var(--danger); }

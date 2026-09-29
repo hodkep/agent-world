@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { trustAnswerKeys, trustPrompt } from './prompts'
+import { answerTrust, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -14,28 +12,54 @@ const screen = (cursorOnYes: boolean) =>
     ' Enter to confirm · Esc to cancel'
   ].join('\r\n')
 
-// Bytes captured from a real Claude Code 2.1.280 PTY: words are placed with cursor moves, not spaces.
-const REAL = readFileSync(join(__dirname, 'fixtures', 'trust-prompt.ansi'), 'utf8')
-
 describe('workspace trust prompt', () => {
-  it('detects the menu in real Claude output', () => {
-    expect(trustPrompt(REAL)).toEqual({ path: '/Users/me/.agent-world/worktrees-Z/shop-api-1234/ada', highlighted: 'no' })
-  })
-
   it('detects the prompt and which option is highlighted', () => {
     expect(trustPrompt(screen(false))).toEqual({ path: '/Users/me/.agent-world/worktrees/shop-api-1234/ada', highlighted: 'no' })
     expect(trustPrompt(screen(true))?.highlighted).toBe('yes')
   })
 
-  it('ignores output without the prompt, or where it was already answered', () => {
+  it('ignores screens without the prompt', () => {
     expect(trustPrompt('hello\r\n> ')).toBeNull()
-    expect(trustPrompt(`${screen(false)}\r\n\x1b[2J Welcome back! Tips for getting started`)).toBeNull()
   })
 
-  it('presses exactly what is needed to land on the chosen option', () => {
-    expect(trustAnswerKeys('no', true)).toBe('\x1b[B\r')
-    expect(trustAnswerKeys('yes', true)).toBe('\r')
-    expect(trustAnswerKeys('yes', false)).toBe('\x1b[A\r')
-    expect(trustAnswerKeys('no', false)).toBe('\r')
+
+})
+
+describe('answering the trust prompt reliably', () => {
+  const fakeTerminal = (dropFirst: number) => {
+    let dropped = 0
+    let highlighted: 'yes' | 'no' = 'no'
+    let answered = false
+    const writes: string[] = []
+    return {
+      writes,
+      screen: () => (answered ? 'Welcome back! Tips for getting started' : screen(highlighted === 'yes')),
+      write: (keys: string) => {
+        writes.push(keys)
+        if (dropped < dropFirst) return void dropped++
+        if (keys === '\x1b[B') highlighted = 'yes'
+        else if (keys === '\x1b[A') highlighted = 'no'
+        else if (keys === '\r') answered = true
+      }
+    }
+  }
+  const sleep = async () => {}
+
+  it('moves the cursor, pauses, then confirms', async () => {
+    const t = fakeTerminal(0)
+    expect(await answerTrust({ screen: t.screen, write: t.write, sleep }, true)).toBe(true)
+    expect(t.writes).toEqual(['\x1b[B', '\r'])
+  })
+
+  it('tries again when the keys were swallowed before Claude was listening', async () => {
+    const t = fakeTerminal(2)
+    expect(await answerTrust({ screen: t.screen, write: t.write, sleep }, true)).toBe(true)
+    expect(t.writes.length).toBeGreaterThan(2)
+  })
+
+  it('gives up after a few attempts rather than typing forever', async () => {
+    const t = fakeTerminal(99)
+    expect(await answerTrust({ screen: t.screen, write: t.write, sleep }, true)).toBe(false)
+    expect(t.writes.length).toBeLessThanOrEqual(6)
   })
 })

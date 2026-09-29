@@ -2,26 +2,18 @@ import { stripVTControlCharacters } from 'node:util'
 
 const YES = 'Yes, I trust this folder'
 const CONFIRM = 'Enter to confirm'
-// Anything longer than this after the menu means Claude has moved on and redrawn the screen.
-const ANSWERED_AFTER = 12
 
 export interface TrustPrompt {
   path: string
   highlighted: 'yes' | 'no'
 }
 
-/** Claude Code's first-run "do you trust this folder?" menu, if it is what the terminal shows right now. */
-// Claude's TUI places each word with a cursor move (CSI n G / CSI n C) rather than a space,
-// so those moves must become spaces before the text can be matched.
-export const screenText = (raw: string) => stripVTControlCharacters(raw.replace(/\x1b\[\d*[GC]/g, ' ')).replace(/[ \t]+/g, ' ')
-
-export function trustPrompt(raw: string): TrustPrompt | null {
-  const text = screenText(raw)
+/** Claude Code's first-run "do you trust this folder?" menu, if it is on the given rendered screen. */
+export function trustPrompt(screen: string): TrustPrompt | null {
+  const text = stripVTControlCharacters(screen)
   const yesAt = text.lastIndexOf(YES)
   const confirmAt = text.lastIndexOf(CONFIRM)
   if (yesAt < 0 || confirmAt < yesAt) return null
-  if (text.slice(confirmAt + CONFIRM.length).replace(/[\s·a-zA-Z]*cancel/, '').trim().length > ANSWERED_AFTER) return null
-
   const start = text.lastIndexOf('Accessing workspace:', yesAt)
   const end = text.indexOf('Quick safety check', start)
   const path = start >= 0 && end > start ? text.slice(start + 'Accessing workspace:'.length, end).split(/\r?\n/).map((l) => l.trim()).join('') : ''
@@ -30,9 +22,42 @@ export function trustPrompt(raw: string): TrustPrompt | null {
   return { path, highlighted: line.includes('Yes') ? 'yes' : 'no' }
 }
 
-/** Keys that move the menu cursor onto the wanted option and confirm it. */
-export function trustAnswerKeys(highlighted: 'yes' | 'no', trust: boolean) {
+/** Claude's input box (a `❯` line between rules) is on screen and no menu is in the way. */
+export function inputReady(screen: string): boolean {
+  if (trustPrompt(screen)) return false
+  const lines = screen.split('\n').map((l) => l.trimStart())
+  return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯( |$)/.test(l))
+}
+
+const MOVE_SETTLE_MS = 200
+const CONFIRM_SETTLE_MS = 1200
+const ATTEMPTS = 3
+
+interface TerminalIO {
+  screen: () => string
+  write: (keys: string) => void
+  sleep: (ms: number) => Promise<void>
+}
+
+/**
+ * Move Claude's trust-menu cursor to the wanted option and confirm it, checking the screen between steps.
+ * Enter is only pressed once the wanted option is highlighted: a swallowed arrow followed by Enter would
+ * otherwise pick "No, exit" and close the agent.
+ */
+export async function answerTrust(io: TerminalIO, trust: boolean): Promise<boolean> {
   const want = trust ? 'yes' : 'no'
-  if (highlighted === want) return '\r'
-  return (want === 'yes' ? '\x1b[B' : '\x1b[A') + '\r'
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    let prompt = trustPrompt(io.screen())
+    if (!prompt) return true
+    if (prompt.highlighted !== want) {
+      io.write(want === 'yes' ? '\x1b[B' : '\x1b[A')
+      await io.sleep(MOVE_SETTLE_MS)
+      prompt = trustPrompt(io.screen())
+      if (!prompt) return true
+      if (prompt.highlighted !== want) continue
+    }
+    io.write('\r')
+    await io.sleep(CONFIRM_SETTLE_MS)
+  }
+  return !trustPrompt(io.screen())
 }

@@ -72,6 +72,16 @@ describe('normalize hook payload → AgentEvent', () => {
     })
   })
 
+  it('session start means the terminal is ready for input', () => {
+    expect(normalize({ ...base, hook_event_name: 'SessionStart', source: 'startup' })).toEqual({ type: 'session-start', sessionId: 's1' })
+  })
+
+  it('a message to another agent shows who it is for', () => {
+    expect(
+      normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'mcp__agent-world__send_message', tool_input: { to: 'linus', message: 'review auth.ts please' } })
+    ).toMatchObject({ activity: 'thinking', detail: '→ linus: review auth.ts please' })
+  })
+
   it('session end', () => {
     expect(normalize({ ...base, hook_event_name: 'SessionEnd' })).toEqual({ type: 'session-end', sessionId: 's1' })
   })

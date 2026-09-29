@@ -31,7 +31,7 @@ function readBody(req: IncomingMessage): Promise<string | null> {
   })
 }
 
-function authorized(req: IncomingMessage, token: string) {
+export function authorized(req: IncomingMessage, token: string) {
   const got = Buffer.from(req.headers.authorization ?? '')
   const want = Buffer.from(`Bearer ${token}`)
   return got.length === want.length && timingSafeEqual(got, want)

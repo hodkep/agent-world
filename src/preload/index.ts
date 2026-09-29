@@ -25,7 +25,8 @@ const api: AwApi = {
   onPtyExit: on('pty-exit'),
   onPermission: on('permission'),
   onPermissionSettled: on('permission-settled'),
-  onTrustPrompt: on('trust-prompt')
+  onTrustPrompt: on('trust-prompt'),
+  onAgentMessage: on('agent-message')
 }
 
 contextBridge.exposeInMainWorld('aw', api)

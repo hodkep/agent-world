@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentRecord, PermissionRequest } from '../shared/types'
+import type { AgentMessage, AgentRecord, PermissionRequest } from '../shared/types'
 import { PixelWord } from './PixelWord'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -25,8 +25,16 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(true)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
+  const [messages, setMessages] = useState<AgentMessage[]>([])
+  // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
+  const select = (id: string) => {
+    setSelected(id)
+    setFocusTick((n) => n + 1)
+  }
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
+  // Each message flies once, when first seen, even though it is reported again on delivery.
+  const seenFlights = useRef(new Set<string>())
 
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
@@ -37,6 +45,13 @@ export function App() {
       window.aw.onAgentEvent((e) => setWorld((w) => applyEvent(w, e))),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
       window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
+      window.aw.onAgentMessage((m) => {
+        setMessages((ms) => [m, ...ms.filter((x) => x.id !== m.id)].slice(0, 30))
+        if (m.status !== 'dropped' && !seenFlights.current.has(m.id)) {
+          seenFlights.current.add(m.id)
+          office.current?.sendMail(m.fromId, m.toId)
+        }
+      }),
       window.aw.onTrustPrompt((agentId, path) =>
         setTrusts((t) => {
           const { [agentId]: _, ...rest } = t
@@ -50,7 +65,7 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, setSelected).then((created) => {
+    void OfficeWorld.create(stage.current!, select).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
     })
@@ -63,7 +78,7 @@ export function App() {
 
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 } }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, state: world[a.sessionId] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
     )
   })
 
@@ -192,7 +207,7 @@ export function App() {
                 const st = world[a.sessionId]
                 const activity = st?.activity ?? 'asleep'
                 return (
-                  <button key={a.id} className={`agent-row is-${activity}`} aria-pressed={a.id === selected} onClick={() => setSelected(a.id)}>
+                  <button key={a.id} className={`agent-row is-${activity}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
                     <span className="dot" aria-hidden="true" />
                     <span className="name">{a.name}</span>
                     <span className="role">{st ? roleOf(st) : 'senior'}</span>
@@ -226,6 +241,19 @@ export function App() {
               <button className="danger" onClick={() => remove(dirty.id, 'discard')}>
                 Discard changes
               </button>
+            </section>
+          )}
+          {messages.length > 0 && (
+            <section className="messages" aria-label="Messages between agents">
+              {messages.slice(0, 5).map((m) => (
+                <div key={m.id} className={`message is-${m.status}`}>
+                  <b>{agents.find((a) => a.id === m.fromId)?.name ?? '?'}</b> → <b>{agents.find((a) => a.id === m.toId)?.name ?? '?'}</b>
+                  <span className="status">{m.status}</span>
+                  <div className="detail" title={m.text}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
             </section>
           )}
           <div className="terminals">

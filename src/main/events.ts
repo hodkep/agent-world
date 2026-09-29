@@ -21,6 +21,7 @@ function activityFor(tool: string): Activity {
 export function describeTool(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined
   const i = input as Payload
+  if (typeof i.to === 'string' && typeof i.message === 'string') return `→ ${i.to}: ${i.message}`.slice(0, MAX_DETAIL)
   const file = str(i.file_path) ?? str(i.notebook_path)
   const raw = file ? basename(file) : (str(i.command) ?? str(i.pattern) ?? str(i.query) ?? str(i.url) ?? str(i.description))
   return raw?.slice(0, MAX_DETAIL)
@@ -59,6 +60,8 @@ export function normalize(payload: unknown): AgentEvent | null {
       return subagentId ? { type: 'subagent-start', sessionId, subagentId, subagentType: str(p.agent_type) ?? 'agent' } : null
     case 'SubagentStop':
       return subagentId ? { type: 'subagent-stop', sessionId, subagentId } : null
+    case 'SessionStart':
+      return { type: 'session-start', sessionId }
     case 'SessionEnd':
       return { type: 'session-end', sessionId }
     default:

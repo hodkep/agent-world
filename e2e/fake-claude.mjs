@@ -22,6 +22,24 @@ const hook = async (event, extra = {}) => {
 }
 
 console.log(`fake claude · session ${sessionId} · cwd ${process.cwd()}`)
+await hook('SessionStart', { source: 'startup' })
+// Echo typed or pasted input, so delivered messages are visible in this terminal.
+process.stdin.setRawMode?.(true)
+process.stdin.on('data', (d) => process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+
+// FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
+async function sendViaOffice(to, message) {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
+  const server = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world']
+  const client = new Client({ name: 'fake-claude', version: '1' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }))
+  const r = await client.callTool({ name: 'send_message', arguments: { to, message } })
+  console.log(`send_message → ${r.content[0].text}`)
+  await client.close()
+}
+const [sendFrom, sendTo, ...sendText] = (process.env.FAKE_SEND ?? '').split(':')
+const myName = args.includes('--name') ? flag('--name') : null
 
 // FAKE_LOOP=1: endless varied work with no permission prompts, for demos and screenshots.
 if (process.env.FAKE_LOOP) {
@@ -65,7 +83,9 @@ const answer = await hook('PermissionRequest', { tool_name: 'Bash', tool_input: 
 console.log(`decision: ${answer?.hookSpecificOutput?.decision?.behavior ?? 'ask-in-terminal'}`)
 await hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
 await sleep(pause)
+if (myName && myName === sendFrom) {
+  await hook('PreToolUse', { tool_name: 'mcp__agent-world__send_message', tool_input: { to: sendTo, message: sendText.join(':') } })
+  await sendViaOffice(sendTo, sendText.join(':'))
+}
 await hook('Stop')
 console.log('done, waiting for input')
-process.stdin.setRawMode?.(true)
-process.stdin.on('data', (d) => process.stdout.write(d))

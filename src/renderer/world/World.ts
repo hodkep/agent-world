@@ -15,7 +15,16 @@ export interface AgentView {
   name: string
   state: AgentState
   selected: boolean
+  /** Messages from other agents waiting for this one to finish its turn. */
+  inbox: number
 }
+
+interface Flight {
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  start: number
+}
+const FLIGHT_MS = 1400
 
 type Purpose = Exclude<Place, 'gone'>
 
@@ -38,6 +47,9 @@ export class OfficeWorld {
   private screens = new Map<string, Screen>()
   private readonly piles = new Map<string, Graphics>()
   private readonly files = new Map<string, number>()
+  private readonly inbox = new Map<string, number>()
+  private readonly flights: Flight[] = []
+  private readonly mail = new Graphics()
   private ambient!: Ambient
   private readonly root = new Container()
   private readonly layer = new Container({ sortableChildren: true })
@@ -72,6 +84,7 @@ export class OfficeWorld {
   private build() {
     const shadows = new Graphics()
     this.root.addChild(drawExterior(OFFICE.map, EXTERIOR_MARGIN), drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.overlays.addChild(this.mail)
     const f = drawFurniture(OFFICE.furniture, OFFICE.decor, this.layer, shadows, COFFEE_SPOUT)
     this.screens = f.screens
     this.ambient = f.ambient
@@ -189,6 +202,7 @@ export class OfficeWorld {
   sync(agents: AgentView[]) {
     const live = new Set<string>()
     this.files.clear()
+    this.inbox.clear()
     for (const a of agents) {
       // A session that is not running is out of the office until it is woken or re-hired.
       if (placeFor(a.state.activity, false) === 'gone') continue
@@ -198,6 +212,7 @@ export class OfficeWorld {
       c.selected = a.selected
       this.route(c, a.state.activity, false, a.state.detail)
       this.files.set(a.id, a.state.files)
+      this.inbox.set(a.id, a.inbox)
 
       for (const [iid, intern] of Object.entries(a.state.interns)) {
         const key = `${a.id}/${iid}`
@@ -231,6 +246,7 @@ export class OfficeWorld {
       if (c.arrived) atScreen.set(`${c.at.x},${c.at.y}`, c.activity)
     }
     this.drawPiles()
+    this.drawMail(t)
     this.untangle()
     for (const [spot, s] of this.screens) s.draw(atScreen.get(spot) ?? null, t)
     this.ambient.update(t)
@@ -271,6 +287,47 @@ export class OfficeWorld {
         g.rect(x - 1, bottom - sheets - 1, 8, 1).fill(0x14111c)
         g.rect(x, bottom - sheets, 6, 1).fill(0xffffff)
       }
+    }
+  }
+
+  /** An envelope flies from sender to recipient; it's how one agent visibly asks another for something. */
+  sendMail(fromId: string, toId: string) {
+    const a = this.chars.get(fromId)
+    const b = this.chars.get(toId)
+    if (!a || !b) return
+    const head = (c: Character) => ({ x: c.view.x + TILE / 2, y: c.view.y - 4 })
+    this.flights.push({ from: head(a), to: head(b), start: performance.now() })
+  }
+
+  private drawMail(t: number) {
+    const g = this.mail
+    g.clear()
+    const envelope = (x: number, y: number, alpha = 1) => {
+      g.rect(x - 4, y - 3, 9, 7).fill({ color: 0x14111c, alpha })
+      g.rect(x - 3, y - 2, 7, 5).fill({ color: 0xf8f6ee, alpha })
+      g.rect(x - 2, y - 1, 1, 1).fill({ color: 0xd83a3a, alpha })
+      g.rect(x - 1, y, 3, 1).fill({ color: 0xb0aa98, alpha })
+      g.rect(x + 2, y - 1, 1, 1).fill({ color: 0xd83a3a, alpha })
+    }
+    for (let i = this.flights.length - 1; i >= 0; i--) {
+      const f = this.flights[i]!
+      const p = (t - f.start) / FLIGHT_MS
+      if (p >= 1) {
+        this.flights.splice(i, 1)
+        continue
+      }
+      const ease = 1 - (1 - p) ** 2
+      const x = f.from.x + (f.to.x - f.from.x) * ease
+      const lift = Math.sin(p * Math.PI) * 28
+      const y = f.from.y + (f.to.y - f.from.y) * ease - lift
+      for (let k = 1; k <= 4; k++) g.rect(Math.round(x - (f.to.x - f.from.x) * 0.03 * k), Math.round(y + k * 2), 1, 1).fill({ color: 0xf6e27a, alpha: 0.6 - k * 0.12 })
+      envelope(Math.round(x), Math.round(y))
+    }
+    // Waiting mail stacks beside the recipient until its turn ends.
+    for (const [id, count] of this.inbox) {
+      const c = this.chars.get(id)
+      if (!c || count === 0) continue
+      for (let i = 0; i < Math.min(count, 4); i++) envelope(c.view.x - 4, c.view.y + 4 - i * 3)
     }
   }
 

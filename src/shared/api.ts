@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentRecord, Decision, PermissionRequest } from './types'
+import type { AgentEvent, AgentMessage, AgentRecord, Decision, PermissionRequest } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 
@@ -21,4 +21,5 @@ export interface AwApi {
   onPermissionSettled(cb: (id: string) => void): () => void
   /** Claude's "trust this folder?" menu opened (path) or closed (null) in an agent's terminal. */
   onTrustPrompt(cb: (agentId: string, path: string | null) => void): () => void
+  onAgentMessage(cb: (m: AgentMessage) => void): () => void
 }

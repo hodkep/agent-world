@@ -7,6 +7,7 @@ const OBSERVED = [
   'Notification',
   'SubagentStart',
   'SubagentStop',
+  'SessionStart',
   'SessionEnd'
 ] as const
 
@@ -25,11 +26,18 @@ export function hookSettings(o: { url: string; token: string; permissionTimeoutS
   return { hooks } as { hooks: Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>> }
 }
 
-export function launchArgs(o: { sessionId: string; name: string; started: boolean; settingsFile: string; permissionMode?: string }) {
+export function launchArgs(o: { sessionId: string; name: string; started: boolean; settingsFile: string; mcpFile?: string; permissionMode?: string }) {
   const base = o.started
     ? ['--resume', o.sessionId, '--settings', o.settingsFile]
     : ['--session-id', o.sessionId, '--name', o.name, '--settings', o.settingsFile]
-  return o.permissionMode ? [...base, '--permission-mode', o.permissionMode] : base
+  if (o.mcpFile) base.push('--mcp-config', o.mcpFile)
+  if (o.permissionMode) base.push('--permission-mode', o.permissionMode)
+  return base
+}
+
+/** Per-agent MCP config: same office server for everyone, the header says which agent is calling. */
+export function mcpConfig(o: { url: string; token: string; agentId: string }) {
+  return { mcpServers: { 'agent-world': { type: 'http', url: o.url, headers: { Authorization: `Bearer ${o.token}`, 'X-AW-Agent': o.agentId } } } }
 }
 
 // Set by a parent Claude Code session (when this app is started from inside one). Passed on, they make

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentEnv, hookSettings, launchArgs } from './claude'
+import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 
 describe('claude launch', () => {
   it('starts a fresh session with a fixed id and name', () => {
@@ -20,12 +20,21 @@ describe('claude launch', () => {
     ])
   })
 
+  it('gives each agent the office MCP server under its own identity', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', mcpFile: '/m.json' })).toEqual([
+      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--mcp-config', '/m.json'
+    ])
+    expect(mcpConfig({ url: 'http://127.0.0.1:9/mcp', token: 't', agentId: 'a1' })).toEqual({
+      mcpServers: { 'agent-world': { type: 'http', url: 'http://127.0.0.1:9/mcp', headers: { Authorization: 'Bearer t', 'X-AW-Agent': 'a1' } } }
+    })
+  })
+
   it('routes every watched event to our HTTP hook with the token', () => {
     const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', permissionTimeoutSec: 300 })
     const pre = s.hooks.PreToolUse[0]!.hooks[0]!
     expect(pre).toMatchObject({ type: 'http', url: 'http://127.0.0.1:9/hook', headers: { Authorization: 'Bearer t0k' } })
     expect(Object.keys(s.hooks).sort()).toEqual(
-      ['Notification', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SessionEnd', 'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit'].sort()
+      ['Notification', 'PermissionRequest', 'PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit'].sort()
     )
   })
 
