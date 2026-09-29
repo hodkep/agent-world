@@ -19,11 +19,13 @@ const api: AwApi = {
   ptyResize: (id, cols, rows) => ipcRenderer.send('pty-resize', id, cols, rows),
   ptyBuffer: (id) => ipcRenderer.invoke('pty-buffer', id),
   decide: (requestId, d) => ipcRenderer.send('decide', requestId, d),
+  answerTrust: (agentId, trust) => ipcRenderer.send('answer-trust', agentId, trust),
   onAgentEvent: on('agent-event'),
   onPtyData: on('pty-data'),
   onPtyExit: on('pty-exit'),
   onPermission: on('permission'),
-  onPermissionSettled: on('permission-settled')
+  onPermissionSettled: on('permission-settled'),
+  onTrustPrompt: on('trust-prompt')
 }
 
 contextBridge.exposeInMainWorld('aw', api)

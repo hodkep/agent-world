@@ -8,6 +8,7 @@ import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import type { AgentRecord, Decision } from '../shared/types'
 import { hookSettings, launchArgs } from './claude'
+import { trustAnswerKeys, trustPrompt } from './prompts'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
 import { DirtyWorktreeError, createWorktree, isGitRepo, removeWorktree } from './worktree'
@@ -18,6 +19,8 @@ const SETTINGS_FILE = join(HOME, 'hook-settings.json')
 const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
 const PERMISSION_TIMEOUT_SEC = 300
 const SCROLLBACK = 256 * 1024
+// Enough of the tail to hold the trust menu, small enough to scan on every chunk.
+const PROMPT_WINDOW = 8 * 1024
 const NAMES = ['ada', 'linus', 'grace', 'alan', 'margaret', 'ken', 'barbara', 'dennis', 'radia', 'guido', 'hedy', 'bjarne']
 
 // Apps launched from Finder/desktop get a bare PATH; claude usually lives in a path set by the login shell.
@@ -35,6 +38,7 @@ let win: BrowserWindow | null = null
 let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
 const buffers = new Map<string, { text: string; end: number }>()
+const trustOpen = new Set<string>()
 // PTYs exit after the window is gone during quit; messages then have nowhere to go.
 const send = (channel: string, ...args: unknown[]) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
@@ -63,9 +67,15 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
     buffers.set(a.id, next)
     send('pty-data', a.id, d, next.end)
+    const trust = trustPrompt(next.text.slice(-PROMPT_WINDOW))
+    if (trust && !trustOpen.has(a.id)) {
+      trustOpen.add(a.id)
+      send('trust-prompt', a.id, trust.path || a.cwd)
+    } else if (!trust && trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
   })
   p.onExit(() => {
     sessions.delete(a.id)
+    if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
     send('pty-exit', a.id)
     send('agent-event', { type: 'session-end', sessionId: a.sessionId })
   })
@@ -127,6 +137,11 @@ async function main() {
   ipcMain.on('pty-write', (_, id: string, data: string) => sessions.get(id)?.write(data))
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => sessions.get(id)?.resize(cols, rows))
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
+  ipcMain.on('answer-trust', (_, id: string, trust: boolean) => {
+    // Re-read the screen at answer time: the user may have moved the cursor in the terminal meanwhile.
+    const prompt = trustPrompt((buffers.get(id)?.text ?? '').slice(-PROMPT_WINDOW))
+    if (prompt) sessions.get(id)?.write(trustAnswerKeys(prompt.highlighted, trust))
+  })
 
   win = new BrowserWindow({
     width: 1440,

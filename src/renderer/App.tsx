@@ -23,6 +23,8 @@ export function App() {
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
+  const [trusts, setTrusts] = useState<Record<string, string>>({})
+  const [focusTick, setFocusTick] = useState(0)
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
 
@@ -34,7 +36,13 @@ export function App() {
     const offs = [
       window.aw.onAgentEvent((e) => setWorld((w) => applyEvent(w, e))),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
-      window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id)))
+      window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
+      window.aw.onTrustPrompt((agentId, path) =>
+        setTrusts((t) => {
+          const { [agentId]: _, ...rest } = t
+          return path ? { ...t, [agentId]: path } : rest
+        })
+      )
     ]
     return () => offs.forEach((off) => off())
   }, [])
@@ -61,7 +69,8 @@ export function App() {
 
   const current = agents.find((a) => a.id === selected) ?? null
   // A pending permission must never sit behind a collapsed panel.
-  const showPanel = panelOpen || asks.length > 0
+  const pendingTrust = Object.entries(trusts)
+  const showPanel = panelOpen || asks.length > 0 || pendingTrust.length > 0
   const state = current ? world[current.sessionId] : undefined
   const nameOf = useMemo(() => new Map(agents.map((a) => [a.sessionId, a])), [agents])
 
@@ -113,6 +122,7 @@ export function App() {
   const decide = (r: PermissionRequest, d: 'allow' | 'deny') => {
     window.aw.decide(r.id, d)
     setAsks((q) => q.filter((x) => x.id !== r.id))
+    setFocusTick((n) => n + 1)
   }
 
   return (
@@ -128,13 +138,38 @@ export function App() {
           + Agent
         </button>
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length > 0}>
+        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length + pendingTrust.length > 0}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
       <main>
         <div className="stage" ref={stage} />
         <aside hidden={!showPanel}>
+          {pendingTrust.length > 0 && (
+            <section className="asks" aria-label="Workspace trust">
+              {pendingTrust.map(([agentId, path]) => (
+                <div key={agentId} className="ask">
+                  <div>
+                    <b>{agents.find((a) => a.id === agentId)?.name ?? 'agent'}</b> needs you to trust its workspace
+                    <div className="detail" title={path}>
+                      {path}
+                    </div>
+                  </div>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      window.aw.answerTrust(agentId, true)
+                      setSelected(agentId)
+                      setFocusTick((n) => n + 1)
+                    }}
+                  >
+                    Trust folder
+                  </button>
+                  <button onClick={() => window.aw.answerTrust(agentId, false)}>Exit</button>
+                </div>
+              ))}
+            </section>
+          )}
           {asks.length > 0 && (
             <section className="asks" aria-label="Permission requests">
               {asks.map((r) => (
@@ -195,7 +230,7 @@ export function App() {
           )}
           <div className="terminals">
             {agents.map((a) => (
-              <TerminalView key={a.id} agentId={a.id} visible={a.id === selected} />
+              <TerminalView key={a.id} agentId={a.id} visible={a.id === selected} focusTick={focusTick} />
             ))}
           </div>
         </aside>

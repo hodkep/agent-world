@@ -3,9 +3,11 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 
-export function TerminalView({ agentId, visible }: { agentId: string; visible: boolean }) {
+// `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
+export function TerminalView({ agentId, visible, focusTick }: { agentId: string; visible: boolean; focusTick: number }) {
   const el = useRef<HTMLDivElement>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const termRef = useRef<Terminal | null>(null)
 
   useEffect(() => {
     const term = new Terminal({
@@ -14,6 +16,7 @@ export function TerminalView({ agentId, visible }: { agentId: string; visible: b
       cursorBlink: true,
       theme: { background: '#0f0e16', foreground: '#e4e4ef' }
     })
+    termRef.current = term
     const fit = new FitAddon()
     fitRef.current = fit
     term.loadAddon(fit)
@@ -49,8 +52,13 @@ export function TerminalView({ agentId, visible }: { agentId: string; visible: b
   }, [agentId])
 
   useEffect(() => {
-    if (visible) requestAnimationFrame(() => fitRef.current?.fit())
-  }, [visible])
+    // Selecting an agent means "talk to it": keys go straight to its terminal.
+    if (visible)
+      requestAnimationFrame(() => {
+        fitRef.current?.fit()
+        termRef.current?.focus()
+      })
+  }, [visible, focusTick])
 
   return <div ref={el} className="term-host" style={{ display: visible ? 'block' : 'none' }} />
 }
