@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { appendFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { AgentEvent, AgentStats, Decision, PermissionRequest } from '../shared/types'
@@ -16,6 +17,8 @@ interface Options {
   onPermission: (r: PermissionRequest) => void
   onPermissionSettled: (id: string) => void
   onStatus: (s: AgentStats, agentId: string) => void
+  /** A plan is ready for review (the ExitPlanMode tool). */
+  onPlan: (p: { agentId: string; plan: string }) => void
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -77,6 +80,8 @@ export async function startHookServer(o: Options) {
     } catch {
       return void res.writeHead(400).end()
     }
+    // Debugging aid: AW_HOOK_LOG=<file> records every raw payload, to learn shapes the docs leave out.
+    if (process.env.AW_HOOK_LOG) appendFileSync(process.env.AW_HOOK_LOG, `${JSON.stringify({ url: req.url, agentId, payload })}\n`)
     if (req.url === '/status') {
       const stats = parseStatus(payload)
       if (!stats) return void res.writeHead(400).end()
@@ -84,7 +89,17 @@ export async function startHookServer(o: Options) {
       return void res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(statusText(stats))
     }
     const p = payload as Record<string, unknown>
-    if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') return holdPermission(p, res, agentId)
+    if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') {
+      // A hook "allow" does not approve a plan (the session stays in plan mode), so let Claude show its own
+      // plan menu and hand the plan to the app, which answers that menu for the user.
+      if (p.tool_name === 'ExitPlanMode') {
+        const plan = typeof (p.tool_input as Record<string, unknown>)?.plan === 'string' ? ((p.tool_input as Record<string, unknown>).plan as string) : ''
+        o.onEvent({ type: 'activity', agentId, sessionId: p.session_id, activity: 'permission', tool: 'ExitPlanMode', detail: 'plan ready for review' })
+        o.onPlan({ agentId, plan })
+        return void res.writeHead(200).end()
+      }
+      return holdPermission(p, res, agentId)
+    }
 
     const event = normalize(payload)
     if (event) o.onEvent({ ...event, agentId })

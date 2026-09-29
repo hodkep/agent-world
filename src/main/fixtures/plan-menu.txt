@@ -1,0 +1,16 @@
+   REGRESSION GUARD: none yet (no tests in repo)
+   REUSE CHECK:       not found, creating new
+   Steps
+   1. Create hello.txt at repo root with content hi.
+   2. Verify: cat hello.txt prints hi.
+   Notes
+                                                                 ↓
+  ───────────────────────────────────────────────────────────────
+   Claude has written up a plan and is ready to execute. Would 
+   you like to proceed?
+   ❯ 1. Yes, auto-accept edits
+     2. Yes, manually approve edits
+     3. Tell Claude what to change
+        shift+tab to approve with this feedback
+   ctrl+g to edit in Vim · 
+   ~/.claude/plans/plan-how-to-add-luminous-sedgewick.md

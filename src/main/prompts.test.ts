@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { answerTrust, trustPrompt } from './prompts'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { answerMenu, answerTrust, planMenu, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -61,5 +63,40 @@ describe('answering the trust prompt reliably', () => {
     const t = fakeTerminal(99)
     expect(await answerTrust({ screen: t.screen, write: t.write, sleep }, true)).toBe(false)
     expect(t.writes.length).toBeLessThanOrEqual(6)
+  })
+})
+
+// Rendered text of Claude Code 2.1.284's plan approval menu, copied from the in-app terminal.
+const PLAN_MENU = readFileSync(join(__dirname, 'fixtures', 'plan-menu.txt'), 'utf8')
+
+describe('plan approval menu', () => {
+  it('is detected with its highlighted option', () => {
+    expect(planMenu(PLAN_MENU)).toEqual({ highlighted: 0 })
+    expect(planMenu(PLAN_MENU.replace('❯ 1. Yes, auto-accept', '  1. Yes, auto-accept').replace('  2. Yes, manually', '❯ 2. Yes, manually'))).toEqual({ highlighted: 1 })
+  })
+
+  it('is not confused with the trust menu or a normal screen', () => {
+    expect(planMenu(screen(false))).toBeNull()
+    expect(planMenu('❯ Try "fix lint errors"')).toBeNull()
+  })
+
+  it('answers by moving one option at a time and confirming only on the right one', async () => {
+    let at = 0
+    const writes: string[] = []
+    let answered = false
+    const labels = ['1. Yes, auto-accept', '2. Yes, manually', '3. Tell Claude']
+    const render = () => (answered ? 'done' : PLAN_MENU.replace('❯ 1. Yes, auto-accept', '  1. Yes, auto-accept').replace(`  ${labels[at]}`, `❯ ${labels[at]}`))
+    const io = {
+      screen: render,
+      write: (k: string) => {
+        writes.push(k)
+        if (k === '\x1b[B') at = Math.min(2, at + 1)
+        else if (k === '\x1b[A') at = Math.max(0, at - 1)
+        else if (k === '\r') answered = true
+      },
+      sleep: async () => {}
+    }
+    expect(await answerMenu(io, planMenu, 2)).toBe(true)
+    expect(writes).toEqual(['\x1b[B', '\x1b[B', '\r'])
   })
 })

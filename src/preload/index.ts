@@ -30,6 +30,7 @@ const api: AwApi = {
   onAgentMessage: on('agent-message'),
   onAgentStats: on('agent-stats'),
   onBudgetAlert: on('budget-alert'),
+  onPlan: on('plan'),
   onSelectAgent: on('select-agent'),
   code: {
     changes: (id) => ipcRenderer.invoke('code:changes', id),

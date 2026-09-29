@@ -244,7 +244,11 @@ async function main() {
       refreshAttention()
       send('permission-settled', id)
     },
-    onStatus: onStats
+    onStatus: onStats,
+    onPlan: ({ agentId, plan }) => {
+      send('plan', agentId, plan)
+      notify('permission', byId(agentId), 'Has a plan ready for your review.')
+    }
   })
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,

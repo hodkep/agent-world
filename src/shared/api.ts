@@ -46,6 +46,8 @@ export interface AwApi {
   onAgentMessage(cb: (m: AgentMessage) => void): () => void
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
+  /** An agent's plan is ready for review (markdown). */
+  onPlan(cb: (agentId: string, plan: string) => void): () => void
   /** A notification was clicked: bring that agent up. */
   onSelectAgent(cb: (agentId: string) => void): () => void
   code: CodeApi

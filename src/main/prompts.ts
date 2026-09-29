@@ -29,9 +29,25 @@ export function inputReady(screen: string): boolean {
   return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯( |$)/.test(l))
 }
 
+/** Claude's "ready to execute, would you like to proceed?" plan menu: options 1-3, which one is highlighted. */
+export function planMenu(screen: string): { highlighted: number } | null {
+  const text = stripVTControlCharacters(screen)
+  const at = text.search(/Would\s+you\s+like\s+to\s+proceed\?/)
+  if (at < 0 || !/ready to execute/.test(text)) return null
+  const options = text
+    .slice(at)
+    .split('\n')
+    .map((l) => /^\s*(❯)?\s*([1-9])\.\s/.exec(l))
+    .filter((m): m is RegExpExecArray => !!m)
+  const highlighted = options.findIndex((m) => m[1] === '❯')
+  return options.length >= 2 && highlighted >= 0 ? { highlighted } : null
+}
+
 const MOVE_SETTLE_MS = 200
 const CONFIRM_SETTLE_MS = 1200
-const ATTEMPTS = 3
+const MAX_STEPS = 6
+const DOWN = '\x1b[B'
+const UP = '\x1b[A'
 
 interface TerminalIO {
   screen: () => string
@@ -39,25 +55,35 @@ interface TerminalIO {
   sleep: (ms: number) => Promise<void>
 }
 
+type Menu = (screen: string) => { highlighted: number } | null
+
 /**
- * Move Claude's trust-menu cursor to the wanted option and confirm it, checking the screen between steps.
- * Enter is only pressed once the wanted option is highlighted: a swallowed arrow followed by Enter would
- * otherwise pick "No, exit" and close the agent.
+ * Answer one of Claude's terminal menus: move the cursor a step at a time, re-reading the screen after each
+ * key, and press Enter only once the wanted option is highlighted. A swallowed arrow followed by a blind Enter
+ * could pick "No, exit" and close the agent, so nothing is ever pressed without looking first.
  */
-export async function answerTrust(io: TerminalIO, trust: boolean): Promise<boolean> {
-  const want = trust ? 'yes' : 'no'
-  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    let prompt = trustPrompt(io.screen())
-    if (!prompt) return true
-    if (prompt.highlighted !== want) {
-      io.write(want === 'yes' ? '\x1b[B' : '\x1b[A')
-      await io.sleep(MOVE_SETTLE_MS)
-      prompt = trustPrompt(io.screen())
-      if (!prompt) return true
-      if (prompt.highlighted !== want) continue
+export async function answerMenu(io: TerminalIO, detect: Menu, want: number): Promise<boolean> {
+  for (let step = 0; step < MAX_STEPS; step++) {
+    const state = detect(io.screen())
+    if (!state) return true
+    if (state.highlighted === want) {
+      io.write('\r')
+      await io.sleep(CONFIRM_SETTLE_MS)
+      if (!detect(io.screen())) return true
+      continue
     }
-    io.write('\r')
-    await io.sleep(CONFIRM_SETTLE_MS)
+    io.write(state.highlighted < want ? DOWN : UP)
+    await io.sleep(MOVE_SETTLE_MS)
   }
-  return !trustPrompt(io.screen())
+  return !detect(io.screen())
+}
+
+const trustMenu: Menu = (screen) => {
+  const p = trustPrompt(screen)
+  return p ? { highlighted: p.highlighted === 'yes' ? 1 : 0 } : null
+}
+
+/** "No, exit" is option 0 and "Yes, I trust this folder" option 1. */
+export function answerTrust(io: TerminalIO, trust: boolean) {
+  return answerMenu(io, trustMenu, trust ? 1 : 0)
 }
