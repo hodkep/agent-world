@@ -3,7 +3,7 @@ import { appendFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { AgentEvent, AgentStats, Decision, PermissionRequest } from '../shared/types'
-import { describeTool, normalize } from './events'
+import { activityFor, describeTool, normalize } from './events'
 import { parseStatus, statusText } from './status'
 
 // Write tool payloads carry whole files; anything past this is not a legit hook call.
@@ -37,7 +37,19 @@ function readBody(req: IncomingMessage): Promise<string | null> {
 
 
 export async function startHookServer(o: Options) {
-  const pending = new Map<string, (d: Decision | null) => void>()
+  interface Held {
+    settle: (d: Decision | null) => void
+    agentId: string
+    sessionId: string
+    toolUseId?: string
+    tool: string
+    detail: string
+  }
+  const pending = new Map<string, Held>()
+  // Claude also shows its own prompt; if the user answers there, the held hook call is simply never used.
+  const release = (match: (h: Held) => boolean) => {
+    for (const h of [...pending.values()]) if (match(h)) h.settle(null)
+  }
 
   const holdPermission = (payload: Record<string, unknown>, res: ServerResponse, agentId: string) => {
     const id = randomUUID()
@@ -57,7 +69,8 @@ export async function startHookServer(o: Options) {
       else res.end()
     }
     const timer = setTimeout(() => settle(null), o.permissionTimeoutMs)
-    pending.set(id, settle)
+    const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id : undefined
+    pending.set(id, { settle, agentId, sessionId, toolUseId, tool, detail })
     res.on('close', () => settle(null))
 
     o.onEvent({ type: 'activity', agentId, sessionId, ...(subagentId && { subagentId }), activity: 'permission', tool, detail })
@@ -98,6 +111,11 @@ export async function startHookServer(o: Options) {
       return holdPermission(p, res, agentId)
     }
 
+    // Any sign that Claude moved past a held permission means it was answered in the terminal.
+    const hookEvent = p?.hook_event_name
+    if ((hookEvent === 'PostToolUse' || hookEvent === 'PostToolUseFailure') && typeof p.tool_use_id === 'string')
+      release((h) => h.agentId === agentId && h.toolUseId === p.tool_use_id)
+    else if (hookEvent === 'Stop' || hookEvent === 'UserPromptSubmit' || hookEvent === 'StopFailure' || hookEvent === 'SessionEnd') release((h) => h.agentId === agentId)
     const event = normalize(payload)
     if (event) o.onEvent({ ...event, agentId })
     res.writeHead(200).end()
@@ -108,9 +126,17 @@ export async function startHookServer(o: Options) {
 
   return {
     url: `http://127.0.0.1:${port}/hook`,
-    decide: (id: string, d: Decision) => pending.get(id)?.(d),
+    decide: (id: string, d: Decision) => pending.get(id)?.settle(d),
+    /** The agent's terminal prompt went away (answered there): drop its cards and resume the tool it asked about. */
+    dismiss: (agentId: string) => {
+      const held = [...pending.values()].filter((h) => h.agentId === agentId)
+      release((h) => h.agentId === agentId)
+      const last = held.at(-1)
+      if (last) o.onEvent({ type: 'activity', agentId, sessionId: last.sessionId, activity: activityFor(last.tool), tool: last.tool, detail: last.detail })
+    },
+    hasPending: (agentId: string) => [...pending.values()].some((h) => h.agentId === agentId),
     close: () => {
-      for (const settle of [...pending.values()]) settle(null)
+      for (const h of [...pending.values()]) h.settle(null)
       server.closeAllConnections()
       server.close()
     }

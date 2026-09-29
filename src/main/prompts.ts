@@ -43,6 +43,12 @@ export function planMenu(screen: string): { highlighted: number } | null {
   return options.length >= 2 && highlighted >= 0 ? { highlighted } : null
 }
 
+/** Any of Claude's terminal menus is open (trust, plan, permission...): typing now would answer it. */
+export function anyMenu(screen: string): boolean {
+  if (trustPrompt(screen)) return true
+  return /^\s*❯\s*\d+\.\s/m.test(stripVTControlCharacters(screen))
+}
+
 const MOVE_SETTLE_MS = 200
 const CONFIRM_SETTLE_MS = 1200
 const MAX_STEPS = 6

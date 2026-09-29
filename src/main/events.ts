@@ -23,7 +23,7 @@ type Payload = Record<string, unknown>
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 
-function activityFor(tool: string): Activity {
+export function activityFor(tool: string): Activity {
   if (RESEARCH.has(tool)) return 'researching'
   if (IMPLEMENT.has(tool)) return 'implementing'
   if (DELEGATE.has(tool)) return 'delegating'

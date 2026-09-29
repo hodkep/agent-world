@@ -110,4 +110,32 @@ describe('hook server', () => {
     expect(asks).toEqual([])
     expect(events.at(-1)).toMatchObject({ activity: 'permission', detail: 'plan ready for review' })
   })
+
+  it('a permission answered in the terminal clears its card when that tool finishes', async () => {
+    const { server, asks, settled, events } = await setup()
+    const pending = post(server.url, { ...permission, tool_use_id: 'tu1' })
+    await until(() => asks.length === 1)
+    await post(server.url, { session_id: 's1', hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'tu1' })
+    expect(await (await pending).text()).toBe('')
+    expect(settled).toEqual([asks[0]!.id])
+    expect(events.at(-1)).toMatchObject({ activity: 'thinking' })
+  })
+
+  it('a finished or new turn clears every card the agent still has open', async () => {
+    const { server, asks, settled } = await setup()
+    void post(server.url, { ...permission, tool_use_id: 'tu1' })
+    await until(() => asks.length === 1)
+    await post(server.url, { session_id: 's1', hook_event_name: 'Stop' })
+    await until(() => settled.length === 1)
+    expect(settled).toEqual([asks[0]!.id])
+  })
+
+  it('the app can dismiss an agent\'s open cards when its terminal menu closes, and the agent resumes the tool', async () => {
+    const { server, asks, settled, events } = await setup()
+    void post(server.url, { ...permission, tool_use_id: 'tu1' })
+    await until(() => asks.length === 1)
+    server.dismiss('a1')
+    await until(() => settled.length === 1)
+    expect(events.at(-1)).toMatchObject({ activity: 'running', tool: 'Bash', detail: 'rm -rf build' })
+  })
 })

@@ -138,4 +138,20 @@ describe('mailbox', () => {
     box.started('a2')
     expect(delivered.map((d) => d.to)).toEqual(['a2'])
   })
+
+  it('a quiet, idle-looking screen releases mail even if the end-of-turn hook never came (e.g. Esc)', () => {
+    box.busy('a2')
+    box.send('a1', 'linus', 'still waiting?')
+    expect(delivered).toEqual([])
+    box.looksIdle('a2')
+    expect(delivered.map((d) => d.to)).toEqual(['a2'])
+  })
+
+  it('looking idle does nothing when there is no mail, or while still starting', () => {
+    box.looksIdle('a2')
+    online.add('a3')
+    box.send('a1', 'grace', 'hi')
+    box.looksIdle('a3')
+    expect(delivered).toEqual([])
+  })
 })

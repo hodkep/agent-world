@@ -12,7 +12,7 @@ import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
-import { answerMenu, answerTrust, inputReady, planMenu, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, anyMenu, inputReady, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
@@ -47,6 +47,13 @@ const sessions = new Map<string, pty.IPty>()
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 const planOpen = new Set<string>()
+// When the terminal last drew anything: Claude's spinner redraws constantly while it works.
+const lastOutput = new Map<string, number>()
+// Agents whose terminal showed a menu while a permission card was open for them.
+const menuSeen = new Set<string>()
+const QUIET_MS = 3000
+const MENU_RETRY_MS = 1000
+const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
 const lastCost = new Map<string, number>()
@@ -56,6 +63,7 @@ const restarting = new Set<string>()
 // Last size the panel gave each terminal, so a relaunch comes back at the size the user sees.
 const sizes = new Map<string, { cols: number; rows: number }>()
 let awakeBlocker: number | null = null
+let hooksRef: Awaited<ReturnType<typeof startHookServer>> | null = null
 // Set once the local servers are up; every spawned agent gets its own MCP identity file.
 let office: { mcpUrl: string; hookUrl: string } | null = null
 // Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
@@ -64,14 +72,18 @@ const agentTokens = new Map<string, string>()
 const DELIVERY_DELAY_MS = 700
 const mailbox = new Mailbox({
   agents: () => agents.map((a) => ({ id: a.id, name: a.name, online: sessions.has(a.id) })),
-  deliver: (id, text) =>
-    setTimeout(() => {
+  deliver: (id, text) => {
+    const attempt = (left: number) => {
       const p = sessions.get(id)
       if (!p) return
+      // Never type into an open menu: the message's Enter would answer it.
+      if (anyMenu(screens.get(id)?.text() ?? '') && left > 0) return void setTimeout(() => attempt(left - 1), MENU_RETRY_MS)
       // Bracketed paste keeps multi-line messages as one prompt instead of submitting at the first newline.
       p.write(`\x1b[200~${text}\x1b[201~`)
       setTimeout(() => p.write('\r'), 150)
-    }, DELIVERY_DELAY_MS),
+    }
+    setTimeout(() => attempt(MENU_RETRIES), DELIVERY_DELAY_MS)
+  },
   notify: (m) => send('agent-message', m)
 })
 // PTYs exit after the window is gone during quit; messages then have nowhere to go.
@@ -183,8 +195,14 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
     buffers.set(a.id, next)
     send('pty-data', a.id, d, next.end)
+    lastOutput.set(a.id, Date.now())
     void screen.write(d).then(() => {
       const text = screen.text()
+      // A permission answered in the terminal: its menu was up while our card was open, and now it is gone.
+      if (hooksRef?.hasPending(a.id)) {
+        if (anyMenu(text)) menuSeen.add(a.id)
+        else if (menuSeen.delete(a.id)) hooksRef.dismiss(a.id)
+      } else menuSeen.delete(a.id)
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
       if (inputReady(text)) mailbox.started(a.id)
       const trust = trustPrompt(text)
@@ -259,6 +277,15 @@ async function main() {
     },
     onStatus: onStats
   })
+  hooksRef = hooks
+  // Mail waiting for an agent that looks idle (input box, no menu, quiet screen) but never sent Stop, e.g. after Esc.
+  const idleCheck = setInterval(() => {
+    for (const a of agents) {
+      if (!mailbox.pending(a.id) || !sessions.has(a.id)) continue
+      const text = screens.get(a.id)?.text() ?? ''
+      if (Date.now() - (lastOutput.get(a.id) ?? 0) > QUIET_MS && inputReady(text) && !anyMenu(text)) mailbox.looksIdle(a.id)
+    }
+  }, 1000)
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
@@ -406,6 +433,7 @@ async function main() {
 
   app.on('before-quit', () => {
     for (const p of sessions.values()) p.kill()
+    clearInterval(idleCheck)
     hooks.close()
     mcp.close()
   })

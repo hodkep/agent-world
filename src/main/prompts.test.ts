@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { answerMenu, answerTrust, planMenu, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, anyMenu, planMenu, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -98,5 +98,18 @@ describe('plan approval menu', () => {
     }
     expect(await answerMenu(io, planMenu, 2)).toBe(true)
     expect(writes).toEqual(['\x1b[B', '\x1b[B', '\r'])
+  })
+})
+
+describe('any open menu', () => {
+  it('is a numbered option under the cursor: plan, trust and permission prompts alike', () => {
+    expect(anyMenu(PLAN_MENU)).toBe(true)
+    expect(anyMenu(' Do you want to proceed?\n ❯ 1. Yes\n   2. No, and tell Claude what to do differently')).toBe(true)
+    expect(anyMenu(screen(false))).toBe(true)
+  })
+
+  it('is not the input box', () => {
+    expect(anyMenu('──────\n❯ Try "fix lint"\n──────')).toBe(false)
+    expect(anyMenu('──────\n❯ 1 thing to do\n──────')).toBe(false)
   })
 })

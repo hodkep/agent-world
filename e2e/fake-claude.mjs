@@ -38,7 +38,7 @@ if (process.env.FAKE_COST) {
 }
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
-process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
 
 // FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
 async function sendViaOffice(to, message) {
@@ -92,7 +92,24 @@ await sleep(pause)
 await hook('SubagentStop', { agent_id: 'sub-1' })
 await hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: `${process.cwd()}/src/health.ts` } })
 await sleep(pause)
-const answer = await hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
+// FAKE_TERMINAL_PROMPT=1: like Claude 2.1.28x, show our own permission menu while the hook is pending,
+// and let the user answer it in the terminal; the hook call is then left unused.
+if (process.env.FAKE_TERMINAL_PROMPT) {
+  void hook('PermissionRequest', { tool_name: 'Bash', tool_use_id: 'tu-1', tool_input: { command: 'pnpm test' } })
+  process.stdout.write('\r\n Do you want to proceed?\r\n ❯ 1. Yes\r\n   2. No, and tell Claude what to do differently\r\n')
+  await new Promise((resolve) => {
+    const onKey = (d) => {
+      if (String(d) !== '\r') return
+      process.stdin.off('data', onKey)
+      process.stdout.write('\x1b[2J\x1b[H approved in terminal, running pnpm test\r\n')
+      resolve()
+    }
+    process.stdin.on('data', onKey)
+  })
+  await sleep(3000)
+  await hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'tu-1' })
+}
+const answer = process.env.FAKE_TERMINAL_PROMPT ? null : await hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
 console.log(`decision: ${answer?.hookSpecificOutput?.decision?.behavior ?? 'ask-in-terminal'}`)
 await hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
 await sleep(pause)
