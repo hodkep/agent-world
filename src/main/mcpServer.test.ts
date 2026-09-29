@@ -16,7 +16,7 @@ const sent: { from: string; to: string; message: string; expectsReply: boolean }
 async function setup() {
   sent.length = 0
   server = await startMcpServer({
-    token: 'tok',
+    agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
     send: (from, to, message, expectsReply) => {
       if (to === 'nobody') throw new Error('No agent named nobody.')
@@ -27,9 +27,9 @@ async function setup() {
   return server
 }
 
-async function connect(url: string, agent: string, token = 'tok') {
+async function connect(url: string, agent: string, token = `tok-${agent}`, headers: Record<string, string> = {}) {
   const client = new Client({ name: 'test', version: '1' })
-  await client.connect(new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers: { Authorization: `Bearer ${token}`, 'X-AW-Agent': agent } } }))
+  await client.connect(new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers: { Authorization: `Bearer ${token}`, ...headers } } }))
   clients.push(client)
   return client
 }
@@ -75,6 +75,13 @@ describe('agent-world MCP server', () => {
     const c = await connect(s.url, 'a2')
     const r = await c.callTool({ name: 'list_agents', arguments: {} })
     expect(JSON.parse(text(r))).toEqual([{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: true }])
+  })
+
+  it('identity comes from the per-agent token; a spoofed agent header is ignored', async () => {
+    const s = await setup()
+    const c = await connect(s.url, 'a1', 'tok-a1', { 'X-AW-Agent': 'a2' })
+    await c.callTool({ name: 'send_message', arguments: { to: 'linus', message: 'hello' } })
+    expect(sent[0]!.from).toBe('a1')
   })
 
   it('rejects callers without the token', async () => {

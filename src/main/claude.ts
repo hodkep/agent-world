@@ -35,9 +35,9 @@ export function launchArgs(o: { sessionId: string; name: string; started: boolea
   return base
 }
 
-/** Per-agent MCP config: same office server for everyone, the header says which agent is calling. */
-export function mcpConfig(o: { url: string; token: string; agentId: string }) {
-  return { mcpServers: { 'agent-world': { type: 'http', url: o.url, headers: { Authorization: `Bearer ${o.token}`, 'X-AW-Agent': o.agentId } } } }
+/** Per-agent MCP config: same office server for everyone, a token of its own that identifies it. */
+export function mcpConfig(o: { url: string; agentToken: string }) {
+  return { mcpServers: { 'agent-world': { type: 'http', url: o.url, headers: { Authorization: `Bearer ${o.agentToken}` } } } }
 }
 
 // Set by a parent Claude Code session (when this app is started from inside one). Passed on, they make

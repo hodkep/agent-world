@@ -22,7 +22,13 @@ const PAIR_WINDOW_MS = 10 * 60 * 1000
 // 'starting': the TUI is not accepting input yet, so treat it like busy.
 type State = 'starting' | 'idle' | 'busy'
 
-export function formatDelivery(fromName: string, text: string, expectsReply: boolean) {
+// Messages are pasted into another agent's terminal. Escape sequences (a paste terminator above all) and
+// control bytes such as CR would let a sender type raw keystrokes there, so only printable text, tab and
+// newline survive.
+const unsafe = (s: string) => s.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ')
+
+export function formatDelivery(fromName: string, rawText: string, expectsReply: boolean) {
+  const text = unsafe(rawText)
   const tail = expectsReply
     ? `When you have an answer, reply using the agent-world send_message tool with to="${fromName}" and expects_reply=false.`
     : 'This is a reply to you. No reply is needed; carry on with your task.'

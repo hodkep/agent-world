@@ -48,7 +48,9 @@ const trustOpen = new Set<string>()
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, string>()
 // Set once the local servers are up; every spawned agent gets its own MCP identity file.
-let office: { mcpUrl: string; token: string } | null = null
+let office: { mcpUrl: string } | null = null
+// Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
+const agentTokens = new Map<string, string>()
 // Claude needs a moment after SessionStart/Stop before its input box accepts a paste.
 const DELIVERY_DELAY_MS = 700
 const mailbox = new Mailbox({
@@ -82,7 +84,10 @@ function mcpFileFor(a: AgentRecord) {
   if (!office) return undefined
   const file = join(HOME, 'mcp', `${a.id}.json`)
   mkdirSync(join(HOME, 'mcp'), { recursive: true })
-  writeFileSync(file, JSON.stringify(mcpConfig({ url: office.mcpUrl, token: office.token, agentId: a.id })), { mode: 0o600 })
+  for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
+  const agentToken = randomBytes(24).toString('hex')
+  agentTokens.set(agentToken, a.id)
+  writeFileSync(file, JSON.stringify(mcpConfig({ url: office.mcpUrl, agentToken })), { mode: 0o600 })
   return file
 }
 
@@ -129,6 +134,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
   p.onExit(() => {
     sessions.delete(a.id)
+    for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
     screens.get(a.id)?.dispose()
     screens.delete(a.id)
     mailbox.gone(a.id)
@@ -157,12 +163,12 @@ async function main() {
     onPermissionSettled: (id) => send('permission-settled', id)
   })
   const mcp = await startMcpServer({
-    token,
+    agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
       agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
     send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply })
   })
-  office = { mcpUrl: mcp.url, token }
+  office = { mcpUrl: mcp.url }
   // Token rotates every launch; the file is only readable by this user.
   writeFileSync(SETTINGS_FILE, JSON.stringify(hookSettings({ url: hooks.url, token, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC })), { mode: 0o600 })
 

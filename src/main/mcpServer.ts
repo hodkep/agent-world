@@ -3,7 +3,6 @@ import type { AddressInfo } from 'node:net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
-import { authorized } from './hookServer'
 
 export interface Colleague {
   name: string
@@ -13,7 +12,8 @@ export interface Colleague {
 }
 
 interface Options {
-  token: string
+  /** Each agent has its own bearer token; the token alone says who is calling. */
+  agentForToken: (token: string) => string | null
   listAgents: (callerId: string) => Colleague[]
   send: (fromId: string, to: string, message: string, expectsReply: boolean) => 'delivered' | 'queued'
 }
@@ -70,13 +70,13 @@ function toolsFor(callerId: string, o: Options) {
   return server
 }
 
-/** Local MCP endpoint every agent is given via --mcp-config; the X-AW-Agent header says who is calling. */
+/** Local MCP endpoint every agent is given via --mcp-config, each with a token of its own. */
 export async function startMcpServer(o: Options) {
   const http = createServer(async (req, res) => {
     if (req.url !== '/mcp') return void res.writeHead(404).end()
-    if (!authorized(req, o.token)) return void res.writeHead(401).end()
-    const caller = req.headers['x-aw-agent']
-    if (typeof caller !== 'string' || !caller) return void res.writeHead(400).end()
+    const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1]
+    const caller = bearer ? o.agentForToken(bearer) : null
+    if (!caller) return void res.writeHead(401).end()
     // Stateless: each request gets a fresh server/transport pair, so there is no session to leak between agents.
     if (req.method !== 'POST') return void res.writeHead(405).end()
     let body: unknown

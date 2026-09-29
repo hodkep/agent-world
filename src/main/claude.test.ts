@@ -24,8 +24,8 @@ describe('claude launch', () => {
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', mcpFile: '/m.json' })).toEqual([
       '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--mcp-config', '/m.json'
     ])
-    expect(mcpConfig({ url: 'http://127.0.0.1:9/mcp', token: 't', agentId: 'a1' })).toEqual({
-      mcpServers: { 'agent-world': { type: 'http', url: 'http://127.0.0.1:9/mcp', headers: { Authorization: 'Bearer t', 'X-AW-Agent': 'a1' } } }
+    expect(mcpConfig({ url: 'http://127.0.0.1:9/mcp', agentToken: 'secret-a1' })).toEqual({
+      mcpServers: { 'agent-world': { type: 'http', url: 'http://127.0.0.1:9/mcp', headers: { Authorization: 'Bearer secret-a1' } } }
     })
   })
 
