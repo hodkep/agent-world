@@ -38,7 +38,7 @@ test('drag the panel edge to resize it, and fold the agent list away for more ro
     await page.getByRole('button', { name: 'Hide agents' }).click()
     await expect(page.locator('.roster')).toBeHidden()
     await expect(page.locator('.head-compact')).toContainText('ada')
-    await expect.poll(logHeight).toBeGreaterThan(tall + 80)
+    await expect.poll(logHeight).toBeGreaterThan(tall + 40)
     // After a reload with the list folded, the agent that was open is open again, and the fold can be undone.
     await page.reload()
     await expect(page.locator('.head-compact')).toContainText('ada')

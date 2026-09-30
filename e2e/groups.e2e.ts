@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { headMenu, hire, launchApp } from './launch'
 
 test('an agent can be put in a named group that heads it in the list', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-group-'))
@@ -12,7 +12,7 @@ test('an agent can be put in a named group that heads it in the list', async () 
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
-    await page.getByRole('button', { name: '+ group' }).click()
+    await headMenu(page, 'Group…')
     await page.getByLabel('Group').fill('backend')
     await page.getByLabel('Group').press('Enter')
     await expect(page.locator('.group-head')).toHaveText('backend')

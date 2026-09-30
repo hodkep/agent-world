@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { chatMenu, hire, launchApp } from './launch'
 
 test('Save notes writes a record of the conversation outside the project', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-notes-'))
@@ -17,8 +17,8 @@ test('Save notes writes a record of the conversation outside the project', async
     await box.fill('add a health check')
     await box.press('Enter')
     await expect(page.getByRole('log').locator('.tc', { hasText: 'Edited' })).toBeVisible({ timeout: 10_000 })
-    await page.getByRole('button', { name: 'Save notes' }).click()
-    await expect(page.getByRole('button', { name: 'Saved ✓' })).toBeVisible()
+    await chatMenu(page, 'Save notes')
+    await expect(page.getByRole('status').filter({ hasText: 'Notes saved' })).toBeVisible()
     const dir = join(home, 'aw', 'notes')
     const [slug] = readdirSync(dir)
     const [file] = readdirSync(join(dir, slug!))

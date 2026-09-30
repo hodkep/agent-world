@@ -98,7 +98,20 @@ export function App() {
   // The agent list and details fold into one line to leave the room to the conversation.
   const [compact, setCompact] = useState(() => store('aw.compact') === '1')
   const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
-  const [reviewMenu, setReviewMenu] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const [chipMenu, setChipMenu] = useState<'model' | 'effort' | null>(null)
+  // The head's pop-up menus close on a click elsewhere or Esc.
+  useEffect(() => {
+    if (!actionsOpen && !chipMenu) return
+    const away = (e: MouseEvent) => !(e.target as Element).closest?.('.agent-head .menu-wrap') && (setActionsOpen(false), setChipMenu(null))
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (setActionsOpen(false), setChipMenu(null))
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [actionsOpen, chipMenu])
   const [renaming, setRenaming] = useState<string | null>(null)
   const [grouping, setGrouping] = useState(false)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
@@ -313,7 +326,7 @@ export function App() {
 
   const askReview = (author: AgentRecord, reviewer: string) =>
     run(async () => {
-      setReviewMenu(false)
+      setActionsOpen(false)
       const created = await window.aw.requestReview(author.id, reviewer)
       if (created) {
         setAgents((xs) => [...xs, created])
@@ -643,9 +656,11 @@ export function App() {
                     </datalist>
                   </>
                 ) : (
-                  <button className="group-tag" onClick={() => setGrouping(true)} title="Group this agent in the list">
-                    {current.group ?? '+ group'}
-                  </button>
+                  current.group && (
+                    <button className="group-tag" onClick={() => setGrouping(true)} title="Change this agent's group">
+                      {current.group}
+                    </button>
+                  )
                 )}
                 </div>
                 <div className="detail">
@@ -654,8 +669,36 @@ export function App() {
                 </div>
                 {cur && (
                   <div className="meters" aria-label="Session usage">
-                    <span>{cur.model ?? 'model ?'}</span>
-                    {cur.effort && <span>effort {cur.effort}</span>}
+                    <span className="menu-wrap">
+                      <button className="chip" disabled={!between || (state?.activity ?? 'asleep') === 'asleep'} aria-haspopup="menu" aria-expanded={chipMenu === 'model'} onClick={() => setChipMenu((m) => (m === 'model' ? null : 'model'))} title={between ? 'Switch model for the next turn' : 'Available between turns'}>
+                        {cur.model ?? 'model ?'}
+                      </button>
+                      {chipMenu === 'model' && (
+                        <div className="pop-menu" role="menu" aria-label="Model">
+                          {MODELS.filter((m) => m.value).map((m) => (
+                            <button key={m.value} role="menuitemradio" aria-checked={false} onClick={() => (setChipMenu(null), switchTo({ model: m.value }))}>
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </span>
+                    {cur.effort && (
+                      <span className="menu-wrap">
+                        <button className="chip" disabled={!between || (state?.activity ?? 'asleep') === 'asleep'} aria-haspopup="menu" aria-expanded={chipMenu === 'effort'} onClick={() => setChipMenu((m) => (m === 'effort' ? null : 'effort'))} title={between ? 'Switch effort for the next turn' : 'Available between turns'}>
+                          effort {cur.effort}
+                        </button>
+                        {chipMenu === 'effort' && (
+                          <div className="pop-menu" role="menu" aria-label="Effort">
+                            {EFFORTS.filter((m) => m.value).map((m) => (
+                              <button key={m.value} role="menuitemradio" aria-checked={m.value === cur.effort} onClick={() => (setChipMenu(null), switchTo({ effort: m.value as Effort }))}>
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </span>
+                    )}
                     {cur.fast && <span>fast</span>}
                     {cur.contextPct !== null && (
                       <span className="ctx" title={`${Math.round(cur.contextPct)}% of the context window used`}>
@@ -687,77 +730,65 @@ export function App() {
                 )}
               </div>
               <div className="head-actions">
-              {(state?.activity ?? 'asleep') === 'asleep' && <button onClick={() => wake(current)}>Wake</button>}
-              {(state?.activity ?? 'asleep') !== 'asleep' && (
-                <button onClick={() => setPalette(true)} title="Run a command, skill or custom slash command (⌘K)">
-                  Commands
-                </button>
-              )}
-              {current.branch && (
-                <button onClick={() => openHandbook(current)} title="CLAUDE.md: the standing instructions every agent reads when it starts">
-                  Handbook
-                </button>
-              )}
-              {current.branch && (
-                <span className="menu-wrap">
-                  <button onClick={() => setReviewMenu((o) => !o)} aria-haspopup="menu" aria-expanded={reviewMenu} title="Hand this branch to another agent for a code review">
-                    Review
+                {(state?.activity ?? 'asleep') === 'asleep' && (
+                  <button className="primary" onClick={() => wake(current)}>
+                    Wake
                   </button>
-                  {reviewMenu && (
-                    <div className="pop-menu" role="menu" aria-label="Ask for a review">
-                      {agents
-                        .filter((a) => a.id !== current.id && (world[a.id]?.activity ?? 'asleep') !== 'asleep')
-                        .map((a) => (
-                          <button key={a.id} role="menuitem" onClick={() => void askReview(current, a.id)}>
-                            Ask {a.name}
-                          </button>
-                        ))}
-                      <button role="menuitem" onClick={() => void askReview(current, 'new')}>
-                        Hire a new reviewer
+                )}
+                {current.branch && (
+                  <button onClick={() => setFinishing(current.id)} title="Check the work is ready, then merge it into the base branch">
+                    Finish
+                  </button>
+                )}
+                <span className="menu-wrap">
+                  <button onClick={() => setActionsOpen((o) => !o)} aria-haspopup="menu" aria-expanded={actionsOpen} aria-label="More actions" title="More actions">
+                    ⋯
+                  </button>
+                  {actionsOpen && (
+                    <div className="pop-menu right" role="menu" aria-label="Agent actions">
+                      {(state?.activity ?? 'asleep') !== 'asleep' && (
+                        <button role="menuitem" onClick={() => (setActionsOpen(false), setPalette(true))} title="Run a command, skill or custom slash command (⌘K)">
+                          Commands
+                        </button>
+                      )}
+                      {current.branch && (
+                        <button role="menuitem" onClick={() => (setActionsOpen(false), openHandbook(current))} title="CLAUDE.md: the standing instructions every agent reads when it starts">
+                          Handbook
+                        </button>
+                      )}
+                      <button role="menuitem" onClick={() => (setActionsOpen(false), setGrouping(true))} title="Group this agent in the list">
+                        Group…
+                      </button>
+                      {current.branch && <div className="menu-label">Review</div>}
+                      {current.branch &&
+                        agents
+                          .filter((a) => a.id !== current.id && (world[a.id]?.activity ?? 'asleep') !== 'asleep')
+                          .map((a) => (
+                            <button key={a.id} role="menuitem" onClick={() => (setActionsOpen(false), void askReview(current, a.id))}>
+                              Ask {a.name} to review
+                            </button>
+                          ))}
+                      {current.branch && (
+                        <button role="menuitem" onClick={() => (setActionsOpen(false), void askReview(current, 'new'))}>
+                          Hire a new reviewer
+                        </button>
+                      )}
+                      <div className="menu-label">Copy this conversation</div>
+                      <button role="menuitem" disabled={!current.started} onClick={() => (setActionsOpen(false), clone(current))} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
+                        Clone
+                      </button>
+                      {MODELS.filter((m) => m.value).map((m) => (
+                        <button key={m.value} role="menuitem" disabled={!current.started} onClick={() => (setActionsOpen(false), clone(current, m.value))} title="Continue this conversation in a copy that runs on a different model">
+                          Clone as {m.label}
+                        </button>
+                      ))}
+                      <div className="menu-sep" />
+                      <button role="menuitem" className="danger-item" onClick={() => (setActionsOpen(false), remove(current.id))}>
+                        Remove
                       </button>
                     </div>
                   )}
                 </span>
-              )}
-              {current.branch && (
-                <button onClick={() => setFinishing(current.id)} title="Check the work is ready, then merge it into the base branch">
-                  Finish
-                </button>
-              )}
-              <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
-                Clone
-              </button>
-              <select aria-label="Continue on another model" disabled={!current.started} value="" onChange={(e) => e.target.value && clone(current, e.target.value)} title="Continue this conversation in a copy that runs on a different model">
-                <option value="">Clone as…</option>
-                {MODELS.filter((m) => m.value).map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-                {(state?.activity ?? 'asleep') !== 'asleep' && (
-                  <div className="switches" title={between ? 'Switch for the next turn' : 'Available between turns'}>
-                    <select aria-label="Model" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ model: e.target.value })}>
-                      <option value="">Model…</option>
-                      {MODELS.filter((m) => m.value).map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select aria-label="Effort" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ effort: e.target.value as Effort })}>
-                      <option value="">Effort…</option>
-                      {EFFORTS.filter((m) => m.value).map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <button className="push" onClick={() => remove(current.id)}>
-                  Remove
-                </button>
               </div>
             </section>
           ) : (
@@ -828,15 +859,16 @@ export function App() {
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
               </button>
               <button
-                className="push"
+                className="push icon-btn"
                 onClick={() => (setCompact((c) => !c), keep('aw.compact', compact ? '' : '1'))}
                 aria-pressed={folded}
-                title="Fold the agent list and details into one line, for more room to talk"
+                aria-label={folded ? 'Show agents' : 'Hide agents'}
+                title={folded ? 'Show the agent list and details' : 'Fold the agent list and details into one line, for more room to talk'}
               >
-                {folded ? 'Show agents' : 'Hide agents'}
+                {folded ? '⇥' : '⇤'}
               </button>
-              <button onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
-                {wide ? 'Narrow' : 'Expand'}
+              <button className="icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
+                {wide ? '⤡' : '⤢'}
               </button>
             </div>
           )}

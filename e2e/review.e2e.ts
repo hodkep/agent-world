@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { approve, hire, launchApp } from './launch'
+import { approve, headMenu, hire, launchApp } from './launch'
 
 test('hand a branch to another agent for review, or hire a fresh reviewer', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-rev-'))
@@ -25,8 +25,7 @@ test('hand a branch to another agent for review, or hire a fresh reviewer', asyn
     await approve(page)
     await page.locator('.roster button', { hasText: 'ada' }).click()
 
-    await page.getByRole('button', { name: 'Review' }).click()
-    await page.getByRole('menuitem', { name: 'Ask linus' }).click()
+    await headMenu(page, 'Ask linus to review')
     const log = page.locator('.messages .message').first()
     await expect(log).toContainText('ada')
     await expect(log).toContainText('linus')
@@ -36,8 +35,7 @@ test('hand a branch to another agent for review, or hire a fresh reviewer', asyn
 
     // A new reviewer walks in, read-only.
     await page.locator('.roster button', { hasText: 'ada' }).click()
-    await page.getByRole('button', { name: 'Review' }).click()
-    await page.getByRole('menuitem', { name: 'Hire a new reviewer' }).click()
+    await headMenu(page, 'Hire a new reviewer')
     await expect(page.locator('.roster button')).toHaveCount(3)
     const agents = await page.evaluate(() => window.aw.listAgents())
     expect(agents[2]!.options?.permissionMode).toBe('plan')

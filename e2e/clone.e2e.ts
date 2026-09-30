@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { approve, hire, launchApp } from './launch'
+import { approve, headMenu, hire, launchApp } from './launch'
 
 test('clone an agent: its conversation is forked into a new worktree branched from its own', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-clone-'))
@@ -24,14 +24,14 @@ test('clone an agent: its conversation is forked into a new worktree branched fr
     await page.reload()
     await hire(page, { name: 'ada' })
     await approve(page)
-    await expect(page.getByRole('button', { name: 'Clone', exact: true })).toBeEnabled()
+    await expect.poll(async () => (await page.evaluate(() => window.aw.listAgents()))[0]!.started).toBe(true)
 
     const [ada] = await page.evaluate(() => window.aw.listAgents())
     writeFileSync(join(ada!.cwd, 'ada.txt'), 'wip\n')
     git(ada!.cwd, 'add', '.')
     git(ada!.cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'ada work')
 
-    await page.getByRole('button', { name: 'Clone', exact: true }).click()
+    await headMenu(page, /^Clone$/)
     await expect(page.locator('.agent-head b')).toHaveText('linus', { timeout: 10_000 })
     await expect(page.locator('.term-host:visible')).toContainText(`forked from ${ada!.sessionId}`, { timeout: 10_000 })
     const twin = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name !== 'ada')!
@@ -52,8 +52,8 @@ test('a clone can continue the conversation on another model', async () => {
     await page.reload()
     await hire(page, { name: 'ada', model: 'opus' })
     await approve(page)
-    await expect(page.getByRole('button', { name: 'Clone', exact: true })).toBeEnabled()
-    await page.getByLabel('Continue on another model').selectOption('haiku')
+    await expect.poll(async () => (await page.evaluate(() => window.aw.listAgents()))[0]!.started).toBe(true)
+    await headMenu(page, 'Clone as Haiku')
     await expect(page.locator('.agent-head b')).toHaveText('linus', { timeout: 10_000 })
     const twin = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name === 'linus')!
     expect(twin.options?.model).toBe('haiku')

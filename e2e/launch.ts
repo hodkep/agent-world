@@ -40,3 +40,15 @@ export async function approve(page: Page) {
   await dialog.getByRole('button', { name: 'Allow' }).click()
   await dialog.waitFor({ state: 'hidden' })
 }
+
+/** Choose an item from the selected agent's "More actions" menu. */
+export async function headMenu(page: Page, item: string | RegExp) {
+  await page.getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: item }).click()
+}
+
+/** Choose an item from the chat's "Conversation tools" menu. */
+export async function chatMenu(page: Page, item: string | RegExp) {
+  await page.getByRole('button', { name: 'Conversation tools' }).click()
+  await page.getByRole('menuitem', { name: item }).click()
+}

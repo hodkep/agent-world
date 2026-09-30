@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { chatMenu, hire, launchApp } from './launch'
 
 test('chat with an agent: send a prompt, watch tools and the reply appear, slash commands complete', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-chat-'))
@@ -113,7 +113,7 @@ test('attach and paste pictures, run a shell command with !, switch permission m
 
     // Search narrows the conversation.
     await box.fill('')
-    await page.getByRole('button', { name: 'Search' }).click()
+    await chatMenu(page, 'Search')
     await page.getByRole('textbox', { name: 'Search this conversation' }).fill('git status')
     await expect(log.locator('.msg.shell')).toBeVisible()
     await expect(log.locator('.msg.assistant')).toHaveCount(0)

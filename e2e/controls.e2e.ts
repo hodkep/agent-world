@@ -25,8 +25,9 @@ test('hire with options, see live cost and context, get a budget warning, switch
     await expect(page.locator('.meters')).toContainText('$0.90 / $1.00')
 
     await approve(page)
-    await expect(page.locator('.switches select[aria-label="Model"]')).toBeEnabled({ timeout: 10_000 })
-    await page.locator('.switches select[aria-label="Model"]').selectOption('opus')
+    await expect(page.locator('.meters .chip').first()).toBeEnabled({ timeout: 10_000 })
+    await page.locator('.meters .chip').first().click()
+    await page.getByRole('menuitemradio', { name: 'Opus' }).click()
     // Relaunched in the same session with the new flag; no global /model, and the agent never leaves.
     await expect(term).toContainText('--model opus')
     await expect(term).not.toContainText('/model opus')

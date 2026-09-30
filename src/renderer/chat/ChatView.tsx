@@ -187,29 +187,21 @@ export function ChatView({
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
       }}
     >
-      <div className="chat-tools">
-        {query === null ? (
-          <button onClick={() => setQuery('')} title="Search this conversation (⌘F)">
-            Search
-          </button>
-        ) : (
-          <>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && (setQuery(null), e.stopPropagation())}
-              placeholder="Search this conversation…"
-              aria-label="Search this conversation"
-              autoFocus
-            />
-            <span className="chat-count">{found.length} of {allRows.length}</span>
-            <button onClick={() => setQuery(null)}>Close</button>
-          </>
-        )}
-        <span className="chat-tools-gap" />
-        <SaveNotes agentId={agentId} />
-        <Copy text={toMarkdown(allRows, agentName)} label="Copy as Markdown" />
-      </div>
+      {query !== null && (
+        <div className="chat-tools">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && (setQuery(null), e.stopPropagation())}
+            placeholder="Search this conversation…"
+            aria-label="Search this conversation"
+            autoFocus
+          />
+          <span className="chat-count">{found.length} of {allRows.length}</span>
+          <button onClick={() => setQuery(null)}>Close</button>
+        </div>
+      )}
+      <ChatMenu agentId={agentId} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
       <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">
@@ -291,21 +283,52 @@ export function ChatView({
 }
 
 /** Commands and servers running under the agent, with a way to stop them. */
-/** Writes a short record of the conversation (what was asked, files changed, commands run) to the notes folder. */
-function SaveNotes({ agentId }: { agentId: string }) {
-  const [state, setState] = useState<'idle' | 'saved' | 'failed'>('idle')
+/** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export. */
+function ChatMenu({ agentId, markdown, onSearch }: { agentId: string; markdown: () => string; onSearch: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const wrap = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setOpen(false))
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [open])
+  const flash = (text: string) => (setNote(text), setTimeout(() => setNote(''), 2500))
   return (
-    <button
-      title="Save a short record of this conversation to the notes folder"
-      onClick={() =>
-        void window.aw.saveNotes(agentId).then(
-          () => (setState('saved'), setTimeout(() => setState('idle'), 2500)),
-          () => (setState('failed'), setTimeout(() => setState('idle'), 2500))
-        )
-      }
-    >
-      {state === 'saved' ? 'Saved ✓' : state === 'failed' ? 'Nothing yet' : 'Save notes'}
-    </button>
+    <span className="chat-menu menu-wrap" ref={wrap}>
+      {note && <span className="chat-note" role="status">{note}</span>}
+      <button className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label="Conversation tools" title="Search, save notes, copy" onClick={() => setOpen((o) => !o)}>
+        ⋯
+      </button>
+      {open && (
+        <div className="pop-menu right" role="menu" aria-label="Conversation tools">
+          <button role="menuitem" title="Search this conversation (⌘F)" onClick={() => (setOpen(false), onSearch())}>
+            Search
+          </button>
+          <button
+            role="menuitem"
+            title="Save a short record of this conversation to the notes folder"
+            onClick={() =>
+              void window.aw.saveNotes(agentId).then(
+                () => (setOpen(false), flash('Notes saved')),
+                () => (setOpen(false), flash('Nothing to save yet'))
+              )
+            }
+          >
+            Save notes
+          </button>
+          <button role="menuitem" onClick={() => void navigator.clipboard.writeText(markdown()).then(() => (setOpen(false), flash('Copied')))}>
+            Copy as Markdown
+          </button>
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -609,7 +632,7 @@ function Composer({
           ref={box}
           value={text}
           rows={1}
-          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files  ·  ! shell  ·  paste a picture`}
+          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files`}
           aria-label={`Message ${agentName}`}
           onChange={(e) => ((search.current = null), setText(e.target.value))}
           onPaste={(e) => {
