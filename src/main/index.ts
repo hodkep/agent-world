@@ -754,6 +754,14 @@ async function main() {
     persist()
     return a.name
   })
+  ipcMain.handle('set-group', (_, id: string, group: string) => {
+    const a = byId(id)
+    if (!a) return
+    const g = group.trim().slice(0, 24)
+    if (g) a.group = g
+    else delete a.group
+    persist()
+  })
   ipcMain.handle('wake-agent', (_, id: string) => {
     const a = byId(id)
     if (a) spawn(a, env)

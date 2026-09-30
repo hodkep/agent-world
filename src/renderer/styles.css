@@ -567,3 +567,6 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 
 .earlier { align-self: center; margin: 4px 0 8px; font-size: 12px; padding: 3px 12px; cursor: pointer; }
 .chat-log .msg { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+
+.group-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; padding: 6px 8px 2px; }
+.group-tag { font-size: 11px; padding: 0 6px; opacity: .7; cursor: pointer; background: none; border: 1px dashed currentColor; border-radius: 4px; }

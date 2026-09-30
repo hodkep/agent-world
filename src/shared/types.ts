@@ -85,6 +85,8 @@ export interface AgentRecord {
   forkOf?: string
   /** The agent this one was cloned from, so it sits next to it in the office. */
   cloneOf?: string
+  /** A label the roster groups agents under, chosen by the user. */
+  group?: string
   /** Live state, filled in by list-agents only (not persisted). */
   online?: boolean
   activity?: Activity

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
@@ -91,6 +91,7 @@ export function App() {
   const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
   const [reviewMenu, setReviewMenu] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
+  const [grouping, setGrouping] = useState(false)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
@@ -493,11 +494,14 @@ export function App() {
           {hiring && <HireForm roles={roles} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
-              {agents.map((a) => {
+              {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
                 const st = world[a.id]
                 const activity = st?.activity ?? 'asleep'
+                const heading = a.group && a.group !== all[i - 1]?.group
                 return (
-                  <button key={a.id} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
+                  <Fragment key={a.id}>
+                    {heading && <div className="group-head">{a.group}</div>}
+                  <button className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
                     <span className="dot" aria-hidden="true" />
                     <span className="name">
                       {a.name}
@@ -518,6 +522,7 @@ export function App() {
                     <span className="activity">{activity}</span>
                     <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
                   </button>
+                  </Fragment>
                 )
               })}
             </nav>
@@ -555,6 +560,39 @@ export function App() {
                 )}
                 <span className="role">{state ? roleOf(state) : 'senior'}</span>
                 {current.options?.role && <span className="job-tag">{current.options.role}</span>}
+                {grouping ? (
+                  <>
+                    <input
+                      className="rename"
+                      aria-label="Group"
+                      list="groups"
+                      placeholder="group"
+                      defaultValue={current.group ?? ''}
+                      maxLength={24}
+                      autoFocus
+                      onBlur={() => setGrouping(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setGrouping(false)
+                        if (e.key !== 'Enter') return
+                        const id = current.id
+                        const group = e.currentTarget.value.trim()
+                        void window.aw.setGroup(id, group).then(() => {
+                          setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, group: group || undefined } : a)))
+                          setGrouping(false)
+                        })
+                      }}
+                    />
+                    <datalist id="groups">
+                      {[...new Set(agents.flatMap((a) => (a.group ? [a.group] : [])))].map((g) => (
+                        <option key={g} value={g} />
+                      ))}
+                    </datalist>
+                  </>
+                ) : (
+                  <button className="group-tag" onClick={() => setGrouping(true)} title="Group this agent in the list">
+                    {current.group ?? '+ group'}
+                  </button>
+                )}
                 </div>
                 <div className="detail">
                   {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
