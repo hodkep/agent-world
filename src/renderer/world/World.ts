@@ -6,9 +6,7 @@ import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
 import { GRASS, Street, drawGrounds, drawHiringSign } from './grounds'
-import { Dock, type DockHandlers, type DockItem } from './dock'
 import { PLANT, PowerPlant } from './power'
-import type { DockStatus } from '../../shared/api'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
@@ -27,7 +25,7 @@ export interface AgentView {
   contextPct: number | null
 }
 
-export type WorldHandlers = { plant: PlantHandlers; dock: DockHandlers }
+export type WorldHandlers = { plant: PlantHandlers }
 export interface PlantHandlers {
   onHover: (v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void
 }
@@ -48,8 +46,8 @@ const POOLS: Record<Purpose, Spot[]> = {
   whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
-// Art pixels kept in view above the building (the power plant) and below it (the street with the delivery vans).
-const BAND = { north: 56, south: 70 }
+// Art pixels kept in view above the building (the power plant) and below it (the pavement and street).
+const BAND = { north: 56, south: 44 }
 const MIN_ZOOM = 2
 const MAX_ZOOM = 8
 const DRAG_THRESHOLD = 4
@@ -66,7 +64,6 @@ export class OfficeWorld {
   private readonly flights: Flight[] = []
   private street!: Street
   private plant!: PowerPlant
-  private dock!: Dock
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
@@ -107,9 +104,7 @@ export class OfficeWorld {
     const shadows = new Graphics()
     this.street = new Street(OFFICE.map)
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
-    // Vans park along the near kerb of the street, under the building.
-    this.dock = new Dock({ x: 20, y: OFFICE.map.h * TILE + 8 + 22 + 3, width: OFFICE.map.w * TILE - 40 }, handlers.dock, () => this.dragged)
-    this.root.addChild(drawGrounds(OFFICE.map), this.plant.view, this.sign, this.dock.view, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.root.addChild(drawGrounds(OFFICE.map), this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -166,7 +161,7 @@ export class OfficeWorld {
     const dpr = this.app.renderer.resolution
     const W = this.app.screen.width * dpr
     const H = this.app.screen.height * dpr
-    // Fit the building plus the strips of lawn and street that hold the power plant and the delivery vans.
+    // Fit the building plus the strips of lawn and street around it (the power plant sits on the lawn).
     const fit = Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE + BAND.north + BAND.south))))
     return this.zoom ?? fit
   }
@@ -193,7 +188,6 @@ export class OfficeWorld {
   /** Screen positions of things drawn on the canvas, so the page (and tests) can anchor to them. */
   private publishAnchors() {
     this.host.dataset.power = JSON.stringify(this.plant.center())
-    this.host.dataset.docks = JSON.stringify(this.dock.positions())
   }
 
   // Desk and intern seats are permanent homes; every other spot is borrowed while in use.
@@ -329,7 +323,6 @@ export class OfficeWorld {
     this.sign.visible = this.chars.size === 0
     this.street.update(dt, t)
     this.plant.update(t)
-    this.dock.update(t)
   }
 
   // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.
@@ -373,12 +366,6 @@ export class OfficeWorld {
   /** The subscription's remaining limits, shown as the tanks on the back lawn. */
   setLimits(l: UsageLimits) {
     this.plant.setLimits(l)
-  }
-
-  /** Unmerged work per agent, shown as delivery vans on the street. */
-  setDock(list: DockStatus[]) {
-    this.dock.setItems(list.map((d): DockItem => ({ ...d, color: paletteFor(d.agentId, 'senior').c })))
-    this.publishAnchors()
   }
 
   /** An envelope flies from sender to recipient; it's how one agent visibly asks another for something. */

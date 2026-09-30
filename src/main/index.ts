@@ -13,7 +13,6 @@ import { commandLine, listCommands } from './commands'
 import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
-import type { DockStatus } from '../shared/api'
 import { checkName, cleanName } from './names'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
 import { Mailbox } from './mailbox'
@@ -88,26 +87,6 @@ const isDir = (p: string) => {
     return statSync(p).isDirectory()
   } catch {
     return false
-  }
-}
-// Unmerged work per agent (commits ahead of its base, files not committed), for the delivery vans. `status` is
-// run without optional locks so polling never collides with an agent's own git commands.
-const DOCK_MS = Number(process.env.AW_DOCK_MS ?? 15_000)
-let dock: DockStatus[] = []
-async function refreshDock() {
-  const next: DockStatus[] = []
-  for (const a of agents) {
-    if (!a.branch || !a.base) continue
-    try {
-      const [ahead, status] = await Promise.all([git(a.cwd, 'rev-list', '--count', `${a.base}..HEAD`), git(a.cwd, '--no-optional-locks', 'status', '--porcelain')])
-      next.push({ agentId: a.id, name: a.name, branch: a.branch, base: a.base, ahead: Number(ahead) || 0, dirty: status ? status.split('\n').length : 0 })
-    } catch {
-      /* the worktree is gone or busy; it has no van until it answers */
-    }
-  }
-  if (JSON.stringify(next) !== JSON.stringify(dock)) {
-    dock = next
-    send('dock', dock)
   }
 }
 const pendingPermissions = new Set<string>()
@@ -242,7 +221,6 @@ function trackTurns(e: AgentEvent) {
       delete a.forkOf
       persist()
     }
-    if (e.activity === 'idle' || e.activity === 'waiting') void refreshDock()
     if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
     lastActivity.set(a.id, e.activity)
     if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
@@ -383,9 +361,6 @@ async function main() {
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
   ipcMain.handle('get-usage', () => usage)
-  ipcMain.handle('get-dock', () => dock)
-  void refreshDock()
-  setInterval(() => void refreshDock(), DOCK_MS)
   const workspaceInfo = async () => {
     const active = resumeWorkspace(workspaces, isDir)
     const paths = [...new Set([...workspaces.recent, ...(active ? [active] : [])])]
@@ -502,7 +477,6 @@ async function main() {
     agents = agents.filter((x) => x.id !== id)
     buffers.delete(id)
     persist()
-    void refreshDock()
     return { ok: true }
   })
   // Code operations act on one agent's worktree; every handler resolves the agent first.
@@ -524,18 +498,11 @@ async function main() {
   ipcMain.handle('code:files', async (_, id: string) => listFiles((await worktreeOf(id)).a.cwd))
   ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile((await worktreeOf(id)).a.cwd, path))
   ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await worktreeOf(id)).a.cwd, path, content))
-  ipcMain.handle('code:commit', async (_, id: string, message: string) => {
-    await commitAll((await worktreeOf(id)).a.cwd, message)
-    void refreshDock()
-  })
-  ipcMain.handle('code:discard', async (_, id: string, path: string) => {
-    await discardFile((await worktreeOf(id)).a.cwd, path)
-    void refreshDock()
-  })
+  ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await worktreeOf(id)).a.cwd, message))
+  ipcMain.handle('code:discard', async (_, id: string, path: string) => discardFile((await worktreeOf(id)).a.cwd, path))
   ipcMain.handle('code:merge', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
     await mergeInto(a.repoPath, a.branch!, base)
-    void refreshDock()
     return base
   })
   ipcMain.handle('code:pr', async (_, id: string) => {

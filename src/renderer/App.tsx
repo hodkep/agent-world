@@ -3,8 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
-import type { DockStatus, Workspaces } from '../shared/api'
-import type { DockItem } from './world/dock'
+import type { Workspaces } from '../shared/api'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
@@ -74,10 +73,6 @@ export function App() {
   const office = useRef<OfficeWorld | null>(null)
   const [limits, setLimits] = useState<UsageLimits>(noLimits)
   const plantHover = useRef<(v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void>(() => {})
-  const dockHover = useRef<(d: DockItem | null, x: number, y: number) => void>(() => {})
-  const dockOpen = useRef<(id: string) => void>(() => {})
-  const [dockTip, setDockTip] = useState<{ item: DockItem; x: number; y: number } | null>(null)
-  const [dock, setDock] = useState<DockStatus[]>([])
   const [tip, setTip] = useState<{ five: LimitView; week: LimitView; x: number; y: number } | null>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
   const seenFlights = useRef(new Set<string>())
@@ -127,10 +122,7 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, select, {
-      plant: { onHover: (v, x, y) => plantHover.current(v, x, y) },
-      dock: { onHover: (d, x, y) => dockHover.current(d, x, y), onOpen: (id) => dockOpen.current(id) }
-    }).then((created) => {
+    void OfficeWorld.create(stage.current!, select, { plant: { onHover: (v, x, y) => plantHover.current(v, x, y) } }).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
       setOfficeReady(true)
@@ -224,17 +216,6 @@ export function App() {
     })
 
   plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
-  dockHover.current = (item, x, y) => setDockTip(item ? { item, x, y } : null)
-  // A van is a branch with work to merge: take the user to that agent's changes.
-  dockOpen.current = (id) => {
-    select(id)
-    setView('code')
-  }
-  useEffect(() => {
-    void window.aw.getDock().then(setDock)
-    return window.aw.onDock(setDock)
-  }, [])
-  useEffect(() => office.current?.setDock(dock), [dock, officeReady])
   useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
@@ -335,16 +316,6 @@ export function App() {
       <main>
         <div className="stage-wrap">
           <div className="stage" ref={stage} />
-          {dockTip && (
-            <div className="tip" style={{ left: dockTip.x + 14, top: dockTip.y + 14 }} role="tooltip">
-              <b>{dockTip.item.name}'s delivery</b>
-              <span>
-                {dockTip.item.ahead} commit{dockTip.item.ahead === 1 ? '' : 's'} on <code>{dockTip.item.branch}</code> not in {dockTip.item.base} yet
-              </span>
-              {dockTip.item.dirty > 0 && <span>{dockTip.item.dirty} changed file{dockTip.item.dirty === 1 ? '' : 's'} not committed</span>}
-              <span className="tip-note">Click to review the changes and merge.</span>
-            </div>
-          )}
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
               <PlantTip five={tip.five} week={tip.week} />
