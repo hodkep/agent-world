@@ -18,6 +18,7 @@ import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
+import { TracesView } from './panel/TracesView'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -75,7 +76,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -809,19 +810,6 @@ export function App() {
               </button>
             </section>
           )}
-          {messages.length > 0 && (
-            <section className="messages" aria-label="Messages between agents">
-              {messages.slice(0, 5).map((m) => (
-                <div key={m.id} className={`message is-${m.status}`}>
-                  <b>{agents.find((a) => a.id === m.fromId)?.name ?? '?'}</b> → <b>{agents.find((a) => a.id === m.toId)?.name ?? '?'}</b>
-                  <span className="status">{m.status}</span>
-                  <div className="detail" title={m.text}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
           {current && folded && (
             <section className="head-compact" aria-label="Selected agent">
               <button onClick={() => step(-1)} aria-label="Previous agent" className="hc-step hc-prev" />
@@ -854,6 +842,9 @@ export function App() {
               </button>
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
+              </button>
+              <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
+                Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
               <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
@@ -896,6 +887,7 @@ export function App() {
             ))}
           </div>
           {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} />}
+          {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
         </aside>

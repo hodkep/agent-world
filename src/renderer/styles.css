@@ -86,7 +86,6 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .dirty pre { margin: 0; max-height: 120px; overflow: auto; background: var(--ink); padding: 6px; }
 .terminals { flex: 1; min-height: 0; background: var(--well); }
 .term-host { height: 100%; padding: 8px 10px; }
-.messages { flex-direction: column; align-items: stretch; gap: 6px; max-height: 22vh; overflow: auto; }
 .message .status { float: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .message.is-queued .status { color: var(--accent); }
 .message.is-delivered .status { color: var(--ok); }
@@ -638,3 +637,12 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .chat-note { font-size: 11px; color: var(--muted); background: var(--panel); padding: 2px 8px; }
 .chat-log { padding-top: 34px; }
 .chat-tools + .chat-menu { top: 46px; }
+
+.traces { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--well); }
+.traces-head { display: flex; align-items: baseline; gap: 10px; }
+.traces ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.trace-row { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto auto; column-gap: 10px; row-gap: 2px; padding: 8px 10px; background: var(--panel); border: 2px solid var(--ink); color: var(--text); cursor: pointer; }
+.trace-row .status { float: none; }
+.trace-row .trace-time { font-size: 11px; color: var(--muted); }
+.trace-row .detail { grid-column: 1 / -1; color: var(--muted); font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.trace-row .detail.full { -webkit-line-clamp: unset; white-space: pre-wrap; }

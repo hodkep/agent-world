@@ -26,7 +26,8 @@ test('hand a branch to another agent for review, or hire a fresh reviewer', asyn
     await page.locator('.roster button', { hasText: 'ada' }).click()
 
     await headMenu(page, 'Ask linus to review')
-    const log = page.locator('.messages .message').first()
+    await page.getByRole('tab', { name: /^Traces/ }).click()
+    const log = page.locator('.traces .message').first()
     await expect(log).toContainText('ada')
     await expect(log).toContainText('linus')
     await expect(log).toContainText('review their work on branch aw/ada')
