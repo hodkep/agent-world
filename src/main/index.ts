@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
-import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
+import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, Question, QuestionAnswer } from '../shared/types'
@@ -14,6 +14,7 @@ import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { checkName, cleanName } from './names'
+import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
 import { Mailbox } from './mailbox'
@@ -89,6 +90,46 @@ const isDir = (p: string) => {
   } catch {
     return false
   }
+}
+// Dev servers an agent has started (spotted in its terminal output, confirmed by connecting), for the Preview tab.
+interface Served {
+  port: number
+  url: string
+  alive: boolean
+  since: number
+  lastAlive: number
+}
+const served = new Map<string, Map<number, Served>>()
+const serverTail = new Map<string, string>()
+const ownPorts: number[] = []
+const serversOf = (id: string) => [...(served.get(id)?.values() ?? [])].map(({ port, url, alive }) => ({ port, url, alive }))
+function noteServers(id: string, chunk: string) {
+  // An address can arrive split across two chunks.
+  const text = (serverTail.get(id) ?? '') + chunk
+  serverTail.set(id, text.slice(-160))
+  const found = findLocalServers(text, ownPorts)
+  if (!found.length) return
+  const mine = served.get(id) ?? new Map<number, Served>()
+  served.set(id, mine)
+  let added = false
+  for (const f of found)
+    if (!mine.has(f.port)) {
+      mine.set(f.port, { ...f, alive: false, since: Date.now(), lastAlive: 0 })
+      added = true
+    }
+  if (added) void probeServers()
+}
+async function probeServers() {
+  let changed = false
+  for (const [id, mine] of served)
+    for (const [port, sv] of mine) {
+      const alive = await isListening(port)
+      if (alive) sv.lastAlive = Date.now()
+      if (alive !== sv.alive) (sv.alive = alive), (changed = true)
+      // A server that never answered, or stopped answering, half a minute ago is gone.
+      if (!alive && Date.now() - (sv.lastAlive || sv.since) > 30_000) (mine.delete(port), (changed = true))
+    }
+  if (changed) send('servers', Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
 }
 const pendingPermissions = new Set<string>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
@@ -243,6 +284,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
     buffers.set(a.id, next)
     send('pty-data', a.id, d, next.end)
+    noteServers(a.id, d)
     lastOutput.set(a.id, Date.now())
     void screen.write(d).then(() => {
       const text = screen.text()
@@ -355,6 +397,7 @@ async function main() {
     send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply })
   })
   office = { mcpUrl: mcp.url, hookUrl: hooks.url }
+  for (const u of [mcp.url, hooks.url]) if (u) ownPorts.push(Number(new URL(u).port))
 
   ipcMain.handle('pick-folder', async () => {
     const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
@@ -362,6 +405,14 @@ async function main() {
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
   ipcMain.handle('get-usage', () => usage)
+  ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
+  // Only local addresses may be handed to the system browser from here.
+  ipcMain.handle('open-external', (_, url: string) => {
+    const u = new URL(url)
+    if (u.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(u.hostname)) throw new Error('Only local addresses can be opened from here.')
+    return shell.openExternal(u.toString())
+  })
+  setInterval(() => void probeServers(), 3000)
   const workspaceInfo = async () => {
     const active = resumeWorkspace(workspaces, isDir)
     const paths = [...new Set([...workspaces.recent, ...(active ? [active] : [])])]
@@ -504,6 +555,8 @@ async function main() {
     }
     agents = agents.filter((x) => x.id !== id)
     buffers.delete(id)
+    served.delete(id)
+    serverTail.delete(id)
     persist()
     return { ok: true }
   })
@@ -614,7 +667,30 @@ async function main() {
     minHeight: 640,
     backgroundColor: '#14121c',
     title: 'Agent World',
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true }
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true }
+  })
+  // The preview pane is a <webview>; it may only ever show local dev servers, with no access to the app.
+  const isLocalHttp = (u: string) => {
+    try {
+      const x = new URL(u)
+      return x.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(x.hostname)
+    } catch {
+      return false
+    }
+  }
+  win.webContents.on('will-attach-webview', (e, prefs, params) => {
+    delete prefs.preload
+    prefs.nodeIntegration = false
+    prefs.contextIsolation = true
+    prefs.sandbox = true
+    if (!isLocalHttp(params.src ?? '')) e.preventDefault()
+  })
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (e) => e.preventDefault())
+  app.on('web-contents-created', (_, contents) => {
+    if (contents.getType() !== 'webview') return
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    contents.on('will-navigate', (e, url) => !isLocalHttp(url) && e.preventDefault())
   })
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else win.loadFile(join(__dirname, '../renderer/index.html'))

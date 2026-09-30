@@ -371,3 +371,16 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .menu-wrap { position: relative; display: inline-flex; }
 .pop-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 190px; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 24px rgb(0 0 0 / 0.5); }
 .pop-menu button { text-align: left; }
+
+/* ---- Preview tab ------------------------------------------------------------------------------ */
+.preview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.preview.empty { justify-content: center; }
+.preview-bar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+.preview-url { font: 12px Menlo, Consolas, monospace; color: var(--accent); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.preview-bar select { flex: 1; min-width: 0; font: 12px Menlo, Consolas, monospace; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 3px 4px; }
+.preview-bar button { font-size: 12px; padding: 2px 8px; }
+.preview-state { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 6px; box-shadow: 0 0 0 1px var(--ink); }
+.preview-state.up { color: var(--ok); background: var(--well); }
+.preview-state.down { color: var(--danger-text); background: var(--well); }
+.preview-error { margin: 0; padding: 6px 10px; color: var(--danger-text); font-size: 12px; }
+.preview-frame { flex: 1; min-height: 0; width: 100%; background: #fff; border: 0; }

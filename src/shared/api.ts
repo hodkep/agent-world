@@ -47,6 +47,13 @@ export interface Workspaces {
   items: WorkspaceInfo[]
 }
 
+export interface DevServer {
+  port: number
+  url: string
+  /** Something is accepting connections on it right now. */
+  alive: boolean
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -103,6 +110,11 @@ export interface AwApi {
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   getUsage(): Promise<UsageLimits>
+  /** Dev servers each agent has started, by agent id. */
+  getServers(): Promise<Record<string, DevServer[]>>
+  onServers(cb: (s: Record<string, DevServer[]>) => void): () => void
+  /** Open a local address in the system browser. */
+  openExternal(url: string): Promise<void>
   onUsage(cb: (u: UsageLimits) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */

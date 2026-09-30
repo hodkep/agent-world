@@ -3,12 +3,13 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
-import type { Workspaces } from '../shared/api'
+import type { DevServer, Workspaces } from '../shared/api'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
+import { PreviewView } from './panel/PreviewView'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
@@ -41,7 +42,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'terminal' | 'code' | 'tools'>('terminal')
+  const [view, setView] = useState<'terminal' | 'code' | 'tools' | 'preview'>('terminal')
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -73,6 +74,7 @@ export function App() {
   const needsRef = useRef<(id: string) => Need[]>(() => [])
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
+  const [servers, setServers] = useState<Record<string, DevServer[]>>({})
   const [limits, setLimits] = useState<UsageLimits>(noLimits)
   const handbookOpen = useRef<(id: string) => void>(() => {})
   const plantHover = useRef<(v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void>(() => {})
@@ -239,6 +241,10 @@ export function App() {
     select(id)
   }
   useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
+  useEffect(() => {
+    void window.aw.getServers().then(setServers)
+    return window.aw.onServers(setServers)
+  }, [])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
     return window.aw.onUsage(setLimits)
@@ -572,6 +578,9 @@ export function App() {
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
               </button>
+              <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
+                Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
+              </button>
               <button className="push" onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
                 {wide ? 'Narrow' : 'Expand'}
               </button>
@@ -582,6 +591,7 @@ export function App() {
               <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
+          {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
         </aside>
