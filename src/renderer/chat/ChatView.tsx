@@ -472,7 +472,8 @@ function Composer({
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`
-  }, [text])
+    // Measured again when the chat comes into view: a hidden box measures as nothing.
+  }, [text, visible])
 
   // Files on disk are mentioned by their path; pasted pictures and other blobs are saved first.
   const attach = useCallback(

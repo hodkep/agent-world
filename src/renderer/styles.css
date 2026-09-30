@@ -580,3 +580,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .btw-q { grid-column: 1; opacity: .75; }
 .btw-a { grid-column: 1; }
 .btw button { grid-column: 2; grid-row: 1 / span 2; align-self: start; font-size: 11px; cursor: pointer; }
+
+/* The log gives way when the panel is short; the box you type in never does. */
+.composer, .procbar, .btw, .chat-banner, .inline-need { flex-shrink: 0; }
+.composer textarea { min-height: 44px; }
