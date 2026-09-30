@@ -9,6 +9,7 @@ import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
+import { ChatView } from './chat/ChatView'
 import { PreviewView } from './panel/PreviewView'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
@@ -16,6 +17,16 @@ import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
+
+// The way you talk to an agent (chat or raw terminal) is remembered between launches.
+type Talk = 'chat' | 'terminal'
+const readTalk = (): Talk => {
+  try {
+    return localStorage.getItem('aw.talk') === 'terminal' ? 'terminal' : 'chat'
+  } catch {
+    return 'chat'
+  }
+}
 
 // Before projects were saved by the app, the chosen folder lived here; it is carried over once.
 const LEGACY_FOLDER_KEY = 'aw.folder'
@@ -42,7 +53,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'terminal' | 'code' | 'tools' | 'preview'>('terminal')
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -54,6 +65,7 @@ export function App() {
   const [palette, setPalette] = useState(false)
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
+  const [talk, setTalk] = useState<Talk>(readTalk)
   const [reviewMenu, setReviewMenu] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
@@ -61,7 +73,7 @@ export function App() {
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
   const select = (id: string) => {
     setSelected(id)
-    setView('terminal')
+    setView(talkRef.current)
     setOpenFile(undefined)
     // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
     if (needsRef.current(id).length > 0) setDialogFor(id)
@@ -72,6 +84,7 @@ export function App() {
   }
   // The world is built once and keeps the first render's `select`, so it reads the latest needs through a ref.
   const needsRef = useRef<(id: string) => Need[]>(() => [])
+  const talkRef = useRef<Talk>(readTalk())
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
   const [servers, setServers] = useState<Record<string, DevServer[]>>({})
@@ -167,6 +180,7 @@ export function App() {
     ...(questionMenus[id] && world[id]?.questions?.length ? [{ kind: 'question', questions: world[id]!.questions! } as const] : [])
   ]
   needsRef.current = needsOf
+  talkRef.current = talk
   const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
   useEffect(() => {
     if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
@@ -259,6 +273,16 @@ export function App() {
         setWorld((w) => applyEvent(w, { type: 'activity', agentId: created.id, sessionId: created.sessionId, activity: 'idle' }))
       }
     })
+
+  const chooseTalk = (t: Talk) => {
+    setTalk(t)
+    setView(t)
+    try {
+      localStorage.setItem('aw.talk', t)
+    } catch {
+      /* remembering the choice is a convenience */
+    }
+  }
 
   const clone = (src: AgentRecord) =>
     run(async () => {
@@ -569,7 +593,10 @@ export function App() {
           )}
           {current && (
             <div className="tabs" role="tablist" aria-label="Agent view">
-              <button role="tab" aria-selected={view === 'terminal'} onClick={() => (setView('terminal'), setFocusTick((n) => n + 1))}>
+              <button role="tab" aria-selected={view === 'chat'} onClick={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}>
+                Chat
+              </button>
+              <button role="tab" aria-selected={view === 'terminal'} onClick={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}>
                 Terminal
               </button>
               <button role="tab" aria-selected={view === 'code'} onClick={() => setView('code')}>
@@ -586,6 +613,22 @@ export function App() {
               </button>
             </div>
           )}
+          {agents.map((a) => (
+            <ChatView
+              key={a.id}
+              agentId={a.id}
+              agentName={a.name}
+              activity={world[a.id]?.activity ?? 'asleep'}
+              detail={world[a.id]?.detail}
+              asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
+              waiting={needsOf(a.id).length ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null}
+              visible={a.id === selected && view === 'chat'}
+              focusTick={focusTick}
+              onWake={() => wake(a)}
+              onOpenNeed={() => setDialogFor(a.id)}
+              onTerminal={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}
+            />
+          ))}
           <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
               <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />

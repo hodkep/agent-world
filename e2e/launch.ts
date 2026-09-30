@@ -25,6 +25,8 @@ export async function hire(page: Page, fields: { name?: string; model?: string; 
   if (fields.instructions) await form.getByLabel('Extra instructions').fill(fields.instructions)
   await form.getByRole('button', { name: 'Hire' }).click()
   await form.waitFor({ state: 'detached' })
+  // Most tests read the raw terminal; the chat view has its own tests.
+  await page.getByRole('tab', { name: 'Terminal' }).click()
 }
 
 /** Open the box of the first agent waiting on you (if not already open) and allow its tool request. */

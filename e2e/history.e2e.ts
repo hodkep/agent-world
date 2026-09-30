@@ -25,6 +25,7 @@ test('bring back an earlier conversation from the folder as a new agent', async 
     await page.reload()
     await page.getByRole('button', { name: 'History' }).click()
     await page.getByRole('button', { name: /Add pagination to the orders list/ }).click()
+    await page.getByRole('tab', { name: 'Terminal' }).click()
     await expect(page.locator('.term-host:visible')).toContainText(`session ${past}`, { timeout: 10_000 })
     // Now running here, so it can't be started twice.
     await page.getByRole('button', { name: 'History' }).click()

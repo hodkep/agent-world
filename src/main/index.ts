@@ -13,6 +13,9 @@ import { commandLine, listCommands } from './commands'
 import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
+import { transcriptPath } from './chat'
+import { TranscriptTail } from './chatTail'
+import type { ChatItem } from '../shared/chat'
 import { checkName, cleanName } from './names'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
@@ -130,6 +133,35 @@ async function probeServers() {
       if (!alive && Date.now() - (sv.lastAlive || sv.since) > 30_000) (mine.delete(port), (changed = true))
     }
   if (changed) send('servers', Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
+}
+// Each agent's conversation, read from the transcript file Claude keeps for its session, for the chat view.
+const MAX_CHAT = 800
+interface Chat {
+  tail: TranscriptTail
+  sessionId: string
+  items: ChatItem[]
+}
+const chats = new Map<string, Chat>()
+function followChat(a: AgentRecord) {
+  const now = chats.get(a.id)
+  if (now?.sessionId === a.sessionId) return
+  now?.tail.stop()
+  const chat: Chat = { tail: null as unknown as TranscriptTail, sessionId: a.sessionId, items: [] }
+  // Claude names the project folder after the real path of its working directory (symlinks resolved).
+  let real = a.cwd
+  try {
+    real = realpathSync(a.cwd)
+  } catch {
+    /* the folder is gone; the transcript will not appear */
+  }
+  chat.tail = new TranscriptTail(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId), (items) => {
+    chat.items = [...chat.items, ...items].slice(-MAX_CHAT)
+    send('chat-items', a.id, a.sessionId, items)
+  })
+  chats.set(a.id, chat)
+  // A different session (after /clear or a fork) is a different conversation: the view starts over.
+  if (now) send('chat-reset', a.id, a.sessionId)
+  chat.tail.start()
 }
 const pendingPermissions = new Set<string>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
@@ -252,6 +284,7 @@ function trackTurns(e: AgentEvent) {
   if (e.sessionId !== a.sessionId) {
     a.sessionId = e.sessionId
     persist()
+    followChat(a)
   }
   if (e.type === 'question') askedQuestions.set(a.id, e.questions)
   if (e.type === 'session-start') mailbox.ready(a.id)
@@ -272,6 +305,7 @@ function trackTurns(e: AgentEvent) {
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
+  followChat(a)
   const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
@@ -351,6 +385,7 @@ async function main() {
   await app.whenReady()
   mkdirSync(HOME, { recursive: true })
   agents = loadAgents(AGENTS_FILE)
+  for (const a of agents) followChat(a)
   loadUsage()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...agentEnv(process.env), PATH: loginShellPath() }
@@ -405,11 +440,27 @@ async function main() {
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
   ipcMain.handle('get-usage', () => usage)
+  ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
+  // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
+  ipcMain.handle('chat:send', async (_, id: string, raw: string) => {
+    const p = sessions.get(id)
+    if (!p) throw new Error('That agent is not running. Wake it first.')
+    const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
+    if (!text) return
+    if (anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
+    p.write(`\x1b[200~${text}\x1b[201~`)
+    await new Promise((r) => setTimeout(r, 150))
+    p.write('\r')
+  })
+  // Esc is how Claude's own terminal interrupts a running turn.
+  ipcMain.handle('chat:interrupt', (_, id: string) => void sessions.get(id)?.write('\x1b'))
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.
   ipcMain.handle('open-external', (_, url: string) => {
     const u = new URL(url)
-    if (u.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(u.hostname)) throw new Error('Only local addresses can be opened from here.')
+    // Links in the chat are https; dev servers are plain http on this machine. Nothing else leaves the app.
+    const local = u.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(u.hostname)
+    if (u.protocol !== 'https:' && !local) throw new Error('Only https links and local addresses can be opened from here.')
     return shell.openExternal(u.toString())
   })
   setInterval(() => void probeServers(), 3000)
@@ -557,6 +608,8 @@ async function main() {
     buffers.delete(id)
     served.delete(id)
     serverTail.delete(id)
+    chats.get(id)?.tail.stop()
+    chats.delete(id)
     persist()
     return { ok: true }
   })

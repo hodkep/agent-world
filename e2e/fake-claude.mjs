@@ -22,6 +22,22 @@ const { url, headers } = settings.hooks.PreToolUse[0].hooks[0]
 const pause = Number(process.env.FAKE_DELAY_MS ?? 150)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// FAKE_TRANSCRIPT=1: also keep the saved conversation file real Claude keeps, so the chat view has something to read.
+import { appendFileSync, mkdirSync as mk } from 'node:fs'
+import { realpathSync } from 'node:fs'
+const transcript = (line) => {
+  if (!process.env.FAKE_TRANSCRIPT || !process.env.AW_CLAUDE_PROJECTS) return
+  const dir = `${process.env.AW_CLAUDE_PROJECTS}/${realpathSync(process.cwd()).replace(/[^a-zA-Z0-9]/g, '-')}`
+  mk(dir, { recursive: true })
+  appendFileSync(`${dir}/${sessionId}.jsonl`, JSON.stringify({ isSidechain: false, timestamp: new Date().toISOString(), uuid: crypto.randomUUID(), sessionId, ...line }) + '\n')
+}
+const say = (text) => transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+const use = (name, input) => {
+  const id = `toolu_${crypto.randomUUID().slice(0, 8)}`
+  transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } })
+  return id
+}
+const done = (id, text, isError = false) => transcript({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text, is_error: isError }] } })
 const hook = async (event, extra = {}) => {
   const res = await fetch(url, {
     method: 'POST',
@@ -52,7 +68,7 @@ if (process.env.FAKE_COST) {
 }
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
-process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.env.FAKE_CHAT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
 
 // FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
 async function sendViaOffice(to, message) {
@@ -95,6 +111,32 @@ if (process.env.FAKE_LOOP) {
     await hook(event, extra)
     await sleep(pause * (0.6 + Math.random()))
   }
+}
+// FAKE_CHAT=1: an idle agent that answers each prompt it is sent, keeping the saved conversation like real Claude does.
+if (process.env.FAKE_CHAT) {
+  await hook('Stop')
+  let typed = ''
+  process.stdin.on('data', async (d) => {
+    typed += String(d).replace(/\x1b\[20[01]~/g, '')
+    if (!typed.includes('\r')) return
+    const prompt = typed.split('\r')[0].trim()
+    typed = ''
+    if (!prompt) return
+    transcript({ type: 'user', message: { role: 'user', content: prompt } })
+    await hook('UserPromptSubmit', { prompt })
+    const bash = { command: 'ls src', description: 'List the source folder' }
+    await hook('PreToolUse', { tool_name: 'Bash', tool_input: bash })
+    const id = use('Bash', bash)
+    await sleep(pause * 3)
+    done(id, 'app.ts\nhealth.ts')
+    await hook('PostToolUse', { tool_name: 'Bash', tool_input: bash })
+    const edit = { file_path: `${process.cwd()}/src/health.ts`, old_string: 'export const ok = false', new_string: 'export const ok = true' }
+    const eid = use('Edit', edit)
+    done(eid, 'The file has been updated')
+    say(`Done. I changed **health.ts** for "${prompt}".\n\n\`\`\`ts\nexport const ok = true\n\`\`\`\n\n- one\n- two`)
+    await hook('Stop')
+  })
+  await new Promise(() => {})
 }
 // FAKE_ASKQ=1: an AskUserQuestion with two questions, drawn as Claude draws it and driven by keys
 // (Enter picks and moves on, Space toggles, Right turns the page, typing on the last row writes text).

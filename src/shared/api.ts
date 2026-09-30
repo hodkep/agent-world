@@ -1,3 +1,4 @@
+import type { ChatItem } from './chat'
 import type { UsageLimits } from './usage'
 import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
@@ -109,6 +110,14 @@ export interface AwApi {
   onAgentMessage(cb: (m: AgentMessage) => void): () => void
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
+  /** The conversation so far (from Claude's saved transcript) and later additions to it. */
+  chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
+  onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
+  onChatReset(cb: (agentId: string, sessionId: string) => void): () => void
+  /** Types the text into the agent's terminal as a prompt and presses Enter. Rejects while a menu is open. */
+  chatSend(agentId: string, text: string): Promise<void>
+  /** Esc: interrupt what the agent is doing. */
+  chatInterrupt(agentId: string): Promise<void>
   getUsage(): Promise<UsageLimits>
   /** Dev servers each agent has started, by agent id. */
   getServers(): Promise<Record<string, DevServer[]>>
