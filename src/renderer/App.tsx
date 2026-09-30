@@ -407,7 +407,7 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
-      {settings && prefs && <Settings prefs={prefs} onChange={(p) => void window.aw.setPrefs(p).then(setPrefs)} onClose={() => setSettings(false)} />}
+      {settings && prefs && <Settings prefs={prefs} onChange={(p) => (setPrefs(p), void window.aw.setPrefs(p).then(setPrefs))} onClose={() => setSettings(false)} />}
       {palette && current && (
         <Palette
           agentId={current.id}
