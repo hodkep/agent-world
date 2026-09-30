@@ -48,6 +48,7 @@ const api: AwApi = {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
+  saveNotes: (id) => ipcRenderer.invoke('notes:save', id),
   resync: () => ipcRenderer.invoke('resync'),
   checkUpdates: () => ipcRenderer.invoke('updates:check'),
   onUpdateState: on('update-state'),

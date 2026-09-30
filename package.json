@@ -11,8 +11,8 @@
     "test:e2e": "electron-vite build && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "postinstall": "electron-rebuild -f -w node-pty",
-    "pack": "electron-vite build && electron-builder --dir",
-    "dist": "electron-vite build && electron-builder"
+    "pack": "electron-vite build && electron-builder --dir; electron-rebuild -f -w node-pty",
+    "dist": "electron-vite build && electron-builder; electron-rebuild -f -w node-pty"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

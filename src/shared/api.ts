@@ -116,6 +116,8 @@ export interface AwApi {
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
+  /** Write a short record of this conversation to the notes folder and show it; returns the file. */
+  saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
   checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string }>

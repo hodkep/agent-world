@@ -207,6 +207,7 @@ export function ChatView({
           </>
         )}
         <span className="chat-tools-gap" />
+        <SaveNotes agentId={agentId} />
         <Copy text={toMarkdown(allRows, agentName)} label="Copy as Markdown" />
       </div>
       <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
@@ -290,6 +291,24 @@ export function ChatView({
 }
 
 /** Commands and servers running under the agent, with a way to stop them. */
+/** Writes a short record of the conversation (what was asked, files changed, commands run) to the notes folder. */
+function SaveNotes({ agentId }: { agentId: string }) {
+  const [state, setState] = useState<'idle' | 'saved' | 'failed'>('idle')
+  return (
+    <button
+      title="Save a short record of this conversation to the notes folder"
+      onClick={() =>
+        void window.aw.saveNotes(agentId).then(
+          () => (setState('saved'), setTimeout(() => setState('idle'), 2500)),
+          () => (setState('failed'), setTimeout(() => setState('idle'), 2500))
+        )
+      }
+    >
+      {state === 'saved' ? 'Saved ✓' : state === 'failed' ? 'Nothing yet' : 'Save notes'}
+    </button>
+  )
+}
+
 const WINDOW = 150
 
 function ProcBar({ agentId }: { agentId: string }) {

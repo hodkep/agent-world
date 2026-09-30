@@ -1,3 +1,4 @@
+import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
@@ -81,6 +82,7 @@ let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
+const lastStats = new Map<string, AgentStats>()
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 const planOpen = new Set<string>()
@@ -312,6 +314,7 @@ function refreshAttention() {
 function onStats(s: AgentStats, agentId: string) {
   const a = byId(agentId)
   if (!a) return
+  lastStats.set(a.id, s)
   send('agent-stats', a.id, s)
   if (s.limits.fiveHour || s.limits.sevenDay) {
     usage = mergeLimits(usage, s.limits)
@@ -656,6 +659,18 @@ async function main() {
     savePrefs(join(HOME, 'preferences.json'), prefs)
     refreshAttention()
     return prefs
+  })
+  // Notes are kept outside the project, so they never show up as untracked files in its git status.
+  ipcMain.handle('notes:save', (_, id: string) => {
+    const a = byId(id)
+    const items = chats.get(id)?.items ?? []
+    if (!a || items.length === 0) throw new Error('Nothing to write down yet: this conversation is empty.')
+    const dir = join(HOME, 'notes', repoSlug(a.repoPath))
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, `${new Date().toISOString().slice(0, 10)}-${a.name}-${a.sessionId.slice(0, 6)}.md`)
+    writeFileSync(file, sessionNotes(items, { name: a.name, branch: a.branch, cost: lastStats.get(id)?.costUsd }))
+    if (!HIDDEN) shell.showItemInFolder(file)
+    return file
   })
   ipcMain.handle('btw:close', (_, id: string) => {
     if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
