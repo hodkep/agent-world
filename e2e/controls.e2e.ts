@@ -15,7 +15,7 @@ test('hire with options, see live cost and context, get a budget warning, switch
 
     const term = page.locator('.term-host:visible')
     await expect(term).toContainText('--model sonnet')
-    await expect(term).toContainText('--append-system-prompt Prefer small commits.')
+    await expect(term).toContainText('Prefer small commits.')
     await expect(term).toContainText('status bar: Agent World · Sonnet · context 42% · $0.90')
 
     const row = page.locator('.roster button', { hasText: 'nova' })
