@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest } from '../shared/types'
-import { CodePanel } from './code/CodePanel'
+import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { History } from './panel/History'
@@ -34,6 +34,7 @@ export function App() {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
   const [history, setHistory] = useState(false)
+  const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [feedback, setFeedback] = useState('')
   const [palette, setPalette] = useState(false)
@@ -46,6 +47,7 @@ export function App() {
   const select = (id: string) => {
     setSelected(id)
     setView('terminal')
+    setOpenFile(undefined)
     setFocusTick((n) => n + 1)
   }
   const stage = useRef<HTMLDivElement>(null)
@@ -167,6 +169,14 @@ export function App() {
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
+    })
+
+  // CLAUDE.md is the standing brief Claude reads at every start; start one if the project has none yet.
+  const openHandbook = (a: AgentRecord) =>
+    run(async () => {
+      if (!(await window.aw.code.files(a.id)).includes('CLAUDE.md')) await window.aw.code.write(a.id, 'CLAUDE.md', '# Project notes\n\nWhat every agent here should know: how to build and test, conventions, things to avoid.\n')
+      setView('code')
+      setOpenFile({ path: 'CLAUDE.md' })
     })
 
   const clone = (src: AgentRecord) =>
@@ -422,6 +432,11 @@ export function App() {
                   Commands
                 </button>
               )}
+              {current.branch && (
+                <button onClick={() => openHandbook(current)} title="CLAUDE.md: the standing instructions every agent reads when it starts">
+                  Handbook
+                </button>
+              )}
               <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
                 Clone
               </button>
@@ -472,7 +487,7 @@ export function App() {
               <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
-          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} />}
+          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
         </aside>
       </main>
     </div>

@@ -3,6 +3,10 @@ import type { Changes } from '../../shared/api'
 import { editorOptions, languageFor, monaco } from './monaco'
 
 type Tab = 'changes' | 'files'
+/** Ask the Files tab to open a file; a new object each time so asking twice works. */
+export interface OpenRequest {
+  path: string
+}
 
 const STATUS_MARK = { added: 'A', modified: 'M', deleted: 'D' } as const
 
@@ -21,8 +25,11 @@ function useErrors() {
 }
 
 /** Review an agent's work (diff against its base) and edit files in its worktree. */
-export function CodePanel({ agentId, workDone }: { agentId: string; workDone: number }) {
-  const [tab, setTab] = useState<Tab>('changes')
+export function CodePanel({ agentId, workDone, openFile }: { agentId: string; workDone: number; openFile?: OpenRequest }) {
+  const [tab, setTab] = useState<Tab>(openFile ? 'files' : 'changes')
+  useEffect(() => {
+    if (openFile) setTab('files')
+  }, [openFile])
   return (
     <div className="code">
       <div className="tabs" role="tablist">
@@ -32,7 +39,7 @@ export function CodePanel({ agentId, workDone }: { agentId: string; workDone: nu
           </button>
         ))}
       </div>
-      {tab === 'changes' ? <ChangesView agentId={agentId} workDone={workDone} /> : <FilesView agentId={agentId} />}
+      {tab === 'changes' ? <ChangesView agentId={agentId} workDone={workDone} /> : <FilesView agentId={agentId} openFile={openFile} />}
     </div>
   )
 }
@@ -149,7 +156,7 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
   )
 }
 
-function FilesView({ agentId }: { agentId: string }) {
+function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequest }) {
   const [files, setFiles] = useState<string[]>([])
   const [filter, setFilter] = useState('')
   const [path, setPath] = useState<string | null>(null)
@@ -197,6 +204,11 @@ function FilesView({ agentId }: { agentId: string }) {
       setPath(p)
       setDirty(false)
     })
+
+  useEffect(() => {
+    if (openFile) open(openFile.path)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should open a file
+  }, [openFile])
 
   const shown = files.filter((f) => f.toLowerCase().includes(filter.toLowerCase()))
   return (
