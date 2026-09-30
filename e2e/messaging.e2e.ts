@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('one agent asks another for help and the message lands in its terminal', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-mail-'))
@@ -19,9 +19,7 @@ test('one agent asks another for help and the message lands in its terminal', as
     await hire(page)
     // Both fake agents hit a permission request in their script; approve them from the panel.
     for (let i = 0; i < 2; i++) {
-      const approve = page.getByRole('button', { name: 'Approve' }).first()
-      await approve.waitFor({ timeout: 15_000 })
-      await approve.click()
+      await approve(page)
     }
     const log = page.locator('.messages .message').first()
     await expect(log).toContainText('ada')

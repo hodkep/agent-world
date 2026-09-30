@@ -3,6 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
@@ -37,7 +38,8 @@ export function App() {
   const [history, setHistory] = useState(false)
   const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
-  const [feedback, setFeedback] = useState('')
+  const [questionMenus, setQuestionMenus] = useState<Record<string, boolean>>({})
+  const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [, setOfficeReady] = useState(false)
@@ -49,8 +51,12 @@ export function App() {
     setSelected(id)
     setView('terminal')
     setOpenFile(undefined)
-    setFocusTick((n) => n + 1)
+    // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
+    if (needsRef.current(id).length > 0) setDialogFor(id)
+    else setFocusTick((n) => n + 1)
   }
+  // The world is built once and keeps the first render's `select`, so it reads the latest needs through a ref.
+  const needsRef = useRef<(id: string) => Need[]>(() => [])
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
@@ -67,6 +73,7 @@ export function App() {
         // The main process marks an agent started on its first real activity; mirror it so Clone unlocks.
         if (e.type === 'activity' && !e.subagentId) setAgents((xs) => (xs.some((a) => a.id === e.agentId && !a.started) ? xs.map((a) => (a.id === e.agentId ? { ...a, started: true } : a)) : xs))
       }),
+      window.aw.onQuestionMenu((id, open) => setQuestionMenus((m) => ({ ...m, [id]: open }))),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
       window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
       window.aw.onAgentMessage((m) => {
@@ -123,9 +130,19 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey, { capture: true })
   }, [current])
   // A pending permission must never sit behind a collapsed panel.
-  const pendingTrust = Object.entries(trusts)
-  const pendingPlans = agents.filter((a) => planMenus[a.id])
-  const showPanel = panelOpen || hiring || history || asks.length > 0 || pendingTrust.length > 0 || pendingPlans.length > 0
+  const needsOf = (id: string): Need[] => [
+    ...(trusts[id] ? [{ kind: 'trust', path: trusts[id]! } as const] : []),
+    ...asks.filter((r) => r.agentId === id).map((request) => ({ kind: 'permission', request }) as const),
+    ...(planMenus[id] ? [{ kind: 'plan', text: world[id]?.plan ?? '' } as const] : []),
+    ...(questionMenus[id] && world[id]?.questions?.length ? [{ kind: 'question', questions: world[id]!.questions! } as const] : [])
+  ]
+  needsRef.current = needsOf
+  const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
+  useEffect(() => {
+    if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
+  })
+  const needing = agents.map((agent) => ({ agent, needs: needsOf(agent.id) })).filter((x) => x.needs.length > 0)
+  const showPanel = panelOpen || hiring || history
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -206,14 +223,33 @@ export function App() {
       if (selected === id) setSelected(null)
     })
 
-  const decide = (r: PermissionRequest, d: 'allow' | 'deny') => {
-    window.aw.decide(r.id, d)
-    setAsks((q) => q.filter((x) => x.id !== r.id))
-    setFocusTick((n) => n + 1)
+  const decideById = (id: string, d: 'allow' | 'deny') => {
+    window.aw.decide(id, d)
+    setAsks((q) => q.filter((x) => x.id !== id))
   }
 
   return (
     <div className="app">
+      {dialogFor && dialogNeeds.length > 0 && (
+        <InputDialog
+          agentName={agents.find((a) => a.id === dialogFor)?.name ?? 'agent'}
+          need={dialogNeeds[0]!}
+          more={dialogNeeds.length - 1}
+          onClose={() => setDialogFor(null)}
+          onFinishInTerminal={() => {
+            setDialogFor(null)
+            setSelected(dialogFor)
+            setView('terminal')
+            setFocusTick((n) => n + 1)
+          }}
+          actions={{
+            trust: (yes) => window.aw.answerTrust(dialogFor, yes),
+            decide: (id, d) => decideById(id, d),
+            plan: (choice, feedback) => window.aw.answerPlan(dialogFor, choice, feedback),
+            answer: (answers) => window.aw.answerQuestions(dialogFor, answers)
+          }}
+        />
+      )}
       {palette && current && (
         <Palette
           agentId={current.id}
@@ -244,7 +280,7 @@ export function App() {
           </span>
         )}
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel} disabled={asks.length + pendingTrust.length + pendingPlans.length > 0}>
+        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
@@ -253,71 +289,15 @@ export function App() {
         <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
-          {pendingTrust.length > 0 && (
-            <section className="asks" aria-label="Workspace trust">
-              {pendingTrust.map(([agentId, path]) => (
-                <div key={agentId} className="ask">
-                  <div>
-                    <b>{agents.find((a) => a.id === agentId)?.name ?? 'agent'}</b> needs you to trust its workspace
-                    <div className="detail" title={path}>
-                      {path}
-                    </div>
-                  </div>
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      window.aw.answerTrust(agentId, true)
-                      setSelected(agentId)
-                      setFocusTick((n) => n + 1)
-                    }}
-                  >
-                    Trust folder
-                  </button>
-                  <button onClick={() => window.aw.answerTrust(agentId, false)}>Exit</button>
-                </div>
-              ))}
-            </section>
-          )}
-          {pendingPlans.map((a) => (
-            <section key={a.id} className="plan-card" aria-label={`${a.name}'s plan`}>
-              <div className="plan-head">
-                <b>{a.name}</b> has a plan ready
-              </div>
-              <pre className="plan-text">{world[a.id]?.plan || 'The plan is shown in the terminal.'}</pre>
-              <div className="land">
-                <button className="primary" onClick={() => run(() => window.aw.answerPlan(a.id, 0))}>
-                  Approve · auto-accept edits
+          {needing.length > 0 && (
+            <section className="needs" aria-label="Waiting for you">
+              {needing.map(({ agent, needs }) => (
+                <button key={agent.id} className="need-row" onClick={() => (select(agent.id), setDialogFor(agent.id))}>
+                  <span className="blip" aria-hidden="true" />
+                  <b>{agent.name}</b>
+                  <span className="need-kinds">{needs.map(needTitle).join(' · ').toLowerCase()}</span>
+                  <span className="need-open">Open ▸</span>
                 </button>
-                <button onClick={() => run(() => window.aw.answerPlan(a.id, 1))}>Approve · review each edit</button>
-              </div>
-              <form
-                className="land"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void run(async () => {
-                    await window.aw.answerPlan(a.id, 2, feedback)
-                    setFeedback('')
-                  })
-                }}
-              >
-                <input value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="What should change?" aria-label="Plan feedback" />
-                <button type="submit">Keep planning</button>
-              </form>
-            </section>
-          ))}
-          {asks.length > 0 && (
-            <section className="asks" aria-label="Permission requests">
-              {asks.map((r) => (
-                <div key={r.id} className="ask">
-                  <div>
-                    <b>{nameOf.get(r.agentId)?.name ?? 'agent'}</b> wants <code>{r.tool}</code>
-                    <div className="detail">{r.detail}</div>
-                  </div>
-                  <button className="primary" onClick={() => decide(r, 'allow')}>
-                    Approve
-                  </button>
-                  <button onClick={() => decide(r, 'deny')}>Deny</button>
-                </div>
               ))}
             </section>
           )}

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('clone an agent: its conversation is forked into a new worktree branched from its own', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-clone-'))
@@ -24,7 +24,7 @@ test('clone an agent: its conversation is forked into a new worktree branched fr
     await page.reload()
     await hire(page, { name: 'ada' })
     await expect(page.getByRole('button', { name: 'Clone' })).toBeDisabled()
-    await page.getByRole('button', { name: 'Approve' }).click({ timeout: 15_000 })
+    await approve(page)
     await expect(page.getByRole('button', { name: 'Clone' })).toBeEnabled()
 
     const [ada] = await page.evaluate(() => window.aw.listAgents())

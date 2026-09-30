@@ -1,0 +1,306 @@
+import { useEffect, useRef, useState } from 'react'
+import type { PermissionRequest, Question, QuestionAnswer } from '../../shared/types'
+import { PixelWord } from '../PixelWord'
+
+export type Need =
+  | { kind: 'trust'; path: string }
+  | { kind: 'permission'; request: PermissionRequest }
+  | { kind: 'plan'; text: string }
+  | { kind: 'question'; questions: Question[] }
+
+export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : 'QUESTION')
+
+interface Props {
+  agentName: string
+  need: Need
+  /** How many more requests wait behind this one. */
+  more: number
+  onClose: () => void
+  onFinishInTerminal: () => void
+  actions: {
+    trust: (yes: boolean) => void
+    decide: (id: string, d: 'allow' | 'deny') => void
+    plan: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>
+    answer: (answers: QuestionAnswer[]) => Promise<void>
+  }
+}
+
+/** The 8-bit box that opens from an agent's "needs you" marker: one request at a time, keyboard first. */
+export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal, actions }: Props) {
+  const [error, setError] = useState<string | null>(null)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => box.current?.focus(), [need])
+
+  const attempt = async (f: () => Promise<void>) => {
+    setError(null)
+    try {
+      await f()
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+    }
+  }
+
+  return (
+    <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        ref={box}
+        className={`dialog kind-${need.kind}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${agentName}: ${needTitle(need)}`}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            onClose()
+          }
+        }}
+      >
+        <header className="dialog-bar">
+          <span className="blip" aria-hidden="true" />
+          <PixelWord text={agentName} scale={2} color="#08070c" />
+          <span className="dialog-kind">{needTitle(need)}</span>
+          {more > 0 && <span className="dialog-more">+{more} waiting</span>}
+          <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)">
+            ✕
+          </button>
+        </header>
+        <div className="dialog-body">
+          {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
+          {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
+          {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
+          {need.kind === 'question' && <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} />}
+        </div>
+        {error && (
+          <div className="dialog-error" role="alert">
+            {error} <button onClick={onFinishInTerminal}>Open terminal</button>
+          </div>
+        )}
+        <footer className="dialog-foot">
+          <button onClick={onFinishInTerminal}>Answer in terminal</button>
+          <span className="hint">Esc closes this box; the agent keeps waiting.</span>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function Trust({ path, onAnswer }: { path: string; onAnswer: (yes: boolean) => void }) {
+  return (
+    <>
+      <p className="dialog-line">Trust this workspace before the agent starts?</p>
+      <code className="dialog-code">{path}</code>
+      <div className="dialog-actions">
+        <button className="primary" onClick={() => onAnswer(true)}>
+          Trust folder
+        </button>
+        <button onClick={() => onAnswer(false)}>Exit</button>
+      </div>
+    </>
+  )
+}
+
+function Permission({ req, onDecide }: { req: PermissionRequest; onDecide: (id: string, d: 'allow' | 'deny') => void }) {
+  return (
+    <>
+      <p className="dialog-line">
+        Wants to use <b>{req.tool}</b>
+      </p>
+      <pre className="dialog-code">{req.detail}</pre>
+      <div className="dialog-actions">
+        <button className="primary" onClick={() => onDecide(req.id, 'allow')}>
+          Allow
+        </button>
+        <button onClick={() => onDecide(req.id, 'deny')}>Deny</button>
+      </div>
+    </>
+  )
+}
+
+function Plan({ text, onAnswer }: { text: string; onAnswer: (choice: 0 | 1 | 2, feedback?: string) => Promise<void> }) {
+  const [feedback, setFeedback] = useState('')
+  const [busy, setBusy] = useState(false)
+  const go = async (c: 0 | 1 | 2, f?: string) => {
+    setBusy(true)
+    await onAnswer(c, f)
+    setBusy(false)
+  }
+  return (
+    <>
+      <p className="dialog-line">Ready to work. Review the plan:</p>
+      <pre className="dialog-code plan">{text || 'The plan is shown in the terminal.'}</pre>
+      <div className="dialog-actions">
+        <button className="primary" disabled={busy} onClick={() => void go(0)}>
+          Approve · auto-accept edits
+        </button>
+        <button disabled={busy} onClick={() => void go(1)}>
+          Approve · review each edit
+        </button>
+      </div>
+      <form
+        className="dialog-actions"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void go(2, feedback)
+        }}
+      >
+        <input value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="What should change?" aria-label="Plan feedback" />
+        <button type="submit" disabled={busy}>
+          Keep planning
+        </button>
+      </form>
+    </>
+  )
+}
+
+interface Draft {
+  picks: number[]
+  other: string
+  /** Single choice only: the free-text row is the chosen one. */
+  useOther: boolean
+}
+const blank = (): Draft => ({ picks: [], other: '', useOther: false })
+const ready = (q: Question, d: Draft) => (q.multiSelect ? d.picks.length > 0 : d.useOther ? d.other.trim().length > 0 : d.picks.length === 1)
+
+/** One page per question, then a review page. Arrow keys move, Space/Enter choose, ←/→ turn pages. */
+function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: QuestionAnswer[]) => Promise<void> }) {
+  const [drafts, setDrafts] = useState<Draft[]>(() => questions.map(blank))
+  const [page, setPage] = useState(0)
+  const [cursor, setCursor] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const review = page >= questions.length
+  const q = questions[page]
+  const d = drafts[page]
+
+  const edit = (f: (d: Draft) => Draft) => setDrafts((ds) => ds.map((x, i) => (i === page ? f(x) : x)))
+  const go = (p: number) => {
+    setPage(Math.max(0, Math.min(questions.length, p)))
+    setCursor(0)
+  }
+  const choose = (i: number) => {
+    if (!q) return
+    if (q.multiSelect) edit((x) => ({ ...x, picks: x.picks.includes(i) ? x.picks.filter((p) => p !== i) : [...x.picks, i].sort((a, b) => a - b) }))
+    else {
+      edit((x) => ({ ...x, picks: [i], useOther: false }))
+      go(page + 1)
+    }
+  }
+  const send = async () => {
+    setBusy(true)
+    await onSend(drafts.map((x, i) => (questions[i]!.multiSelect ? { picks: x.picks } : x.useOther ? { picks: [], other: x.other.trim() } : { picks: x.picks })))
+    setBusy(false)
+  }
+
+  const rows = q ? q.options.length + (q.multiSelect ? 0 : 1) : 0
+  const onKey = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') return
+    if (e.key === 'ArrowDown') setCursor((c) => Math.min(rows - 1, c + 1))
+    else if (e.key === 'ArrowUp') setCursor((c) => Math.max(0, c - 1))
+    else if (e.key === 'ArrowRight') go(page + 1)
+    else if (e.key === 'ArrowLeft') go(page - 1)
+    else if (q && /^[1-9]$/.test(e.key) && Number(e.key) <= rows) setCursor(Number(e.key) - 1)
+    else if (q && (e.key === ' ' || e.key === 'Enter') && cursor < q.options.length) choose(cursor)
+    else if (q && e.key === 'Enter' && cursor === q.options.length) edit((x) => ({ ...x, useOther: true, picks: [] }))
+    else if (review && e.key === 'Enter' && drafts.every((x, i) => ready(questions[i]!, x))) void send()
+    else return
+    e.preventDefault()
+  }
+
+  return (
+    <div onKeyDown={onKey} className="qa">
+      <ol className="steps" aria-label="Questions">
+        {questions.map((x, i) => (
+          <li key={i} className={`${i === page ? 'on' : ''} ${ready(x, drafts[i]!) ? 'done' : ''}`}>
+            <button onClick={() => go(i)} aria-current={i === page}>
+              {ready(x, drafts[i]!) ? '■' : '□'} {x.header || `Q${i + 1}`}
+            </button>
+          </li>
+        ))}
+        <li className={review ? 'on' : ''}>
+          <button onClick={() => go(questions.length)} aria-current={review}>
+            ▶ Send
+          </button>
+        </li>
+      </ol>
+
+      {q && d && (
+        <>
+          <p className="dialog-line">{q.question}</p>
+          <ul className="choices" role={q.multiSelect ? 'group' : 'radiogroup'} aria-label={q.question}>
+            {q.options.map((o, i) => {
+              const on = d.picks.includes(i) && !d.useOther
+              return (
+                <li key={o.label}>
+                  <button className={`choice ${cursor === i ? 'cursor' : ''} ${on ? 'on' : ''}`} role={q.multiSelect ? 'checkbox' : 'radio'} aria-checked={on} onClick={() => (setCursor(i), choose(i))}>
+                    <span className="box" aria-hidden="true">
+                      {q.multiSelect ? (on ? '■' : '□') : on ? '●' : '○'}
+                    </span>
+                    <span className="label">
+                      <b>{o.label}</b>
+                      {o.description && <span className="desc">{o.description}</span>}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+            {!q.multiSelect && (
+              <li>
+                <div className={`choice other ${cursor === q.options.length ? 'cursor' : ''} ${d.useOther ? 'on' : ''}`}>
+                  <span className="box" aria-hidden="true">
+                    {d.useOther ? '●' : '○'}
+                  </span>
+                  <input
+                    value={d.other}
+                    placeholder="Something else…"
+                    aria-label="Your own answer"
+                    onFocus={() => (setCursor(q.options.length), edit((x) => ({ ...x, useOther: true, picks: [] })))}
+                    onChange={(e) => edit((x) => ({ ...x, other: e.target.value, useOther: true, picks: [] }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && d.other.trim()) {
+                        e.preventDefault()
+                        go(page + 1)
+                      }
+                      if (e.key === 'ArrowUp') (e.currentTarget.blur(), setCursor(q.options.length - 1))
+                    }}
+                  />
+                </div>
+              </li>
+            )}
+          </ul>
+          <div className="dialog-actions">
+            <button onClick={() => go(page - 1)} disabled={page === 0}>
+              ◀ Back
+            </button>
+            <button className={ready(q, d) ? 'primary' : ''} onClick={() => go(page + 1)}>
+              {page === questions.length - 1 ? 'Review ▶' : 'Next ▶'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {review && (
+        <>
+          <p className="dialog-line">Check your answers</p>
+          <dl className="review">
+            {questions.map((x, i) => {
+              const dr = drafts[i]!
+              const said = dr.useOther ? dr.other.trim() : dr.picks.map((p) => x.options[p]!.label).join(', ')
+              return (
+                <div key={i}>
+                  <dt>{x.question}</dt>
+                  <dd className={said ? '' : 'missing'}>{said || 'not answered yet'}</dd>
+                </div>
+              )
+            })}
+          </dl>
+          <div className="dialog-actions">
+            <button onClick={() => go(questions.length - 1)}>◀ Back</button>
+            <button className="primary" disabled={busy || !drafts.every((x, i) => ready(questions[i]!, x))} onClick={() => void send()}>
+              {busy ? 'Sending…' : 'Send answers'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest } from './types'
+import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -85,6 +85,10 @@ export interface AwApi {
   runCommand(agentId: string, name: string, args: string): Promise<void>
   /** 0: approve and auto-accept edits · 1: approve, review each edit · 2: keep planning, with feedback. */
   answerPlan(agentId: string, choice: 0 | 1 | 2, feedback?: string): Promise<void>
+  /** Claude's question menu opened (true) or closed (false) in an agent's terminal. */
+  onQuestionMenu(cb: (agentId: string, open: boolean) => void): () => void
+  /** Answers the open question menu key by key; rejects if the menu stopped matching (then finish it in the terminal). */
+  answerQuestions(agentId: string, answers: QuestionAnswer[]): Promise<void>
   /** A notification was clicked: bring that agent up. */
   onSelectAgent(cb: (agentId: string) => void): () => void
   code: CodeApi

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('open the project handbook (CLAUDE.md) from the agent header, creating it when missing', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-book-'))
@@ -21,7 +21,7 @@ test('open the project handbook (CLAUDE.md) from the agent header, creating it w
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
     await hire(page)
-    await page.getByRole('button', { name: 'Approve' }).click({ timeout: 15_000 })
+    await approve(page)
     await page.getByRole('button', { name: 'Handbook' }).click()
     await expect(page.locator('.diff')).toContainText('Project notes')
     const [agent] = await page.evaluate(() => window.aw.listAgents())

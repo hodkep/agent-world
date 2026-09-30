@@ -12,7 +12,7 @@ test('answering a permission in the terminal clears its card and the agent carri
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
-    const card = page.locator('.asks .ask', { hasText: 'wants Bash' })
+    const card = page.locator('.need-row')
     await expect(card).toBeVisible({ timeout: 15_000 })
     const term = page.locator('.term-host:visible')
     await expect(term).toContainText('Do you want to proceed?')

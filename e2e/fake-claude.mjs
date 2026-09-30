@@ -50,7 +50,7 @@ if (process.env.FAKE_COST) {
 }
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
-process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
 
 // FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
 async function sendViaOffice(to, message) {
@@ -93,6 +93,61 @@ if (process.env.FAKE_LOOP) {
     await hook(event, extra)
     await sleep(pause * (0.6 + Math.random()))
   }
+}
+// FAKE_ASKQ=1: an AskUserQuestion with two questions, drawn as Claude draws it and driven by keys
+// (Enter picks and moves on, Space toggles, Right turns the page, typing on the last row writes text).
+if (process.env.FAKE_ASKQ) {
+  const opt = (label) => ({ label, description: `about ${label}` })
+  const qs = [
+    { question: 'Favourite colour?', header: 'Color', options: [opt('Red'), opt('Green'), opt('Blue')], multiSelect: false },
+    { question: 'Which pets?', header: 'Pets', options: [opt('Cat'), opt('Dog'), opt('Fish'), opt('Bird')], multiSelect: true }
+  ]
+  await hook('UserPromptSubmit', { prompt: 'ask me things' })
+  await hook('PreToolUse', { tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: { questions: qs } })
+  await hook('PermissionRequest', { tool_name: 'AskUserQuestion', tool_input: { questions: qs } })
+  let tab = 0, cursor = 1
+  const picked = qs.map(() => new Set()), other = qs.map(() => null)
+  const draw = () => {
+    const bar = `←  ${qs.map((q, i) => `${i < tab ? '☒' : '☐'} ${q.header}`).join('  ')}  ✔ Submit  →\r\n`
+    if (tab >= qs.length) return process.stdout.write(`\x1b[2J\x1b[H${bar}Review your answers\r\n\r\nReady to submit your answers?\r\n${cursor === 1 ? '❯' : ' '} 1. Submit answers\r\n  2. Cancel\r\n`)
+    const q = qs[tab], n = q.options.length + 1
+    const rows = q.options.map((o, i) => `${cursor === i + 1 ? '❯' : ' '} ${i + 1}. ${q.multiSelect ? (picked[tab].has(i + 1) ? '[✔] ' : '[ ] ') : ''}${o.label}\r\n     ${o.description}\r\n`).join('')
+    process.stdout.write(`\x1b[2J\x1b[H${bar}${q.question}\r\n${rows}${cursor === n ? '❯' : ' '} ${n}. ${other[tab] ?? 'Type something.'}\r\n${'─'.repeat(30)}\r\n  ${n + 1}. Chat about this\r\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel\r\n`)
+  }
+  const advance = () => {
+    const q = qs[tab]
+    if (!q.multiSelect && cursor <= q.options.length) picked[tab] = new Set([cursor])
+    tab++
+    cursor = 1
+  }
+  draw()
+  await new Promise((resolve) => {
+    const toggle = () => (picked[tab].has(cursor) ? picked[tab].delete(cursor) : picked[tab].add(cursor))
+    const onKey = (d) => {
+      const k = String(d), q = qs[tab]
+      const rowCount = q ? q.options.length + 2 : 2
+      if (k === '\x1b[B') cursor = Math.min(rowCount, cursor + 1)
+      else if (k === '\x1b[A') cursor = Math.max(1, cursor - 1)
+      else if (k === '\x1b[C') advance()
+      else if (k === '\x1b[D') tab = Math.max(0, tab - 1)
+      else if (k === ' ' && q?.multiSelect) toggle()
+      else if (k === '\r') {
+        if (!q) {
+          if (cursor !== 1) return
+          process.stdin.off('data', onKey)
+          return resolve()
+        }
+        q.multiSelect ? toggle() : advance()
+      } else if (q && !q.multiSelect && cursor === q.options.length + 1) other[tab] = (other[tab] ?? '') + k
+      draw()
+    }
+    process.stdin.on('data', onKey)
+  })
+  const said = qs.map((q, i) => (other[i] ?? [...picked[i]].sort().map((n) => q.options[n - 1].label).join(','))).join(' | ')
+  process.stdout.write(`\x1b[2J\x1b[Hanswers: ${said}\r\n`)
+  await hook('PostToolUse', { tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: { questions: qs } })
+  await hook('Stop')
+  await new Promise(() => {})
 }
 await hook('UserPromptSubmit', { prompt: 'add a health check' })
 await sleep(pause)

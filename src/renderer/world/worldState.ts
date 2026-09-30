@@ -1,4 +1,4 @@
-import type { Activity, AgentEvent, TaskStatus } from '../../shared/types'
+import type { Activity, AgentEvent, Question, TaskStatus } from '../../shared/types'
 
 export interface InternState {
   type: string
@@ -17,6 +17,8 @@ export interface AgentState {
   /** Latest plan awaiting or past review, and its steps for the whiteboard. */
   plan?: string | null
   planSteps?: string[]
+  /** Questions Claude last asked with AskUserQuestion. */
+  questions?: Question[]
   tasks?: Task[]
   /** Claude's session id; when it changes (/clear) the session-scoped plan and tasks start over. */
   sessionId?: string
@@ -55,10 +57,14 @@ export function applyEvent(world: World, e: AgentEvent): World {
   if (prev.sessionId && prev.sessionId !== e.sessionId) {
     next.tasks = []
     next.plan = null
+    next.questions = []
     next.planSteps = []
   }
 
   switch (e.type) {
+    case 'question':
+      next.questions = e.questions
+      break
     case 'plan':
       next.plan = e.plan
       next.planSteps = e.steps

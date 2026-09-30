@@ -29,12 +29,13 @@ test('hire an agent, watch it work, approve its permission from the world', asyn
     await expect(page.locator('.stage canvas')).toBeVisible()
 
     await hire(page)
-    const ask = page.locator('.ask')
-    await expect(ask).toContainText('wants Bash', { timeout: 15_000 })
+    await page.locator('.need-row').click({ timeout: 15_000 })
+    const ask = page.getByRole('dialog')
+    await expect(ask).toContainText('Bash')
     await expect(ask).toContainText('pnpm test')
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'permission.png') })
 
-    await ask.getByRole('button', { name: 'Approve' }).click()
+    await ask.getByRole('button', { name: 'Allow' }).click()
     await expect(page.locator('.term-host:visible')).toContainText('decision: allow', { timeout: 10_000 })
     await expect(ask).toHaveCount(0)
 

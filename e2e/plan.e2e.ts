@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('a planning agent\'s plan is reviewed from the panel, and its tasks are listed', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-plan-'))
@@ -12,9 +12,10 @@ test('a planning agent\'s plan is reviewed from the panel, and its tasks are lis
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
-    await page.getByRole('button', { name: 'Approve', exact: true }).click({ timeout: 15_000 })
+    await approve(page)
 
-    const card = page.getByRole('region', { name: "ada's plan" })
+    await page.locator('.need-row', { hasText: 'plan' }).click({ timeout: 15_000 })
+    const card = page.getByRole('dialog')
     await expect(card).toContainText('1. Create hello.txt with hi.', { timeout: 10_000 })
     await expect(page.locator('.tasks')).toContainText('Write hello.txt')
     await expect(page.locator('.task.is-in_progress')).toContainText('Write hello.txt')

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('⌘K lists built-ins and project commands, and runs one in the agent between turns', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-pal-'))
@@ -15,7 +15,7 @@ test('⌘K lists built-ins and project commands, and runs one in the agent betwe
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), project)
     await page.reload()
     await hire(page)
-    await page.getByRole('button', { name: 'Approve', exact: true }).click({ timeout: 15_000 })
+    await approve(page)
     await expect(page.locator('.roster button').first()).toContainText('idle', { timeout: 10_000 })
 
     await page.keyboard.press('ControlOrMeta+k')

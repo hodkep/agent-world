@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('hire with options, see live cost and context, get a budget warning, switch model by relaunching the session', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-ctl-'))
@@ -24,7 +24,7 @@ test('hire with options, see live cost and context, get a budget warning, switch
     await expect(page.locator('.meters')).toContainText('42%')
     await expect(page.locator('.meters')).toContainText('$0.90 / $1.00')
 
-    await page.getByRole('button', { name: 'Approve' }).click({ timeout: 15_000 })
+    await approve(page)
     await expect(page.locator('.switches select[aria-label="Model"]')).toBeEnabled({ timeout: 10_000 })
     await page.locator('.switches select[aria-label="Model"]').selectOption('opus')
     // Relaunched in the same session with the new flag; no global /model, and the agent never leaves.

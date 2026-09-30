@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 
 test('after /clear gives the conversation a new session id, the agent keeps its identity and resume follows it', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-id-'))
@@ -12,7 +12,7 @@ test('after /clear gives the conversation a new session id, the agent keeps its 
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
-    await page.getByRole('button', { name: 'Approve' }).click({ timeout: 15_000 })
+    await approve(page)
     const row = page.locator('.roster button').first()
     // The post-/clear Grep arrives under the new session id and still moves this agent.
     await expect(row).toContainText('researching', { timeout: 10_000 })

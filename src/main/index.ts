@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, Question, QuestionAnswer } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
@@ -15,6 +15,7 @@ import { listSessions, projectSlug } from './history'
 import { checkName, cleanName } from './names'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
+import { driveAnswers, parseAsk } from './askMenu'
 import { answerMenu, answerTrust, anyMenu, inputReady, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
@@ -62,6 +63,9 @@ const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
 const lastCost = new Map<string, number>()
 const pendingPermissions = new Set<string>()
+// Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
+const questionOpen = new Set<string>()
+const askedQuestions = new Map<string, Question[]>()
 // Agents being relaunched in place: their exit is not a departure.
 const restarting = new Set<string>()
 // Last size the panel gave each terminal, so a relaunch comes back at the size the user sees.
@@ -138,7 +142,7 @@ function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
 
 function refreshAttention() {
   // Dock badge: things only the user can unblock.
-  app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size)
+  app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size + questionOpen.size)
   // Keep the machine awake while any live agent is mid-turn.
   const working = agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
   if (working && awakeBlocker === null) awakeBlocker = powerSaveBlocker.start('prevent-app-suspension')
@@ -170,6 +174,7 @@ function trackTurns(e: AgentEvent) {
     a.sessionId = e.sessionId
     persist()
   }
+  if (e.type === 'question') askedQuestions.set(a.id, e.questions)
   if (e.type === 'session-start') mailbox.ready(a.id)
   else if (e.type === 'task' || e.type === 'plan') return
   else if (e.type === 'activity' && !e.subagentId) {
@@ -220,6 +225,15 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         send('trust-prompt', a.id, null)
         refreshAttention()
       }
+      const asking = !!parseAsk(text)
+      if (asking !== questionOpen.has(a.id)) {
+        if (asking) {
+          questionOpen.add(a.id)
+          notify('permission', a, 'Has a question for you.')
+        } else questionOpen.delete(a.id)
+        send('question-menu', a.id, asking)
+        refreshAttention()
+      }
       const plan = !!planMenu(text)
       if (plan !== planOpen.has(a.id)) {
         if (plan) {
@@ -247,6 +261,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     refreshAttention()
     if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
     if (planOpen.delete(a.id)) send('plan-menu', a.id, false)
+    if (questionOpen.delete(a.id)) send('question-menu', a.id, false)
     send('pty-exit', a.id)
     send('agent-event', { type: 'session-end', agentId: a.id, sessionId: a.sessionId })
   })
@@ -470,6 +485,16 @@ async function main() {
       await io.sleep(150)
       io.write('\r')
     }
+  })
+  ipcMain.handle('answer-question', async (_, id: string, answers: QuestionAnswer[]) => {
+    const questions = askedQuestions.get(id)
+    if (!questions?.length || !questionOpen.has(id)) throw new Error('That question is no longer open; answer it in the terminal.')
+    const io = {
+      screen: () => screens.get(id)?.text() ?? '',
+      write: (keys: string) => sessions.get(id)?.write(keys),
+      sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+    }
+    if (!(await driveAnswers(io, questions, answers))) throw new Error('Could not answer the question menu; finish it in the terminal.')
   })
   ipcMain.on('answer-trust', (_, id: string, trust: boolean) => {
     void answerTrust(

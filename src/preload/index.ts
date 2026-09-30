@@ -40,6 +40,8 @@ const api: AwApi = {
   listCommands: (id) => ipcRenderer.invoke('list-commands', id),
   runCommand: (id, name, args) => ipcRenderer.invoke('run-command', id, name, args),
   answerPlan: (id, choice, feedback) => ipcRenderer.invoke('answer-plan', id, choice, feedback),
+  onQuestionMenu: on('question-menu'),
+  answerQuestions: (id, answers) => ipcRenderer.invoke('answer-question', id, answers),
   onSelectAgent: on('select-agent'),
   code: {
     changes: (id) => ipcRenderer.invoke('code:changes', id),
