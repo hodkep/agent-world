@@ -1,3 +1,4 @@
+import { forget, loadMemory, recall, remember } from './memory'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
@@ -83,6 +84,10 @@ const sessions = new Map<string, pty.IPty>()
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
+const MEMORY_HINT =
+  'This project keeps shared notes for every agent. Near the start of a task, call the agent-world recall tool with a few words about it. When you learn something a future agent should know (how to run the tests, a decision and why, a trap), save it with the remember tool. Keep notes short; never save secrets.'
+// One memory file per project, shared by every agent working in it.
+const memoryFile = (repoPath: string) => join(HOME, 'memory', `${repoSlug(repoPath)}.json`)
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 const planOpen = new Set<string>()
@@ -428,7 +433,7 @@ function finishRewind(id: string) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: prefs.houseRules, addDirs: [ATTACH_DIR] })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = claudeCmd(args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
@@ -574,7 +579,15 @@ async function main() {
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
       agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
-    send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply })
+    send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply }),
+    remember: (caller, text) => {
+      const a = byId(caller)
+      if (a) remember(memoryFile(a.repoPath), text, a.name)
+    },
+    recall: (caller, query) => {
+      const a = byId(caller)
+      return a ? recall(loadMemory(memoryFile(a.repoPath)), query) : []
+    }
   })
   office = { mcpUrl: mcp.url, hookUrl: hooks.url }
   for (const u of [mcp.url, hooks.url]) if (u) ownPorts.push(Number(new URL(u).port))
@@ -676,6 +689,19 @@ async function main() {
   ipcMain.handle('peek', (_, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, (screens.get(id)?.text() ?? '').split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() && !/^[─▔━\s]+$/.test(l)).slice(-7)]))
   )
+  ipcMain.handle('memory:list', (_, id: string) => {
+    const a = byId(id)
+    return a ? loadMemory(memoryFile(a.repoPath)).reverse() : []
+  })
+  ipcMain.handle('memory:add', (_, id: string, text: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    return remember(memoryFile(a.repoPath), text, 'you')
+  })
+  ipcMain.handle('memory:forget', (_, id: string, entryId: string) => {
+    const a = byId(id)
+    if (a) forget(memoryFile(a.repoPath), entryId)
+  })
   ipcMain.handle('btw:close', (_, id: string) => {
     if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
   })

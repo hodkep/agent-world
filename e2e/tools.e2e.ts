@@ -48,3 +48,23 @@ test('servers can be added and removed, plugins toggled, through Claude\'s own c
     await shutdown()
   }
 })
+
+test('project memory: notes you add are listed, and can be forgotten', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-mem-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Tools' }).click()
+    await page.getByLabel('Add a note').fill('Tests run with pnpm test')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    const item = page.locator('.tools li', { hasText: 'Tests run with pnpm test' })
+    await expect(item).toContainText('you')
+    await item.getByRole('button', { name: /^Forget/ }).click()
+    await expect(item).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})

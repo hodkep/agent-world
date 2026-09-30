@@ -121,6 +121,10 @@ export interface AwApi {
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
   finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean }): Promise<{ base: string; removed: boolean }>
+  /** Notes saved for this agent's project, newest first (shared by every agent in it). */
+  memoryList(agentId: string): Promise<{ id: string; text: string; by: string; at: number }[]>
+  memoryAdd(agentId: string, text: string): Promise<{ id: string; text: string; by: string; at: number }>
+  memoryForget(agentId: string, entryId: string): Promise<void>
   /** The last few lines each of these agents' terminals shows. */
   peek(agentIds: string[]): Promise<Record<string, string[]>>
   /** Write a short record of this conversation to the notes folder and show it; returns the file. */

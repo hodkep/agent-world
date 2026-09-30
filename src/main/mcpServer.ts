@@ -16,6 +16,10 @@ interface Options {
   agentForToken: (token: string) => string | null
   listAgents: (callerId: string) => Colleague[]
   send: (fromId: string, to: string, message: string, expectsReply: boolean) => 'delivered' | 'queued'
+  /** Save a note for everyone working in the caller's project. */
+  remember: (callerId: string, text: string) => void
+  /** Notes from the caller's project that match the words (the newest when empty). */
+  recall: (callerId: string, query: string) => { text: string; by: string; at: number }[]
 }
 
 const MAX_BODY = 1024 * 1024
@@ -65,6 +69,33 @@ function toolsFor(callerId: string, o: Options) {
       } catch (err) {
         return { isError: true, content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }] }
       }
+    }
+  )
+  server.registerTool(
+    'remember',
+    {
+      description:
+        'Save a durable fact about this project for every agent that works on it, now and in later sessions: how to run the tests, a decision and why it was made, a trap you fell into. Keep it short and specific. Do not save secrets or things already in the code.',
+      inputSchema: { text: z.string().min(1).max(2000).describe('The note') }
+    },
+    async ({ text }) => {
+      try {
+        o.remember(callerId, text)
+        return { content: [{ type: 'text', text: 'Remembered for this project.' }] }
+      } catch (err) {
+        return { isError: true, content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }] }
+      }
+    }
+  )
+  server.registerTool(
+    'recall',
+    {
+      description: 'Look up what agents (and the user) have saved about this project. Call it at the start of a task with a few words about the task. With no query it returns the newest notes.',
+      inputSchema: { query: z.string().max(200).optional().describe('A few words to search for') }
+    },
+    async ({ query }) => {
+      const notes = o.recall(callerId, query ?? '')
+      return { content: [{ type: 'text', text: notes.length ? notes.map((n) => `- ${n.text} (${n.by}, ${new Date(n.at).toISOString().slice(0, 10)})`).join('\n') : 'Nothing saved about this yet.' }] }
     }
   )
   return server

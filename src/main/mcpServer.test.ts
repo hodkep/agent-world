@@ -11,6 +11,7 @@ afterEach(async () => {
   server?.close()
 })
 
+const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
 async function setup() {
@@ -22,7 +23,9 @@ async function setup() {
       if (to === 'nobody') throw new Error('No agent named nobody.')
       sent.push({ from, to, message, expectsReply })
       return 'queued'
-    }
+    },
+    remember: (caller, text) => void notes.push({ caller, text }),
+    recall: (_c, q) => notes.filter((n) => n.text.includes(q)).map((n) => ({ text: n.text, by: n.caller, at: 0 }))
   })
   return server
 }
@@ -37,11 +40,22 @@ async function connect(url: string, agent: string, token = `tok-${agent}`, heade
 const text = (r: unknown) => ((r as { content: { text: string }[] }).content[0]!.text)
 
 describe('agent-world MCP server', () => {
-  it('offers list_agents and send_message', async () => {
+  it('offers list_agents, send_message, remember and recall', async () => {
     const s = await setup()
     const c = await connect(s.url, 'a1')
     const { tools } = await c.listTools()
-    expect(tools.map((t) => t.name).sort()).toEqual(['list_agents', 'send_message'])
+    expect(tools.map((t) => t.name).sort()).toEqual(['list_agents', 'recall', 'remember', 'send_message'])
+  })
+
+  it('saves a note for the project and finds it again', async () => {
+    notes.length = 0
+    const s = await setup()
+    const c = await connect(s.url, 'a1')
+    await c.callTool({ name: 'remember', arguments: { text: 'Tests run with pnpm test' } })
+    expect(notes).toEqual([{ caller: 'a1', text: 'Tests run with pnpm test' }])
+    const other = await connect(s.url, 'a2')
+    expect(text(await other.callTool({ name: 'recall', arguments: { query: 'pnpm' } }))).toContain('Tests run with pnpm test (a1')
+    expect(text(await other.callTool({ name: 'recall', arguments: { query: 'nothing-like-this' } }))).toBe('Nothing saved about this yet.')
   })
 
   it('knows which agent is calling', async () => {
