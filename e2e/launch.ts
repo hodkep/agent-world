@@ -30,7 +30,7 @@ export async function hire(page: Page, fields: { name?: string; model?: string; 
 /** Open the box of the first agent waiting on you (if not already open) and allow its tool request. */
 export async function approve(page: Page) {
   const dialog = page.getByRole('dialog')
-  if (!(await dialog.isVisible())) await page.locator('.need-row').first().click({ timeout: 15_000 })
+  if (!(await dialog.isVisible())) await page.locator('.ask-pill').first().click({ timeout: 15_000 })
   await dialog.getByRole('button', { name: 'Allow' }).click()
   await dialog.waitFor({ state: 'hidden' })
 }

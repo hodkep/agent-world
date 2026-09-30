@@ -14,7 +14,7 @@ test('a planning agent\'s plan is reviewed from the panel, and its tasks are lis
     await hire(page)
     await approve(page)
 
-    await page.locator('.need-row', { hasText: 'plan' }).click({ timeout: 15_000 })
+    await page.locator('.ask-pill', { hasText: 'plan' }).click({ timeout: 15_000 })
     const card = page.getByRole('dialog')
     await expect(card).toContainText('1. Create hello.txt with hi.', { timeout: 10_000 })
     await expect(page.locator('.tasks')).toContainText('Write hello.txt')

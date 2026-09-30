@@ -141,7 +141,6 @@ export function App() {
   useEffect(() => {
     if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
   })
-  const needing = agents.map((agent) => ({ agent, needs: needsOf(agent.id) })).filter((x) => x.needs.length > 0)
   const showPanel = panelOpen || hiring || history
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
@@ -289,18 +288,6 @@ export function App() {
         <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
-          {needing.length > 0 && (
-            <section className="needs" aria-label="Waiting for you">
-              {needing.map(({ agent, needs }) => (
-                <button key={agent.id} className="need-row" onClick={() => (select(agent.id), setDialogFor(agent.id))}>
-                  <span className="blip" aria-hidden="true" />
-                  <b>{agent.name}</b>
-                  <span className="need-kinds">{needs.map(needTitle).join(' · ').toLowerCase()}</span>
-                  <span className="need-open">Open ▸</span>
-                </button>
-              ))}
-            </section>
-          )}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents">
               {agents.map((a) => {
@@ -310,6 +297,13 @@ export function App() {
                   <button key={a.id} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
                     <span className="dot" aria-hidden="true" />
                     <span className="name">{a.name}</span>
+                    {needsOf(a.id).length > 0 ? (
+                      <span className="ask-pill" title="Waiting for you: click to answer">
+                        {needTitle(needsOf(a.id)[0]!).toLowerCase()}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
                     <span className="role">{st ? roleOf(st) : 'senior'}</span>
                     <span className="activity">{activity}</span>
                     <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
@@ -320,7 +314,8 @@ export function App() {
           )}
           {current ? (
             <section className="agent-head">
-              <div>
+              <div className="head-main">
+                <div className="head-title">
                 {renaming === current.id ? (
                   <input
                     className="rename"
@@ -347,8 +342,9 @@ export function App() {
                   <b title="Double-click to rename" onDoubleClick={() => setRenaming(current.id)}>
                     {current.name}
                   </b>
-                )}{' '}
+                )}
                 <span className="role">{state ? roleOf(state) : 'senior'}</span>
+                </div>
                 <div className="detail">
                   {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
                   {state?.detail ? ` · ${state.detail}` : ''}
@@ -386,10 +382,26 @@ export function App() {
                     ))}
                   </ul>
                 )}
+              </div>
+              <div className="head-actions">
+              {(state?.activity ?? 'asleep') === 'asleep' && <button onClick={() => wake(current)}>Wake</button>}
+              {(state?.activity ?? 'asleep') !== 'asleep' && (
+                <button onClick={() => setPalette(true)} title="Run a command, skill or custom slash command (⌘K)">
+                  Commands
+                </button>
+              )}
+              {current.branch && (
+                <button onClick={() => openHandbook(current)} title="CLAUDE.md: the standing instructions every agent reads when it starts">
+                  Handbook
+                </button>
+              )}
+              <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
+                Clone
+              </button>
                 {(state?.activity ?? 'asleep') !== 'asleep' && (
                   <div className="switches" title={between ? 'Switch for the next turn' : 'Available between turns'}>
                     <select aria-label="Model" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ model: e.target.value })}>
-                      <option value="">Switch model…</option>
+                      <option value="">Model…</option>
                       {MODELS.filter((m) => m.value).map((m) => (
                         <option key={m.value} value={m.value}>
                           {m.label}
@@ -406,22 +418,10 @@ export function App() {
                     </select>
                   </div>
                 )}
+                <button className="push" onClick={() => remove(current.id)}>
+                  Remove
+                </button>
               </div>
-              {(state?.activity ?? 'asleep') === 'asleep' && <button onClick={() => wake(current)}>Wake</button>}
-              {(state?.activity ?? 'asleep') !== 'asleep' && (
-                <button onClick={() => setPalette(true)} title="Run a command, skill or custom slash command (⌘K)">
-                  Commands
-                </button>
-              )}
-              {current.branch && (
-                <button onClick={() => openHandbook(current)} title="CLAUDE.md: the standing instructions every agent reads when it starts">
-                  Handbook
-                </button>
-              )}
-              <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
-                Clone
-              </button>
-              <button onClick={() => remove(current.id)}>Remove</button>
             </section>
           ) : (
             <p className="hint">{agents.length ? 'Click a character to open its terminal.' : 'Open a folder, then hire your first agent with + Agent.'}</p>

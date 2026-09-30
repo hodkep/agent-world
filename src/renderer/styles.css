@@ -119,7 +119,7 @@ aside:not(.wide) .change-list { width: 190px; }
 
 .office-cost { font-family: Menlo, Consolas, monospace; color: var(--accent); padding: 0 6px; }
 .hire { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); }
-.hire-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.hire-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
 .hire label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
 .hire label.grow { flex: 1; }
 .hire label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
@@ -133,13 +133,15 @@ aside:not(.wide) .change-list { width: 190px; }
 .agent-row .cost { font-family: Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); text-align: right; }
 .budget-near, .agent-row.budget-near .cost { color: var(--accent) !important; }
 .budget-over, .agent-row.budget-over .cost { color: #ff8a8a !important; font-weight: 700; }
-.meters { display: flex; gap: 10px; flex-wrap: wrap; font-family: Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); margin-top: 4px; }
-.meters .ctx { display: inline-flex; align-items: center; gap: 4px; }
-.meters .bar { display: inline-block; width: 60px; height: 6px; background: #0c0b12; box-shadow: 0 0 0 1px var(--ink); }
+/* Session numbers as a row of small tags, so scanning them costs one glance. */
+.meters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-family: Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); margin-top: 6px; }
+.meters > span { padding: 1px 6px; background: #0c0b12; box-shadow: 0 0 0 1px var(--ink); font-variant-numeric: tabular-nums; }
+.meters .ctx { display: inline-flex; align-items: center; gap: 6px; }
+.meters .bar { display: inline-block; width: 48px; height: 6px; background: #0c0b12; box-shadow: 0 0 0 1px var(--ink); }
 .meters .bar > span { display: block; height: 100%; background: var(--ok); }
 .meters .bar > span.warm { background: var(--accent); }
 .meters .bar > span.hot { background: var(--danger); }
-.switches { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.switches { display: flex; gap: 6px; align-items: center; }
 .switches select { font-size: 12px; padding: 2px 4px; }
 .switches button { font-size: 12px; padding: 2px 8px; }
 
@@ -151,7 +153,7 @@ aside:not(.wide) .change-list { width: 190px; }
 .tasks { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
 .task { display: flex; align-items: center; gap: 6px; color: var(--text); }
 .task .mark { width: 8px; height: 8px; flex: none; box-shadow: 0 0 0 1px var(--muted); }
-.task.is-in_progress .mark { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); box-shadow: 0 0 0 1px var(--accent); }
+.task.is-in_progress .mark { background: transparent; box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px var(--accent); }
 .task.is-completed { color: var(--muted); text-decoration: line-through; }
 .task.is-completed .mark { background: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -191,11 +193,6 @@ aside:not(.wide) .change-list { width: 190px; }
 .tools .health-off .mark { color: var(--muted); }
 
 /* ---- "Needs you" strip and the 8-bit input box ------------------------------------------------ */
-.needs { flex-direction: column; align-items: stretch; gap: 4px; background: #2a1620; }
-.need-row { display: flex; align-items: center; gap: 8px; text-align: left; background: #3a1c28; }
-.need-row:hover:not(:disabled) { background: #4a2434; }
-.need-kinds { color: var(--muted); font-size: 12px; }
-.need-open { margin-left: auto; color: var(--accent); }
 .blip { width: 10px; height: 10px; flex: none; background: var(--danger); box-shadow: 0 0 0 2px var(--ink); animation: blip 1s steps(1) infinite; }
 @keyframes blip { 50% { background: #ffb0a0; } }
 
@@ -204,9 +201,9 @@ aside:not(.wide) .change-list { width: 190px; }
   --tone: var(--danger);
   width: min(580px, 100%); max-height: min(86vh, 760px); display: flex; flex-direction: column;
   background: var(--panel); color: var(--text); outline: none;
-  /* Stepped pixel frame: ink, tone, ink, then a hard drop shadow. */
+  /* Stepped pixel frame: ink, tone, ink, then a soft drop shadow. */
   border: 4px solid var(--ink);
-  box-shadow: 0 0 0 4px var(--tone), 0 0 0 8px var(--ink), 12px 12px 0 8px rgb(0 0 0 / 0.45);
+  box-shadow: 0 0 0 4px var(--tone), 0 0 0 8px var(--ink), 0 24px 48px 8px rgb(0 0 0 / 0.5);
   animation: pop 180ms steps(3) both;
 }
 .dialog.kind-question { --tone: var(--think, #6ad0e0); }
@@ -251,3 +248,49 @@ button.choice { cursor: pointer; }
 .review dt { color: var(--muted); font-size: 12px; }
 .review dd { margin: 2px 0 0; font-weight: 600; }
 .review dd.missing { color: #ff8a8a; font-weight: 400; }
+
+/* ---- Polish pass ---------------------------------------------------------------------------------- */
+/* Agent header: title, facts, then one action row. */
+.agent-head { flex-direction: column; align-items: stretch; gap: 10px; }
+.head-title { display: flex; align-items: baseline; gap: 8px; }
+.head-title b { font-size: 15px; }
+.head-main .detail { margin-top: 2px; }
+.head-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.head-actions button { font-size: 12px; padding: 3px 9px; }
+.head-actions .push { margin-left: auto; }
+.head-actions .switches { padding-left: 8px; border-left: 2px solid var(--ink); }
+
+/* Roster: the ask pill says what the agent wants from you, in the alarm colour. */
+.agent-row { grid-template-columns: 10px auto 1fr auto auto 64px; }
+.agent-row .role { justify-self: end; }
+.ask-pill { justify-self: start; padding: 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); background: var(--danger); box-shadow: 0 0 0 1px var(--ink); animation: pill 1s steps(1) infinite; }
+@keyframes pill { 50% { background: #ff7a6a; } }
+@media (prefers-reduced-motion: reduce) { .ask-pill { animation: none; } }
+.agent-row .cost { justify-self: end; font-variant-numeric: tabular-nums; color: var(--muted); }
+.agent-row .activity { min-width: 7ch; }
+
+/* Drawn pixel controls in the input box (no font glyphs standing in for icons). */
+.px { display: inline-block; width: 10px; height: 10px; flex: none; margin-top: 3px; box-shadow: inset 0 0 0 2px var(--muted); }
+.px.round { clip-path: polygon(20% 0, 80% 0, 80% 20%, 100% 20%, 100% 80%, 80% 80%, 80% 100%, 20% 100%, 20% 80%, 0 80%, 0 20%, 20% 20%); box-shadow: none; background: var(--muted); }
+.px.on { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 4px var(--panel), inset 0 0 0 10px var(--accent); }
+.px.round.on { background: var(--accent); }
+.px.tick { box-shadow: inset 0 0 0 2px var(--ok), inset 0 0 0 10px var(--ok); }
+.choice .px { margin-top: 4px; }
+.choice.cursor::before { content: ''; position: absolute; left: 6px; top: 12px; width: 0; height: 0; border-left: 6px solid var(--accent); border-top: 4px solid transparent; border-bottom: 4px solid transparent; font-size: 0; }
+.steps button { display: inline-flex; align-items: center; gap: 6px; }
+.steps .px { margin-top: 0; width: 8px; height: 8px; }
+.dialog-x { font-size: 0; width: 26px; height: 26px; padding: 0; position: relative; }
+.dialog-x::before, .dialog-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
+.dialog-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+/* Empty state for the world before any agent exists. */
+.hint { line-height: 1.5; }
+.tools .px { box-shadow: none; background: currentColor; margin-top: 4px; }
+.tools .health-off .px { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
+.tools .health-ok .px { color: var(--ok); }
+.tools .health-attention .px { color: var(--accent); }
+.tools .health-failed .px { color: var(--danger); }
+.hire-row:last-child { align-items: center; }
+.diff { position: relative; }
+.diff[data-hint]::before { content: attr(data-hint); position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; color: var(--muted); }
+.change-list .land input { flex: 1 1 100%; }

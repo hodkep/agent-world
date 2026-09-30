@@ -151,7 +151,7 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
         {notice && <p className="notice">{notice}</p>}
         {error && <p className="error">{error}</p>}
       </div>
-      <div className="diff" ref={host} aria-label={path ? `Diff of ${path}` : 'Diff'} />
+      <div className="diff" ref={host} aria-label={path ? `Diff of ${path}` : 'Diff'} data-hint={path ? undefined : 'Pick a file to review its changes'} />
     </div>
   )
 }
@@ -232,7 +232,7 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
         </div>
         {error && <p className="error">{error}</p>}
       </div>
-      <div className="diff" ref={host} aria-label={path ? `Editing ${path}` : 'Editor'} />
+      <div className="diff" ref={host} aria-label={path ? `Editing ${path}` : 'Editor'} data-hint={path ? undefined : 'Pick a file to edit it'} />
     </div>
   )
 }

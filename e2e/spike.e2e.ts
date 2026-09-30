@@ -29,7 +29,7 @@ test('hire an agent, watch it work, approve its permission from the world', asyn
     await expect(page.locator('.stage canvas')).toBeVisible()
 
     await hire(page)
-    await page.locator('.need-row').click({ timeout: 15_000 })
+    await page.locator('.ask-pill').click({ timeout: 15_000 })
     const ask = page.getByRole('dialog')
     await expect(ask).toContainText('Bash')
     await expect(ask).toContainText('pnpm test')

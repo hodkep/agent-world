@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ToolsInfo } from '../../shared/api'
 
-const MARK = { ok: '●', attention: '▲', failed: '✕' } as const
-
 /** What this agent's Claude can reach right now. Read-only: add or sign in to servers in the terminal with /mcp. */
 export function ToolsView({ agentId }: { agentId: string }) {
   const [info, setInfo] = useState<ToolsInfo | null>(null)
@@ -23,7 +21,7 @@ export function ToolsView({ agentId }: { agentId: string }) {
         <ul>
           {info.mcp.map((s) => (
             <li key={s.name} className={`health-${s.health}`}>
-              <span className="mark" aria-hidden="true">{MARK[s.health]}</span>
+              <span className="mark px" aria-hidden="true" />
               <span className="grow"><b>{s.name}</b> <span className="detail">{s.target}</span></span>
               <span className="status">{s.status}</span>
             </li>
@@ -35,7 +33,7 @@ export function ToolsView({ agentId }: { agentId: string }) {
         <ul>
           {info.plugins.map((p) => (
             <li key={p.id} className={p.enabled ? 'health-ok' : 'health-off'}>
-              <span className="mark" aria-hidden="true">{p.enabled ? '●' : '○'}</span>
+              <span className="mark px" aria-hidden="true" />
               <span className="grow"><b>{p.id}</b> <span className="detail">{p.version}</span></span>
               <span className="status">{p.enabled ? 'enabled' : 'disabled'} · {p.scope}</span>
             </li>

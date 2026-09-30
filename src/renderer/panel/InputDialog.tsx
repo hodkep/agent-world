@@ -29,7 +29,18 @@ interface Props {
 export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal, actions }: Props) {
   const [error, setError] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
-  useEffect(() => box.current?.focus(), [need])
+  // Focus the box once the terminal has finished grabbing it, and let Esc close it wherever focus ended up.
+  useEffect(() => {
+    const t = requestAnimationFrame(() => {
+      if (!box.current?.contains(document.activeElement)) box.current?.focus()
+    })
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), onClose())
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      cancelAnimationFrame(t)
+      window.removeEventListener('keydown', onKey, true)
+    }
+  }, [onClose])
 
   const attempt = async (f: () => Promise<void>) => {
     setError(null)
@@ -49,21 +60,13 @@ export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal
         aria-modal="true"
         aria-label={`${agentName}: ${needTitle(need)}`}
         tabIndex={-1}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation()
-            onClose()
-          }
-        }}
       >
         <header className="dialog-bar">
           <span className="blip" aria-hidden="true" />
           <PixelWord text={agentName} scale={2} color="#08070c" />
           <span className="dialog-kind">{needTitle(need)}</span>
           {more > 0 && <span className="dialog-more">+{more} waiting</span>}
-          <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)">
-            ✕
-          </button>
+          <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)" />
         </header>
         <div className="dialog-body">
           {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
@@ -212,13 +215,14 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
         {questions.map((x, i) => (
           <li key={i} className={`${i === page ? 'on' : ''} ${ready(x, drafts[i]!) ? 'done' : ''}`}>
             <button onClick={() => go(i)} aria-current={i === page}>
-              {ready(x, drafts[i]!) ? '■' : '□'} {x.header || `Q${i + 1}`}
+              <span className={`px ${ready(x, drafts[i]!) ? 'tick' : ''}`} aria-hidden="true" />
+              {x.header || `Q${i + 1}`}
             </button>
           </li>
         ))}
         <li className={review ? 'on' : ''}>
           <button onClick={() => go(questions.length)} aria-current={review}>
-            ▶ Send
+            Send
           </button>
         </li>
       </ol>
@@ -232,9 +236,7 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
               return (
                 <li key={o.label}>
                   <button className={`choice ${cursor === i ? 'cursor' : ''} ${on ? 'on' : ''}`} role={q.multiSelect ? 'checkbox' : 'radio'} aria-checked={on} onClick={() => (setCursor(i), choose(i))}>
-                    <span className="box" aria-hidden="true">
-                      {q.multiSelect ? (on ? '■' : '□') : on ? '●' : '○'}
-                    </span>
+                    <span className={`px ${q.multiSelect ? '' : 'round'} ${on ? 'on' : ''}`} aria-hidden="true" />
                     <span className="label">
                       <b>{o.label}</b>
                       {o.description && <span className="desc">{o.description}</span>}
@@ -246,9 +248,7 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
             {!q.multiSelect && (
               <li>
                 <div className={`choice other ${cursor === q.options.length ? 'cursor' : ''} ${d.useOther ? 'on' : ''}`}>
-                  <span className="box" aria-hidden="true">
-                    {d.useOther ? '●' : '○'}
-                  </span>
+                  <span className={`px round ${d.useOther ? 'on' : ''}`} aria-hidden="true" />
                   <input
                     value={d.other}
                     placeholder="Something else…"
@@ -269,10 +269,10 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
           </ul>
           <div className="dialog-actions">
             <button onClick={() => go(page - 1)} disabled={page === 0}>
-              ◀ Back
+              Back
             </button>
             <button className={ready(q, d) ? 'primary' : ''} onClick={() => go(page + 1)}>
-              {page === questions.length - 1 ? 'Review ▶' : 'Next ▶'}
+              {page === questions.length - 1 ? 'Review' : 'Next'}
             </button>
           </div>
         </>
@@ -294,7 +294,7 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
             })}
           </dl>
           <div className="dialog-actions">
-            <button onClick={() => go(questions.length - 1)}>◀ Back</button>
+            <button onClick={() => go(questions.length - 1)}>Back</button>
             <button className="primary" disabled={busy || !drafts.every((x, i) => ready(questions[i]!, x))} onClick={() => void send()}>
               {busy ? 'Sending…' : 'Send answers'}
             </button>
