@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem } from '../../shared/chat'
 import type { Activity } from '../../shared/types'
-import { type Row, type Sent, modeLabel, rowText, toMarkdown, toRows } from './format'
+import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
+import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
+import { type Row, type Sent, rowText, toMarkdown, toRows } from './format'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
@@ -45,11 +47,12 @@ export function ChatView({
   detail,
   mode,
   asleep,
-  waiting,
+  need,
+  moreNeeds,
+  needActions,
   visible,
   focusTick,
   onWake,
-  onOpenNeed,
   onTerminal
 }: {
   agentId: string
@@ -59,14 +62,16 @@ export function ChatView({
   /** Claude's permission mode as last reported. */
   mode?: string
   asleep: boolean
-  /** What the agent is waiting on you for ("allow?", "plan", "question"), if anything. */
-  waiting: string | null
+  /** What the agent is waiting on you for, if anything: answered right here, in the conversation. */
+  need: Need | null
+  moreNeeds: number
+  needActions: NeedActions
   visible: boolean
   focusTick: number
   onWake: () => void
-  onOpenNeed: () => void
   onTerminal: () => void
 }) {
+  const waiting = need ? needTitle(need).toLowerCase() : null
   const [items, setItems] = useState<ChatItem[]>([])
   const [sent, setSent] = useState<(Sent & { at: number })[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -198,16 +203,16 @@ export function ChatView({
           Latest
         </button>
       )}
-      {waiting && (
-        <div className="chat-banner alarm" role="alert">
-          <span className="blip" aria-hidden="true" />
-          <span>
-            {agentName} is waiting for you: <b>{waiting}</b>
-          </span>
-          <button className="primary" onClick={onOpenNeed}>
-            Answer
-          </button>
-        </div>
+      {need && (
+        <section className={`inline-need dialog kind-${need.kind}`} aria-label={`${agentName} is waiting for you`}>
+          <header className="dialog-bar">
+            <span className="blip" aria-hidden="true" />
+            <b className="inline-who">{agentName}</b>
+            <span className="dialog-kind">{needTitle(need)}</span>
+            {moreNeeds > 0 && <span className="dialog-more">+{moreNeeds} waiting</span>}
+          </header>
+          <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} />
+        </section>
       )}
       {error && (
         <div className="chat-banner" role="alert">
@@ -337,11 +342,26 @@ function Composer({
   const [at, setAt] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
   const [over, setOver] = useState(false)
+  const [modeOpen, setModeOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
   const shell = text.startsWith('!')
+  const modeWrap = useRef<HTMLSpanElement>(null)
+  // The mode menu closes on Esc or a click anywhere else.
+  useEffect(() => {
+    if (!modeOpen) return
+    const away = (e: MouseEvent) => !modeWrap.current?.contains(e.target as Node) && setModeOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setModeOpen(false))
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [modeOpen])
 
   useEffect(() => {
     drafts.set(agentId, text)
@@ -430,6 +450,7 @@ function Composer({
   return (
     <div
       className={`composer ${over ? 'over' : ''} ${shell ? 'is-shell' : ''}`}
+      style={{ borderTopColor: mode && mode !== 'default' ? cssColor(modeInfo(mode).color) : undefined }}
       onDragOver={(e) => (e.preventDefault(), setOver(true))}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {
@@ -520,9 +541,45 @@ function Composer({
         </div>
       </div>
       <div className="composer-foot">
-        <button className={`mode-chip mode-${mode ?? 'default'}`} onClick={() => void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err)))} title="Permission mode. Click, or press Shift+Tab, to switch to the next one.">
-          {modeLabel(mode)}
-        </button>
+        <span className="menu-wrap" ref={modeWrap}>
+          <button
+            className="mode-chip"
+            style={{ color: cssColor(modeInfo(mode).color) }}
+            onClick={() => setModeOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={modeOpen}
+            title="Permission mode: how much Claude may do without asking. Shift+Tab moves to the next one."
+          >
+            {switching ? 'Switching…' : modeInfo(mode).label}
+          </button>
+          {modeOpen && (
+            <div className="pop-menu mode-menu" role="menu" aria-label="Permission mode">
+              {PICKABLE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  role="menuitemradio"
+                  aria-checked={(mode ?? 'default') === m.id}
+                  onClick={() => {
+                    setModeOpen(false)
+                    if ((mode ?? 'default') === m.id) return
+                    setSwitching(true)
+                    void window.aw
+                      .setMode(agentId, m.id)
+                      .catch((err) => onError(errText(err)))
+                      .finally(() => setSwitching(false))
+                  }}
+                >
+                  <span className="mode-dot" style={{ background: cssColor(m.color) }} />
+                  <span className="mode-name">
+                    {m.label}
+                    {(mode ?? 'default') === m.id ? ' ✓' : ''}
+                  </span>
+                  <span className="mode-blurb">{m.blurb}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
         <span className="hint-keys">Enter sends · Shift+Enter new line · Esc stops</span>
       </div>
     </div>

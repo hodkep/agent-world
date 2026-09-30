@@ -7,7 +7,8 @@ import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
-import { InputDialog, needTitle, type Need } from './panel/InputDialog'
+import { cssColor, modeInfo } from '../shared/modes'
+import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
 import { ChatView } from './chat/ChatView'
@@ -18,6 +19,21 @@ import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
+
+const store = (key: string) => {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+const keep = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* remembering the layout is a convenience */
+  }
+}
 
 // The way you talk to an agent (chat or raw terminal) is remembered between launches.
 type Talk = 'chat' | 'terminal'
@@ -38,6 +54,8 @@ const legacyFolder = () => {
     return null
   }
 }
+
+const MIN_PANEL = 340
 
 export function App() {
   const [agents, setAgents] = useState<AgentRecord[]>([])
@@ -67,6 +85,9 @@ export function App() {
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
+  // The agent list and details fold into one line to leave the room to the conversation.
+  const [compact, setCompact] = useState(() => store('aw.compact') === '1')
+  const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
   const [reviewMenu, setReviewMenu] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
@@ -77,7 +98,8 @@ export function App() {
     setView(talkRef.current)
     setOpenFile(undefined)
     // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
-    if (needsRef.current(id).length > 0) setDialogFor(id)
+    // In the chat the ask is answered inline, so the pop-up is only for the other views.
+    if (needsRef.current(id).length > 0 && talkRef.current !== 'chat') setDialogFor(id)
     else {
       setDrawer(true)
       setFocusTick((n) => n + 1)
@@ -306,6 +328,13 @@ export function App() {
       void refreshWorkspaces()
     })
 
+  // Previous / next agent, for the folded view.
+  const step = (dir: 1 | -1) => {
+    if (!agents.length) return
+    const i = agents.findIndex((a) => a.id === selected)
+    select(agents[(i + dir + agents.length) % agents.length]!.id)
+  }
+
   const clone = (src: AgentRecord) =>
     run(async () => {
       const a = await window.aw.cloneAgent(src.id)
@@ -332,6 +361,13 @@ export function App() {
       if (selected === id) setSelected(null)
     })
 
+  // One set of answers for both places an ask can be answered: the pop-up box and the chat itself.
+  const needActions = (agentId: string): NeedActions => ({
+    trust: (yes) => window.aw.answerTrust(agentId, yes),
+    decide: (id, d) => decideById(id, d),
+    plan: (choice, feedback) => window.aw.answerPlan(agentId, choice, feedback),
+    answer: (answers) => window.aw.answerQuestions(agentId, answers)
+  })
   const decideById = (id: string, d: 'allow' | 'deny') => {
     window.aw.decide(id, d)
     setAsks((q) => q.filter((x) => x.id !== id))
@@ -351,12 +387,7 @@ export function App() {
             setView('terminal')
             setFocusTick((n) => n + 1)
           }}
-          actions={{
-            trust: (yes) => window.aw.answerTrust(dialogFor, yes),
-            decide: (id, d) => decideById(id, d),
-            plan: (choice, feedback) => window.aw.answerPlan(dialogFor, choice, feedback),
-            answer: (answers) => window.aw.answerQuestions(dialogFor, answers)
-          }}
+          actions={needActions(dialogFor)}
         />
       )}
       {palette && current && (
@@ -416,11 +447,41 @@ export function App() {
             </div>
           )}
         </div>
-        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`}>
+        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`} style={!wide && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
+          <div
+            className="resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the panel"
+            tabIndex={0}
+            title="Drag to resize · double-click to reset"
+            onDoubleClick={() => (setPanelW(null), keep('aw.panelw', ''))}
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+              e.preventDefault()
+              const now = panelW ?? (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width
+              const next = Math.max(MIN_PANEL, Math.min(window.innerWidth * 0.8, now + (e.key === 'ArrowLeft' ? 40 : -40)))
+              setPanelW(next)
+              keep('aw.panelw', String(Math.round(next)))
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              const el = e.currentTarget
+              el.setPointerCapture(e.pointerId)
+              const move = (ev: PointerEvent) => setPanelW(Math.round(Math.max(MIN_PANEL, Math.min(window.innerWidth * 0.8, window.innerWidth - ev.clientX))))
+              const up = () => {
+                el.removeEventListener('pointermove', move)
+                el.removeEventListener('pointerup', up)
+                setPanelW((w) => (keep('aw.panelw', String(w ?? '')), w))
+              }
+              el.addEventListener('pointermove', move)
+              el.addEventListener('pointerup', up)
+            }}
+          />
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm roles={roles} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
-            <nav className="roster" aria-label="Agents">
+            <nav className="roster" aria-label="Agents" hidden={compact}>
               {agents.map((a) => {
                 const st = world[a.id]
                 const activity = st?.activity ?? 'asleep'
@@ -451,7 +512,7 @@ export function App() {
             </nav>
           )}
           {current ? (
-            <section className="agent-head">
+            <section className="agent-head" hidden={compact}>
               <div className="head-main">
                 <div className="head-title">
                 {renaming === current.id ? (
@@ -614,6 +675,25 @@ export function App() {
               ))}
             </section>
           )}
+          {current && compact && (
+            <section className="head-compact" aria-label="Selected agent">
+              <button onClick={() => step(-1)} aria-label="Previous agent" className="hc-step hc-prev" />
+              <button onClick={() => step(1)} aria-label="Next agent" className="hc-step hc-next" />
+              <b className="hc-name">{current.name}</b>
+              <span className={`hc-state is-${state?.activity ?? 'asleep'}`}>{state?.activity ?? 'asleep'}</span>
+              {state?.mode && state.mode !== 'default' && (
+                <span className="hc-mode" style={{ color: cssColor(modeInfo(state.mode).color) }}>
+                  {modeInfo(state.mode).label}
+                </span>
+              )}
+              {cur && <span className="hc-cost">${cur.costUsd.toFixed(2)}</span>}
+              {agents.some((a) => a.id !== current.id && needsOf(a.id).length > 0) && (
+                <button className="ask-pill" onClick={() => setCompact(false)} title="Another agent is waiting for you">
+                  others waiting
+                </button>
+              )}
+            </section>
+          )}
           {current && (
             <div className="tabs" role="tablist" aria-label="Agent view">
               <button role="tab" aria-selected={view === 'chat'} onClick={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}>
@@ -631,7 +711,15 @@ export function App() {
               <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
               </button>
-              <button className="push" onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
+              <button
+                className="push"
+                onClick={() => (setCompact((c) => !c), keep('aw.compact', compact ? '' : '1'))}
+                aria-pressed={compact}
+                title="Fold the agent list and details into one line, for more room to talk"
+              >
+                {compact ? 'Show agents' : 'Hide agents'}
+              </button>
+              <button onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
                 {wide ? 'Narrow' : 'Expand'}
               </button>
             </div>
@@ -645,11 +733,12 @@ export function App() {
               detail={world[a.id]?.detail}
               mode={world[a.id]?.mode}
               asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
-              waiting={needsOf(a.id).length ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null}
+              need={needsOf(a.id)[0] ?? null}
+              moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
+              needActions={needActions(a.id)}
               visible={a.id === selected && view === 'chat'}
               focusTick={focusTick}
               onWake={() => wake(a)}
-              onOpenNeed={() => setDialogFor(a.id)}
               onTerminal={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}
             />
           ))}

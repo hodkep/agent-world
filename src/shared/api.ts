@@ -121,6 +121,8 @@ export interface AwApi {
   saveAttachment(agentId: string, name: string, bytes: ArrayBuffer, mime: string): Promise<string>
   /** A picture a message mentions by path, as a data URL ('' if it is not a small picture). */
   readImage(agentId: string, path: string): Promise<string>
+  /** Switch to a permission mode: live for the ones in Claude's Shift+Tab cycle, by relaunching (same conversation) for the rest. */
+  setMode(agentId: string, mode: string): Promise<void>
   /** Shift+Tab: move to the next permission mode. */
   chatCycleMode(agentId: string): Promise<void>
   /** Esc: interrupt what the agent is doing. */

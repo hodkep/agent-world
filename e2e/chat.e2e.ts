@@ -101,7 +101,15 @@ test('attach and paste pictures, run a shell command with !, switch permission m
     // Permission mode: click the chip (Shift+Tab) and the label follows what Claude reports.
     await expect(page.locator('.mode-chip')).toHaveText('Ask first')
     await page.locator('.mode-chip').click()
-    await expect(page.locator('.mode-chip')).toHaveText('Edit automatically')
+    await page.getByRole('menuitemradio', { name: /^Edit automatically/ }).click()
+    await expect(page.locator('.mode-chip')).toHaveText('Edit automatically', { timeout: 10_000 })
+    // Jumping two steps ahead presses Shift+Tab twice, reading the footer each time.
+    await page.locator('.mode-chip').click()
+    await page.getByRole('menuitemradio', { name: /^Ask first/ }).click()
+    await expect(page.locator('.mode-chip')).toHaveText('Ask first', { timeout: 10_000 })
+    await page.locator('.mode-chip').click()
+    await page.getByRole('menuitemradio', { name: /^Plan/ }).click()
+    await expect(page.locator('.mode-chip')).toHaveText('Plan', { timeout: 10_000 })
 
     // Search narrows the conversation.
     await box.fill('')

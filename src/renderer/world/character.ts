@@ -3,6 +3,7 @@ import type { Activity } from '../../shared/types'
 import { type OfficeMap, type Pt, type Spot, TILE, findPath } from './office'
 import type { Box } from './overlap'
 import { textPixels } from './pixelfont'
+import { modeInfo } from '../../shared/modes'
 import { type Pose, type View, characterTexture, iconTexture, paletteFor, pixelTexture } from './sprites'
 import type { Role } from './worldState'
 
@@ -36,6 +37,11 @@ export class Character {
   private readonly tagBg = new Graphics()
   private readonly tagText = new Sprite()
   private tagColor = -1
+  /** Claude's permission mode: anything but the default shows as a badge on the name tag and a dashed line at the feet. */
+  mode: string | undefined
+  private readonly badge = new Container()
+  private badgeMode = ''
+  private readonly modeLine = new Graphics()
   private tile: Pt
   private px: number
   private py: number
@@ -76,8 +82,8 @@ export class Character {
     this.blinkPhase = (key.charCodeAt(0) * 97 + key.length * 31) % 4000
     this.icon.anchor.set(0.5)
     this.bubble.addChild(this.bubbleBg, this.icon)
-    this.tag.addChild(this.tagBg, this.tagText, this.gauge)
-    this.view.addChild(this.ring, this.shadow, this.body, this.arms)
+    this.tag.addChild(this.tagBg, this.tagText, this.gauge, this.badge)
+    this.view.addChild(this.ring, this.modeLine, this.shadow, this.body, this.arms)
     this.overlay.addChild(this.fx, this.fxText, this.leader, this.bubble, this.marker, this.tag)
     for (const c of [this.view, this.overlay]) {
       c.eventMode = 'static'
@@ -154,6 +160,9 @@ export class Character {
       this.shadow.rect(2, TILE - 2, 12, 3).fill({ color: 0x000000, alpha: 0.4 })
       this.shadow.rect(4, TILE - 3, 8, 1).fill({ color: 0x000000, alpha: 0.25 })
     }
+    this.modeLine.clear()
+    const mi = this.mode && this.mode !== 'default' ? modeInfo(this.mode) : null
+    if (mi && !seated) for (let x = 2; x < 14; x += 2) if ((x / 2 + Math.floor(t / 320)) % 3 !== 0) this.modeLine.rect(x, TILE + 1, 1, 1).fill(mi.color)
     this.ring.clear()
     if (this.selected) {
       // Selection lives at the character's feet, so it can never drift onto a neighbour.
@@ -370,6 +379,24 @@ export class Character {
     g.rect(8, y + 3, 1, 1).fill(0xffe066)
   }
 
+  /** A small glyph in the mode's colour to the left of the name: pencil, list, bolt, lock or skull. */
+  private drawBadge() {
+    const mi = this.mode && this.mode !== 'default' ? modeInfo(this.mode) : null
+    const key = mi?.id ?? ''
+    if (key === this.badgeMode) return
+    this.badgeMode = key
+    this.badge.removeChildren().forEach((c) => c.destroy())
+    if (!mi?.glyph) return
+    const bg = new Graphics()
+    bg.rect(0, 0, 7, TAG_H).fill({ color: 0x0c0a12, alpha: 0.9 })
+    bg.rect(0, TAG_H - 1, 7, 1).fill(mi.color)
+    const glyph = new Sprite(pixelTexture(mi.glyph, { '#': mi.color }, `mode/${mi.id}`))
+    glyph.x = 1
+    glyph.y = 0
+    this.badge.addChild(bg, glyph)
+    this.badge.x = -8
+  }
+
   private drawTag() {
     const color = labelColor(this.role, this.selected)
     const text = this.label.slice(0, 12)
@@ -382,6 +409,7 @@ export class Character {
       this.tagText.x = 2
       this.tagText.y = 1
     }
+    this.drawBadge()
     this.tag.x = TILE / 2 - Math.floor(w / 2)
     this.tag.y = TILE + 1 + this.tagDy
     // Context gauge along the bottom of the name tag: how full this agent's context window is.

@@ -48,6 +48,7 @@ const api: AwApi = {
   chatSend: (id, text) => ipcRenderer.invoke('chat:send', id, text),
   saveAttachment: (id, name, bytes, mime) => ipcRenderer.invoke('attach-save', id, name, new Uint8Array(bytes), mime),
   readImage: (id, path) => ipcRenderer.invoke('read-image', id, path),
+  setMode: (id, mode) => ipcRenderer.invoke('chat:set-mode', id, mode),
   chatCycleMode: (id) => ipcRenderer.invoke('chat:cycle-mode', id),
   chatInterrupt: (id) => ipcRenderer.invoke('chat:interrupt', id),
   listRoles: (folder) => ipcRenderer.invoke('roles:list', folder),

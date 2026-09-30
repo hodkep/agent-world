@@ -148,9 +148,7 @@ export function toMarkdown(rows: Row[], agentName: string): string {
   }
   return out.join('\n\n')
 }
-
-const MODES: Record<string, string> = { default: 'Ask first', acceptEdits: 'Edit automatically', plan: 'Plan', auto: 'Auto', bypassPermissions: 'Bypass', dontAsk: "Don't ask" }
-export const modeLabel = (mode: string | undefined) => MODES[mode ?? 'default'] ?? mode ?? 'Ask first'
+export { modeLabel } from '../../shared/modes'
 
 /** Splits a message into plain text and @file mentions (`@"a path.png"` or `@src/app.ts`); an @ inside a word is not a mention. */
 export function splitMentions(text: string): { file: boolean; text: string }[] {

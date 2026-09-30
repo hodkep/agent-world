@@ -117,12 +117,16 @@ if (process.env.FAKE_CHAT) {
   await hook('Stop')
   let typed = ''
   const MODES = ['default', 'acceptEdits', 'plan']
+  const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
+  const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[22;1H──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
+  drawFoot()
   process.stdin.on('data', async (d) => {
     const raw = String(d)
     // Shift+Tab moves to the next permission mode, which Claude reports with its next event.
     if (raw === '\x1b[Z') {
       mode = (mode + 1) % MODES.length
+      drawFoot()
       return void hook('Notification', { notification_type: 'idle_prompt', permission_mode: MODES[mode] })
     }
     typed += raw.replace(/\x1b\[20[01]~/g, '')

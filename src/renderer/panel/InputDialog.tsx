@@ -10,6 +10,13 @@ export type Need =
 
 export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : 'QUESTION')
 
+export interface NeedActions {
+  trust: (yes: boolean) => void
+  decide: (id: string, d: 'allow' | 'deny') => void
+  plan: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>
+  answer: (answers: QuestionAnswer[]) => Promise<void>
+}
+
 interface Props {
   agentName: string
   need: Need
@@ -17,17 +24,46 @@ interface Props {
   more: number
   onClose: () => void
   onFinishInTerminal: () => void
-  actions: {
-    trust: (yes: boolean) => void
-    decide: (id: string, d: 'allow' | 'deny') => void
-    plan: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>
-    answer: (answers: QuestionAnswer[]) => Promise<void>
+  actions: NeedActions
+}
+
+/**
+ * The question itself: what is being asked and the ways to answer it. The pop-up box and the chat share this, so a
+ * permission, a plan, a question and the trust prompt look and work the same wherever they are answered.
+ */
+export function NeedPanel({ need, actions, onFinishInTerminal, hint }: { need: Need; actions: NeedActions; onFinishInTerminal: () => void; hint?: string }) {
+  const [error, setError] = useState<string | null>(null)
+  const attempt = async (f: () => Promise<void>) => {
+    setError(null)
+    try {
+      await f()
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+    }
   }
+  return (
+    <>
+      <div className="dialog-body">
+        {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
+        {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
+        {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
+        {need.kind === 'question' && <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} />}
+      </div>
+      {error && (
+        <div className="dialog-error" role="alert">
+          {error} <button onClick={onFinishInTerminal}>Open terminal</button>
+        </div>
+      )}
+      <footer className="dialog-foot">
+        <button onClick={onFinishInTerminal}>Answer in terminal</button>
+        {hint && <span className="hint">{hint}</span>}
+      </footer>
+    </>
+  )
 }
 
 /** The 8-bit box that opens from an agent's "needs you" marker: one request at a time, keyboard first. */
 export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal, actions }: Props) {
-  const [error, setError] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
   // Focus the box once the terminal has finished grabbing it, and let Esc close it wherever focus ended up.
   useEffect(() => {
@@ -42,25 +78,9 @@ export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal
     }
   }, [onClose])
 
-  const attempt = async (f: () => Promise<void>) => {
-    setError(null)
-    try {
-      await f()
-    } catch (err) {
-      setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
-    }
-  }
-
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        ref={box}
-        className={`dialog kind-${need.kind}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${agentName}: ${needTitle(need)}`}
-        tabIndex={-1}
-      >
+      <div ref={box} className={`dialog kind-${need.kind}`} role="dialog" aria-modal="true" aria-label={`${agentName}: ${needTitle(need)}`} tabIndex={-1}>
         <header className="dialog-bar">
           <span className="blip" aria-hidden="true" />
           <PixelWord text={agentName} scale={2} color="#08070c" />
@@ -68,21 +88,7 @@ export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal
           {more > 0 && <span className="dialog-more">+{more} waiting</span>}
           <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)" />
         </header>
-        <div className="dialog-body">
-          {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
-          {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
-          {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
-          {need.kind === 'question' && <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} />}
-        </div>
-        {error && (
-          <div className="dialog-error" role="alert">
-            {error} <button onClick={onFinishInTerminal}>Open terminal</button>
-          </div>
-        )}
-        <footer className="dialog-foot">
-          <button onClick={onFinishInTerminal}>Answer in terminal</button>
-          <span className="hint">Esc closes this box; the agent keeps waiting.</span>
-        </footer>
+        <NeedPanel need={need} actions={actions} onFinishInTerminal={onFinishInTerminal} hint="Esc closes this box; the agent keeps waiting." />
       </div>
     </div>
   )

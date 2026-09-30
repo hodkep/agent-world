@@ -6,7 +6,7 @@ import { basename, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, Question, QuestionAnswer } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, PermissionMode, Question, QuestionAnswer } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
@@ -19,6 +19,7 @@ import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
@@ -34,6 +35,8 @@ import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, origin
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
+// A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
+if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
 const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
 const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
@@ -701,6 +704,27 @@ async function main() {
     if (!a || !p) throw new Error('That agent is not running.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
     a.options = { ...a.options, ...(change.model && { model: change.model }), ...(change.effort && { effort: change.effort }) }
+    persist()
+    restarting.add(id)
+    mailbox.restarting(id)
+    p.kill()
+  })
+  // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
+  // which keeps the conversation (it resumes the same session).
+  ipcMain.handle('chat:set-mode', async (_, id: string, mode: string) => {
+    const a = byId(id)
+    const p = sessions.get(id)
+    if (!a || !p) throw new Error('That agent is not running.')
+    const io = {
+      screen: () => screens.get(id)?.text() ?? '',
+      write: (keys: string) => p.write(keys),
+      sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+    }
+    if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
+    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && readMode(io.screen()) && (await setMode(io, mode))) return
+    if (!['auto', 'dontAsk'].includes(mode)) throw new Error('Claude did not switch to that mode. Try Shift+Tab in the Terminal tab.')
+    if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
+    a.options = { ...a.options, permissionMode: mode as PermissionMode }
     persist()
     restarting.add(id)
     mailbox.restarting(id)

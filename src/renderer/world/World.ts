@@ -302,6 +302,7 @@ export class OfficeWorld {
       const c = this.ensure(a.id, a.name, 'senior', a.id, a.state.activity, a.cloneOf ? this.chars.get(a.cloneOf)?.home : undefined)
       c.role = roleOf(a.state)
       c.selected = a.selected
+      c.mode = a.state.mode
       c.contextPct = a.contextPct
       this.route(c, a.state.activity, false, a.state.detail, a.state.mode)
       this.files.set(a.id, a.state.files)
