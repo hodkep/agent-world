@@ -3,6 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -32,6 +33,7 @@ export function App() {
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
+  const [history, setHistory] = useState(false)
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [feedback, setFeedback] = useState('')
   const [palette, setPalette] = useState(false)
@@ -120,7 +122,7 @@ export function App() {
   // A pending permission must never sit behind a collapsed panel.
   const pendingTrust = Object.entries(trusts)
   const pendingPlans = agents.filter((a) => planMenus[a.id])
-  const showPanel = panelOpen || hiring || asks.length > 0 || pendingTrust.length > 0 || pendingPlans.length > 0
+  const showPanel = panelOpen || hiring || history || asks.length > 0 || pendingTrust.length > 0 || pendingPlans.length > 0
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -152,6 +154,16 @@ export function App() {
       if (!folder) return
       const a = await window.aw.addAgent(folder, options, name)
       setHiring(false)
+      setAgents((xs) => [...xs, a])
+      setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
+      select(a.id)
+    })
+
+  const resume = (sessionId: string) =>
+    run(async () => {
+      if (!folder) return
+      const a = await window.aw.resumeSession(folder, sessionId)
+      setHistory(false)
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
@@ -212,6 +224,9 @@ export function App() {
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
         </button>
+        <button onClick={() => setHistory((h) => !h)} disabled={!folder} aria-expanded={history} title="Bring back an earlier conversation from this folder">
+          History
+        </button>
         {officeCost > 0 && (
           <span className="office-cost" title="Spent by all agents this session">
             ${officeCost.toFixed(2)}
@@ -225,6 +240,7 @@ export function App() {
       <main>
         <div className="stage" ref={stage} />
         <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
+          {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
           {pendingTrust.length > 0 && (
             <section className="asks" aria-label="Workspace trust">

@@ -15,6 +15,14 @@ export interface PaletteCommand {
   args: boolean
 }
 
+export interface PastSession {
+  id: string
+  title: string
+  updated: number
+  /** An agent in this app already runs it. */
+  inUse: boolean
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -39,6 +47,10 @@ export interface AwApi {
   renameAgent(id: string, name: string): Promise<string>
   /** A second agent that continues a copy of this one's conversation, in its own worktree branched from this one's. */
   cloneAgent(id: string): Promise<AgentRecord>
+  /** Earlier Claude conversations in this folder (and worktrees of it), newest first. */
+  listHistory(folder: string): Promise<PastSession[]>
+  /** Continue that conversation as a new agent. */
+  resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void

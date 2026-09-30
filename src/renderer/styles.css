@@ -169,3 +169,10 @@ aside:not(.wide) .change-list { width: 190px; }
 .palette .empty { color: var(--muted); cursor: default; }
 
 .rename { width: 9em; font: inherit; font-weight: 700; padding: 0 4px; }
+
+.history { padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); max-height: 40vh; overflow: auto; }
+.history-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.history li button { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; }
+.history .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .when { color: var(--muted); font-size: 12px; flex: none; }

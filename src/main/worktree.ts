@@ -21,7 +21,7 @@ export async function isGitRepo(dir: string): Promise<boolean> {
 }
 
 // Hash suffix keeps two repos that share a folder name from colliding under rootDir.
-const slug = (repoPath: string) => `${basename(repoPath)}-${createHash('sha1').update(repoPath).digest('hex').slice(0, 8)}`
+export const slug = (repoPath: string) => `${basename(repoPath)}-${createHash('sha1').update(repoPath).digest('hex').slice(0, 8)}`
 
 /** `from` starts the branch at another branch (a clone) instead of HEAD; the base stays the repo's current branch. */
 export async function createWorktree(o: { repoPath: string; name: string; rootDir: string; from?: string }) {

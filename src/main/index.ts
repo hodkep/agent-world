@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
@@ -10,6 +10,7 @@ import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decis
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
+import { listSessions, projectSlug } from './history'
 import { checkName, cleanName } from './names'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
@@ -18,10 +19,11 @@ import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
-import { DirtyWorktreeError, createWorktree, git, isGitRepo, removeWorktree } from './worktree'
+import { DirtyWorktreeError, createWorktree, git, isGitRepo, removeWorktree, slug as repoSlug } from './worktree'
 
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 const AGENTS_FILE = join(HOME, 'agents.json')
+const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
 const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
 // Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
 const PERMISSION_MODE = process.env.AW_PERMISSION_MODE
@@ -306,6 +308,31 @@ async function main() {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
+    agents.push(a)
+    persist()
+    spawn(a, env)
+    return a
+  })
+  // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
+  ipcMain.handle('list-history', (_, folder: string) => {
+    const own = agents.map((a) => a.sessionId)
+    const wtPrefix = projectSlug(join(HOME, 'worktrees', repoSlug(folder))) + '-'
+    let all: string[] = []
+    try {
+      all = readdirSync(CLAUDE_PROJECTS)
+    } catch {
+      /* no Claude history yet */
+    }
+    const slugs = [projectSlug(realpathSync(folder)), ...all.filter((d) => d.startsWith(wtPrefix))]
+    return listSessions(CLAUDE_PROJECTS, slugs).map((s) => ({ ...s, inUse: own.includes(s.id) }))
+  })
+  ipcMain.handle('resume-session', async (_, folder: string, sessionId: string) => {
+    if (!/^[0-9a-f-]{36}$/i.test(sessionId)) throw new Error('That is not a session id.')
+    const busy = agents.find((a) => a.sessionId === sessionId)
+    if (busy) throw new Error(`${busy.name} is already running that session.`)
+    const name = nextName()
+    const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true }
     agents.push(a)
     persist()
     spawn(a, env)

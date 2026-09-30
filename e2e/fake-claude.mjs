@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
-const flag = (name) => args[args.indexOf(name) + 1]
+const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const settings = JSON.parse(readFileSync(flag('--settings'), 'utf8'))
 // --fork-session: like real Claude, the resumed conversation continues under a new session id.
 const forkedFrom = args.includes('--fork-session') ? flag('--resume') : null
