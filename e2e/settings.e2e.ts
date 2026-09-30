@@ -11,7 +11,7 @@ test('settings are saved as you change them and set what a new agent starts with
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    await page.locator('header').getByRole('button', { name: 'Settings' }).click()
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await dialog.getByLabel('Notifications').selectOption('attention')
     await dialog.getByLabel('Model').selectOption('haiku')
