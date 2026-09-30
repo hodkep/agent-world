@@ -4,6 +4,15 @@
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
+// Read-only subcommands the app runs to inspect the setup.
+if (args[0] === 'mcp') {
+  console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect')
+  process.exit(0)
+}
+if (args[0] === 'plugin') {
+  console.log(JSON.stringify([{ id: 'fake-plugin@market', version: '1.2.3', scope: 'user', enabled: true }]))
+  process.exit(0)
+}
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const settings = JSON.parse(readFileSync(flag('--settings'), 'utf8'))
 // --fork-session: like real Claude, the resumed conversation continues under a new session id.

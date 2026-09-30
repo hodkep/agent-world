@@ -23,6 +23,11 @@ export interface PastSession {
   inUse: boolean
 }
 
+export interface ToolsInfo {
+  mcp: { name: string; target: string; health: 'ok' | 'attention' | 'failed'; status: string }[]
+  plugins: { id: string; version: string; scope: string; enabled: boolean }[]
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -53,6 +58,8 @@ export interface AwApi {
   listHistory(folder: string): Promise<PastSession[]>
   /** Continue that conversation as a new agent. */
   resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
+  /** MCP servers and plugins available to this agent (runs `claude mcp list`, which health-checks each server: slow). */
+  listTools(agentId: string): Promise<ToolsInfo>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void

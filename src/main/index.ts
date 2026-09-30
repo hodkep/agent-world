@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -10,6 +10,7 @@ import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decis
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
+import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { checkName, cleanName } from './names'
 import { Mailbox } from './mailbox'
@@ -312,6 +313,15 @@ async function main() {
     persist()
     spawn(a, env)
     return a
+  })
+  // What this agent's Claude can reach: MCP servers (health-checked by Claude itself) and plugins, as seen from its folder.
+  ipcMain.handle('list-tools', async (_, id: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    const claude = (...args: string[]) =>
+      new Promise<string>((resolve) => execFile(CLAUDE_BIN, args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
+    const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
+    return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   ipcMain.handle('list-history', (_, folder: string) => {

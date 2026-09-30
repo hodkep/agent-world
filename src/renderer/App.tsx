@@ -3,6 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
@@ -29,7 +30,7 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(true)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'terminal' | 'code'>('terminal')
+  const [view, setView] = useState<'terminal' | 'code' | 'tools'>('terminal')
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -477,6 +478,9 @@ export function App() {
               <button role="tab" aria-selected={view === 'code'} onClick={() => setView('code')}>
                 Code
               </button>
+              <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
+                Tools
+              </button>
               <button className="push" onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
                 {wide ? 'Narrow' : 'Expand'}
               </button>
@@ -487,6 +491,7 @@ export function App() {
               <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
+          {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
         </aside>
       </main>

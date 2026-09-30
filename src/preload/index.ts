@@ -19,6 +19,7 @@ const api: AwApi = {
   cloneAgent: (id) => ipcRenderer.invoke('clone-agent', id),
   listHistory: (folder) => ipcRenderer.invoke('list-history', folder),
   resumeSession: (folder, id) => ipcRenderer.invoke('resume-session', folder, id),
+  listTools: (id) => ipcRenderer.invoke('list-tools', id),
   wakeAgent: (id) => ipcRenderer.invoke('wake-agent', id),
   removeAgent: (id, mode) => ipcRenderer.invoke('remove-agent', id, mode),
   ptyWrite: (id, data) => ipcRenderer.send('pty-write', id, data),

@@ -176,3 +176,14 @@ aside:not(.wide) .change-list { width: 190px; }
 .history li button { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; }
 .history .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history .when { color: var(--muted); font-size: 12px; flex: none; }
+
+.tools { padding: 10px 12px; overflow: auto; flex: 1; }
+.tools-head { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; }
+.tools ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tools li { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; background: var(--panel-2); }
+.tools .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tools .status { color: var(--muted); font-size: 12px; flex: none; }
+.tools .health-ok .mark { color: #6fcf7f; }
+.tools .health-attention .mark { color: #f2c94c; }
+.tools .health-failed .mark { color: #ff6b6b; }
+.tools .health-off .mark { color: var(--muted); }
