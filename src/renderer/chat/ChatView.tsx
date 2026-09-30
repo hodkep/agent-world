@@ -484,7 +484,7 @@ function Composer({
   // Ctrl+R: the words being searched for, kept while pressing it again to reach older matches.
   const search = useRef<string | null>(null)
   const shell = text.startsWith('!')
-  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && visible && (setText(t), box.current?.focus())), [agentId, visible])
+  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (setText(t), box.current?.focus())), [agentId])
   const modeWrap = useRef<HTMLSpanElement>(null)
   // The mode menu closes on Esc or a click anywhere else.
   useEffect(() => {
@@ -538,15 +538,17 @@ function Composer({
   // Something picked on the Preview page arrives as words and a picture, ready to send with a question about it.
   useEffect(() => {
     const on = (e: Event) => {
-      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null }>).detail
-      if (d.agentId !== agentId || !visible) return
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; handled?: boolean }>).detail
+      // The same agent can be open in the side panel and in a grid cell; only the first box takes it.
+      if (d.agentId !== agentId || d.handled) return
+      d.handled = true
       if (d.file) void attach([d.file])
       setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + d.text + '\n\n')
       box.current?.focus()
     }
     window.addEventListener('aw-context', on)
     return () => window.removeEventListener('aw-context', on)
-  }, [agentId, attach, visible])
+  }, [agentId, attach])
 
   // "/co" completes commands; the last "@word" completes a file or folder.
   const slash = /^\/(\S*)$/.exec(text)
