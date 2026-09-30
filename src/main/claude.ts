@@ -48,6 +48,8 @@ export function launchArgs(o: {
   sessionId: string
   name: string
   started: boolean
+  /** Session to fork on the first launch (a clone); afterwards the clone resumes its own session. */
+  forkOf?: string
   settingsFile: string
   mcpFile?: string
   /** App-wide default (AW_PERMISSION_MODE); a per-agent option overrides it. */
@@ -56,7 +58,9 @@ export function launchArgs(o: {
 }) {
   const args = o.started
     ? ['--resume', o.sessionId, '--settings', o.settingsFile]
-    : ['--session-id', o.sessionId, '--name', o.name, '--settings', o.settingsFile]
+    : o.forkOf
+      ? ['--resume', o.forkOf, '--fork-session', '--name', o.name, '--settings', o.settingsFile]
+      : ['--session-id', o.sessionId, '--name', o.name, '--settings', o.settingsFile]
   if (o.mcpFile) args.push('--mcp-config', o.mcpFile)
   const opt = o.options ?? {}
   if (opt.model) args.push('--model', opt.model)

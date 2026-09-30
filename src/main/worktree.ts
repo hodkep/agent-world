@@ -23,12 +23,13 @@ export async function isGitRepo(dir: string): Promise<boolean> {
 // Hash suffix keeps two repos that share a folder name from colliding under rootDir.
 const slug = (repoPath: string) => `${basename(repoPath)}-${createHash('sha1').update(repoPath).digest('hex').slice(0, 8)}`
 
-export async function createWorktree(o: { repoPath: string; name: string; rootDir: string }) {
+/** `from` starts the branch at another branch (a clone) instead of HEAD; the base stays the repo's current branch. */
+export async function createWorktree(o: { repoPath: string; name: string; rootDir: string; from?: string }) {
   const branch = `aw/${o.name}`
   const path = join(o.rootDir, slug(o.repoPath), o.name)
   // The branch the agent starts from is what its diff is measured against and where it merges back.
   const base = await git(o.repoPath, 'rev-parse', '--abbrev-ref', 'HEAD')
-  await git(o.repoPath, 'worktree', 'add', '-b', branch, path)
+  await git(o.repoPath, 'worktree', 'add', '-b', branch, path, ...(o.from ? [o.from] : []))
   return { path, branch, base }
 }
 

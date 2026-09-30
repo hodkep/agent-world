@@ -15,6 +15,7 @@ const api: AwApi = {
   addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   renameAgent: (id, name) => ipcRenderer.invoke('rename-agent', id, name),
+  cloneAgent: (id) => ipcRenderer.invoke('clone-agent', id),
   wakeAgent: (id) => ipcRenderer.invoke('wake-agent', id),
   removeAgent: (id, mode) => ipcRenderer.invoke('remove-agent', id, mode),
   ptyWrite: (id, data) => ipcRenderer.send('pty-write', id, data),

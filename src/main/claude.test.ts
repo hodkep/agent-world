@@ -14,6 +14,12 @@ describe('claude launch', () => {
     ])
   })
 
+  it('forks another session on its first launch, then resumes its own', () => {
+    const o = { sessionId: 'new', name: 'ada2', forkOf: 'src', settingsFile: '/s.json' }
+    expect(launchArgs({ ...o, started: false })).toEqual(['--resume', 'src', '--fork-session', '--name', 'ada2', '--settings', '/s.json'])
+    expect(launchArgs({ ...o, started: true })).toEqual(['--resume', 'new', '--settings', '/s.json'])
+  })
+
   it('passes an explicit permission mode through when one is set', () => {
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', permissionMode: 'default' })).toEqual([
       '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--permission-mode', 'default'

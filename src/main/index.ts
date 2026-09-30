@@ -173,6 +173,7 @@ function trackTurns(e: AgentEvent) {
     // A conversation exists once a turn has begun; only then can a relaunch use --resume.
     if (!a.started) {
       a.started = true
+      delete a.forkOf
       persist()
     }
     if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
@@ -304,6 +305,22 @@ async function main() {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
+    agents.push(a)
+    persist()
+    spawn(a, env)
+    return a
+  })
+  // A clone gets a worktree branched from the original's branch and forks its conversation, so both carry on separately.
+  ipcMain.handle('clone-agent', async (_, id: string) => {
+    const src = byId(id)
+    if (!src) throw new Error('Unknown agent.')
+    if (!src.started) throw new Error(`${src.name} has not started a conversation yet, so there is nothing to copy.`)
+    const name = nextName()
+    const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
+    const a: AgentRecord = {
+      id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, repoPath: src.repoPath,
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, options: src.options
+    }
     agents.push(a)
     persist()
     spawn(a, env)

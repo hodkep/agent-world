@@ -37,6 +37,8 @@ export interface AwApi {
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */
   renameAgent(id: string, name: string): Promise<string>
+  /** A second agent that continues a copy of this one's conversation, in its own worktree branched from this one's. */
+  cloneAgent(id: string): Promise<AgentRecord>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void

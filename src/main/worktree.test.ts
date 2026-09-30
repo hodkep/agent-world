@@ -30,6 +30,16 @@ describe('worktrees', () => {
     expect(await isGitRepo(tmp)).toBe(false)
   })
 
+  it('can branch from another agent\'s branch, keeping the same base', async () => {
+    const ada = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    writeFileSync(join(ada.path, 'ada.txt'), 'work\n')
+    git(ada.path, 'add', '.')
+    git(ada.path, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'ada work')
+    const twin = await createWorktree({ repoPath: repo, name: 'ada2', rootDir: root, from: ada.branch })
+    expect(existsSync(join(twin.path, 'ada.txt'))).toBe(true)
+    expect(twin.base).toBe('main')
+  })
+
   it('creates an isolated worktree on aw/<name> outside the repo', async () => {
     const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
     expect(wt.branch).toBe('aw/ada')

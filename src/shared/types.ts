@@ -61,6 +61,8 @@ export interface AgentRecord {
   base?: string | null
   // Whether the session has a saved conversation (a turn has begun), so relaunch must use --resume.
   started: boolean
+  /** Session this agent was cloned from, forked on its first launch. */
+  forkOf?: string
   options?: AgentOptions
 }
 

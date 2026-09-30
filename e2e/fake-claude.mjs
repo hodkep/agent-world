@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs'
 const args = process.argv.slice(2)
 const flag = (name) => args[args.indexOf(name) + 1]
 const settings = JSON.parse(readFileSync(flag('--settings'), 'utf8'))
-let sessionId = flag('--session-id') ?? flag('--resume')
+// --fork-session: like real Claude, the resumed conversation continues under a new session id.
+const forkedFrom = args.includes('--fork-session') ? flag('--resume') : null
+let sessionId = forkedFrom ? `forked-${forkedFrom}` : (flag('--session-id') ?? flag('--resume'))
 const { url, headers } = settings.hooks.PreToolUse[0].hooks[0]
 const pause = Number(process.env.FAKE_DELAY_MS ?? 150)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -22,6 +24,7 @@ const hook = async (event, extra = {}) => {
 }
 
 console.log(`fake claude · session ${sessionId} · cwd ${process.cwd()}`)
+if (forkedFrom) console.log(`forked from ${forkedFrom}`)
 console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 await hook('SessionStart', { source: 'startup' })
 // Like real Claude: a killed session still reports SessionEnd on its way out.

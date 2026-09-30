@@ -55,7 +55,11 @@ export function App() {
       setWorld((w) => list.reduce((acc, a) => applyEvent(acc, { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
     })
     const offs = [
-      window.aw.onAgentEvent((e) => setWorld((w) => applyEvent(w, e))),
+      window.aw.onAgentEvent((e) => {
+        setWorld((w) => applyEvent(w, e))
+        // The main process marks an agent started on its first real activity; mirror it so Clone unlocks.
+        if (e.type === 'activity' && !e.subagentId) setAgents((xs) => (xs.some((a) => a.id === e.agentId && !a.started) ? xs.map((a) => (a.id === e.agentId ? { ...a, started: true } : a)) : xs))
+      }),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
       window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
       window.aw.onAgentMessage((m) => {
@@ -145,6 +149,14 @@ export function App() {
       if (!folder) return
       const a = await window.aw.addAgent(folder, options, name)
       setHiring(false)
+      setAgents((xs) => [...xs, a])
+      setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
+      select(a.id)
+    })
+
+  const clone = (src: AgentRecord) =>
+    run(async () => {
+      const a = await window.aw.cloneAgent(src.id)
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
@@ -391,6 +403,9 @@ export function App() {
                   Commands
                 </button>
               )}
+              <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
+                Clone
+              </button>
               <button onClick={() => remove(current.id)}>Remove</button>
             </section>
           ) : (
