@@ -30,7 +30,8 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
   let lastReply: Extract<Row, { kind: 'assistant' }> | null = null
   let lastAt = 0
   const endTurn = () => {
-    if (lastReply && lastAt - turnStart > LONG_TURN_MS) lastReply.took = Math.round((lastAt - turnStart) / 1000)
+    // A reply before any message of yours (a session-start greeting) has no turn to time.
+    if (lastReply && turnStart > 0 && lastAt - turnStart > LONG_TURN_MS) lastReply.took = Math.round((lastAt - turnStart) / 1000)
     lastReply = null
   }
   for (const i of items) {

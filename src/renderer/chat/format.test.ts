@@ -45,6 +45,11 @@ describe('chat rows', () => {
     const took = rows.filter((r) => r.kind === 'assistant').map((r) => r.kind === 'assistant' && r.took)
     expect(took).toEqual([undefined, 45, undefined])
   })
+
+  it('does not time a greeting that comes before any message of yours', () => {
+    const rows = toRows([say('a0', t0, 'Environment ready.'), user('u1', t0 + 1000, 'hi'), say('a1', t0 + 2000, 'hello')], [])
+    expect(rows.filter((r) => r.kind === 'assistant').map((r) => r.kind === 'assistant' && r.took)).toEqual([undefined, undefined])
+  })
 })
 
 describe('searching and exporting', () => {

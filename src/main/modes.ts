@@ -9,6 +9,9 @@ export function readMode(screen: string): string | null {
   return name === 'manual' ? 'default' : name === 'accept edits' ? 'acceptEdits' : name === 'bypass permissions' ? 'bypassPermissions' : name.startsWith('don') ? 'dontAsk' : name
 }
 
+/** Claude says so in its footer when Auto is not offered (a plan or model without it). */
+export const autoUnavailable = (screen: string) => /auto mode unavailable/i.test(stripVTControlCharacters(screen))
+
 const SHIFT_TAB = '\x1b[Z'
 const SETTLE_MS = 350
 const MAX_PRESSES = 8

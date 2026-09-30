@@ -22,7 +22,7 @@ import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
 import { driveRewind, genericMenu, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
-import { readMode, setMode } from './modes'
+import { autoUnavailable, readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
@@ -856,6 +856,7 @@ async function main() {
       send('agent-event', { type: 'mode', agentId: id, sessionId: a.sessionId, mode })
       return
     }
+    if (mode === 'auto' && autoUnavailable(io.screen())) throw new Error('Claude says Auto mode is unavailable for this account or model.')
     if (!['auto', 'dontAsk'].includes(mode)) throw new Error('Claude did not switch to that mode. Try Shift+Tab in the Terminal tab.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
     a.options = { ...a.options, permissionMode: mode as PermissionMode }

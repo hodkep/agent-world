@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readMode, setMode } from './modes'
+import { autoUnavailable, readMode, setMode } from './modes'
 
 const foot = (line: string) => `────────\n  Agent World · Haiku 4.5\n  ${line}\n`
 
@@ -57,5 +57,12 @@ describe('switching to a permission mode', () => {
     let pressed = 0
     expect(await setMode({ screen: () => '❯ hi', write: () => void pressed++, sleep: async () => {} }, 'plan')).toBe(false)
     expect(pressed).toBe(0)
+  })
+})
+
+describe('auto mode availability', () => {
+  it('notices the footer saying Auto is unavailable', () => {
+    expect(autoUnavailable('  ⏸ manual mode on (shift+tab to cycle) · auto mode unavailable')).toBe(true)
+    expect(autoUnavailable('  ⏸ manual mode on')).toBe(false)
   })
 })
