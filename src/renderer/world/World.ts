@@ -6,6 +6,10 @@ import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
 import { GRASS, Street, drawGrounds, drawHiringSign } from './grounds'
+import { Dock, type DockHandlers, type DockItem } from './dock'
+import { PLANT, PowerPlant } from './power'
+import type { DockStatus } from '../../shared/api'
+import type { LimitView, UsageLimits } from '../../shared/usage'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -21,6 +25,11 @@ export interface AgentView {
   inbox: number
   /** Share of the context window used, from Claude's statusline feed; null until the first update. */
   contextPct: number | null
+}
+
+export type WorldHandlers = { plant: PlantHandlers; dock: DockHandlers }
+export interface PlantHandlers {
+  onHover: (v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void
 }
 
 interface Flight {
@@ -39,6 +48,8 @@ const POOLS: Record<Purpose, Spot[]> = {
   whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
+// Art pixels kept in view above the building (the power plant) and below it (the street with the delivery vans).
+const BAND = { north: 56, south: 70 }
 const MIN_ZOOM = 2
 const MAX_ZOOM = 8
 const DRAG_THRESHOLD = 4
@@ -54,6 +65,8 @@ export class OfficeWorld {
   private readonly inbox = new Map<string, number>()
   private readonly flights: Flight[] = []
   private street!: Street
+  private plant!: PowerPlant
+  private dock!: Dock
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
@@ -71,28 +84,32 @@ export class OfficeWorld {
 
   private constructor(
     private readonly app: Application,
+    private readonly host: HTMLElement,
     private readonly onSelect: (agentId: string) => void
   ) {}
 
-  static async create(el: HTMLElement, onSelect: (agentId: string) => void) {
+  static async create(el: HTMLElement, onSelect: (agentId: string) => void, handlers: WorldHandlers) {
     const app = new Application()
     await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
-    const w = new OfficeWorld(app, (id) => {
+    const w = new OfficeWorld(app, el, (id) => {
       // A pan that ends over a character is not a click on it.
       if (!w.dragged) onSelect(id)
     })
-    w.build()
+    w.build(handlers)
     // resizeTo only follows window resizes; the stage also changes size when the side panel toggles.
     w.observer = new ResizeObserver(() => app.resize())
     w.observer.observe(el)
     return w
   }
 
-  private build() {
+  private build(handlers: WorldHandlers) {
     const shadows = new Graphics()
     this.street = new Street(OFFICE.map)
-    this.root.addChild(drawGrounds(OFFICE.map), this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
+    // Vans park along the near kerb of the street, under the building.
+    this.dock = new Dock({ x: 20, y: OFFICE.map.h * TILE + 8 + 22 + 3, width: OFFICE.map.w * TILE - 40 }, handlers.dock, () => this.dragged)
+    this.root.addChild(drawGrounds(OFFICE.map), this.plant.view, this.sign, this.dock.view, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -145,21 +162,12 @@ export class OfficeWorld {
     stage.on('pointerupoutside', end)
   }
 
-  private bottomInset = 0
-
-  /** Room the page reserves over the bottom of the stage (its status bar); the office is framed above it. */
-  setBottomInset(px: number) {
-    if (px === this.bottomInset) return
-    this.bottomInset = px
-    this.layout()
-  }
-
   private deviceScale() {
     const dpr = this.app.renderer.resolution
     const W = this.app.screen.width * dpr
-    const H = (this.app.screen.height - this.bottomInset) * dpr
-    const fit = Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE))))
-    // Default shows the whole office as large as it fits; the wheel zooms past that when the user wants detail.
+    const H = this.app.screen.height * dpr
+    // Fit the building plus the strips of lawn and street that hold the power plant and the delivery vans.
+    const fit = Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE + BAND.north + BAND.south))))
     return this.zoom ?? fit
   }
 
@@ -170,15 +178,22 @@ export class OfficeWorld {
     const worldW = OFFICE.map.w * TILE
     const worldH = OFFICE.map.h * TILE
     const scale = this.deviceScale() / dpr
-    const availH = height - this.bottomInset
-    // Keep the building's centre on screen however far the user pans.
+    // The centre of building-plus-strips sits at the centre of the stage.
+    const focusY = (worldH + BAND.south - BAND.north) / 2
     const limitX = (worldW * scale) / 2
-    const limitY = (worldH * scale) / 2
+    const limitY = ((worldH + BAND.north + BAND.south) * scale) / 2
     this.pan.x = Math.max(-limitX, Math.min(limitX, this.pan.x))
     this.pan.y = Math.max(-limitY, Math.min(limitY, this.pan.y))
     this.root.scale.set(scale)
     this.root.x = Math.round(((width - worldW * scale) / 2 + this.pan.x) * dpr) / dpr
-    this.root.y = Math.round(((availH - worldH * scale) / 2 + this.pan.y) * dpr) / dpr
+    this.root.y = Math.round((height / 2 - focusY * scale + this.pan.y) * dpr) / dpr
+    this.publishAnchors()
+  }
+
+  /** Screen positions of things drawn on the canvas, so the page (and tests) can anchor to them. */
+  private publishAnchors() {
+    this.host.dataset.power = JSON.stringify(this.plant.center())
+    this.host.dataset.docks = JSON.stringify(this.dock.positions())
   }
 
   // Desk and intern seats are permanent homes; every other spot is borrowed while in use.
@@ -313,6 +328,8 @@ export class OfficeWorld {
     this.ambient.update(t)
     this.sign.visible = this.chars.size === 0
     this.street.update(dt, t)
+    this.plant.update(t)
+    this.dock.update(t)
   }
 
   // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.
@@ -351,6 +368,17 @@ export class OfficeWorld {
         g.rect(x, bottom - sheets, 6, 1).fill(0xffffff)
       }
     }
+  }
+
+  /** The subscription's remaining limits, shown as the tanks on the back lawn. */
+  setLimits(l: UsageLimits) {
+    this.plant.setLimits(l)
+  }
+
+  /** Unmerged work per agent, shown as delivery vans on the street. */
+  setDock(list: DockStatus[]) {
+    this.dock.setItems(list.map((d): DockItem => ({ ...d, color: paletteFor(d.agentId, 'senior').c })))
+    this.publishAnchors()
   }
 
   /** An envelope flies from sender to recipient; it's how one agent visibly asks another for something. */

@@ -23,15 +23,12 @@ test('bring back an earlier conversation from the folder as a new agent', async 
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
-    // Past conversations wait in the garage along the bottom of the office.
-    const car = page.getByRole('button', { name: /Add pagination to the orders list/ }).and(page.locator('.car'))
-    await expect(car).toBeVisible()
-    await car.click()
-    await expect(page.locator('.term-host:visible')).toContainText(`session ${past}`, { timeout: 10_000 })
-    // Now running here: its car is lit, and clicking it goes to the agent instead of starting a second one.
-    await expect(page.locator('.car.lit')).toHaveCount(1)
     await page.getByRole('button', { name: 'History' }).click()
-    await expect(page.locator('.history').getByRole('button', { name: /Add pagination/ })).toBeDisabled()
+    await page.getByRole('button', { name: /Add pagination to the orders list/ }).click()
+    await expect(page.locator('.term-host:visible')).toContainText(`session ${past}`, { timeout: 10_000 })
+    // Now running here, so it can't be started twice.
+    await page.getByRole('button', { name: 'History' }).click()
+    await expect(page.getByRole('button', { name: /Add pagination/ })).toBeDisabled()
   } finally {
     await shutdown()
   }

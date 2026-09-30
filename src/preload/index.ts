@@ -38,6 +38,8 @@ const api: AwApi = {
   onTrustPrompt: on('trust-prompt'),
   onAgentMessage: on('agent-message'),
   onAgentStats: on('agent-stats'),
+  getDock: () => ipcRenderer.invoke('get-dock'),
+  onDock: on('dock'),
   getUsage: () => ipcRenderer.invoke('get-usage'),
   onUsage: on('usage'),
   onBudgetAlert: on('budget-alert'),

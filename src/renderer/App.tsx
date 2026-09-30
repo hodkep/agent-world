@@ -3,13 +3,13 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
-import type { PastSession, Workspaces } from '../shared/api'
+import type { DockStatus, Workspaces } from '../shared/api'
+import type { DockItem } from './world/dock'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
-import { type UsageLimits, noLimits } from '../shared/usage'
+import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { Welcome } from './panel/Welcome'
 import { ToolsView } from './panel/ToolsView'
-import { Hud } from './panel/Hud'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
@@ -72,9 +72,13 @@ export function App() {
   const needsRef = useRef<(id: string) => Need[]>(() => [])
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
-  const [past, setPast] = useState<PastSession[]>([])
   const [limits, setLimits] = useState<UsageLimits>(noLimits)
-  const hud = useRef<HTMLDivElement>(null)
+  const plantHover = useRef<(v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void>(() => {})
+  const dockHover = useRef<(d: DockItem | null, x: number, y: number) => void>(() => {})
+  const dockOpen = useRef<(id: string) => void>(() => {})
+  const [dockTip, setDockTip] = useState<{ item: DockItem; x: number; y: number } | null>(null)
+  const [dock, setDock] = useState<DockStatus[]>([])
+  const [tip, setTip] = useState<{ five: LimitView; week: LimitView; x: number; y: number } | null>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
   const seenFlights = useRef(new Set<string>())
 
@@ -123,7 +127,10 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, select).then((created) => {
+    void OfficeWorld.create(stage.current!, select, {
+      plant: { onHover: (v, x, y) => plantHover.current(v, x, y) },
+      dock: { onHover: (d, x, y) => dockHover.current(d, x, y), onOpen: (id) => dockOpen.current(id) }
+    }).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
       setOfficeReady(true)
@@ -216,20 +223,19 @@ export function App() {
       setOpenFile({ path: 'CLAUDE.md' })
     })
 
+  plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
+  dockHover.current = (item, x, y) => setDockTip(item ? { item, x, y } : null)
+  // A van is a branch with work to merge: take the user to that agent's changes.
+  dockOpen.current = (id) => {
+    select(id)
+    setView('code')
+  }
   useEffect(() => {
-    if (!folder) return setPast([])
-    void window.aw.listHistory(folder).then(setPast, () => setPast([]))
-  }, [folder, agents.length])
-  // The office is framed above the bottom strip.
-  useEffect(() => {
-    const el = hud.current
-    if (!el || !officeReady) return
-    const fit = () => office.current?.setBottomInset(el.offsetHeight)
-    fit()
-    const ro = new ResizeObserver(fit)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [officeReady])
+    void window.aw.getDock().then(setDock)
+    return window.aw.onDock(setDock)
+  }, [])
+  useEffect(() => office.current?.setDock(dock), [dock, officeReady])
+  useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
     return window.aw.onUsage(setLimits)
@@ -315,6 +321,7 @@ export function App() {
         <button onClick={() => setHistory((h) => !h)} disabled={!folder} aria-expanded={history} title="Bring back an earlier conversation from this folder">
           History
         </button>
+        <LimitChips limits={limits} />
         {officeCost > 0 && (
           <span className="office-cost" title="Spent by all agents this session">
             ${officeCost.toFixed(2)}
@@ -328,15 +335,21 @@ export function App() {
       <main>
         <div className="stage-wrap">
           <div className="stage" ref={stage} />
-          <div ref={hud}>
-            <Hud
-              past={past}
-              limits={limits}
-              onResume={(id) => void resume(id)}
-              onOpenAgent={(id) => select(id)}
-              onMore={() => setHistory(true)}
-            />
-          </div>
+          {dockTip && (
+            <div className="tip" style={{ left: dockTip.x + 14, top: dockTip.y + 14 }} role="tooltip">
+              <b>{dockTip.item.name}'s delivery</b>
+              <span>
+                {dockTip.item.ahead} commit{dockTip.item.ahead === 1 ? '' : 's'} on <code>{dockTip.item.branch}</code> not in {dockTip.item.base} yet
+              </span>
+              {dockTip.item.dirty > 0 && <span>{dockTip.item.dirty} changed file{dockTip.item.dirty === 1 ? '' : 's'} not committed</span>}
+              <span className="tip-note">Click to review the changes and merge.</span>
+            </div>
+          )}
+          {tip && (
+            <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
+              <PlantTip five={tip.five} week={tip.week} />
+            </div>
+          )}
         </div>
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
@@ -546,4 +559,38 @@ function useNarrow() {
     return () => m.removeEventListener('change', on)
   }, [])
   return narrow
+}
+
+const window_ = (label: string, v: LimitView) =>
+  v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
+
+function PlantTip({ five, week }: { five: LimitView; week: LimitView }) {
+  return (
+    <>
+      <b>Your Claude limits</b>
+      <span>{window_('5-hour', five)}</span>
+      <span>{window_('Weekly', week)}</span>
+      <span className="tip-note">Shared by every agent signed in to your account.</span>
+    </>
+  )
+}
+
+/** The same two windows as the tanks, as text in the header: readable by keyboard and screen reader, and always on screen. */
+function LimitChips({ limits }: { limits: UsageLimits }) {
+  const now = Date.now()
+  const chips = [
+    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now) },
+    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now) }
+  ].filter((c) => c.v.pct !== null)
+  if (chips.length === 0) return null
+  return (
+    <span className="limit-chips" role="group" aria-label="Claude usage limits">
+      {chips.map((c) => (
+        <span key={c.key} className={`chip level-${c.v.level}`} role="status" aria-label={`${c.name} limit: ${Math.round(100 - c.v.pct!)}% left, resets in ${c.v.reset}`} title={`${c.name} limit · resets in ${c.v.reset}`}>
+          <span className="chip-dot" aria-hidden="true" />
+          {c.key} {Math.round(100 - c.v.pct!)}%
+        </span>
+      ))}
+    </span>
+  )
 }

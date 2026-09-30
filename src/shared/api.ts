@@ -47,6 +47,16 @@ export interface Workspaces {
   items: WorkspaceInfo[]
 }
 
+/** One agent's unmerged work, as the delivery vans show it. */
+export interface DockStatus {
+  agentId: string
+  name: string
+  branch: string
+  base: string
+  ahead: number
+  dirty: number
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -101,6 +111,8 @@ export interface AwApi {
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   getUsage(): Promise<UsageLimits>
+  getDock(): Promise<DockStatus[]>
+  onDock(cb: (d: DockStatus[]) => void): () => void
   onUsage(cb: (u: UsageLimits) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */

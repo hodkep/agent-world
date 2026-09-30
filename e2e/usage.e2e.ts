@@ -11,14 +11,18 @@ test('the bottom strip shows the subscription limits once an agent reports them'
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    await expect(page.locator('.limits')).toContainText('first reply')
+    await expect(page.getByRole('group', { name: 'Claude usage limits' })).toHaveCount(0)
     await hire(page)
-    const five = page.getByRole('meter', { name: '5-hour' })
-    await expect(five).toHaveAttribute('aria-valuenow', '38', { timeout: 15_000 })
-    await expect(five).toContainText('resets in 2h')
-    const week = page.getByRole('meter', { name: 'Weekly' })
-    await expect(week).toHaveAttribute('aria-valuenow', '21')
-    await expect(week).toContainText('resets in 3d')
+    // The header chips say what is left (the fake reports 38% and 21% used).
+    await expect(page.getByRole('status', { name: /5-hour limit: 62% left, resets in 2h/ })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('status', { name: /weekly limit: 79% left, resets in 3d/ })).toBeVisible()
+    // Hovering the tanks on the back lawn explains them.
+    const stage = page.locator('.stage')
+    const box = (await stage.boundingBox())!
+    const at = JSON.parse((await stage.getAttribute('data-power'))!) as { x: number; y: number }
+    await page.mouse.move(box.x + at.x, box.y + at.y)
+    await expect(page.getByRole('tooltip')).toContainText('5-hour: 62% left')
+    await expect(page.getByRole('tooltip')).toContainText('Weekly: 79% left')
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'usage.png') })
   } finally {
     await shutdown()

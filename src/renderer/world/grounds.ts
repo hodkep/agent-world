@@ -180,8 +180,9 @@ export class Street {
   }
 
   private newCar(x: number): Vehicle {
-    const lane = this.rand() < 0.5 ? 0 : 1
-    return { x, lane, speed: (0.03 + this.rand() * 0.03) * (lane ? -1 : 1), color: CAR_COLORS[Math.floor(this.rand() * CAR_COLORS.length)]! }
+    // One lane of traffic: the near kerb is where the delivery vans park.
+    const lane = 1
+    return { x, lane, speed: -(0.03 + this.rand() * 0.03), color: CAR_COLORS[Math.floor(this.rand() * CAR_COLORS.length)]! }
   }
 
   private newWalker(x: number): Walker {
