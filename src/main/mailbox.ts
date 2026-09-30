@@ -86,10 +86,10 @@ export class Mailbox {
 
   /**
    * The screen says the agent is idle (input box up, no menu, nothing drawn for a while) although no
-   * end-of-turn hook arrived, e.g. after Esc. Only releases mail that is actually waiting.
+   * end-of-turn hook arrived, e.g. after Esc. Delivers any mail that was waiting.
    */
   looksIdle(agentId: string) {
-    if (this.state.get(agentId) === 'busy' && this.pending(agentId) > 0) this.turnEnded(agentId)
+    if (this.state.get(agentId) === 'busy') this.turnEnded(agentId)
   }
 
   busy(agentId: string) {

@@ -118,7 +118,7 @@ if (process.env.FAKE_CHAT) {
   let typed = ''
   const MODES = ['default', 'acceptEdits', 'plan']
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
-  const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[22;1H──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
+  const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
   drawFoot()
   process.stdin.on('data', async (d) => {
@@ -146,6 +146,11 @@ if (process.env.FAKE_CHAT) {
     for (const p of paths) if (/\.png$/i.test(p)) blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: readFileSync(p).toString('base64') } })
     transcript({ type: 'user', message: { role: 'user', content: paths.length ? blocks : prompt } })
     await hook('UserPromptSubmit', { prompt })
+    // FAKE_HANG=1: the turn is interrupted (Esc) and Claude, like the real one, never sends a Stop hook.
+    if (process.env.FAKE_HANG) {
+      await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x' } })
+      return void transcript({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+    }
     const bash = { command: 'ls src', description: 'List the source folder' }
     await hook('PreToolUse', { tool_name: 'Bash', tool_input: bash })
     const id = use('Bash', bash)

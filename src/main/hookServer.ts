@@ -67,6 +67,9 @@ export async function startHookServer(o: Options) {
         JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: d } } })
       )
       else res.end()
+      // Claude reports nothing while an allowed tool runs, so the office would keep showing "waiting on you".
+      if (d === 'allow') o.onEvent({ type: 'activity', agentId, sessionId, ...(subagentId && { subagentId }), activity: activityFor(tool), tool, detail })
+      else if (d === 'deny') o.onEvent({ type: 'activity', agentId, sessionId, ...(subagentId && { subagentId }), activity: 'thinking' })
     }
     const timer = setTimeout(() => settle(null), o.permissionTimeoutMs)
     const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id : undefined

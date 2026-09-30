@@ -65,6 +65,20 @@ describe('hook server', () => {
     })
   })
 
+  it('goes back to working on the tool once you allow it (Claude sends no event while the tool runs), and to thinking on a deny', async () => {
+    const { server, asks, events } = await setup()
+    const pending = post(server.url, permission)
+    await until(() => asks.length === 1)
+    server.decide(asks[0]!.id, 'allow')
+    await pending
+    expect(events.at(-1)).toMatchObject({ activity: 'running', tool: 'Bash' })
+    const second = post(server.url, permission)
+    await until(() => asks.length === 2)
+    server.decide(asks[1]!.id, 'deny')
+    await second
+    expect(events.at(-1)).toMatchObject({ activity: 'thinking' })
+  })
+
   it('passes a deny decision through', async () => {
     const { server, asks } = await setup()
     const pending = post(server.url, permission)

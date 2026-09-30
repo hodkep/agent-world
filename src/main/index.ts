@@ -450,12 +450,20 @@ async function main() {
     onStatus: onStats
   })
   hooksRef = hooks
-  // Mail waiting for an agent that looks idle (input box, no menu, quiet screen) but never sent Stop, e.g. after Esc.
+  // An agent that looks idle (input box showing, no menu, screen quiet for a few seconds) but never sent a Stop hook,
+  // as after Esc: Claude does not report an interrupted turn. Call it idle, so the office, the chat and any waiting mail move on.
+  const BUSY = new Set<Activity>(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
   const idleCheck = setInterval(() => {
     for (const a of agents) {
-      if (!mailbox.pending(a.id) || !sessions.has(a.id)) continue
+      if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
-      if (Date.now() - (lastOutput.get(a.id) ?? 0) > QUIET_MS && inputReady(text) && !anyMenu(text)) mailbox.looksIdle(a.id)
+      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= QUIET_MS || !inputReady(text) || anyMenu(text)) continue
+      mailbox.looksIdle(a.id)
+      const act = lastActivity.get(a.id)
+      if (act && BUSY.has(act)) {
+        lastActivity.set(a.id, 'idle')
+        send('agent-event', { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' })
+      }
     }
   }, 1000)
   const mcp = await startMcpServer({

@@ -122,3 +122,37 @@ test('attach and paste pictures, run a shell command with !, switch permission m
     await shutdown()
   }
 })
+
+test('after Esc interrupts a turn (Claude sends no Stop hook) the chat stops saying it is working and sends normally again', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-chat3-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_HANG: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('do something long')
+    await box.press('Enter')
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: 10_000 })
+    // While it works, a typed message can wait its turn or be sent right now.
+    await box.fill('actually, stop and do this instead')
+    await expect(page.getByRole('button', { name: 'Send now' })).toBeVisible()
+    await box.fill('')
+    // The screen goes quiet with the input box showing: the turn is over.
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('log').locator('.msg.note')).toContainText('Interrupted')
+
+    // A new message now goes straight in, not into a queue.
+    await box.fill('try again')
+    await box.press('Enter')
+    await expect(page.getByRole('log').locator('.msg.user .msg-meta')).not.toContainText('queued')
+  } finally {
+    await shutdown()
+  }
+})

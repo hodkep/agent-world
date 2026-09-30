@@ -535,6 +535,18 @@ function Composer({
               Stop
             </button>
           )}
+          {busy && text.trim() && (
+            <button
+              onClick={() => {
+                // Interrupt the current step, give Claude a moment to stop, then send.
+                onStop()
+                setTimeout(() => void submit(), 700)
+              }}
+              title="Interrupt what it is doing and send this now"
+            >
+              Send now
+            </button>
+          )}
           <button className="primary" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0}>
             Send
           </button>
