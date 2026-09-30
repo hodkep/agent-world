@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { answerMenu, answerTrust, anyMenu, planMenu, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, anyMenu, looksWorking, planMenu, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -111,5 +111,20 @@ describe('any open menu', () => {
   it('is not the input box', () => {
     expect(anyMenu('──────\n❯ Try "fix lint"\n──────')).toBe(false)
     expect(anyMenu('──────\n❯ 1 thing to do\n──────')).toBe(false)
+  })
+})
+
+describe('is Claude visibly working?', () => {
+  const idle = '❯ \n───────\n  Agent World · Haiku 4.5\n  ⏵⏵ accept edits on (shift+tab to cycle)\n'
+  it('sees the spinner line, with or without the tokens and the hooks note', () => {
+    expect(looksWorking(`⏺ Bash(sleep 5)\n✽ Thundering… (3s · ↓ 120 tokens)\n${idle}`)).toBe(true)
+    expect(looksWorking(`· Doing… (1s · thinking)\n${idle}`)).toBe(true)
+    expect(looksWorking(`✻ Churning… (running PreToolUse hooks… 0/4 · 4s · ↓ 113 tokens)\n${idle}`)).toBe(true)
+    expect(looksWorking(`Working (esc to interrupt)\n${idle}`)).toBe(true)
+  })
+
+  it('is false for an idle screen, even one that has just finished a turn', () => {
+    expect(looksWorking(idle)).toBe(false)
+    expect(looksWorking(`⏺ Done.\n✻ Crunched for 7s · done 2:47 PM\n${idle}`)).toBe(false)
   })
 })

@@ -82,6 +82,15 @@ export function ChatView({
   const [away, setAway] = useState(false)
   const session = useRef('')
   const busy = BUSY.includes(activity)
+  const [stopping, setStopping] = useState(false)
+  useEffect(() => {
+    if (!busy) setStopping(false)
+  }, [busy])
+  useEffect(() => {
+    if (!stopping) return
+    const t = setTimeout(() => setStopping(false), 8000)
+    return () => clearTimeout(t)
+  }, [stopping])
 
   useEffect(() => {
     let alive = true
@@ -193,8 +202,8 @@ export function ChatView({
               <i />
               <i />
             </span>
-            {agentName} {VERB[activity]}
-            {detail ? <span className="live-detail"> · {detail}</span> : null}
+            {stopping ? `Stopping ${agentName}…` : `${agentName} ${VERB[activity]}`}
+            {!stopping && detail ? <span className="live-detail"> · {detail}</span> : null}
           </div>
         )}
       </div>
@@ -232,6 +241,8 @@ export function ChatView({
         onSend={send}
         onWake={onWake}
         onStop={() => void window.aw.chatInterrupt(agentId)}
+        stopping={stopping}
+        onStopping={setStopping}
         onError={setError}
         onImage={setZoomed}
       />
@@ -319,6 +330,8 @@ function Composer({
   onSend,
   onWake,
   onStop,
+  stopping,
+  onStopping,
   onError,
   onImage
 }: {
@@ -333,6 +346,8 @@ function Composer({
   onSend: (text: string) => Promise<void>
   onWake: () => void
   onStop: () => void
+  stopping: boolean
+  onStopping: (v: boolean) => void
   onError: (msg: string) => void
   onImage: (src: string) => void
 }) {
@@ -512,7 +527,7 @@ function Composer({
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
               void submit()
-            } else if (e.key === 'Escape' && busy) onStop()
+            } else if (e.key === 'Escape' && busy) (onStopping(true), onStop())
             else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
             else if (e.key === 'ArrowUp' && !text && sent.current.length) {
               e.preventDefault()
@@ -531,14 +546,15 @@ function Composer({
             Attach
           </button>
           {busy && (
-            <button onClick={onStop} title="Interrupt (Esc)">
-              Stop
+            <button onClick={() => (onStopping(true), onStop())} disabled={stopping} title="Interrupt (Esc)">
+              {stopping ? 'Stopping…' : 'Stop'}
             </button>
           )}
           {busy && text.trim() && (
             <button
               onClick={() => {
                 // Interrupt the current step, give Claude a moment to stop, then send.
+                onStopping(true)
                 onStop()
                 setTimeout(() => void submit(), 700)
               }}

@@ -93,3 +93,12 @@ const trustMenu: Menu = (screen) => {
 export function answerTrust(io: TerminalIO, trust: boolean) {
   return answerMenu(io, trustMenu, trust ? 1 : 0)
 }
+
+/**
+ * Claude shows a spinner line while it works ("✽ Thundering… (3s · ↓ 120 tokens)", or "(running PreToolUse hooks…)"),
+ * and redraws it every second. When none is on the screen, nothing is running.
+ */
+export function looksWorking(screen: string): boolean {
+  const text = stripVTControlCharacters(screen)
+  return /\S…\s*\(\d+s?\b/.test(text) || /\(running [^)\n]*hooks/i.test(text) || /esc to interrupt/i.test(text)
+}

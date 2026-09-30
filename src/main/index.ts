@@ -28,7 +28,7 @@ import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspace
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { driveAnswers, parseAsk } from './askMenu'
-import { answerMenu, answerTrust, anyMenu, inputReady, planMenu, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
@@ -71,6 +71,8 @@ const lastOutput = new Map<string, number>()
 // Agents whose terminal showed a menu while a permission card was open for them.
 const menuSeen = new Set<string>()
 const QUIET_MS = 3000
+// With no spinner on screen and the input box showing, a short quiet is enough to call an agent idle.
+const SETTLED_MS = 700
 const MENU_RETRY_MS = 1000
 const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
@@ -457,7 +459,7 @@ async function main() {
     for (const a of agents) {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
-      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= QUIET_MS || !inputReady(text) || anyMenu(text)) continue
+      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !inputReady(text) || anyMenu(text) || looksWorking(text)) continue
       mailbox.looksIdle(a.id)
       const act = lastActivity.get(a.id)
       if (act && BUSY.has(act)) {
@@ -465,7 +467,7 @@ async function main() {
         send('agent-event', { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' })
       }
     }
-  }, 1000)
+  }, 300)
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
@@ -526,7 +528,17 @@ async function main() {
     sessions.get(id)?.write('\x1b[Z')
   })
   // Esc is how Claude's own terminal interrupts a running turn.
-  ipcMain.handle('chat:interrupt', (_, id: string) => void sessions.get(id)?.write('\x1b'))
+  // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
+  // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
+  ipcMain.handle('chat:interrupt', (_, id: string) => {
+    const p = sessions.get(id)
+    if (!p) return
+    p.write('\x1b')
+    for (const [delay, keys] of [[1200, '\x1b'], [2400, '\x1b'], [3600, '\x03']] as const)
+      setTimeout(() => {
+        if (sessions.get(id) === p && looksWorking(screens.get(id)?.text() ?? '')) p.write(keys)
+      }, delay)
+  })
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.
   ipcMain.handle('open-external', (_, url: string) => {
