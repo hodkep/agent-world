@@ -16,6 +16,7 @@ import { PreviewView } from './panel/PreviewView'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
+import { Finish } from './panel/Finish'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -85,6 +86,7 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [finishing, setFinishing] = useState<string | null>(null)
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
@@ -408,6 +410,21 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
+      {finishing && agents.find((a) => a.id === finishing) && (
+        <Finish
+          agentId={finishing}
+          agentName={agents.find((a) => a.id === finishing)!.name}
+          onClose={() => setFinishing(null)}
+          onDone={(removed) => {
+            const id = finishing
+            setFinishing(null)
+            if (removed) {
+              setAgents((xs) => xs.filter((a) => a.id !== id))
+              setSelected((s) => (s === id ? null : s))
+            }
+          }}
+        />
+      )}
       {settings && prefs && <Settings prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
@@ -680,6 +697,11 @@ export function App() {
                     </div>
                   )}
                 </span>
+              )}
+              {current.branch && (
+                <button onClick={() => setFinishing(current.id)} title="Check the work is ready, then merge it into the base branch">
+                  Finish
+                </button>
               )}
               <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
                 Clone

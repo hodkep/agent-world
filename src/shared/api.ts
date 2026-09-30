@@ -116,6 +116,10 @@ export interface AwApi {
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
+  /** Whether an agent's branch is ready to land on its base branch. */
+  finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>
+  /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
+  finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean }): Promise<{ base: string; removed: boolean }>
   /** Write a short record of this conversation to the notes folder and show it; returns the file. */
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */

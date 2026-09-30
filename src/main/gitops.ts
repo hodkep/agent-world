@@ -79,17 +79,50 @@ export async function discardFile(cwd: string, path: string) {
  * Merge the agent's branch into `base` in the user's own checkout. Refuses when that checkout is on another
  * branch or has uncommitted work, and backs out completely on conflict, so the user's tree is never left half-merged.
  */
-export async function mergeInto(repo: string, branch: string, base: string) {
+export async function mergeInto(repo: string, branch: string, base: string, o: { squash?: boolean; message?: string } = {}) {
   const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
   if (current !== base) throw new Error(`${base} is not checked out in ${repo} (it is on ${current}); switch to ${base} first.`)
   if (await git(repo, 'status', '--porcelain')) throw new Error(`${repo} has uncommitted changes; commit or stash them before merging.`)
   try {
-    await git(repo, 'merge', '--no-ff', '--no-edit', branch)
+    if (o.squash) {
+      await git(repo, 'merge', '--squash', branch)
+      await git(repo, 'commit', '-m', o.message?.trim() || `Merge ${branch}`)
+    } else await git(repo, 'merge', '--no-ff', '--no-edit', branch)
   } catch {
     const conflicted = lines(await git(repo, 'diff', '--name-only', '--diff-filter=U')).join(', ')
-    await git(repo, 'merge', '--abort')
+    // A squash leaves no MERGE_HEAD to abort; --merge puts the tree back to how it was.
+    await git(repo, 'merge', '--abort').catch(() => git(repo, 'reset', '--merge'))
     throw new Error(`Merge conflict in ${conflicted || 'some files'}; the merge was aborted and ${base} is unchanged.`)
   }
+}
+
+export interface Readiness {
+  /** Commits on the agent's branch that are not on the base branch. */
+  ahead: number
+  /** Files with uncommitted changes in the agent's worktree. */
+  uncommitted: number
+  /** The main checkout is on the base branch with nothing uncommitted, so a merge can go ahead. */
+  baseReady: boolean
+  /** Files that would conflict if merged now. */
+  conflicts: string[]
+}
+
+/** What stands between the agent's work and the base branch, without changing anything. */
+export async function finishReadiness(repo: string, cwd: string, branch: string, base: string): Promise<Readiness> {
+  const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
+  const uncommitted = lines(await git(cwd, 'status', '--porcelain')).length
+  const baseReady = (await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')) === base && !(await git(repo, 'status', '--porcelain'))
+  let conflicts: string[] = []
+  if (ahead > 0) {
+    try {
+      await git(repo, 'merge-tree', '--write-tree', base, branch)
+    } catch (e) {
+      // merge-tree exits 1 with the conflicted paths listed after the tree id.
+      const out = String((e as { stdout?: string }).stdout ?? '')
+      conflicts = [...new Set([...out.matchAll(/^\d+ [0-9a-f]+ [123]\t(.+)$/gm)].map((m) => m[1]!))]
+    }
+  }
+  return { ahead, uncommitted, baseReady, conflicts }
 }
 
 export async function pushBranch(cwd: string, branch: string) {

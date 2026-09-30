@@ -598,3 +598,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 
 .settings label.row-label { flex-direction: row; align-items: center; justify-content: space-between; }
 .settings textarea { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; resize: vertical; }
+
+.finish .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.finish .checks .ok span { color: var(--ok, #5f9e5f); }
+.finish .checks .no span { color: #ff8a8a; }

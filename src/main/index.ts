@@ -39,7 +39,7 @@ import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, t
 import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
-import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -842,15 +842,18 @@ async function main() {
     const a = byId(id)
     if (a) spawn(a, env)
   })
-  ipcMain.handle('remove-agent', async (_, id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult> => {
+  const removeAgent = async (id: string, mode?: 'discard' | 'keep-worktree', merged = false): Promise<RemoveResult> => {
     const a = byId(id)
     if (!a) return { ok: true }
     sessions.get(id)?.kill()
-    if (a.branch && mode !== 'keep-worktree') {
+    // An agent that took over another's worktree leaves it in place while the other still uses it.
+    const shared = agents.some((x) => x.id !== id && x.cwd === a.cwd)
+    if (a.branch && mode !== 'keep-worktree' && !shared) {
       try {
         await removeWorktree({ repoPath: a.repoPath, path: a.cwd, force: mode === 'discard' })
         // Only a branch with nothing unmerged goes with it; -d refuses otherwise, and the commits stay recoverable.
-        await git(a.repoPath, 'branch', '-d', a.branch).catch(() => {})
+        // After a squash the branch is not an ancestor of the base though its work has landed, so it needs -D.
+        await git(a.repoPath, 'branch', merged ? '-D' : '-d', a.branch).catch(() => {})
       } catch (err) {
         if (err instanceof DirtyWorktreeError) return { ok: false, dirty: err.status }
         throw err
@@ -864,7 +867,8 @@ async function main() {
     chats.delete(id)
     persist()
     return { ok: true }
-  })
+  }
+  ipcMain.handle('remove-agent', (_, id: string, mode?: 'discard' | 'keep-worktree') => removeAgent(id, mode))
   // Code operations act on one agent's worktree; every handler resolves the agent first.
   const worktreeOf = async (id: string) => {
     const a = byId(id)
@@ -890,6 +894,20 @@ async function main() {
     const { a, base } = await worktreeOf(id)
     await mergeInto(a.repoPath, a.branch!, base)
     return base
+  })
+  // The last steps for a piece of work: is it ready, then land it on the base branch and, if asked, retire the agent.
+  ipcMain.handle('finish:status', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    return { branch: a.branch!, base, ...(await finishReadiness(a.repoPath, a.cwd, a.branch!, base)) }
+  })
+  ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean }) => {
+    const { a, base } = await worktreeOf(id)
+    const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
+    if (r.uncommitted) throw new Error(`${a.name} has ${r.uncommitted} uncommitted file(s); commit them first (Code tab).`)
+    if (!r.ahead) throw new Error(`${a.branch} has nothing that ${base} does not already have.`)
+    await mergeInto(a.repoPath, a.branch!, base, { squash: o.squash, message: o.message })
+    if (o.cleanup) return { base, removed: (await removeAgent(id, undefined, true)).ok }
+    return { base, removed: false }
   })
   ipcMain.handle('code:pr', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)

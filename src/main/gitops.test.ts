@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { changes, commitAll, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { changes, commitAll, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -120,6 +120,41 @@ describe('landing the work', () => {
     await expect(mergeInto(repo, wt.branch, 'main')).rejects.toThrow(/conflict.*a\.ts/i)
     expect(git(repo, 'status', '--porcelain')).toBe('')
     expect(readFileSync(join(repo, 'a.ts'), 'utf8')).toBe('from user\n')
+  })
+
+  it('squashes the agent\'s commits into one on the base branch', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'one\ntwo\n')
+    await commitAll(wt.path, 'step 1')
+    writeFileSync(join(wt.path, 'a.ts'), 'one\ntwo\nthree\n')
+    await commitAll(wt.path, 'step 2')
+    await mergeInto(repo, wt.branch, 'main', { squash: true, message: 'Add lines' })
+    expect(git(repo, 'log', '--format=%s', 'main').split('\n')).toEqual(['Add lines', 'init'])
+    expect(readFileSync(join(repo, 'a.ts'), 'utf8')).toBe('one\ntwo\nthree\n')
+  })
+
+  it('backs out of a conflicting squash too', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'from ada\n')
+    await commitAll(wt.path, 'ada work')
+    writeFileSync(join(repo, 'a.ts'), 'from user\n')
+    git(repo, 'commit', '-qam', 'user work')
+    await expect(mergeInto(repo, wt.branch, 'main', { squash: true, message: 'x' })).rejects.toThrow(/conflict.*a\.ts/i)
+    expect(git(repo, 'status', '--porcelain')).toBe('')
+  })
+
+  it('checks whether the work is ready to land, and says what is in the way', async () => {
+    let r = await finishReadiness(repo, wt.path, wt.branch, 'main')
+    expect(r).toMatchObject({ ahead: 0, uncommitted: 0, baseReady: true, conflicts: [] })
+    writeFileSync(join(wt.path, 'a.ts'), 'from ada\n')
+    r = await finishReadiness(repo, wt.path, wt.branch, 'main')
+    expect(r.uncommitted).toBe(1)
+    await commitAll(wt.path, 'ada work')
+    writeFileSync(join(repo, 'a.ts'), 'from user\n')
+    git(repo, 'commit', '-qam', 'user work')
+    r = await finishReadiness(repo, wt.path, wt.branch, 'main')
+    expect(r).toMatchObject({ ahead: 1, uncommitted: 0 })
+    expect(r.conflicts).toEqual(['a.ts'])
+    git(repo, 'checkout', '-qb', 'other')
+    expect((await finishReadiness(repo, wt.path, wt.branch, 'main')).baseReady).toBe(false)
   })
 
   it('pushes the agent branch to the remote', async () => {
