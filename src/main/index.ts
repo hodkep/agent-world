@@ -19,6 +19,7 @@ import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { recentlyRunning, writeRunning } from './resume'
 import { readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
@@ -180,6 +181,13 @@ function followChat(a: AgentRecord) {
   if (now) send('chat-reset', a.id, a.sessionId)
   chat.tail.start()
 }
+// The permission mode last seen in each agent's footer: hooks only say it changed at their next event, the screen says it at once.
+const seenMode = new Map<string, string>()
+const RUNNING_FILE = join(HOME, 'running.json')
+let quitting = false
+const noteRunning = () => {
+  if (!quitting) writeRunning(RUNNING_FILE, [...sessions.keys()], Date.now())
+}
 const pendingPermissions = new Set<string>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
 const questionOpen = new Set<string>()
@@ -331,6 +339,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
   sessions.set(a.id, p)
+  noteRunning()
   p.onData((d) => {
     const b = buffers.get(a.id) ?? { text: '', end: 0 }
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
@@ -345,6 +354,11 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         if (anyMenu(text)) menuSeen.add(a.id)
         else if (menuSeen.delete(a.id)) hooksRef.dismiss(a.id)
       } else menuSeen.delete(a.id)
+      const mode = readMode(text)
+      if (mode && mode !== seenMode.get(a.id)) {
+        seenMode.set(a.id, mode)
+        send('agent-event', { type: 'mode', agentId: a.id, sessionId: a.sessionId, mode })
+      }
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
       if (inputReady(text)) mailbox.started(a.id)
       const trust = trustPrompt(text)
@@ -379,6 +393,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
   p.onExit(() => {
     sessions.delete(a.id)
+    noteRunning()
     if (restarting.delete(a.id)) {
       screens.get(a.id)?.dispose()
       screens.delete(a.id)
@@ -721,7 +736,11 @@ async function main() {
       sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
     }
     if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
-    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && readMode(io.screen()) && (await setMode(io, mode))) return
+    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && readMode(io.screen()) && (await setMode(io, mode))) {
+      seenMode.set(id, mode)
+      send('agent-event', { type: 'mode', agentId: id, sessionId: a.sessionId, mode })
+      return
+    }
     if (!['auto', 'dontAsk'].includes(mode)) throw new Error('Claude did not switch to that mode. Try Shift+Tab in the Terminal tab.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
     a.options = { ...a.options, permissionMode: mode as PermissionMode }
@@ -821,7 +840,17 @@ async function main() {
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else win.loadFile(join(__dirname, '../renderer/index.html'))
 
+  // A restart within seconds (a code change in dev, a crash) brings back the agents that were running, so nothing
+  // you had open goes to sleep. A restart after a longer gap starts asleep, as before.
+  for (const id of recentlyRunning(RUNNING_FILE, Date.now(), 20_000)) {
+    const a = byId(id)
+    if (a && !sessions.has(id)) spawn(a, env)
+  }
+  const heartbeat = setInterval(noteRunning, 2000)
+
   app.on('before-quit', () => {
+    quitting = true
+    clearInterval(heartbeat)
     for (const p of sessions.values()) p.kill()
     clearInterval(idleCheck)
     hooks.close()

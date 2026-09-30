@@ -30,6 +30,8 @@ test('the project you worked in is saved, reopened on the next launch, and switc
     page = await second.app.firstWindow()
     await expect(page.locator('.ws-button')).toContainText('shop-api')
     await expect(page.locator('.ws-button')).toContainText('git')
+    // A restart within seconds brings the agent straight back instead of leaving it asleep.
+    await expect(page.locator('.roster button', { hasText: 'ada' })).not.toContainText('asleep', { timeout: 10_000 })
     await page.locator('.ws-button').click()
     const menu = page.getByRole('menu', { name: 'Projects' })
     await expect(menu).toContainText('shop-api')

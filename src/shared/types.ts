@@ -32,6 +32,8 @@ export type RawEvent =
   | { type: 'task'; sessionId: string; id: string; subject?: string; status?: TaskStatus }
   | { type: 'plan'; sessionId: string; plan: string; steps: string[] }
   | { type: 'question'; sessionId: string; questions: Question[] }
+  /** Claude's permission mode changed, as read from the footer of its screen (hooks only report it on their next event). */
+  | { type: 'mode'; sessionId: string; mode: string }
   | { type: 'subagent-start'; sessionId: string; subagentId: string; subagentType: string }
   | { type: 'subagent-stop'; sessionId: string; subagentId: string }
   | { type: 'session-start'; sessionId: string }

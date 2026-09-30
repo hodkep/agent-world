@@ -95,6 +95,7 @@ export function App() {
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
   const select = (id: string) => {
     setSelected(id)
+    keep('aw.selected', id)
     setView(talkRef.current)
     setOpenFile(undefined)
     // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
@@ -129,6 +130,9 @@ export function App() {
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
       setAgents(list)
+      // Back where you were after a reload or a restart: the agent you had open is open again (asleep ones offer to wake).
+      const last = store('aw.selected')
+      if (last && list.some((a) => a.id === last)) setSelected(last)
       setWorld((w) => list.reduce((acc, a) => applyEvent(acc, a.online ? { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: a.activity ?? 'idle' } : { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
     })
     const offs = [
@@ -186,6 +190,8 @@ export function App() {
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  // The list only folds away while an agent is selected; with none selected it must stay, or there is no way to pick one.
+  const folded = compact && !!current
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && current) {
@@ -481,7 +487,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm roles={roles} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
-            <nav className="roster" aria-label="Agents" hidden={compact}>
+            <nav className="roster" aria-label="Agents" hidden={folded}>
               {agents.map((a) => {
                 const st = world[a.id]
                 const activity = st?.activity ?? 'asleep'
@@ -512,7 +518,7 @@ export function App() {
             </nav>
           )}
           {current ? (
-            <section className="agent-head" hidden={compact}>
+            <section className="agent-head" hidden={folded}>
               <div className="head-main">
                 <div className="head-title">
                 {renaming === current.id ? (
@@ -646,7 +652,7 @@ export function App() {
             </section>
           ) : (
             agents.length ? (
-              <p className="hint">Click a character to open its terminal.</p>
+              <p className="hint">Pick an agent from the list above, or click its character.</p>
             ) : (
               <Welcome folder={folder} onPick={pick} onHire={() => setHiring(true)} onHistory={() => setHistory(true)} onCrew={() => void hireCrew()} />
             )
@@ -675,7 +681,7 @@ export function App() {
               ))}
             </section>
           )}
-          {current && compact && (
+          {current && folded && (
             <section className="head-compact" aria-label="Selected agent">
               <button onClick={() => step(-1)} aria-label="Previous agent" className="hc-step hc-prev" />
               <button onClick={() => step(1)} aria-label="Next agent" className="hc-step hc-next" />
@@ -714,10 +720,10 @@ export function App() {
               <button
                 className="push"
                 onClick={() => (setCompact((c) => !c), keep('aw.compact', compact ? '' : '1'))}
-                aria-pressed={compact}
+                aria-pressed={folded}
                 title="Fold the agent list and details into one line, for more room to talk"
               >
-                {compact ? 'Show agents' : 'Hide agents'}
+                {folded ? 'Show agents' : 'Hide agents'}
               </button>
               <button onClick={() => setWide((w) => !w)} aria-pressed={wide} title="Give the panel more room">
                 {wide ? 'Narrow' : 'Expand'}

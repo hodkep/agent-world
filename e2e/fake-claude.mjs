@@ -123,11 +123,11 @@ if (process.env.FAKE_CHAT) {
   drawFoot()
   process.stdin.on('data', async (d) => {
     const raw = String(d)
-    // Shift+Tab moves to the next permission mode, which Claude reports with its next event.
+    // Shift+Tab moves to the next permission mode. Like real Claude, only the footer says so until the next hook event.
     if (raw === '\x1b[Z') {
       mode = (mode + 1) % MODES.length
       drawFoot()
-      return void hook('Notification', { notification_type: 'idle_prompt', permission_mode: MODES[mode] })
+      return
     }
     typed += raw.replace(/\x1b\[20[01]~/g, '')
     if (!typed.includes('\r')) return

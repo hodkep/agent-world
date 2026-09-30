@@ -65,6 +65,9 @@ export function applyEvent(world: World, e: AgentEvent): World {
     case 'question':
       next.questions = e.questions
       break
+    case 'mode':
+      next.mode = e.mode
+      break
     case 'plan':
       next.plan = e.plan
       next.planSteps = e.steps

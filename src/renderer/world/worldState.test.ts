@@ -118,4 +118,10 @@ describe('plans, tasks and modes', () => {
     w = applyEvent(w, { type: 'session-start', agentId: s, sessionId: 'new' })
     expect(w[s]).toMatchObject({ tasks: [], plan: null })
   })
+
+  it('follows the permission mode read from the screen without disturbing what the agent is doing', () => {
+    let w = applyEvent(emptyWorld(), { type: 'activity', agentId: 'a', sessionId: 's', activity: 'implementing', tool: 'Edit' })
+    w = applyEvent(w, { type: 'mode', agentId: 'a', sessionId: 's', mode: 'plan' })
+    expect(w.a).toMatchObject({ mode: 'plan', activity: 'implementing' })
+  })
 })
