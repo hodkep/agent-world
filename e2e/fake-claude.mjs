@@ -176,8 +176,10 @@ if (process.env.FAKE_CHAT) {
         process.stdin.on('data', onKey)
       })
       process.stdout.write(`\x1b[2J\x1b[H rewound to: ${prompts[picked]} (option ${choice + 1})\r\n`)
+      const back = choice === 0 ? prompts[picked] : ''
       if (choice === 0) prompts.length = picked
-      return void setTimeout(() => ((inMenu = false), drawFoot()), 800)
+      // Like the real one: the restored prompt goes back into the input box (after a non-breaking space).
+      return void setTimeout(() => ((inMenu = false), drawFoot(), back && process.stdout.write(`\x1b[22;1H❯\u00a0${back}`)), 800)
     }
     prompts.push(prompt)
     // Shell mode: run nothing, just record it the way Claude does.

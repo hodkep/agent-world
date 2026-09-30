@@ -119,10 +119,25 @@ export function ChatView({
   }, [agentId])
 
   const allRows = useMemo(() => toRows(items, sent), [items, sent])
+  // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
+  const [cut, setCut] = useState<string | null>(null)
+  useEffect(
+    () =>
+      window.aw.onComposerPrefill((id, t) => {
+        if (id !== agentId) return
+        const hit = [...allRows].reverse().find((r) => r.kind === 'user' && !r.pending && r.text.includes(t.slice(0, 40)))
+        if (hit) setCut(hit.id)
+      }),
+    [agentId, allRows]
+  )
+  const visible_ = useMemo(() => {
+    const at = cut ? allRows.findIndex((r) => r.id === cut) : -1
+    return at < 0 ? allRows : allRows.filter((r, i) => i < at || ('pending' in r && r.pending))
+  }, [allRows, cut])
   const found = useMemo(() => {
     const q = query?.trim().toLowerCase()
-    return q ? allRows.filter((r) => rowText(r).toLowerCase().includes(q)) : allRows
-  }, [allRows, query])
+    return q ? visible_.filter((r) => rowText(r).toLowerCase().includes(q)) : visible_
+  }, [visible_, query])
   // Long conversations render only the latest rows; older ones load on request so the view stays quick.
   const [shown, setShown] = useState(WINDOW)
   useEffect(() => setShown(WINDOW), [agentId])
