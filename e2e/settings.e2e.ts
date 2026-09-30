@@ -17,6 +17,8 @@ test('settings are saved as you change them and set what a new agent starts with
     await dialog.getByLabel('Model').selectOption('haiku')
     await dialog.getByLabel('Work in my folder directly (no branch)').check()
     await expect.poll(() => JSON.parse(readFileSync(join(home, 'preferences.json'), 'utf8'))).toMatchObject({ notifications: 'attention', defaults: { model: 'haiku', inPlace: true } })
+    await dialog.getByRole('button', { name: 'Check now' }).click()
+    await expect(dialog.getByRole('status')).toContainText('only work in the installed app')
     await dialog.getByRole('button', { name: 'Close settings' }).click()
 
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()

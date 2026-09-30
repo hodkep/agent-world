@@ -1,0 +1,21 @@
+appId: dev.agentworld.app
+productName: Agent World
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+# node-pty ships a native module and its spawn helper; both must live outside the asar archive to be executed.
+asarUnpack:
+  - node_modules/node-pty/**
+npmRebuild: true
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg, zip]
+  # Signing and notarisation switch on when the CSC_* / APPLE_* variables are present; without them the build is unsigned.
+win:
+  target: [nsis]
+linux:
+  target: [AppImage, deb]
+  category: Development
+  maintainer: Agent World

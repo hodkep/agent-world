@@ -7,3 +7,4 @@ playwright-report
 .impeccable/build/
 .impeccable/mocks/
 .impeccable/config.local.json
+dist

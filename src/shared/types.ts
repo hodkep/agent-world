@@ -146,6 +146,8 @@ export interface Prefs {
   keepAwake: boolean
   /** Where the claude program is, when it is not on the PATH. Empty means "claude". */
   claudePath: string
+  /** Where new builds are published; empty means the app does not look for updates. */
+  updateUrl: string
   /** What the hire form starts with. */
   defaults: { model: string; permissionMode: string; inPlace: boolean }
 }

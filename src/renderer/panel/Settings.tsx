@@ -13,6 +13,9 @@ const PERMISSIONS = [
 export function Settings({ prefs, onChange, onClose }: { prefs: Prefs; onChange: (p: Prefs) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [path, setPath] = useState(prefs.claudePath)
+  const [url, setUrl] = useState(prefs.updateUrl)
+  const [update, setUpdate] = useState('')
+  useEffect(() => window.aw.onUpdateState((s) => s.detail && setUpdate(s.detail)), [])
   useEffect(() => dialog.current?.showModal(), [])
   const set = (patch: Partial<Prefs>) => onChange({ ...prefs, ...patch })
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
@@ -63,6 +66,18 @@ export function Settings({ prefs, onChange, onClose }: { prefs: Prefs; onChange:
         <label className="check">
           <input type="checkbox" checked={prefs.defaults.inPlace} onChange={(e) => setDefaults({ inPlace: e.target.checked })} /> Work in my folder directly (no branch)
         </label>
+      </fieldset>
+      <fieldset>
+        <legend>Updates</legend>
+        <label>
+          Update address
+          <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => url.trim() !== prefs.updateUrl && set({ updateUrl: url.trim() })} placeholder="https://example.com/agent-world/" />
+          <span className="hint">A folder on the web holding the files the build step produces. Leave empty to never check.</span>
+        </label>
+        <div className="settings-row">
+          <button onClick={() => void window.aw.checkUpdates().then((s) => setUpdate(s.detail ?? ({ checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.', off: '' }[s.state])))}>Check now</button>
+          <span className="hint" role="status">{update}</span>
+        </div>
       </fieldset>
       <fieldset>
         <legend>Claude program</legend>

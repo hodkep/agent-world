@@ -49,6 +49,8 @@ const api: AwApi = {
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
   resync: () => ipcRenderer.invoke('resync'),
+  checkUpdates: () => ipcRenderer.invoke('updates:check'),
+  onUpdateState: on('update-state'),
   getPrefs: () => ipcRenderer.invoke('prefs:get'),
   setPrefs: (p) => ipcRenderer.invoke('prefs:set', p),
   onBtw: on('btw'),

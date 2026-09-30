@@ -593,3 +593,5 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .settings label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .settings label.check { flex-direction: row; align-items: center; gap: 8px; }
 .settings input:not([type=checkbox]), .settings select { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }
+
+.settings-row { display: flex; align-items: center; gap: 10px; }

@@ -1,3 +1,4 @@
+import { checkForUpdates } from './updates'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
@@ -639,6 +640,7 @@ async function main() {
     btwSent.clear()
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
   })
+  ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   ipcMain.handle('prefs:get', () => prefs)
   ipcMain.handle('prefs:set', (_, next: unknown) => {
     prefs = cleanPrefs(next, prefs)
