@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Stand-in for the claude CLI: reads the hook settings it is launched with and replays a
 // scripted session through them, so the app can be exercised without spending tokens.
+import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
+// A background command under the agent, like a dev server it started.
+if (process.env.FAKE_CHILD) spawn('sleep', ['300'], { stdio: 'ignore' }).unref()
 // Read-only subcommands the app runs to inspect the setup.
 if (args[0] === 'mcp') {
   console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect\nplugin:productivity:asana: https://mcp.asana.com/v2/mcp (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration')

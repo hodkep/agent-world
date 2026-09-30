@@ -39,6 +39,8 @@ const api: AwApi = {
   onTrustPrompt: on('trust-prompt'),
   onAgentMessage: on('agent-message'),
   onAgentStats: on('agent-stats'),
+  listProcs: (id: string) => ipcRenderer.invoke('procs:list', id),
+  stopProc: (id: string, pid: number) => ipcRenderer.invoke('procs:stop', id, pid),
   getServers: () => ipcRenderer.invoke('get-servers'),
   onServers: on('servers'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

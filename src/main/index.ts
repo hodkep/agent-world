@@ -1,3 +1,4 @@
+import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
@@ -606,6 +607,8 @@ async function main() {
   // Esc is how Claude's own terminal interrupts a running turn.
   // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
+  ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
+  ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
   ipcMain.handle('chat:interrupt', (_, id: string) => {
     const p = sessions.get(id)
     if (!p) return

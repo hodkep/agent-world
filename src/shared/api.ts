@@ -143,6 +143,8 @@ export interface AwApi {
   deleteRole(id: string): Promise<void>
   getUsage(): Promise<UsageLimits>
   /** Dev servers each agent has started, by agent id. */
+  listProcs(agentId: string): Promise<import('./types').ProcInfo[]>
+  stopProc(agentId: string, pid: number): Promise<boolean>
   getServers(): Promise<Record<string, DevServer[]>>
   onServers(cb: (s: Record<string, DevServer[]>) => void): () => void
   /** Open a local address in the system browser. */

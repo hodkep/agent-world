@@ -114,6 +114,12 @@ export interface AgentStats {
 }
 
 /** A choice menu Claude is showing in its own terminal (a permission dialog it insists on, the rewind confirmation…). */
+/** A process running under an agent (a dev server, a long command). */
+export interface ProcInfo {
+  pid: number
+  command: string
+}
+
 export interface TerminalMenu {
   title: string
   context: string

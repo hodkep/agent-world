@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem } from '../../shared/chat'
-import type { Activity } from '../../shared/types'
+import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, rowText, toMarkdown, toRows } from './format'
@@ -229,6 +229,7 @@ export function ChatView({
           <button onClick={onTerminal}>Open terminal</button>
         </div>
       )}
+      {!asleep && <ProcBar agentId={agentId} />}
       <Composer
         agentId={agentId}
         agentName={agentName}
@@ -247,6 +248,37 @@ export function ChatView({
         onImage={setZoomed}
       />
       {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
+    </div>
+  )
+}
+
+/** Commands and servers running under the agent, with a way to stop them. */
+function ProcBar({ agentId }: { agentId: string }) {
+  const [procs, setProcs] = useState<ProcInfo[]>([])
+  useEffect(() => {
+    let live = true
+    const tick = () => void window.aw.listProcs(agentId).then((p) => live && setProcs((old) => (JSON.stringify(old) === JSON.stringify(p) ? old : p)))
+    tick()
+    const t = setInterval(tick, 3000)
+    return () => {
+      live = false
+      clearInterval(t)
+    }
+  }, [agentId])
+  if (!procs.length) return null
+  const stop = (pid: number) => void window.aw.stopProc(agentId, pid).then(() => window.aw.listProcs(agentId).then(setProcs))
+  return (
+    <div className="procbar" aria-label="Running processes">
+      <b>{procs.length} running</b>
+      <ul>
+        {procs.map((p) => (
+          <li key={p.pid}>
+            <code title={p.command}>{p.command}</code>
+            <button onClick={() => stop(p.pid)} aria-label={`Stop ${p.command}`}>Stop</button>
+          </li>
+        ))}
+      </ul>
+      {procs.length > 1 && <button onClick={() => procs.forEach((p) => stop(p.pid))}>Stop all</button>}
     </div>
   )
 }

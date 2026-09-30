@@ -558,3 +558,9 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .rewind-btn { font-size: 11px; padding: 0 8px; opacity: 0; align-self: flex-end; }
 .msg.user:hover .rewind-btn, .rewind-btn:focus-visible { opacity: 1; }
 .choice-buttons button { text-align: left; }
+
+.procbar { margin: 0 12px 6px; padding: 6px 8px; border: 1px solid var(--line, #3a3a4a); border-radius: 6px; font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
+.procbar ul { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; max-height: 84px; overflow: auto; }
+.procbar li { display: flex; gap: 6px; align-items: center; }
+.procbar code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.procbar button { font-size: 11px; padding: 1px 8px; cursor: pointer; }
