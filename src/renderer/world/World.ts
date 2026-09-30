@@ -23,9 +23,11 @@ export interface AgentView {
   inbox: number
   /** Share of the context window used, from Claude's statusline feed; null until the first update. */
   contextPct: number | null
+  /** The agent this one was cloned from: it takes the free desk nearest to that one. */
+  cloneOf?: string
 }
 
-export type WorldHandlers = { plant: PlantHandlers }
+export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void }
 export interface PlantHandlers {
   onHover: (v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void
 }
@@ -63,6 +65,9 @@ export class OfficeWorld {
   private readonly inbox = new Map<string, number>()
   private readonly flights: Flight[] = []
   private street!: Street
+  private onHandbook: (agentId: string) => void = () => {}
+  private readonly books = new Map<string, Graphics>()
+  private publishedBooks = -1
   private plant!: PowerPlant
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly mail = new Graphics()
@@ -104,6 +109,7 @@ export class OfficeWorld {
   private build(handlers: WorldHandlers) {
     const shadows = new Graphics()
     this.street = new Street(OFFICE.map)
+    this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
@@ -232,12 +238,14 @@ export class OfficeWorld {
 
   /** Screen positions of things drawn on the canvas, so the page (and tests) can anchor to them. */
   private publishAnchors() {
+    this.publishedBooks = this.books.size
     this.host.dataset.power = JSON.stringify(this.plant.center())
+    this.host.dataset.books = JSON.stringify([...this.books].map(([agentId, g]) => { const p = g.getGlobalPosition(); const k = this.root.scale.x; return { agentId, x: Math.round(p.x + 4 * k), y: Math.round(p.y + 5 * k) } }))
     this.host.dataset.view = JSON.stringify({ scale: this.root.scale.x, x: this.root.x, y: this.root.y })
   }
 
   // Desk and intern seats are permanent homes; every other spot is borrowed while in use.
-  private claim(key: string, purpose: Purpose): Spot {
+  private claim(key: string, purpose: Purpose, near?: Spot): Spot {
     for (const [p, m] of this.claims) if (p !== purpose && p !== 'desk' && p !== 'intern') m.delete(key)
     const mine = this.claims.get(purpose) ?? new Map<string, Spot>()
     this.claims.set(purpose, mine)
@@ -245,7 +253,12 @@ export class OfficeWorld {
     if (held) return held
     const taken = [...mine.values()]
     const pool = POOLS[purpose]
-    const spot = pool.find((s) => !taken.some((t) => t.x === s.x && t.y === s.y)) ?? pool[pool.length - 1]!
+    const free = pool.filter((s) => !taken.some((t) => t.x === s.x && t.y === s.y))
+    // A clone sits beside the one it came from.
+    const away = (s: Spot) => Math.abs(s.x - near!.x) + Math.abs(s.y - near!.y)
+    // Real desks first (the overflow spots are for when they run out), the nearest of those to the original.
+    const desks = free.filter((s) => (purpose === 'desk' ? OFFICE.desks : pool).includes(s))
+    const spot = (near ? [...(desks.length ? desks : free)].sort((a, b) => away(a) - away(b))[0] : free[0]) ?? pool[pool.length - 1]!
     mine.set(key, spot)
     return spot
   }
@@ -254,11 +267,11 @@ export class OfficeWorld {
     for (const m of this.claims.values()) m.delete(key)
   }
 
-  private ensure(key: string, label: string, role: 'senior' | 'intern', agentId: string, activity: Activity) {
+  private ensure(key: string, label: string, role: 'senior' | 'intern', agentId: string, activity: Activity, near?: Spot) {
     const existing = this.chars.get(key)
     if (existing) return existing
     const intern = role === 'intern'
-    const home = this.claim(key, intern ? 'intern' : 'desk')
+    const home = this.claim(key, intern ? 'intern' : 'desk', near)
     const place = placeFor(activity, intern)
     const start = this.firstSync && place !== 'gone' ? this.claim(key, place) : OFFICE.door
     const c = new Character(key, label, role, home, start, OFFICE.map, () => this.onSelect(agentId))
@@ -286,7 +299,7 @@ export class OfficeWorld {
       // A session that is not running is out of the office until it is woken or re-hired.
       if (placeFor(a.state.activity, false) === 'gone') continue
       live.add(a.id)
-      const c = this.ensure(a.id, a.name, 'senior', a.id, a.state.activity)
+      const c = this.ensure(a.id, a.name, 'senior', a.id, a.state.activity, a.cloneOf ? this.chars.get(a.cloneOf)?.home : undefined)
       c.role = roleOf(a.state)
       c.selected = a.selected
       c.contextPct = a.contextPct
@@ -362,6 +375,8 @@ export class OfficeWorld {
       if (c.arrived) atScreen.set(`${c.at.x},${c.at.y}`, c.activity)
     }
     this.drawPiles()
+    this.syncBooks()
+    if (this.books.size !== this.publishedBooks) this.publishAnchors()
     this.drawMail(t)
     this.untangle()
     for (const [spot, s] of this.screens) s.draw(atScreen.get(spot) ?? null, t)
@@ -369,6 +384,45 @@ export class OfficeWorld {
     this.sign.visible = this.chars.size === 0
     this.street.update(dt, t)
     this.plant.update(t)
+  }
+
+  // Each seated agent's handbook (CLAUDE.md) lies closed on the desk; clicking it opens the file.
+  private syncBooks() {
+    const seated = new Set<string>()
+    for (const [key, c] of this.chars) if (OFFICE.desks.includes(c.home) && !c.leaving) seated.add(key)
+    for (const [key, g] of this.books)
+      if (!seated.has(key)) {
+        g.destroy()
+        this.books.delete(key)
+      }
+    for (const key of seated) {
+      if (this.books.has(key)) continue
+      const c = this.chars.get(key)!
+      const g = new Graphics()
+      const cover = paletteFor(key, 'senior').c
+      // A closed book, cover in the agent's colour, pages showing on the right edge.
+      g.rect(0, 0, 8, 10).fill(0x14111c)
+      g.rect(1, 1, 6, 8).fill(cover)
+      g.rect(1, 1, 1, 8).fill({ color: 0x000000, alpha: 0.3 })
+      g.rect(3, 3, 3, 1).fill({ color: 0xffffff, alpha: 0.7 })
+      g.rect(3, 5, 3, 1).fill({ color: 0xffffff, alpha: 0.4 })
+      g.rect(7, 2, 1, 6).fill(0xf0ecdc)
+      g.position.set(c.home.x * TILE + 9, (c.home.y - 1) * TILE + 2)
+      g.zIndex = c.home.y * TILE + 0.6
+      g.eventMode = 'static'
+      g.cursor = 'pointer'
+      g.on('pointertap', () => {
+        if (!this.dragged) this.onHandbook(key)
+      })
+      this.layer.addChild(g)
+      this.books.set(key, g)
+    }
+  }
+
+  /** The agent whose character is under a point on the stage (CSS px), for things dropped onto the canvas. */
+  agentAt(x: number, y: number): string | null {
+    for (const [key, c] of this.chars) if (!c.leaving && !key.includes('/') && c.view.getBounds().containsPoint(x, y)) return key
+    return null
   }
 
   // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.

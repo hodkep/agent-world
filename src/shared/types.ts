@@ -79,6 +79,8 @@ export interface AgentRecord {
   started: boolean
   /** Session this agent was cloned from, forked on its first launch. */
   forkOf?: string
+  /** The agent this one was cloned from, so it sits next to it in the office. */
+  cloneOf?: string
   /** Live state, filled in by list-agents only (not persisted). */
   online?: boolean
   activity?: Activity

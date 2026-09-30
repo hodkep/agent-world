@@ -7,6 +7,7 @@ import type { Workspaces } from '../shared/api'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
+import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
@@ -72,6 +73,7 @@ export function App() {
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
   const [limits, setLimits] = useState<UsageLimits>(noLimits)
+  const handbookOpen = useRef<(id: string) => void>(() => {})
   const plantHover = useRef<(v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void>(() => {})
   const [tip, setTip] = useState<{ five: LimitView; week: LimitView; x: number; y: number } | null>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
@@ -122,7 +124,10 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, select, { plant: { onHover: (v, x, y) => plantHover.current(v, x, y) } }).then((created) => {
+    void OfficeWorld.create(stage.current!, select, {
+      plant: { onHover: (v, x, y) => plantHover.current(v, x, y) },
+      handbook: (id) => handbookOpen.current(id)
+    }).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
       setOfficeReady(true)
@@ -136,7 +141,7 @@ export function App() {
 
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf }))
     )
   })
 
@@ -216,6 +221,22 @@ export function App() {
     })
 
   plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
+  handbookOpen.current = (id) => {
+    const a = agents.find((x) => x.id === id)
+    if (!a?.branch) return setError(`${a?.name ?? 'That agent'} works in a shared folder, so there is no branch to keep a handbook in.`)
+    select(id)
+    void openHandbook(a)
+  }
+  // Files dropped on a character are mentioned to that agent, wherever it is standing.
+  const dropOnStage = (e: React.DragEvent) => {
+    e.preventDefault()
+    const box = e.currentTarget.getBoundingClientRect()
+    const id = office.current?.agentAt(e.clientX - box.left, e.clientY - box.top)
+    const text = mentionText([...e.dataTransfer.files].map((f) => window.aw.pathOf(f)))
+    if (!id || !text) return setError('Drop files right onto an agent to hand them over.')
+    window.aw.ptyWrite(id, text)
+    select(id)
+  }
   useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
@@ -314,7 +335,7 @@ export function App() {
         </button>
       </header>
       <main>
-        <div className="stage-wrap">
+        <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           <div className="zoom-ctl" role="group" aria-label="View">
             <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
@@ -343,7 +364,14 @@ export function App() {
                 return (
                   <button key={a.id} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
                     <span className="dot" aria-hidden="true" />
-                    <span className="name">{a.name}</span>
+                    <span className="name">
+                      {a.name}
+                      {new Set(agents.map((x) => x.repoPath)).size > 1 && (
+                        <span className="proj" title={a.repoPath}>
+                          {a.repoPath.split(/[\\/]/).pop()}
+                        </span>
+                      )}
+                    </span>
                     {needsOf(a.id).length > 0 ? (
                       <span className="ask-pill" title="Waiting for you: click to answer">
                         {needTitle(needsOf(a.id)[0]!).toLowerCase()}

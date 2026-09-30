@@ -366,3 +366,4 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .zc-minus::before, .zc-plus::before, .zc-plus::after { content: ''; position: absolute; left: 50%; top: 50%; background: var(--text); transform: translate(-50%, -50%); }
 .zc-minus::before, .zc-plus::before { width: 10px; height: 2px; }
 .zc-plus::after { width: 2px; height: 10px; }
+.agent-row .proj { margin-left: 8px; font: 10px Menlo, Consolas, monospace; letter-spacing: 0.04em; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; }

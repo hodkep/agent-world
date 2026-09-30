@@ -442,7 +442,7 @@ async function main() {
     const name = nextName()
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
-      id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, repoPath: src.repoPath,
+      id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
       cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, options: src.options
     }
     agents.push(a)
