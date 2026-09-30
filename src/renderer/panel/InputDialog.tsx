@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PermissionRequest, Question, QuestionAnswer } from '../../shared/types'
+import type { PermissionRequest, Question, QuestionAnswer, TerminalMenu } from '../../shared/types'
 import { PixelWord } from '../PixelWord'
 
 export type Need =
@@ -7,14 +7,17 @@ export type Need =
   | { kind: 'permission'; request: PermissionRequest }
   | { kind: 'plan'; text: string }
   | { kind: 'question'; questions: Question[] }
+  | ({ kind: 'menu' } & TerminalMenu)
 
-export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : 'QUESTION')
+export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : n.kind === 'menu' ? 'CLAUDE ASKS' : 'QUESTION')
 
 export interface NeedActions {
   trust: (yes: boolean) => void
   decide: (id: string, d: 'allow' | 'deny') => void
   plan: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>
   answer: (answers: QuestionAnswer[]) => Promise<void>
+  menu: (index: number) => Promise<void>
+  cancelMenu: () => Promise<void>
 }
 
 interface Props {
@@ -48,6 +51,7 @@ export function NeedPanel({ need, actions, onFinishInTerminal, hint }: { need: N
         {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
         {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
         {need.kind === 'question' && <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} />}
+        {need.kind === 'menu' && <TerminalChoice menu={need} onPick={(i) => attempt(() => actions.menu(i))} onCancel={() => attempt(actions.cancelMenu)} />}
       </div>
       {error && (
         <div className="dialog-error" role="alert">
@@ -308,5 +312,31 @@ function Questions({ questions, onSend }: { questions: Question[]; onSend: (a: Q
         </>
       )}
     </div>
+  )
+}
+
+/** One of Claude's own menus, answered here: what it is about, then each option as a button. */
+function TerminalChoice({ menu, onPick, onCancel }: { menu: TerminalMenu; onPick: (i: number) => Promise<void>; onCancel: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const go = async (f: () => Promise<void>) => {
+    setBusy(true)
+    await f()
+    setBusy(false)
+  }
+  return (
+    <>
+      <p className="dialog-line">{menu.title}</p>
+      {menu.context && <pre className="dialog-code">{menu.context}</pre>}
+      <div className="dialog-actions choice-buttons">
+        {menu.options.map((o, i) => (
+          <button key={o} className={i === 0 ? 'primary' : ''} disabled={busy} onClick={() => void go(() => onPick(i))}>
+            {o}
+          </button>
+        ))}
+        <button disabled={busy} onClick={() => void go(onCancel)} title={menu.hint}>
+          Cancel
+        </button>
+      </div>
+    </>
   )
 }

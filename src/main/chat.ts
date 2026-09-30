@@ -1,3 +1,4 @@
+import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChatItem } from '../shared/chat'
 import { projectSlug } from './history'
@@ -90,4 +91,30 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   // Caveats and reminders Claude inserts around the conversation are not the user's words.
   if (/^<(local-command-caveat|system-reminder|command-message)/.test(trimmed)) return []
   return [{ kind: 'user', id, at, text: trimmed }]
+}
+
+/** The session whose transcript was written most recently since `sinceMs`, other than `exceptId`: where a rewind forked to. */
+export function newestSession(dir: string, exceptId: string, sinceMs: number): string | null {
+  try {
+    const found = readdirSync(dir)
+      .filter((f) => f.endsWith('.jsonl') && f !== `${exceptId}.jsonl`)
+      .map((f) => ({ id: f.slice(0, -'.jsonl'.length), at: statSync(join(dir, f)).mtimeMs }))
+      .filter((f) => f.at >= sinceMs)
+      .sort((a, b) => b.at - a.at)
+    return found[0]?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Where a transcript line sits in the conversation tree: Claude links each line to the one before it, so a rewind makes a new branch. */
+export function lineNode(raw: string): { uuid: string; parent: string | null; message: boolean } | null {
+  try {
+    const o = JSON.parse(raw) as Obj
+    const uuid = str(o.uuid)
+    if (!uuid) return null
+    return { uuid, parent: str(o.parentUuid) || null, message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true }
+  } catch {
+    return null
+  }
 }

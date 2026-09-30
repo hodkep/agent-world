@@ -193,7 +193,7 @@ export function ChatView({
           </p>
         )}
         {rows.map((r) => (
-          <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} onImage={setZoomed} />
+          <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
         ))}
         {busy && (
           <div className="live" role="status">
@@ -251,12 +251,17 @@ export function ChatView({
   )
 }
 
-function RowView({ row: r, agentId, agentName, busy, onImage }: { row: Row; agentId: string; agentName: string; busy: boolean; onImage: (src: string) => void }) {
+function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
   switch (r.kind) {
     case 'user':
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`}>
           <UserText agentId={agentId} text={r.text} onImage={onImage} />
+          {!r.pending && !busy && !asleep && (
+            <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too if Claude tracked changes">
+              Rewind
+            </button>
+          )}
           {r.pending && <span className="msg-meta">{r.queued ? 'queued: goes in when the current step finishes' : 'sending…'}</span>}
         </div>
       )
@@ -364,6 +369,7 @@ function Composer({
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
   const shell = text.startsWith('!')
+  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (setText(t), box.current?.focus())), [agentId])
   const modeWrap = useRef<HTMLSpanElement>(null)
   // The mode menu closes on Esc or a click anywhere else.
   useEffect(() => {

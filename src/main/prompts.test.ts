@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { answerMenu, answerTrust, anyMenu, looksWorking, planMenu, trustPrompt } from './prompts'
+import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -126,5 +126,12 @@ describe('is Claude visibly working?', () => {
   it('is false for an idle screen, even one that has just finished a turn', () => {
     expect(looksWorking(idle)).toBe(false)
     expect(looksWorking(`⏺ Done.\n✻ Crunched for 7s · done 2:47 PM\n${idle}`)).toBe(false)
+  })
+})
+
+describe('the input box with text in it', () => {
+  it('counts as ready even when Claude separates the prompt sign with a no-break space', () => {
+    expect(inputReady('───────\n❯\u00a0Reply with just: alpha\n───────\n  ⏸ manual mode on\n')).toBe(true)
+    expect(inputReady('───────\n❯ Reply with just: alpha\n───────\n')).toBe(true)
   })
 })

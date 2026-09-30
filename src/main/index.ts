@@ -2,7 +2,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, extname, isAbsolute, join } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -14,11 +14,12 @@ import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { saveAttachment } from './attachments'
-import { transcriptPath } from './chat'
+import { newestSession, transcriptPath } from './chat'
 import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { driveRewind, genericMenu, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
 import { readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
@@ -177,9 +178,11 @@ function followChat(a: AgentRecord) {
   } catch {
     /* the folder is gone; the transcript will not appear */
   }
-  chat.tail = new TranscriptTail(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId), (items) => {
-    chat.items = trimImages([...chat.items, ...items].slice(-MAX_CHAT))
-    send('chat-items', a.id, a.sessionId, items)
+  chat.tail = new TranscriptTail(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId), (items, replace) => {
+    chat.items = trimImages((replace ? items : [...chat.items, ...items]).slice(-MAX_CHAT))
+    // A replacement (after a rewind) is told to the window as a reset, so it reloads the whole conversation.
+    if (replace) send('chat-reset', a.id, a.sessionId)
+    else send('chat-items', a.id, a.sessionId, items)
   })
   chats.set(a.id, chat)
   // A different session (after /clear or a fork) is a different conversation: the view starts over.
@@ -193,6 +196,12 @@ let quitting = false
 const noteRunning = () => {
   if (!quitting) writeRunning(RUNNING_FILE, [...sessions.keys()], Date.now())
 }
+// Choice menus Claude shows in its own terminal that no other part of the app handles (see genericMenu), once they have stayed put.
+// A rewind in progress: after Claude's confirmation is answered, its restored prompt is moved into the chat's composer.
+const rewinding = new Map<string, { text: string; at: number }>()
+const termMenuSeen = new Map<string, { sig: string; since: number }>()
+const termMenuSent = new Map<string, string>()
+const MENU_STABLE_MS = 800
 const pendingPermissions = new Set<string>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
 const questionOpen = new Set<string>()
@@ -334,6 +343,69 @@ function trackTurns(e: AgentEvent) {
   }
 }
 
+/**
+ * A menu Claude draws in its own terminal that the app has no card for (a permission dialog Claude insists on showing
+ * itself, the rewind confirmation, a picker…) is offered in the chat, once it has stayed put for a moment. Menus the app
+ * already handles (trust, plan, questions, a permission it holds) are left to those.
+ */
+function surfaceTerminalMenu(id: string, text: string) {
+  const menu = genericMenu(text)
+  const covered = trustOpen.has(id) || planOpen.has(id) || questionOpen.has(id) || !!hooksRef?.hasPending(id)
+  const sig = menu && !covered ? JSON.stringify([menu.title, menu.context, menu.options]) : ''
+  if (!sig) {
+    termMenuSeen.delete(id)
+    if (termMenuSent.get(id)) {
+      termMenuSent.set(id, '')
+      send('terminal-menu', id, null)
+      if (rewinding.has(id)) setTimeout(() => finishRewind(id), 1500)
+      // The menu was the reason for waiting; whatever Claude does next, it is working again.
+      const a = byId(id)
+      if (a && lastActivity.get(id) === 'permission') {
+        lastActivity.set(id, 'thinking')
+        send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
+      }
+    }
+    return
+  }
+  const seen = termMenuSeen.get(id)
+  if (seen?.sig !== sig) return void termMenuSeen.set(id, { sig, since: Date.now() })
+  if (Date.now() - seen.since >= MENU_STABLE_MS && termMenuSent.get(id) !== sig) {
+    termMenuSent.set(id, sig)
+    send('terminal-menu', id, { title: menu!.title, context: menu!.context, options: menu!.options, hint: menu!.hint })
+    const a = byId(id)
+    if (a) {
+      lastActivity.set(id, 'permission')
+      send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'permission', detail: menu!.title })
+    }
+  }
+}
+
+/** After a rewind: Claude puts the restored prompt back in its input box and forks the conversation to a new session. */
+function finishRewind(id: string) {
+  const r = rewinding.get(id)
+  const a = byId(id)
+  rewinding.delete(id)
+  if (!r || !a) return
+  const text = screens.get(id)?.text() ?? ''
+  const head = r.text.slice(0, 30)
+  if (text.split('\n').some((l) => /^❯[ \u00a0]/.test(l) && l.slice(2).trim().startsWith(head))) {
+    sessions.get(id)?.write('\x15')
+    send('composer-prefill', id, r.text)
+  }
+  let real = a.cwd
+  try {
+    real = realpathSync(a.cwd)
+  } catch {
+    /* keep the plain path */
+  }
+  const fork = newestSession(dirname(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId)), a.sessionId, r.at - 1000)
+  if (fork) {
+    a.sessionId = fork
+    persist()
+    followChat(a)
+  }
+}
+
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
@@ -462,6 +534,7 @@ async function main() {
     for (const a of agents) {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
+      surfaceTerminalMenu(a.id, text)
       if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !inputReady(text) || anyMenu(text) || looksWorking(text)) continue
       mailbox.looksIdle(a.id)
       const act = lastActivity.get(a.id)
@@ -772,6 +845,41 @@ async function main() {
     mailbox.restarting(id)
     p.kill()
   })
+  // Answer whatever choice menu Claude has open in its terminal, checking the highlight before Enter.
+  const ioFor = (id: string) => ({
+    screen: () => screens.get(id)?.text() ?? '',
+    write: (keys: string) => void sessions.get(id)?.write(keys),
+    sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+  })
+  ipcMain.handle('menu:answer', async (_, id: string, index: number) => {
+    const detect = (screen: string) => {
+      const m = genericMenu(screen)
+      return m ? { highlighted: m.highlighted } : null
+    }
+    if (!genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
+    if (!(await answerMenu(ioFor(id), detect, index))) throw new Error('Could not pick that option. Finish it in the Terminal tab.')
+  })
+  ipcMain.handle('menu:cancel', (_, id: string) => void sessions.get(id)?.write('\x1b'))
+  // /rewind lists your earlier prompts; go to the one asked for. Claude's own "restore what?" menu then shows in the chat.
+  ipcMain.handle('rewind-to', async (_, id: string, promptText: string) => {
+    const p = sessions.get(id)
+    if (!p) throw new Error('That agent is not running.')
+    if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes, or stop it first.')
+    const io = ioFor(id)
+    if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
+    p.write('/rewind')
+    await io.sleep(500)
+    p.write('\r')
+    for (let i = 0; i < 20 && !rewindList(io.screen()); i++) await io.sleep(200)
+    if (!rewindList(io.screen())) throw new Error('Claude did not open the rewind list. Try /rewind in the Terminal tab.')
+    if (!(await driveRewind(io, promptText))) {
+      p.write('\x1b')
+      throw new Error('Could not find that message in the rewind list (older ones may be out of range).')
+    }
+    rewinding.set(id, { text: promptText, at: Date.now() })
+  })
+  // Diagnostics only: the app's own view of an agent's screen, for figuring out what Claude drew.
+  if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${looksWorking(screens.get(id)?.text() ?? '')} inputReady=${inputReady(screens.get(id)?.text() ?? '')}`)
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => sessions.get(id)?.write(data))
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => {

@@ -1,7 +1,7 @@
 import type { ChatItem } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
+import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -125,6 +125,16 @@ export interface AwApi {
   setMode(agentId: string, mode: string): Promise<void>
   /** Shift+Tab: move to the next permission mode. */
   chatCycleMode(agentId: string): Promise<void>
+  /** A choice menu Claude is showing in its own terminal appeared (or, with null, went away). */
+  onTerminalMenu(cb: (agentId: string, menu: TerminalMenu | null) => void): () => void
+  /** Pick option `index` (0-based) in that menu, checking the highlight before pressing Enter. */
+  answerMenu(agentId: string, index: number): Promise<void>
+  /** After a rewind, the restored prompt is offered back to you to edit and send again. */
+  onComposerPrefill(cb: (agentId: string, text: string) => void): () => void
+  /** Esc: back out of the open menu. */
+  cancelMenu(agentId: string): Promise<void>
+  /** Open /rewind and go to the prompt that starts with this text; Claude's own confirmation follows as a menu. */
+  rewindTo(agentId: string, promptText: string): Promise<void>
   /** Esc: interrupt what the agent is doing. */
   chatInterrupt(agentId: string): Promise<void>
   /** Ready-made agents for a project: built in, from Claude subagent files, and saved by the user. */

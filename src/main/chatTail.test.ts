@@ -43,3 +43,38 @@ describe('following a transcript file', () => {
     expect(got.at(-1)).toMatchObject({ text: 'fresh' })
   })
 })
+
+const node = (uuid: string, parentUuid: string | null, text: string) => JSON.stringify({ uuid, parentUuid, type: 'user', timestamp: '2026-01-01T00:00:00Z', message: { role: 'user', content: text } }) + '\n'
+const says = (got: { items: ChatItem[]; replace: boolean }[]) => got.map((g) => `${g.replace ? 'R' : 'A'}:${g.items.map((i) => (i.kind === 'user' ? i.text : i.kind)).join(',')}`)
+
+describe('following the branch you are on', () => {
+  it('shows the whole chain as it grows, one addition at a time', () => {
+    const file = join(dir, 'tree.jsonl')
+    writeFileSync(file, node('a', null, 'one') + node('b', 'a', 'two'))
+    const got: { items: ChatItem[]; replace: boolean }[] = []
+    const tail = new TranscriptTail(file, (items, replace) => got.push({ items, replace }))
+    tail.poll()
+    appendFileSync(file, node('c', 'b', 'three'))
+    tail.poll()
+    expect(says(got)).toEqual(['R:one,two', 'A:three'])
+  })
+
+  it('switches to the new branch after a rewind, dropping what was rewound', () => {
+    const file = join(dir, 'rewound.jsonl')
+    writeFileSync(file, node('a', null, 'keep') + node('b', 'a', 'rewound away') + node('c', 'b', 'also gone'))
+    const got: { items: ChatItem[]; replace: boolean }[] = []
+    const tail = new TranscriptTail(file, (items, replace) => got.push({ items, replace }))
+    tail.poll()
+    appendFileSync(file, node('d', 'a', 'new direction'))
+    tail.poll()
+    expect(says(got)).toEqual(['R:keep,rewound away,also gone', 'R:keep,new direction'])
+  })
+
+  it('leaves transcripts without links between lines alone', () => {
+    const file = join(dir, 'flat.jsonl')
+    writeFileSync(file, user('x', 'one') + user('y', 'two'))
+    const got: { items: ChatItem[]; replace: boolean }[] = []
+    new TranscriptTail(file, (items, replace) => got.push({ items, replace })).poll()
+    expect(says(got)).toEqual(['R:one,two'])
+  })
+})

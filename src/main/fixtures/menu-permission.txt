@@ -1,0 +1,30 @@
+
+
+⏺ one
+
+✻ Cogitated for 6s · done 6:28 PM
+
+❯ Reply with just: two                                                                              
+
+⏺ two
+
+✻ Cooked for 1s · done 6:28 PM
+
+❯ Run: echo $(date +%Y)                                                                             
+
+  Printing current year
+  ⎿  $ echo $(date +%Y)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command
+
+   echo $(date +%Y)
+   Print current year
+
+ Contains command_substitution
+     
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. No
+
+ Esc to cancel · Tab to amend

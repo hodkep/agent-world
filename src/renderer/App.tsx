@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -79,6 +79,7 @@ export function App() {
   const [history, setHistory] = useState(false)
   const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
+  const [termMenus, setTermMenus] = useState<Record<string, TerminalMenu | null>>({})
   const [questionMenus, setQuestionMenus] = useState<Record<string, boolean>>({})
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
@@ -141,6 +142,7 @@ export function App() {
         // The main process marks an agent started on its first real activity; mirror it so Clone unlocks.
         if (e.type === 'activity' && !e.subagentId) setAgents((xs) => (xs.some((a) => a.id === e.agentId && !a.started) ? xs.map((a) => (a.id === e.agentId ? { ...a, started: true } : a)) : xs))
       }),
+      window.aw.onTerminalMenu((id, m) => setTermMenus((t) => ({ ...t, [id]: m }))),
       window.aw.onQuestionMenu((id, open) => setQuestionMenus((m) => ({ ...m, [id]: open }))),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
       window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
@@ -207,7 +209,8 @@ export function App() {
     ...(trusts[id] ? [{ kind: 'trust', path: trusts[id]! } as const] : []),
     ...asks.filter((r) => r.agentId === id).map((request) => ({ kind: 'permission', request }) as const),
     ...(planMenus[id] ? [{ kind: 'plan', text: world[id]?.plan ?? '' } as const] : []),
-    ...(questionMenus[id] && world[id]?.questions?.length ? [{ kind: 'question', questions: world[id]!.questions! } as const] : [])
+    ...(questionMenus[id] && world[id]?.questions?.length ? [{ kind: 'question', questions: world[id]!.questions! } as const] : []),
+    ...(termMenus[id] ? [{ kind: 'menu', ...termMenus[id]! } as const] : [])
   ]
   needsRef.current = needsOf
   talkRef.current = talk
@@ -372,7 +375,9 @@ export function App() {
     trust: (yes) => window.aw.answerTrust(agentId, yes),
     decide: (id, d) => decideById(id, d),
     plan: (choice, feedback) => window.aw.answerPlan(agentId, choice, feedback),
-    answer: (answers) => window.aw.answerQuestions(agentId, answers)
+    answer: (answers) => window.aw.answerQuestions(agentId, answers),
+    menu: (index) => window.aw.answerMenu(agentId, index),
+    cancelMenu: () => window.aw.cancelMenu(agentId)
   })
   const decideById = (id: string, d: 'allow' | 'deny') => {
     window.aw.decide(id, d)

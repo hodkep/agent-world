@@ -26,7 +26,7 @@ export function trustPrompt(screen: string): TrustPrompt | null {
 export function inputReady(screen: string): boolean {
   if (trustPrompt(screen)) return false
   const lines = screen.split('\n').map((l) => l.trimStart())
-  return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯( |$)/.test(l))
+  return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯([ \u00a0]|$)/.test(l))
 }
 
 /** Claude's "ready to execute, would you like to proceed?" plan menu: options 1-3, which one is highlighted. */

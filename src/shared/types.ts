@@ -112,3 +112,11 @@ export interface AgentStats {
   fast: boolean
   limits: UsageLimits
 }
+
+/** A choice menu Claude is showing in its own terminal (a permission dialog it insists on, the rewind confirmation…). */
+export interface TerminalMenu {
+  title: string
+  context: string
+  options: string[]
+  hint: string
+}

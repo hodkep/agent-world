@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseTranscriptLine, transcriptPath } from './chat'
+import { newestSession, parseTranscriptLine, transcriptPath } from './chat'
 
 const line = (o: object) => JSON.stringify(o)
 const base = { uuid: 'u1', timestamp: '2026-09-30T07:33:23.872Z', isSidechain: false }
@@ -72,5 +75,27 @@ describe('reading Claude\'s transcript for the chat view', () => {
 describe('transcript location', () => {
   it('is <projects>/<project slug>/<session>.jsonl', () => {
     expect(transcriptPath('/home/u/.claude/projects', '/work/my.app', 'abc')).toBe('/home/u/.claude/projects/-work-my-app/abc.jsonl')
+  })
+})
+
+
+describe('finding the session a rewind forked to', () => {
+  it('is the newest transcript written since, other than the current one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aw-news-'))
+    try {
+      mkdirSync(dir, { recursive: true })
+      const put = (id: string, at: number) => {
+        writeFileSync(join(dir, `${id}.jsonl`), '{}\n')
+        utimesSync(join(dir, `${id}.jsonl`), at, at)
+      }
+      put('current', 2000)
+      put('old', 500)
+      put('fork', 1900)
+      expect(newestSession(dir, 'current', 1_000_000)).toBe('fork')
+      expect(newestSession(dir, 'current', 1_950_000)).toBeNull()
+      expect(newestSession(join(dir, 'nope'), 'current', 0)).toBeNull()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

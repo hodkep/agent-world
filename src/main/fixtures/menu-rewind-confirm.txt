@@ -1,0 +1,30 @@
+▝▜██████▀  Haiku 4.5 · Claude Team
+ ▝▝   ▝▝   /…/T/aw-cap-BkXLaj/home/worktrees/shop-api-ed007cf5/ada
+
+
+❯ Reply with just: one                                                                              
+
+⏺ one
+
+✻ Cogitated for 6s · done 6:28 PM
+
+❯ Reply with just: two                                                                              
+
+⏺ two
+
+✻ Cooked for 1s · done 6:28 PM
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Rewind
+
+   Confirm you want to restore to the point before you sent this message:
+
+   │ Reply with just: two
+   │ (13s ago)
+
+   The conversation will be forked.
+   The code will be unchanged.
+
+   ❯ 1. Restore conversation
+     2. Summarize from here
+     3. Summarize up to here
+     4. Never mind

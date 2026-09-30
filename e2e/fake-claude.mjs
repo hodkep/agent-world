@@ -116,13 +116,16 @@ if (process.env.FAKE_LOOP) {
 if (process.env.FAKE_CHAT) {
   await hook('Stop')
   let typed = ''
+  const prompts = []
   const MODES = ['default', 'acceptEdits', 'plan']
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
   const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
   drawFoot()
+  let inMenu = false
   process.stdin.on('data', async (d) => {
     const raw = String(d)
+    if (inMenu) return
     // Shift+Tab moves to the next permission mode. Like real Claude, only the footer says so until the next hook event.
     if (raw === '\x1b[Z') {
       mode = (mode + 1) % MODES.length
@@ -134,6 +137,42 @@ if (process.env.FAKE_CHAT) {
     const prompt = typed.split('\r')[0].trim()
     typed = ''
     if (!prompt) return
+    // /rewind: a list of the prompts so far, then Claude's confirmation menu (numbered), driven by keys.
+    if (prompt === '/rewind') {
+      inMenu = true
+      let at = prompts.length
+      const drawList = () => process.stdout.write(`\x1b[2J\x1b[H\r\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\n   Rewind\r\n   Restore the code and/or conversation to the point before…\r\n${prompts.map((p, i) => `   ${at === i ? '❯' : ' '} ${p}\r\n     No code changes\r\n`).join('')}   ${at === prompts.length ? '❯' : ' '} (current)\r\n   Enter to continue · Esc to cancel\r\n`)
+      drawList()
+      const picked = await new Promise((resolve) => {
+        const onKey = (d) => {
+          const k = String(d)
+          if (k === '\x1b[A') at = Math.max(0, at - 1)
+          else if (k === '\x1b[B') at = Math.min(prompts.length, at + 1)
+          else if (k === '\x1b') return (process.stdin.off('data', onKey), resolve(null))
+          else if (k === '\r') return (process.stdin.off('data', onKey), resolve(at))
+          drawList()
+        }
+        process.stdin.on('data', onKey)
+      })
+      if (picked === null || picked >= prompts.length) return void ((inMenu = false), drawFoot())
+      let choice = 0
+      const drawConfirm = () => process.stdout.write(`\x1b[2J\x1b[H\r\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\n   Rewind\r\n   Confirm you want to restore to the point before you sent this message:\r\n   │ ${prompts[picked]}\r\n   The conversation will be forked.\r\n   ${choice === 0 ? '❯' : ' '} 1. Restore conversation\r\n   ${choice === 1 ? '❯' : ' '} 2. Summarize from here\r\n   ${choice === 2 ? '❯' : ' '} 3. Never mind\r\n`)
+      drawConfirm()
+      await new Promise((resolve) => {
+        const onKey = (d) => {
+          const k = String(d)
+          if (k === '\x1b[A') choice = Math.max(0, choice - 1)
+          else if (k === '\x1b[B') choice = Math.min(2, choice + 1)
+          else if (k === '\r') return (process.stdin.off('data', onKey), resolve())
+          drawConfirm()
+        }
+        process.stdin.on('data', onKey)
+      })
+      process.stdout.write(`\x1b[2J\x1b[H rewound to: ${prompts[picked]} (option ${choice + 1})\r\n`)
+      if (choice === 0) prompts.length = picked
+      return void setTimeout(() => ((inMenu = false), drawFoot()), 800)
+    }
+    prompts.push(prompt)
     // Shell mode: run nothing, just record it the way Claude does.
     if (prompt.startsWith('!')) {
       transcript({ type: 'user', message: { role: 'user', content: `<bash-input>${prompt.slice(1).trim()}</bash-input>` } })
@@ -252,6 +291,26 @@ if (process.env.FAKE_TERMINAL_PROMPT) {
 }
 const answer = process.env.FAKE_TERMINAL_PROMPT ? null : await hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
 console.log(`decision: ${answer?.hookSpecificOutput?.decision?.behavior ?? 'ask-in-terminal'}`)
+// FAKE_OWN_DIALOG=1: Claude insists on its own confirmation even after the hook allowed it (as for commands with $(...)).
+if (process.env.FAKE_OWN_DIALOG) {
+  let at = 0
+  const draw = () => process.stdout.write(`\x1b[2J\x1b[H\r\n──────────────────────────────────────────────\r\n Bash command\r\n   echo $(date +%Y)\r\n Contains command_substitution\r\n Do you want to proceed?\r\n ${at === 0 ? '❯' : ' '} 1. Yes\r\n ${at === 1 ? '❯' : ' '} 2. No\r\n Esc to cancel · Tab to amend\r\n`)
+  draw()
+  await new Promise((resolve) => {
+    const onKey = (d) => {
+      const k = String(d)
+      if (k === '\x1b[B') at = 1
+      else if (k === '\x1b[A') at = 0
+      else if (k === '\r') {
+        process.stdin.off('data', onKey)
+        process.stdout.write(`\x1b[2J\x1b[H chose option ${at + 1}\r\n`)
+        return resolve()
+      }
+      draw()
+    }
+    process.stdin.on('data', onKey)
+  })
+}
 await hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })
 await sleep(pause)
 if (myName && myName === sendFrom) {

@@ -50,6 +50,11 @@ const api: AwApi = {
   readImage: (id, path) => ipcRenderer.invoke('read-image', id, path),
   setMode: (id, mode) => ipcRenderer.invoke('chat:set-mode', id, mode),
   chatCycleMode: (id) => ipcRenderer.invoke('chat:cycle-mode', id),
+  onTerminalMenu: on('terminal-menu'),
+  answerMenu: (id, i) => ipcRenderer.invoke('menu:answer', id, i),
+  onComposerPrefill: on('composer-prefill'),
+  cancelMenu: (id) => ipcRenderer.invoke('menu:cancel', id),
+  rewindTo: (id, text) => ipcRenderer.invoke('rewind-to', id, text),
   chatInterrupt: (id) => ipcRenderer.invoke('chat:interrupt', id),
   listRoles: (folder) => ipcRenderer.invoke('roles:list', folder),
   saveRole: (r) => ipcRenderer.invoke('roles:save', r),
@@ -77,4 +82,6 @@ const api: AwApi = {
   }
 }
 
+// Diagnostics only (AW_DEBUG=1): not part of the typed API.
+contextBridge.exposeInMainWorld('awDebug', { screen: (id: string) => ipcRenderer.invoke('debug:screen', id) })
 contextBridge.exposeInMainWorld('aw', api)
