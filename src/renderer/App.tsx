@@ -31,6 +31,9 @@ export function App() {
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
+  // Below this width the panel would squeeze the office, so it becomes a drawer over it, closed until needed.
+  const narrow = useNarrow()
+  const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
   const [view, setView] = useState<'terminal' | 'code' | 'tools'>('terminal')
@@ -55,7 +58,10 @@ export function App() {
     setOpenFile(undefined)
     // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
     if (needsRef.current(id).length > 0) setDialogFor(id)
-    else setFocusTick((n) => n + 1)
+    else {
+      setDrawer(true)
+      setFocusTick((n) => n + 1)
+    }
   }
   // The world is built once and keeps the first render's `select`, so it reads the latest needs through a ref.
   const needsRef = useRef<(id: string) => Need[]>(() => [])
@@ -151,7 +157,7 @@ export function App() {
   useEffect(() => {
     if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
   })
-  const showPanel = panelOpen || hiring || history
+  const showPanel = (narrow ? drawer || agents.length === 0 : panelOpen) || hiring || history
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -302,7 +308,7 @@ export function App() {
           </span>
         )}
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => setPanelOpen((o) => !o)} aria-expanded={showPanel}>
+        <button className="push" onClick={() => (narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
@@ -318,7 +324,7 @@ export function App() {
             </div>
           )}
         </div>
-        <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
+        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
           {agents.length > 0 && (
@@ -514,4 +520,16 @@ export function App() {
       </main>
     </div>
   )
+}
+
+function useNarrow() {
+  const query = '(max-width: 1100px)'
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const m = window.matchMedia(query)
+    const on = () => setNarrow(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return narrow
 }

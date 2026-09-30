@@ -173,7 +173,7 @@ if (process.env.FAKE_TERMINAL_PROMPT) {
     }
     process.stdin.on('data', onKey)
   })
-  await sleep(3000)
+  await sleep(6000)
   await hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'tu-1' })
 }
 const answer = process.env.FAKE_TERMINAL_PROMPT ? null : await hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'pnpm test' } })

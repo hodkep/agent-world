@@ -286,6 +286,8 @@ async function main() {
     },
     onPermission: (r) => {
       pendingPermissions.add(r.id)
+      // The terminal menu may already be drawn (and static) by the time the hook arrives.
+      if (anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
       refreshAttention()
       send('permission', r)
       notify('permission', byId(r.agentId), `Wants to use ${r.tool}: ${r.detail}`)
@@ -511,6 +513,8 @@ async function main() {
   win = new BrowserWindow({
     width: 1440,
     height: 900,
+    minWidth: 980,
+    minHeight: 640,
     backgroundColor: '#14121c',
     title: 'Agent World',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true }

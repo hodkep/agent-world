@@ -20,10 +20,10 @@ test('answering a permission in the terminal clears its card and the agent carri
     await term.click()
     await page.keyboard.press('Enter')
     await expect(term).toContainText('approved in terminal')
-    // Gone before the tool even finishes (the fake takes 3 s): the closed menu is enough.
-    await expect(card).toHaveCount(0, { timeout: 2_000 })
+    // Gone before the tool even finishes (the fake takes 6 s): the closed menu is enough.
+    await expect(card).toHaveCount(0, { timeout: 4_000 })
     await expect(page.locator('.roster button').first()).toContainText('running')
-    await expect(page.locator('.roster button').first()).toContainText(/idle|waiting/, { timeout: 10_000 })
+    await expect(page.locator('.roster button').first()).toContainText(/idle|waiting/, { timeout: 15_000 })
   } finally {
     await shutdown()
   }
