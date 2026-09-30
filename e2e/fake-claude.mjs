@@ -146,6 +146,8 @@ if (process.env.FAKE_CHAT) {
     for (const p of paths) if (/\.png$/i.test(p)) blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: readFileSync(p).toString('base64') } })
     transcript({ type: 'user', message: { role: 'user', content: paths.length ? blocks : prompt } })
     await hook('UserPromptSubmit', { prompt })
+    // A working Claude shows a spinner line; it is gone when the turn ends.
+    if (!process.env.FAKE_HANG) process.stdout.write('\x1b[19;1H✽ Working… (2s · ↓ 40 tokens)')
     // FAKE_HANG=1: the turn is interrupted (Esc) and Claude, like the real one, never sends a Stop hook.
     if (process.env.FAKE_HANG) {
       await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x' } })
@@ -161,6 +163,7 @@ if (process.env.FAKE_CHAT) {
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')
     say(`Done. I changed **health.ts** for "${prompt.replace(/@"[^"]+"\s*/g, '')}".\n\n\`\`\`ts\nexport const ok = true\n\`\`\`\n\n- one\n- two`)
+    drawFoot()
     await hook('Stop')
   })
   await new Promise(() => {})
