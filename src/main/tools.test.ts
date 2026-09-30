@@ -17,6 +17,12 @@ describe('claude mcp list', () => {
     ])
   })
 
+  it('handles the ✘ mark, plugin-style names with colons and reasons after the status', () => {
+    expect(parseMcpList('plugin:eng:github: https://api.example/mcp/ (HTTP) - ✘ Failed to connect — no dynamic client registration')).toEqual([
+      { name: 'plugin:eng:github', target: 'https://api.example/mcp/ (HTTP)', health: 'failed', status: 'Failed to connect — no dynamic client registration' }
+    ])
+  })
+
   it('returns nothing for the empty-state message', () => {
     expect(parseMcpList('No MCP servers configured. Use `claude mcp add` to add a server.')).toEqual([])
   })
