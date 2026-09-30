@@ -264,13 +264,24 @@ const send = (channel: string, ...args: unknown[]) => {
 const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
 
+// Names handed out but not yet on an agent (creating a worktree takes a moment), so two hires at once never share one.
+const reservedNames = new Set<string>()
+
 /** The next name from the list that no agent has and no old branch or worktree in this repo is still using. */
 async function nextName(repoPath: string) {
-  const used = new Set(agents.map((a) => a.name))
-  for (let n = 1; ; n++) for (const base of NAMES) {
-    const name = n === 1 ? base : `${base}${n}`
-    if (!used.has(name) && !(await nameTaken({ repoPath, name, rootDir: join(HOME, 'worktrees') }))) return name
-  }
+  for (let n = 1; ; n++)
+    for (const base of NAMES) {
+      const name = n === 1 ? base : `${base}${n}`
+      if (agents.some((a) => a.name === name) || reservedNames.has(name)) continue
+      reservedNames.add(name)
+      if (await nameTaken({ repoPath, name, rootDir: join(HOME, 'worktrees') })) {
+        reservedNames.delete(name)
+        continue
+      }
+      // By now the caller has the agent in the list; if it failed instead, the name is free again soon.
+      setTimeout(() => reservedNames.delete(name), 30_000)
+      return name
+    }
 }
 
 /**
