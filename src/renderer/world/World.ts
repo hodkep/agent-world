@@ -6,6 +6,7 @@ import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
 import { GRASS, Street, drawGrounds, drawHiringSign } from './grounds'
+import { Lot, type LotHandlers, type ParkedSession } from './lot'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -39,6 +40,8 @@ const POOLS: Record<Purpose, Spot[]> = {
   whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
+// Art pixels above the building and below it that the default view keeps in frame.
+const FRAME = { top: 40, bottom: 165, side: 24 }
 const MIN_ZOOM = 2
 const MAX_ZOOM = 8
 const DRAG_THRESHOLD = 4
@@ -54,6 +57,7 @@ export class OfficeWorld {
   private readonly inbox = new Map<string, number>()
   private readonly flights: Flight[] = []
   private street!: Street
+  private lot!: Lot
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
@@ -71,28 +75,30 @@ export class OfficeWorld {
 
   private constructor(
     private readonly app: Application,
+    private readonly host: HTMLElement,
     private readonly onSelect: (agentId: string) => void
   ) {}
 
-  static async create(el: HTMLElement, onSelect: (agentId: string) => void) {
+  static async create(el: HTMLElement, onSelect: (agentId: string) => void, lot: LotHandlers) {
     const app = new Application()
     await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
-    const w = new OfficeWorld(app, (id) => {
+    const w = new OfficeWorld(app, el, (id) => {
       // A pan that ends over a character is not a click on it.
       if (!w.dragged) onSelect(id)
     })
-    w.build()
+    w.build(lot)
     // resizeTo only follows window resizes; the stage also changes size when the side panel toggles.
     w.observer = new ResizeObserver(() => app.resize())
     w.observer.observe(el)
     return w
   }
 
-  private build() {
+  private build(lot: LotHandlers) {
     const shadows = new Graphics()
     this.street = new Street(OFFICE.map)
-    this.root.addChild(drawGrounds(OFFICE.map), this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.lot = new Lot(OFFICE.map, lot, () => this.dragged)
+    this.root.addChild(drawGrounds(OFFICE.map), this.lot.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -145,29 +151,46 @@ export class OfficeWorld {
     stage.on('pointerupoutside', end)
   }
 
-  private deviceScale() {
-    const { width, height } = this.app.screen
+  // The default view frames the building plus its street and car park; when the stage is wide enough that the
+  // building alone can be drawn larger (side panel hidden), the building takes over and the surroundings trim away.
+  private fits() {
     const dpr = this.app.renderer.resolution
-    const fit = Math.max(1, Math.floor(Math.min((width * dpr) / (OFFICE.map.w * TILE), (height * dpr) / (OFFICE.map.h * TILE))))
-    // Default shows the whole office; the wheel zooms past that when the user wants detail.
-    return this.zoom ?? fit
+    const W = this.app.screen.width * dpr
+    const H = this.app.screen.height * dpr
+    const bw = OFFICE.map.w * TILE
+    const bh = OFFICE.map.h * TILE
+    const frame = Math.max(1, Math.floor(Math.min(W / (bw + 2 * FRAME.side), H / (bh + FRAME.top + FRAME.bottom))))
+    const building = Math.max(1, Math.floor(Math.min(W / bw, H / bh)))
+    return { frame, building }
+  }
+
+  private deviceScale() {
+    const f = this.fits()
+    // The wheel zooms past the default when the user wants detail.
+    return this.zoom ?? Math.max(f.frame, f.building)
   }
 
   // Integer scale in *device* pixels keeps every art pixel the same size on HiDPI screens.
   private layout() {
     const { width, height } = this.app.screen
     const dpr = this.app.renderer.resolution
-    const worldW = OFFICE.map.w * TILE
-    const worldH = OFFICE.map.h * TILE
+    const bw = OFFICE.map.w * TILE
+    const bh = OFFICE.map.h * TILE
+    const f = this.fits()
+    const framed = f.frame >= f.building
+    const top = framed ? -FRAME.top : 0
+    const bottom = framed ? bh + FRAME.bottom : bh
+    const focusY = (top + bottom) / 2
     const scale = this.deviceScale() / dpr
-    // Keep the building's centre on screen however far the user pans.
-    const limitX = (worldW * scale) / 2
-    const limitY = (worldH * scale) / 2
+    // Keep the scene's centre on screen however far the user pans.
+    const limitX = (bw * scale) / 2
+    const limitY = ((bottom - top) * scale) / 2
     this.pan.x = Math.max(-limitX, Math.min(limitX, this.pan.x))
     this.pan.y = Math.max(-limitY, Math.min(limitY, this.pan.y))
     this.root.scale.set(scale)
-    this.root.x = Math.round(((width - worldW * scale) / 2 + this.pan.x) * dpr) / dpr
-    this.root.y = Math.round(((height - worldH * scale) / 2 + this.pan.y) * dpr) / dpr
+    this.root.x = Math.round((width / 2 - (bw / 2) * scale + this.pan.x) * dpr) / dpr
+    this.root.y = Math.round((height / 2 - focusY * scale + this.pan.y) * dpr) / dpr
+    this.publishCars()
   }
 
   // Desk and intern seats are permanent homes; every other spot is borrowed while in use.
@@ -211,6 +234,8 @@ export class OfficeWorld {
   }
 
   sync(agents: AgentView[]) {
+    // The more agents are working, the busier the street.
+    this.street.setBusy(agents.filter((a) => ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(a.state.activity)).length)
     const live = new Set<string>()
     this.files.clear()
     this.inbox.clear()
@@ -300,6 +325,7 @@ export class OfficeWorld {
     this.ambient.update(t)
     this.sign.visible = this.chars.size === 0
     this.street.update(dt, t)
+    this.lot.update(t)
   }
 
   // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.
@@ -338,6 +364,21 @@ export class OfficeWorld {
         g.rect(x, bottom - sheets, 6, 1).fill(0xffffff)
       }
     }
+  }
+
+  /** Past conversations parked across the road; the newest are nearest the left. */
+  setHistory(list: ParkedSession[]) {
+    this.lot.setSessions(list)
+    this.publishCars()
+  }
+
+  private publishCars() {
+    this.host.dataset.parked = JSON.stringify(this.lot.positions())
+  }
+
+  /** A parked conversation was taken: its car drives off. */
+  releaseCar(id: string) {
+    this.lot.depart(id)
   }
 
   /** An envelope flies from sender to recipient; it's how one agent visibly asks another for something. */

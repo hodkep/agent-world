@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PastSession } from '../../shared/api'
 
-const ago = (ms: number) => {
+export const ago = (ms: number) => {
   const mins = Math.max(1, Math.round((Date.now() - ms) / 60_000))
   if (mins < 60) return `${mins}m ago`
   return mins < 1440 ? `${Math.round(mins / 60)}h ago` : `${Math.round(mins / 1440)}d ago`

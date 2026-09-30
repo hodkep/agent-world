@@ -3,10 +3,11 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import type { PastSession } from '../shared/api'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { Welcome } from './panel/Welcome'
 import { ToolsView } from './panel/ToolsView'
-import { History } from './panel/History'
+import { History, ago } from './panel/History'
 import { Palette } from './panel/Palette'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -43,7 +44,7 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
-  const [, setOfficeReady] = useState(false)
+  const [officeReady, setOfficeReady] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
@@ -60,6 +61,11 @@ export function App() {
   const needsRef = useRef<(id: string) => Need[]>(() => [])
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
+  // The world is built once; these always point at the latest render's handlers.
+  const carHover = useRef<(s: { id: string; title: string; updated: number } | null, x: number, y: number) => void>(() => {})
+  const carPick = useRef<(id: string) => void>(() => {})
+  const [past, setPast] = useState<PastSession[]>([])
+  const [carTip, setCarTip] = useState<{ title: string; when: string; x: number; y: number } | null>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
   const seenFlights = useRef(new Set<string>())
 
@@ -101,7 +107,10 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, select).then((created) => {
+    void OfficeWorld.create(stage.current!, select, {
+      onHover: (s, x, y) => carHover.current(s, x, y),
+      onPick: (id) => carPick.current(id)
+    }).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
       setOfficeReady(true)
@@ -197,6 +206,19 @@ export function App() {
       setOpenFile({ path: 'CLAUDE.md' })
     })
 
+  carHover.current = (s, x, y) => setCarTip(s ? { title: s.title, when: ago(s.updated), x, y } : null)
+  carPick.current = (id) => {
+    office.current?.releaseCar(id)
+    void resume(id)
+  }
+  useEffect(() => {
+    if (!folder) return setPast([])
+    void window.aw.listHistory(folder).then(setPast, () => setPast([]))
+  }, [folder, agents.length])
+  useEffect(() => {
+    office.current?.setHistory(past.filter((p) => !p.inUse))
+  }, [past, officeReady])
+
   const clone = (src: AgentRecord) =>
     run(async () => {
       const a = await window.aw.cloneAgent(src.id)
@@ -285,7 +307,17 @@ export function App() {
         </button>
       </header>
       <main>
-        <div className="stage" ref={stage} />
+        <div className="stage-wrap">
+          <div className="stage" ref={stage} />
+          {carTip && (
+            <div className="car-tip" style={{ left: carTip.x + 14, top: carTip.y + 14 }} role="tooltip">
+              <b>{carTip.title}</b>
+              <span>
+                {carTip.when} · click to bring this conversation back
+              </span>
+            </div>
+          )}
+        </div>
         <aside hidden={!showPanel} className={wide ? 'wide' : ''}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}

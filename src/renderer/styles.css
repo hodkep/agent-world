@@ -48,7 +48,8 @@ button.danger { background: var(--danger); }
 .push { margin-left: auto; }
 
 main { flex: 1; display: flex; min-height: 0; }
-.stage { flex: 1; min-width: 0; position: relative; overflow: hidden; cursor: grab; }
+.stage-wrap { flex: 1; min-width: 0; position: relative; }
+.stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
 .stage:active { cursor: grabbing; }
 .stage canvas { display: block; image-rendering: pixelated; }
 aside { width: min(38vw, 560px); display: flex; flex-direction: column; background: var(--panel); border-left: 2px solid var(--ink); min-height: 0; }
@@ -312,3 +313,7 @@ button.choice { cursor: pointer; }
 .welcome-link { align-self: flex-start; background: transparent; border-color: transparent; box-shadow: none; color: var(--muted); text-decoration: underline; padding: 2px 0; }
 .welcome-link:hover:not(:disabled) { background: transparent; color: var(--text); }
 .welcome-note { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+.car-tip { position: absolute; z-index: 5; max-width: 280px; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--accent); pointer-events: none; font-size: 12px; }
+.car-tip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.car-tip span { color: var(--muted); }
