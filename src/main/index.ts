@@ -35,6 +35,9 @@ import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
+// AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
+const HIDDEN = process.env.AW_HIDDEN === '1'
+if (HIDDEN && process.platform === 'darwin') app.dock?.hide()
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
@@ -259,7 +262,7 @@ function agentFiles(a: AgentRecord) {
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
 
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
-  if (!Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
+  if (HIDDEN || !Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
   n.on('click', () => {
     win?.show()
@@ -271,7 +274,7 @@ function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
 
 function refreshAttention() {
   // Dock badge: things only the user can unblock.
-  app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size + questionOpen.size)
+  if (!HIDDEN) app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size + questionOpen.size)
   // Keep the machine awake while any live agent is mid-turn.
   const working = agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
   if (working && awakeBlocker === null) awakeBlocker = powerSaveBlocker.start('prevent-app-suspension')
@@ -826,6 +829,7 @@ async function main() {
   })
 
   win = new BrowserWindow({
+    show: !HIDDEN,
     width: 1440,
     height: 900,
     minWidth: 980,
