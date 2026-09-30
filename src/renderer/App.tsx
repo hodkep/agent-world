@@ -53,6 +53,7 @@ export function App() {
   const [palette, setPalette] = useState(false)
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
+  const [reviewMenu, setReviewMenu] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
@@ -242,6 +243,16 @@ export function App() {
     void window.aw.getUsage().then(setLimits)
     return window.aw.onUsage(setLimits)
   }, [])
+
+  const askReview = (author: AgentRecord, reviewer: string) =>
+    run(async () => {
+      setReviewMenu(false)
+      const created = await window.aw.requestReview(author.id, reviewer)
+      if (created) {
+        setAgents((xs) => [...xs, created])
+        setWorld((w) => applyEvent(w, { type: 'activity', agentId: created.id, sessionId: created.sessionId, activity: 'idle' }))
+      }
+    })
 
   const clone = (src: AgentRecord) =>
     run(async () => {
@@ -469,6 +480,27 @@ export function App() {
                 <button onClick={() => openHandbook(current)} title="CLAUDE.md: the standing instructions every agent reads when it starts">
                   Handbook
                 </button>
+              )}
+              {current.branch && (
+                <span className="menu-wrap">
+                  <button onClick={() => setReviewMenu((o) => !o)} aria-haspopup="menu" aria-expanded={reviewMenu} title="Hand this branch to another agent for a code review">
+                    Review
+                  </button>
+                  {reviewMenu && (
+                    <div className="pop-menu" role="menu" aria-label="Ask for a review">
+                      {agents
+                        .filter((a) => a.id !== current.id && (world[a.id]?.activity ?? 'asleep') !== 'asleep')
+                        .map((a) => (
+                          <button key={a.id} role="menuitem" onClick={() => void askReview(current, a.id)}>
+                            Ask {a.name}
+                          </button>
+                        ))}
+                      <button role="menuitem" onClick={() => void askReview(current, 'new')}>
+                        Hire a new reviewer
+                      </button>
+                    </div>
+                  )}
+                </span>
               )}
               <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
                 Clone

@@ -367,3 +367,7 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .zc-minus::before, .zc-plus::before { width: 10px; height: 2px; }
 .zc-plus::after { width: 2px; height: 10px; }
 .agent-row .proj { margin-left: 8px; font: 10px Menlo, Consolas, monospace; letter-spacing: 0.04em; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; }
+
+.menu-wrap { position: relative; display: inline-flex; }
+.pop-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 190px; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 24px rgb(0 0 0 / 0.5); }
+.pop-menu button { text-align: left; }

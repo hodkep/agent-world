@@ -74,6 +74,8 @@ export interface AwApi {
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */
   renameAgent(id: string, name: string): Promise<string>
+  /** Ask another agent (or a fresh read-only reviewer, with 'new') to review this agent's branch. Resolves to the new reviewer, if one was hired. */
+  requestReview(authorId: string, reviewer: string): Promise<AgentRecord | null>
   /** A second agent that continues a copy of this one's conversation, in its own worktree branched from this one's. */
   cloneAgent(id: string): Promise<AgentRecord>
   /** Earlier Claude conversations in this folder (and worktrees of it), newest first. */

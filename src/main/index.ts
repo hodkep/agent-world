@@ -14,6 +14,7 @@ import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { checkName, cleanName } from './names'
+import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
@@ -405,6 +406,33 @@ async function main() {
       new Promise<string>((resolve) => execFile(CLAUDE_BIN, args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
     const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
     return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
+  })
+  // Ask another agent to review this one's branch. The request travels as a normal agent message (author to reviewer),
+  // so it shows as an envelope in the office and follows the same delivery and rate-limit rules.
+  ipcMain.handle('handoff-review', async (_, authorId: string, reviewer: string) => {
+    const author = byId(authorId)
+    if (!author) throw new Error('Unknown agent.')
+    if (!author.branch || !author.base) throw new Error(`${author.name} works in a shared folder, so there is no branch to review.`)
+    let to = reviewer === 'new' ? null : byId(reviewer)
+    let created: AgentRecord | null = null
+    if (reviewer === 'new') {
+      const name = nextName()
+      const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees') })
+      // Plan mode keeps a reviewer from editing anything while it reads.
+      created = {
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, started: false,
+        options: { permissionMode: 'plan', instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
+      }
+      setWorkspaces(rememberWorkspace(workspaces, author.repoPath))
+      agents.push(created)
+      persist()
+      spawn(created, env)
+      to = created
+    }
+    if (!to || to.id === author.id) throw new Error('Pick a different agent to review.')
+    const text = reviewRequest(author.name, author.branch, author.base, author.cwd)
+    mailbox.send(author.id, to.name, text, { expectsReply: true })
+    return created
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   ipcMain.handle('list-history', (_, folder: string) => {

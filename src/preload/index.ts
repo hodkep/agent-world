@@ -19,6 +19,7 @@ const api: AwApi = {
   addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   renameAgent: (id, name) => ipcRenderer.invoke('rename-agent', id, name),
+  requestReview: (authorId, reviewer) => ipcRenderer.invoke('handoff-review', authorId, reviewer),
   cloneAgent: (id) => ipcRenderer.invoke('clone-agent', id),
   listHistory: (folder) => ipcRenderer.invoke('list-history', folder),
   resumeSession: (folder, id) => ipcRenderer.invoke('resume-session', folder, id),
