@@ -300,7 +300,8 @@ async function main() {
     const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
-  ipcMain.handle('list-agents', () => agents)
+  // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
+  ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null

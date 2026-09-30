@@ -35,6 +35,8 @@ export function App() {
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [feedback, setFeedback] = useState('')
   const [palette, setPalette] = useState(false)
+  // The world builds asynchronously; agents that arrived first must be synced once it exists.
+  const [, setOfficeReady] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
@@ -52,7 +54,7 @@ export function App() {
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
       setAgents(list)
-      setWorld((w) => list.reduce((acc, a) => applyEvent(acc, { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
+      setWorld((w) => list.reduce((acc, a) => applyEvent(acc, a.online ? { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: a.activity ?? 'idle' } : { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
     })
     const offs = [
       window.aw.onAgentEvent((e) => {
@@ -89,6 +91,7 @@ export function App() {
     void OfficeWorld.create(stage.current!, select).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
+      setOfficeReady(true)
     })
     return () => {
       alive = false
