@@ -248,3 +248,14 @@ Each desk CRT animates the state of whoever sits at it: dark when empty or aslee
 - **Don't** use alarm red or brass for decoration; they mean permission and primary/rank.
 - **Don't** let a tag or bubble cover another; route new overlays through `spread`.
 - **Don't** hide the permission queue behind a collapsed panel.
+
+## Surfaces added after the office
+
+These reuse the office's tokens (panel, panel-raised, rim-ink, brass, think-cyan) and its square corners; none introduces a new colour except the permission-mode colours below.
+
+- **Chat**: user messages right-aligned on panel-raised, assistant text on night-bg, tool calls as bordered cards that fold, code blocks coloured by Monaco. The composer stays at full height at any window size; the log gives way first. Cards above the composer (running processes, `/btw` side question, waiting questions) share one bordered, 6px-margin style.
+- **8-bit dialog**: the same box for approvals, plans, trust, questions (one page each, then Review) and Claude's own menus; opens from the blinking marker or inline in the chat.
+- **Permission modes**: each mode has one colour and a 5x5 glyph (Ask first grey, Edit automatically gold, Plan cyan, Auto orange, Don't ask purple, Bypass red). The colour appears on the composer chip, the roster and the character's name tag.
+- **Power plant**: two tanks in the office for the 5-hour and weekly limits, filling and turning amber then red as they are used. Traffic in the street only follows agent activity.
+- **Settings**: a modal `<dialog>` with fieldsets (alerts, new-agent defaults, updates, Claude program); each change is saved immediately, so there is no Save button.
+- **Roster**: agents can be grouped under small uppercase headings; the list and detail header fold away and the panel edge drags (double-click resets).
