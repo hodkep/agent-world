@@ -120,6 +120,9 @@ export function ChatView({
 
   const allRows = useMemo(() => toRows(items, sent), [items, sent])
   // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
+  // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
+  const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
+  useEffect(() => window.aw.onBtw((id, b) => id === agentId && setBtw(b)), [agentId])
   const [cut, setCut] = useState<string | null>(null)
   useEffect(
     () =>
@@ -252,6 +255,15 @@ export function ChatView({
           <span>{error}</span>
           <button onClick={onTerminal}>Open terminal</button>
         </div>
+      )}
+      {btw && (
+        <section className="btw" aria-label="Side question">
+          <div className="btw-q">
+            <b>/btw</b> {btw.question}
+          </div>
+          <div className="btw-a" role="status">{btw.answer ?? 'Answering…'}</div>
+          <button onClick={() => void window.aw.closeBtw(agentId)}>Dismiss</button>
+        </section>
       )}
       {!asleep && <ProcBar agentId={agentId} />}
       <Composer

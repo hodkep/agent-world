@@ -48,6 +48,8 @@ const api: AwApi = {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
+  onBtw: on('btw'),
+  closeBtw: (id) => ipcRenderer.invoke('btw:close', id),
   onChatReset: on('chat-reset'),
   chatSend: (id, text) => ipcRenderer.invoke('chat:send', id, text),
   saveAttachment: (id, name, bytes, mime) => ipcRenderer.invoke('attach-save', id, name, new Uint8Array(bytes), mime),

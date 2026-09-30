@@ -1,3 +1,4 @@
+import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -68,6 +69,8 @@ function loginShellPath() {
 let win: BrowserWindow | null = null
 let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
+// What the /btw overlay last showed each agent, so the window hears only about changes.
+const btwSent = new Map<string, string>()
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 const planOpen = new Set<string>()
@@ -536,6 +539,9 @@ async function main() {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
       surfaceTerminalMenu(a.id, text)
+      const btw = btwOverlay(text)
+      const sig = btw ? JSON.stringify(btw) : ''
+      if (btwSent.get(a.id) !== sig && (btw || btwSent.has(a.id))) (btwSent.set(a.id, sig), send('btw', a.id, btw))
       if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !inputReady(text) || anyMenu(text) || looksWorking(text)) continue
       mailbox.looksIdle(a.id)
       const act = lastActivity.get(a.id)
@@ -607,6 +613,9 @@ async function main() {
   // Esc is how Claude's own terminal interrupts a running turn.
   // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
+  ipcMain.handle('btw:close', (_, id: string) => {
+    if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
+  })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
   ipcMain.handle('chat:interrupt', (_, id: string) => {

@@ -116,6 +116,8 @@ export interface AwApi {
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
+  onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
+  closeBtw(agentId: string): Promise<void>
   onChatReset(cb: (agentId: string, sessionId: string) => void): () => void
   /** Types the text into the agent's terminal as a prompt and presses Enter. Rejects while a menu is open. */
   chatSend(agentId: string, text: string): Promise<void>

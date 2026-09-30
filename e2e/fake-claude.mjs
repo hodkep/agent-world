@@ -144,6 +144,15 @@ if (process.env.FAKE_CHAT) {
     const prompt = typed.split('\r')[0].trim()
     typed = ''
     if (!prompt) return
+    // /btw: a side question in an overlay that closes with Esc.
+    if (prompt.startsWith('/btw ')) {
+      inMenu = true
+      const draw = (body, foot) => process.stdout.write(`\x1b[2J\x1b[H\r\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\n    ${prompt}\r\n      ${body}\r\n    ${foot}\r\n`)
+      draw('✻ Answering…', 'Esc to close')
+      setTimeout(() => draw('It is 4.', '↑/↓ to scroll · c to copy · f to fork · Esc to close'), 700)
+      const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), (inMenu = false), drawFoot())
+      return void process.stdin.on('data', onKey)
+    }
     // /rewind: a list of the prompts so far, then Claude's confirmation menu (numbered), driven by keys.
     if (prompt === '/rewind') {
       inMenu = true

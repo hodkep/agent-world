@@ -575,3 +575,8 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .add-server input { flex: 1; min-width: 110px; }
 .tools li button { font-size: 11px; padding: 1px 8px; cursor: pointer; margin-left: 6px; }
 .tools .hint.bad { color: #ff8a8a; }
+
+.btw { margin: 0 12px 6px; padding: 8px 10px; border: 1px solid var(--line, #3a3a4a); border-left: 3px solid #6ad0e0; border-radius: 6px; font-size: 13px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+.btw-q { grid-column: 1; opacity: .75; }
+.btw-a { grid-column: 1; }
+.btw button { grid-column: 2; grid-row: 1 / span 2; align-self: start; font-size: 11px; cursor: pointer; }
