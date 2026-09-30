@@ -3,7 +3,8 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
-import type { PastSession } from '../shared/api'
+import type { PastSession, Workspaces } from '../shared/api'
+import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type UsageLimits, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
 import { Welcome } from './panel/Welcome'
@@ -15,10 +16,11 @@ import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
-const FOLDER_KEY = 'aw.folder'
-const readFolder = () => {
+// Before projects were saved by the app, the chosen folder lived here; it is carried over once.
+const LEGACY_FOLDER_KEY = 'aw.folder'
+const legacyFolder = () => {
   try {
-    return localStorage.getItem(FOLDER_KEY)
+    return localStorage.getItem(LEGACY_FOLDER_KEY)
   } catch {
     return null
   }
@@ -29,7 +31,8 @@ export function App() {
   const [world, setWorld] = useState<World>(emptyWorld)
   const [selected, setSelected] = useState<string | null>(null)
   const [asks, setAsks] = useState<PermissionRequest[]>([])
-  const [folder, setFolder] = useState<string | null>(readFolder)
+  const [workspaces, setWorkspaces] = useState<Workspaces | null>(null)
+  const folder = workspaces?.active ?? null
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
@@ -74,6 +77,13 @@ export function App() {
   const hud = useRef<HTMLDivElement>(null)
   // Each message flies once, when first seen, even though it is reported again on delivery.
   const seenFlights = useRef(new Set<string>())
+
+  useEffect(() => {
+    void window.aw.getWorkspaces().then(async (w) => {
+      const old = legacyFolder()
+      setWorkspaces(w.active || !old ? w : await window.aw.activateWorkspace(old).catch(() => w))
+    })
+  }, [])
 
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
@@ -169,16 +179,11 @@ export function App() {
     }
   }
 
+  const refreshWorkspaces = () => window.aw.getWorkspaces().then(setWorkspaces)
   const pick = () =>
     run(async () => {
       const f = await window.aw.pickFolder()
-      if (!f) return
-      setFolder(f)
-      try {
-        localStorage.setItem(FOLDER_KEY, f)
-      } catch {
-        // Remembering the folder is a convenience; the picker still works without storage.
-      }
+      if (f) setWorkspaces(await window.aw.activateWorkspace(f))
     })
 
   const hire = (options: AgentOptions, name: string) =>
@@ -186,6 +191,7 @@ export function App() {
       if (!folder) return
       const a = await window.aw.addAgent(folder, options, name)
       setHiring(false)
+      void refreshWorkspaces()
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
@@ -196,6 +202,7 @@ export function App() {
       if (!folder) return
       const a = await window.aw.resumeSession(folder, sessionId)
       setHistory(false)
+      void refreshWorkspaces()
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
@@ -296,9 +303,12 @@ export function App() {
         <h1>
           <PixelWord text="agent world" />
         </h1>
-        <button onClick={pick} title={folder ?? ''}>
-          {folder ? folder.split(/[\\/]/).pop() : 'Open folder…'}
-        </button>
+        <WorkspaceMenu
+          workspaces={workspaces}
+          onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
+          onPick={pick}
+          onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
+        />
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
         </button>

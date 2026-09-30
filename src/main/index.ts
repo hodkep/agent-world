@@ -1,8 +1,8 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -14,6 +14,7 @@ import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { checkName, cleanName } from './names'
+import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { driveAnswers, parseAsk } from './askMenu'
@@ -72,6 +73,20 @@ const loadUsage = () => {
     usage = mergeLimits(noLimits(), JSON.parse(readFileSync(USAGE_FILE, 'utf8')) as UsageLimits)
   } catch {
     /* first run, or unreadable: start empty */
+  }
+}
+// Folders worked in, saved once an agent has been hired there so the next launch opens where you left off.
+const WORKSPACES_FILE = join(HOME, 'workspaces.json')
+let workspaces: WorkspaceState = { active: null, recent: [] }
+const setWorkspaces = (next: WorkspaceState) => {
+  workspaces = next
+  saveWorkspaces(WORKSPACES_FILE, workspaces)
+}
+const isDir = (p: string) => {
+  try {
+    return statSync(p).isDirectory()
+  } catch {
+    return false
   }
 }
 const pendingPermissions = new Set<string>()
@@ -294,6 +309,7 @@ async function main() {
   mkdirSync(HOME, { recursive: true })
   agents = loadAgents(AGENTS_FILE)
   loadUsage()
+  workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...agentEnv(process.env), PATH: loginShellPath() }
 
   const hooks = await startHookServer({
@@ -345,10 +361,36 @@ async function main() {
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
   ipcMain.handle('get-usage', () => usage)
+  const workspaceInfo = async () => {
+    const active = resumeWorkspace(workspaces, isDir)
+    const paths = [...new Set([...workspaces.recent, ...(active ? [active] : [])])]
+    const items = await Promise.all(
+      paths.map(async (path) => ({
+        path,
+        name: basename(path),
+        exists: isDir(path),
+        git: isDir(path) && (await isGitRepo(path)),
+        agents: agents.filter((a) => a.repoPath === path).length,
+        saved: workspaces.recent.includes(path)
+      }))
+    )
+    return { active, items }
+  }
+  ipcMain.handle('workspaces:get', workspaceInfo)
+  ipcMain.handle('workspaces:activate', async (_, path: string) => {
+    if (!isDir(path)) throw new Error('That folder is not there any more.')
+    setWorkspaces(activateWorkspace(workspaces, path))
+    return workspaceInfo()
+  })
+  ipcMain.handle('workspaces:forget', async (_, path: string) => {
+    setWorkspaces(forgetWorkspace(workspaces, path))
+    return workspaceInfo()
+  })
   ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
     agents.push(a)
     persist()
@@ -385,6 +427,7 @@ async function main() {
     if (busy) throw new Error(`${busy.name} is already running that session.`)
     const name = nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true }
     agents.push(a)
     persist()

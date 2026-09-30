@@ -31,6 +31,22 @@ export interface ToolsInfo {
   plugins: { id: string; version: string; scope: string; enabled: boolean }[]
 }
 
+export interface WorkspaceInfo {
+  path: string
+  name: string
+  exists: boolean
+  /** Git is optional: agents in a git folder get their own branch and worktree, others share the folder. */
+  git: boolean
+  agents: number
+  /** Remembered because an agent has worked here (as opposed to just being open right now). */
+  saved: boolean
+}
+export interface Workspaces {
+  /** The folder to open in: the one used last, if it is still there. */
+  active: string | null
+  items: WorkspaceInfo[]
+}
+
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
@@ -49,6 +65,9 @@ export interface AwApi {
   /** Absolute path of a file dropped into the window ('' if it is not on disk). */
   pathOf(file: File): string
   pickFolder(): Promise<string | null>
+  getWorkspaces(): Promise<Workspaces>
+  activateWorkspace(path: string): Promise<Workspaces>
+  forgetWorkspace(path: string): Promise<Workspaces>
   listAgents(): Promise<AgentRecord[]>
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */

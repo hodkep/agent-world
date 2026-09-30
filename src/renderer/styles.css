@@ -343,3 +343,24 @@ button.choice { cursor: pointer; }
 .meter.level-hot .meter-bar i.on { background: var(--danger); }
 .meter.level-hot .meter-num { color: var(--danger-text); }
 .meter-reset { grid-column: 1 / 3; font-size: 11px; color: var(--muted); }
+
+/* ---- Project switcher ------------------------------------------------------------------------- */
+.ws { position: relative; }
+.ws-button { display: inline-flex; align-items: center; gap: 8px; max-width: 280px; }
+.ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ws-tag { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 5px; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--ink); flex: none; }
+.ws-tag.git { color: var(--ok); }
+.ws-caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--muted); flex: none; }
+.ws-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 380px; max-height: 60vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 16px 32px rgb(0 0 0 / 0.5); }
+.ws-menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ws-menu li { display: flex; gap: 4px; align-items: stretch; }
+.ws-item { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 8px; text-align: left; background: var(--panel-2); }
+.ws-menu li.on .ws-item { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent); }
+.ws-item-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-item-path { grid-column: 1; font: 11px Menlo, Consolas, monospace; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.ws-item-tags { grid-column: 2; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; justify-content: center; }
+.ws-forget { width: 26px; padding: 0; position: relative; }
+.ws-forget::before, .ws-forget::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 2px; background: var(--muted); transform: translate(-50%, -50%) rotate(45deg); }
+.ws-forget::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.ws-forget:hover::before, .ws-forget:hover::after { background: var(--danger-text); }
+.ws-open { text-align: left; }
