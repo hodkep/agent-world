@@ -170,19 +170,21 @@ aside:not(.wide) .change-list { width: 190px; }
 
 .rename { width: 9em; font: inherit; font-weight: 700; padding: 0 4px; }
 
-.history { padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); max-height: 40vh; overflow: auto; }
+.history { display: block; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); max-height: 40vh; overflow: auto; flex: none; }
 .history-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.history li { flex: none; }
 .history li button { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; }
-.history .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .history .when { color: var(--muted); font-size: 12px; flex: none; }
 
-.tools { padding: 10px 12px; overflow: auto; flex: 1; }
-.tools-head { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; }
-.tools ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.tools li { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; background: var(--panel-2); }
-.tools .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.tools .status { color: var(--muted); font-size: 12px; flex: none; }
+.tools { padding: 10px 12px; overflow: auto; flex: 1; min-height: 0; }
+.tools-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 4px; }
+.tools ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tools li { flex: none; display: grid; grid-template-columns: 1.2em 1fr; column-gap: 8px; row-gap: 2px; padding: 6px 8px; background: var(--panel-2); }
+.tools .grow { min-width: 0; overflow-wrap: anywhere; }
+.tools .grow .detail { display: block; }
+.tools .status { grid-column: 2; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .tools .health-ok .mark { color: #6fcf7f; }
 .tools .health-attention .mark { color: #f2c94c; }
 .tools .health-failed .mark { color: #ff6b6b; }

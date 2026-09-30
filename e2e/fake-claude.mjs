@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 const args = process.argv.slice(2)
 // Read-only subcommands the app runs to inspect the setup.
 if (args[0] === 'mcp') {
-  console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect')
+  console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect\nplugin:productivity:asana: https://mcp.asana.com/v2/mcp (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration')
   process.exit(0)
 }
 if (args[0] === 'plugin') {
