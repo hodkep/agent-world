@@ -86,7 +86,8 @@ export function App() {
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
   const [prefs, setPrefs] = useState<Prefs | null>(null)
-  useEffect(() => void window.aw.getPrefs().then(setPrefs), [])
+  const prefsNow = useRef<Prefs | null>(null)
+  useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
@@ -407,7 +408,13 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
-      {settings && prefs && <Settings prefs={prefs} onChange={(p) => (setPrefs(p), void window.aw.setPrefs(p).then(setPrefs))} onClose={() => setSettings(false)} />}
+      {settings && prefs && <Settings prefs={prefs} roles={roles} onChange={(patch) => {
+          // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
+          const next = { ...prefsNow.current!, ...patch }
+          prefsNow.current = next
+          setPrefs(next)
+          void window.aw.setPrefs(next)
+        }} onClose={() => setSettings(false)} />}
       {palette && current && (
         <Palette
           agentId={current.id}
@@ -500,7 +507,7 @@ export function App() {
             }}
           />
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
-          {hiring && <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
+          {hiring && <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
               {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {

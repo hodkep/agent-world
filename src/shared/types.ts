@@ -148,6 +148,10 @@ export interface Prefs {
   claudePath: string
   /** Where new builds are published; empty means the app does not look for updates. */
   updateUrl: string
+  /** Standing instructions added to every agent, whatever its role. */
+  houseRules: string
+  /** Which model a job (a role's title) uses when the role does not set one. */
+  roleModels: Record<string, string>
   /** What the hire form starts with. */
   defaults: { model: string; permissionMode: string; inPlace: boolean }
 }

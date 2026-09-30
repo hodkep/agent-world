@@ -595,3 +595,6 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .settings input:not([type=checkbox]), .settings select { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }
 
 .settings-row { display: flex; align-items: center; gap: 10px; }
+
+.settings label.row-label { flex-direction: row; align-items: center; justify-content: space-between; }
+.settings textarea { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; resize: vertical; }

@@ -30,6 +30,7 @@ const MODES: { value: PermissionMode | ''; label: string; hint: string }[] = [
 export function HireForm({
   roles,
   defaults,
+  roleModels,
   onHire,
   onCancel,
   onSaveRole
@@ -37,6 +38,8 @@ export function HireForm({
   roles: Role[]
   /** From Settings: what a new agent starts with. */
   defaults: Prefs['defaults']
+  /** From Settings: the model a job uses when its role does not name one. */
+  roleModels: Prefs['roleModels']
   onHire: (options: AgentOptions, name: string) => Promise<void>
   onCancel: () => void
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
@@ -59,7 +62,7 @@ export function HireForm({
     const r = roles.find((x) => x.id === id)
     if (!r) return
     const o = r.options
-    setModel(o.model ?? '')
+    setModel(o.model ?? roleModels[r.title] ?? '')
     setEffort(o.effort ?? '')
     setMode(o.permissionMode ?? '')
     setInstructions(o.instructions ?? '')

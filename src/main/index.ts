@@ -425,7 +425,7 @@ function finishRewind(id: string) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, addDirs: [ATTACH_DIR] })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: prefs.houseRules, addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = claudeCmd(args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
@@ -750,7 +750,7 @@ async function main() {
       // Plan mode keeps a reviewer from editing anything while it reads.
       created = {
         id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, started: false,
-        options: { permissionMode: 'plan', instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
+        options: { permissionMode: 'plan', ...(prefs.roleModels.Reviewer && { model: prefs.roleModels.Reviewer }), instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
       }
       setWorkspaces(rememberWorkspace(workspaces, author.repoPath))
       agents.push(created)

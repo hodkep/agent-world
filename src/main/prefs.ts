@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import type { Prefs } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, claudePath: '', updateUrl: '', defaults: { model: '', permissionMode: '', inPlace: false } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, claudePath: '', updateUrl: '', houseRules: '', roleModels: {}, defaults: { model: '', permissionMode: '', inPlace: false } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -16,12 +16,21 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     keepAwake: typeof r.keepAwake === 'boolean' ? r.keepAwake : base.keepAwake,
     claudePath: str(r.claudePath, 500)?.trim() ?? base.claudePath,
     updateUrl: str(r.updateUrl, 500)?.trim() ?? base.updateUrl,
+    houseRules: str(r.houseRules, 4000) ?? base.houseRules,
+    roleModels: cleanRoleModels(r.roleModels, base.roleModels),
     defaults: {
       model: str(d.model, 60) ?? base.defaults.model,
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
       inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace
     }
   }
+}
+
+function cleanRoleModels(raw: unknown, base: Record<string, string>) {
+  if (!raw || typeof raw !== 'object') return base
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) if (typeof v === 'string' && v.trim() && k.length <= 60) out[k] = v.trim().slice(0, 60)
+  return out
 }
 
 export function loadPrefs(file: string): Prefs {

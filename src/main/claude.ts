@@ -55,6 +55,8 @@ export function launchArgs(o: {
   /** App-wide default (AW_PERMISSION_MODE); a per-agent option overrides it. */
   permissionMode?: string
   options?: AgentOptions
+  /** Settings' standing instructions for every agent. */
+  houseRules?: string
   /** Extra folders the agent may read without asking (where attached pictures and files are saved). */
   addDirs?: string[]
 }) {
@@ -69,7 +71,9 @@ export function launchArgs(o: {
   if (opt.effort) args.push('--effort', opt.effort)
   const mode = opt.permissionMode ?? o.permissionMode
   if (mode) args.push('--permission-mode', mode)
-  if (opt.instructions?.trim()) args.push('--append-system-prompt', opt.instructions.trim())
+  // House rules come first, then what this agent was hired to do.
+  const instructions = [o.houseRules, opt.instructions].map((t) => t?.trim()).filter(Boolean).join('\n\n')
+  if (instructions) args.push('--append-system-prompt', instructions)
   if (opt.chrome) args.push('--chrome')
   for (const d of o.addDirs ?? []) args.push('--add-dir', d)
   return args

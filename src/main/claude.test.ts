@@ -110,3 +110,15 @@ describe('agent environment', () => {
   })
 })
 
+
+describe('house rules', () => {
+  const base = { sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' }
+  const prompt = (a: string[]) => a[a.indexOf('--append-system-prompt') + 1]
+  it('come before the agent\'s own instructions', () => {
+    expect(prompt(launchArgs({ ...base, houseRules: ' Small commits. ', options: { instructions: 'Review only.' } }))).toBe('Small commits.\n\nReview only.')
+  })
+  it('stand alone when the agent has none, and add nothing when empty', () => {
+    expect(prompt(launchArgs({ ...base, houseRules: 'Small commits.' }))).toBe('Small commits.')
+    expect(launchArgs({ ...base, houseRules: '  ' })).not.toContain('--append-system-prompt')
+  })
+})

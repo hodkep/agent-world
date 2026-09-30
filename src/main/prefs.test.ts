@@ -17,6 +17,11 @@ describe('preferences', () => {
   it('ignore values of the wrong kind, keeping the rest', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, claudePath: '/x/claude', defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
+  it('keep house rules and the model chosen for each job, dropping empty entries', () => {
+    const p = cleanPrefs({ houseRules: 'Small commits.', roleModels: { Reviewer: ' haiku ', Explorer: '', Bad: 4 } })
+    expect(p.houseRules).toBe('Small commits.')
+    expect(p.roleModels).toEqual({ Reviewer: 'haiku' })
+  })
   it('survive a corrupt file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'bad.json')
     writeFileSync(file, '{nope')

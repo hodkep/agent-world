@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Role } from '../../shared/roles'
 import type { Prefs } from '../../shared/types'
 import { MODELS } from './HireForm'
 
@@ -10,14 +11,19 @@ const PERMISSIONS = [
 ]
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, onChange, onClose }: { prefs: Prefs; onChange: (p: Prefs) => void; onClose: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [path, setPath] = useState(prefs.claudePath)
+  const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
   const [update, setUpdate] = useState('')
   useEffect(() => window.aw.onUpdateState((s) => s.detail && setUpdate(s.detail)), [])
   useEffect(() => dialog.current?.showModal(), [])
-  const set = (patch: Partial<Prefs>) => onChange({ ...prefs, ...patch })
+  const set = (patch: Partial<Prefs>) => onChange(patch)
+  const setRoleModel = (title: string, model: string) => {
+    const { [title]: _, ...rest } = prefs.roleModels
+    set({ roleModels: model ? { ...rest, [title]: model } : rest })
+  }
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
   return (
     <dialog ref={dialog} className="settings" aria-label="Settings" onClose={onClose} onCancel={onClose}>
@@ -45,7 +51,7 @@ export function Settings({ prefs, onChange, onClose }: { prefs: Prefs; onChange:
         <legend>New agents start with</legend>
         <label>
           Model
-          <select value={prefs.defaults.model} onChange={(e) => setDefaults({ model: e.target.value })}>
+          <select aria-label="Model for new agents" value={prefs.defaults.model} onChange={(e) => setDefaults({ model: e.target.value })}>
             {MODELS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -66,6 +72,30 @@ export function Settings({ prefs, onChange, onClose }: { prefs: Prefs; onChange:
         <label className="check">
           <input type="checkbox" checked={prefs.defaults.inPlace} onChange={(e) => setDefaults({ inPlace: e.target.checked })} /> Work in my folder directly (no branch)
         </label>
+      </fieldset>
+      <fieldset>
+        <legend>House rules</legend>
+        <label>
+          Added to every agent
+          <textarea rows={4} value={rules} onChange={(e) => (setRules(e.target.value), set({ houseRules: e.target.value.trim() }))} placeholder="e.g. Keep commits small. Run the tests before saying you are done." />
+          <span className="hint">Applies when an agent starts or wakes, ahead of its own instructions.</span>
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Model by job</legend>
+        {[...new Map(roles.map((r) => [r.title, r])).values()].map((r) => (
+          <label key={r.title} className="row-label">
+            {r.title}
+            <select aria-label={`Model for ${r.title}`} value={prefs.roleModels[r.title] ?? ''} onChange={(e) => setRoleModel(r.title, e.target.value)}>
+              {MODELS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.value ? m.label : r.options.model ? `${r.options.model} (role's own)` : 'Default model'}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+        <span className="hint">Used when a job is hired from its role; the hire form can still change it.</span>
       </fieldset>
       <fieldset>
         <legend>Updates</legend>
