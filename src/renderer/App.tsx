@@ -35,6 +35,7 @@ export function App() {
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [feedback, setFeedback] = useState('')
   const [palette, setPalette] = useState(false)
+  const [renaming, setRenaming] = useState<string | null>(null)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
@@ -298,7 +299,34 @@ export function App() {
           {current ? (
             <section className="agent-head">
               <div>
-                <b>{current.name}</b> <span className="role">{state ? roleOf(state) : 'senior'}</span>
+                {renaming === current.id ? (
+                  <input
+                    className="rename"
+                    aria-label="New name"
+                    defaultValue={current.name}
+                    maxLength={20}
+                    autoFocus
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => setRenaming(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setRenaming(null)
+                      if (e.key !== 'Enter') return
+                      const id = current.id
+                      window.aw.renameAgent(id, e.currentTarget.value).then(
+                        (name) => {
+                          setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
+                          setRenaming(null)
+                        },
+                        (err: Error) => setError(err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+                      )
+                    }}
+                  />
+                ) : (
+                  <b title="Double-click to rename" onDoubleClick={() => setRenaming(current.id)}>
+                    {current.name}
+                  </b>
+                )}{' '}
+                <span className="role">{state ? roleOf(state) : 'senior'}</span>
                 <div className="detail">
                   {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
                   {state?.detail ? ` · ${state.detail}` : ''}

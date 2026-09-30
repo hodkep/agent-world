@@ -35,6 +35,8 @@ export interface AwApi {
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
+  /** Renames the agent (unique, plain characters); resolves to the cleaned name. */
+  renameAgent(id: string, name: string): Promise<string>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void

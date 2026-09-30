@@ -10,6 +10,7 @@ import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decis
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
+import { checkName, cleanName } from './names'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { answerMenu, answerTrust, anyMenu, inputReady, planMenu, trustPrompt } from './prompts'
@@ -300,15 +301,21 @@ async function main() {
   })
   ipcMain.handle('list-agents', () => agents)
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
-    const clean = wanted?.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20)
-    if (clean && agents.some((a) => a.name === clean)) throw new Error(`There is already an agent named ${clean}.`)
-    const name = clean || nextName()
+    const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
     agents.push(a)
     persist()
     spawn(a, env)
     return a
+  })
+  // Only the app-level name changes; the branch and worktree keep the name they were created with.
+  ipcMain.handle('rename-agent', (_, id: string, wanted: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    a.name = checkName(wanted, agents.filter((x) => x.id !== id).map((x) => x.name))
+    persist()
+    return a.name
   })
   ipcMain.handle('wake-agent', (_, id: string) => {
     const a = byId(id)

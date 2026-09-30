@@ -167,3 +167,5 @@ aside:not(.wide) .change-list { width: 190px; }
 .palette .desc { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette .src { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .palette .empty { color: var(--muted); cursor: default; }
+
+.rename { width: 9em; font: inherit; font-weight: 700; padding: 0 4px; }
