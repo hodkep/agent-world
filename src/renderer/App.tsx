@@ -17,6 +17,7 @@ import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
+import { GridView } from './panel/GridView'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -87,6 +88,7 @@ export function App() {
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
   const [finishing, setFinishing] = useState<string | null>(null)
+  const [grid, setGrid] = useState(() => store('aw.grid') === '1')
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
@@ -459,6 +461,11 @@ export function App() {
         <button onClick={() => setHistory((h) => !h)} disabled={!folder} aria-expanded={history} title="Bring back an earlier conversation from this folder">
           History
         </button>
+        {agents.length > 0 && (
+          <button onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} aria-pressed={grid} title="Show every agent at once, with the last lines of its terminal">
+            Grid
+          </button>
+        )}
         <LimitChips limits={limits} />
         {officeCost > 0 && (
           <span className="office-cost" title="Spent by all agents this session">
@@ -476,6 +483,20 @@ export function App() {
       <main>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
+          {grid && agents.length > 0 && (
+            <GridView
+              selected={selected}
+              onOpen={(id) => select(id)}
+              tiles={agents.map((a) => ({
+                agent: a,
+                activity: world[a.id]?.activity ?? 'asleep',
+                detail: world[a.id]?.detail,
+                mode: world[a.id]?.mode,
+                stats: stats[a.id],
+                needs: needsOf(a.id)[0] ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null
+              }))}
+            />
+          )}
           <div className="zoom-ctl" role="group" aria-label="View">
             <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
             <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />

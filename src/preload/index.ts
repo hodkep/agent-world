@@ -50,6 +50,7 @@ const api: AwApi = {
   onChatItems: on('chat-items'),
   finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
+  peek: (ids) => ipcRenderer.invoke('peek', ids),
   saveNotes: (id) => ipcRenderer.invoke('notes:save', id),
   resync: () => ipcRenderer.invoke('resync'),
   checkUpdates: () => ipcRenderer.invoke('updates:check'),

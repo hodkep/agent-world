@@ -672,6 +672,10 @@ async function main() {
     if (!HIDDEN) shell.showItemInFolder(file)
     return file
   })
+  // The last few lines each agent's terminal shows, for the grid of tiles.
+  ipcMain.handle('peek', (_, ids: string[]) =>
+    Object.fromEntries(ids.map((id) => [id, (screens.get(id)?.text() ?? '').split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() && !/^[─▔━\s]+$/.test(l)).slice(-7)]))
+  )
   ipcMain.handle('btw:close', (_, id: string) => {
     if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
   })
