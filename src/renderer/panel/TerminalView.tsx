@@ -2,6 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import { mentionText } from '../../shared/mention'
 
 // `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
 export function TerminalView({ agentId, visible, focusTick }: { agentId: string; visible: boolean; focusTick: number }) {
@@ -60,5 +61,14 @@ export function TerminalView({ agentId, visible, focusTick }: { agentId: string;
       })
   }, [visible, focusTick])
 
-  return <div ref={el} className="term-host" style={{ display: visible ? 'block' : 'none' }} />
+  // Dropping files types @-mentions into Claude's input; the user still decides when to send.
+  const drop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const text = mentionText([...e.dataTransfer.files].map((f) => window.aw.pathOf(f)))
+    if (text) {
+      window.aw.ptyWrite(agentId, text)
+      termRef.current?.focus()
+    }
+  }
+  return <div ref={el} className="term-host" style={{ display: visible ? 'block' : 'none' }} onDragOver={(e) => e.preventDefault()} onDrop={drop} />
 }

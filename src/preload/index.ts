@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type { AwApi } from '../shared/api'
 
 const on =
@@ -10,6 +10,7 @@ const on =
   }
 
 const api: AwApi = {
+  pathOf: (file) => webUtils.getPathForFile(file),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   listAgents: () => ipcRenderer.invoke('list-agents'),
   addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),

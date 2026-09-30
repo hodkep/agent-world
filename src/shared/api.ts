@@ -38,6 +38,8 @@ export interface CodeApi {
 }
 
 export interface AwApi {
+  /** Absolute path of a file dropped into the window ('' if it is not on disk). */
+  pathOf(file: File): string
   pickFolder(): Promise<string | null>
   listAgents(): Promise<AgentRecord[]>
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
