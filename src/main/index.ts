@@ -1,3 +1,4 @@
+import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { btwOverlay } from './btw'
@@ -51,6 +52,11 @@ const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.clau
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
 const claudeBin = () => process.env.AW_CLAUDE_BIN ?? (prefs.claudePath || 'claude')
+/** The program and arguments that start claude here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
+const claudeCmd = (args: string[]) => {
+  const l = resolveCommand(claudeBin())
+  return { file: l.file, args: [...l.prefix, ...args] }
+}
 // Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
 const PERMISSION_MODE = process.env.AW_PERMISSION_MODE
 const PERMISSION_TIMEOUT_SEC = 300
@@ -421,7 +427,8 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   followChat(a)
   const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
-  const p = pty.spawn(claudeBin(), args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
+  const cmd = claudeCmd(args)
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -716,14 +723,14 @@ async function main() {
     if (!a) throw new Error('Unknown agent.')
     const args = manageArgs(action)
     return new Promise<string>((resolve, reject) =>
-      execFile(claudeBin(), args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
+      execFile(claudeCmd(args).file, claudeCmd(args).args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
     )
   })
   ipcMain.handle('list-tools', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     const claude = (...args: string[]) =>
-      new Promise<string>((resolve) => execFile(claudeBin(), args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
+      new Promise<string>((resolve) => execFile(claudeCmd(args).file, claudeCmd(args).args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
     const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
     return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
   })
