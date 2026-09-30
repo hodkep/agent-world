@@ -1,0 +1,46 @@
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { expect, test } from '@playwright/test'
+import { launchApp } from './launch'
+
+test('an agent can work in the folder itself, and removing a worktree agent deletes its finished branch', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'aw-inplace-'))
+  const repo = join(tmp, 'shop')
+  mkdirSync(repo)
+  const git = (...a: string[]) => execFileSync('git', a, { cwd: repo, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main')
+  writeFileSync(join(repo, 'README.md'), '# shop\n')
+  git('add', '.')
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
+    await page.reload()
+    await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    const form = page.getByRole('form', { name: 'Hire an agent' })
+    await form.getByLabel('Name').fill('quick')
+    await form.getByLabel('Work in my folder directly (no branch)').check()
+    await form.getByRole('button', { name: 'Hire' }).click()
+    await form.waitFor({ state: 'detached' })
+    const [quick] = await page.evaluate(() => window.aw.listAgents())
+    expect(quick!.branch).toBeNull()
+    expect(realpathSync(quick!.cwd)).toBe(realpathSync(repo))
+    expect(git('branch', '--list', 'aw/*').trim()).toBe('')
+
+    // A normal agent gets a branch; removing it with nothing to lose takes the branch too.
+    await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    const again = page.getByRole('form', { name: 'Hire an agent' })
+    await again.getByLabel('Name').fill('tidy')
+    await again.getByRole('button', { name: 'Hire' }).click()
+    await again.waitFor({ state: 'detached' })
+    expect(git('branch', '--list', 'aw/*')).toContain('aw/tidy')
+    const tidy = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name === 'tidy')!
+    expect((await page.evaluate((id) => window.aw.removeAgent(id), tidy.id)).ok).toBe(true)
+    expect(git('branch', '--list', 'aw/*').trim()).toBe('')
+  } finally {
+    await shutdown()
+  }
+})

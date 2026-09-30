@@ -47,6 +47,7 @@ export function HireForm({
   const [budget, setBudget] = useState('')
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
+  const [inPlace, setInPlace] = useState(false)
   const [busy, setBusy] = useState(false)
 
   // Picking a role fills in the launch settings for that job; everything stays editable.
@@ -71,6 +72,7 @@ export function HireForm({
       ...(budgetUsd > 0 && { budgetUsd }),
       ...(instructions.trim() && { instructions: instructions.trim() }),
       ...(chrome && { chrome }),
+      ...(inPlace && { inPlace }),
       ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
     }
   }
@@ -168,6 +170,9 @@ export function HireForm({
       <div className="hire-row">
         <label className="check">
           <input type="checkbox" checked={chrome} onChange={(e) => setChrome(e.target.checked)} /> Let it use Chrome
+        </label>
+        <label className="check" title="No worktree and no aw/ branch: the agent edits your folder directly, so other agents on it can overwrite each other">
+          <input type="checkbox" checked={inPlace} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>
         {saving === null ? (
           <button type="button" onClick={() => setSaving('')} title="Keep these settings as a role you can pick again">

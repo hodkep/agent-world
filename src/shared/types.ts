@@ -68,6 +68,8 @@ export interface AgentOptions {
   chrome?: boolean
   /** The job this agent was hired for (a role's title), shown next to its name. */
   role?: string
+  /** Work in the folder itself instead of a worktree on its own branch. */
+  inPlace?: boolean
 }
 
 export interface AgentRecord {

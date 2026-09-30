@@ -667,7 +667,7 @@ async function main() {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
-    const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
     agents.push(a)
@@ -790,6 +790,8 @@ async function main() {
     if (a.branch && mode !== 'keep-worktree') {
       try {
         await removeWorktree({ repoPath: a.repoPath, path: a.cwd, force: mode === 'discard' })
+        // Only a branch with nothing unmerged goes with it; -d refuses otherwise, and the commits stay recoverable.
+        await git(a.repoPath, 'branch', '-d', a.branch).catch(() => {})
       } catch (err) {
         if (err instanceof DirtyWorktreeError) return { ok: false, dirty: err.status }
         throw err
