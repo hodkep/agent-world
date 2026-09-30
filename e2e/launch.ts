@@ -17,7 +17,7 @@ export async function launchApp(env: Record<string, string>, tmp: string) {
 
 /** Open the hire form and hire with its defaults (or the given field values). */
 export async function hire(page: Page, fields: { name?: string; model?: string; budget?: string; instructions?: string } = {}) {
-  await page.getByRole('button', { name: '+ Agent' }).click()
+  await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
   const form = page.getByRole('form', { name: 'Hire an agent' })
   if (fields.name) await form.getByLabel('Name').fill(fields.name)
   if (fields.model) await form.getByLabel('Model').selectOption(fields.model)

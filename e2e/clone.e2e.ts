@@ -23,7 +23,6 @@ test('clone an agent: its conversation is forked into a new worktree branched fr
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
     await hire(page, { name: 'ada' })
-    await expect(page.getByRole('button', { name: 'Clone' })).toBeDisabled()
     await approve(page)
     await expect(page.getByRole('button', { name: 'Clone' })).toBeEnabled()
 

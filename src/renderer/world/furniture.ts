@@ -585,49 +585,6 @@ function drawClock(g: G, cx: number, cy: number) {
   r(g, cx, cy, 1, 1, P.ink)
 }
 
-// ---- outside the building --------------------------------------------------------------
-
-/** Night-time grounds around the office, so any stage aspect shows world instead of void. */
-export function drawExterior(map: OfficeMap, margin: number): Graphics {
-  const g = new Graphics()
-  const rand = rng(5)
-  const x0 = -margin * TILE
-  const y0 = -margin * TILE
-  const w = (map.w + margin * 2) * TILE
-  const h = (map.h + margin * 2) * TILE
-  r(g, x0, y0, w, h, 0x1e3326)
-  for (let i = 0; i < (w * h) / 90; i++) r(g, x0 + Math.floor(rand() * w), y0 + Math.floor(rand() * h), 1, 2, rand() < 0.5 ? 0x284434 : 0x172a1f)
-  // Sidewalk and road along the front of the building.
-  const walkY = map.h * TILE + 8
-  r(g, x0, walkY, w, 20, 0x5e626c)
-  for (let x = x0; x < x0 + w; x += 16) r(g, x, walkY, 1, 20, 0x4e525b)
-  r(g, x0, walkY + 20, w, 2, 0x3a3d45)
-  r(g, x0, walkY + 22, w, 40, 0x24262d)
-  for (let x = x0; x < x0 + w; x += 32) r(g, x, walkY + 41, 16, 2, 0xc8b858)
-  // Path from the entrance to the sidewalk.
-  const door = map.spots('E')
-  if (door.length) r(g, door[0]!.x * TILE, map.h * TILE, door.length * TILE, 8, 0x6e727c)
-  // Street lamps with warm light pools.
-  for (let x = 4; x < map.w; x += 9) {
-    const lx = x * TILE
-    for (let k = 4; k >= 1; k--) g.rect(lx - k * 7, walkY - k * 3 + 6, k * 14, k * 6).fill({ color: 0xf6d27a, alpha: 0.035 })
-    r(g, lx, walkY - 14, 2, 22, 0x2a2c33)
-    r(g, lx - 2, walkY - 16, 6, 3, 0xf6e2a0)
-  }
-  // Trees, kept off the building footprint and the street.
-  for (let i = 0; i < 70; i++) {
-    const tx = x0 + Math.floor(rand() * w)
-    const ty = y0 + Math.floor(rand() * h)
-    const onBuilding = tx > -24 && tx < map.w * TILE + 24 && ty > -24 && ty < walkY + 64
-    if (onBuilding) continue
-    g.circle(tx + 2, ty + 9, 8).fill({ color: 0x000000, alpha: 0.25 })
-    g.circle(tx, ty, 9).fill(0x1d4a2c)
-    g.circle(tx - 3, ty - 3, 5).fill(0x2a6a3c)
-    g.circle(tx + 3, ty - 1, 4).fill(0x245a34)
-  }
-  return g
-}
-
 // The lounge TV plays a slow sunset-over-the-city loop.
 function drawTv(g: G, x: number, y: number, w: number, h: number, t: number) {
   const sky = [0x2a2050, 0x5a2a70, 0xb04a6a, 0xe0805a]

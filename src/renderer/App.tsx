@@ -4,6 +4,7 @@ import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
+import { Welcome } from './panel/Welcome'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
@@ -424,7 +425,11 @@ export function App() {
               </div>
             </section>
           ) : (
-            <p className="hint">{agents.length ? 'Click a character to open its terminal.' : 'Open a folder, then hire your first agent with + Agent.'}</p>
+            agents.length ? (
+              <p className="hint">Click a character to open its terminal.</p>
+            ) : (
+              <Welcome folder={folder} onPick={pick} onHire={() => setHiring(true)} onHistory={() => setHistory(true)} />
+            )
           )}
           {dirty && dirty.id === current?.id && (
             <section className="dirty">

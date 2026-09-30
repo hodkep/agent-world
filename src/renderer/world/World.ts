@@ -4,7 +4,8 @@ import { Application, Container, Graphics, TextureSource } from 'pixi.js'
 import type { Activity } from '../../shared/types'
 import { Character } from './character'
 import { paletteFor } from './sprites'
-import { type Ambient, type Screen, drawExterior, drawFloors, drawFurniture } from './furniture'
+import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
+import { GRASS, Street, drawGrounds, drawHiringSign } from './grounds'
 import { OFFICE, type Spot, TILE } from './office'
 import { spread } from './overlap'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -38,7 +39,6 @@ const POOLS: Record<Purpose, Spot[]> = {
   whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
-const EXTERIOR_MARGIN = 24
 const MIN_ZOOM = 2
 const MAX_ZOOM = 8
 const DRAG_THRESHOLD = 4
@@ -53,6 +53,8 @@ export class OfficeWorld {
   private readonly files = new Map<string, number>()
   private readonly inbox = new Map<string, number>()
   private readonly flights: Flight[] = []
+  private street!: Street
+  private readonly sign = drawHiringSign(OFFICE.map)
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
   private boardKey = ''
@@ -74,7 +76,7 @@ export class OfficeWorld {
 
   static async create(el: HTMLElement, onSelect: (agentId: string) => void) {
     const app = new Application()
-    await app.init({ resizeTo: el, background: 0x12101a, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
+    await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
     const w = new OfficeWorld(app, (id) => {
       // A pan that ends over a character is not a click on it.
@@ -89,7 +91,8 @@ export class OfficeWorld {
 
   private build() {
     const shadows = new Graphics()
-    this.root.addChild(drawExterior(OFFICE.map, EXTERIOR_MARGIN), drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.street = new Street(OFFICE.map)
+    this.root.addChild(drawGrounds(OFFICE.map), this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -295,6 +298,8 @@ export class OfficeWorld {
     this.untangle()
     for (const [spot, s] of this.screens) s.draw(atScreen.get(spot) ?? null, t)
     this.ambient.update(t)
+    this.sign.visible = this.chars.size === 0
+    this.street.update(dt, t)
   }
 
   // Each written or edited file is a sheet on the owner's desk; a second pile starts when the first is full.
