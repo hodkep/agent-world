@@ -98,7 +98,8 @@ export function drawGrounds(map: OfficeMap): G {
   const y1 = H + GROUNDS.south
   const w = x1 - x0
 
-  // Lawn with mowing stripes and speckle.
+  // Lawn with mowing stripes and speckle, on a flat field that runs on well past the edges.
+  r(g, x0 - 2400, y0 - 2400, w + 4800, y1 - y0 + 4800, GRASS)
   r(g, x0, y0, w, y1 - y0, GRASS)
   for (let y = y0; y < y1; y += 32) r(g, x0, y, w, 16, 0xffffff, 0.02)
   for (let i = 0; i < (w * (y1 - y0)) / 70; i++) r(g, x0 + Math.floor(rand() * w), y0 + Math.floor(rand() * (y1 - y0)), 1, 2, rand() < 0.5 ? 0x284434 : 0x172a1f)

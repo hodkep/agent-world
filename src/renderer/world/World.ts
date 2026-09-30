@@ -48,8 +48,8 @@ const POOLS: Record<Purpose, Spot[]> = {
 const MAX_PILE = 14
 // Art pixels kept in view above the building (the power plant) and below it (the pavement and street).
 const BAND = { north: 56, south: 44 }
-const MIN_ZOOM = 2
-const MAX_ZOOM = 8
+const MIN_ZOOM = 1
+const MAX_ZOOM = 10
 const DRAG_THRESHOLD = 4
 // The coffee machine's spout, for the steam effect.
 const COFFEE_SPOUT = { x: 22 * TILE + 55, y: 15 * TILE - 13 }
@@ -74,6 +74,7 @@ export class OfficeWorld {
   private readonly overlays = new Container()
   private firstSync = true
   private zoom: number | null = null
+  private mode: 'scene' | 'office' = 'scene'
   private pan = { x: 0, y: 0 }
   private drag: { x: number; y: number; moved: boolean } | null = null
   private dragged = false
@@ -126,9 +127,7 @@ export class OfficeWorld {
       'wheel',
       (e) => {
         e.preventDefault()
-        const current = this.deviceScale()
-        this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current + (e.deltaY < 0 ? 1 : -1)))
-        this.layout()
+        this.zoomBy(e.deltaY < 0 ? 1 : -1)
       },
       { passive: false }
     )
@@ -157,37 +156,84 @@ export class OfficeWorld {
     stage.on('pointerupoutside', end)
   }
 
-  private deviceScale() {
+  /** The scale that shows the building plus the strips of lawn and street around it, whole pixels per art pixel. */
+  private sceneScale() {
     const dpr = this.app.renderer.resolution
     const W = this.app.screen.width * dpr
     const H = this.app.screen.height * dpr
-    // Fit the building plus the strips of lawn and street around it (the power plant sits on the lawn).
-    const fit = Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE + BAND.north + BAND.south))))
-    return this.zoom ?? fit
+    return Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE + BAND.north + BAND.south))))
   }
 
-  // Integer scale in *device* pixels keeps every art pixel the same size on HiDPI screens.
+  /** The scale at which the office alone fills the window, edge to edge (with a small margin). */
+  private officeScale() {
+    const dpr = this.app.renderer.resolution
+    const W = this.app.screen.width * dpr
+    const H = this.app.screen.height * dpr
+    const pad = 12
+    return Math.max(1, Math.min(W / (OFFICE.map.w * TILE + pad), H / (OFFICE.map.h * TILE + pad)))
+  }
+
+  private deviceScale() {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.zoom ?? this.sceneScale()))
+  }
+
+  /** One step in or out, to the next whole scale so art pixels stay even. */
+  zoomBy(dir: 1 | -1) {
+    const now = this.deviceScale()
+    const next = dir > 0 ? Math.floor(now + 1e-6) + 1 : Math.ceil(now - 1e-6) - 1
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next))
+    // Zooming about the middle of the view: the panned offset scales with the picture.
+    this.pan.x *= clamped / now
+    this.pan.y *= clamped / now
+    this.zoom = clamped
+    this.layout()
+  }
+
+  /** Fill the window with the office alone, centred. */
+  fitOffice() {
+    this.mode = 'office'
+    this.pan = { x: 0, y: 0 }
+    this.zoom = this.officeScale()
+    this.layout()
+  }
+
+  /** Back to the default view of the office with its grounds. */
+  resetView() {
+    this.mode = 'scene'
+    this.pan = { x: 0, y: 0 }
+    this.zoom = null
+    this.layout()
+  }
+
+  // Integer scale in *device* pixels keeps every art pixel the same size on HiDPI screens (the fit-to-office view is exact instead).
   private layout() {
     const { width, height } = this.app.screen
     const dpr = this.app.renderer.resolution
-    const worldW = OFFICE.map.w * TILE
-    const worldH = OFFICE.map.h * TILE
+    const bw = OFFICE.map.w * TILE
+    const bh = OFFICE.map.h * TILE
     const scale = this.deviceScale() / dpr
-    // The centre of building-plus-strips sits at the centre of the stage.
-    const focusY = (worldH + BAND.south - BAND.north) / 2
-    const limitX = (worldW * scale) / 2
-    const limitY = ((worldH + BAND.north + BAND.south) * scale) / 2
-    this.pan.x = Math.max(-limitX, Math.min(limitX, this.pan.x))
-    this.pan.y = Math.max(-limitY, Math.min(limitY, this.pan.y))
+    // Where the view is centred, and the rectangle it may not leave (the office and its strips, plus a little).
+    const focus = this.mode === 'office' ? { x: bw / 2, y: bh / 2 } : { x: bw / 2, y: (bh + BAND.south - BAND.north) / 2 }
+    const area = { l: -48, r: bw + 48, t: -BAND.north - 24, b: bh + BAND.south + 24 }
+    const axis = (view: number, f: number, lo: number, hi: number, pan: number) => {
+      const centred = view / 2 - f * scale
+      // Smaller than the view: keep it centred. Larger: it may slide, but never past its own edges.
+      const root = (hi - lo) * scale <= view ? centred : Math.max(view - hi * scale, Math.min(-lo * scale, centred + pan))
+      return { root, pan: root - centred }
+    }
+    const x = axis(width, focus.x, area.l, area.r, this.pan.x)
+    const y = axis(height, focus.y, area.t, area.b, this.pan.y)
+    this.pan = { x: x.pan, y: y.pan }
     this.root.scale.set(scale)
-    this.root.x = Math.round(((width - worldW * scale) / 2 + this.pan.x) * dpr) / dpr
-    this.root.y = Math.round((height / 2 - focusY * scale + this.pan.y) * dpr) / dpr
+    this.root.x = Math.round(x.root * dpr) / dpr
+    this.root.y = Math.round(y.root * dpr) / dpr
     this.publishAnchors()
   }
 
   /** Screen positions of things drawn on the canvas, so the page (and tests) can anchor to them. */
   private publishAnchors() {
     this.host.dataset.power = JSON.stringify(this.plant.center())
+    this.host.dataset.view = JSON.stringify({ scale: this.root.scale.x, x: this.root.x, y: this.root.y })
   }
 
   // Desk and intern seats are permanent homes; every other spot is borrowed while in use.

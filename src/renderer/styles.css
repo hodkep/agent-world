@@ -358,3 +358,11 @@ button.choice { cursor: pointer; }
 main { position: relative; }
 aside.drawer { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; width: min(94vw, 560px); box-shadow: -12px 0 32px rgb(0 0 0 / 0.5); }
 aside.drawer.wide { width: min(94vw, 900px); }
+
+/* ---- View controls over the office ------------------------------------------------------------ */
+.zoom-ctl { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
+.zoom-ctl button { font-size: 12px; padding: 3px 9px; }
+.zc-minus, .zc-plus { width: 28px; position: relative; padding: 0 !important; }
+.zc-minus::before, .zc-plus::before, .zc-plus::after { content: ''; position: absolute; left: 50%; top: 50%; background: var(--text); transform: translate(-50%, -50%); }
+.zc-minus::before, .zc-plus::before { width: 10px; height: 2px; }
+.zc-plus::after { width: 2px; height: 10px; }

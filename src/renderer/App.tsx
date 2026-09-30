@@ -316,6 +316,16 @@ export function App() {
       <main>
         <div className="stage-wrap">
           <div className="stage" ref={stage} />
+          <div className="zoom-ctl" role="group" aria-label="View">
+            <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
+            <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
+            <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
+              Fit office
+            </button>
+            <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
+              Reset
+            </button>
+          </div>
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
               <PlantTip five={tip.five} week={tip.week} />
