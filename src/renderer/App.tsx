@@ -4,6 +4,7 @@ import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import type { DevServer, Workspaces } from '../shared/api'
+import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { InputDialog, needTitle, type Need } from './panel/InputDialog'
@@ -87,6 +88,7 @@ export function App() {
   const talkRef = useRef<Talk>(readTalk())
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
+  const [roles, setRoles] = useState<Role[]>([])
   const [servers, setServers] = useState<Record<string, DevServer[]>>({})
   const [limits, setLimits] = useState<UsageLimits>(noLimits)
   const handbookOpen = useRef<(id: string) => void>(() => {})
@@ -256,6 +258,9 @@ export function App() {
   }
   useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
   useEffect(() => {
+    void window.aw.listRoles(folder ?? '').then(setRoles, () => setRoles([]))
+  }, [folder, hiring])
+  useEffect(() => {
     void window.aw.getServers().then(setServers)
     return window.aw.onServers(setServers)
   }, [])
@@ -283,6 +288,23 @@ export function App() {
       /* remembering the choice is a convenience */
     }
   }
+
+  // Hires the three roles that make a first team; a name that is already in use is skipped, not fatal.
+  const hireCrew = () =>
+    run(async () => {
+      if (!folder) return
+      for (const id of STARTER_CREW) {
+        const r = BUILT_IN_ROLES.find((x) => x.id === id)!
+        try {
+          const a = await window.aw.addAgent(folder, { ...r.options, role: r.title }, r.nameHint)
+          setAgents((xs) => [...xs, a])
+          setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
+        } catch (err) {
+          setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+        }
+      }
+      void refreshWorkspaces()
+    })
 
   const clone = (src: AgentRecord) =>
     run(async () => {
@@ -396,7 +418,7 @@ export function App() {
         </div>
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`}>
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
-          {hiring && <HireForm onHire={hire} onCancel={() => setHiring(false)} />}
+          {hiring && <HireForm roles={roles} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents">
               {agents.map((a) => {
@@ -460,6 +482,7 @@ export function App() {
                   </b>
                 )}
                 <span className="role">{state ? roleOf(state) : 'senior'}</span>
+                {current.options?.role && <span className="job-tag">{current.options.role}</span>}
                 </div>
                 <div className="detail">
                   {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
@@ -564,7 +587,7 @@ export function App() {
             agents.length ? (
               <p className="hint">Click a character to open its terminal.</p>
             ) : (
-              <Welcome folder={folder} onPick={pick} onHire={() => setHiring(true)} onHistory={() => setHistory(true)} />
+              <Welcome folder={folder} onPick={pick} onHire={() => setHiring(true)} onHistory={() => setHistory(true)} onCrew={() => void hireCrew()} />
             )
           )}
           {dirty && dirty.id === current?.id && (
@@ -620,6 +643,7 @@ export function App() {
               agentName={a.name}
               activity={world[a.id]?.activity ?? 'asleep'}
               detail={world[a.id]?.detail}
+              mode={world[a.id]?.mode}
               asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
               waiting={needsOf(a.id).length ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null}
               visible={a.id === selected && view === 'chat'}

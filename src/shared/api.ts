@@ -1,4 +1,5 @@
 import type { ChatItem } from './chat'
+import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
@@ -116,8 +117,18 @@ export interface AwApi {
   onChatReset(cb: (agentId: string, sessionId: string) => void): () => void
   /** Types the text into the agent's terminal as a prompt and presses Enter. Rejects while a menu is open. */
   chatSend(agentId: string, text: string): Promise<void>
+  /** Saves an attached picture or file where the agent can read it; resolves to its path. */
+  saveAttachment(agentId: string, name: string, bytes: ArrayBuffer, mime: string): Promise<string>
+  /** A picture a message mentions by path, as a data URL ('' if it is not a small picture). */
+  readImage(agentId: string, path: string): Promise<string>
+  /** Shift+Tab: move to the next permission mode. */
+  chatCycleMode(agentId: string): Promise<void>
   /** Esc: interrupt what the agent is doing. */
   chatInterrupt(agentId: string): Promise<void>
+  /** Ready-made agents for a project: built in, from Claude subagent files, and saved by the user. */
+  listRoles(folder: string): Promise<Role[]>
+  saveRole(r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }): Promise<Role>
+  deleteRole(id: string): Promise<void>
   getUsage(): Promise<UsageLimits>
   /** Dev servers each agent has started, by agent id. */
   getServers(): Promise<Record<string, DevServer[]>>

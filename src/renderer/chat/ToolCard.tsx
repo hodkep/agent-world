@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Picture } from './Images'
 import { Markdown } from './markdown'
 
 export interface ToolRun {
@@ -6,6 +7,8 @@ export interface ToolRun {
   input: Record<string, unknown>
   /** undefined while the tool is still running. */
   result?: { text: string; isError: boolean }
+  /** Pictures the tool returned (a screenshot, an image file read). */
+  images?: string[]
 }
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -63,7 +66,7 @@ function Diff({ from, to }: { from: string; to: string }) {
 }
 
 /** What a tool call looks like in the conversation: a headline you can read at a glance, details on demand. */
-export function ToolCard({ run, working }: { run: ToolRun; working: boolean }) {
+export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boolean; onImage: (src: string) => void }) {
   const { name, input, result } = run
   const failed = result?.isError
   const status = result ? (failed ? 'failed' : 'done') : working ? 'running' : 'unknown'
@@ -175,6 +178,13 @@ export function ToolCard({ run, working }: { run: ToolRun; working: boolean }) {
         <span className="tc-status">{status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''}</span>
       </div>
       {body}
+      {run.images && run.images.length > 0 && (
+        <div className="tc-images">
+          {run.images.map((src, i) => (
+            <Picture key={i} src={src} onOpen={onImage} label={`${name} result`} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

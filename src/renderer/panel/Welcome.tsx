@@ -8,7 +8,7 @@ const ROLES = [
 ] as const
 
 /** First-run: what this place is, who works here, and the one next step. */
-export function Welcome({ folder, onPick, onHire, onHistory }: { folder: string | null; onPick: () => void; onHire: () => void; onHistory: () => void }) {
+export function Welcome({ folder, onPick, onHire, onHistory, onCrew }: { folder: string | null; onPick: () => void; onHire: () => void; onHistory: () => void; onCrew: () => void }) {
   return (
     <section className="welcome" aria-label="Get started">
       <PixelWord text="now hiring" scale={4} />
@@ -38,6 +38,11 @@ export function Welcome({ folder, onPick, onHire, onHistory }: { folder: string 
           </button>
         </li>
       </ol>
+      {folder && (
+        <button onClick={onCrew} title="Hires an Explorer, a Test writer and a Reviewer, each with its own branch and sensible permissions">
+          Or hire a starter crew: Explorer, Test writer, Reviewer
+        </button>
+      )}
       {folder && (
         <button className="welcome-link" onClick={onHistory}>
           Or bring back an earlier conversation from this folder

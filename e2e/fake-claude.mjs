@@ -116,13 +116,31 @@ if (process.env.FAKE_LOOP) {
 if (process.env.FAKE_CHAT) {
   await hook('Stop')
   let typed = ''
+  const MODES = ['default', 'acceptEdits', 'plan']
+  let mode = 0
   process.stdin.on('data', async (d) => {
-    typed += String(d).replace(/\x1b\[20[01]~/g, '')
+    const raw = String(d)
+    // Shift+Tab moves to the next permission mode, which Claude reports with its next event.
+    if (raw === '\x1b[Z') {
+      mode = (mode + 1) % MODES.length
+      return void hook('Notification', { notification_type: 'idle_prompt', permission_mode: MODES[mode] })
+    }
+    typed += raw.replace(/\x1b\[20[01]~/g, '')
     if (!typed.includes('\r')) return
     const prompt = typed.split('\r')[0].trim()
     typed = ''
     if (!prompt) return
-    transcript({ type: 'user', message: { role: 'user', content: prompt } })
+    // Shell mode: run nothing, just record it the way Claude does.
+    if (prompt.startsWith('!')) {
+      transcript({ type: 'user', message: { role: 'user', content: `<bash-input>${prompt.slice(1).trim()}</bash-input>` } })
+      transcript({ type: 'user', message: { role: 'user', content: '<bash-stdout>On branch main\nnothing to commit</bash-stdout><bash-stderr></bash-stderr>' } })
+      return
+    }
+    // Attached files arrive as @"path"; pictures are saved into the conversation as image blocks.
+    const paths = [...prompt.matchAll(/@"([^"]+)"/g)].map((m) => m[1])
+    const blocks = [{ type: 'text', text: prompt.replace(/@"[^"]+"\s*/g, '').trim() || 'see attached' }]
+    for (const p of paths) if (/\.png$/i.test(p)) blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: readFileSync(p).toString('base64') } })
+    transcript({ type: 'user', message: { role: 'user', content: paths.length ? blocks : prompt } })
     await hook('UserPromptSubmit', { prompt })
     const bash = { command: 'ls src', description: 'List the source folder' }
     await hook('PreToolUse', { tool_name: 'Bash', tool_input: bash })
@@ -133,7 +151,7 @@ if (process.env.FAKE_CHAT) {
     const edit = { file_path: `${process.cwd()}/src/health.ts`, old_string: 'export const ok = false', new_string: 'export const ok = true' }
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')
-    say(`Done. I changed **health.ts** for "${prompt}".\n\n\`\`\`ts\nexport const ok = true\n\`\`\`\n\n- one\n- two`)
+    say(`Done. I changed **health.ts** for "${prompt.replace(/@"[^"]+"\s*/g, '')}".\n\n\`\`\`ts\nexport const ok = true\n\`\`\`\n\n- one\n- two`)
     await hook('Stop')
   })
   await new Promise(() => {})

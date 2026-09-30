@@ -10,12 +10,22 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 const tag = (s: string, name: string) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(s)?.[1]?.trim()
 
-/** Text of a tool result: a string, or text blocks (images are marked, not shown). */
+// A picture bigger than this stays in the transcript file rather than being sent to the window.
+const MAX_IMAGE_CHARS = 6 * 1024 * 1024
+
+function imageSrc(block: Obj): string {
+  const src = obj(block.source)
+  const data = str(src.data)
+  return src.type === 'base64' && data && data.length <= MAX_IMAGE_CHARS ? `data:${str(src.media_type) || 'image/png'};base64,${data}` : ''
+}
+
+/** Text of a tool result: a string, or text blocks; pictures come out separately. */
 function resultText(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.map((b) => (obj(b).type === 'text' ? str(obj(b).text) : obj(b).type === 'image' ? '[image]' : '')).filter(Boolean).join('\n')
+  return content.map((b) => (obj(b).type === 'text' ? str(obj(b).text) : '')).filter(Boolean).join('\n')
 }
+const resultImages = (content: unknown): string[] => (Array.isArray(content) ? content.filter((b) => obj(b).type === 'image').map((b) => imageSrc(obj(b))) : [])
 
 /** One saved transcript line as chat items (none for the many kinds of bookkeeping lines Claude also writes). */
 export function parseTranscriptLine(raw: string): ChatItem[] {
@@ -39,9 +49,12 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
     if (!Array.isArray(content)) return []
     return content.flatMap((b, i): ChatItem[] => {
       const block = obj(b)
-      if (block.type === 'tool_result') return [{ kind: 'tool-result', id: `${uuid}:${i}`, at, toolUseId: str(block.tool_use_id), text: resultText(block.content), isError: block.is_error === true }]
+      if (block.type === 'tool_result') {
+        const images = resultImages(block.content)
+        return [{ kind: 'tool-result', id: `${uuid}:${i}`, at, toolUseId: str(block.tool_use_id), text: resultText(block.content), isError: block.is_error === true, ...(images.length && { images }) }]
+      }
       if (block.type === 'text') return userText(`${uuid}:${i}`, at, str(block.text))
-      if (block.type === 'image') return [{ kind: 'user', id: `${uuid}:${i}`, at, text: '[image]' }]
+      if (block.type === 'image') return [{ kind: 'image', id: `${uuid}:${i}`, at, mediaType: str(obj(block.source).media_type) || 'image/png', src: imageSrc(block) }]
       return []
     })
   }
@@ -67,6 +80,11 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   if (trimmed === '[Request interrupted by user]' || trimmed.startsWith('[Request interrupted by user')) return [{ kind: 'note', id, at, text: 'Interrupted' }]
   const name = tag(trimmed, 'command-name')
   if (name) return [{ kind: 'command', id, at, name, args: tag(trimmed, 'command-args') ?? '' }]
+  const shell = tag(trimmed, 'bash-input')
+  if (shell !== undefined) return shell ? [{ kind: 'shell', id, at, command: shell }] : []
+  const so = tag(trimmed, 'bash-stdout')
+  const se = tag(trimmed, 'bash-stderr')
+  if (so !== undefined || se !== undefined) return [{ kind: 'shell-out', id, at, stdout: so ?? '', stderr: se ?? '' }]
   const out = tag(trimmed, 'local-command-stdout')
   if (out !== undefined) return out ? [{ kind: 'note', id, at, text: out }] : []
   // Caveats and reminders Claude inserts around the conversation are not the user's words.

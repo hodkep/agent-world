@@ -466,3 +466,60 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .suggest li[aria-selected='true'] { background: var(--selected); }
 .suggest li b { font: 600 12px Menlo, Consolas, monospace; flex: none; }
 .suggest li span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Chat: tools, pictures, shell mode, attachments, mode chip --------------------------------- */
+.chat-tools { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--panel); border-bottom: 2px solid var(--ink); }
+.chat-tools button, .copy-btn { font-size: 11px; padding: 1px 8px; }
+.chat-tools input { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 3px 6px; }
+.chat-tools input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chat-tools-gap { flex: 1; }
+.chat-count { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.msg.assistant .who { display: flex; align-items: center; gap: 8px; }
+.copy-btn { opacity: 0; transition: none; }
+.msg.assistant:hover .copy-btn, .copy-btn:focus-visible { opacity: 1; }
+.md pre { position: relative; }
+.md pre .copy { position: absolute; top: 4px; right: 4px; font-size: 10px; padding: 0 6px; opacity: 0; }
+.md pre:hover .copy, .md pre .copy:focus-visible { opacity: 1; }
+.pic { padding: 0; line-height: 0; background: var(--panel-3); max-width: 100%; }
+.pic img { max-width: min(320px, 100%); max-height: 240px; display: block; image-rendering: auto; }
+.pic:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--accent); background: var(--panel-3); }
+.pic.missing { padding: 8px 10px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.tc-images { display: flex; gap: 6px; flex-wrap: wrap; }
+.lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgb(8 7 12 / 0.88); padding: 24px; }
+.lightbox img { max-width: 100%; max-height: 100%; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); }
+.lightbox-x { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; padding: 0; }
+.lightbox-x::before, .lightbox-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
+.lightbox-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.msg.shell { display: flex; flex-direction: column; gap: 0; align-self: stretch; }
+.msg.shell .tc-cmd { margin: 0; background: var(--panel-3); box-shadow: inset 3px 0 0 var(--ok); padding: 5px 8px; font: 12px Menlo, Consolas, monospace; white-space: pre-wrap; }
+.shell-out { margin: 0; padding: 5px 8px; background: var(--well); font: 11px/1.45 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); max-height: 14em; overflow: auto; }
+.shell-out.is-error { color: var(--danger-text); }
+
+.composer { flex-direction: column; align-items: stretch; gap: 6px; }
+.composer.over { box-shadow: inset 0 0 0 3px var(--accent); }
+.composer-row { display: flex; gap: 8px; align-items: flex-end; }
+.composer.is-shell textarea { box-shadow: inset 3px 0 0 var(--ok); font-family: Menlo, Consolas, monospace; }
+.shell-badge { align-self: center; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); background: var(--ok); padding: 1px 6px; }
+.composer-foot { display: flex; align-items: center; gap: 10px; }
+.hint-keys { color: var(--muted); font-size: 11px; }
+.mode-chip { font-size: 11px; padding: 1px 8px; letter-spacing: 0.04em; }
+.mode-chip.mode-plan { color: var(--think); }
+.mode-chip.mode-acceptEdits { color: var(--accent); }
+.mode-chip.mode-auto, .mode-chip.mode-bypassPermissions { color: var(--danger-text); }
+.attached { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.attached li { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 4px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); max-width: 100%; }
+.chip-img { padding: 0; line-height: 0; }
+.chip-img img { width: 34px; height: 34px; object-fit: cover; display: block; }
+.chip-file { width: 14px; height: 18px; background: var(--muted); margin: 0 4px; }
+.chip-name { font-size: 12px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-x { width: 20px; height: 20px; padding: 0; position: relative; }
+.chip-x::before, .chip-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 9px; height: 2px; background: var(--muted); transform: translate(-50%, -50%) rotate(45deg); }
+.chip-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+.job-tag { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 6px; color: var(--think); background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
+.save-role { display: inline-flex; gap: 4px; align-items: center; }
+.save-role input { width: 130px; }
+
+.mention-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.mention { font: 11px Menlo, Consolas, monospace; color: var(--think); background: var(--well); padding: 0 6px; box-shadow: 0 0 0 1px var(--ink); }
+.msg.user { gap: 4px; }

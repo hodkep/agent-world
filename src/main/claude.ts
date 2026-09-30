@@ -55,6 +55,8 @@ export function launchArgs(o: {
   /** App-wide default (AW_PERMISSION_MODE); a per-agent option overrides it. */
   permissionMode?: string
   options?: AgentOptions
+  /** Extra folders the agent may read without asking (where attached pictures and files are saved). */
+  addDirs?: string[]
 }) {
   const args = o.started
     ? ['--resume', o.sessionId, '--settings', o.settingsFile]
@@ -69,6 +71,7 @@ export function launchArgs(o: {
   if (mode) args.push('--permission-mode', mode)
   if (opt.instructions?.trim()) args.push('--append-system-prompt', opt.instructions.trim())
   if (opt.chrome) args.push('--chrome')
+  for (const d of o.addDirs ?? []) args.push('--add-dir', d)
   return args
 }
 

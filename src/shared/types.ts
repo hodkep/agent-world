@@ -64,6 +64,8 @@ export interface AgentOptions {
   budgetUsd?: number
   instructions?: string
   chrome?: boolean
+  /** The job this agent was hired for (a role's title), shown next to its name. */
+  role?: string
 }
 
 export interface AgentRecord {

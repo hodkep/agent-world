@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem } from '../../shared/chat'
 import type { Activity } from '../../shared/types'
+import { type Row, type Sent, modeLabel, rowText, toMarkdown, toRows } from './format'
+import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
-import { type ToolRun, ToolCard } from './ToolCard'
+import { UserText } from './Mentions'
+import { ToolCard } from './ToolCard'
 
 const BUSY: Activity[] = ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting']
 const VERB: Partial<Record<Activity, string>> = {
@@ -15,43 +18,32 @@ const VERB: Partial<Record<Activity, string>> = {
   compacting: 'is compacting the conversation'
 }
 
-type Row =
-  | { kind: 'user'; id: string; text: string; pending?: boolean }
-  | { kind: 'command'; id: string; name: string; args: string }
-  | { kind: 'assistant'; id: string; text: string }
-  | { kind: 'thinking'; id: string }
-  | { kind: 'tool'; id: string; run: ToolRun }
-  | { kind: 'note'; id: string; text: string }
-
-/** Items in order, with each tool's result folded into the call it answers. */
-export function toRows(items: ChatItem[], pending: { id: string; text: string }[]): Row[] {
-  const results = new Map<string, { text: string; isError: boolean }>()
-  for (const i of items) if (i.kind === 'tool-result') results.set(i.toolUseId, { text: i.text, isError: i.isError })
-  const rows: Row[] = []
-  for (const i of items) {
-    if (i.kind === 'tool-result') continue
-    if (i.kind === 'tool') rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: results.get(i.toolUseId) } })
-    else if (i.kind === 'thinking') {
-      // A run of thinking blocks reads as one.
-      if (rows.at(-1)?.kind !== 'thinking') rows.push({ kind: 'thinking', id: i.id })
-    } else if (i.kind === 'user') rows.push({ kind: 'user', id: i.id, text: i.text })
-    else if (i.kind === 'command') rows.push({ kind: 'command', id: i.id, name: i.name, args: i.args })
-    else if (i.kind === 'assistant') rows.push({ kind: 'assistant', id: i.id, text: i.text })
-    else rows.push({ kind: 'note', id: i.id, text: i.text })
-  }
-  // Messages sent from the composer show at once, until the transcript has them.
-  const said = new Set(items.filter((i) => i.kind === 'user').map((i) => (i as { text: string }).text))
-  for (const p of pending) if (!said.has(p.text)) rows.push({ kind: 'user', id: p.id, text: p.text, pending: true })
-  return rows
-}
-
 const drafts = new Map<string, string>()
+const errText = (err: unknown) => (err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+
+function Copy({ text, label = 'Copy' }: { text: string; label?: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      className="copy-btn"
+      onClick={() =>
+        void navigator.clipboard.writeText(text).then(() => {
+          setDone(true)
+          setTimeout(() => setDone(false), 1200)
+        })
+      }
+    >
+      {done ? 'Copied' : label}
+    </button>
+  )
+}
 
 export function ChatView({
   agentId,
   agentName,
   activity,
   detail,
+  mode,
   asleep,
   waiting,
   visible,
@@ -64,6 +56,8 @@ export function ChatView({
   agentName: string
   activity: Activity
   detail?: string
+  /** Claude's permission mode as last reported. */
+  mode?: string
   asleep: boolean
   /** What the agent is waiting on you for ("allow?", "plan", "question"), if anything. */
   waiting: string | null
@@ -74,12 +68,15 @@ export function ChatView({
   onTerminal: () => void
 }) {
   const [items, setItems] = useState<ChatItem[]>([])
-  const [pending, setPending] = useState<{ id: string; text: string; at: number }[]>([])
+  const [sent, setSent] = useState<(Sent & { at: number })[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState<string | null>(null)
+  const [zoomed, setZoomed] = useState<string | null>(null)
   const log = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const [away, setAway] = useState(false)
   const session = useRef('')
+  const busy = BUSY.includes(activity)
 
   useEffect(() => {
     let alive = true
@@ -107,8 +104,11 @@ export function ChatView({
     }
   }, [agentId])
 
-  const rows = useMemo(() => toRows(items, pending), [items, pending])
-  const busy = BUSY.includes(activity)
+  const allRows = useMemo(() => toRows(items, sent), [items, sent])
+  const rows = useMemo(() => {
+    const q = query?.trim().toLowerCase()
+    return q ? allRows.filter((r) => rowText(r).toLowerCase().includes(q)) : allRows
+  }, [allRows, query])
 
   // Follow the conversation while the reader is at the bottom; leave them alone once they scroll up.
   useEffect(() => {
@@ -126,70 +126,61 @@ export function ChatView({
   const send = useCallback(
     async (text: string) => {
       setError(null)
-      const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now() }
-      setPending((cur) => [...cur, p])
+      const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: BUSY.includes(activity) }
+      setSent((cur) => [...cur, p])
       stick.current = true
       try {
         await window.aw.chatSend(agentId, text)
       } catch (err) {
-        setPending((cur) => cur.filter((x) => x.id !== p.id))
-        setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+        setSent((cur) => cur.filter((x) => x.id !== p.id))
+        setError(errText(err))
         throw err
       }
       // If the transcript never shows it (the agent dropped it), stop pretending after a while.
-      setTimeout(() => setPending((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
+      setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
     },
-    [agentId]
+    [agentId, activity]
   )
 
   return (
-    <div className="chat" hidden={!visible}>
+    <div
+      className="chat"
+      hidden={!visible}
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
+      }}
+    >
+      <div className="chat-tools">
+        {query === null ? (
+          <button onClick={() => setQuery('')} title="Search this conversation (⌘F)">
+            Search
+          </button>
+        ) : (
+          <>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && (setQuery(null), e.stopPropagation())}
+              placeholder="Search this conversation…"
+              aria-label="Search this conversation"
+              autoFocus
+            />
+            <span className="chat-count">{rows.length} of {allRows.length}</span>
+            <button onClick={() => setQuery(null)}>Close</button>
+          </>
+        )}
+        <span className="chat-tools-gap" />
+        <Copy text={toMarkdown(allRows, agentName)} label="Copy as Markdown" />
+      </div>
       <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">
-            {asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
+            {query ? 'Nothing matches.' : asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
           </p>
         )}
-        {rows.map((r) => {
-          switch (r.kind) {
-            case 'user':
-              return (
-                <div key={r.id} className={`msg user ${r.pending ? 'pending' : ''}`}>
-                  <div className="bubble">{r.text}</div>
-                  {r.pending && <span className="msg-meta">sending…</span>}
-                </div>
-              )
-            case 'command':
-              return (
-                <div key={r.id} className="msg cmd">
-                  <code>
-                    {r.name} {r.args}
-                  </code>
-                </div>
-              )
-            case 'assistant':
-              return (
-                <div key={r.id} className="msg assistant">
-                  <div className="who">{agentName}</div>
-                  <Markdown text={r.text} />
-                </div>
-              )
-            case 'thinking':
-              return (
-                <div key={r.id} className="msg think">
-                  <span className="tc-dot" aria-hidden="true" /> Thought about it
-                </div>
-              )
-            case 'tool':
-              return <ToolCard key={r.id} run={r.run} working={busy} />
-            case 'note':
-              return (
-                <div key={r.id} className="msg note">
-                  {r.text}
-                </div>
-              )
-          }
-        })}
+        {rows.map((r) => (
+          <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} onImage={setZoomed} />
+        ))}
         {busy && (
           <div className="live" role="status">
             <span className="dots" aria-hidden="true">
@@ -224,9 +215,91 @@ export function ChatView({
           <button onClick={onTerminal}>Open terminal</button>
         </div>
       )}
-      <Composer agentId={agentId} agentName={agentName} asleep={asleep} busy={busy} blocked={!!waiting} visible={visible} focusTick={focusTick} onSend={send} onWake={onWake} onStop={() => void window.aw.chatInterrupt(agentId)} />
+      <Composer
+        agentId={agentId}
+        agentName={agentName}
+        asleep={asleep}
+        busy={busy}
+        blocked={!!waiting}
+        mode={mode}
+        visible={visible}
+        focusTick={focusTick}
+        onSend={send}
+        onWake={onWake}
+        onStop={() => void window.aw.chatInterrupt(agentId)}
+        onError={setError}
+        onImage={setZoomed}
+      />
+      {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
     </div>
   )
+}
+
+function RowView({ row: r, agentId, agentName, busy, onImage }: { row: Row; agentId: string; agentName: string; busy: boolean; onImage: (src: string) => void }) {
+  switch (r.kind) {
+    case 'user':
+      return (
+        <div className={`msg user ${r.pending ? 'pending' : ''}`}>
+          <UserText agentId={agentId} text={r.text} onImage={onImage} />
+          {r.pending && <span className="msg-meta">{r.queued ? 'queued: goes in when the current step finishes' : 'sending…'}</span>}
+        </div>
+      )
+    case 'image':
+      return (
+        <div className="msg user">
+          <Picture src={r.src} onOpen={onImage} label="Attached picture" />
+        </div>
+      )
+    case 'shell':
+      return (
+        <div className="msg shell">
+          <pre className="tc-cmd">
+            <span aria-hidden="true">! </span>
+            {r.command}
+          </pre>
+          {r.out && (r.out.stdout || r.out.stderr) && (
+            <pre className={`shell-out ${r.out.stderr && !r.out.stdout ? 'is-error' : ''}`}>{[r.out.stdout, r.out.stderr].filter(Boolean).join('\n')}</pre>
+          )}
+        </div>
+      )
+    case 'command':
+      return (
+        <div className="msg cmd">
+          <code>
+            {r.name} {r.args}
+          </code>
+        </div>
+      )
+    case 'assistant':
+      return (
+        <div className="msg assistant">
+          <div className="who">
+            {agentName}
+            <Copy text={r.text} />
+          </div>
+          <Markdown text={r.text} />
+          {r.took !== undefined && <div className="msg-meta">worked for {r.took >= 60 ? `${Math.floor(r.took / 60)}m ${r.took % 60}s` : `${r.took}s`}</div>}
+        </div>
+      )
+    case 'thinking':
+      return (
+        <div className="msg think">
+          <span className="tc-dot" aria-hidden="true" /> Thought about it
+        </div>
+      )
+    case 'tool':
+      return <ToolCard run={r.run} working={busy} onImage={onImage} />
+    case 'note':
+      return <div className="msg note">{r.text}</div>
+  }
+}
+
+interface Attachment {
+  id: string
+  name: string
+  path: string
+  /** A local preview for pictures. */
+  preview?: string
 }
 
 function Composer({
@@ -235,30 +308,40 @@ function Composer({
   asleep,
   busy,
   blocked,
+  mode,
   visible,
   focusTick,
   onSend,
   onWake,
-  onStop
+  onStop,
+  onError,
+  onImage
 }: {
   agentId: string
   agentName: string
   asleep: boolean
   busy: boolean
   blocked: boolean
+  mode?: string
   visible: boolean
   focusTick: number
   onSend: (text: string) => Promise<void>
   onWake: () => void
   onStop: () => void
+  onError: (msg: string) => void
+  onImage: (src: string) => void
 }) {
   const [text, setText] = useState(() => drafts.get(agentId) ?? '')
   const [commands, setCommands] = useState<PaletteCommand[]>([])
   const [files, setFiles] = useState<string[]>([])
   const [at, setAt] = useState(0)
+  const [attached, setAttached] = useState<Attachment[]>([])
+  const [over, setOver] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
+  const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
+  const shell = text.startsWith('!')
 
   useEffect(() => {
     drafts.set(agentId, text)
@@ -278,9 +361,27 @@ function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`
   }, [text])
 
-  // "/co" completes commands; the last "@word" completes a file.
+  // Files on disk are mentioned by their path; pasted pictures and other blobs are saved first.
+  const attach = useCallback(
+    async (list: File[]) => {
+      for (const f of list) {
+        try {
+          const onDisk = window.aw.pathOf(f)
+          const path = onDisk || (await window.aw.saveAttachment(agentId, f.name, await f.arrayBuffer(), f.type))
+          setAttached((cur) => [...cur, { id: `${Date.now()}-${cur.length}`, name: f.name || path.split('/').pop()!, path, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined }])
+        } catch (err) {
+          onError(errText(err))
+        }
+      }
+      box.current?.focus()
+    },
+    [agentId, onError]
+  )
+
+  // "/co" completes commands; the last "@word" completes a file or folder.
   const slash = /^\/(\S*)$/.exec(text)
   const mention = /(?:^|\s)@([^\s@]*)$/.exec(text)
+  const folders = useMemo(() => [...new Set(files.flatMap((f) => f.split('/').slice(0, -1).map((_, i, a) => `${a.slice(0, i + 1).join('/')}/`)))], [files])
   const suggestions = useMemo<{ label: string; hint: string; insert: string }[]>(() => {
     if (slash) {
       const q = slash[1]!.toLowerCase()
@@ -288,20 +389,29 @@ function Composer({
     }
     if (mention) {
       const q = mention[1]!.toLowerCase()
-      return files.filter((f) => f.toLowerCase().includes(q)).slice(0, 8).map((f) => ({ label: f, hint: '', insert: text.slice(0, mention.index + (mention[0].startsWith('@') ? 0 : 1)) + (/\s/.test(f) ? `@"${f}" ` : `@${f} `) }))
+      const head = text.slice(0, mention.index + (mention[0].startsWith('@') ? 0 : 1))
+      return [...folders, ...files]
+        .filter((f) => f.toLowerCase().includes(q))
+        .sort((a, b) => Number(b.toLowerCase().startsWith(q)) - Number(a.toLowerCase().startsWith(q)))
+        .slice(0, 8)
+        .map((f) => ({ label: f, hint: f.endsWith('/') ? 'folder' : '', insert: head + (/\s/.test(f) ? `@"${f}"` : `@${f}`) + (f.endsWith('/') ? '' : ' ') }))
     }
     return []
-  }, [slash?.[1], mention?.[1], commands, files, text])
+  }, [slash?.[1], mention?.[1], commands, files, folders, text])
   useEffect(() => setAt(0), [suggestions.length, slash?.[1], mention?.[1]])
 
   const submit = async () => {
     const value = text.trim()
-    if (!value) return
+    if (!value && attached.length === 0) return
+    const mentions = attached.map((a) => `@"${a.path}"`).join(' ')
+    // Attached files come first so the message reads "look at these: …".
+    const full = mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
     try {
-      await onSend(value)
-      sent.current.unshift(value)
-      recall.current = -1
+      await onSend(full)
+      if (value) (sent.current.unshift(value), (recall.current = -1))
       setText('')
+      for (const a of attached) if (a.preview) URL.revokeObjectURL(a.preview)
+      setAttached([])
     } catch {
       /* the error is shown above the composer; the text stays for another try */
     }
@@ -318,7 +428,17 @@ function Composer({
     )
 
   return (
-    <div className="composer">
+    <div
+      className={`composer ${over ? 'over' : ''} ${shell ? 'is-shell' : ''}`}
+      onDragOver={(e) => (e.preventDefault(), setOver(true))}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setOver(false)
+        void attach([...e.dataTransfer.files])
+      }}
+    >
       {suggestions.length > 0 && (
         <ul className="suggest" role="listbox" aria-label="Suggestions">
           {suggestions.map((s, i) => (
@@ -329,40 +449,81 @@ function Composer({
           ))}
         </ul>
       )}
-      <textarea
-        ref={box}
-        value={text}
-        rows={1}
-        placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / for commands  ·  @ for files`}
-        aria-label={`Message ${agentName}`}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (suggestions.length) {
-            if (e.key === 'ArrowDown') (e.preventDefault(), setAt((i) => Math.min(suggestions.length - 1, i + 1)))
-            else if (e.key === 'ArrowUp') (e.preventDefault(), setAt((i) => Math.max(0, i - 1)))
-            else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) (e.preventDefault(), setText(suggestions[at]!.insert))
-            if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) return
-          }
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            void submit()
-          } else if (e.key === 'Escape' && busy) onStop()
-          else if (e.key === 'ArrowUp' && !text && sent.current.length) {
-            e.preventDefault()
-            recall.current = Math.min(sent.current.length - 1, recall.current + 1)
-            setText(sent.current[recall.current]!)
-          }
-        }}
-      />
-      <div className="composer-side">
-        {busy && (
-          <button onClick={onStop} title="Interrupt (Esc)">
-            Stop
+      {attached.length > 0 && (
+        <ul className="attached" aria-label="Attached files">
+          {attached.map((a) => (
+            <li key={a.id}>
+              {a.preview ? (
+                <button className="chip-img" onClick={() => onImage(a.preview!)} aria-label={`Preview ${a.name}`}>
+                  <img src={a.preview} alt="" />
+                </button>
+              ) : (
+                <span className="chip-file" aria-hidden="true" />
+              )}
+              <span className="chip-name" title={a.path}>
+                {a.name}
+              </span>
+              <button className="chip-x" aria-label={`Remove ${a.name}`} onClick={() => setAttached((cur) => cur.filter((x) => x.id !== a.id))} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="composer-row">
+        {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
+        <textarea
+          ref={box}
+          value={text}
+          rows={1}
+          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files  ·  ! shell  ·  paste a picture`}
+          aria-label={`Message ${agentName}`}
+          onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files]
+            if (files.length) (e.preventDefault(), void attach(files))
+          }}
+          onKeyDown={(e) => {
+            if (suggestions.length) {
+              if (e.key === 'ArrowDown') (e.preventDefault(), setAt((i) => Math.min(suggestions.length - 1, i + 1)))
+              else if (e.key === 'ArrowUp') (e.preventDefault(), setAt((i) => Math.max(0, i - 1)))
+              else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) (e.preventDefault(), setText(suggestions[at]!.insert))
+              if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) return
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              void submit()
+            } else if (e.key === 'Escape' && busy) onStop()
+            else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
+            else if (e.key === 'ArrowUp' && !text && sent.current.length) {
+              e.preventDefault()
+              recall.current = Math.min(sent.current.length - 1, recall.current + 1)
+              setText(sent.current[recall.current]!)
+            } else if (e.key === 'ArrowDown' && recall.current >= 0 && text === sent.current[recall.current]) {
+              e.preventDefault()
+              recall.current -= 1
+              setText(recall.current >= 0 ? sent.current[recall.current]! : '')
+            }
+          }}
+        />
+        <div className="composer-side">
+          <input ref={pick} type="file" multiple hidden onChange={(e) => (void attach([...(e.target.files ?? [])]), (e.target.value = ''))} />
+          <button onClick={() => pick.current?.click()} title="Attach pictures or files (or paste, or drop them here)">
+            Attach
           </button>
-        )}
-        <button className="primary" onClick={() => void submit()} disabled={!text.trim()}>
-          Send
+          {busy && (
+            <button onClick={onStop} title="Interrupt (Esc)">
+              Stop
+            </button>
+          )}
+          <button className="primary" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0}>
+            Send
+          </button>
+        </div>
+      </div>
+      <div className="composer-foot">
+        <button className={`mode-chip mode-${mode ?? 'default'}`} onClick={() => void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err)))} title="Permission mode. Click, or press Shift+Tab, to switch to the next one.">
+          {modeLabel(mode)}
         </button>
+        <span className="hint-keys">Enter sends · Shift+Enter new line · Esc stops</span>
       </div>
     </div>
   )

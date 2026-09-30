@@ -38,7 +38,29 @@ describe('reading Claude\'s transcript for the chat view', () => {
     const one = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'a.ts\nb.ts', is_error: false }] }
     expect(parseTranscriptLine(line({ ...base, type: 'user', message: one }))).toEqual([{ kind: 'tool-result', id: 'u1:0', at: Date.parse(base.timestamp), toolUseId: 'toolu_1', text: 'a.ts\nb.ts', isError: false }])
     const blocks = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_2', content: [{ type: 'text', text: 'nope' }, { type: 'image' }], is_error: true }] }
-    expect(parseTranscriptLine(line({ ...base, type: 'user', message: blocks }))).toMatchObject([{ toolUseId: 'toolu_2', text: 'nope\n[image]', isError: true }])
+    expect(parseTranscriptLine(line({ ...base, type: 'user', message: blocks }))).toMatchObject([{ toolUseId: 'toolu_2', text: 'nope', isError: true }])
+  })
+
+  it('keeps pictures the user attached, as data URLs', () => {
+    const img = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }
+    const msg = { role: 'user', content: [{ type: 'text', text: 'what is this?' }, img] }
+    expect(parseTranscriptLine(line({ ...base, type: 'user', message: msg }))).toEqual([
+      { kind: 'user', id: 'u1:0', at: Date.parse(base.timestamp), text: 'what is this?' },
+      { kind: 'image', id: 'u1:1', at: Date.parse(base.timestamp), mediaType: 'image/png', src: 'data:image/png;base64,AAAA' }
+    ])
+  })
+
+  it('carries pictures in tool results, and drops ones too big to send across', () => {
+    const big = 'A'.repeat(7 * 1024 * 1024)
+    const res = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't', content: [{ type: 'text', text: 'shot' }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'BBBB' } }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: big } }] }] }
+    expect(parseTranscriptLine(line({ ...base, type: 'user', message: res }))).toMatchObject([{ kind: 'tool-result', text: 'shot', images: ['data:image/jpeg;base64,BBBB', ''] }])
+  })
+
+  it('reads shell-mode commands (the ! prefix) and their output', () => {
+    expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: '<bash-input>git status</bash-input>' } }))).toMatchObject([{ kind: 'shell', command: 'git status' }])
+    expect(
+      parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: '<bash-stdout>On branch main</bash-stdout><bash-stderr>warn</bash-stderr>' } }))
+    ).toMatchObject([{ kind: 'shell-out', stdout: 'On branch main', stderr: 'warn' }])
   })
 
   it('notes a compaction and an interrupt', () => {

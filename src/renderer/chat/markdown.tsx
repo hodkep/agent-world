@@ -14,6 +14,14 @@ export function Markdown({ text }: { text: string }) {
   useEffect(() => {
     const el = box.current
     if (!el) return
+    for (const pre of el.querySelectorAll<HTMLElement>('pre')) {
+      if (pre.querySelector(':scope > .copy')) continue
+      const b = document.createElement('button')
+      b.className = 'copy'
+      b.textContent = 'Copy'
+      b.onclick = () => void navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? pre.textContent ?? '').then(() => ((b.textContent = 'Copied'), setTimeout(() => (b.textContent = 'Copy'), 1200)))
+      pre.appendChild(b)
+    }
     for (const code of el.querySelectorAll<HTMLElement>('pre > code')) {
       const lang = /language-([\w+-]+)/.exec(code.className)?.[1]
       if (!lang) continue

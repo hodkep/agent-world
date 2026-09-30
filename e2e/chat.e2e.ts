@@ -44,3 +44,73 @@ test('chat with an agent: send a prompt, watch tools and the reply appear, slash
     await shutdown()
   }
 })
+
+// A 1x1 red PNG.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64')
+
+test('attach and paste pictures, run a shell command with !, switch permission mode, search the conversation', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-chat2-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+
+    // Attach through the picker: a chip with a preview, removable, then sent with the message.
+    await page.locator('.composer input[type=file]').setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: PNG })
+    const chips = page.getByRole('list', { name: 'Attached files' })
+    await expect(chips).toContainText('shot.png')
+    await box.fill('what is in this picture?')
+    await box.press('Enter')
+    await expect(log.locator('.msg.user .bubble').first()).toContainText('what is in this picture?')
+    await expect(log.locator('.pic img').first()).toBeVisible({ timeout: 10_000 })
+    await expect(chips).toHaveCount(0)
+
+    // Paste a picture from the clipboard.
+    await box.focus()
+    await page.evaluate((b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+      const dt = new DataTransfer()
+      dt.items.add(new File([bytes], 'image.png', { type: 'image/png' }))
+      document.querySelector('textarea')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+    }, PNG.toString('base64'))
+    await expect(chips).toContainText('image.png')
+    await page.getByRole('button', { name: 'Remove image.png' }).click()
+    await expect(chips).toHaveCount(0)
+
+    // A picture opens full size.
+    await log.locator('.pic').first().click()
+    await expect(page.getByRole('dialog', { name: 'Picture' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Picture' })).toHaveCount(0)
+
+    // Shell mode: the composer says so, and the command and its output appear as a shell card.
+    await box.fill('!git status')
+    await expect(page.locator('.shell-badge')).toBeVisible()
+    await box.press('Enter')
+    await expect(log.locator('.msg.shell')).toContainText('git status')
+    await expect(log.locator('.msg.shell')).toContainText('nothing to commit')
+
+    // Permission mode: click the chip (Shift+Tab) and the label follows what Claude reports.
+    await expect(page.locator('.mode-chip')).toHaveText('Ask first')
+    await page.locator('.mode-chip').click()
+    await expect(page.locator('.mode-chip')).toHaveText('Edit automatically')
+
+    // Search narrows the conversation.
+    await box.fill('')
+    await page.getByRole('button', { name: 'Search' }).click()
+    await page.getByRole('textbox', { name: 'Search this conversation' }).fill('git status')
+    await expect(log.locator('.msg.shell')).toBeVisible()
+    await expect(log.locator('.msg.assistant')).toHaveCount(0)
+    await page.screenshot({ path: join(__dirname, '..', 'test-results', 'chat2.png') })
+  } finally {
+    await shutdown()
+  }
+})

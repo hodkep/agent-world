@@ -20,6 +20,12 @@ describe('claude launch', () => {
     expect(launchArgs({ ...o, started: true })).toEqual(['--resume', 'new', '--settings', '/s.json'])
   })
 
+  it('lets the agent read the folder where attachments are kept without asking', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', addDirs: ['/home/aw/attachments'] })).toEqual([
+      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--add-dir', '/home/aw/attachments'
+    ])
+  })
+
   it('passes an explicit permission mode through when one is set', () => {
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', permissionMode: 'default' })).toEqual([
       '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--permission-mode', 'default'

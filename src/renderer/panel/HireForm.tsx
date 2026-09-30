@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode } from '../../shared/types'
 
 export const MODELS = [
@@ -26,7 +27,19 @@ const MODES: { value: PermissionMode | ''; label: string; hint: string }[] = [
 ]
 
 /** Everything Claude lets you choose at launch, before the agent walks in. */
-export function HireForm({ onHire, onCancel }: { onHire: (options: AgentOptions, name: string) => Promise<void>; onCancel: () => void }) {
+export function HireForm({
+  roles,
+  onHire,
+  onCancel,
+  onSaveRole
+}: {
+  roles: Role[]
+  onHire: (options: AgentOptions, name: string) => Promise<void>
+  onCancel: () => void
+  onSaveRole: (title: string, options: AgentOptions) => Promise<void>
+}) {
+  const [roleId, setRoleId] = useState('')
+  const [saving, setSaving] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [model, setModel] = useState('')
   const [effort, setEffort] = useState<Effort | ''>('')
@@ -36,21 +49,36 @@ export function HireForm({ onHire, onCancel }: { onHire: (options: AgentOptions,
   const [chrome, setChrome] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  // Picking a role fills in the launch settings for that job; everything stays editable.
+  const applyRole = (id: string) => {
+    setRoleId(id)
+    const r = roles.find((x) => x.id === id)
+    if (!r) return
+    const o = r.options
+    setModel(o.model ?? '')
+    setEffort(o.effort ?? '')
+    setMode(o.permissionMode ?? '')
+    setInstructions(o.instructions ?? '')
+    setChrome(!!o.chrome)
+    if (r.nameHint && !name.trim()) setName(r.nameHint)
+  }
+  const current = (): AgentOptions => {
+    const budgetUsd = Number.parseFloat(budget)
+    return {
+      ...(model && { model }),
+      ...(effort && { effort }),
+      ...(mode && { permissionMode: mode }),
+      ...(budgetUsd > 0 && { budgetUsd }),
+      ...(instructions.trim() && { instructions: instructions.trim() }),
+      ...(chrome && { chrome }),
+      ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
+    }
+  }
+
   const submit = async () => {
     setBusy(true)
     try {
-      const budgetUsd = Number.parseFloat(budget)
-      await onHire(
-        {
-          ...(model && { model }),
-          ...(effort && { effort }),
-          ...(mode && { permissionMode: mode }),
-          ...(budgetUsd > 0 && { budgetUsd }),
-          ...(instructions.trim() && { instructions: instructions.trim() }),
-          ...(chrome && { chrome })
-        },
-        name
-      )
+      await onHire(current(), name)
     } finally {
       setBusy(false)
     }
@@ -66,6 +94,27 @@ export function HireForm({ onHire, onCancel }: { onHire: (options: AgentOptions,
       }}
       onKeyDown={(e) => e.key === 'Escape' && onCancel()}
     >
+      <div className="hire-row">
+        <label className="grow">
+          Role
+          <select value={roleId} onChange={(e) => applyRole(e.target.value)}>
+            <option value="">Blank agent</option>
+            {(['built-in', 'project', 'your', 'saved'] as const).map((src) => {
+              const list = roles.filter((r) => r.source === src)
+              return list.length ? (
+                <optgroup key={src} label={{ 'built-in': 'Ready-made', project: "This project's agents", your: 'Your Claude agents', saved: 'Saved by you' }[src]}>
+                  {list.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null
+            })}
+          </select>
+          <span className="hint">{roles.find((r) => r.id === roleId)?.blurb ?? 'Start from a ready-made job, or set everything yourself'}</span>
+        </label>
+      </div>
       <div className="hire-row">
         <label>
           Name
@@ -120,6 +169,22 @@ export function HireForm({ onHire, onCancel }: { onHire: (options: AgentOptions,
         <label className="check">
           <input type="checkbox" checked={chrome} onChange={(e) => setChrome(e.target.checked)} /> Let it use Chrome
         </label>
+        {saving === null ? (
+          <button type="button" onClick={() => setSaving('')} title="Keep these settings as a role you can pick again">
+            Save as role…
+          </button>
+        ) : (
+          <span className="save-role">
+            <input value={saving} onChange={(e) => setSaving(e.target.value)} placeholder="Role name" aria-label="Role name" maxLength={40} autoFocus />
+            <button
+              type="button"
+              disabled={!saving.trim()}
+              onClick={() => void onSaveRole(saving, current()).then(() => setSaving(null))}
+            >
+              Save
+            </button>
+          </span>
+        )}
         <button type="button" className="push" onClick={onCancel}>
           Cancel
         </button>

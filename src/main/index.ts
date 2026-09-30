@@ -2,7 +2,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -13,10 +13,13 @@ import { commandLine, listCommands } from './commands'
 import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
+import { saveAttachment } from './attachments'
 import { transcriptPath } from './chat'
 import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
+import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
@@ -135,7 +138,18 @@ async function probeServers() {
   if (changed) send('servers', Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
 }
 // Each agent's conversation, read from the transcript file Claude keeps for its session, for the chat view.
+const ATTACH_DIR = join(HOME, 'attachments')
 const MAX_CHAT = 800
+// Pictures are big; only the newest few stay in memory (older ones remain in the transcript file).
+const KEEP_IMAGES = 12
+function trimImages(items: ChatItem[]): ChatItem[] {
+  let seen = 0
+  return [...items].reverse().map((i) => {
+    if (i.kind === 'image' && i.src) return ++seen > KEEP_IMAGES ? { ...i, src: '' } : i
+    if (i.kind === 'tool-result' && i.images?.some(Boolean)) return ++seen > KEEP_IMAGES ? { ...i, images: i.images.map(() => '') } : i
+    return i
+  }).reverse()
+}
 interface Chat {
   tail: TranscriptTail
   sessionId: string
@@ -155,7 +169,7 @@ function followChat(a: AgentRecord) {
     /* the folder is gone; the transcript will not appear */
   }
   chat.tail = new TranscriptTail(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId), (items) => {
-    chat.items = [...chat.items, ...items].slice(-MAX_CHAT)
+    chat.items = trimImages([...chat.items, ...items].slice(-MAX_CHAT))
     send('chat-items', a.id, a.sessionId, items)
   })
   chats.set(a.id, chat)
@@ -307,7 +321,7 @@ function trackTurns(e: AgentEvent) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
@@ -440,6 +454,15 @@ async function main() {
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
+  // Roles: ready-made agents. Built in, from the project's and the user's Claude subagent files, and saved by the user.
+  const ROLES_FILE = join(HOME, 'roles.json')
+  ipcMain.handle('roles:list', (_, folder: string) => [
+    ...BUILT_IN_ROLES.map((r) => ({ ...r, options: { ...r.options, role: r.title } })),
+    ...(folder && isDir(folder) ? discoverRoles(folder, homedir()) : []),
+    ...loadRoles(ROLES_FILE)
+  ])
+  ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
+  ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => usage)
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
@@ -452,6 +475,29 @@ async function main() {
     p.write(`\x1b[200~${text}\x1b[201~`)
     await new Promise((r) => setTimeout(r, 150))
     p.write('\r')
+  })
+  // Pictures and files attached in the chat are saved here and mentioned by path; the agent is allowed to read this folder.
+  ipcMain.handle('attach-save', (_, agentId: string, name: string, bytes: Uint8Array, mime: string) => {
+    if (!byId(agentId)) throw new Error('Unknown agent.')
+    return saveAttachment(ATTACH_DIR, agentId, name, bytes, mime)
+  })
+  // A picture mentioned in a message, as a data URL for the chat to show (pictures only, and not enormous ones).
+  ipcMain.handle('read-image', (_, agentId: string, path: string) => {
+    const a = byId(agentId)
+    if (!a || !/\.(png|jpe?g|gif|webp)$/i.test(path)) return ''
+    const full = isAbsolute(path) ? path : join(a.cwd, path)
+    try {
+      if (statSync(full).size > 8 * 1024 * 1024) return ''
+      const ext = extname(full).slice(1).toLowerCase().replace('jpg', 'jpeg')
+      return `data:image/${ext};base64,${readFileSync(full).toString('base64')}`
+    } catch {
+      return ''
+    }
+  })
+  // Shift+Tab is how Claude's terminal cycles its permission mode; the new mode arrives with the next event.
+  ipcMain.handle('chat:cycle-mode', (_, id: string) => {
+    if (anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Answer the open menu first.')
+    sessions.get(id)?.write('\x1b[Z')
   })
   // Esc is how Claude's own terminal interrupts a running turn.
   ipcMain.handle('chat:interrupt', (_, id: string) => void sessions.get(id)?.write('\x1b'))
