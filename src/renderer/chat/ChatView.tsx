@@ -535,6 +535,19 @@ function Composer({
     [agentId, onError]
   )
 
+  // Something picked on the Preview page arrives as words and a picture, ready to send with a question about it.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null }>).detail
+      if (d.agentId !== agentId) return
+      if (d.file) void attach([d.file])
+      setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + d.text + '\n\n')
+      box.current?.focus()
+    }
+    window.addEventListener('aw-context', on)
+    return () => window.removeEventListener('aw-context', on)
+  }, [agentId, attach])
+
   // "/co" completes commands; the last "@word" completes a file or folder.
   const slash = /^\/(\S*)$/.exec(text)
   const mention = /(?:^|\s)@([^\s@]*)$/.exec(text)
