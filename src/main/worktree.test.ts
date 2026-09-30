@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DirtyWorktreeError, createWorktree, isGitRepo, removeWorktree } from './worktree'
+import { DirtyWorktreeError, createWorktree, isGitRepo, nameTaken, removeWorktree } from './worktree'
 
 let tmp: string
 let repo: string
@@ -28,6 +28,16 @@ describe('worktrees', () => {
   it('detects git repos', async () => {
     expect(await isGitRepo(repo)).toBe(true)
     expect(await isGitRepo(tmp)).toBe(false)
+  })
+
+  it('knows a name is taken by a branch or worktree left from an earlier agent, even after it was removed', async () => {
+    expect(await nameTaken({ repoPath: repo, name: 'ada', rootDir: root })).toBe(false)
+    const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    expect(await nameTaken({ repoPath: repo, name: 'ada', rootDir: root })).toBe(true)
+    // "Remove, keep worktree" leaves both behind; removing only the folder leaves the branch.
+    await removeWorktree({ repoPath: repo, path: wt.path })
+    expect(await nameTaken({ repoPath: repo, name: 'ada', rootDir: root })).toBe(true)
+    expect(await nameTaken({ repoPath: tmp, name: 'ada', rootDir: root })).toBe(false)
   })
 
   it('can branch from another agent\'s branch, keeping the same base', async () => {

@@ -28,7 +28,7 @@ import { Screen } from './screen'
 import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
-import { DirtyWorktreeError, createWorktree, git, isGitRepo, removeWorktree, slug as repoSlug } from './worktree'
+import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 const AGENTS_FILE = join(HOME, 'agents.json')
@@ -202,11 +202,12 @@ const send = (channel: string, ...args: unknown[]) => {
 const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
 
-function nextName() {
+/** The next name from the list that no agent has and no old branch or worktree in this repo is still using. */
+async function nextName(repoPath: string) {
   const used = new Set(agents.map((a) => a.name))
   for (let n = 1; ; n++) for (const base of NAMES) {
     const name = n === 1 ? base : `${base}${n}`
-    if (!used.has(name)) return name
+    if (!used.has(name) && !(await nameTaken({ repoPath, name, rootDir: join(HOME, 'worktrees') }))) return name
   }
 }
 
@@ -491,7 +492,9 @@ async function main() {
   })
   ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
-    const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
+    const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
+    if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
+      throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
@@ -518,7 +521,7 @@ async function main() {
     let to = reviewer === 'new' ? null : byId(reviewer)
     let created: AgentRecord | null = null
     if (reviewer === 'new') {
-      const name = nextName()
+      const name = await nextName(author.repoPath)
       const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees') })
       // Plan mode keeps a reviewer from editing anything while it reads.
       created = {
@@ -555,7 +558,7 @@ async function main() {
     if (!/^[0-9a-f-]{36}$/i.test(sessionId)) throw new Error('That is not a session id.')
     const busy = agents.find((a) => a.sessionId === sessionId)
     if (busy) throw new Error(`${busy.name} is already running that session.`)
-    const name = nextName()
+    const name = await nextName(folder)
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true }
@@ -569,7 +572,7 @@ async function main() {
     const src = byId(id)
     if (!src) throw new Error('Unknown agent.')
     if (!src.started) throw new Error(`${src.name} has not started a conversation yet, so there is nothing to copy.`)
-    const name = nextName()
+    const name = await nextName(src.repoPath)
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,

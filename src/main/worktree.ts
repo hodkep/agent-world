@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -31,6 +32,18 @@ export async function createWorktree(o: { repoPath: string; name: string; rootDi
   const base = await git(o.repoPath, 'rev-parse', '--abbrev-ref', 'HEAD')
   await git(o.repoPath, 'worktree', 'add', '-b', branch, path, ...(o.from ? [o.from] : []))
   return { path, branch, base }
+}
+
+/** Is `aw/<name>` already a branch in this repo, or its worktree folder already there? (An earlier agent may have left either.) */
+export async function nameTaken(o: { repoPath: string; name: string; rootDir: string }): Promise<boolean> {
+  if (!(await isGitRepo(o.repoPath))) return false
+  if (existsSync(join(o.rootDir, slug(o.repoPath), o.name))) return true
+  try {
+    await git(o.repoPath, 'rev-parse', '--verify', '--quiet', `refs/heads/aw/${o.name}`)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function removeWorktree(o: { repoPath: string; path: string; force?: boolean }) {
