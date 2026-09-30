@@ -111,6 +111,14 @@ describe('hook server', () => {
     expect(events.at(-1)).toMatchObject({ activity: 'permission', detail: 'plan ready for review' })
   })
 
+  it('does not hold AskUserQuestion either: its own menu is answered from the app', async () => {
+    const { server, asks, events } = await setup()
+    const res = await post(server.url, { session_id: 's1', hook_event_name: 'PermissionRequest', tool_name: 'AskUserQuestion', tool_input: { questions: [] } })
+    expect(await res.text()).toBe('')
+    expect(asks).toEqual([])
+    expect(events.at(-1)).toMatchObject({ activity: 'permission', detail: 'has a question for you' })
+  })
+
   it('a permission answered in the terminal clears its card when that tool finishes', async () => {
     const { server, asks, settled, events } = await setup()
     const pending = post(server.url, { ...permission, tool_use_id: 'tu1' })

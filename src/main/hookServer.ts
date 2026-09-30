@@ -108,6 +108,11 @@ export async function startHookServer(o: Options) {
         o.onEvent({ type: 'activity', agentId, sessionId: p.session_id, activity: 'permission', tool: 'ExitPlanMode', detail: 'plan ready for review' })
         return void res.writeHead(200).end()
       }
+      // Same for questions: the app reads them from PreToolUse and answers Claude's own menu.
+      if (p.tool_name === 'AskUserQuestion') {
+        o.onEvent({ type: 'activity', agentId, sessionId: p.session_id, activity: 'permission', tool: 'AskUserQuestion', detail: 'has a question for you' })
+        return void res.writeHead(200).end()
+      }
       return holdPermission(p, res, agentId)
     }
 

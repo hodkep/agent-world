@@ -1,0 +1,12 @@
+←  ☐ Color  ☐ Pets  ✔ Submit  →
+What's your favourite colour?
+  1. Red
+     Warm and vibrant
+❯ 2. Green
+     Calm and natural
+  3. Blue
+     Cool and serene
+  4. Type something.
+───────────────────────────────────────────────────────────────────
+  5. Chat about this
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel

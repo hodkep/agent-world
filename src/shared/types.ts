@@ -11,11 +11,26 @@ export type Activity =
   | 'blocked'
   | 'asleep'
 
+/** One of Claude's AskUserQuestion questions, as its hook reports it. */
+export interface Question {
+  question: string
+  header: string
+  options: { label: string; description: string }[]
+  multiSelect: boolean
+}
+
+/** The user's answer: indexes of the chosen options, or free text typed on Claude's "Type something" row (single choice only). */
+export interface QuestionAnswer {
+  picks: number[]
+  other?: string
+}
+
 /** What a hook payload says, in the app's terms. `sessionId` is Claude's, and changes on /clear. */
 export type RawEvent =
   | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string; mode?: string }
   | { type: 'task'; sessionId: string; id: string; subject?: string; status?: TaskStatus }
   | { type: 'plan'; sessionId: string; plan: string; steps: string[] }
+  | { type: 'question'; sessionId: string; questions: Question[] }
   | { type: 'subagent-start'; sessionId: string; subagentId: string; subagentType: string }
   | { type: 'subagent-stop'; sessionId: string; subagentId: string }
   | { type: 'session-start'; sessionId: string }

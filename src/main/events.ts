@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import type { Activity, RawEvent, TaskStatus } from '../shared/types'
+import type { Activity, Question, RawEvent, TaskStatus } from '../shared/types'
 
 const RESEARCH = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LSP', 'ToolSearch'])
 const IMPLEMENT = new Set(['Edit', 'Write', 'NotebookEdit'])
@@ -40,6 +40,16 @@ export function describeTool(input: unknown): string | undefined {
   return raw?.slice(0, MAX_DETAIL)
 }
 
+/** Keeps the questions that have text and at least one labelled option; Claude's payload is otherwise trusted only by shape. */
+function questionsOf(raw: unknown): Question[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((r): Question[] => {
+    const q = (r ?? {}) as Payload
+    const options = Array.isArray(q.options) ? q.options.flatMap((o) => (str((o as Payload)?.label) ? [{ label: str((o as Payload).label)!, description: str((o as Payload).description) ?? '' }] : [])) : []
+    return str(q.question) && options.length ? [{ question: str(q.question)!, header: str(q.header) ?? '', options, multiSelect: q.multiSelect === true }] : []
+  })
+}
+
 export function normalize(payload: unknown): RawEvent | null {
   if (!payload || typeof payload !== 'object') return null
   const p = payload as Payload
@@ -67,6 +77,7 @@ export function normalize(payload: unknown): RawEvent | null {
         const plan = str(input.plan) ?? ''
         return { type: 'plan', sessionId, plan, steps: planSteps(plan) }
       }
+      if (tool === 'AskUserQuestion') return { type: 'question', sessionId, questions: questionsOf(input.questions) }
       return activity(activityFor(tool), tool, describeTool(p.tool_input))
     }
     case 'PostToolUse': {

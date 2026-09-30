@@ -114,6 +114,15 @@ describe('normalize hook payload → AgentEvent', () => {
     ).toEqual({ type: 'task', sessionId: 's1', id: '1', status: 'completed' })
   })
 
+  it('questions come from AskUserQuestion, keeping only well-formed ones', () => {
+    const q = { question: 'Color?', header: 'Color', options: [{ label: 'Red', description: 'warm' }, { label: 'Blue' }], multiSelect: false }
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions: [q, { nope: 1 }] } })).toEqual({
+      type: 'question',
+      sessionId: base.session_id,
+      questions: [{ question: 'Color?', header: 'Color', options: [{ label: 'Red', description: 'warm' }, { label: 'Blue', description: '' }], multiSelect: false }]
+    })
+  })
+
   it('a plan comes from ExitPlanMode, with its steps pulled out for the whiteboard', () => {
     const plan = '# Plan: add hello.txt\n\n## Steps\n1. Create `hello.txt` with **hi**.\n2. Run `cat hello.txt` to confirm.\n\n## Notes\n- keep it small'
     expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'ExitPlanMode', tool_input: { plan } })).toEqual({

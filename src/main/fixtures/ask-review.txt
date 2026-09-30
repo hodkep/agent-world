@@ -1,0 +1,10 @@
+←  ☒ Color  ☒ Pets  ✔ Submit  →
+Review your answers
+ ● What is your favourite color?
+   → Purple
+ ● Which pets do you like?
+   → Cat
+
+Ready to submit your answers?
+
+❯ 1. Submit answers
