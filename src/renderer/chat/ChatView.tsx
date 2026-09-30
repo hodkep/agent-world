@@ -1,3 +1,4 @@
+import { unwrapPasted } from '../../shared/pasted'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem } from '../../shared/chat'
@@ -515,7 +516,7 @@ function Composer({
   useEffect(() => setAt(0), [suggestions.length, slash?.[1], mention?.[1]])
 
   const submit = async () => {
-    const value = text.trim()
+    const value = unwrapPasted(text).trim()
     if (!value && attached.length === 0) return
     const mentions = attached.map((a) => `@"${a.path}"`).join(' ')
     // Attached files come first so the message reads "look at these: …".
@@ -593,6 +594,13 @@ function Composer({
           aria-label={`Message ${agentName}`}
           onChange={(e) => ((search.current = null), setText(e.target.value))}
           onPaste={(e) => {
+            // Text copied with <pasted_content> markers goes in without them.
+            const pasted = e.clipboardData.getData('text/plain')
+            if (pasted !== unwrapPasted(pasted)) {
+              e.preventDefault()
+              document.execCommand('insertText', false, unwrapPasted(pasted).replace(/\n$/, ''))
+              return
+            }
             const files = [...e.clipboardData.files]
             if (files.length) (e.preventDefault(), void attach(files))
           }}

@@ -27,3 +27,25 @@ test('the message box keeps its height when the window is short', async () => {
     await shutdown()
   }
 })
+
+test('text pasted with <pasted_content> markers goes in without them', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-paste-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.focus()
+    await box.evaluate((el) => {
+      const data = new DataTransfer()
+      data.setData('text/plain', '<pasted_content id="cc20">\nfirst line\nsecond line\n</pasted_content id="cc20">')
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    })
+    await expect(box).toHaveValue('first line\nsecond line')
+  } finally {
+    await shutdown()
+  }
+})

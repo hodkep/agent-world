@@ -9,7 +9,7 @@ import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, PermissionMode, Question, QuestionAnswer } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
@@ -209,7 +209,9 @@ const rewinding = new Map<string, { text: string; at: number }>()
 const termMenuSeen = new Map<string, { sig: string; since: number }>()
 const termMenuSent = new Map<string, string>()
 const MENU_STABLE_MS = 800
-const pendingPermissions = new Set<string>()
+const pendingPermissions = new Map<string, PermissionRequest>()
+// The last question and plan Claude showed each agent, kept so a reloaded window can show them again.
+const stickyEvents = new Map<string, RawEvent>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
 const questionOpen = new Set<string>()
 const askedQuestions = new Map<string, Question[]>()
@@ -516,10 +518,11 @@ async function main() {
       if (e.type === 'session-end') return
       trackTurns(e)
       refreshAttention()
+      if (e.type === 'question' || e.type === 'plan') stickyEvents.set(`${e.agentId}:${e.type}`, e)
       send('agent-event', e)
     },
     onPermission: (r) => {
-      pendingPermissions.add(r.id)
+      pendingPermissions.set(r.id, r)
       // The terminal menu may already be drawn (and static) by the time the hook arrives.
       if (anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
       refreshAttention()
@@ -616,6 +619,26 @@ async function main() {
   // Esc is how Claude's own terminal interrupts a running turn.
   // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
+  // A reloaded window has forgotten everything it was showing. Say it all again: what is waiting on the user comes back.
+  ipcMain.handle('resync', () => {
+    for (const r of pendingPermissions.values()) send('permission', r)
+    for (const id of questionOpen) {
+      const e = stickyEvents.get(`${id}:question`)
+      if (e) send('agent-event', e)
+      send('question-menu', id, true)
+    }
+    for (const id of planOpen) {
+      const e = stickyEvents.get(`${id}:plan`)
+      if (e) send('agent-event', e)
+      send('plan-menu', id, true)
+    }
+    for (const id of trustOpen) send('trust-prompt', id, byId(id)?.cwd ?? '')
+    // Terminal menus and side questions are re-read from the screen within a moment.
+    termMenuSent.clear()
+    termMenuSeen.clear()
+    btwSent.clear()
+    for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
+  })
   ipcMain.handle('prefs:get', () => prefs)
   ipcMain.handle('prefs:set', (_, next: unknown) => {
     prefs = cleanPrefs(next, prefs)

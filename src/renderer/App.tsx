@@ -169,6 +169,7 @@ export function App() {
         })
       )
     ]
+    void window.aw.resync()
     return () => offs.forEach((off) => off())
   }, [])
 

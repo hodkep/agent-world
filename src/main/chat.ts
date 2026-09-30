@@ -1,3 +1,4 @@
+import { unwrapPasted } from '../shared/pasted'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChatItem } from '../shared/chat'
@@ -76,7 +77,7 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
 }
 
 function userText(id: string, at: number, text: string): ChatItem[] {
-  const trimmed = text.trim()
+  const trimmed = unwrapPasted(text).trim()
   if (!trimmed) return []
   if (trimmed === '[Request interrupted by user]' || trimmed.startsWith('[Request interrupted by user')) return [{ kind: 'note', id, at, text: 'Interrupted' }]
   const name = tag(trimmed, 'command-name')

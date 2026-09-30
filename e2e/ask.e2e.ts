@@ -34,3 +34,30 @@ test('a question from the agent opens an 8-bit box, and the answers reach its me
     await shutdown()
   }
 })
+
+test('a window reload in the middle of a question brings the question back', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-ask-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_ASKQ: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await expect(page.locator('.ask-pill')).toContainText('question', { timeout: 15_000 })
+    await page.reload()
+    const strip = page.locator('.ask-pill')
+    await expect(strip).toContainText('question', { timeout: 10_000 })
+    await strip.click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText('Favourite colour?')
+    await dialog.getByRole('radio', { name: /Blue/ }).click()
+    await dialog.getByRole('checkbox', { name: /Cat/ }).click()
+    await dialog.getByRole('button', { name: 'Review' }).click()
+    await dialog.getByRole('button', { name: 'Send answers' }).click()
+    await expect(dialog).toBeHidden({ timeout: 10_000 })
+    await page.getByRole('tab', { name: 'Terminal' }).click()
+    await expect(page.locator('.term-host:visible')).toContainText('answers: Blue | Cat', { timeout: 10_000 })
+  } finally {
+    await shutdown()
+  }
+})
