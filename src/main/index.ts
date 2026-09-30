@@ -11,7 +11,7 @@ import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decis
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
-import { parseMcpList, parsePlugins } from './tools'
+import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { saveAttachment } from './attachments'
@@ -667,6 +667,14 @@ async function main() {
     return a
   })
   // What this agent's Claude can reach: MCP servers (health-checked by Claude itself) and plugins, as seen from its folder.
+  ipcMain.handle('manage-tools', (_, id: string, action: import('../shared/types').ManageAction) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    const args = manageArgs(action)
+    return new Promise<string>((resolve, reject) =>
+      execFile(CLAUDE_BIN, args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
+    )
+  })
   ipcMain.handle('list-tools', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')

@@ -570,3 +570,8 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 
 .group-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; padding: 6px 8px 2px; }
 .group-tag { font-size: 11px; padding: 0 6px; opacity: .7; cursor: pointer; background: none; border: 1px dashed currentColor; border-radius: 4px; }
+
+.add-server { display: flex; gap: 6px; align-items: center; margin: 4px 0 8px; flex-wrap: wrap; }
+.add-server input { flex: 1; min-width: 110px; }
+.tools li button { font-size: 11px; padding: 1px 8px; cursor: pointer; margin-left: 6px; }
+.tools .hint.bad { color: #ff8a8a; }

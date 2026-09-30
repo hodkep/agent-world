@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMcpList, parsePlugins } from './tools'
+import { manageArgs, parseMcpList, parsePlugins } from './tools'
 
 describe('claude mcp list', () => {
   it('reads name, target and health from each line', () => {
@@ -39,5 +39,26 @@ describe('claude plugin list --json', () => {
 
   it('tolerates junk output', () => {
     expect(parsePlugins('not json')).toEqual([])
+  })
+})
+
+describe('manageArgs', () => {
+  it('adds an http server at project-local scope', () => {
+    expect(manageArgs({ kind: 'mcp-add-http', name: 'docs', url: 'https://docs.example/mcp' })).toEqual(['mcp', 'add', '--scope', 'local', '--transport', 'http', 'docs', 'https://docs.example/mcp'])
+  })
+  it('adds a stdio server, keeping its arguments after --', () => {
+    expect(manageArgs({ kind: 'mcp-add-stdio', name: 'db', command: 'npx', args: ['-y', 'fake-db'] })).toEqual(['mcp', 'add', '--scope', 'local', 'db', '--', 'npx', '-y', 'fake-db'])
+  })
+  it('removes a server and toggles or removes a plugin', () => {
+    expect(manageArgs({ kind: 'mcp-remove', name: 'docs' })).toEqual(['mcp', 'remove', 'docs'])
+    expect(manageArgs({ kind: 'plugin-disable', id: 'a@m' })).toEqual(['plugin', 'disable', 'a@m'])
+    expect(manageArgs({ kind: 'plugin-enable', id: 'a@m' })).toEqual(['plugin', 'enable', 'a@m'])
+    expect(manageArgs({ kind: 'plugin-uninstall', id: 'a@m' })).toEqual(['plugin', 'uninstall', 'a@m'])
+  })
+  it('refuses names that could be read as options, and non-http urls', () => {
+    expect(() => manageArgs({ kind: 'mcp-remove', name: '--scope' })).toThrow()
+    expect(() => manageArgs({ kind: 'plugin-enable', id: '-x' })).toThrow()
+    expect(() => manageArgs({ kind: 'mcp-add-http', name: 'x', url: 'file:///etc/passwd' })).toThrow()
+    expect(() => manageArgs({ kind: 'mcp-add-stdio', name: 'x', command: '', args: [] })).toThrow()
   })
 })

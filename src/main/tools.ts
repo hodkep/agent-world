@@ -1,3 +1,5 @@
+import type { ManageAction } from '../shared/types'
+
 export interface McpServer {
   name: string
   target: string
@@ -29,5 +31,26 @@ export function parsePlugins(json: string): Plugin[] {
     return list.map((p) => ({ id: p.id, version: p.version ?? '', scope: p.scope ?? '', enabled: !!p.enabled }))
   } catch {
     return []
+  }
+}
+
+const NAME = /^[A-Za-z0-9][\w.@:-]*$/
+
+/** The claude CLI arguments for a management action; anything that could be mistaken for an option is refused. */
+export function manageArgs(a: ManageAction): string[] {
+  const name = 'name' in a ? a.name : 'id' in a ? a.id : ''
+  if (!NAME.test(name)) throw new Error(`"${name}" is not a valid name.`)
+  switch (a.kind) {
+    case 'mcp-add-http':
+      if (!/^https?:\/\/\S+$/.test(a.url)) throw new Error('The address must start with http:// or https://.')
+      // Local scope keeps the server to this project instead of every project the user has.
+      return ['mcp', 'add', '--scope', 'local', '--transport', 'http', a.name, a.url]
+    case 'mcp-add-stdio':
+      if (!a.command.trim()) throw new Error('Enter the command that starts the server.')
+      return ['mcp', 'add', '--scope', 'local', a.name, '--', a.command.trim(), ...a.args]
+    case 'mcp-remove':
+      return ['mcp', 'remove', a.name]
+    default:
+      return ['plugin', a.kind.slice('plugin-'.length), a.id]
   }
 }

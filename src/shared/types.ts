@@ -128,3 +128,10 @@ export interface TerminalMenu {
   options: string[]
   hint: string
 }
+
+/** Changes to the MCP servers and plugins an agent's Claude uses. */
+export type ManageAction =
+  | { kind: 'mcp-add-http'; name: string; url: string }
+  | { kind: 'mcp-add-stdio'; name: string; command: string; args: string[] }
+  | { kind: 'mcp-remove'; name: string }
+  | { kind: 'plugin-enable' | 'plugin-disable' | 'plugin-uninstall'; id: string }

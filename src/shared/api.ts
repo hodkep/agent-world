@@ -94,6 +94,7 @@ export interface AwApi {
   resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
   /** MCP servers and plugins available to this agent (runs `claude mcp list`, which health-checks each server: slow). */
   listTools(agentId: string): Promise<ToolsInfo>
+  manageTools(agentId: string, action: import('./types').ManageAction): Promise<string>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   ptyWrite(id: string, data: string): void
