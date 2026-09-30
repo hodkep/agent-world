@@ -411,6 +411,8 @@ function Composer({
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
+  // Ctrl+R: the words being searched for, kept while pressing it again to reach older matches.
+  const search = useRef<string | null>(null)
   const shell = text.startsWith('!')
   useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (setText(t), box.current?.focus())), [agentId])
   const modeWrap = useRef<HTMLSpanElement>(null)
@@ -561,7 +563,7 @@ function Composer({
           rows={1}
           placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files  ·  ! shell  ·  paste a picture`}
           aria-label={`Message ${agentName}`}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => ((search.current = null), setText(e.target.value))}
           onPaste={(e) => {
             const files = [...e.clipboardData.files]
             if (files.length) (e.preventDefault(), void attach(files))
@@ -578,7 +580,12 @@ function Composer({
               void submit()
             } else if (e.key === 'Escape' && busy) (onStopping(true), onStop())
             else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
-            else if (e.key === 'ArrowUp' && !text && sent.current.length) {
+            else if (e.key === 'r' && e.ctrlKey && sent.current.length) {
+              e.preventDefault()
+              search.current ??= text.trim().toLowerCase()
+              const at = sent.current.findIndex((m, i) => i > recall.current && m.toLowerCase().includes(search.current!))
+              if (at >= 0) (setText(sent.current[at]!), (recall.current = at))
+            } else if (e.key === 'ArrowUp' && !text && sent.current.length) {
               e.preventDefault()
               recall.current = Math.min(sent.current.length - 1, recall.current + 1)
               setText(sent.current[recall.current]!)
