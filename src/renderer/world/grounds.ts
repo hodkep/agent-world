@@ -6,7 +6,7 @@ import { textPixels } from './pixelfont'
 // front of it and a car park across the road. All drawn in code like the rest of the world.
 
 /** How far the grounds reach past the building, in art pixels. */
-export const GROUNDS = { west: 14 * TILE, east: 14 * TILE, north: 4 * TILE, south: 12 * TILE }
+export const GROUNDS = { west: 14 * TILE, east: 14 * TILE, north: 4 * TILE, south: 7 * TILE }
 export const GRASS = 0x1e3326
 
 type G = Graphics
@@ -86,13 +86,7 @@ export function car(g: G, x: number, y: number, color: number, o: { vertical?: b
 }
 export const CAR_COLORS = [0xc0392b, 0x2e86c1, 0xe0c040, 0x3a9a5a, 0xe8e8ee, 0x8e44ad, 0xe67e22, 0x4a5060]
 
-/** Where the car park's bays are, in art pixels: one row across the lot, sized so every bay is on screen at the default zoom. */
-export function lotLayout(map: OfficeMap) {
-  const lotY = map.h * TILE + 8 + 62 + 16
-  return { y: lotY, bayW: 30, firstX: -48, bays: 19 }
-}
-
-/** Static scenery: lawn, hedges, the street in front and an empty car park across it. Returns the ground graphic. */
+/** Static scenery: lawn, hedges and the street in front. Returns the ground graphic. */
 export function drawGrounds(map: OfficeMap): G {
   const g = new Graphics()
   const rand = rng(11)
@@ -125,16 +119,12 @@ export function drawGrounds(map: OfficeMap): G {
   const door = map.spots('E')
   if (door.length) r(g, door[0]!.x * TILE, H, door.length * TILE, 8, 0x6e727c)
 
-  // Across the road: far pavement and the car park, where past conversations wait as parked cars.
+  // Across the road: far pavement and a hedge.
   const far = walkY + 62
   r(g, x0, far, w, 2, 0x3a3d45)
   r(g, x0, far + 2, w, 14, 0x565a64)
   for (let x = x0; x < x1; x += 16) r(g, x, far + 2, 1, 14, 0x484c55)
-  const lot = lotLayout(map)
-  r(g, x0, lot.y, w, 60, 0x2a2c34)
-  r(g, x0, lot.y, w, 1, 0x3a3d45)
-  for (let i = -8; i <= lot.bays + 8; i++) r(g, lot.firstX + i * lot.bayW, lot.y + 2, 1, 36, 0xd8d8e0, 0.6)
-  const hedgeY = lot.y + 60
+  const hedgeY = far + 22
   r(g, x0, hedgeY, w, 14, 0x1d4a2c)
   for (let x = x0; x < x1; x += 6) r(g, x, hedgeY + ((x / 6) % 2), 5, 12, (x / 6) % 3 ? 0x245a34 : 0x2a6a3c)
   r(g, x0, hedgeY + 12, w, 2, 0x143a22)

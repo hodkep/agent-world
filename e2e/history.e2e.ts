@@ -23,19 +23,15 @@ test('bring back an earlier conversation from the folder as a new agent', async 
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
-    // Past conversations wait in the car park across the road.
-    const stage = page.locator('.stage')
-    await expect.poll(async () => JSON.parse((await stage.getAttribute('data-parked')) ?? '[]').length).toBe(1)
-    const [car] = JSON.parse((await stage.getAttribute('data-parked'))!) as { id: string; x: number; y: number }[]
-    const box = (await stage.boundingBox())!
-    await page.mouse.move(box.x + car!.x, box.y + car!.y)
-    await expect(page.getByRole('tooltip')).toContainText('Add pagination to the orders list')
-    await page.mouse.click(box.x + car!.x, box.y + car!.y)
+    // Past conversations wait in the garage along the bottom of the office.
+    const car = page.getByRole('button', { name: /Add pagination to the orders list/ }).and(page.locator('.car'))
+    await expect(car).toBeVisible()
+    await car.click()
     await expect(page.locator('.term-host:visible')).toContainText(`session ${past}`, { timeout: 10_000 })
-    // Now running here, so the car is gone and it can't be started twice.
-    await expect.poll(async () => JSON.parse((await stage.getAttribute('data-parked')) ?? '[]').length).toBe(0)
+    // Now running here: its car is lit, and clicking it goes to the agent instead of starting a second one.
+    await expect(page.locator('.car.lit')).toHaveCount(1)
     await page.getByRole('button', { name: 'History' }).click()
-    await expect(page.getByRole('button', { name: /Add pagination/ })).toBeDisabled()
+    await expect(page.locator('.history').getByRole('button', { name: /Add pagination/ })).toBeDisabled()
   } finally {
     await shutdown()
   }

@@ -1,9 +1,17 @@
 import type { AgentStats } from '../shared/types'
+import type { Limit } from '../shared/usage'
 
 type Obj = Record<string, unknown>
 const obj = (v: unknown): Obj => (v && typeof v === 'object' ? (v as Obj) : {})
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
+
+const limit = (v: unknown): Limit | null => {
+  const pct = num(obj(v).used_percentage)
+  const at = num(obj(v).resets_at)
+  // Claude reports the reset time in epoch seconds.
+  return pct === null || at === null ? null : { pct, resetsAt: at * 1000 }
+}
 
 export function parseStatus(payload: unknown): AgentStats | null {
   const p = obj(payload)
@@ -19,7 +27,7 @@ export function parseStatus(payload: unknown): AgentStats | null {
     linesRemoved: num(cost.total_lines_removed) ?? 0,
     effort: str(obj(p.effort).level),
     fast: p.fast_mode === true,
-    fiveHourPct: num(obj(obj(p.rate_limits).five_hour).used_percentage)
+    limits: { fiveHour: limit(obj(p.rate_limits).five_hour), sevenDay: limit(obj(p.rate_limits).seven_day) }
   }
 }
 

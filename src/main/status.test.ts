@@ -9,7 +9,7 @@ const sample = {
   context_window: { used_percentage: 37, context_window_size: 200000 },
   effort: { level: 'high' },
   fast_mode: false,
-  rate_limits: { five_hour: { used_percentage: 23.5, resets_at: 1738425600 } }
+  rate_limits: { five_hour: { used_percentage: 23.5, resets_at: 1738425600 }, seven_day: { used_percentage: 41, resets_at: 1738900000 } }
 }
 
 describe('statusline feed', () => {
@@ -23,12 +23,12 @@ describe('statusline feed', () => {
       linesRemoved: 23,
       effort: 'high',
       fast: false,
-      fiveHourPct: 23.5
+      limits: { fiveHour: { pct: 23.5, resetsAt: 1738425600000 }, sevenDay: { pct: 41, resetsAt: 1738900000000 } }
     })
   })
 
   it('tolerates missing sections (older Claude versions, first render)', () => {
-    expect(parseStatus({ session_id: 's1' })).toEqual({ sessionId: 's1', model: null, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, effort: null, fast: false, fiveHourPct: null })
+    expect(parseStatus({ session_id: 's1' })).toEqual({ sessionId: 's1', model: null, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, effort: null, fast: false, limits: { fiveHour: null, sevenDay: null } })
   })
 
   it('rejects payloads without a session', () => {

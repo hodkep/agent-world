@@ -35,6 +35,8 @@ const api: AwApi = {
   onTrustPrompt: on('trust-prompt'),
   onAgentMessage: on('agent-message'),
   onAgentStats: on('agent-stats'),
+  getUsage: () => ipcRenderer.invoke('get-usage'),
+  onUsage: on('usage'),
   onBudgetAlert: on('budget-alert'),
   onPlanMenu: on('plan-menu'),
   listCommands: (id) => ipcRenderer.invoke('list-commands', id),

@@ -1,6 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker } from 'electron'
@@ -12,6 +12,7 @@ import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
 import { parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
+import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { checkName, cleanName } from './names'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
@@ -62,6 +63,17 @@ const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
 const lastCost = new Map<string, number>()
+// The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
+// reading is still there after a restart, until the next reply refreshes it.
+const USAGE_FILE = join(HOME, 'usage.json')
+let usage: UsageLimits = noLimits()
+const loadUsage = () => {
+  try {
+    usage = mergeLimits(noLimits(), JSON.parse(readFileSync(USAGE_FILE, 'utf8')) as UsageLimits)
+  } catch {
+    /* first run, or unreadable: start empty */
+  }
+}
 const pendingPermissions = new Set<string>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
 const questionOpen = new Set<string>()
@@ -156,6 +168,16 @@ function onStats(s: AgentStats, agentId: string) {
   const a = byId(agentId)
   if (!a) return
   send('agent-stats', a.id, s)
+  if (s.limits.fiveHour || s.limits.sevenDay) {
+    usage = mergeLimits(usage, s.limits)
+    send('usage', usage)
+    try {
+      mkdirSync(HOME, { recursive: true })
+      writeFileSync(USAGE_FILE, JSON.stringify(usage), { mode: 0o600 })
+    } catch {
+      /* the reading is only a convenience; losing it is fine */
+    }
+  }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
   lastCost.set(a.id, s.costUsd)
   if (alert) {
@@ -271,6 +293,7 @@ async function main() {
   await app.whenReady()
   mkdirSync(HOME, { recursive: true })
   agents = loadAgents(AGENTS_FILE)
+  loadUsage()
   const env = { ...agentEnv(process.env), PATH: loginShellPath() }
 
   const hooks = await startHookServer({
@@ -321,6 +344,7 @@ async function main() {
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
+  ipcMain.handle('get-usage', () => usage)
   ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : nextName()
@@ -342,7 +366,6 @@ async function main() {
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   ipcMain.handle('list-history', (_, folder: string) => {
-    const own = agents.map((a) => a.sessionId)
     const wtPrefix = projectSlug(join(HOME, 'worktrees', repoSlug(folder))) + '-'
     let all: string[] = []
     try {
@@ -351,7 +374,10 @@ async function main() {
       /* no Claude history yet */
     }
     const slugs = [projectSlug(realpathSync(folder)), ...all.filter((d) => d.startsWith(wtPrefix))]
-    return listSessions(CLAUDE_PROJECTS, slugs).map((s) => ({ ...s, inUse: own.includes(s.id) }))
+    return listSessions(CLAUDE_PROJECTS, slugs).map((s) => {
+      const owner = agents.find((a) => a.sessionId === s.id)
+      return { ...s, inUse: !!owner, ...(owner && { agentId: owner.id, agentName: owner.name }) }
+    })
   })
   ipcMain.handle('resume-session', async (_, folder: string, sessionId: string) => {
     if (!/^[0-9a-f-]{36}$/i.test(sessionId)) throw new Error('That is not a session id.')

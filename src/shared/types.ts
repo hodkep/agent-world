@@ -1,3 +1,4 @@
+import type { UsageLimits } from './usage'
 export type Activity =
   | 'idle'
   | 'thinking'
@@ -103,5 +104,5 @@ export interface AgentStats {
   linesRemoved: number
   effort: string | null
   fast: boolean
-  fiveHourPct: number | null
+  limits: UsageLimits
 }

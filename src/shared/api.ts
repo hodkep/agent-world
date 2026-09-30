@@ -1,3 +1,4 @@
+import type { UsageLimits } from './usage'
 import type { AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -21,6 +22,8 @@ export interface PastSession {
   updated: number
   /** An agent in this app already runs it. */
   inUse: boolean
+  agentId?: string
+  agentName?: string
 }
 
 export interface ToolsInfo {
@@ -77,6 +80,9 @@ export interface AwApi {
   onTrustPrompt(cb: (agentId: string, path: string | null) => void): () => void
   onAgentMessage(cb: (m: AgentMessage) => void): () => void
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
+  /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
+  getUsage(): Promise<UsageLimits>
+  onUsage(cb: (u: UsageLimits) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */
   onPlanMenu(cb: (agentId: string, open: boolean) => void): () => void
