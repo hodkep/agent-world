@@ -584,3 +584,12 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 /* The log gives way when the panel is short; the box you type in never does. */
 .composer, .procbar, .btw, .chat-banner, .inline-need { flex-shrink: 0; }
 .composer textarea { min-height: 44px; }
+
+.settings { width: min(460px, 92vw); padding: 0; background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
+.settings::backdrop { background: rgb(0 0 0 / 0.5); }
+.settings-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 2px solid var(--ink); }
+.settings fieldset { border: 0; border-bottom: 2px solid var(--ink); margin: 0; padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.settings legend { padding: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.settings label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.settings label.check { flex-direction: row; align-items: center; gap: 8px; }
+.settings input:not([type=checkbox]), .settings select { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }

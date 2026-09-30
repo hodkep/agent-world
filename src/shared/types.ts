@@ -137,3 +137,15 @@ export type ManageAction =
   | { kind: 'mcp-add-stdio'; name: string; command: string; args: string[] }
   | { kind: 'mcp-remove'; name: string }
   | { kind: 'plugin-enable' | 'plugin-disable' | 'plugin-uninstall'; id: string }
+
+/** What the user can change in Settings. */
+export interface Prefs {
+  /** 'all' also tells you when an agent finishes; 'attention' only when something needs you; 'off' never. */
+  notifications: 'all' | 'attention' | 'off'
+  /** Keep the computer awake while an agent works. */
+  keepAwake: boolean
+  /** Where the claude program is, when it is not on the PATH. Empty means "claude". */
+  claudePath: string
+  /** What the hire form starts with. */
+  defaults: { model: string; permissionMode: string; inPlace: boolean }
+}

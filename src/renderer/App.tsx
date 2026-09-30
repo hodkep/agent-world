@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest, TerminalMenu } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -16,6 +16,7 @@ import { PreviewView } from './panel/PreviewView'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
+import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
@@ -83,6 +84,9 @@ export function App() {
   const [questionMenus, setQuestionMenus] = useState<Record<string, boolean>>({})
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
+  const [settings, setSettings] = useState(false)
+  const [prefs, setPrefs] = useState<Prefs | null>(null)
+  useEffect(() => void window.aw.getPrefs().then(setPrefs), [])
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
@@ -402,6 +406,7 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
+      {settings && prefs && <Settings prefs={prefs} onChange={(p) => void window.aw.setPrefs(p).then(setPrefs)} onClose={() => setSettings(false)} />}
       {palette && current && (
         <Palette
           agentId={current.id}
@@ -436,7 +441,10 @@ export function App() {
           </span>
         )}
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => (narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
+        <button className="push" onClick={() => setSettings(true)} title="Notifications, defaults for new agents, where Claude is">
+          Settings
+        </button>
+        <button onClick={() => (narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
@@ -491,7 +499,7 @@ export function App() {
             }}
           />
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
-          {hiring && <HireForm roles={roles} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
+          {hiring && <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
               {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {

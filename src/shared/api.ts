@@ -116,6 +116,8 @@ export interface AwApi {
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
+  getPrefs(): Promise<import('./types').Prefs>
+  setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
   closeBtw(agentId: string): Promise<void>
   onChatReset(cb: (agentId: string, sessionId: string) => void): () => void

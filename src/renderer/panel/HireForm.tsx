@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Role } from '../../shared/roles'
-import type { AgentOptions, Effort, PermissionMode } from '../../shared/types'
+import type { AgentOptions, Effort, PermissionMode, Prefs } from '../../shared/types'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -29,11 +29,14 @@ const MODES: { value: PermissionMode | ''; label: string; hint: string }[] = [
 /** Everything Claude lets you choose at launch, before the agent walks in. */
 export function HireForm({
   roles,
+  defaults,
   onHire,
   onCancel,
   onSaveRole
 }: {
   roles: Role[]
+  /** From Settings: what a new agent starts with. */
+  defaults: Prefs['defaults']
   onHire: (options: AgentOptions, name: string) => Promise<void>
   onCancel: () => void
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
@@ -41,13 +44,13 @@ export function HireForm({
   const [roleId, setRoleId] = useState('')
   const [saving, setSaving] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [model, setModel] = useState('')
+  const [model, setModel] = useState(defaults.model)
   const [effort, setEffort] = useState<Effort | ''>('')
-  const [mode, setMode] = useState<PermissionMode | ''>('')
+  const [mode, setMode] = useState<PermissionMode | ''>(defaults.permissionMode as PermissionMode | '')
   const [budget, setBudget] = useState('')
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
-  const [inPlace, setInPlace] = useState(false)
+  const [inPlace, setInPlace] = useState(defaults.inPlace)
   const [busy, setBusy] = useState(false)
 
   // Picking a role fills in the launch settings for that job; everything stays editable.

@@ -1,3 +1,4 @@
+import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
@@ -46,7 +47,9 @@ const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
 const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
-const CLAUDE_BIN = process.env.AW_CLAUDE_BIN ?? 'claude'
+let prefs = loadPrefs(join(HOME, 'preferences.json'))
+// The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
+const claudeBin = () => process.env.AW_CLAUDE_BIN ?? (prefs.claudePath || 'claude')
 // Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
 const PERMISSION_MODE = process.env.AW_PERMISSION_MODE
 const PERMISSION_TIMEOUT_SEC = 300
@@ -275,7 +278,7 @@ function agentFiles(a: AgentRecord) {
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
 
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
-  if (HIDDEN || !Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
+  if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
   n.on('click', () => {
     win?.show()
@@ -289,7 +292,7 @@ function refreshAttention() {
   // Dock badge: things only the user can unblock.
   if (!HIDDEN) app.setBadgeCount(pendingPermissions.size + trustOpen.size + planOpen.size + questionOpen.size)
   // Keep the machine awake while any live agent is mid-turn.
-  const working = agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
+  const working = prefs.keepAwake && agents.some((a) => sessions.has(a.id) && !['idle', 'waiting', undefined].includes(lastActivity.get(a.id)))
   if (working && awakeBlocker === null) awakeBlocker = powerSaveBlocker.start('prevent-app-suspension')
   else if (!working && awakeBlocker !== null) {
     powerSaveBlocker.stop(awakeBlocker)
@@ -415,7 +418,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   followChat(a)
   const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
-  const p = pty.spawn(CLAUDE_BIN, args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
+  const p = pty.spawn(claudeBin(), args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -613,6 +616,13 @@ async function main() {
   // Esc is how Claude's own terminal interrupts a running turn.
   // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
+  ipcMain.handle('prefs:get', () => prefs)
+  ipcMain.handle('prefs:set', (_, next: unknown) => {
+    prefs = cleanPrefs(next, prefs)
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    refreshAttention()
+    return prefs
+  })
   ipcMain.handle('btw:close', (_, id: string) => {
     if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
   })
@@ -681,14 +691,14 @@ async function main() {
     if (!a) throw new Error('Unknown agent.')
     const args = manageArgs(action)
     return new Promise<string>((resolve, reject) =>
-      execFile(CLAUDE_BIN, args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
+      execFile(claudeBin(), args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
     )
   })
   ipcMain.handle('list-tools', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     const claude = (...args: string[]) =>
-      new Promise<string>((resolve) => execFile(CLAUDE_BIN, args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
+      new Promise<string>((resolve) => execFile(claudeBin(), args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
     const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
     return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
   })
