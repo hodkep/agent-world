@@ -510,6 +510,8 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
 
 async function main() {
   await app.whenReady()
+  // The packaged app has its icon built in; a development run needs it set.
+  if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   mkdirSync(HOME, { recursive: true })
   agents = loadAgents(AGENTS_FILE)
   for (const a of agents) followChat(a)

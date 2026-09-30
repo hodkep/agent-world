@@ -9,10 +9,20 @@ files:
 asarUnpack:
   - node_modules/node-pty/**
 npmRebuild: true
+icon: build/icon.png
 mac:
   category: public.app-category.developer-tools
-  target: [dmg, zip]
-  # Signing and notarisation switch on when the CSC_* / APPLE_* variables are present; without them the build is unsigned.
+  target:
+    - { target: dmg, arch: [arm64, x64] }
+  # Signed with an ad-hoc identity so it runs on other Macs after right-click > Open. A Developer ID
+  # certificate (CSC_LINK / CSC_KEY_PASSWORD, APPLE_* for notarisation) replaces this when there is one.
+  identity: "-"
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  title: "Agent World"
+artifactName: "${productName}-${version}-${arch}.${ext}"
 win:
   target: [nsis]
 linux:
