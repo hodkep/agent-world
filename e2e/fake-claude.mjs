@@ -35,6 +35,8 @@ const transcript = (line) => {
   appendFileSync(`${dir}/${sessionId}.jsonl`, JSON.stringify({ isSidechain: false, timestamp: new Date().toISOString(), uuid: crypto.randomUUID(), sessionId, ...line }) + '\n')
 }
 const say = (text) => transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+// FAKE_LONG=n: a conversation that already has n messages in it.
+for (let i = 0; i < Number(process.env.FAKE_LONG ?? 0); i++) say(`old message ${i}`)
 const use = (name, input) => {
   const id = `toolu_${crypto.randomUUID().slice(0, 8)}`
   transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } })

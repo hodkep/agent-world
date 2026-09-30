@@ -564,3 +564,6 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .procbar li { display: flex; gap: 6px; align-items: center; }
 .procbar code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .procbar button { font-size: 11px; padding: 1px 8px; cursor: pointer; }
+
+.earlier { align-self: center; margin: 4px 0 8px; font-size: 12px; padding: 3px 12px; cursor: pointer; }
+.chat-log .msg { content-visibility: auto; contain-intrinsic-size: auto 60px; }

@@ -119,10 +119,14 @@ export function ChatView({
   }, [agentId])
 
   const allRows = useMemo(() => toRows(items, sent), [items, sent])
-  const rows = useMemo(() => {
+  const found = useMemo(() => {
     const q = query?.trim().toLowerCase()
     return q ? allRows.filter((r) => rowText(r).toLowerCase().includes(q)) : allRows
   }, [allRows, query])
+  // Long conversations render only the latest rows; older ones load on request so the view stays quick.
+  const [shown, setShown] = useState(WINDOW)
+  useEffect(() => setShown(WINDOW), [agentId])
+  const rows = useMemo(() => (found.length > shown ? found.slice(-shown) : found), [found, shown])
 
   // Follow the conversation while the reader is at the bottom; leave them alone once they scroll up.
   useEffect(() => {
@@ -179,7 +183,7 @@ export function ChatView({
               aria-label="Search this conversation"
               autoFocus
             />
-            <span className="chat-count">{rows.length} of {allRows.length}</span>
+            <span className="chat-count">{found.length} of {allRows.length}</span>
             <button onClick={() => setQuery(null)}>Close</button>
           </>
         )}
@@ -191,6 +195,11 @@ export function ChatView({
           <p className="chat-empty">
             {query ? 'Nothing matches.' : asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
           </p>
+        )}
+        {rows.length < found.length && (
+          <button className="earlier" onClick={() => setShown((n) => n + WINDOW)}>
+            Show earlier ({found.length - rows.length} more)
+          </button>
         )}
         {rows.map((r) => (
           <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
@@ -253,6 +262,8 @@ export function ChatView({
 }
 
 /** Commands and servers running under the agent, with a way to stop them. */
+const WINDOW = 150
+
 function ProcBar({ agentId }: { agentId: string }) {
   const [procs, setProcs] = useState<ProcInfo[]>([])
   useEffect(() => {
