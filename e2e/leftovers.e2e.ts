@@ -29,7 +29,7 @@ test('the handbook book on the desk opens CLAUDE.md, and a clone sits beside its
     await expect(page.locator('.diff')).toContainText('Project notes')
 
     // Clone: the twin takes the nearest free desk.
-    await page.getByRole('button', { name: 'Clone' }).click()
+    await page.getByRole('button', { name: 'Clone', exact: true }).click()
     await expect.poll(async () => JSON.parse((await page.locator('.stage').getAttribute('data-books')) ?? '[]').length).toBe(2)
     const books = JSON.parse((await page.locator('.stage').getAttribute('data-books'))!) as { agentId: string; x: number; y: number }[]
     const gap = Math.hypot(books[0]!.x - books[1]!.x, books[0]!.y - books[1]!.y)

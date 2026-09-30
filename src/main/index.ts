@@ -807,7 +807,7 @@ async function main() {
     return a
   })
   // A clone gets a worktree branched from the original's branch and forks its conversation, so both carry on separately.
-  ipcMain.handle('clone-agent', async (_, id: string) => {
+  ipcMain.handle('clone-agent', async (_, id: string, model?: string) => {
     const src = byId(id)
     if (!src) throw new Error('Unknown agent.')
     if (!src.started) throw new Error(`${src.name} has not started a conversation yet, so there is nothing to copy.`)
@@ -815,7 +815,7 @@ async function main() {
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
-      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, options: src.options
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, options: model ? { ...src.options, model } : src.options
     }
     agents.push(a)
     persist()

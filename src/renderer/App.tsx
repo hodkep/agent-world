@@ -353,9 +353,9 @@ export function App() {
     select(agents[(i + dir + agents.length) % agents.length]!.id)
   }
 
-  const clone = (src: AgentRecord) =>
+  const clone = (src: AgentRecord, model?: string) =>
     run(async () => {
-      const a = await window.aw.cloneAgent(src.id)
+      const a = await window.aw.cloneAgent(src.id, model)
       setAgents((xs) => [...xs, a])
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
       select(a.id)
@@ -706,6 +706,14 @@ export function App() {
               <button disabled={!current.started} onClick={() => clone(current)} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
                 Clone
               </button>
+              <select aria-label="Continue on another model" disabled={!current.started} value="" onChange={(e) => e.target.value && clone(current, e.target.value)} title="Continue this conversation in a copy that runs on a different model">
+                <option value="">Clone as…</option>
+                {MODELS.filter((m) => m.value).map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
                 {(state?.activity ?? 'asleep') !== 'asleep' && (
                   <div className="switches" title={between ? 'Switch for the next turn' : 'Available between turns'}>
                     <select aria-label="Model" disabled={!between} value="" onChange={(e) => e.target.value && switchTo({ model: e.target.value })}>

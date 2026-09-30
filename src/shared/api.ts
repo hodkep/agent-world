@@ -87,7 +87,8 @@ export interface AwApi {
   /** Ask another agent (or a fresh read-only reviewer, with 'new') to review this agent's branch. Resolves to the new reviewer, if one was hired. */
   requestReview(authorId: string, reviewer: string): Promise<AgentRecord | null>
   /** A second agent that continues a copy of this one's conversation, in its own worktree branched from this one's. */
-  cloneAgent(id: string): Promise<AgentRecord>
+  /** A second agent that continues a copy of this conversation, optionally on another model. */
+  cloneAgent(id: string, model?: string): Promise<AgentRecord>
   /** Earlier Claude conversations in this folder (and worktrees of it), newest first. */
   listHistory(folder: string): Promise<PastSession[]>
   /** Continue that conversation as a new agent. */
