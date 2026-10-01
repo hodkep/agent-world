@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Picture } from './Images'
 import { followLink, linkHint } from '../links'
-import { isImagePath, splitMentions } from './format'
+import { hasMarkdown, isImagePath, splitMentions } from './format'
+import { Markdown } from './markdown'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
@@ -64,7 +65,21 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
             ))}
           </span>
         )}
-        {quoted(words).map((b, i) => (b.quote ? <blockquote key={i} className="bubble-quote">{withLinks(b.text, agentId)}</blockquote> : <span key={i}>{withLinks(b.text, agentId)}</span>))}
+        {quoted(words).map((b, i) => {
+          // A little markdown (bold, italic, code, lists) reads formatted; everything else stays as typed.
+          const body = hasMarkdown(b.text) ? <Markdown text={b.text} agentId={agentId} /> : withLinks(b.text, agentId)
+          return b.quote ? (
+            <blockquote key={i} className={`bubble-quote ${hasMarkdown(b.text) ? 'md' : ''}`}>
+              {body}
+            </blockquote>
+          ) : hasMarkdown(b.text) ? (
+            <div key={i} className="md">
+              {body}
+            </div>
+          ) : (
+            <span key={i}>{body}</span>
+          )
+        })}
       </div>
     </>
   )

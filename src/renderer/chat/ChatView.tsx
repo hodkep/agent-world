@@ -5,7 +5,7 @@ import type { ChatItem } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, highlight, rowText, toMarkdown, toRows } from './format'
+import { type Row, type Sent, hasMarkdown, highlight, rowText, toMarkdown, toRows } from './format'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
@@ -857,6 +857,11 @@ function Composer({
             </li>
           ))}
         </ul>
+      )}
+      {!shell && hasMarkdown(text) && (
+        <div className="composer-preview md" aria-label="Preview of your message">
+          <Markdown text={text} agentId={agentId} />
+        </div>
       )}
       <div className="cbox">
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}

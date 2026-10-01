@@ -889,3 +889,9 @@ svg.pxi { display: block; flex: none; }
 .ask-selection:hover:not(:disabled)::after { background: var(--panel-hover); }
 .bubble-quote { margin: 0 0 6px; padding: 4px 8px; border: 2px solid var(--line); background: var(--well); color: var(--muted); white-space: pre-wrap; font-size: 12px; }
 .msg.user .bubble > span { white-space: pre-wrap; }
+
+/* The message box shows what its markdown will look like, above the box; sent messages use the same small subset. */
+.composer-preview { max-height: 160px; overflow: auto; padding: 6px 10px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); font-size: 12.5px; }
+.composer-preview blockquote, .msg.user .bubble blockquote.md { margin: 0 0 6px; padding: 4px 10px; background: var(--well); border: 0; border-left: 3px solid var(--accent); color: var(--muted); box-shadow: 0 0 0 1px var(--ink); }
+.msg.user .bubble .md { white-space: normal; text-align: left; }
+.msg.user .bubble .md p { margin: 0 0 0.4em; }

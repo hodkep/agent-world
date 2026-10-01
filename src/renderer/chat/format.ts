@@ -197,3 +197,8 @@ export function highlight(text: string): { kind: 'plain' | 'command' | 'plugin' 
 }
 
 export const isImagePath = (p: string) => /\.(png|jpe?g|gif|webp)$/i.test(p)
+
+/** The message uses a little markdown: a "> " quote, **bold**, *italic*, `code` or a list. */
+export function hasMarkdown(text: string): boolean {
+  return /^\s*>\s?\S|\*\*\S[^*\n]*\*\*|(^|[^*\w])\*[^\s*][^*\n]*[^\s*]\*(?!\*)|`[^`\n]+`|^\s*([-*+]|\d+\.)\s+\S/m.test(text)
+}

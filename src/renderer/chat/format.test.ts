@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
-import { highlight, isImagePath, modeLabel, rowText, splitMentions, toMarkdown, toRows } from './format'
+import { hasMarkdown, highlight, isImagePath, modeLabel, rowText, splitMentions, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -136,5 +136,15 @@ describe('highlighting what is typed in the message box', () => {
 
   it('leaves a slash in the middle, email addresses and lone @ signs plain', () => {
     expect(highlight('see /compact or a@b.com or @ x')).toEqual([{ kind: 'plain', text: 'see /compact or a@b.com or @ x' }])
+  })
+})
+
+describe('spotting markdown in a message', () => {
+  it('sees quotes, bold, italic, code and lists', () => {
+    for (const t of ['> again', 'a **bold** word', 'an *italic* word', 'run `ls`', '- one\n- two', '1. one']) expect(hasMarkdown(t), t).toBe(true)
+  })
+
+  it('leaves plain sentences, commands and mentions alone', () => {
+    for (const t of ['just words', '/compact', 'fix @src/app.ts please', 'a * b and c * d', '2 > 1', 'well - maybe']) expect(hasMarkdown(t), t).toBe(false)
   })
 })
