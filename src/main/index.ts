@@ -1093,7 +1093,8 @@ async function main() {
     minHeight: 640,
     backgroundColor: '#14121c',
     title: 'Agent World',
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true }
+    // A step or two larger than the default, which is what pressing Cmd+ twice gave every launch; AW_ZOOM=1 turns it off (tests).
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true, zoomFactor: Number(process.env.AW_ZOOM) || 1.2 }
   })
   // The preview pane is a <webview>; it may only ever show local dev servers, with no access to the app.
   const isLocalHttp = (u: string) => {

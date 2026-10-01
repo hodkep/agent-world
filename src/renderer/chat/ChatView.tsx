@@ -177,9 +177,22 @@ export function ChatView({
   const rows = useMemo(() => (found.length > shown ? found.slice(-shown) : found), [found, shown])
 
   // Follow the conversation while the reader is at the bottom; leave them alone once they scroll up.
+  // Rows grow after they are added (markdown, pictures, a streaming reply), so staying at the end is a standing job:
+  // watch the newest rows and pin again whenever one changes height.
   useEffect(() => {
     const el = log.current
-    if (el && stick.current) el.scrollTop = el.scrollHeight
+    if (!el) return
+    const pin = () => {
+      if (stick.current) el.scrollTop = el.scrollHeight
+    }
+    pin()
+    const watch = new ResizeObserver(pin)
+    for (const c of [...el.children].slice(-12)) watch.observe(c)
+    const raf = requestAnimationFrame(() => requestAnimationFrame(pin))
+    return () => {
+      watch.disconnect()
+      cancelAnimationFrame(raf)
+    }
   }, [rows, busy, waiting, visible])
 
   const onScroll = () => {
@@ -378,20 +391,50 @@ function ProcBar({ agentId }: { agentId: string }) {
       clearInterval(t)
     }
   }, [agentId])
+  const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setOpen(false))
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [open])
+  // Nothing left to list: the pop-up has nothing to show, so it closes with the last command.
+  useEffect(() => {
+    if (!procs.length) setOpen(false)
+  }, [procs.length])
   if (!procs.length) return null
   const stop = (pid: number) => void window.aw.stopProc(agentId, pid).then(() => window.aw.listProcs(agentId).then(setProcs))
   return (
-    <div className="procbar" aria-label="Running processes">
-      <b>{procs.length} running</b>
-      <ul>
-        {procs.map((p) => (
-          <li key={p.pid}>
-            <code title={p.command}>{p.command}</code>
-            <button onClick={() => stop(p.pid)} aria-label={`Stop ${p.command}`}>Stop</button>
-          </li>
-        ))}
-      </ul>
-      {procs.length > 1 && <button onClick={() => procs.forEach((p) => stop(p.pid))}>Stop all</button>}
+    <div className="procbar" ref={wrap}>
+      <button className="procs-btn" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open}>
+        <span className="procs-dot" aria-hidden="true" />
+        {procs.length} {procs.length === 1 ? 'command' : 'commands'} running
+      </button>
+      {open && (
+        <div className="procs-pop" role="dialog" aria-label="Running processes">
+          <ul>
+            {procs.map((p) => (
+              <li key={p.pid}>
+                <code title={p.command}>{p.command}</code>
+                <button onClick={() => stop(p.pid)} aria-label={`Stop ${p.command}`}>
+                  Stop
+                </button>
+              </li>
+            ))}
+          </ul>
+          {procs.length > 1 && (
+            <div className="procs-foot">
+              <button onClick={() => procs.forEach((p) => stop(p.pid))}>Stop all</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

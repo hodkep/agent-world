@@ -5,8 +5,9 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
-// A background command under the agent, like a dev server it started.
-if (process.env.FAKE_CHILD) spawn('sh', ['-c', 'sleep 300; true'], { stdio: 'ignore' }).unref()
+// Background commands under the agent, like a dev server it started.
+// FAKE_CHILD=n starts n of them (sleep 300, sleep 301, …).
+for (let i = 0; i < Number(process.env.FAKE_CHILD ?? 0); i++) spawn('sh', ['-c', `sleep ${300 + i}; true`], { stdio: 'ignore' }).unref()
 // Read-only subcommands the app runs to inspect the setup.
 // FAKE_CALLS=<file>: log management calls so a test can check what the app asked for.
 if (process.env.FAKE_CALLS && ['add', 'remove', 'enable', 'disable', 'uninstall'].includes(args[1])) (await import('node:fs')).appendFileSync(process.env.FAKE_CALLS, args.join(' ') + '\n')

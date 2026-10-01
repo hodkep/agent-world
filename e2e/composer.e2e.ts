@@ -15,7 +15,7 @@ test('the message box keeps its height when the window is short', async () => {
     // Chat is not the view it opens on, so its box is first measured while hidden.
     await page.getByRole('tab', { name: 'Terminal' }).click()
     await page.getByRole('tab', { name: 'Chat' }).click()
-    await expect(page.getByLabel('Running processes')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('button', { name: /commands? running/ })).toBeVisible({ timeout: 10_000 })
     expect((await page.getByRole('textbox', { name: 'Message ada' }).boundingBox())!.height).toBeGreaterThanOrEqual(40)
     for (const height of [900, 420, 300]) {
       await app.evaluate(({ BrowserWindow }, h) => BrowserWindow.getAllWindows()[0]!.setSize(1200, h), height)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PastSession } from '../../shared/api'
+import { Modal } from './Modal'
 
 export const ago = (ms: number) => {
   const mins = Math.max(1, Math.round((Date.now() - ms) / 60_000))
@@ -12,7 +13,8 @@ export function History({ folder, onResume, onClose }: { folder: string; onResum
   const [sessions, setSessions] = useState<PastSession[] | null>(null)
   useEffect(() => void window.aw.listHistory(folder).then(setSessions, () => setSessions([])), [folder])
   return (
-    <section className="history" aria-label="Past conversations" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+    <Modal label="Past conversations" className="history-dialog" onClose={onClose}>
+      <section className="history">
       <div className="history-head">
         <b>Past conversations</b>
         <button onClick={onClose}>Close</button>
@@ -29,6 +31,7 @@ export function History({ folder, onResume, onClose }: { folder: string; onResum
           ))}
         </ul>
       )}
-    </section>
+      </section>
+    </Modal>
   )
 }

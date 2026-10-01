@@ -3,6 +3,7 @@ import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, Permi
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
+import { Modal } from './panel/Modal'
 import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
@@ -284,7 +285,7 @@ export function App() {
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
     />
   )
-  const showPanel = (narrow ? drawer || agents.length === 0 : panelOpen) || hiring || history
+  const showPanel = (narrow ? drawer || agents.length === 0 : panelOpen) 
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -704,7 +705,11 @@ export function App() {
             }}
           />
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
-          {hiring && <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
+          {hiring && (
+            <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
+              <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+            </Modal>
+          )}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
               {rosterRows()}

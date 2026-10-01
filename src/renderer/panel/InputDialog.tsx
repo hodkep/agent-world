@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PermissionRequest, Question, QuestionAnswer, TerminalMenu } from '../../shared/types'
 import { PixelWord } from '../PixelWord'
+import { Markdown } from '../chat/markdown'
 
 export type Need =
   | { kind: 'trust'; path: string }
@@ -141,7 +142,13 @@ function Plan({ text, onAnswer }: { text: string; onAnswer: (choice: 0 | 1 | 2, 
   return (
     <>
       <p className="dialog-line">Ready to work. Review the plan:</p>
-      <pre className="dialog-code plan">{text || 'The plan is shown in the terminal.'}</pre>
+      {text ? (
+        <div className="plan-md">
+          <Markdown text={text} />
+        </div>
+      ) : (
+        <p className="dialog-line">The plan is shown in the terminal.</p>
+      )}
       <div className="dialog-actions">
         <button className="primary" disabled={busy} onClick={() => void go(0)}>
           Approve · auto-accept edits

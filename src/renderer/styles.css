@@ -185,7 +185,7 @@ aside:not(.wide) .change-list { width: 190px; }
 
 .rename { width: 9em; font: inherit; font-weight: 700; padding: 0 4px; }
 
-.history { display: block; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); max-height: 40vh; overflow: auto; flex: none; }
+.history { display: block; padding: 12px 14px; flex: none; }
 .history-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .history li { flex: none; }
@@ -570,14 +570,9 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .msg.user:hover .rewind-btn, .rewind-btn:focus-visible { opacity: 1; }
 .choice-buttons button { text-align: left; }
 
-.procbar { margin: 0 12px 6px; padding: 6px 8px; border: 1px solid var(--line, #3a3a4a); font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
-.procbar ul { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; max-height: 84px; overflow: auto; }
-.procbar li { display: flex; gap: 6px; align-items: center; }
-.procbar code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.procbar button { font-size: 11px; padding: 1px 8px; cursor: pointer; }
 
 .earlier { align-self: center; margin: 4px 0 8px; font-size: 12px; padding: 3px 12px; cursor: pointer; }
-.chat-log .msg { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+.chat-log .msg:not(:nth-last-child(-n + 10)) { content-visibility: auto; contain-intrinsic-size: auto 60px; }
 
 .group-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; padding: 6px 8px 2px; }
 .group-tag { font-size: 11px; padding: 0 6px; opacity: .7; cursor: pointer; background: none; border: 1px dashed currentColor; }
@@ -764,3 +759,36 @@ svg.pxi { display: block; flex: none; }
 
 .no-bridge { max-width: 520px; margin: 12vh auto; padding: 0 16px; line-height: 1.5; }
 .no-bridge h1 { font-size: 14px; color: var(--accent); }
+
+/* Running commands: one line above the box; the list opens in a pop-up. */
+.procbar { position: relative; margin: 0 12px 6px; }
+.procs-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 10px; color: var(--muted); }
+.procs-btn:hover:not(:disabled), .procs-btn[aria-expanded='true'] { color: var(--text); }
+.procs-dot { width: 8px; height: 8px; background: var(--ok); }
+.procs-pop { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 30; width: min(560px, 100%); background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 24px rgb(0 0 0 / 0.5); }
+.procs-pop ul { list-style: none; margin: 0; padding: 6px; max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.procs-pop li { display: flex; gap: 8px; align-items: center; }
+.procs-pop code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px Menlo, Consolas, monospace; }
+.procs-pop button { font-size: 11px; padding: 1px 8px; }
+.procs-foot { display: flex; justify-content: flex-end; padding: 6px; border-top: 2px solid var(--ink); }
+.hire-dialog { width: min(560px, 94vw); max-height: 92vh; overflow: auto; }
+.hire-dialog .hire { border-bottom: 0; background: transparent; padding: 14px; }
+
+/* Room to read: a clear gap between what you said, the answer and the box, as in Claude's own app. */
+.chat-log { gap: 18px; padding-bottom: 32px; }
+.msg.user + .msg { margin-top: 10px; }
+.msg.assistant { line-height: 1.55; }
+.composer { margin-top: 4px; }
+
+/* A plan is read whole: no small scroll box inside the card. The card scrolls as one, and the buttons sit at the end of the text. */
+.dialog-code.plan { max-height: none; overflow: visible; }
+/* The plan is markdown, read in the sans font like a chat answer. */
+.plan-md { background: var(--well); box-shadow: 0 0 0 2px var(--ink); padding: 10px 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.plan-md .md > :first-child { margin-top: 0; }
+.plan-md .md > :last-child { margin-bottom: 0; }
+.inline-need.dialog { max-height: 72%; }
+.inline-need .dialog-body { flex: none; min-height: auto; overflow: visible; }
+
+/* History opens in a dialog of its own, like Settings. */
+.history-dialog { width: min(560px, 94vw); }
+.history-dialog .history ul { max-height: 60vh; overflow: auto; }

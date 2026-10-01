@@ -23,13 +23,26 @@ test('bring back an earlier conversation from the folder as a new agent', async 
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
+    const panelBefore = await page.locator('aside').isVisible()
     await page.getByRole('button', { name: 'History' }).click()
-    await page.getByRole('button', { name: /Add pagination to the orders list/ }).click()
+    // It opens as a dialog over the office, not inside the side panel, and Esc dismisses it.
+    const dialog = page.getByRole('dialog', { name: 'Past conversations' })
+    await expect(dialog).toBeVisible()
+    expect(await page.locator('aside').isVisible()).toBe(panelBefore)
+    expect(await dialog.evaluate((el) => el.matches(':modal'))).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await page.getByRole('button', { name: 'History' }).click()
+    await dialog.getByRole('button', { name: /Add pagination to the orders list/ }).click()
+    // Picking one brings it back as an agent and the dialog closes by itself.
+    await expect(dialog).toHaveCount(0)
     await page.getByRole('tab', { name: 'Terminal' }).click()
     await expect(page.locator('.term-host:visible')).toContainText(`session ${past}`, { timeout: 10_000 })
     // Now running here, so it can't be started twice.
     await page.getByRole('button', { name: 'History' }).click()
-    await expect(page.getByRole('button', { name: /Add pagination/ })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: /Add pagination/ })).toBeDisabled()
+    await dialog.getByRole('button', { name: 'Close' }).click()
+    await expect(dialog).toHaveCount(0)
   } finally {
     await shutdown()
   }
