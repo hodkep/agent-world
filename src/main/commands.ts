@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 export interface PaletteCommand {
   name: string
@@ -45,18 +45,25 @@ function describe(text: string) {
   return body.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('#')) ?? ''
 }
 
-async function skills(dir: string, source: PaletteCommand['source'], prefix = ''): Promise<PaletteCommand[]> {
+/** One skill folder (it holds a SKILL.md), as a palette entry; null when it is not one. */
+async function skillAt(dir: string, source: PaletteCommand['source'], prefix: string): Promise<PaletteCommand | null> {
+  const text = await readFile(join(dir, 'SKILL.md'), 'utf8').catch(() => null)
+  if (text === null) return null
+  const name = /^name:\s*(.+)$/m.exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '')?.[1]?.trim() ?? dir.split(sep).pop()!
+  return { name: prefix + name, description: describe(text), source, args: true }
+}
+
+/** The skill folders at or below `dir`: `dir` itself if it is one, else every folder under it that is, a few levels deep (plugins group theirs). */
+async function skillDirs(dir: string, depth = 4): Promise<string[]> {
+  if (await readFile(join(dir, 'SKILL.md'), 'utf8').then(() => true, () => false)) return [dir]
+  if (depth === 0) return []
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-  const found = await Promise.all(
-    entries
-      .filter((e) => e.isDirectory())
-      .map(async (e) => {
-        const text = await readFile(join(dir, e.name, 'SKILL.md'), 'utf8').catch(() => null)
-        if (text === null) return null
-        const name = /^name:\s*(.+)$/m.exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '')?.[1]?.trim() ?? e.name
-        return { name: prefix + name, description: describe(text), source, args: true }
-      })
-  )
+  const found = await Promise.all(entries.filter((e) => e.isDirectory() && e.name !== 'node_modules' && !e.name.startsWith('.')).map((e) => skillDirs(join(dir, e.name), depth - 1)))
+  return found.flat()
+}
+
+async function skills(dir: string, source: PaletteCommand['source'], prefix = ''): Promise<PaletteCommand[]> {
+  const found = await Promise.all((await skillDirs(dir)).map((d) => skillAt(d, source, prefix)))
   return found.filter((c): c is PaletteCommand => !!c)
 }
 
@@ -73,6 +80,38 @@ async function commands(dir: string, source: PaletteCommand['source'], prefix = 
   )
 }
 
+const asList = (v: unknown): string[] => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+
+/** A path the plugin's manifest names, kept inside the plugin's own folder. */
+const inside = (root: string, p: string) => {
+  const full = resolve(root, p)
+  const rel = relative(root, full)
+  return rel.startsWith('..') || isAbsolute(rel) ? null : full
+}
+
+/**
+ * Where a plugin keeps its skills and commands: the folders its manifest (.claude-plugin/plugin.json) names, or skills/
+ * and commands/ when it names none. Skills may sit in groups (skills/engineering/tdd), so each place is searched below.
+ */
+async function pluginEntries(root: string, name: string): Promise<PaletteCommand[]> {
+  const manifest = JSON.parse(await readFile(join(root, '.claude-plugin', 'plugin.json'), 'utf8').catch(() => '{}')) as { skills?: unknown; commands?: unknown }
+  const prefix = `${name}:`
+  const skillPlaces = asList(manifest.skills).flatMap((p) => inside(root, p) ?? [])
+  const commandPlaces = asList(manifest.commands).flatMap((p) => inside(root, p) ?? [])
+  const fromSkills = await Promise.all((skillPlaces.length ? skillPlaces : [join(root, 'skills')]).map((d) => skills(d, 'plugin skill', prefix)))
+  const fromCommands = await Promise.all(
+    (commandPlaces.length ? commandPlaces : [join(root, 'commands')]).map(async (p) => {
+      // A manifest may name a single command file as well as a folder of them.
+      if (p.endsWith('.md')) {
+        const text = await readFile(p, 'utf8').catch(() => null)
+        return text === null ? [] : [{ name: prefix + (p.split(sep).pop() ?? '').slice(0, -3), description: describe(text), source: 'plugin command' as const, args: true }]
+      }
+      return commands(p, 'plugin command', prefix)
+    })
+  )
+  return [...fromSkills.flat(), ...fromCommands.flat()]
+}
+
 /** Enabled plugins only (as in settings.json), named plugin:skill the way Claude lists them. */
 async function plugins(home: string): Promise<PaletteCommand[]> {
   const json = async (file: string) => JSON.parse(await readFile(join(home, '.claude', file), 'utf8').catch(() => '{}'))
@@ -81,14 +120,7 @@ async function plugins(home: string): Promise<PaletteCommand[]> {
   const found = await Promise.all(
     Object.entries(installed)
       .filter(([key, installs]) => enabled[key] === true && installs[0])
-      .map(([key, installs]) => {
-        const installPath = installs[0]!.installPath
-        const prefix = `${key.split('@')[0]}:`
-        return Promise.all([
-          skills(join(installPath, 'skills'), 'plugin skill', prefix),
-          commands(join(installPath, 'commands'), 'plugin command', prefix)
-        ]).then((g) => g.flat())
-      })
+      .map(([key, installs]) => pluginEntries(installs[0]!.installPath, key.split('@')[0]!))
   )
   return found.flat()
 }
