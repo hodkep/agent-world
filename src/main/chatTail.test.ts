@@ -70,6 +70,15 @@ describe('following the branch you are on', () => {
     expect(says(got)).toEqual(['R:keep,rewound away,also gone', 'R:keep,new direction'])
   })
 
+  it('keeps the whole history across a compact boundary that links back by logicalParentUuid', () => {
+    const file = join(dir, 'compact.jsonl')
+    const boundary = JSON.stringify({ uuid: 'b', parentUuid: null, logicalParentUuid: 'a', type: 'system', subtype: 'compact_boundary', timestamp: '2026-01-01T00:00:00Z', content: 'Conversation compacted' }) + '\n'
+    writeFileSync(file, node('a', null, 'old') + boundary + node('c', 'b', 'after'))
+    const got: { items: ChatItem[]; replace: boolean }[] = []
+    new TranscriptTail(file, (items, replace) => got.push({ items, replace })).poll()
+    expect(says(got)).toEqual(['R:old,note,after'])
+  })
+
   it('leaves transcripts without links between lines alone', () => {
     const file = join(dir, 'flat.jsonl')
     writeFileSync(file, user('x', 'one') + user('y', 'two'))

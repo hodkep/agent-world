@@ -40,6 +40,8 @@ const transcript = (line) => {
 const say = (text) => transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
 // FAKE_SAY_FILE=<path>: the file's text arrives as one assistant message.
 if (process.env.FAKE_SAY_FILE) say((await import('node:fs')).readFileSync(process.env.FAKE_SAY_FILE, 'utf8'))
+// FAKE_USER_FILE=<path>: the file's text is already in the conversation as something the user said.
+if (process.env.FAKE_USER_FILE) transcript({ type: 'user', message: { role: 'user', content: (await import('node:fs')).readFileSync(process.env.FAKE_USER_FILE, 'utf8') } })
 // FAKE_LONG=n: a conversation that already has n messages in it.
 for (let i = 0; i < Number(process.env.FAKE_LONG ?? 0); i++) say(`old message ${i}`)
 const use = (name, input) => {

@@ -43,7 +43,14 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
   const type = str(o.type)
   const message = obj(o.message)
 
-  if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: str(o.content) || 'Conversation compacted' }] : []
+  if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: compactNote(str(o.content) || 'Conversation compacted', obj(o.compactMetadata)) }] : []
+
+  // The summary Claude writes after /compact is model context, not something the user said.
+  if (type === 'user' && o.isCompactSummary === true) {
+    const c = message.content
+    const body = (typeof c === 'string' ? c : resultText(c)).trim()
+    return body ? [{ kind: 'note', id: uuid, at, text: 'Conversation summary', detail: body }] : []
+  }
 
   if (type === 'user') {
     const content = message.content
@@ -76,6 +83,20 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
   return []
 }
 
+const kTokens = (n: unknown) => (typeof n === 'number' ? `${Math.round(n / 1000)}k` : '')
+
+function compactNote(base: string, m: Obj): string {
+  const pre = kTokens(m.preTokens)
+  const post = kTokens(m.postTokens)
+  const dur = typeof m.durationMs === 'number' ? `${Math.round(m.durationMs / 1000)}s` : ''
+  const how = [str(m.trigger), dur].filter(Boolean).join(', ')
+  if (!pre || !post) return base
+  return `${base} · ${pre} → ${post} tokens${how ? ` (${how})` : ''}`
+}
+
+// Colour codes in command output; the escape byte is often already stripped from the saved line.
+const ANSI = /\x1b?\[\d+(;\d+)*m/g
+
 function userText(id: string, at: number, text: string): ChatItem[] {
   const trimmed = unwrapPasted(text).trim()
   if (!trimmed) return []
@@ -88,7 +109,10 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   const se = tag(trimmed, 'bash-stderr')
   if (so !== undefined || se !== undefined) return [{ kind: 'shell-out', id, at, stdout: so ?? '', stderr: se ?? '' }]
   const out = tag(trimmed, 'local-command-stdout')
-  if (out !== undefined) return out ? [{ kind: 'note', id, at, text: out }] : []
+  if (out !== undefined) {
+    const clean = out.replace(ANSI, '').split('\n').filter((l) => !/^(Pre|Post)Compact .*completed successfully/.test(l.trim())).join('\n').trim()
+    return clean ? [{ kind: 'note', id, at, text: clean }] : []
+  }
   // Caveats and reminders Claude inserts around the conversation are not the user's words.
   if (/^<(local-command-caveat|system-reminder|command-message)/.test(trimmed)) return []
   return [{ kind: 'user', id, at, text: trimmed }]
@@ -114,7 +138,7 @@ export function lineNode(raw: string): { uuid: string; parent: string | null; me
     const o = JSON.parse(raw) as Obj
     const uuid = str(o.uuid)
     if (!uuid) return null
-    return { uuid, parent: str(o.parentUuid) || null, message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true }
+    return { uuid, parent: str(o.parentUuid) || str(o.logicalParentUuid) || null, message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true }
   } catch {
     return null
   }

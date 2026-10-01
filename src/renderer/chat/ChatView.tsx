@@ -483,7 +483,9 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'user':
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`}>
-          <UserText agentId={agentId} text={r.text} onImage={onImage} />
+          <Clamped>
+            <UserText agentId={agentId} text={r.text} onImage={onImage} />
+          </Clamped>
           {!r.pending && !busy && !asleep && (
             <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too if Claude tracked changes">
               Rewind
@@ -538,8 +540,50 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'tool':
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'note':
-      return <div className="msg note">{r.text}</div>
+      return r.detail ? <SummaryNote text={r.text} detail={r.detail} /> : <div className="msg note">{r.text}</div>
   }
+}
+
+/** A long message kept to a few lines until asked for; the whole text stays in the page so it can be selected and quoted. */
+function Clamped({ children }: { children: React.ReactNode }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const measure = () => !open && setLong(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [open])
+  return (
+    <>
+      <div ref={box} className={`clamp ${open ? '' : 'clamped'} ${long && !open ? 'fade' : ''}`}>
+        {children}
+      </div>
+      {(long || open) && (
+        <button className="clamp-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </>
+  )
+}
+
+/** The summary /compact leaves behind is for the model, so it sits behind a button. */
+function SummaryNote({ text, detail }: { text: string; detail: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="msg note summary">
+      <button className="clamp-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? 'Hide summary' : 'Show summary'}
+      </button>
+      <span>{text}</span>
+      {open && <div className="summary-body">{detail}</div>}
+    </div>
+  )
 }
 
 interface Attachment {

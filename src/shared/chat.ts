@@ -9,4 +9,4 @@ export type ChatItem =
   | { kind: 'shell'; id: string; at: number; command: string }
   | { kind: 'shell-out'; id: string; at: number; stdout: string; stderr: string }
   | { kind: 'tool-result'; id: string; at: number; toolUseId: string; text: string; isError: boolean; images?: string[] }
-  | { kind: 'note'; id: string; at: number; text: string }
+  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary) the view keeps behind "Show summary". */ detail?: string }

@@ -72,6 +72,25 @@ describe('reading Claude\'s transcript for the chat view', () => {
   })
 })
 
+describe('compaction in the chat view', () => {
+  it('turns the compact summary into a note, not a user message', () => {
+    const text = 'This session is being continued from a previous conversation...'
+    expect(parseTranscriptLine(line({ ...base, type: 'user', isCompactSummary: true, message: { role: 'user', content: text } }))).toMatchObject([{ kind: 'note', text: 'Conversation summary', detail: text }])
+  })
+
+  it('says what the boundary compacted', () => {
+    const o = { ...base, type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: { trigger: 'manual', preTokens: 71000, postTokens: 18000, durationMs: 35000 } }
+    expect(parseTranscriptLine(line(o))).toMatchObject([{ kind: 'note', text: 'Conversation compacted · 71k → 18k tokens (manual, 35s)' }])
+  })
+
+  it('strips colour codes from command output, with or without the escape byte', () => {
+    const out = (t: string) => parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: `<local-command-stdout>${t}</local-command-stdout>` } }))
+    expect(out('\x1b[2mCompacted (ctrl+o to see full summary)\x1b[22m')).toMatchObject([{ kind: 'note', text: 'Compacted (ctrl+o to see full summary)' }])
+    expect(out('[2mCompacted[22m')).toMatchObject([{ text: 'Compacted' }])
+    expect(out('PreCompact [x] completed successfully\nPostCompact [y] completed successfully')).toEqual([])
+  })
+})
+
 describe('transcript location', () => {
   it('is <projects>/<project slug>/<session>.jsonl', () => {
     expect(transcriptPath('/home/u/.claude/projects', '/work/my.app', 'abc')).toBe('/home/u/.claude/projects/-work-my-app/abc.jsonl')

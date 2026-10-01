@@ -9,7 +9,7 @@ export type Row =
   | { kind: 'assistant'; id: string; text: string; /** Seconds the turn took, when it took a while. */ took?: number }
   | { kind: 'thinking'; id: string }
   | { kind: 'tool'; id: string; run: ToolRun }
-  | { kind: 'note'; id: string; text: string }
+  | { kind: 'note'; id: string; text: string; detail?: string }
 
 export interface Sent {
   id: string
@@ -73,7 +73,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         break
       }
       default:
-        rows.push({ kind: 'note', id: i.id, text: i.text })
+        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }) })
     }
   }
   endTurn()
