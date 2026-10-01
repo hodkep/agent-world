@@ -1194,7 +1194,8 @@ async function main() {
           dirty: async (cwd) => !!(await git(cwd, 'status', '--porcelain')),
           commit: commitAll
         },
-        { timeoutMs: 10_000 }
+        // `pnpm dev` restarts the app on every code change; committing then would snapshot half-finished edits each time.
+        { timeoutMs: 10_000, commit: !process.env.ELECTRON_RENDERER_URL }
       )
         .catch(() => {})
         .finally(() => app.quit())

@@ -27,7 +27,7 @@ export interface WrapUpResult {
  * What to do before the app closes: stop the commands the agents left running, and commit each agent's unfinished
  * work to its own branch, so nothing is lost or left running behind the window. A step that fails is reported, not fatal.
  */
-export async function wrapUp(agents: WrapUpAgent[], d: WrapUpDeps, o: { timeoutMs?: number } = {}): Promise<WrapUpResult> {
+export async function wrapUp(agents: WrapUpAgent[], d: WrapUpDeps, o: { timeoutMs?: number; /** False leaves unfinished work uncommitted. */ commit?: boolean } = {}): Promise<WrapUpResult> {
   const result: WrapUpResult = { stopped: 0, committed: [], failed: [] }
   const one = async (a: WrapUpAgent) => {
     const pid = d.pidOf(a.id)
@@ -38,7 +38,7 @@ export async function wrapUp(agents: WrapUpAgent[], d: WrapUpDeps, o: { timeoutM
         result.failed.push(`${a.name}: could not stop its commands`)
       }
     }
-    if (!a.branch) return
+    if (!a.branch || o.commit === false) return
     try {
       if (await d.dirty(a.cwd)) {
         await d.commit(a.cwd, `chore(${a.name}): work in progress`)

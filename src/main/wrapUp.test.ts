@@ -30,6 +30,14 @@ describe('wrapping up before the app closes', () => {
     expect(r.failed).toEqual([])
   })
 
+  it('stops commands but commits nothing when asked to leave the work alone (a dev restart)', async () => {
+    const d = deps()
+    const r = await wrapUp(agents, d, { commit: false })
+    expect(r.stopped).toBe(2)
+    expect(d.commit).not.toHaveBeenCalled()
+    expect(r.committed).toEqual([])
+  })
+
   it('does not commit a clean worktree', async () => {
     const d = deps({ dirty: async () => false })
     expect((await wrapUp(agents, d)).committed).toEqual([])
