@@ -60,13 +60,17 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
     await expect(box).toHaveValue('')
 
+    // Each quote takes its own instruction.
+    await page.getByRole('textbox', { name: 'What to do about this quote' }).first().fill('is this the right word?')
+
     // The question goes after them, and the sent message shows both as quotes.
-    await page.keyboard.type('why these?')
+    await box.fill('why these?')
     await box.press('Enter')
     const sent = log.locator('.msg.user').last()
     await expect(sent.locator('blockquote')).toHaveCount(2, { timeout: 10_000 })
     await expect(sent.locator('blockquote').first()).toHaveText('rewrite')
     await expect(sent).toContainText('why these?')
+    await expect(sent).toContainText('is this the right word?')
 
     // Words in your own message are not offered.
     await sent.getByText('why these?').dblclick()
