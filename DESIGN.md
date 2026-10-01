@@ -33,6 +33,18 @@ colors:
   leaf: "#3f8f4f"
   rack: "#2a2e39"
   bubble-paper: "#f6f6fa"
+  panel-hover: "#2c2742"
+  brass-hot: "#f8d04c"
+  alarm-hot: "#e65050"
+  work-green-text: "#9fdc9f"
+  dim: "#4a4860"
+  alarm-well: "#2a1620"
+  brass-dim: "#5a4c1e"
+  track: "#2a2640"
+  danger-text: "#ff8a8a"
+  shadow-scrim: "#00000080"
+  shadow-inset: "#00000066"
+  bevel-light: "#ffffff59"
 typography:
   wordmark:
     fontFamily: "agent-world 3x5 bitmap (procedural, pixelfont.ts)"
@@ -53,6 +65,19 @@ typography:
   mono:
     fontFamily: "Menlo, Consolas, monospace"
     fontSize: "12px"
+  micro:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "10px"
+    letterSpacing: "0.1em"
+  lead:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "14px"
+  heading-1:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "16px"
+  heading-2:
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "15px"
   label:
     fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "11px"
@@ -144,6 +169,9 @@ A night-dark neutral field with warm wood and brass, and a small set of state co
 
 ### World materials
 The building palette `P` in furniture.ts is the single source for room materials: three alternating plank tones with a darker seam (plank-a/b/c, plank-seam), wall navy with a lighter trim and darker base, dotted lounge carpet, light/dark kitchen checker, a dotted server tile floor, desk wood, off-white CRT shells, raspberry sofas, three-tone leaves, dark racks. Book spines use a fixed nine-colour set. Characters draw from seeded tables (9 hair, 5 skin, 7 hoodie, 3 suit, 5 tee) with shade factors (0.72 hair, 0.84 skin, 0.74 cloth) for the second tone.
+
+### Interaction tints and scrims
+Hover and state shades are named, not improvised: Panel Hover (a raised button under the pointer), Crown Brass Hot and Alarm Hot (primary and danger buttons under the pointer), Work Green Text (green copy on dark: added lines, success), Danger Text (red copy on dark), Dim (an asleep dot, an empty track), Alarm Well (the recessed red behind a permission band), Brass Dim (the thin rim inside a sent message) and Track (the unfilled part of the usage ring). Shadows use Shadow Scrim (pop-ups and dialogs), Shadow Inset (the recessed message box) and Bevel Light (the top highlight on the send button).
 
 ### Named Rules
 **The One Building Rule.** Every room colour comes from the one `P` palette, and the shell's neutrals are taken from it (night, navy wall, wood, brass). A new room or panel adds to `P` or `:root`; it never brings its own hexes.
