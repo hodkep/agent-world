@@ -62,8 +62,9 @@ async function skillDirs(dir: string, depth = 4): Promise<string[]> {
   return found.flat()
 }
 
-async function skills(dir: string, source: PaletteCommand['source'], prefix = ''): Promise<PaletteCommand[]> {
-  const found = await Promise.all((await skillDirs(dir)).map((d) => skillAt(d, source, prefix)))
+/** `depth` is how many folders below `dir` to look: your own and a project's skills sit directly in it, a plugin's may be grouped. */
+async function skills(dir: string, source: PaletteCommand['source'], prefix = '', depth = 1): Promise<PaletteCommand[]> {
+  const found = await Promise.all((await skillDirs(dir, depth)).map((d) => skillAt(d, source, prefix)))
   return found.filter((c): c is PaletteCommand => !!c)
 }
 
@@ -98,7 +99,7 @@ async function pluginEntries(root: string, name: string): Promise<PaletteCommand
   const prefix = `${name}:`
   const skillPlaces = asList(manifest.skills).flatMap((p) => inside(root, p) ?? [])
   const commandPlaces = asList(manifest.commands).flatMap((p) => inside(root, p) ?? [])
-  const fromSkills = await Promise.all((skillPlaces.length ? skillPlaces : [join(root, 'skills')]).map((d) => skills(d, 'plugin skill', prefix)))
+  const fromSkills = await Promise.all((skillPlaces.length ? skillPlaces : [join(root, 'skills')]).map((d) => skills(d, 'plugin skill', prefix, 4)))
   const fromCommands = await Promise.all(
     (commandPlaces.length ? commandPlaces : [join(root, 'commands')]).map(async (p) => {
       // A manifest may name a single command file as well as a folder of them.

@@ -60,6 +60,40 @@ describe('command palette sources', () => {
     expect(byName['gone:hidden']).toBeUndefined()
   })
 
+  it('finds a plugin\'s grouped skills, whether its manifest lists them or not', async () => {
+    const put = (path: string, text: string) => {
+      mkdirSync(join(path, '..'), { recursive: true })
+      writeFileSync(path, text)
+    }
+    const listed = join(tmp, 'cache', 'listed')
+    const grouped = join(tmp, 'cache', 'grouped')
+    // Listed by the manifest, in groups (skills/engineering/tdd), with one skill on disk the manifest leaves out.
+    put(join(listed, '.claude-plugin', 'plugin.json'), JSON.stringify({ skills: ['./skills/engineering/tdd', './skills/productivity'] }))
+    put(join(listed, 'skills', 'engineering', 'tdd', 'SKILL.md'), '---\nname: tdd\ndescription: Test first\n---\n')
+    put(join(listed, 'skills', 'productivity', 'grill-me', 'SKILL.md'), '---\nname: grill-me\ndescription: Ask hard questions\n---\n')
+    put(join(listed, 'skills', 'productivity', 'wait-what', 'SKILL.md'), '---\nname: wait-what\ndescription: Slow down\n---\n')
+    put(join(listed, 'skills', 'misc', 'left-out', 'SKILL.md'), '---\nname: left-out\ndescription: Not in the manifest\n---\n')
+    // No manifest: skills/ is searched, however deep the groups go.
+    put(join(grouped, 'skills', 'a', 'b', 'deep', 'SKILL.md'), '---\nname: deep\ndescription: Two groups down\n---\n')
+    // A manifest path that points outside the plugin is ignored.
+    put(join(tmp, 'cache', 'outside', 'SKILL.md'), '---\nname: escaped\ndescription: Outside\n---\n')
+    put(join(grouped, '.claude-plugin', 'plugin.json'), JSON.stringify({ skills: '../outside' }))
+    put(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'matt@mk': [{ installPath: listed }], 'nest@mk': [{ installPath: grouped }] } }))
+    put(join(home, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'matt@mk': true, 'nest@mk': true } }))
+    const names = (await listCommands(project, home)).filter((c) => c.source === 'plugin skill').map((c) => c.name)
+    expect(names).toEqual(expect.arrayContaining(['matt:tdd', 'matt:grill-me', 'matt:wait-what']))
+    expect(names).not.toContain('matt:left-out')
+    expect(names).not.toContain('nest:escaped')
+    // With the bad manifest entry dropped it falls back to the default folder.
+    expect(names).toContain('nest:deep')
+  })
+
+  it('does not dig for your own and a project\'s skills: they sit directly in the folder', async () => {
+    mkdirSync(join(home, '.claude', 'skills', 'group', 'inner'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'skills', 'group', 'inner', 'SKILL.md'), '---\nname: inner\ndescription: Too deep\n---\n')
+    expect((await listCommands(project, home)).some((c) => c.name === 'inner')).toBe(false)
+  })
+
   it('copes with folders that do not exist', async () => {
     expect((await listCommands(join(tmp, 'nope'), join(tmp, 'nohome'))).every((c) => c.source === 'built-in')).toBe(true)
   })
