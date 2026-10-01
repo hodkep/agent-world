@@ -28,7 +28,7 @@ import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
-import { driveRewind, genericMenu, rewindList } from './menus'
+import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
 import { autoUnavailable, readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
@@ -1041,11 +1041,8 @@ async function main() {
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes, or stop it first.')
     const io = ioFor(id)
     if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
-    p.write('/rewind')
-    await io.sleep(500)
-    p.write('\r')
-    for (let i = 0; i < 20 && !rewindList(io.screen()); i++) await io.sleep(200)
-    if (!rewindList(io.screen())) throw new Error('Claude did not open the rewind list. Try /rewind in the Terminal tab.')
+    const failed = await openRewindList(io)
+    if (failed) throw new Error(failed)
     if (!(await driveRewind(io, promptText))) {
       p.write('\x1b')
       throw new Error('Could not find that message in the rewind list (older ones may be out of range).')
