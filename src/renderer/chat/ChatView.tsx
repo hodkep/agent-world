@@ -577,10 +577,10 @@ function SummaryNote({ text, detail }: { text: string; detail: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="msg note summary">
+      <span>{text}</span>
       <button className="clamp-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? 'Hide summary' : 'Show summary'}
       </button>
-      <span>{text}</span>
       {open && <div className="summary-body">{detail}</div>}
     </div>
   )

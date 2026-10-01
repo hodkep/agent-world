@@ -17,8 +17,8 @@ describe('reading Claude\'s transcript for the chat view', () => {
   it('reads slash commands and their output from the wrapper tags Claude saves', () => {
     const cmd = '<command-name>/compact</command-name>\n<command-message>compact</command-message>\n<command-args>keep notes</command-args>'
     expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: cmd } }))).toMatchObject([{ kind: 'command', name: '/compact', args: 'keep notes' }])
-    const out = '<local-command-stdout>Compacted</local-command-stdout>'
-    expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: out } }))).toMatchObject([{ kind: 'note', text: 'Compacted' }])
+    const out = '<local-command-stdout>Set model to opus</local-command-stdout>'
+    expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: out } }))).toMatchObject([{ kind: 'note', text: 'Set model to opus' }])
   })
 
   it('leaves out meta lines, hook chatter and subagent work', () => {
