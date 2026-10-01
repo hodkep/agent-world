@@ -84,7 +84,13 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
       const title = bashTitle(input)
       head = (
         <span title={cmd}>
-          Ran <span className="tc-muted">{title}</span>
+          {title.ran ? (
+            <>
+              Ran <span className="tc-muted">{title.text}</span>
+            </>
+          ) : (
+            title.text
+          )}
         </span>
       )
       body = (
