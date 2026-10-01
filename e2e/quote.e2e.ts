@@ -61,7 +61,12 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(box).toHaveValue('')
 
     // Each quote takes its own instruction.
-    await page.getByRole('textbox', { name: 'What to do about this quote' }).first().fill('is this the right word?')
+    const note = page.getByRole('textbox', { name: 'What to do about this quote' }).first()
+    const one = (await note.boundingBox())!.height
+    // A long instruction folds onto more lines instead of scrolling sideways.
+    await note.fill('word '.repeat(80))
+    expect((await note.boundingBox())!.height).toBeGreaterThan(one * 1.5)
+    await note.fill('is this the right word?')
 
     // The question goes after them, and the sent message shows both as quotes.
     await box.fill('why these?')
@@ -71,6 +76,7 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(sent.locator('blockquote').first()).toHaveText('rewrite')
     await expect(sent).toContainText('why these?')
     await expect(sent).toContainText('is this the right word?')
+
 
     // Words in your own message are not offered.
     await sent.getByText('why these?').dblclick()

@@ -873,15 +873,16 @@ function Composer({
               <li key={i}>
                 <div className="quote-body">
                   <blockquote>{q.text}</blockquote>
-                  <input
+                  <textarea
+                    rows={1}
                     value={q.note}
                     onChange={(e) => setQuotes((cur) => cur.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.nativeEvent.isComposing) (e.preventDefault(), box.current?.focus())
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) (e.preventDefault(), box.current?.focus())
                     }}
                     placeholder="What about this?"
                     aria-label="What to do about this quote"
-                  />
+                  ></textarea>
                 </div>
                 <button className="chip-x" aria-label="Remove this quote" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
               </li>
