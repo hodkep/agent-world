@@ -4,7 +4,7 @@ import { join, relative, sep } from 'node:path'
 export interface PaletteCommand {
   name: string
   description: string
-  source: 'built-in' | 'project skill' | 'project command' | 'your skill' | 'your command'
+  source: 'built-in' | 'project skill' | 'project command' | 'your skill' | 'your command' | 'plugin skill' | 'plugin command'
   /** Takes free-text arguments after the name. */
   args: boolean
 }
@@ -30,7 +30,7 @@ function describe(text: string) {
   return body.split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('#')) ?? ''
 }
 
-async function skills(dir: string, source: PaletteCommand['source']): Promise<PaletteCommand[]> {
+async function skills(dir: string, source: PaletteCommand['source'], prefix = ''): Promise<PaletteCommand[]> {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
   const found = await Promise.all(
     entries
@@ -39,23 +39,42 @@ async function skills(dir: string, source: PaletteCommand['source']): Promise<Pa
         const text = await readFile(join(dir, e.name, 'SKILL.md'), 'utf8').catch(() => null)
         if (text === null) return null
         const name = /^name:\s*(.+)$/m.exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '')?.[1]?.trim() ?? e.name
-        return { name, description: describe(text), source, args: true }
+        return { name: prefix + name, description: describe(text), source, args: true }
       })
   )
   return found.filter((c): c is PaletteCommand => !!c)
 }
 
-async function commands(dir: string, source: PaletteCommand['source']): Promise<PaletteCommand[]> {
+async function commands(dir: string, source: PaletteCommand['source'], prefix = ''): Promise<PaletteCommand[]> {
   const files = (await readdir(dir, { recursive: true }).catch(() => [])).filter((f) => f.endsWith('.md'))
   return Promise.all(
     files.map(async (f) => ({
       // Commands in subfolders are namespaced the way Claude names them: db/migrate.md is /db:migrate.
-      name: relative(dir, join(dir, f)).slice(0, -3).split(sep).join(':'),
+      name: prefix + relative(dir, join(dir, f)).slice(0, -3).split(sep).join(':'),
       description: describe(await readFile(join(dir, f), 'utf8').catch(() => '')),
       source,
       args: true
     }))
   )
+}
+
+/** Enabled plugins only (as in settings.json), named plugin:skill the way Claude lists them. */
+async function plugins(home: string): Promise<PaletteCommand[]> {
+  const json = async (file: string) => JSON.parse(await readFile(join(home, '.claude', file), 'utf8').catch(() => '{}'))
+  const installed: Record<string, { installPath: string }[]> = (await json('plugins/installed_plugins.json')).plugins ?? {}
+  const enabled: Record<string, boolean> = (await json('settings.json')).enabledPlugins ?? {}
+  const found = await Promise.all(
+    Object.entries(installed)
+      .filter(([key, installs]) => enabled[key] === true && installs[0])
+      .map(([key, [{ installPath }]]) => {
+        const prefix = `${key.split('@')[0]}:`
+        return Promise.all([
+          skills(join(installPath, 'skills'), 'plugin skill', prefix),
+          commands(join(installPath, 'commands'), 'plugin command', prefix)
+        ]).then((g) => g.flat())
+      })
+  )
+  return found.flat()
 }
 
 /** Everything the palette can offer for an agent working in `cwd`; project entries shadow the user's own. */
@@ -64,7 +83,8 @@ export async function listCommands(cwd: string, home: string): Promise<PaletteCo
     skills(join(cwd, '.claude', 'skills'), 'project skill'),
     commands(join(cwd, '.claude', 'commands'), 'project command'),
     skills(join(home, '.claude', 'skills'), 'your skill'),
-    commands(join(home, '.claude', 'commands'), 'your command')
+    commands(join(home, '.claude', 'commands'), 'your command'),
+    plugins(home)
   ])
   const seen = new Set<string>()
   return [BUILT_INS, ...groups].flat().filter((c) => !seen.has(c.name) && seen.add(c.name))
