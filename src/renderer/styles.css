@@ -873,3 +873,9 @@ svg.pxi { display: block; flex: none; }
 .chip-context .chip-name { max-width: 260px; font-family: Menlo, Consolas, monospace; }
 
 .msg.user .bubble a { color: var(--think); }
+
+/* Words selected in an agent's reply offer to be asked about: a small button above the selection. */
+.ask-selection { position: absolute; z-index: 8; font-size: 12px; padding: 3px 10px; background: var(--accent); color: var(--ink); font-weight: 700; box-shadow: 0 2px 0 var(--ink); }
+.ask-selection:hover:not(:disabled) { background: var(--accent-hot); }
+.bubble-quote { margin: 0 0 6px; padding: 4px 8px; border: 2px solid var(--line); background: var(--well); color: var(--muted); white-space: pre-wrap; font-size: 12px; }
+.msg.user .bubble > span { white-space: pre-wrap; }

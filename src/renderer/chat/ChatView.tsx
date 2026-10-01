@@ -227,14 +227,47 @@ export function ChatView({
     [agentId, activity]
   )
 
+  // Words selected in one of the agent's replies offer "Ask": they go into the message box as a quote.
+  const chatEl = useRef<HTMLDivElement>(null)
+  const [pick, setPick] = useState<{ text: string; x: number; y: number } | null>(null)
+  useEffect(() => {
+    const look = () => {
+      const sel = window.getSelection()
+      const el = log.current
+      const root = chatEl.current
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !el || !root) return setPick(null)
+      const range = sel.getRangeAt(0)
+      const reply = (range.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement)?.closest('.msg.assistant')
+      const text = sel.toString().trim()
+      if (!reply || !el.contains(reply) || !text) return setPick(null)
+      const r = range.getBoundingClientRect()
+      const c = root.getBoundingClientRect()
+      setPick({ text, x: Math.max(8, Math.min(c.width - 120, r.left - c.left + r.width / 2 - 50)), y: Math.max(4, r.top - c.top - 38) })
+    }
+    document.addEventListener('selectionchange', look)
+    return () => document.removeEventListener('selectionchange', look)
+  }, [])
+  const quote = () => {
+    if (!pick) return
+    chatEl.current?.dispatchEvent(new CustomEvent('aw-quote', { detail: pick.text }))
+    window.getSelection()?.removeAllRanges()
+    setPick(null)
+  }
+
   return (
     <div
       className="chat"
+      ref={chatEl}
       hidden={!visible}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
       }}
     >
+      {pick && (
+        <button className="ask-selection" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={quote} title="Add the selected words to your message as a quote">
+          Ask {agentName}
+        </button>
+      )}
       {query !== null && (
         <div className="chat-tools">
           <input
@@ -625,6 +658,23 @@ function Composer({
     },
     [agentId, onError]
   )
+
+  // Words selected in a reply arrive as a quote at the end of what is typed; more can follow, each as its own quote.
+  useEffect(() => {
+    const chat = box.current?.closest('.chat')
+    if (!chat) return
+    const on = (e: Event) => {
+      const words = String((e as CustomEvent<string>).detail ?? '').trim()
+      if (!words) return
+      const quoted = words.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')
+      setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + quoted + '\n\n')
+      setCaret(Number.MAX_SAFE_INTEGER)
+      box.current?.focus()
+      requestAnimationFrame(() => box.current?.setSelectionRange(box.current.value.length, box.current.value.length))
+    }
+    chat.addEventListener('aw-quote', on)
+    return () => chat.removeEventListener('aw-quote', on)
+  }, [])
 
   // Something picked on the Preview page arrives as one chip (its picture, and the words that describe it) to send with a question about it.
   useEffect(() => {

@@ -18,6 +18,21 @@ function withLinks(text: string, agentId: string) {
   )
 }
 
+/** A message split into its quoted blocks (lines that start with "> ") and the words around them. */
+export function quoted(text: string): { quote: boolean; text: string }[] {
+  const out: { quote: boolean; text: string }[] = []
+  for (const line of text.split('\n')) {
+    const q = /^>\s?(.*)$/.exec(line)
+    const last = out[out.length - 1]
+    if (q) {
+      if (last?.quote) last.text += `\n${q[1]}`
+      else out.push({ quote: true, text: q[1]! })
+    } else if (last && !last.quote) last.text += `\n${line}`
+    else out.push({ quote: false, text: line })
+  }
+  return out.map((b) => ({ ...b, text: b.quote ? b.text : b.text.replace(/^\n+|\n+$/g, '') })).filter((b) => b.text !== '' || b.quote)
+}
+
 /** A message with its @file mentions shown as chips, and mentioned pictures as thumbnails above it. */
 export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string) => void }) {
   const parts = splitMentions(text)
@@ -49,7 +64,7 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
             ))}
           </span>
         )}
-        {withLinks(words, agentId)}
+        {quoted(words).map((b, i) => (b.quote ? <blockquote key={i} className="bubble-quote">{withLinks(b.text, agentId)}</blockquote> : <span key={i}>{withLinks(b.text, agentId)}</span>))}
       </div>
     </>
   )
