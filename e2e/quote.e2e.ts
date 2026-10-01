@@ -63,6 +63,7 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     // Each quote takes its own instruction.
     const note = page.getByRole('textbox', { name: 'What to do about this quote' }).first()
     const one = (await note.boundingBox())!.height
+    expect(one).toBeLessThan(32) // starts as one line
     // A long instruction folds onto more lines instead of scrolling sideways.
     await note.fill('word '.repeat(80))
     expect((await note.boundingBox())!.height).toBeGreaterThan(one * 1.5)
