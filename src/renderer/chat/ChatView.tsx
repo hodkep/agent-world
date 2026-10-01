@@ -5,7 +5,7 @@ import type { ChatItem } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, rowText, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, rowText, toMarkdown, toRows } from './format'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
@@ -478,6 +478,7 @@ function Composer({
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
+  const mirror = useRef<HTMLDivElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
@@ -643,8 +644,15 @@ function Composer({
       )}
       <div className="composer-row">
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
+        <div className="composer-input">
+          {/* Same text, same metrics, drawn behind the transparent textarea so commands and @files get a tint. */}
+          <div className="composer-mirror" ref={mirror} aria-hidden="true">
+            {highlight(text).map((p, i) => (p.kind === 'plain' ? p.text : <mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>))}
+            {'\n'}
+          </div>
         <textarea
           ref={box}
+          onScroll={(e) => mirror.current && (mirror.current.scrollTop = e.currentTarget.scrollTop)}
           value={text}
           rows={1}
           placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files`}
@@ -689,6 +697,7 @@ function Composer({
             }
           }}
         />
+        </div>
         <div className="composer-side">
           <input ref={pick} type="file" multiple hidden onChange={(e) => (void attach([...(e.target.files ?? [])]), (e.target.value = ''))} />
           <button onClick={() => pick.current?.click()} title="Attach pictures or files (or paste, or drop them here)">
