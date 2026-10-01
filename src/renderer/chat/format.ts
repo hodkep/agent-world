@@ -63,9 +63,14 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         else rows.push({ kind: 'note', id: i.id, text: [i.stdout, i.stderr].filter(Boolean).join('\n') })
         break
       }
-      case 'command':
-        rows.push({ kind: 'command', id: i.id, name: i.name, args: i.args })
+      case 'command': {
+        const row: Row = { kind: 'command', id: i.id, name: i.name, args: i.args }
+        // Claude saves the /compact line after the compaction it caused; it reads first.
+        const prev = rows.at(-1)
+        if (i.name === '/compact' && prev?.kind === 'note' && prev.text.startsWith('Conversation compacted')) rows.splice(-1, 0, row)
+        else rows.push(row)
         break
+      }
       case 'assistant': {
         const row: Extract<Row, { kind: 'assistant' }> = { kind: 'assistant', id: i.id, text: i.text }
         rows.push(row)
@@ -73,7 +78,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         break
       }
       default: {
-        // /compact leaves a command, a boundary and a summary; they read as one card, where the compaction happened.
+        // /compact leaves a boundary and a summary; they read as one card, where the compaction happened.
         const isSummary = i.kind === 'note' && !!i.detail
         const isBoundary = i.kind === 'note' && !i.detail && i.text.startsWith('Conversation compacted')
         const prev = rows.at(-1)
@@ -83,8 +88,6 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         }
         if (isBoundary) {
           const written = prev?.kind === 'note' && prev.text === 'Conversation summary' ? (rows.pop() as Extract<Row, { kind: 'note' }>) : undefined
-          const chip = rows.at(-1)
-          if (chip?.kind === 'command' && chip.name === '/compact') rows.pop()
           rows.push({ kind: 'note', id: i.id, text: i.text, ...(written?.detail && { detail: written.detail }) })
           break
         }

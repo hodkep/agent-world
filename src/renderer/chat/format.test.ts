@@ -11,19 +11,20 @@ describe('a compaction', () => {
   const boundary: ChatItem = { kind: 'note', id: 'b', at: t0, text: 'Conversation compacted · 82k → 9k tokens (manual, 22s)' }
   const summary: ChatItem = { kind: 'note', id: 's', at: t0, text: 'Conversation summary', detail: 'the summary' }
 
-  it('is one card, in place, without the /compact chip that caused it', () => {
-    const rows = toRows([user('u', t0, 'before'), cmd, boundary, summary, say('a', t0, 'after')], [])
-    expect(rows.map((r) => r.kind)).toEqual(['user', 'note', 'assistant'])
-    expect(rows[1]).toMatchObject({ text: boundary.kind === 'note' && boundary.text, detail: 'the summary' })
+  it('is one card, in place, with the /compact chip before it whichever way round they were saved', () => {
+    for (const saved of [[cmd, boundary, summary], [boundary, summary, cmd], [summary, boundary, cmd]]) {
+      const rows = toRows([user('u', t0, 'before'), ...saved, say('a', t0, 'after')], [])
+      expect(rows.map((r) => r.kind)).toEqual(['user', 'command', 'note', 'assistant'])
+      expect(rows[2]).toMatchObject({ text: boundary.kind === 'note' && boundary.text, detail: 'the summary' })
+    }
   })
 
-  it('is one card when the summary is written first, and an automatic one has no chip to drop', () => {
-    expect(toRows([cmd, summary, boundary], []).map((r) => r.kind)).toEqual(['note'])
+  it('is one card on its own for an automatic compaction', () => {
     expect(toRows([user('u', t0, 'before'), boundary, summary], []).map((r) => r.kind)).toEqual(['user', 'note'])
   })
 
-  it('keeps other commands', () => {
-    expect(toRows([{ ...cmd, name: '/clear' }, boundary], []).map((r) => r.kind)).toEqual(['command', 'note'])
+  it('keeps other commands where they are', () => {
+    expect(toRows([boundary, { ...cmd, name: '/clear' }], []).map((r) => r.kind)).toEqual(['note', 'command'])
   })
 })
 
