@@ -667,3 +667,13 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .pane .chat { flex: 1; min-height: 0; }
 .pane-empty { display: flex; flex-direction: column; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
 .chat-menu { }
+
+/* The tint sits behind a see-through textarea; the mirror must match its font, padding, border and wrapping exactly. */
+.composer-input { position: relative; flex: 1; min-width: 0; display: flex; background: var(--well); }
+.composer-input textarea { background: transparent; position: relative; }
+.composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
+.composer-mirror mark { color: transparent; border-radius: 2px; }
+.composer-mirror .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
+.composer-mirror .tok-plugin { background: color-mix(in srgb, var(--ok) 35%, transparent); box-shadow: 0 0 0 1px var(--ok); }
+.composer-mirror .tok-file { background: color-mix(in srgb, var(--think) 30%, transparent); box-shadow: 0 0 0 1px var(--think); }
+.composer.is-shell .composer-mirror { font-family: Menlo, Consolas, monospace; }
