@@ -792,3 +792,36 @@ svg.pxi { display: block; flex: none; }
 /* History opens in a dialog of its own, like Settings. */
 .history-dialog { width: min(560px, 94vw); }
 .history-dialog .history ul { max-height: 60vh; overflow: auto; }
+
+/* Compact sits on the context row of the usage pop-up. */
+.cb-meter { grid-template-columns: auto 1fr auto auto; }
+.cbar .cb-meter .cb-compact { height: 22px; padding: 0 8px; font: 11px Menlo, Consolas, monospace; color: var(--text); background: var(--panel-2); border: 2px solid var(--ink); }
+.cb-meter-note { grid-column: 2 / 5; }
+
+/* GFM column alignment arrives as an align attribute; the plain left rule above must not undo it. */
+.md [align='center'] { text-align: center; }
+.md [align='right'] { text-align: right; }
+
+/* Richer Markdown: scrolling tables, alerts, footnotes, definition lists, diagrams, maths, pictures. */
+.md .table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 0.7em; }
+.md .table-wrap table { margin: 0; width: max-content; min-width: 100%; }
+.md th, .md td { overflow-wrap: normal; word-break: normal; }
+.md th { white-space: nowrap; }
+.md td { min-width: 6ch; max-width: 42ch; }
+.md img { max-width: 100%; height: auto; }
+.md kbd { font: 11px Menlo, Consolas, monospace; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 -2px 0 var(--ink); padding: 0 5px; }
+.md mark { background: var(--accent); color: var(--ink); padding: 0 2px; }
+.md dl { margin: 0 0 0.7em; }
+.md dt { font-weight: 700; }
+.md dd { margin: 0 0 0.2em 1.4em; color: var(--muted); }
+.md .markdown-alert { --tone: var(--think); border: 2px solid var(--tone); background: var(--well); padding: 6px 10px; margin: 0 0 0.7em; }
+.md .markdown-alert > :last-child { margin-bottom: 0; }
+.md .markdown-alert-title { margin: 0 0 4px; font: 700 11px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tone); }
+.md .markdown-alert-tip { --tone: var(--ok); }
+.md .markdown-alert-important, .md .markdown-alert-warning { --tone: var(--accent); }
+.md .markdown-alert-caution { --tone: var(--danger-text); }
+.md .footnotes { border-top: 2px solid var(--line); margin-top: 1em; padding-top: 0.5em; font-size: 12px; color: var(--muted); }
+.md sup a, .md .footnotes a[data-footnote-backref] { text-decoration: none; }
+.md .mermaid { background: var(--well); box-shadow: 0 0 0 2px var(--ink); padding: 10px; overflow-x: auto; margin: 0 0 0.7em; }
+.md .mermaid svg { max-width: 100%; height: auto; }
+.md .katex-display { overflow-x: auto; overflow-y: hidden; }

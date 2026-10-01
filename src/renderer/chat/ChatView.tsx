@@ -206,12 +206,18 @@ export function ChatView({
     async (text: string) => {
       setError(null)
       const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: BUSY.includes(activity) }
-      setSent((cur) => [...cur, p])
+      // /clear empties the conversation at once (the main process does the same on its side); a busy agent only queues it.
+      if (/^\/clear$/i.test(p.text) && !p.queued) {
+        setItems([])
+        setSent([])
+      } else setSent((cur) => [...cur, p])
       stick.current = true
       try {
         await window.aw.chatSend(agentId, text)
       } catch (err) {
         setSent((cur) => cur.filter((x) => x.id !== p.id))
+        // A /clear that did not go through leaves the conversation as it was.
+        void window.aw.chatGet(agentId).then((c) => setItems(c.items))
         setError(errText(err))
         throw err
       }
@@ -486,7 +492,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
             {agentName}
             <Copy text={r.text} />
           </div>
-          <Markdown text={r.text} />
+          <Markdown text={r.text} agentId={agentId} />
           {r.took !== undefined && <div className="msg-meta">worked for {r.took >= 60 ? `${Math.floor(r.took / 60)}m ${r.took % 60}s` : `${r.took}s`}</div>}
         </div>
       )
@@ -776,11 +782,13 @@ function Composer({
             if (files.length) (e.preventDefault(), void attach(files))
           }}
           onKeyDown={(e) => {
+            // Enter on a command that is already typed in full sends it, instead of completing it to itself.
+            const complete = suggestions.length > 0 && suggestions[at]!.insert.trim() !== text.trim()
             if (suggestions.length) {
               if (e.key === 'ArrowDown') (e.preventDefault(), setAt((i) => Math.min(suggestions.length - 1, i + 1)))
               else if (e.key === 'ArrowUp') (e.preventDefault(), setAt((i) => Math.max(0, i - 1)))
-              else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) (e.preventDefault(), apply(suggestions[at]!))
-              if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) return
+              else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention) && complete)) (e.preventDefault(), apply(suggestions[at]!))
+              if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention) && complete)) return
             }
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
@@ -850,7 +858,7 @@ function Composer({
         </span>
           {info && <ModelChip info={info} actions={actions} />}
           <span className="cb-spacer" />
-          {info && <UsageRing info={info} limits={limits} />}
+          {info && <UsageRing info={info} limits={limits} actions={actions} />}
           {info && <MoreMenu info={info} actions={actions} />}
           {busy && text.trim() && (
             <button

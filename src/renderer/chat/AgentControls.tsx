@@ -27,6 +27,8 @@ export interface AgentActions {
   reviewers: { id: string; name: string }[]
   askReview: (reviewer: string) => void
   clone: (model?: string) => void
+  /** Summarise the conversation to free up context (the /compact command). */
+  compact: () => void
   handbook: () => void
   tools: () => void
   finish: () => void
@@ -103,7 +105,7 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
   )
 }
 
-export function UsageRing({ info, limits }: { info: AgentInfo; limits: UsageLimits }) {
+export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: UsageLimits; actions: AgentActions }) {
   const [open, setOpen] = useState(false)
   const wrap = useDismiss(open, () => setOpen(false))
   const now = Date.now()
@@ -127,6 +129,11 @@ export function UsageRing({ info, limits }: { info: AgentInfo; limits: UsageLimi
               <Ring pct={r.pct} small />
               <span>{r.name}</span>
               <span className="muted">{r.pct === null ? '–' : `${Math.round(r.pct)}%`}</span>
+              {r.name === 'Context' && (
+                <button className="cb-compact" disabled={!info.canSwitch || !info.started} onClick={() => (setOpen(false), actions.compact())} title={info.canSwitch ? 'Summarise the conversation to free up context (/compact)' : 'Available between turns'}>
+                  Compact
+                </button>
+              )}
               {r.note && <span className="cb-meter-note">{r.note}</span>}
             </div>
           ))}

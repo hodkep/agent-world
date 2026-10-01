@@ -479,6 +479,7 @@ export function App() {
     reviewers: agents.filter((x) => x.id !== a.id && (world[x.id]?.activity ?? 'asleep') !== 'asleep').map((x) => ({ id: x.id, name: x.name })),
     askReview: (reviewer) => void askReview(a, reviewer),
     clone: (model) => clone(a, model),
+    compact: () => void run(() => window.aw.chatSend(a.id, '/compact')),
     handbook: () => openHandbook(a),
     tools: () => setView('tools'),
     finish: () => setFinishing(a.id),

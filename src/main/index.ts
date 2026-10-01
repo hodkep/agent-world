@@ -210,6 +210,22 @@ function followChat(a: AgentRecord) {
   if (now) send('chat-reset', a.id, a.sessionId)
   chat.tail.start()
 }
+/**
+ * /clear starts a new Claude session, but its id only reaches us with a later hook event, so the old conversation
+ * would linger on screen. Empty the view at once and let the new session's tail take over when its id arrives.
+ */
+function clearChatNow(id: string) {
+  const chat = chats.get(id)
+  const a = byId(id)
+  if (!chat || !a) return
+  chat.items = []
+  send('chat-reset', id, a.sessionId)
+  chat.tail.stop()
+  // If Claude never switches (the command was refused), pick the old conversation back up.
+  setTimeout(() => {
+    if (chats.get(id) === chat && a.sessionId === chat.sessionId) chat.tail.start()
+  }, 60_000)
+}
 // The permission mode last seen in each agent's footer: hooks only say it changed at their next event, the screen says it at once.
 const seenMode = new Map<string, string>()
 const RUNNING_FILE = join(HOME, 'running.json')
@@ -626,9 +642,12 @@ async function main() {
     const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
     if (!text) return
     if (anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
+    // Only an agent that is free takes /clear at once; a busy one queues it, and its conversation is still there.
+    const clearing = /^\/clear$/i.test(text) && ['idle', 'waiting', undefined].includes(lastActivity.get(id))
     p.write(`\x1b[200~${text}\x1b[201~`)
     await new Promise((r) => setTimeout(r, 150))
     p.write('\r')
+    if (clearing) clearChatNow(id)
   })
   // Pictures and files attached in the chat are saved here and mentioned by path; the agent is allowed to read this folder.
   ipcMain.handle('attach-save', (_, agentId: string, name: string, bytes: Uint8Array, mime: string) => {
