@@ -24,7 +24,10 @@ const ROW = /^\s*(❯)?\s*(\d+)\.\s+(?:\[( |✔)\]\s+)?(.*?)\s*$/
  */
 export function parseAsk(screen: string): AskScreen | null {
   const lines = stripVTControlCharacters(screen).split('\n')
-  const bar = lines.map((l) => /^\s*←.*Submit.*→/.test(l)).lastIndexOf(true)
+  const tabs = lines.map((l) => /^\s*←.*Submit.*→/.test(l)).lastIndexOf(true)
+  // A lone question has no tab bar to submit from, only its own tab (` ☐ Page`) above it; an open menu always ends with the hint line.
+  const lone = tabs >= 0 ? -1 : lines.map((l, i) => /^\s*[☐☒☑✔]\s+\S/.test(l) && lines.slice(i + 1).some((x) => /Enter to select/.test(x))).lastIndexOf(true)
+  const bar = tabs >= 0 ? tabs : lone
   if (bar < 0) return null
   const rest = lines.slice(bar + 1)
   const first = rest.findIndex((l) => l.trim())

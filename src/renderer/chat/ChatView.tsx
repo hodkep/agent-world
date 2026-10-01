@@ -515,6 +515,8 @@ interface Attachment {
   path: string
   /** A local preview for pictures. */
   preview?: string
+  /** Set when it is a thing picked on the Preview page: the words that go with it, sent with the message but not shown in the box. */
+  context?: { text: string; label: string }
 }
 
 function Composer({
@@ -609,12 +611,12 @@ function Composer({
 
   // Files on disk are mentioned by their path; pasted pictures and other blobs are saved first.
   const attach = useCallback(
-    async (list: File[]) => {
+    async (list: File[], context?: Attachment['context']) => {
       for (const f of list) {
         try {
           const onDisk = window.aw.pathOf(f)
           const path = onDisk || (await window.aw.saveAttachment(agentId, f.name, await f.arrayBuffer(), f.type))
-          setAttached((cur) => [...cur, { id: `${Date.now()}-${cur.length}`, name: f.name || path.split('/').pop()!, path, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined }])
+          setAttached((cur) => [...cur, { id: `${Date.now()}-${cur.length}`, name: f.name || path.split('/').pop()!, path, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : undefined, ...(context && { context }) }])
         } catch (err) {
           onError(errText(err))
         }
@@ -624,15 +626,16 @@ function Composer({
     [agentId, onError]
   )
 
-  // Something picked on the Preview page arrives as words and a picture, ready to send with a question about it.
+  // Something picked on the Preview page arrives as one chip (its picture, and the words that describe it) to send with a question about it.
   useEffect(() => {
     const on = (e: Event) => {
-      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; handled?: boolean }>).detail
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; label?: string; handled?: boolean }>).detail
       // The same agent can be open in the side panel and in a grid cell; only the first box takes it.
       if (d.agentId !== agentId || d.handled) return
       d.handled = true
-      if (d.file) void attach([d.file])
-      setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + d.text + '\n\n')
+      const context = { text: d.text, label: d.label ?? 'an element' }
+      if (d.file) void attach([d.file], context)
+      else setAttached((cur) => [...cur, { id: `${Date.now()}-${cur.length}`, name: context.label, path: '', context }])
       box.current?.focus()
     }
     window.addEventListener('aw-context', on)
@@ -686,9 +689,11 @@ function Composer({
   const submit = async () => {
     const value = unwrapPasted(text).trim()
     if (!value && attached.length === 0) return
-    const mentions = attached.map((a) => `@"${a.path}"`).join(' ')
+    const mentions = attached.filter((a) => !a.context).map((a) => `@"${a.path}"`).join(' ')
+    // What was picked on the Preview page goes ahead of the question, words first and then its picture.
+    const picked = attached.filter((a) => a.context).map((a) => `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`).join('\n\n')
     // Attached files come first so the message reads "look at these: …".
-    const full = mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
+    const full = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
     try {
       await onSend(full)
       if (value) (sent.current.unshift(value), (recall.current = -1))
@@ -737,7 +742,8 @@ function Composer({
       {attached.length > 0 && (
         <ul className="attached" aria-label="Attached files">
           {attached.map((a) => (
-            <li key={a.id}>
+            <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text}>
+              {a.context && <span className="chip-from">Preview</span>}
               {a.preview ? (
                 <button className="chip-img" onClick={() => onImage(a.preview!)} aria-label={`Preview ${a.name}`}>
                   <img src={a.preview} alt="" />
@@ -745,8 +751,8 @@ function Composer({
               ) : (
                 <span className="chip-file" aria-hidden="true" />
               )}
-              <span className="chip-name" title={a.path}>
-                {a.name}
+              <span className="chip-name" title={a.context ? undefined : a.path}>
+                {a.context?.label ?? a.name}
               </span>
               <button className="chip-x" aria-label={`Remove ${a.name}`} onClick={() => setAttached((cur) => cur.filter((x) => x.id !== a.id))} />
             </li>

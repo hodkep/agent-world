@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DevServer } from '../../shared/api'
 import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './picker'
+import { isPreviewable } from '../links'
 
 // The subset of the <webview> element used here.
 interface WebviewEl extends HTMLElement {
@@ -16,12 +17,39 @@ interface WebviewEl extends HTMLElement {
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
-export function PreviewView({ servers, agentName, agentId, onAttached }: { servers: DevServer[]; agentName: string; agentId: string; onAttached: () => void }) {
+export function PreviewView({ servers, agentName, agentId, onAttached, target }: { servers: DevServer[]; agentName: string; agentId: string; onAttached: () => void; target?: { url: string; n: number } }) {
   const [picking, setPicking] = useState(false)
   const [port, setPort] = useState<number | null>(null)
   const view = useRef<WebviewEl | null>(null)
+  const ready = useRef(false)
   const [error, setError] = useState<string | null>(null)
-  const current = servers.find((s) => s.port === port) ?? servers.find((s) => s.alive) ?? servers[0]
+  // A link clicked in the chat opens here, whether or not the agent started that server.
+  const [opened, setOpened] = useState<string | null>(null)
+  const known = opened ? servers.find((s) => new URL(opened).port === String(s.port)) : undefined
+  const asked: DevServer | undefined = opened && !known ? { port: Number(new URL(opened).port) || 80, url: opened, alive: true } : undefined
+  const current = asked ?? servers.find((s) => s.port === port) ?? servers.find((s) => s.alive) ?? servers[0]
+  useEffect(() => {
+    if (!target || !isPreviewable(target.url)) return
+    const u = new URL(target.url)
+    const match = servers.find((s) => String(s.port) === u.port)
+    // Another page on a server already shown: go there in place. Anything else is shown by its own address.
+    if (match) {
+      setOpened(null)
+      setPort(match.port)
+      // A webview only answers getURL and loadURL once it has loaded something, so a fresh one is told after it has.
+      const el = view.current
+      const go = () => {
+        try {
+          if (el && el.getURL() !== target.url) void el.loadURL(target.url).catch(() => {})
+        } catch {
+          /* it went away before it was ready */
+        }
+      }
+      if (ready.current) go()
+      else el?.addEventListener('dom-ready', go, { once: true })
+    } else setOpened(target.url)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.n])
 
   useEffect(() => {
     if (current && port === null) setPort(current.port)
@@ -36,9 +64,13 @@ export function PreviewView({ servers, agentName, agentId, onAttached }: { serve
       if (ev.errorCode !== -3) setError(ev.errorDescription ?? 'The page did not load.')
     }
     const ok = () => setError(null)
+    ready.current = false
+    const up = () => (ready.current = true)
+    el.addEventListener('dom-ready', up)
     el.addEventListener('did-fail-load', fail)
     el.addEventListener('did-finish-load', ok)
     return () => {
+      el.removeEventListener('dom-ready', up)
       el.removeEventListener('did-fail-load', fail)
       el.removeEventListener('did-finish-load', ok)
     }
@@ -61,7 +93,14 @@ export function PreviewView({ servers, agentName, agentId, onAttached }: { serve
       } catch {
         /* the words alone still go */
       }
-      window.dispatchEvent(new CustomEvent('aw-context', { detail: { agentId, text: contextText(picked), file } }))
+      let page = picked.url
+      try {
+        const u = new URL(picked.url)
+        page = `${u.host}${u.pathname === '/' ? '' : u.pathname}`
+      } catch {
+        /* the address as it came is label enough */
+      }
+      window.dispatchEvent(new CustomEvent('aw-context', { detail: { agentId, text: contextText(picked), file, label: `${picked.tag} on ${page}` } }))
       onAttached()
     }
     el.addEventListener('console-message', heard)

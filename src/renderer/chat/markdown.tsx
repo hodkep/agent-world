@@ -7,6 +7,7 @@ import { gfmHeadingId } from 'marked-gfm-heading-id'
 import markedKatex from 'marked-katex-extension'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { languageFor, monaco } from '../code/monaco'
+import { followLink, linkHint } from '../links'
 import { EMOJI } from './emoji'
 
 marked.setOptions({ gfm: true, breaks: false })
@@ -94,6 +95,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
   useEffect(() => {
     const el = box.current
     if (!el) return
+    for (const a of el.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')) a.title ||= linkHint(a.href)
     for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-mermaid')) void drawMermaid(code.parentElement!, code.textContent ?? '')
     // Pictures that are files on disk (a path the agent mentions) are read by the main process, like attached ones.
     for (const img of el.querySelectorAll<HTMLImageElement>('img')) {
@@ -136,7 +138,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
         // A link to a heading or footnote in this same message scrolls there; anything else opens outside the app.
         const id = a.getAttribute('href')?.startsWith('#') ? decodeURIComponent(a.getAttribute('href')!.slice(1)) : null
         if (id !== null) return void box.current?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' })
-        void window.aw.openExternal(a.href).catch(() => {})
+        followLink(a.href, e, agentId)
       }}
     />
   )

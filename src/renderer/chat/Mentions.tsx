@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Picture } from './Images'
+import { followLink, linkHint } from '../links'
 import { isImagePath, splitMentions } from './format'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
+
+/** Web addresses in a message are links; trailing punctuation belongs to the sentence, not the address. */
+function withLinks(text: string, agentId: string) {
+  return text.split(/(https?:\/\/[^\s<>"')\]]+[^\s<>"')\].,;:!?])/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <a key={i} href={part} title={linkHint(part)} onClick={(e) => (e.preventDefault(), followLink(part, e, agentId))}>
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  )
+}
 
 /** A message with its @file mentions shown as chips, and mentioned pictures as thumbnails above it. */
 export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string) => void }) {
@@ -35,7 +49,7 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
             ))}
           </span>
         )}
-        {words}
+        {withLinks(words, agentId)}
       </div>
     </>
   )

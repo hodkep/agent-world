@@ -90,6 +90,8 @@ const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
 const MEMORY_HINT =
   'This project keeps shared notes for every agent. Near the start of a task, call the agent-world recall tool with a few words about it. When you learn something a future agent should know (how to run the tests, a decision and why, a trap), save it with the remember tool. Keep notes short; never save secrets.'
+// The chat titles each command card with the agent's own description of it; without one it can only show the start of the command.
+const DESCRIBE_HINT = "Whenever you run a shell command, fill in the Bash tool's description with a short plain-language summary of what it does (for example 'Run the unit tests' or 'List files changed on this branch'). The chat shows it as the command's title."
 // One memory file per project, shared by every agent working in it.
 const memoryFile = (repoPath: string) => join(HOME, 'memory', `${repoSlug(repoPath)}.json`)
 const buffers = new Map<string, { text: string; end: number }>()
@@ -464,7 +466,7 @@ function finishRewind(id: string) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = claudeCmd(args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })

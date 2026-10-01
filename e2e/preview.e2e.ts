@@ -33,7 +33,7 @@ test('a dev server an agent starts shows up in the Preview tab', async () => {
   }
 })
 
-test('selecting an element on the preview puts it in the message box as context', async () => {
+test('selecting an element on the preview adds it to the message as one chip of context', async () => {
   const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<main><h1>Shop</h1><button id="cta" class="big">Sign up</button></main>'))
   await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
   const port = (dev.address() as AddressInfo).port
@@ -52,11 +52,24 @@ test('selecting an element on the preview puts it in the message box as context'
     // Point at the button and click, as a person would.
     await run("const b = document.querySelector('#cta').getBoundingClientRect(); const at = { clientX: b.left + 5, clientY: b.top + 5, bubbles: true }; window.dispatchEvent(new MouseEvent('mousemove', at)); window.dispatchEvent(new MouseEvent('click', at))")
     const box = page.getByRole('textbox', { name: 'Message ada' })
-    await expect(box).toHaveValue(/Selector: .*button#cta/, { timeout: 10_000 })
-    await expect(box).toHaveValue(/Text: "Sign up"/)
-    await expect(box).toHaveValue(new RegExp(`Element picked from http://localhost:${port}/`))
+    // One chip says what was picked and where from; the words behind it stay out of the message box.
+    const chip = page.locator('.attached li.chip-context')
+    await expect(chip).toBeVisible({ timeout: 10_000 })
+    await expect(chip).toContainText('Preview')
+    await expect(chip).toContainText(`button on localhost:${port}`)
+    await expect(chip.locator('img')).toHaveCount(1)
+    await expect(box).toHaveValue('')
+    if (process.env.AW_SHOTS) await page.screenshot({ path: `${process.env.AW_SHOTS}/context-chip.png` })
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
-    await expect(page.locator('.attached, .chips, [class*="attach"]').first()).toBeVisible({ timeout: 10_000 })
+    // Typed text goes with it, and what the agent receives carries the selector, text and address.
+    await box.fill('make this bigger')
+    await box.press('Enter')
+    const sent = page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user').last()
+    await expect(sent).toContainText('make this bigger', { timeout: 10_000 })
+    await expect(sent).toContainText(/Selector: .*button#cta/)
+    await expect(sent).toContainText('Text: "Sign up"')
+    await expect(sent).toContainText(`Element picked from http://localhost:${port}/`)
+    await expect(chip).toHaveCount(0)
   } finally {
     await shutdown()
     dev.close()

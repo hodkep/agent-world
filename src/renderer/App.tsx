@@ -4,6 +4,7 @@ import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { Modal } from './panel/Modal'
+import { PREVIEW_EVENT } from './links'
 import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
@@ -107,6 +108,8 @@ export function App() {
   const changeLayout = (l: GridLayout | null) => (setPaneLayout(l), keep('aw.gridLayout', l ? JSON.stringify(l) : ''))
   // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
   const [peek, setPeek] = useState(false)
+  // A local link clicked anywhere in a chat opens in that agent's Preview tab.
+  const [previewTarget, setPreviewTarget] = useState<Record<string, { url: string; n: number }>>({})
   // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good.
   const shellsOpen = useRef(new Set<string>())
   useEffect(() => {
@@ -321,6 +324,18 @@ export function App() {
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
   const nameOf = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
+
+  useEffect(() => {
+    const on = (e: Event) => {
+      const { agentId, url } = (e as CustomEvent<{ agentId: string; url: string }>).detail
+      setPreviewTarget((t) => ({ ...t, [agentId]: { url, n: (t[agentId]?.n ?? 0) + 1 } }))
+      setPeek(true)
+      select(agentId)
+      setView('preview')
+    }
+    window.addEventListener(PREVIEW_EVENT, on)
+    return () => window.removeEventListener(PREVIEW_EVENT, on)
+  })
 
   const run = async (f: () => Promise<void>) => {
     setError(null)
@@ -910,7 +925,7 @@ export function App() {
               <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
-          {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
+          {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}

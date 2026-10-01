@@ -866,3 +866,10 @@ svg.pxi { display: block; flex: none; }
 .tc-out { position: relative; }
 .tc-copy { position: absolute; top: 4px; right: 6px; opacity: 0; }
 .tc-out:hover .tc-copy, .tc-copy:focus-visible { opacity: 1; }
+
+/* Something picked on the Preview page: one chip with its picture and where it came from; the words behind it ride along with the message. */
+.attached li.chip-context { box-shadow: 0 0 0 2px var(--think); }
+.chip-from { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); background: var(--think); padding: 1px 6px; flex: none; }
+.chip-context .chip-name { max-width: 260px; font-family: Menlo, Consolas, monospace; }
+
+.msg.user .bubble a { color: var(--think); }

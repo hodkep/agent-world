@@ -25,6 +25,17 @@ describe('reading Claude\'s question menu', () => {
     expect(s.rows.map((r) => r.label)).toEqual(['A file format', 'A folder', 'A tool', 'Type something.', 'Chat about this'])
   })
 
+  it('reads a question asked on its own, which has no tab bar to submit from', () => {
+    const s = parseAsk(fixture('ask-lone.txt'))!
+    expect(s).toMatchObject({ kind: 'question', prompt: 'What should the page show? (It will be served on a local port, and the Preview tab picks it up from my terminal output.)', cursor: 1, multi: false })
+    expect(s.rows.map((r) => r.label)).toEqual(['Blank test page', 'The composer mockup', 'Something specific', 'Type something.', 'Chat about this'])
+  })
+
+  it('does not take a task list for a question menu', () => {
+    expect(parseAsk('  ☐ Fix the build\n  ☐ Write the tests\n❯ 1. Yes\n  2. No\n')).toBeNull()
+    expect(parseAsk(' ☐ Fix the build\n  1. one\n  2. two\n')).toBeNull()
+  })
+
   it('recognises the review page', () => {
     expect(parseAsk(fixture('ask-review.txt'))).toMatchObject({ kind: 'review', cursor: 1 })
   })

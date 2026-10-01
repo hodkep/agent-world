@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { Boundary } from './Boundary'
 import './styles.css'
 
 // The app talks to its main process through window.aw (the preload script). In an ordinary browser tab, which is
@@ -7,7 +8,9 @@ import './styles.css'
 const root = createRoot(document.getElementById('root')!)
 root.render(
   window.aw ? (
-    <App />
+    <Boundary>
+      <App />
+    </Boundary>
   ) : (
     <main className="no-bridge">
       <h1>Agent World runs in its own window</h1>
