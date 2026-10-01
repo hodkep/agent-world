@@ -881,7 +881,11 @@ svg.pxi { display: block; flex: none; }
 .msg.user .bubble a { color: var(--think); }
 
 /* Words selected in an agent's reply offer to be asked about: a small button above the selection. */
-.ask-selection { position: absolute; z-index: 8; font-size: 12px; padding: 3px 10px; background: var(--accent); color: var(--ink); font-weight: 700; box-shadow: 0 2px 0 var(--ink); }
-.ask-selection:hover:not(:disabled) { background: var(--accent-hot); }
+.ask-selection { position: absolute; z-index: 8; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px; background: var(--panel-3); color: var(--text); font-weight: 600; border: 1px solid var(--accent); box-shadow: 0 3px 0 var(--ink), 0 6px 14px rgb(0 0 0 / 0.55); white-space: nowrap; }
+.ask-selection svg { color: var(--accent); flex: none; }
+/* A small notch pointing down at the selection. */
+.ask-selection::after { content: ''; position: absolute; top: 100%; left: clamp(12px, var(--nx, 50%), calc(100% - 12px)); width: 8px; height: 8px; background: var(--panel-3); border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); transform: translate(-50%, -4px) rotate(45deg); }
+.ask-selection:hover:not(:disabled) { background: var(--panel-hover); }
+.ask-selection:hover:not(:disabled)::after { background: var(--panel-hover); }
 .bubble-quote { margin: 0 0 6px; padding: 4px 8px; border: 2px solid var(--line); background: var(--well); color: var(--muted); white-space: pre-wrap; font-size: 12px; }
 .msg.user .bubble > span { white-space: pre-wrap; }

@@ -229,7 +229,7 @@ export function ChatView({
 
   // Words selected in one of the agent's replies offer "Ask": they go into the message box as a quote.
   const chatEl = useRef<HTMLDivElement>(null)
-  const [pick, setPick] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [pick, setPick] = useState<{ text: string; x: number; y: number; nx: number } | null>(null)
   useEffect(() => {
     const look = () => {
       const sel = window.getSelection()
@@ -242,7 +242,9 @@ export function ChatView({
       if (!reply || !el.contains(reply) || !text) return setPick(null)
       const r = range.getBoundingClientRect()
       const c = root.getBoundingClientRect()
-      setPick({ text, x: Math.max(8, Math.min(c.width - 120, r.left - c.left + r.width / 2 - 50)), y: Math.max(4, r.top - c.top - 38) })
+      const mid = r.left - c.left + r.width / 2
+      const x = Math.max(8, Math.min(c.width - 148, mid - 64))
+      setPick({ text, x, nx: mid - x, y: Math.max(4, r.top - c.top - 46) })
     }
     document.addEventListener('selectionchange', look)
     return () => document.removeEventListener('selectionchange', look)
@@ -264,7 +266,10 @@ export function ChatView({
       }}
     >
       {pick && (
-        <button className="ask-selection" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={quote} title="Add the selected words to your message as a quote">
+        <button className="ask-selection" style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }} onMouseDown={(e) => e.preventDefault()} onClick={quote} title="Add the selected words to your message as a quote">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
           Ask {agentName}
         </button>
       )}
