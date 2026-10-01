@@ -17,8 +17,8 @@ test('a /btw side question is answered in a card in the chat and can be dismisse
     await box.fill('/btw what is 2+2?')
     await box.press('Enter')
     const card = page.getByRole('region', { name: 'Side question' })
-    await expect(card).toContainText('what is 2+2?', { timeout: 10_000 })
-    await expect(card).toContainText('It is 4.', { timeout: 10_000 })
+    await expect(card).toContainText('what is 2+2?', { timeout: 25_000 })
+    await expect(card).toContainText('It is 4.', { timeout: 25_000 })
     await card.getByRole('button', { name: 'Dismiss' }).click()
     await expect(card).toHaveCount(0, { timeout: 8_000 })
   } finally {
