@@ -1,0 +1,39 @@
+
+ ▐▛███▛█   Claude Code v2.1.286
+▝▜██████▀  Haiku 4.5 · Claude Team
+ ▝▝   ▝▝   ~/.agent-world/worktrees/agent-world-e7df06ca/grace
+
+
+❯ Use the AskUserQuestion tool once, with exactly three questions and 
+  nothing else. Q1: "What is "OKF" here? Nothing in the repo defines  
+  it, and I do not want to invent a format." with options "A file     
+  format", "A folder", "A tool". Q2: "Where should the spec live?"    
+  with options "Hidden folder", "Outside the repo". Q3: "What should  
+  the wrap-up script do before you close the application? (pick all   
+  that apply)" multiSelect true with options "Stop processes",        
+  "Commit work", "Save notes". Do not call any other tool.            
+  ⎿  Invalid tool parameters
+──────────────────────────────────────────────────────────────────────
+←  ☐ OKF  ☐ Spec location  ☐ Wrap-up actions  ✔ Submit  →
+
+│ What is OKF here? Nothing in the repo defines it, and I do not want 
+│ to invent a format.
+
+❯ 1. A file format
+     OKF is a data file format, like JSON or YAML
+  2. A folder
+     OKF is a directory or folder name
+  3. A tool
+     OKF is a tool or command-line utility
+  4. Type something.
+──────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel
+
+
+
+
+
+
+

@@ -46,6 +46,9 @@ export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; ro
         <label className="check">
           <input type="checkbox" checked={prefs.keepAwake} onChange={(e) => set({ keepAwake: e.target.checked })} /> Keep the computer awake while an agent works
         </label>
+        <label className="check">
+          <input type="checkbox" checked={prefs.wrapUp} onChange={(e) => set({ wrapUp: e.target.checked })} /> When I quit, stop the agents' running commands and commit their unfinished work
+        </label>
       </fieldset>
       <fieldset>
         <legend>New agents start with</legend>

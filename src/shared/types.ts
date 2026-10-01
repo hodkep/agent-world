@@ -144,6 +144,8 @@ export interface Prefs {
   notifications: 'all' | 'attention' | 'off'
   /** Keep the computer awake while an agent works. */
   keepAwake: boolean
+  /** When the app quits: stop the commands the agents started and commit their unfinished work. */
+  wrapUp: boolean
   /** Where the claude program is, when it is not on the PATH. Empty means "claude". */
   claudePath: string
   /** Where new builds are published; empty means the app does not look for updates. */

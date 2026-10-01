@@ -30,7 +30,14 @@ export function parseAsk(screen: string): AskScreen | null {
   const first = rest.findIndex((l) => l.trim())
   if (first < 0) return null
   const review = rest[first]!.trim().startsWith('Review your answers')
-  const prompt = review ? 'Review your answers' : rest[first]!.trim()
+  // A long question wraps onto several lines, sometimes inside a │ frame: the prompt is all of them, up to the first option.
+  const promptLines: string[] = []
+  for (const l of rest.slice(first)) {
+    const t = l.replace(/^[\s│┃]+|[\s│┃]+$/g, '')
+    if (!t || ROW.test(l) || /Enter to select/.test(l)) break
+    promptLines.push(t)
+  }
+  const prompt = review ? 'Review your answers' : promptLines.join(' ')
   const rows: AskRow[] = []
   let cursor = 0
   for (const l of rest.slice(first + 1)) {
@@ -57,7 +64,9 @@ interface TerminalIO {
   sleep: (ms: number) => Promise<void>
 }
 
-const same = (a: string, b: string) => a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim()
+// Claude may drop or re-space quotes and punctuation when it draws a question, so compare the words only.
+const words = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+const same = (a: string, b: string) => words(a) === words(b)
 
 /**
  * Answer every question in Claude's menu by pressing keys one step at a time and reading the screen back after

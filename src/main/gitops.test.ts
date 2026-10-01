@@ -166,4 +166,15 @@ describe('landing the work', () => {
     await pushBranch(wt.path, wt.branch)
     expect(git(remote, 'log', '-1', '--format=%s', wt.branch)).toBe('ada work')
   })
+
+  it('keeps the .okf spec folder out of the file list and the changes', async () => {
+    mkdirSync(join(wt.path, '.okf'))
+    writeFileSync(join(wt.path, '.okf', 'spec.md'), '# spec\n')
+    writeFileSync(join(wt.path, 'c.ts'), 'three\n')
+    expect(await listFiles(wt.path)).toContain('c.ts')
+    expect(await listFiles(wt.path)).not.toContain('.okf/spec.md')
+    const paths = (await changes(wt.path, 'main')).map((c) => c.path)
+    expect(paths).toContain('c.ts')
+    expect(paths.some((p) => p.startsWith('.okf'))).toBe(false)
+  })
 })

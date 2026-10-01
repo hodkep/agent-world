@@ -19,6 +19,12 @@ describe('reading Claude\'s question menu', () => {
     expect(s.rows.filter((r) => r.checked).map((r) => r.label)).toEqual(['Cat', 'Fish'])
   })
 
+  it('reads a long question that wraps onto several lines inside a frame', () => {
+    const s = parseAsk(fixture('ask-wrapped.txt'))!
+    expect(s).toMatchObject({ kind: 'question', prompt: 'What is OKF here? Nothing in the repo defines it, and I do not want to invent a format.', cursor: 1 })
+    expect(s.rows.map((r) => r.label)).toEqual(['A file format', 'A folder', 'A tool', 'Type something.', 'Chat about this'])
+  })
+
   it('recognises the review page', () => {
     expect(parseAsk(fixture('ask-review.txt'))).toMatchObject({ kind: 'review', cursor: 1 })
   })

@@ -21,6 +21,8 @@ import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { saveAttachment } from './attachments'
+import { okfHint } from './okf'
+import { wrapUp } from './wrapUp'
 import { newestSession, transcriptPath } from './chat'
 import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
@@ -460,7 +462,7 @@ function finishRewind(id: string) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = claudeCmd(args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
@@ -1149,7 +1151,27 @@ async function main() {
   }
   const heartbeat = setInterval(noteRunning, 2000)
 
-  app.on('before-quit', () => {
+  // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
+  let wrapped = false
+  app.on('before-quit', (e) => {
+    if (!wrapped && prefs.wrapUp && agents.length) {
+      wrapped = true
+      e.preventDefault()
+      void wrapUp(
+        agents,
+        {
+          pidOf: (id) => sessions.get(id)?.pid,
+          listProcs,
+          stopProc,
+          dirty: async (cwd) => !!(await git(cwd, 'status', '--porcelain')),
+          commit: commitAll
+        },
+        { timeoutMs: 10_000 }
+      )
+        .catch(() => {})
+        .finally(() => app.quit())
+      return
+    }
     quitting = true
     clearInterval(heartbeat)
     for (const p of sessions.values()) p.kill()

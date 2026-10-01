@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { isOkfPath } from './okf'
 import { git } from './worktree'
 
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -22,7 +23,7 @@ export async function changes(cwd: string, base: string): Promise<Change[]> {
     return { path: rest.join('\t'), status: STATUS[code!] ?? 'modified' }
   })
   const untracked = lines(await git(cwd, 'ls-files', '--others', '--exclude-standard')).map((path) => ({ path, status: 'added' as const }))
-  return [...tracked, ...untracked].sort((a, b) => a.path.localeCompare(b.path))
+  return [...tracked, ...untracked].filter((c) => !isOkfPath(c.path)).sort((a, b) => a.path.localeCompare(b.path))
 }
 
 /** The file as it was at the branch point, for the left side of a diff; empty for files the agent created. */
@@ -36,7 +37,9 @@ export async function originalContent(cwd: string, base: string, path: string) {
 }
 
 export async function listFiles(cwd: string) {
-  return lines(await git(cwd, 'ls-files', '--cached', '--others', '--exclude-standard')).sort((a, b) => a.localeCompare(b))
+  return lines(await git(cwd, 'ls-files', '--cached', '--others', '--exclude-standard'))
+    .filter((f) => !isOkfPath(f))
+    .sort((a, b) => a.localeCompare(b))
 }
 
 // The renderer names files relative to the worktree; nothing it sends may reach outside it.
