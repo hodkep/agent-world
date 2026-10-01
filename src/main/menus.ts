@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
+import { anyMenu, inputReady } from './prompts'
 
 export interface GenericMenu {
   /** The first line of the block the menu belongs to ("Bash command", "Rewind"…). */
@@ -99,4 +100,32 @@ export async function driveRewind(io: TerminalIO, target: string): Promise<boole
     if (at < 0 && l.highlighted === 0 && !l.entries.some((e) => e.text.startsWith(want))) return false
   }
   return false
+}
+
+const CLEAR_LINE = '\x15'
+
+/**
+ * Type /rewind and open its list. Waits for the input box first (right after Esc the TUI can still be settling),
+ * clears any draft text, and presses Enter a second time if the first one only went to the slash-command popup.
+ * Returns what went wrong, or null once the list is on screen.
+ */
+export async function openRewindList(io: TerminalIO): Promise<string | null> {
+  const until = async (ok: () => boolean, tries: number) => {
+    for (let i = 0; i < tries && !ok(); i++) await io.sleep(200)
+    return ok()
+  }
+  if (!(await until(() => inputReady(io.screen()), 15))) return 'Claude is not showing its message box yet (it may still be settling after being stopped). Try again in a moment.'
+  io.write(CLEAR_LINE)
+  await io.sleep(150)
+  io.write('/rewind')
+  await io.sleep(500)
+  io.write('\r')
+  if (await until(() => !!rewindList(io.screen()), 10)) return null
+  // The first Enter can be spent on picking from the popup of matching commands.
+  io.write('\r')
+  if (await until(() => !!rewindList(io.screen()), 20)) return null
+  const screen = io.screen()
+  if (anyMenu(screen)) return 'Another menu is open in Claude. Close it first.'
+  if (/\/rewind/.test(stripVTControlCharacters(screen).split('\n').find((l) => l.trim().startsWith('❯')) ?? '')) return 'Claude left /rewind in its message box without running it. Try /rewind in the Terminal tab.'
+  return 'Claude did not open the rewind list. Try /rewind in the Terminal tab.'
 }

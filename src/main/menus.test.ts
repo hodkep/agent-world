@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { driveRewind, genericMenu, rewindList } from './menus'
+import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 
 const fixture = (n: string) => readFileSync(join(__dirname, 'fixtures', n), 'utf8')
 
@@ -74,5 +74,47 @@ describe('going back to a chosen prompt', () => {
     const b = fakeList(5, 4)
     expect(await driveRewind(b.io, 'nothing like it')).toBe(false)
     expect(b.entered()).toBeNull()
+  })
+})
+
+/** A TUI with an input box: `popupSwallowsEnter` spends the first Enter on the slash popup, `ready` false is the settling state. */
+function fakeBox(opts: { draft?: string; popupSwallowsEnter?: boolean; ready?: boolean; neverRuns?: boolean }) {
+  let draft = opts.draft ?? ''
+  let swallowed = !opts.popupSwallowsEnter
+  let open = false
+  const sent: string[] = []
+  return {
+    io: {
+      screen: () => (open ? 'Rewind\n  ❯ (current)\n   Enter to continue · Esc to cancel\n' : opts.ready === false ? 'Interrupted\n' : `────────\n❯ ${draft}\n────────\n`),
+      write: (k: string) => {
+        if (k === '\x15') draft = ''
+        else if (k === '\r') {
+          if (!swallowed) swallowed = true
+          else if (draft === '/rewind' && !opts.neverRuns) (open = true), sent.push(draft)
+        } else draft += k
+      },
+      sleep: async () => {}
+    },
+    sent
+  }
+}
+
+describe('opening the rewind list', () => {
+  it('clears a leftover draft and runs only /rewind', async () => {
+    const f = fakeBox({ draft: 'half a thought' })
+    expect(await openRewindList(f.io)).toBeNull()
+    expect(f.sent).toEqual(['/rewind'])
+  })
+
+  it('presses Enter again when the first one went to the slash popup', async () => {
+    expect(await openRewindList(fakeBox({ popupSwallowsEnter: true }).io)).toBeNull()
+  })
+
+  it('says when the message box never came back', async () => {
+    expect(await openRewindList(fakeBox({ ready: false }).io)).toMatch(/message box/)
+  })
+
+  it('names /rewind left sitting in the box', async () => {
+    expect(await openRewindList(fakeBox({ neverRuns: true }).io)).toMatch(/without running it/)
   })
 })
