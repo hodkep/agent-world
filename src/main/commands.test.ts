@@ -39,6 +39,27 @@ describe('command palette sources', () => {
     expect(lint).toEqual([expect.objectContaining({ source: 'project command', description: 'Run the linter and fix issues' })])
   })
 
+  it('lists skills and commands of enabled plugins, namespaced by plugin name', async () => {
+    const put = (path: string, text: string) => {
+      mkdirSync(join(path, '..'), { recursive: true })
+      writeFileSync(path, text)
+    }
+    const on = join(tmp, 'cache', 'on')
+    const off = join(tmp, 'cache', 'off')
+    put(join(on, 'skills', 'ux-copy', 'SKILL.md'), '---\nname: ux-copy\ndescription: Write microcopy\n---\n')
+    put(join(on, 'commands', 'debug.md'), '---\ndescription: Structured debugging\n---\n')
+    put(join(off, 'skills', 'hidden', 'SKILL.md'), '---\nname: hidden\ndescription: Disabled plugin skill\n---\n')
+    put(
+      join(home, '.claude', 'plugins', 'installed_plugins.json'),
+      JSON.stringify({ plugins: { 'design@mk': [{ installPath: on }], 'gone@mk': [{ installPath: off }] } })
+    )
+    put(join(home, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'design@mk': true, 'gone@mk': false } }))
+    const byName = Object.fromEntries((await listCommands(project, home)).map((c) => [c.name, c]))
+    expect(byName['design:ux-copy']).toMatchObject({ source: 'plugin skill', description: 'Write microcopy' })
+    expect(byName['design:debug']).toMatchObject({ source: 'plugin command', description: 'Structured debugging' })
+    expect(byName['gone:hidden']).toBeUndefined()
+  })
+
   it('copes with folders that do not exist', async () => {
     expect((await listCommands(join(tmp, 'nope'), join(tmp, 'nohome'))).every((c) => c.source === 'built-in')).toBe(true)
   })
