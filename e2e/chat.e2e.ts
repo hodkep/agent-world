@@ -156,3 +156,44 @@ test('after Esc interrupts a turn (Claude sends no Stop hook) the chat stops say
     await shutdown()
   }
 })
+
+test('a wide picture sits in a frame no wider than itself, and a command card has a copy button and coloured text', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-frame-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    // A 1600 x 500 picture: far wider than the 320px it is shown at.
+    const wide = await page.evaluate(async () => {
+      const c = document.createElement('canvas')
+      c.width = 1600
+      c.height = 500
+      const g = c.getContext('2d')!
+      g.fillStyle = '#336'
+      g.fillRect(0, 0, 1600, 500)
+      return Array.from(new Uint8Array(await (await new Promise<Blob>((r) => c.toBlob((b) => r(b!), 'image/png'))).arrayBuffer()))
+    })
+    await page.locator('.composer input[type=file]').setInputFiles({ name: 'wide.png', mimeType: 'image/png', buffer: Buffer.from(wide) })
+    await box.fill('add a health check')
+    await box.press('Enter')
+    const pic = log.locator('.msg.user .pic').first()
+    await expect(pic.locator('img')).toBeVisible({ timeout: 10_000 })
+    await expect.poll(async () => Math.abs((await pic.boundingBox())!.width - (await pic.locator('img').boundingBox())!.width)).toBeLessThan(6)
+
+    // The command card: a title, a copy button, and colour in the command.
+    const card = log.locator('.tc', { hasText: 'List the source folder' })
+    await expect(card).toContainText('$ ls src', { timeout: 10_000 })
+    await expect(card.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(1)
+    await expect(card.locator('.tc-cmd code span[class*="mtk"]').first()).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown()
+  }
+})

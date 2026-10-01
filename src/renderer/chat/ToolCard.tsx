@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Picture } from './Images'
-import { Markdown } from './markdown'
+import { Code, Markdown } from './markdown'
+import { bashTitle } from './titles'
 
 export interface ToolRun {
   name: string
@@ -34,6 +35,9 @@ function Output({ text, error }: { text: string; error?: boolean }) {
   return (
     <div className={`tc-out ${error ? 'is-error' : ''}`}>
       <pre>{shown.join('\n')}</pre>
+      <button className="tc-more tc-copy" onClick={() => void navigator.clipboard.writeText(text)} aria-label="Copy output">
+        Copy output
+      </button>
       {all.length > 6 && (
         <button className="tc-more" onClick={() => setOpen((o) => !o)}>
           {open ? 'Show less' : `Show all ${all.length} lines`}
@@ -75,18 +79,22 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
   let body: React.ReactNode = null
 
   switch (name) {
-    case 'Bash':
-      head = <span>Ran <span className="tc-muted">{s(input.description) || 'a command'}</span></span>
+    case 'Bash': {
+      const cmd = s(input.command)
+      const title = bashTitle(input)
+      head = (
+        <span title={cmd}>
+          Ran <span className="tc-muted">{title}</span>
+        </span>
+      )
       body = (
         <>
-          <pre className="tc-cmd">
-            <span aria-hidden="true">$ </span>
-            {s(input.command)}
-          </pre>
+          <Code text={cmd} lang="shell" className="tc-cmd" prompt="$ " />
           <Output text={out} error={failed} />
         </>
       )
       break
+    }
     case 'Read':
       head = <span>Read <File path={s(input.file_path)} /></span>
       body = failed ? <Output text={out} error /> : null

@@ -5,7 +5,7 @@ import markedAlert from 'marked-alert'
 import markedFootnote from 'marked-footnote'
 import { gfmHeadingId } from 'marked-gfm-heading-id'
 import markedKatex from 'marked-katex-extension'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { languageFor, monaco } from '../code/monaco'
 import { EMOJI } from './emoji'
 
@@ -139,5 +139,35 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
         void window.aw.openExternal(a.href).catch(() => {})
       }}
     />
+  )
+}
+
+/** A short piece of code or a command, coloured like the code blocks in a reply, with a Copy button. */
+export function Code({ text, lang, className = '', prompt }: { text: string; lang: string; className?: string; prompt?: string }) {
+  const code = useRef<HTMLElement>(null)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    const el = code.current
+    if (!el) return
+    el.textContent = text
+    void monaco.editor
+      .colorize(text, lang, { tabSize: 2 })
+      .then((h) => {
+        if (code.current === el) el.innerHTML = DOMPurify.sanitize(h).replace(/(<br\/?>)+$/, '')
+      })
+      .catch(() => {})
+  }, [text, lang])
+  return (
+    <pre className={`code-block ${className}`}>
+      {prompt && <span className="code-prompt" aria-hidden="true">{prompt}</span>}
+      <code ref={code} />
+      <button
+        className="copy always"
+        onClick={() => void navigator.clipboard.writeText(text).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1200)))}
+        aria-label="Copy"
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </pre>
   )
 }
