@@ -111,7 +111,8 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   const out = tag(trimmed, 'local-command-stdout')
   if (out !== undefined) {
     const clean = out.replace(ANSI, '').split('\n').filter((l) => !/^(Pre|Post)Compact .*completed successfully/.test(l.trim())).join('\n').trim()
-    return clean ? [{ kind: 'note', id, at, text: clean }] : []
+    // The compaction card already says so; "ctrl+o" does nothing here.
+    return clean && !/^Compacted\b/.test(clean) ? [{ kind: 'note', id, at, text: clean }] : []
   }
   // Caveats and reminders Claude inserts around the conversation are not the user's words.
   if (/^<(local-command-caveat|system-reminder|command-message)/.test(trimmed)) return []

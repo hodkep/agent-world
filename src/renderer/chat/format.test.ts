@@ -6,6 +6,27 @@ const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
 const say = (id: string, at: number, text: string): ChatItem => ({ kind: 'assistant', id, at, text })
 
+describe('a compaction', () => {
+  const cmd: ChatItem = { kind: 'command', id: 'c', at: t0, name: '/compact', args: '' }
+  const boundary: ChatItem = { kind: 'note', id: 'b', at: t0, text: 'Conversation compacted · 82k → 9k tokens (manual, 22s)' }
+  const summary: ChatItem = { kind: 'note', id: 's', at: t0, text: 'Conversation summary', detail: 'the summary' }
+
+  it('is one card, in place, without the /compact chip that caused it', () => {
+    const rows = toRows([user('u', t0, 'before'), cmd, boundary, summary, say('a', t0, 'after')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'note', 'assistant'])
+    expect(rows[1]).toMatchObject({ text: boundary.kind === 'note' && boundary.text, detail: 'the summary' })
+  })
+
+  it('is one card when the summary is written first, and an automatic one has no chip to drop', () => {
+    expect(toRows([cmd, summary, boundary], []).map((r) => r.kind)).toEqual(['note'])
+    expect(toRows([user('u', t0, 'before'), boundary, summary], []).map((r) => r.kind)).toEqual(['user', 'note'])
+  })
+
+  it('keeps other commands', () => {
+    expect(toRows([{ ...cmd, name: '/clear' }, boundary], []).map((r) => r.kind)).toEqual(['command', 'note'])
+  })
+})
+
 describe('chat rows', () => {
   it('folds a tool result into its call and joins a shell command with its output', () => {
     const items: ChatItem[] = [

@@ -72,8 +72,24 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         lastReply = row
         break
       }
-      default:
+      default: {
+        // /compact leaves a command, a boundary and a summary; they read as one card, where the compaction happened.
+        const isSummary = i.kind === 'note' && !!i.detail
+        const isBoundary = i.kind === 'note' && !i.detail && i.text.startsWith('Conversation compacted')
+        const prev = rows.at(-1)
+        if (isSummary && prev?.kind === 'note' && !prev.detail && prev.text.startsWith('Conversation compacted')) {
+          prev.detail = i.detail
+          break
+        }
+        if (isBoundary) {
+          const written = prev?.kind === 'note' && prev.text === 'Conversation summary' ? (rows.pop() as Extract<Row, { kind: 'note' }>) : undefined
+          const chip = rows.at(-1)
+          if (chip?.kind === 'command' && chip.name === '/compact') rows.pop()
+          rows.push({ kind: 'note', id: i.id, text: i.text, ...(written?.detail && { detail: written.detail }) })
+          break
+        }
         rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }) })
+      }
     }
   }
   endTurn()

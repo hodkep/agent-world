@@ -85,8 +85,9 @@ describe('compaction in the chat view', () => {
 
   it('strips colour codes from command output, with or without the escape byte', () => {
     const out = (t: string) => parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: `<local-command-stdout>${t}</local-command-stdout>` } }))
-    expect(out('\x1b[2mCompacted (ctrl+o to see full summary)\x1b[22m')).toMatchObject([{ kind: 'note', text: 'Compacted (ctrl+o to see full summary)' }])
-    expect(out('[2mCompacted[22m')).toMatchObject([{ text: 'Compacted' }])
+    expect(out('\x1b[2mCompacted (ctrl+o to see full summary)\x1b[22m')).toEqual([])
+    expect(out('[2mCompacted[22m')).toEqual([])
+    expect(out('[2mSomething else[22m')).toMatchObject([{ text: 'Something else' }])
     expect(out('PreCompact [x] completed successfully\nPostCompact [y] completed successfully')).toEqual([])
   })
 })
