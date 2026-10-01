@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
-import { isImagePath, modeLabel, rowText, splitMentions, toMarkdown, toRows } from './format'
+import { highlight, isImagePath, modeLabel, rowText, splitMentions, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -96,5 +96,23 @@ describe('file mentions in a message', () => {
     expect(isImagePath('/x/Shot.PNG')).toBe(true)
     expect(isImagePath('a.jpeg')).toBe(true)
     expect(isImagePath('notes.md')).toBe(false)
+  })
+})
+
+describe('highlighting what is typed in the message box', () => {
+  it('marks a leading command, a plugin skill and @file mentions, keeping every character', () => {
+    const text = '/impeccable:impeccable polish @"a b/shot.png" and @src/app.ts now'
+    const parts = highlight(text)
+    expect(parts.map((p) => p.text).join('')).toBe(text)
+    expect(parts.filter((p) => p.kind !== 'plain')).toEqual([
+      { kind: 'plugin', text: '/impeccable:impeccable' },
+      { kind: 'file', text: '@"a b/shot.png"' },
+      { kind: 'file', text: '@src/app.ts' }
+    ])
+    expect(highlight('/compact now')[0]).toEqual({ kind: 'command', text: '/compact' })
+  })
+
+  it('leaves a slash in the middle, email addresses and lone @ signs plain', () => {
+    expect(highlight('see /compact or a@b.com or @ x')).toEqual([{ kind: 'plain', text: 'see /compact or a@b.com or @ x' }])
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DevServer } from '../../shared/api'
+import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './picker'
 
 // The subset of the <webview> element used here.
 interface WebviewEl extends HTMLElement {
@@ -10,10 +11,13 @@ interface WebviewEl extends HTMLElement {
   canGoForward(): boolean
   getURL(): string
   loadURL(url: string): Promise<void>
+  executeJavaScript(code: string): Promise<unknown>
+  capturePage(rect?: { x: number; y: number; width: number; height: number }): Promise<{ toDataURL(): string; isEmpty(): boolean }>
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
-export function PreviewView({ servers, agentName }: { servers: DevServer[]; agentName: string }) {
+export function PreviewView({ servers, agentName, agentId, onAttached }: { servers: DevServer[]; agentName: string; agentId: string; onAttached: () => void }) {
+  const [picking, setPicking] = useState(false)
   const [port, setPort] = useState<number | null>(null)
   const view = useRef<WebviewEl | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +43,37 @@ export function PreviewView({ servers, agentName }: { servers: DevServer[]; agen
       el.removeEventListener('did-finish-load', ok)
     }
   }, [current?.url])
+
+  // Point at something on the page: it goes into the message box as words plus a picture of it.
+  useEffect(() => {
+    const el = view.current
+    if (!el) return
+    const heard = async (e: Event) => {
+      const msg = (e as Event & { message?: string }).message ?? ''
+      if (!msg.startsWith(PICK_MARK)) return
+      setPicking(false)
+      const picked = JSON.parse(msg.slice(PICK_MARK.length)) as PickedElement | null
+      if (!picked) return
+      let file: File | null = null
+      try {
+        const img = await el.capturePage(picked.rect)
+        if (!img.isEmpty()) file = new File([Uint8Array.from(atob(img.toDataURL().split(',')[1]!), (c) => c.charCodeAt(0))], `${picked.tag}-picked.png`, { type: 'image/png' })
+      } catch {
+        /* the words alone still go */
+      }
+      window.dispatchEvent(new CustomEvent('aw-context', { detail: { agentId, text: contextText(picked), file } }))
+      onAttached()
+    }
+    el.addEventListener('console-message', heard)
+    return () => el.removeEventListener('console-message', heard)
+  }, [current?.url, agentId, onAttached])
+  const togglePick = () => {
+    const el = view.current
+    if (!el) return
+    if (picking) void el.executeJavaScript("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+    else void el.executeJavaScript(PICKER_SOURCE).then(() => setPicking(true))
+    if (picking) setPicking(false)
+  }
 
   if (!current)
     return (
@@ -69,6 +104,9 @@ export function PreviewView({ servers, agentName }: { servers: DevServer[]; agen
         </button>
         <button onClick={() => view.current?.reload()} aria-label="Reload">
           Reload
+        </button>
+        <button className={picking ? 'primary' : ''} aria-pressed={picking} onClick={togglePick} title="Point at something on the page to send it to the agent as context (Esc cancels)">
+          {picking ? 'Click an element…' : 'Select element'}
         </button>
         <button onClick={() => void window.aw.openExternal(current.url)}>Open in browser</button>
       </div>

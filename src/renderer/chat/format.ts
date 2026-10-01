@@ -164,4 +164,17 @@ export function splitMentions(text: string): { file: boolean; text: string }[] {
   return out.length ? out : [{ file: false, text }]
 }
 
+/** What the message box is showing, split so a command or @file can be drawn differently; the pieces always join back to `text`. */
+export function highlight(text: string): { kind: 'plain' | 'command' | 'plugin' | 'file'; text: string }[] {
+  const out: { kind: 'plain' | 'command' | 'plugin' | 'file'; text: string }[] = []
+  let last = 0
+  for (const m of text.matchAll(/(^\/[\w.-]+(?::[\w.-]+)*)|(?<=^|\s)(@(?:"[^"]+"|[^\s"@]*[/.][^\s"@]*))/g)) {
+    if (m.index! > last) out.push({ kind: 'plain', text: text.slice(last, m.index) })
+    out.push({ kind: m[2] ? 'file' : m[1]!.includes(':') ? 'plugin' : 'command', text: m[0] })
+    last = m.index! + m[0].length
+  }
+  if (last < text.length) out.push({ kind: 'plain', text: text.slice(last) })
+  return out
+}
+
 export const isImagePath = (p: string) => /\.(png|jpe?g|gif|webp)$/i.test(p)

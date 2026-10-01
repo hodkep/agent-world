@@ -21,7 +21,8 @@ test('one agent asks another for help and the message lands in its terminal', as
     for (let i = 0; i < 2; i++) {
       await approve(page)
     }
-    const log = page.locator('.messages .message').first()
+    await page.getByRole('tab', { name: /^Traces/ }).click()
+    const log = page.locator('.traces .message').first()
     await expect(log).toContainText('ada')
     await expect(log).toContainText('linus')
     await expect(log).toContainText('please review auth.ts')

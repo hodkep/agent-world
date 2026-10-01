@@ -68,6 +68,7 @@ export function ToolsView({ agentId }: { agentId: string }) {
           ))}
         </ul>
       )}
+      <MemorySection agentId={agentId} />
       <div className="tools-head"><b>Plugins</b></div>
       {!info ? null : info.plugins.length === 0 ? <p className="hint">None installed.</p> : (
         <ul>
@@ -108,5 +109,55 @@ function AddServer({ busy, onAdd }: { busy: boolean; onAdd: (a: ManageAction) =>
       </button>
       <span className="hint">Kept to this project.</span>
     </form>
+  )
+}
+
+type Note = Awaited<ReturnType<typeof window.aw.memoryList>>[number]
+
+/** What the team has saved about this project. Agents add to it with `remember` and read it with `recall`; you can too. */
+function MemorySection({ agentId }: { agentId: string }) {
+  const [notes, setNotes] = useState<Note[] | null>(null)
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setNotes(null)
+    void window.aw.memoryList(agentId).then(setNotes, () => setNotes([]))
+  }, [agentId])
+  const add = () =>
+    window.aw.memoryAdd(agentId, text).then(
+      async () => (setText(''), setError(''), setNotes(await window.aw.memoryList(agentId))),
+      (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+    )
+  return (
+    <>
+      <div className="tools-head">
+        <b>Project memory</b>
+        <span className="hint">Shared by every agent in this project</span>
+      </div>
+      <form className="add-server" onSubmit={(e) => (e.preventDefault(), void add())}>
+        <input aria-label="Add a note" placeholder="Tell every agent something, e.g. tests run with pnpm test" value={text} onChange={(e) => setText(e.target.value)} />
+        <button type="submit" disabled={!text.trim()}>
+          Save
+        </button>
+      </form>
+      {error && <p className="hint bad">{error}</p>}
+      {notes === null ? null : notes.length === 0 ? (
+        <p className="hint">No notes yet. Agents save what a later agent should know here.</p>
+      ) : (
+        <ul>
+          {notes.map((n) => (
+            <li key={n.id}>
+              <span className="mark px" aria-hidden="true" />
+              <span className="grow">
+                {n.text} <span className="detail">{n.by} · {new Date(n.at).toLocaleDateString()}</span>
+              </span>
+              <button onClick={() => void window.aw.memoryForget(agentId, n.id).then(async () => setNotes(await window.aw.memoryList(agentId)))} aria-label={`Forget: ${n.text.slice(0, 40)}`}>
+                Forget
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }

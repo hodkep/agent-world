@@ -86,7 +86,6 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .dirty pre { margin: 0; max-height: 120px; overflow: auto; background: var(--ink); padding: 6px; }
 .terminals { flex: 1; min-height: 0; background: var(--well); }
 .term-host { height: 100%; padding: 8px 10px; }
-.messages { flex-direction: column; align-items: stretch; gap: 6px; max-height: 22vh; overflow: auto; }
 .message .status { float: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .message.is-queued .status { color: var(--accent); }
 .message.is-delivered .status { color: var(--ok); }
@@ -711,3 +710,46 @@ svg.pxi { display: block; flex: none; }
 .sw-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: min(460px, 86vw); max-height: 60vh; overflow: auto; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 24px rgb(0 0 0 / 0.5); }
 .sw-pop nav.roster { border: 0; max-height: none; }
 .sw-foot { display: flex; gap: 6px; padding: 6px; border-top: 2px solid var(--ink); }
+.traces { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--well); }
+.traces-head { display: flex; align-items: baseline; gap: 10px; }
+.traces ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.trace-row { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto auto; column-gap: 10px; row-gap: 2px; padding: 8px 10px; background: var(--panel); border: 2px solid var(--ink); color: var(--text); cursor: pointer; }
+.trace-row .status { float: none; }
+.trace-row .trace-time { font-size: 11px; color: var(--muted); }
+.trace-row .detail { grid-column: 1 / -1; color: var(--muted); font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.trace-row .detail.full { -webkit-line-clamp: unset; white-space: pre-wrap; }
+.tools li { display: flex; align-items: center; gap: 8px; }
+.tools li .mark { flex: none; }
+.tools li .grow { flex: 1; min-width: 0; }
+.tools li .status { flex: none; }
+
+.grid-area { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; background: var(--well); }
+.grid-area .grid-view { position: static; flex: 1; min-height: 0; }
+.grid-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 2px solid var(--ink); background: var(--panel); flex: none; }
+.grid-bar button { font-size: 12px; padding: 3px 10px; }
+.grid-bar button[aria-pressed='true'] { background: var(--accent, #f2c230); color: var(--ink); }
+.grid-bar-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 10px; }
+.panes { flex: 1; min-height: 0; display: grid; gap: 8px; padding: 8px; }
+.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 2px solid var(--ink); background: var(--panel); overflow: hidden; position: relative; }
+.pane.over { border-color: var(--accent, #f2c230); box-shadow: 0 0 0 2px var(--accent, #f2c230); }
+.pane.empty { border-style: dashed; align-items: center; justify-content: center; }
+.pane-head { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); cursor: grab; font-size: 13px; flex: none; }
+.pane-head button { font-size: 12px; padding: 0 7px; }
+.pane-act { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.pane .chat { flex: 1; min-height: 0; }
+.pane-empty { display: flex; flex-direction: column; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+.chat-menu { }
+
+/* The tint sits behind a see-through textarea; the mirror must match its font, padding, border and wrapping exactly. */
+.composer-input { position: relative; flex: 1; min-width: 0; display: flex; background: var(--well); }
+.composer-input textarea { background: transparent; position: relative; }
+.composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
+.composer-mirror mark { color: transparent; border-radius: 2px; }
+.composer-mirror .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
+.composer-mirror .tok-plugin { background: color-mix(in srgb, var(--ok) 35%, transparent); box-shadow: 0 0 0 1px var(--ok); }
+.composer-mirror .tok-file { background: color-mix(in srgb, var(--think) 30%, transparent); box-shadow: 0 0 0 1px var(--think); }
+.composer.is-shell .composer-mirror { font-family: Menlo, Consolas, monospace; }
+
+/* Inside the message box the tint sits behind a textarea that has its own padding and no border. */
+.cbox .composer-input { display: block; }
+.cbox .composer-mirror { padding: 10px 12px 4px; border: 0; }

@@ -5,7 +5,7 @@ import type { ChatItem } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, rowText, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, rowText, toMarkdown, toRows } from './format'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
@@ -29,7 +29,9 @@ const SOURCE_TAG: Record<PaletteCommand['source'], string> = {
   'project skill': 'skill',
   'project command': 'command',
   'your skill': 'skill',
-  'your command': 'command'
+  'your command': 'command',
+  'plugin skill': 'skill',
+  'plugin command': 'command'
 }
 
 interface Suggestion {
@@ -515,6 +517,7 @@ function Composer({
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
+  const mirror = useRef<HTMLDivElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   const recall = useRef(-1)
@@ -571,6 +574,21 @@ function Composer({
     },
     [agentId, onError]
   )
+
+  // Something picked on the Preview page arrives as words and a picture, ready to send with a question about it.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; handled?: boolean }>).detail
+      // The same agent can be open in the side panel and in a grid cell; only the first box takes it.
+      if (d.agentId !== agentId || d.handled) return
+      d.handled = true
+      if (d.file) void attach([d.file])
+      setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + d.text + '\n\n')
+      box.current?.focus()
+    }
+    window.addEventListener('aw-context', on)
+    return () => window.removeEventListener('aw-context', on)
+  }, [agentId, attach])
 
   // "/co" completes a command or skill and "@fi" a file or folder, wherever the caret is in the message.
   const end = Math.min(caret, text.length)
@@ -688,8 +706,15 @@ function Composer({
       )}
       <div className="cbox">
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
+        <div className="composer-input">
+          {/* Same text, same metrics, drawn behind the transparent textarea so commands and @files get a tint. */}
+          <div className="composer-mirror" ref={mirror} aria-hidden="true">
+            {highlight(text).map((p, i) => (p.kind === 'plain' ? p.text : <mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>))}
+            {'\n'}
+          </div>
         <textarea
           ref={box}
+          onScroll={(e) => mirror.current && (mirror.current.scrollTop = e.currentTarget.scrollTop)}
           value={text}
           rows={1}
           placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
@@ -735,6 +760,7 @@ function Composer({
             }
           }}
         />
+        </div>
         <div className="cbar">
           <input ref={pick} type="file" multiple hidden onChange={(e) => (void attach([...(e.target.files ?? [])]), (e.target.value = ''))} />
           <button className="cb-icon" onClick={() => pick.current?.click()} aria-label="Attach" title="Attach pictures or files (or paste, or drop them here)">

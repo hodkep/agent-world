@@ -1,0 +1,43 @@
+import { _electron as electron } from '@playwright/test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+const N = Number(process.argv[2] ?? 50)
+const tmp = mkdtempSync(join(tmpdir(), 'aw-load-'))
+const app = await electron.launch({ args: ['.'], env: { ...process.env, AW_HIDDEN: '1', AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve('e2e/fake-claude.mjs'), FAKE_DELAY_MS: '400' } })
+const proc = app.process()
+const log = (...a) => console.log(new Date().toISOString().slice(14, 19), ...a)
+const metrics = async () => app.evaluate(async ({ app }) => { const m = app.getAppMetrics(); return m.map((x) => ({ type: x.type, cpu: Math.round(x.cpu.percentCPUUsage), mb: Math.round(x.memory.workingSetSize / 1024) })) })
+try {
+  const page = await app.firstWindow()
+  await page.evaluate((f) => localStorage.setItem('aw.folder', f), tmp); await page.reload()
+  const t0 = Date.now()
+  const errs = []
+  for (let i = 0; i < N; i += 10) {
+    const batch = await Promise.allSettled(Array.from({ length: Math.min(10, N - i) }, () => page.evaluate((f) => window.aw.addAgent(f, {}), tmp)))
+    for (const r of batch) if (r.status === 'rejected') errs.push(r.reason.message.split('\n')[0])
+    log(`hired ${Math.min(i + 10, N)} in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+  }
+  log('errors:', errs.length, [...new Set(errs)].slice(0, 3))
+  await page.waitForTimeout(8000)
+  const agents = await page.evaluate(() => window.aw.listAgents())
+  log('agents:', agents.length, 'unique names:', new Set(agents.map((a) => a.name)).size)
+  log('activities:', JSON.stringify(agents.reduce((m, a) => ((m[a.activity ?? 'none'] = (m[a.activity ?? 'none'] ?? 0) + 1), m), {})))
+  log('metrics (idle-ish):', JSON.stringify((await metrics()).map((m) => `${m.type}:${m.cpu}%/${m.mb}MB`)))
+  // UI responsiveness: frames per second and event-loop lag with everything running
+  const ui = await page.evaluate(() => new Promise((res) => { let frames = 0; let worst = 0; let last = performance.now(); const t0 = last; const tick = (t) => { frames++; worst = Math.max(worst, t - last); last = t; if (t - t0 < 3000) requestAnimationFrame(tick); else res({ fps: Math.round(frames / 3), worstFrameMs: Math.round(worst) }) }; requestAnimationFrame(tick) }))
+  log('renderer:', JSON.stringify(ui))
+  // open the grid and watch it
+  await page.getByRole('button', { name: 'Grid', exact: true }).click()
+  await page.getByRole('list', { name: 'All agents' }).getByRole('listitem').nth(N - 1).waitFor({ timeout: 15000 })
+  log('grid tiles:', await page.getByRole('list', { name: 'All agents' }).getByRole('listitem').count())
+  const peek = await page.evaluate(async (ids) => { const t = performance.now(); await window.aw.peek(ids); return Math.round(performance.now() - t) }, agents.map((a) => a.id))
+  log('peek of all agents took', peek, 'ms')
+  await page.waitForTimeout(4000)
+  const ui2 = await page.evaluate(() => new Promise((res) => { let frames = 0; let worst = 0; let last = performance.now(); const t0 = last; const tick = (t) => { frames++; worst = Math.max(worst, t - last); last = t; if (t - t0 < 3000) requestAnimationFrame(tick); else res({ fps: Math.round(frames / 3), worstFrameMs: Math.round(worst) }) }; requestAnimationFrame(tick) }))
+  log('renderer with grid open:', JSON.stringify(ui2))
+  log('metrics (grid open):', JSON.stringify((await metrics()).map((m) => `${m.type}:${m.cpu}%/${m.mb}MB`)))
+  const need = await page.locator('.tile.needs').count()
+  log('tiles waiting on the user:', need)
+  await page.screenshot({ path: process.argv[3] ?? '/tmp/load.png' })
+} catch (e) { log('FAILED', e.message.split('\n')[0]) } finally { proc.kill('SIGKILL'); await new Promise((r) => setTimeout(r, 500)); rmSync(tmp, { recursive: true, force: true }); process.exit(0) }

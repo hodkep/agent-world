@@ -19,6 +19,8 @@ import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
+import { AGENT_DRAG, PaneGrid, fill, resize, type GridLayout } from './panel/PaneGrid'
+import { TracesView } from './panel/TracesView'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -78,7 +80,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -92,6 +94,16 @@ export function App() {
   const [settings, setSettings] = useState(false)
   const [finishing, setFinishing] = useState<string | null>(null)
   const [grid, setGrid] = useState(() => store('aw.grid') === '1')
+  // null shows the overview tiles; otherwise conversations side by side in this layout.
+  const [paneLayout, setPaneLayout] = useState<GridLayout | null>(() => {
+    try {
+      const l = JSON.parse(store('aw.gridLayout') || 'null') as GridLayout | null
+      return l && l.cols > 0 && l.rows > 0 && Array.isArray(l.cells) ? l : null
+    } catch {
+      return null
+    }
+  })
+  const changeLayout = (l: GridLayout | null) => (setPaneLayout(l), keep('aw.gridLayout', l ? JSON.stringify(l) : ''))
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
@@ -251,6 +263,27 @@ export function App() {
   useEffect(() => {
     if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
   })
+  const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
+    <ChatView
+      key={key}
+      agentId={a.id}
+      agentName={a.name}
+      activity={world[a.id]?.activity ?? 'asleep'}
+      detail={world[a.id]?.detail}
+      mode={world[a.id]?.mode}
+      asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
+      need={needsOf(a.id)[0] ?? null}
+      moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
+      needActions={needActions(a.id)}
+      visible={visible}
+      focusTick={focusTick}
+      limits={limits}
+      info={infoOf(a)}
+      actions={actionsOf(a)}
+      onWake={() => wake(a)}
+      onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
+    />
+  )
   const showPanel = (narrow ? drawer || agents.length === 0 : panelOpen) || hiring || history
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
@@ -396,7 +429,7 @@ export function App() {
                 return (
                   <Fragment key={a.id}>
                     {heading && <div className="group-head">{a.group}</div>}
-                  <button className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => (select(a.id), after?.())}>
+                  <button draggable onDragStart={(e) => (e.dataTransfer.setData(AGENT_DRAG, a.id), (e.dataTransfer.effectAllowed = 'copy'))} className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => (select(a.id), after?.())}>
                     <span className="dot" aria-hidden="true" />
                     <span className="name">
                       {a.name}
@@ -570,18 +603,58 @@ export function App() {
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {grid && agents.length > 0 && (
-            <GridView
-              selected={selected}
-              onOpen={(id) => select(id)}
-              tiles={agents.map((a) => ({
-                agent: a,
-                activity: world[a.id]?.activity ?? 'asleep',
-                detail: world[a.id]?.detail,
-                mode: world[a.id]?.mode,
-                stats: stats[a.id],
-                needs: needsOf(a.id)[0] ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null
-              }))}
-            />
+            <div className="grid-area">
+              <div className="grid-bar" role="toolbar" aria-label="Grid layout">
+                <button aria-pressed={!paneLayout} onClick={() => changeLayout(null)} title="Every agent as a tile with the last lines of its terminal">
+                  Overview
+                </button>
+                <span className="grid-bar-label">Conversations</span>
+                {(
+                  [
+                    [2, 1],
+                    [2, 2],
+                    [3, 2],
+                    [3, 3]
+                  ] as const
+                ).map(([c, r]) => (
+                  <button key={`${c}x${r}`} aria-pressed={paneLayout?.cols === c && paneLayout.rows === r} onClick={() => changeLayout(fill(paneLayout ? resize(paneLayout, c, r) : { cols: c, rows: r, cells: Array(c * r).fill(null) }, paneLayout ? [] : agents.map((a) => a.id)))}>
+                    {c}×{r}
+                  </button>
+                ))}
+                {paneLayout && (
+                  <>
+                    <button className="push" onClick={() => changeLayout(fill(paneLayout, agents.map((a) => a.id)))}>
+                      Add all
+                    </button>
+                    <button onClick={() => changeLayout({ ...paneLayout, cells: paneLayout.cells.map(() => null) })}>Empty grid</button>
+                  </>
+                )}
+              </div>
+              {paneLayout ? (
+                <PaneGrid
+                  layout={paneLayout}
+                  agents={agents}
+                  activity={(id) => world[id]?.activity ?? 'asleep'}
+                  modeOf={(id) => world[id]?.mode}
+                  onChange={changeLayout}
+                  onOpen={(id) => select(id)}
+                  renderChat={(a) => chatFor(a, true, `pane-${a.id}`)}
+                />
+              ) : (
+                <GridView
+                  selected={selected}
+                  onOpen={(id) => select(id)}
+                  tiles={agents.map((a) => ({
+                    agent: a,
+                    activity: world[a.id]?.activity ?? 'asleep',
+                    detail: world[a.id]?.detail,
+                    mode: world[a.id]?.mode,
+                    stats: stats[a.id],
+                    needs: needsOf(a.id)[0] ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null
+                  }))}
+                />
+              )}
+            </div>
           )}
           <div className="zoom-ctl" role="group" aria-label="View">
             <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
@@ -655,19 +728,6 @@ export function App() {
               <button className="danger" onClick={() => remove(dirty.id, 'discard')}>
                 Discard changes
               </button>
-            </section>
-          )}
-          {messages.length > 0 && (
-            <section className="messages" aria-label="Messages between agents">
-              {messages.slice(0, 5).map((m) => (
-                <div key={m.id} className={`message is-${m.status}`}>
-                  <b>{agents.find((a) => a.id === m.fromId)?.name ?? '?'}</b> → <b>{agents.find((a) => a.id === m.toId)?.name ?? '?'}</b>
-                  <span className="status">{m.status}</span>
-                  <div className="detail" title={m.text}>
-                    {m.text}
-                  </div>
-                </div>
-              ))}
             </section>
           )}
           {current && (
@@ -792,6 +852,9 @@ export function App() {
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
               </button>
+              <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
+                Traces{messages.length ? ` ${messages.length}` : ''}
+              </button>
               <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
               </button>
@@ -800,33 +863,14 @@ export function App() {
               </button>
             </div>
           )}
-          {agents.map((a) => (
-            <ChatView
-              key={a.id}
-              agentId={a.id}
-              agentName={a.name}
-              activity={world[a.id]?.activity ?? 'asleep'}
-              detail={world[a.id]?.detail}
-              mode={world[a.id]?.mode}
-              asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
-              need={needsOf(a.id)[0] ?? null}
-              moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
-              needActions={needActions(a.id)}
-              visible={a.id === selected && view === 'chat'}
-              focusTick={focusTick}
-              limits={limits}
-              info={infoOf(a)}
-              actions={actionsOf(a)}
-              onWake={() => wake(a)}
-              onTerminal={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}
-            />
-          ))}
+          {agents.map((a) => chatFor(a, a.id === selected && view === 'chat'))}
           <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
               <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
-          {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} />}
+          {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
+          {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
         </aside>
