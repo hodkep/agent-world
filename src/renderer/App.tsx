@@ -20,7 +20,8 @@ import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
-import { AGENT_DRAG, PaneGrid, fill, resize, type GridLayout } from './panel/PaneGrid'
+import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
+import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
@@ -98,13 +99,32 @@ export function App() {
   // null shows the overview tiles; otherwise conversations side by side in this layout.
   const [paneLayout, setPaneLayout] = useState<GridLayout | null>(() => {
     try {
-      const l = JSON.parse(store('aw.gridLayout') || 'null') as GridLayout | null
-      return l && l.cols > 0 && l.rows > 0 && Array.isArray(l.cells) ? l : null
+      return readLayout(JSON.parse(store('aw.gridLayout') || 'null'))
     } catch {
       return null
     }
   })
   const changeLayout = (l: GridLayout | null) => (setPaneLayout(l), keep('aw.gridLayout', l ? JSON.stringify(l) : ''))
+  // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
+  const [peek, setPeek] = useState(false)
+  // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good.
+  const shellsOpen = useRef(new Set<string>())
+  useEffect(() => {
+    const now = new Set(tilesOf(paneLayout?.root ?? null).filter(isTerm))
+    for (const id of shellsOpen.current) if (!now.has(id)) window.aw.closeShell(id)
+    shellsOpen.current = now
+  }, [paneLayout])
+  // After a restart the shells of an earlier run are gone: their panes go too.
+  useEffect(() => {
+    void window.aw.listShells().then((live) =>
+      setPaneLayout((l) => {
+        if (!l || !tilesOf(l.root).some((c) => isTerm(c) && !live.includes(c))) return l
+        const next = { root: keepOnly(l.root, (c) => !isTerm(c) || live.includes(c)) }
+        keep('aw.gridLayout', JSON.stringify(next))
+        return next
+      })
+    )
+  }, [])
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
@@ -285,7 +305,18 @@ export function App() {
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
     />
   )
-  const showPanel = (narrow ? drawer || agents.length === 0 : panelOpen) 
+  const panes = grid && !!paneLayout && agents.length > 0
+  useEffect(() => setPeek(false), [panes])
+  const showPanel = panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen
+  const folderName = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
+  // A shell in the project folder, added to the grid beside a tile, or wherever it fits.
+  const newTerminal = (drop?: TerminalDrop) =>
+    run(async () => {
+      if (!folder) return
+      const id = await window.aw.openShell(folder)
+      const root = paneLayout?.root ?? null
+      changeLayout({ root: drop ? place(root, id, drop.target, drop.zone) : add(root, id) })
+    })
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const state = current ? world[current.id] : undefined
@@ -597,7 +628,7 @@ export function App() {
         <button className="push" onClick={() => setSettings(true)} title="Notifications, defaults for new agents, where Claude is">
           Settings
         </button>
-        <button onClick={() => (narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
+        <button onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
           {showPanel ? 'Hide panel' : 'Show panel'}
         </button>
       </header>
@@ -610,25 +641,27 @@ export function App() {
                 <button aria-pressed={!paneLayout} onClick={() => changeLayout(null)} title="Every agent as a tile with the last lines of its terminal">
                   Overview
                 </button>
-                <span className="grid-bar-label">Conversations</span>
-                {(
-                  [
-                    [2, 1],
-                    [2, 2],
-                    [3, 2],
-                    [3, 3]
-                  ] as const
-                ).map(([c, r]) => (
-                  <button key={`${c}x${r}`} aria-pressed={paneLayout?.cols === c && paneLayout.rows === r} onClick={() => changeLayout(fill(paneLayout ? resize(paneLayout, c, r) : { cols: c, rows: r, cells: Array(c * r).fill(null) }, paneLayout ? [] : agents.map((a) => a.id)))}>
-                    {c}×{r}
-                  </button>
-                ))}
+                <button
+                  aria-pressed={!!paneLayout}
+                  onClick={() => !paneLayout && changeLayout({ root: even([current?.id ?? agents[0]!.id]) })}
+                  title="Conversations and terminals side by side: drag them in from the list, and the grid fits itself to them"
+                >
+                  Conversations
+                </button>
                 {paneLayout && (
                   <>
-                    <button className="push" onClick={() => changeLayout(fill(paneLayout, agents.map((a) => a.id)))}>
+                    <button className="push" onClick={() => changeLayout({ root: addAll(paneLayout.root, agents.map((a) => a.id)) })} title="Put every agent in the grid">
                       Add all
                     </button>
-                    <button onClick={() => changeLayout({ ...paneLayout, cells: paneLayout.cells.map(() => null) })}>Empty grid</button>
+                    <button onClick={() => void newTerminal()} title="A terminal in the project folder">
+                      + Terminal
+                    </button>
+                    <button onClick={() => changeLayout({ root: even(tilesOf(paneLayout.root)) })} title="Give every tile an equal share of the space again">
+                      Even out
+                    </button>
+                    <button onClick={() => changeLayout({ root: null })} title="Take everything out of the grid (agents keep working)">
+                      Empty grid
+                    </button>
                   </>
                 )}
               </div>
@@ -639,7 +672,9 @@ export function App() {
                   activity={(id) => world[id]?.activity ?? 'asleep'}
                   modeOf={(id) => world[id]?.mode}
                   onChange={changeLayout}
-                  onOpen={(id) => select(id)}
+                  onOpen={(id) => (setPeek(true), select(id))}
+                  folderName={folderName}
+                  onNewTerminal={(drop) => void newTerminal(drop)}
                   renderChat={(a) => chatFor(a, true, `pane-${a.id}`)}
                 />
               ) : (
@@ -872,7 +907,7 @@ export function App() {
           {agents.map((a) => chatFor(a, a.id === selected && view === 'chat'))}
           <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
-              <TerminalView key={a.id} agentId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
+              <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
           {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}

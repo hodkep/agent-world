@@ -5,7 +5,8 @@ import { useEffect, useRef } from 'react'
 import { mentionText } from '../../shared/mention'
 
 // `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
-export function TerminalView({ agentId, visible, focusTick }: { agentId: string; visible: boolean; focusTick: number }) {
+/** A terminal on one of the app's ptys: an agent's, or a shell in the grid (its id starts with `term:`). */
+export function TerminalView({ ptyId, visible, focusTick }: { ptyId: string; visible: boolean; focusTick: number }) {
   const el = useRef<HTMLDivElement>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -32,14 +33,14 @@ export function TerminalView({ agentId, visible, focusTick }: { agentId: string;
       if (end <= replayEnd) return
       term.write(start < replayEnd ? data.slice(replayEnd - start) : data)
     }
-    const offData = window.aw.onPtyData((id, data, end) => id === agentId && write(data, end))
-    void window.aw.ptyBuffer(agentId).then(({ text, end }) => {
+    const offData = window.aw.onPtyData((id, data, end) => id === ptyId && write(data, end))
+    void window.aw.ptyBuffer(ptyId).then(({ text, end }) => {
       term.write(text)
       replayEnd = end
       for (const c of early.splice(0)) write(c.data, c.end)
     })
-    const input = term.onData((d) => window.aw.ptyWrite(agentId, d))
-    const resize = term.onResize(({ cols, rows }) => window.aw.ptyResize(agentId, cols, rows))
+    const input = term.onData((d) => window.aw.ptyWrite(ptyId, d))
+    const resize = term.onResize(({ cols, rows }) => window.aw.ptyResize(ptyId, cols, rows))
     const ro = new ResizeObserver(() => el.current?.offsetParent && fit.fit())
     ro.observe(el.current!)
 
@@ -50,7 +51,7 @@ export function TerminalView({ agentId, visible, focusTick }: { agentId: string;
       ro.disconnect()
       term.dispose()
     }
-  }, [agentId])
+  }, [ptyId])
 
   useEffect(() => {
     // Selecting an agent means "talk to it": keys go straight to its terminal.
@@ -66,7 +67,7 @@ export function TerminalView({ agentId, visible, focusTick }: { agentId: string;
     e.preventDefault()
     const text = mentionText([...e.dataTransfer.files].map((f) => window.aw.pathOf(f)))
     if (text) {
-      window.aw.ptyWrite(agentId, text)
+      window.aw.ptyWrite(ptyId, text)
       termRef.current?.focus()
     }
   }

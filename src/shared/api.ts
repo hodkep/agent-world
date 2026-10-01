@@ -98,6 +98,10 @@ export interface AwApi {
   manageTools(agentId: string, action: import('./types').ManageAction): Promise<string>
   wakeAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
+  /** A shell in the project folder for a grid cell; its id starts with `term:` and works with the pty calls below. */
+  openShell(folder: string): Promise<string>
+  closeShell(id: string): void
+  listShells(): Promise<string[]>
   ptyWrite(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
   // `end` is the stream offset after the returned text, so live chunks already in it can be skipped.

@@ -28,9 +28,17 @@ test('the grid shows every agent with its terminal and opens the one you click',
   }
 })
 
+/** The tiles share the whole area between them: no gaps beyond the margins, nothing left empty. */
+async function expectFilled(page: import('@playwright/test').Page) {
+  const area = (await page.locator('.panes').boundingBox())!
+  const boxes = await page.locator('.pane').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => r.width * r.height))
+  const covered = boxes.reduce((a, b) => a + b, 0) / (area.width * area.height)
+  expect(covered).toBeGreaterThan(0.9)
+}
+
 const pane = (page: import('@playwright/test').Page, name: string) => page.locator(`.pane[aria-label="${name}'s conversation"]`)
 
-test('conversations can be laid out in the grid, filled by dragging agents in, and talked to there', async () => {
+test('conversations are added to the grid from the list on the left, and the grid fits itself to them', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-panes-'))
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
   try {
@@ -41,36 +49,45 @@ test('conversations can be laid out in the grid, filled by dragging agents in, a
     if (await page.locator('.scrim').count()) await page.locator('.scrim').click({ position: { x: 5, y: 5 } })
     await page.getByRole('button', { name: 'Grid', exact: true }).click()
     const bar = page.getByRole('toolbar', { name: 'Grid layout' })
-    await bar.getByRole('button', { name: '2×1' }).click()
-    // Two cells, filled with the first two agents.
-    await expect(pane(page, 'ada')).toBeVisible()
-    await expect(pane(page, 'linus')).toBeVisible()
-    await expect(pane(page, 'grace')).toHaveCount(0)
-
-    // Grow it, and drag grace from the list into an empty cell.
-    await bar.getByRole('button', { name: '2×2' }).click()
-    await expect(page.locator('.pane.empty')).toHaveCount(2)
-    await page.locator('.roster button', { hasText: 'grace' }).dragTo(page.locator('.pane.empty').first())
+    await bar.getByRole('button', { name: 'Conversations' }).click()
+    // No presets: it starts with the conversation you were in (the last one hired, grace), and the list on the left holds everything that can join it.
+    await expect(bar.getByRole('button', { name: /^\d×\d$/ })).toHaveCount(0)
+    await expect(page.locator('.pane')).toHaveCount(1)
     await expect(pane(page, 'grace')).toBeVisible()
+    const side = page.getByRole('complementary', { name: 'Agents and terminals to add' })
+    await expect(side.getByRole('button', { name: /^Terminal/ })).toBeVisible()
+    for (const name of ['ada', 'linus', 'grace']) await expect(side.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
 
-    // Drag a cell's title onto another cell to swap them.
-    const cellsBefore = await page.locator('.pane[aria-label$="conversation"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
-    await page.locator('.pane-head', { hasText: 'ada' }).dragTo(pane(page, 'linus'))
-    const cellsAfter = await page.locator('.pane[aria-label$="conversation"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
-    expect(cellsAfter).not.toEqual(cellsBefore)
+    // Click one in, drag another in: the grid grows with no empty cell.
+    await side.getByRole('button', { name: /^linus/ }).click()
+    await expect(page.locator('.pane')).toHaveCount(2)
+    await side.getByRole('button', { name: /^ada/ }).dragTo(page.locator('.panes'))
+    await expect(page.locator('.pane')).toHaveCount(3)
+    await expectFilled(page)
+    for (const name of ['ada', 'linus', 'grace']) await expect(pane(page, name)).toBeVisible()
 
-    // Talk to an agent right in its cell.
+    // Drag a pane's title onto another to move it.
+    const order = () => page.locator('.pane[aria-label$="conversation"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
+    const before = await order()
+    await page.locator('.pane-head', { hasText: 'ada' }).dragTo(pane(page, 'grace'), { targetPosition: { x: 20, y: 100 } })
+    expect(await order()).not.toEqual(before)
+
+    // Talk to an agent right in its pane.
     const box = pane(page, 'linus').getByRole('textbox', { name: 'Message linus' })
     await box.fill('add a health check')
     await box.press('Enter')
     await expect(pane(page, 'linus').locator('.msg.assistant').last()).toContainText('health.ts', { timeout: 15_000 })
 
-    // Take one out, and the layout is remembered.
+    // Take one out: the others fill the space, and the arrangement is remembered.
     await page.getByRole('button', { name: 'Remove grace from the grid' }).click()
     await expect(pane(page, 'grace')).toHaveCount(0)
+    await expect(page.locator('.pane')).toHaveCount(2)
+    await expectFilled(page)
     await page.reload()
     await expect(pane(page, 'ada')).toBeVisible()
     await expect(pane(page, 'grace')).toHaveCount(0)
+    // The one in the list that is not in the grid can still be added.
+    await expect(side).toBeVisible()
   } finally {
     await shutdown()
   }

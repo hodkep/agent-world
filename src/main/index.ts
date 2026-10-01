@@ -83,6 +83,8 @@ function loginShellPath() {
 let win: BrowserWindow | null = null
 let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
+// Plain shells opened in the grid, in the project folder: not agents, so they have no hooks, screen or chat. Ids start with `term:`.
+const shells = new Map<string, pty.IPty>()
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
@@ -1051,12 +1053,39 @@ async function main() {
   // Diagnostics only: the app's own view of an agent's screen, for figuring out what Claude drew.
   if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${looksWorking(screens.get(id)?.text() ?? '')} inputReady=${inputReady(screens.get(id)?.text() ?? '')}`)
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
-  ipcMain.on('pty-write', (_, id: string, data: string) => sessions.get(id)?.write(data))
+  ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => {
+    if (shells.has(id)) return void shells.get(id)!.resize(cols, rows)
     sizes.set(id, { cols, rows })
     sessions.get(id)?.resize(cols, rows)
     screens.get(id)?.resize(cols, rows)
   })
+  // A terminal for the grid: the user's own login shell, starting in the project folder.
+  ipcMain.handle('shell:open', (_, folder: string) => {
+    if (!isDir(folder)) throw new Error('That folder is not there any more.')
+    const id = `term:${randomUUID()}`
+    const file = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
+    const p = pty.spawn(file, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: env as Record<string, string> })
+    shells.set(id, p)
+    p.onData((d) => {
+      const b = buffers.get(id) ?? { text: '', end: 0 }
+      const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
+      buffers.set(id, next)
+      send('pty-data', id, d, next.end)
+    })
+    p.onExit(() => {
+      shells.delete(id)
+      buffers.delete(id)
+      send('pty-exit', id)
+    })
+    return id
+  })
+  ipcMain.on('shell:close', (_, id: string) => {
+    shells.get(id)?.kill()
+    shells.delete(id)
+    buffers.delete(id)
+  })
+  ipcMain.handle('shell:list', () => [...shells.keys()])
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
   ipcMain.handle('list-commands', (_, id: string) => {
     const a = byId(id)
@@ -1175,6 +1204,7 @@ async function main() {
     quitting = true
     clearInterval(heartbeat)
     for (const p of sessions.values()) p.kill()
+    for (const p of shells.values()) p.kill()
     clearInterval(idleCheck)
     hooks.close()
     mcp.close()
