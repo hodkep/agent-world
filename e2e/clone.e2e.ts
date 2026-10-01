@@ -32,7 +32,7 @@ test('clone an agent: its conversation is forked into a new worktree branched fr
     git(ada!.cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'ada work')
 
     await headMenu(page, /^Clone$/)
-    await expect(page.locator('.agent-head b')).toHaveText('linus', { timeout: 10_000 })
+    await expect(page.locator('.hc-name')).toHaveText('linus', { timeout: 10_000 })
     await expect(page.locator('.term-host:visible')).toContainText(`forked from ${ada!.sessionId}`, { timeout: 10_000 })
     const twin = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name !== 'ada')!
     expect(twin.branch).not.toBe(ada!.branch)
@@ -54,7 +54,7 @@ test('a clone can continue the conversation on another model', async () => {
     await approve(page)
     await expect.poll(async () => (await page.evaluate(() => window.aw.listAgents()))[0]!.started).toBe(true)
     await headMenu(page, 'Clone as Haiku')
-    await expect(page.locator('.agent-head b')).toHaveText('linus', { timeout: 10_000 })
+    await expect(page.locator('.hc-name')).toHaveText('linus', { timeout: 10_000 })
     const twin = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name === 'linus')!
     expect(twin.options?.model).toBe('haiku')
     await expect(page.locator('.term-host:visible')).toContainText('forked from', { timeout: 10_000 })

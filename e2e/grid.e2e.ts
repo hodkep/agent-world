@@ -18,7 +18,7 @@ test('the grid shows every agent with its terminal and opens the one you click',
     await expect(list.getByRole('listitem')).toHaveCount(2)
     await expect(list.getByRole('listitem').first()).toContainText('fake claude', { timeout: 10_000 })
     await list.getByRole('listitem', { name: /^ada/ }).click()
-    await expect(page.locator('.agent-head b')).toHaveText('ada')
+    await expect(page.locator('.hc-name')).toHaveText('ada')
     // In a narrow window the panel opens as a drawer over everything; a click outside closes it.
     if (await page.locator('.scrim').count()) await page.locator('.scrim').click({ position: { x: 5, y: 5 } })
     await page.getByRole('button', { name: 'Grid', exact: true }).click()

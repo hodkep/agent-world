@@ -16,7 +16,7 @@ test('after /clear gives the conversation a new session id, the agent keeps its 
     const row = page.locator('.roster button').first()
     // The post-/clear Grep arrives under the new session id and still moves this agent.
     await expect(row).toContainText('researching', { timeout: 10_000 })
-    await expect(page.locator('.agent-head')).toContainText('after-clear')
+    await expect(page.locator('aside')).toContainText('after-clear')
     const [saved] = JSON.parse(readFileSync(join(home, 'agents.json'), 'utf8'))
     expect(saved.sessionId).toMatch(/^cleared-/)
   } finally {

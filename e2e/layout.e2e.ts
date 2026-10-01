@@ -35,15 +35,13 @@ test('drag the panel edge to resize it, and fold the agent list away for more ro
     // Folding the agent list gives the conversation more height.
     const logHeight = async () => (await page.getByRole('log').boundingBox())!.height
     const tall = await logHeight()
-    await page.getByRole('button', { name: 'Hide agents' }).click()
+    // The list is folded away unless the layout asks for it (there is no button for it any more; the switcher in the slim header stands in).
+    await page.evaluate(() => localStorage.setItem('aw.compact', '1'))
+    await page.reload()
     await expect(page.locator('.roster')).toBeHidden()
     await expect(page.locator('.head-compact')).toContainText('ada')
     await expect.poll(logHeight).toBeGreaterThan(tall + 40)
-    // After a reload with the list folded, the agent that was open is open again, and the fold can be undone.
-    await page.reload()
-    await expect(page.locator('.head-compact')).toContainText('ada')
-    await page.getByRole('button', { name: 'Show agents' }).click()
-    await expect(page.locator('.roster')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Hide agents|Show agents/ })).toHaveCount(0)
 
     // With the list folded but no agent selected (say it went to sleep and nothing is open), the list stays visible so one can be picked.
     await page.evaluate(() => (localStorage.setItem('aw.compact', '1'), localStorage.setItem('aw.selected', '')))

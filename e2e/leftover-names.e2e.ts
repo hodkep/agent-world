@@ -23,7 +23,7 @@ test('a new agent never reuses a name whose branch an earlier agent left behind'
     await page.reload()
     await hire(page)
     // ada and linus are taken by old branches, so the first free name is used.
-    await expect(page.locator('.agent-head b')).toHaveText('grace')
+    await expect(page.locator('.hc-name')).toHaveText('grace')
 
     // Asking for a taken name says why instead of failing inside git.
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()

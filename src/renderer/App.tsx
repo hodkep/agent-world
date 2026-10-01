@@ -12,6 +12,7 @@ import { InputDialog, needTitle, type Need, type NeedActions } from './panel/Inp
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
 import { ChatView } from './chat/ChatView'
+import type { AgentActions, AgentInfo } from './chat/AgentControls'
 import { PreviewView } from './panel/PreviewView'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
@@ -61,12 +62,14 @@ const legacyFolder = () => {
 const MIN_PANEL = 340
 
 export function App() {
-  const [agents, setAgents] = useState<AgentRecord[]>([])
+  const [allAgents, setAgents] = useState<AgentRecord[]>([])
   const [world, setWorld] = useState<World>(emptyWorld)
   const [selected, setSelected] = useState<string | null>(null)
   const [asks, setAsks] = useState<PermissionRequest[]>([])
   const [workspaces, setWorkspaces] = useState<Workspaces | null>(null)
   const folder = workspaces?.active ?? null
+  // Each agent belongs to the folder it was hired in: switching folders shows that folder's crew, and the rest keep working in the background.
+  const agents = useMemo(() => (folder ? allAgents.filter((a) => a.repoPath === folder) : allAgents), [allAgents, folder])
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
@@ -96,22 +99,22 @@ export function App() {
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
   // The agent list and details fold into one line to leave the room to the conversation.
-  const [compact, setCompact] = useState(() => store('aw.compact') === '1')
+  // Folded away by default; the switcher in the slim header stands in for the list. Tests open it with aw.compact=0.
+  const compact = store('aw.compact') !== '0'
   const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
-  const [actionsOpen, setActionsOpen] = useState(false)
-  const [chipMenu, setChipMenu] = useState<'model' | 'effort' | null>(null)
-  // The head's pop-up menus close on a click elsewhere or Esc.
+  const [switcher, setSwitcher] = useState(false)
+  const switchWrap = useRef<HTMLSpanElement>(null)
   useEffect(() => {
-    if (!actionsOpen && !chipMenu) return
-    const away = (e: MouseEvent) => !(e.target as Element).closest?.('.agent-head .menu-wrap') && (setActionsOpen(false), setChipMenu(null))
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (setActionsOpen(false), setChipMenu(null))
+    if (!switcher) return
+    const away = (e: MouseEvent) => !switchWrap.current?.contains(e.target as Node) && setSwitcher(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSwitcher(false)
     window.addEventListener('mousedown', away)
     window.addEventListener('keydown', esc)
     return () => {
       window.removeEventListener('mousedown', away)
       window.removeEventListener('keydown', esc)
     }
-  }, [actionsOpen, chipMenu])
+  }, [switcher])
   const [renaming, setRenaming] = useState<string | null>(null)
   const [grouping, setGrouping] = useState(false)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
@@ -216,6 +219,12 @@ export function App() {
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  useEffect(() => {
+    if (selected && !current && allAgents.length) setSelected(null)
+  }, [selected, current, allAgents.length])
+  useEffect(() => {
+    office.current?.setWorkspace(folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : null)
+  }, [folder, officeReady])
   // The list only folds away while an agent is selected; with none selected it must stay, or there is no way to pick one.
   const folded = compact && !!current
   useEffect(() => {
@@ -326,7 +335,6 @@ export function App() {
 
   const askReview = (author: AgentRecord, reviewer: string) =>
     run(async () => {
-      setActionsOpen(false)
       const created = await window.aw.requestReview(author.id, reviewer)
       if (created) {
         setAgents((xs) => [...xs, created])
@@ -379,6 +387,71 @@ export function App() {
   const switchTo = (change: Parameters<typeof window.aw.reconfigure>[1]) => current && run(() => window.aw.reconfigure(current.id, change))
   const between = !state || ['idle', 'waiting'].includes(state.activity)
 
+  // The agent rows, shared by the list and by the switcher that stands in for it when the list is folded away.
+  const rosterRows = (after?: () => void) =>
+    [...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
+                const st = world[a.id]
+                const activity = st?.activity ?? 'asleep'
+                const heading = a.group && a.group !== all[i - 1]?.group
+                return (
+                  <Fragment key={a.id}>
+                    {heading && <div className="group-head">{a.group}</div>}
+                  <button className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => (select(a.id), after?.())}>
+                    <span className="dot" aria-hidden="true" />
+                    <span className="name">
+                      {a.name}
+                      {new Set(agents.map((x) => x.repoPath)).size > 1 && (
+                        <span className="proj" title={a.repoPath}>
+                          {a.repoPath.split(/[\\/]/).pop()}
+                        </span>
+                      )}
+                    </span>
+                    {needsOf(a.id).length > 0 ? (
+                      <span className="ask-pill" title="Waiting for you: click to answer">
+                        {needTitle(needsOf(a.id)[0]!).toLowerCase()}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="role">{st ? roleOf(st) : 'senior'}</span>
+                    <span className="activity">{activity}</span>
+                    <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
+                  </button>
+                  </Fragment>
+                )
+              })
+  // What the controls under each agent's message box show and can do.
+  const infoOf = (a: AgentRecord): AgentInfo => {
+    // Before the agent's first report there are no numbers yet, but the menus are still needed.
+    const st = stats[a.id]
+    const act = world[a.id]?.activity ?? 'asleep'
+    return {
+      model: st?.model ?? null,
+      effort: st?.effort ?? null,
+      fast: st?.fast ?? false,
+      contextPct: st?.contextPct ?? null,
+      costUsd: st?.costUsd ?? 0,
+      budgetUsd: a.options?.budgetUsd,
+      budgetAlert: budgetAlerts[a.id],
+      linesAdded: st?.linesAdded ?? 0,
+      linesRemoved: st?.linesRemoved ?? 0,
+      branch: a.branch,
+      canSwitch: act !== 'asleep' && ['idle', 'waiting'].includes(act),
+      started: !!a.started
+    }
+  }
+  const actionsOf = (a: AgentRecord): AgentActions => ({
+    switchTo: (change) => void run(() => window.aw.reconfigure(a.id, change)),
+    reviewers: agents.filter((x) => x.id !== a.id && (world[x.id]?.activity ?? 'asleep') !== 'asleep').map((x) => ({ id: x.id, name: x.name })),
+    askReview: (reviewer) => void askReview(a, reviewer),
+    clone: (model) => clone(a, model),
+    handbook: () => openHandbook(a),
+    tools: () => setView('tools'),
+    finish: () => setFinishing(a.id),
+    rename: () => setRenaming(a.id),
+    group: () => setGrouping(true),
+    remove: () => remove(a.id)
+  })
   const wake = (a: AgentRecord) =>
     run(async () => {
       await window.aw.wakeAgent(a.id)
@@ -561,236 +634,11 @@ export function App() {
           {hiring && <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
-              {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
-                const st = world[a.id]
-                const activity = st?.activity ?? 'asleep'
-                const heading = a.group && a.group !== all[i - 1]?.group
-                return (
-                  <Fragment key={a.id}>
-                    {heading && <div className="group-head">{a.group}</div>}
-                  <button className={`agent-row is-${activity} ${budgetAlerts[a.id] ? `budget-${budgetAlerts[a.id]}` : ''}`} aria-pressed={a.id === selected} onClick={() => select(a.id)}>
-                    <span className="dot" aria-hidden="true" />
-                    <span className="name">
-                      {a.name}
-                      {new Set(agents.map((x) => x.repoPath)).size > 1 && (
-                        <span className="proj" title={a.repoPath}>
-                          {a.repoPath.split(/[\\/]/).pop()}
-                        </span>
-                      )}
-                    </span>
-                    {needsOf(a.id).length > 0 ? (
-                      <span className="ask-pill" title="Waiting for you: click to answer">
-                        {needTitle(needsOf(a.id)[0]!).toLowerCase()}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <span className="role">{st ? roleOf(st) : 'senior'}</span>
-                    <span className="activity">{activity}</span>
-                    <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
-                  </button>
-                  </Fragment>
-                )
-              })}
+              {rosterRows()}
             </nav>
           )}
           {current ? (
-            <section className="agent-head" hidden={folded}>
-              <div className="head-main">
-                <div className="head-title">
-                {renaming === current.id ? (
-                  <input
-                    className="rename"
-                    aria-label="New name"
-                    defaultValue={current.name}
-                    maxLength={20}
-                    autoFocus
-                    onFocus={(e) => e.currentTarget.select()}
-                    onBlur={() => setRenaming(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setRenaming(null)
-                      if (e.key !== 'Enter') return
-                      const id = current.id
-                      window.aw.renameAgent(id, e.currentTarget.value).then(
-                        (name) => {
-                          setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
-                          setRenaming(null)
-                        },
-                        (err: Error) => setError(err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
-                      )
-                    }}
-                  />
-                ) : (
-                  <b title="Double-click to rename" onDoubleClick={() => setRenaming(current.id)}>
-                    {current.name}
-                  </b>
-                )}
-                <span className="role">{state ? roleOf(state) : 'senior'}</span>
-                {current.options?.role && <span className="job-tag">{current.options.role}</span>}
-                {grouping ? (
-                  <>
-                    <input
-                      className="rename"
-                      aria-label="Group"
-                      list="groups"
-                      placeholder="group"
-                      defaultValue={current.group ?? ''}
-                      maxLength={24}
-                      autoFocus
-                      onBlur={() => setGrouping(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setGrouping(false)
-                        if (e.key !== 'Enter') return
-                        const id = current.id
-                        const group = e.currentTarget.value.trim()
-                        void window.aw.setGroup(id, group).then(() => {
-                          setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, group: group || undefined } : a)))
-                          setGrouping(false)
-                        })
-                      }}
-                    />
-                    <datalist id="groups">
-                      {[...new Set(agents.flatMap((a) => (a.group ? [a.group] : [])))].map((g) => (
-                        <option key={g} value={g} />
-                      ))}
-                    </datalist>
-                  </>
-                ) : (
-                  current.group && (
-                    <button className="group-tag" onClick={() => setGrouping(true)} title="Change this agent's group">
-                      {current.group}
-                    </button>
-                  )
-                )}
-                </div>
-                <div className="detail">
-                  {current.branch ?? 'shared folder'} · {state?.activity ?? 'asleep'}
-                  {state?.detail ? ` · ${state.detail}` : ''}
-                </div>
-                {cur && (
-                  <div className="meters" aria-label="Session usage">
-                    <span className="menu-wrap">
-                      <button className="chip" disabled={!between || (state?.activity ?? 'asleep') === 'asleep'} aria-haspopup="menu" aria-expanded={chipMenu === 'model'} onClick={() => setChipMenu((m) => (m === 'model' ? null : 'model'))} title={between ? 'Switch model for the next turn' : 'Available between turns'}>
-                        {cur.model ?? 'model ?'}
-                      </button>
-                      {chipMenu === 'model' && (
-                        <div className="pop-menu" role="menu" aria-label="Model">
-                          {MODELS.filter((m) => m.value).map((m) => (
-                            <button key={m.value} role="menuitemradio" aria-checked={false} onClick={() => (setChipMenu(null), switchTo({ model: m.value }))}>
-                              {m.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </span>
-                    {cur.effort && (
-                      <span className="menu-wrap">
-                        <button className="chip" disabled={!between || (state?.activity ?? 'asleep') === 'asleep'} aria-haspopup="menu" aria-expanded={chipMenu === 'effort'} onClick={() => setChipMenu((m) => (m === 'effort' ? null : 'effort'))} title={between ? 'Switch effort for the next turn' : 'Available between turns'}>
-                          effort {cur.effort}
-                        </button>
-                        {chipMenu === 'effort' && (
-                          <div className="pop-menu" role="menu" aria-label="Effort">
-                            {EFFORTS.filter((m) => m.value).map((m) => (
-                              <button key={m.value} role="menuitemradio" aria-checked={m.value === cur.effort} onClick={() => (setChipMenu(null), switchTo({ effort: m.value as Effort }))}>
-                                {m.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </span>
-                    )}
-                    {cur.fast && <span>fast</span>}
-                    {cur.contextPct !== null && (
-                      <span className="ctx" title={`${Math.round(cur.contextPct)}% of the context window used`}>
-                        <span className="bar">
-                          <span style={{ width: `${Math.min(100, cur.contextPct)}%` }} className={cur.contextPct > 80 ? 'hot' : cur.contextPct > 60 ? 'warm' : ''} />
-                        </span>
-                        {Math.round(cur.contextPct)}%
-                      </span>
-                    )}
-                    <span className={budgetAlerts[current.id] ? `budget-${budgetAlerts[current.id]}` : ''}>
-                      ${cur.costUsd.toFixed(2)}
-                      {current.options?.budgetUsd ? ` / $${current.options.budgetUsd.toFixed(2)}` : ''}
-                    </span>
-                    <span>
-                      +{cur.linesAdded} −{cur.linesRemoved}
-                    </span>
-                  </div>
-                )}
-                {state?.tasks && state.tasks.length > 0 && (
-                  <ul className="tasks" aria-label="Tasks">
-                    {state.tasks.map((t) => (
-                      <li key={t.id} className={`task is-${t.status}`}>
-                        <span className="mark" aria-hidden="true" />
-                        {t.subject}
-                        <span className="sr-only"> ({t.status.replace('_', ' ')})</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="head-actions">
-                {(state?.activity ?? 'asleep') === 'asleep' && (
-                  <button className="primary" onClick={() => wake(current)}>
-                    Wake
-                  </button>
-                )}
-                {current.branch && (
-                  <button onClick={() => setFinishing(current.id)} title="Check the work is ready, then merge it into the base branch">
-                    Finish
-                  </button>
-                )}
-                <span className="menu-wrap">
-                  <button onClick={() => setActionsOpen((o) => !o)} aria-haspopup="menu" aria-expanded={actionsOpen} aria-label="More actions" title="More actions">
-                    ⋯
-                  </button>
-                  {actionsOpen && (
-                    <div className="pop-menu right" role="menu" aria-label="Agent actions">
-                      {(state?.activity ?? 'asleep') !== 'asleep' && (
-                        <button role="menuitem" onClick={() => (setActionsOpen(false), setPalette(true))} title="Run a command, skill or custom slash command (⌘K)">
-                          Commands
-                        </button>
-                      )}
-                      {current.branch && (
-                        <button role="menuitem" onClick={() => (setActionsOpen(false), openHandbook(current))} title="CLAUDE.md: the standing instructions every agent reads when it starts">
-                          Handbook
-                        </button>
-                      )}
-                      <button role="menuitem" onClick={() => (setActionsOpen(false), setGrouping(true))} title="Group this agent in the list">
-                        Group…
-                      </button>
-                      {current.branch && <div className="menu-label">Review</div>}
-                      {current.branch &&
-                        agents
-                          .filter((a) => a.id !== current.id && (world[a.id]?.activity ?? 'asleep') !== 'asleep')
-                          .map((a) => (
-                            <button key={a.id} role="menuitem" onClick={() => (setActionsOpen(false), void askReview(current, a.id))}>
-                              Ask {a.name} to review
-                            </button>
-                          ))}
-                      {current.branch && (
-                        <button role="menuitem" onClick={() => (setActionsOpen(false), void askReview(current, 'new'))}>
-                          Hire a new reviewer
-                        </button>
-                      )}
-                      <div className="menu-label">Copy this conversation</div>
-                      <button role="menuitem" disabled={!current.started} onClick={() => (setActionsOpen(false), clone(current))} title="A second agent that continues a copy of this conversation, in its own branch. Uncommitted edits stay behind.">
-                        Clone
-                      </button>
-                      {MODELS.filter((m) => m.value).map((m) => (
-                        <button key={m.value} role="menuitem" disabled={!current.started} onClick={() => (setActionsOpen(false), clone(current, m.value))} title="Continue this conversation in a copy that runs on a different model">
-                          Clone as {m.label}
-                        </button>
-                      ))}
-                      <div className="menu-sep" />
-                      <button role="menuitem" className="danger-item" onClick={() => (setActionsOpen(false), remove(current.id))}>
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </span>
-              </div>
-            </section>
+            null
           ) : (
             agents.length ? (
               <p className="hint">Pick an agent from the list above, or click its character.</p>
@@ -822,11 +670,89 @@ export function App() {
               ))}
             </section>
           )}
-          {current && folded && (
+          {current && (
             <section className="head-compact" aria-label="Selected agent">
               <button onClick={() => step(-1)} aria-label="Previous agent" className="hc-step hc-prev" />
               <button onClick={() => step(1)} aria-label="Next agent" className="hc-step hc-next" />
-              <b className="hc-name">{current.name}</b>
+              <span className="hc-wrap" ref={switchWrap}>
+                <button className="hc-switch" onClick={() => setSwitcher((o) => !o)} aria-haspopup="menu" aria-expanded={switcher} aria-label="Agents" title="All agents in this project">
+                  {agents.length}
+                  <span aria-hidden="true">▾</span>
+                </button>
+                {switcher && (
+                  <div className="sw-pop" role="menu" aria-label="Agents">
+                    <nav className="roster" aria-label="Agent list">
+                      {rosterRows(() => setSwitcher(false))}
+                    </nav>
+                    <div className="sw-foot">
+                      <button onClick={() => (setSwitcher(false), setHiring(true))}>+ Agent</button>
+                    </div>
+                  </div>
+                )}
+              </span>
+              {renaming === current.id ? (
+                <input
+                  className="rename"
+                  aria-label="New name"
+                  defaultValue={current.name}
+                  maxLength={20}
+                  autoFocus
+                  onFocus={(e) => e.currentTarget.select()}
+                  onBlur={() => setRenaming(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setRenaming(null)
+                    if (e.key !== 'Enter') return
+                    const id = current.id
+                    window.aw.renameAgent(id, e.currentTarget.value).then(
+                      (name) => {
+                        setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
+                        setRenaming(null)
+                      },
+                      (err: Error) => setError(err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+                    )
+                  }}
+                />
+              ) : (
+                <b className="hc-name" title="Double-click to rename" onDoubleClick={() => setRenaming(current.id)}>
+                  {current.name}
+                </b>
+              )}
+              {current.options?.role && <span className="job-tag">{current.options.role}</span>}
+              {grouping ? (
+                <>
+                  <input
+                    className="rename"
+                    aria-label="Group"
+                    list="groups"
+                    placeholder="group"
+                    defaultValue={current.group ?? ''}
+                    maxLength={24}
+                    autoFocus
+                    onBlur={() => setGrouping(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setGrouping(false)
+                      if (e.key !== 'Enter') return
+                      const id = current.id
+                      const group = e.currentTarget.value.trim()
+                      void window.aw.setGroup(id, group).then(() => {
+                        setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, group: group || undefined } : a)))
+                        setGrouping(false)
+                      })
+                    }}
+                  />
+                  <datalist id="groups">
+                    {[...new Set(agents.flatMap((a) => (a.group ? [a.group] : [])))].map((g) => (
+                      <option key={g} value={g} />
+                    ))}
+                  </datalist>
+                </>
+              ) : (
+                current.group && (
+                  <button className="group-tag" onClick={() => setGrouping(true)} title="Change this agent's group">
+                    {current.group}
+                  </button>
+                )
+              )}
               <span className={`hc-state is-${state?.activity ?? 'asleep'}`}>{state?.activity ?? 'asleep'}</span>
               {state?.mode && state.mode !== 'default' && (
                 <span className="hc-mode" style={{ color: cssColor(modeInfo(state.mode).color) }}>
@@ -835,11 +761,22 @@ export function App() {
               )}
               {cur && <span className="hc-cost">${cur.costUsd.toFixed(2)}</span>}
               {agents.some((a) => a.id !== current.id && needsOf(a.id).length > 0) && (
-                <button className="ask-pill" onClick={() => setCompact(false)} title="Another agent is waiting for you">
+                <button className="ask-pill" onClick={() => setSwitcher(true)} title="Another agent is waiting for you">
                   others waiting
                 </button>
               )}
             </section>
+          )}
+          {current && state?.tasks && state.tasks.length > 0 && (
+            <ul className="tasks" aria-label="Tasks">
+              {state.tasks.map((t) => (
+                <li key={t.id} className={`task is-${t.status}`}>
+                  <span className="mark" aria-hidden="true" />
+                  {t.subject}
+                  <span className="sr-only"> ({t.status.replace('_', ' ')})</span>
+                </li>
+              ))}
+            </ul>
           )}
           {current && (
             <div className="tabs" role="tablist" aria-label="Agent view">
@@ -858,16 +795,7 @@ export function App() {
               <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
               </button>
-              <button
-                className="push icon-btn"
-                onClick={() => (setCompact((c) => !c), keep('aw.compact', compact ? '' : '1'))}
-                aria-pressed={folded}
-                aria-label={folded ? 'Show agents' : 'Hide agents'}
-                title={folded ? 'Show the agent list and details' : 'Fold the agent list and details into one line, for more room to talk'}
-              >
-                {folded ? '⇥' : '⇤'}
-              </button>
-              <button className="icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
+              <button className="push icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
                 {wide ? '⤡' : '⤢'}
               </button>
             </div>
@@ -886,6 +814,9 @@ export function App() {
               needActions={needActions(a.id)}
               visible={a.id === selected && view === 'chat'}
               focusTick={focusTick}
+              limits={limits}
+              info={infoOf(a)}
+              actions={actionsOf(a)}
               onWake={() => wake(a)}
               onTerminal={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}
             />

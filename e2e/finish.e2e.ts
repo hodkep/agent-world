@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { headMenu, hire, launchApp } from './launch'
 
 test('Finish checks the work is ready, squashes it onto the base branch and retires the agent', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
@@ -25,7 +25,7 @@ test('Finish checks the work is ready, squashes it onto the base branch and reti
     git(ada!.cwd, 'add', '-A')
     git(ada!.cwd, 'commit', '-qm', 'add health')
 
-    await page.getByRole('button', { name: 'Finish', exact: true }).click()
+    await headMenu(page, 'Finish')
     const dialog = page.getByRole('dialog', { name: "Finish ada's work" })
     await expect(dialog).toContainText('1 commit on aw/ada to land')
     await expect(dialog).toContainText('No conflicts with main')
@@ -59,7 +59,7 @@ test('Finish says what is in the way instead of landing', async () => {
     await hire(page, { name: 'ada' })
     const [ada] = await page.evaluate(() => window.aw.listAgents())
     writeFileSync(join(ada!.cwd, 'wip.ts'), 'x\n')
-    await page.getByRole('button', { name: 'Finish', exact: true }).click()
+    await headMenu(page, 'Finish')
     const dialog = page.getByRole('dialog', { name: "Finish ada's work" })
     await expect(dialog).toContainText('Nothing to land')
     await expect(dialog).toContainText('1 file not committed yet')

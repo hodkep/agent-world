@@ -250,3 +250,36 @@ export function drawHiringSign(map: OfficeMap): G {
   for (const lx of [x + 4, x + 50]) r(g, lx, y - 2, 2, 2, 0xf6d27a)
   return g
 }
+
+const MAX_BILLBOARD = 22
+
+/** A roadside hoarding behind the office, naming the folder the office is working in. */
+export function paintBillboard(g: G, name: string | null) {
+  g.clear()
+  if (!name) return
+  const label = name.length > MAX_BILLBOARD ? `${name.slice(0, MAX_BILLBOARD - 1)}.` : name
+  const title = textPixels(label)
+  const caption = textPixels('now working in')
+  const faceW = Math.max(title[0]!.length * 2, caption[0]!.length) + 16
+  const faceH = 30
+  const x = 12
+  const y = -50
+  const poleTop = y + faceH
+  ellipse(g, x + faceW / 2, -4, faceW / 2 + 4, 4, 0x000000, 0.3)
+  for (const px of [x + 8, x + faceW - 11]) {
+    r(g, px, poleTop, 3, -4 - poleTop, INK)
+    r(g, px + 1, poleTop, 1, -4 - poleTop, 0x8e5b34)
+  }
+  r(g, x, y, faceW, faceH, INK)
+  r(g, x + 2, y + 2, faceW - 4, faceH - 4, 0x1c2a4a)
+  r(g, x + 2, y + 2, faceW - 4, 1, 0x2e4474)
+  const paint = (rows: string[], ox: number, oy: number, cell: number, color: number) =>
+    rows.forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, ox + rx * cell, oy + ry * cell, cell, cell, color)))
+  paint(caption, x + Math.floor((faceW - caption[0]!.length) / 2), y + 6, 1, 0x8fa0c8)
+  paint(title, x + Math.floor((faceW - title[0]!.length * 2) / 2), y + 14, 2, 0xf2c230)
+  for (const lx of [x + faceW / 4, x + (faceW * 3) / 4]) {
+    r(g, lx - 1, y - 5, 3, 3, INK)
+    r(g, lx, y - 4, 1, 1, 0xf6d27a)
+    r(g, lx - 1, y - 2, 3, 2, INK)
+  }
+}

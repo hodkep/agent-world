@@ -10,6 +10,9 @@ import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
 import { ToolCard } from './ToolCard'
+import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
+import { PixelIcon } from './PixelIcon'
+import type { UsageLimits } from '../../shared/usage'
 
 const BUSY: Activity[] = ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting']
 const VERB: Partial<Record<Activity, string>> = {
@@ -19,6 +22,24 @@ const VERB: Partial<Record<Activity, string>> = {
   running: 'is running a command',
   delegating: 'is delegating',
   compacting: 'is compacting the conversation'
+}
+
+const SOURCE_TAG: Record<PaletteCommand['source'], string> = {
+  'built-in': 'built-in',
+  'project skill': 'skill',
+  'project command': 'command',
+  'your skill': 'skill',
+  'your command': 'command'
+}
+
+interface Suggestion {
+  label: string
+  hint: string
+  /** What replaces text[from, to]. */
+  insert: string
+  from: number
+  to: number
+  tag?: string
 }
 
 const drafts = new Map<string, string>()
@@ -53,6 +74,9 @@ export function ChatView({
   needActions,
   visible,
   focusTick,
+  info,
+  actions,
+  limits,
   onWake,
   onTerminal
 }: {
@@ -69,6 +93,9 @@ export function ChatView({
   needActions: NeedActions
   visible: boolean
   focusTick: number
+  info?: AgentInfo
+  actions: AgentActions
+  limits: UsageLimits
   onWake: () => void
   onTerminal: () => void
 }) {
@@ -269,6 +296,9 @@ export function ChatView({
         mode={mode}
         visible={visible}
         focusTick={focusTick}
+        info={info}
+        actions={actions}
+        limits={limits}
         onSend={send}
         onWake={onWake}
         onStop={() => void window.aw.chatInterrupt(agentId)}
@@ -445,6 +475,9 @@ function Composer({
   mode,
   visible,
   focusTick,
+  info,
+  actions,
+  limits,
   onSend,
   onWake,
   onStop,
@@ -461,6 +494,9 @@ function Composer({
   mode?: string
   visible: boolean
   focusTick: number
+  info?: AgentInfo
+  actions: AgentActions
+  limits: UsageLimits
   onSend: (text: string) => Promise<void>
   onWake: () => void
   onStop: () => void
@@ -473,6 +509,7 @@ function Composer({
   const [commands, setCommands] = useState<PaletteCommand[]>([])
   const [files, setFiles] = useState<string[]>([])
   const [at, setAt] = useState(0)
+  const [caret, setCaret] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
@@ -535,26 +572,48 @@ function Composer({
     [agentId, onError]
   )
 
-  // "/co" completes commands; the last "@word" completes a file or folder.
-  const slash = /^\/(\S*)$/.exec(text)
-  const mention = /(?:^|\s)@([^\s@]*)$/.exec(text)
+  // "/co" completes a command or skill and "@fi" a file or folder, wherever the caret is in the message.
+  const end = Math.min(caret, text.length)
+  const before = text.slice(0, end)
+  const slash = /(?:^|\s)\/(\S*)$/.exec(before)
+  const mention = /(?:^|\s)@([^\s@]*)$/.exec(before)
+  const startOf = (m: RegExpExecArray) => m.index + (/^\s/.test(m[0]) ? 1 : 0)
   const folders = useMemo(() => [...new Set(files.flatMap((f) => f.split('/').slice(0, -1).map((_, i, a) => `${a.slice(0, i + 1).join('/')}/`)))], [files])
-  const suggestions = useMemo<{ label: string; hint: string; insert: string }[]>(() => {
+  const suggestions = useMemo<Suggestion[]>(() => {
+    // Inserted mid-sentence, a completion needs a space after it unless one is already there.
+    const tail = /^\s|^$/.test(text.slice(end)) ? '' : ' '
     if (slash) {
       const q = slash[1]!.toLowerCase()
-      return commands.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 8).map((c) => ({ label: `/${c.name}`, hint: c.description, insert: `/${c.name}${c.args ? ' ' : ''}` }))
+      const from = startOf(slash)
+      // Names that start with what was typed come first, then names containing it, then descriptions.
+      const rank = (c: PaletteCommand) => {
+        const n = c.name.toLowerCase()
+        return n.startsWith(q) ? 0 : n.includes(q) ? 1 : c.description.toLowerCase().includes(q) ? 2 : 3
+      }
+      return commands
+        .map((c) => ({ c, r: rank(c) }))
+        .filter((x) => x.r < 3)
+        .sort((a, b) => a.r - b.r)
+        .slice(0, 40)
+        .map(({ c }) => ({ label: `/${c.name}`, hint: c.description, insert: `/${c.name}${c.args ? ' ' : tail}`, from, to: end, tag: SOURCE_TAG[c.source] }))
     }
     if (mention) {
       const q = mention[1]!.toLowerCase()
-      const head = text.slice(0, mention.index + (mention[0].startsWith('@') ? 0 : 1))
+      const from = startOf(mention)
       return [...folders, ...files]
         .filter((f) => f.toLowerCase().includes(q))
         .sort((a, b) => Number(b.toLowerCase().startsWith(q)) - Number(a.toLowerCase().startsWith(q)))
-        .slice(0, 8)
-        .map((f) => ({ label: f, hint: f.endsWith('/') ? 'folder' : '', insert: head + (/\s/.test(f) ? `@"${f}"` : `@${f}`) + (f.endsWith('/') ? '' : ' ') }))
+        .slice(0, 40)
+        .map((f) => ({ label: f, hint: '', tag: f.endsWith('/') ? 'folder' : 'file', from, to: end, insert: (/\s/.test(f) ? `@"${f}"` : `@${f}`) + (f.endsWith('/') ? '' : ' ') }))
     }
     return []
-  }, [slash?.[1], mention?.[1], commands, files, folders, text])
+  }, [slash?.[1], mention?.[1], commands, files, folders, text, end])
+  const apply = (s: Suggestion) => {
+    setText(text.slice(0, s.from) + s.insert + text.slice(s.to))
+    const pos = s.from + s.insert.length
+    setCaret(pos)
+    requestAnimationFrame(() => box.current?.setSelectionRange(pos, pos))
+  }
   useEffect(() => setAt(0), [suggestions.length, slash?.[1], mention?.[1]])
 
   const submit = async () => {
@@ -600,9 +659,10 @@ function Composer({
       {suggestions.length > 0 && (
         <ul className="suggest" role="listbox" aria-label="Suggestions">
           {suggestions.map((s, i) => (
-            <li key={s.label} role="option" aria-selected={i === at} onMouseDown={(e) => (e.preventDefault(), setText(s.insert), box.current?.focus())} onMouseEnter={() => setAt(i)}>
+            <li key={s.label} ref={i === at ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined} role="option" aria-selected={i === at} onMouseDown={(e) => (e.preventDefault(), apply(s), box.current?.focus())} onMouseEnter={() => setAt(i)}>
               <b>{s.label}</b>
-              {s.hint && <span>{s.hint}</span>}
+              {s.hint && <span className="sg-desc">{s.hint}</span>}
+              {s.tag && <i className={`tag tag-${s.tag}`}>{s.tag}</i>}
             </li>
           ))}
         </ul>
@@ -626,15 +686,16 @@ function Composer({
           ))}
         </ul>
       )}
-      <div className="composer-row">
+      <div className="cbox">
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
         <textarea
           ref={box}
           value={text}
           rows={1}
-          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands  ·  @ files`}
+          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
           aria-label={`Message ${agentName}`}
-          onChange={(e) => ((search.current = null), setText(e.target.value))}
+          onChange={(e) => ((search.current = null), setText(e.target.value), setCaret(e.target.selectionStart))}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onPaste={(e) => {
             // Text copied with <pasted_content> markers goes in without them.
             const pasted = e.clipboardData.getData('text/plain')
@@ -650,7 +711,7 @@ function Composer({
             if (suggestions.length) {
               if (e.key === 'ArrowDown') (e.preventDefault(), setAt((i) => Math.min(suggestions.length - 1, i + 1)))
               else if (e.key === 'ArrowUp') (e.preventDefault(), setAt((i) => Math.max(0, i - 1)))
-              else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) (e.preventDefault(), setText(suggestions[at]!.insert))
+              else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) (e.preventDefault(), apply(suggestions[at]!))
               if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention))) return
             }
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -674,36 +735,12 @@ function Composer({
             }
           }}
         />
-        <div className="composer-side">
+        <div className="cbar">
           <input ref={pick} type="file" multiple hidden onChange={(e) => (void attach([...(e.target.files ?? [])]), (e.target.value = ''))} />
-          <button onClick={() => pick.current?.click()} title="Attach pictures or files (or paste, or drop them here)">
-            Attach
+          <button className="cb-icon" onClick={() => pick.current?.click()} aria-label="Attach" title="Attach pictures or files (or paste, or drop them here)">
+            <PixelIcon name="plus" />
           </button>
-          {busy && (
-            <button onClick={() => (onStopping(true), onStop())} disabled={stopping} title="Interrupt (Esc)">
-              {stopping ? 'Stopping…' : 'Stop'}
-            </button>
-          )}
-          {busy && text.trim() && (
-            <button
-              onClick={() => {
-                // Interrupt the current step, give Claude a moment to stop, then send.
-                onStopping(true)
-                onStop()
-                setTimeout(() => void submit(), 700)
-              }}
-              title="Interrupt what it is doing and send this now"
-            >
-              Send now
-            </button>
-          )}
-          <button className="primary" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0}>
-            Send
-          </button>
-        </div>
-      </div>
-      <div className="composer-foot">
-        <span className="menu-wrap" ref={modeWrap}>
+        <span className="menu-wrap cb-anchor" ref={modeWrap}>
           <button
             className="mode-chip"
             style={{ color: cssColor(modeInfo(mode).color) }}
@@ -742,7 +779,34 @@ function Composer({
             </div>
           )}
         </span>
-        <span className="hint-keys">Enter sends · Shift+Enter new line · Esc stops</span>
+          {info && <ModelChip info={info} actions={actions} />}
+          <span className="cb-spacer" />
+          {info && <UsageRing info={info} limits={limits} />}
+          {info && <MoreMenu info={info} actions={actions} />}
+          {busy && text.trim() && (
+            <button
+              className="cb-chip"
+              onClick={() => {
+                // Interrupt the current step, give Claude a moment to stop, then send.
+                onStopping(true)
+                onStop()
+                setTimeout(() => void submit(), 700)
+              }}
+              title="Interrupt what it is doing and send this now"
+            >
+              Send now
+            </button>
+          )}
+          {busy ? (
+            <button className="cb-icon cb-stop" onClick={() => (onStopping(true), onStop())} disabled={stopping} aria-label="Stop" title="Interrupt (Esc)">
+              <PixelIcon name="stop" />
+            </button>
+          ) : (
+            <button className="cb-icon cb-send" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0} aria-label="Send" title="Send (Enter) · Shift+Enter new line · Shift+Tab changes mode">
+              <PixelIcon name="send" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

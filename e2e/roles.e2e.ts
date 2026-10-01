@@ -25,7 +25,7 @@ test('hire from a ready-made role, from a project agent file, save your own, or 
     // The project's own Claude agent file is on offer too.
     await expect(form.getByLabel('Role').locator('optgroup[label="This project\'s agents"] option')).toHaveText('db-migrator')
     await form.getByRole('button', { name: 'Hire' }).click()
-    await expect(page.locator('.agent-head .job-tag')).toHaveText('Reviewer')
+    await expect(page.locator('.job-tag')).toHaveText('Reviewer')
     const [rex] = await page.evaluate(() => window.aw.listAgents())
     expect(rex!.options).toMatchObject({ permissionMode: 'plan', role: 'Reviewer' })
 

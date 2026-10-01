@@ -14,14 +14,14 @@ test('rename an agent from its header; duplicate names are refused', async () =>
     await hire(page, { name: 'ada' })
     await hire(page, { name: 'linus' })
 
-    await page.locator('.agent-head b').dblclick()
+    await page.locator('.hc-name').dblclick()
     await page.getByLabel('New name').fill('ADA')
     await page.keyboard.press('Enter')
     await expect(page.getByText(/already an agent named ada/i)).toBeVisible()
 
     await page.getByLabel('New name').fill('Torvalds!')
     await page.keyboard.press('Enter')
-    await expect(page.locator('.agent-head b')).toHaveText('torvalds')
+    await expect(page.locator('.hc-name')).toHaveText('torvalds')
     await expect(page.locator('.roster')).toContainText('torvalds')
     expect((await page.evaluate(() => window.aw.listAgents())).map((a) => a.name)).toContain('torvalds')
   } finally {

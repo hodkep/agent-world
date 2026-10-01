@@ -5,7 +5,7 @@ import type { Activity } from '../../shared/types'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
-import { GRASS, Street, drawGrounds, drawHiringSign } from './grounds'
+import { GRASS, Street, drawGrounds, drawHiringSign, paintBillboard } from './grounds'
 import { PLANT, PowerPlant } from './power'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { OFFICE, type Spot, TILE } from './office'
@@ -70,6 +70,7 @@ export class OfficeWorld {
   private publishedBooks = -1
   private plant!: PowerPlant
   private readonly sign = drawHiringSign(OFFICE.map)
+  private readonly billboard = new Graphics()
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
   private boardKey = ''
@@ -111,7 +112,7 @@ export class OfficeWorld {
     this.street = new Street(OFFICE.map)
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
-    this.root.addChild(drawGrounds(OFFICE.map), this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -465,6 +466,11 @@ export class OfficeWorld {
   }
 
   /** The subscription's remaining limits, shown as the tanks on the back lawn. */
+  /** The hoarding behind the office names the folder it works in; null takes it down. */
+  setWorkspace(name: string | null) {
+    paintBillboard(this.billboard, name)
+  }
+
   setLimits(l: UsageLimits) {
     this.plant.setLimits(l)
   }

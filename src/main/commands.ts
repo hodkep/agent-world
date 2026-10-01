@@ -19,7 +19,22 @@ const BUILT_INS: PaletteCommand[] = [
   { name: 'review', description: 'Review the changes on this branch', source: 'built-in', args: true },
   { name: 'security-review', description: 'Security review of the pending changes', source: 'built-in', args: false },
   { name: 'init', description: 'Write a CLAUDE.md describing this codebase', source: 'built-in', args: false },
-  { name: 'usage', description: 'Show plan usage and limits', source: 'built-in', args: false }
+  { name: 'usage', description: 'Show plan usage and limits', source: 'built-in', args: false },
+  { name: 'help', description: 'Show help and the available commands', source: 'built-in', args: false },
+  { name: 'model', description: 'Choose the model for this session', source: 'built-in', args: true },
+  { name: 'mcp', description: 'Manage MCP servers and sign in to them', source: 'built-in', args: false },
+  { name: 'agents', description: 'Manage Claude\'s own subagents', source: 'built-in', args: false },
+  { name: 'memory', description: 'Edit the CLAUDE.md memory files', source: 'built-in', args: false },
+  { name: 'permissions', description: 'See and change what Claude may do without asking', source: 'built-in', args: false },
+  { name: 'hooks', description: 'See the configured hooks', source: 'built-in', args: false },
+  { name: 'config', description: 'Open Claude\'s settings', source: 'built-in', args: false },
+  { name: 'cost', description: 'Show what this session has cost', source: 'built-in', args: false },
+  { name: 'status', description: 'Show version, model, account and connectivity', source: 'built-in', args: false },
+  { name: 'doctor', description: 'Check the Claude installation', source: 'built-in', args: false },
+  { name: 'add-dir', description: 'Let Claude work in another folder too', source: 'built-in', args: true },
+  { name: 'resume', description: 'Pick an earlier conversation to continue', source: 'built-in', args: false },
+  { name: 'export', description: 'Export this conversation as text', source: 'built-in', args: true },
+  { name: 'pr-comments', description: 'Show the comments on a pull request', source: 'built-in', args: true }
 ]
 
 function describe(text: string) {
