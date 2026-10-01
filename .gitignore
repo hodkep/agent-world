@@ -8,3 +8,4 @@ playwright-report
 .impeccable/mocks/
 .impeccable/config.local.json
 dist
+excalidraw.log
