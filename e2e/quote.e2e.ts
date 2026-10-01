@@ -50,16 +50,17 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     const ask = page.getByRole('button', { name: 'Ask ada' })
     await expect(ask).toBeVisible()
     await ask.click()
-    await expect(box).toHaveValue(/^> rewrite\s*$/)
+    await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite'])
+    await expect(box).toHaveValue('')
     await expect(ask).toHaveCount(0)
 
     // A longer selection works too, and a second one adds a second quote, below the first.
     await select(page, 'rollback')
     await page.getByRole('button', { name: 'Ask ada' }).click()
-    await expect(box).toHaveValue(/^> rewrite\n\n> rollback\s*$/)
+    await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
+    await expect(box).toHaveValue('')
 
     // The question goes after them, and the sent message shows both as quotes.
-    await box.press('End')
     await page.keyboard.type('why these?')
     await box.press('Enter')
     const sent = log.locator('.msg.user').last()

@@ -646,6 +646,8 @@ function Composer({
   const [at, setAt] = useState(0)
   const [caret, setCaret] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
+  // Words quoted from a reply sit above the box as cards; they join the message as "> " lines when it is sent.
+  const [quotes, setQuotes] = useState<string[]>([])
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -708,18 +710,15 @@ function Composer({
     [agentId, onError]
   )
 
-  // Words selected in a reply arrive as a quote at the end of what is typed; more can follow, each as its own quote.
+  // Words selected in a reply arrive as a quote card; more can follow, each as its own card.
   useEffect(() => {
     const chat = box.current?.closest('.chat')
     if (!chat) return
     const on = (e: Event) => {
       const words = String((e as CustomEvent<string>).detail ?? '').trim()
       if (!words) return
-      const quoted = words.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')
-      setText((t) => (t.trim() ? `${t.trimEnd()}\n\n` : '') + quoted + '\n\n')
-      setCaret(Number.MAX_SAFE_INTEGER)
+      setQuotes((q) => [...q, words])
       box.current?.focus()
-      requestAnimationFrame(() => box.current?.setSelectionRange(box.current.value.length, box.current.value.length))
     }
     chat.addEventListener('aw-quote', on)
     return () => chat.removeEventListener('aw-quote', on)
@@ -787,16 +786,19 @@ function Composer({
 
   const submit = async () => {
     const value = unwrapPasted(text).trim()
-    if (!value && attached.length === 0) return
+    if (!value && attached.length === 0 && quotes.length === 0) return
     const mentions = attached.filter((a) => !a.context).map((a) => `@"${a.path}"`).join(' ')
     // What was picked on the Preview page goes ahead of the question, words first and then its picture.
     const picked = attached.filter((a) => a.context).map((a) => `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`).join('\n\n')
     // Attached files come first so the message reads "look at these: …".
-    const full = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
+    const asked = quotes.map((q) => q.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')).join('\n\n')
+    const body = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
+    const full = asked ? [asked, body].filter(Boolean).join('\n\n') : body
     try {
       await onSend(full)
       if (value) (sent.current.unshift(value), (recall.current = -1))
       setText('')
+      setQuotes([])
       for (const a of attached) if (a.preview) URL.revokeObjectURL(a.preview)
       setAttached([])
     } catch {
@@ -864,6 +866,16 @@ function Composer({
         </div>
       )}
       <div className="cbox">
+        {quotes.length > 0 && (
+          <ul className="quote-cards" aria-label="Quoted from the conversation">
+            {quotes.map((q, i) => (
+              <li key={i}>
+                <blockquote>{q}</blockquote>
+                <button className="chip-x" aria-label="Remove this quote" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
+              </li>
+            ))}
+          </ul>
+        )}
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
         <div className="composer-input">
           {/* Same text, same metrics, drawn behind the transparent textarea so commands and @files get a tint. */}
@@ -989,7 +1001,7 @@ function Composer({
               <PixelIcon name="stop" />
             </button>
           ) : (
-            <button className="cb-icon cb-send" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0} aria-label="Send" title="Send (Enter) · Shift+Enter new line · Shift+Tab changes mode">
+            <button className="cb-icon cb-send" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0 && quotes.length === 0} aria-label="Send" title="Send (Enter) · Shift+Enter new line · Shift+Tab changes mode">
               <PixelIcon name="send" />
             </button>
           )}
