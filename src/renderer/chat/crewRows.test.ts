@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SubagentInfo } from '../../shared/chat'
-import { CONCURRENT_LIMIT, crewCounts, crewRows, followUpText, stopRequestText } from './crewRows'
+import { CONCURRENT_LIMIT, crewCounts, crewRows, followUpText, splitCrew, staleInterns, stopRequestText } from './crewRows'
 
 const sub = (id: string, startedAt: number, over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: id, toolUseId: `use-${id}`, type: 'Explore', description: `task ${id}`, startedAt, updatedAt: startedAt + 1000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], stopped: false, ...over })
 
@@ -38,5 +38,40 @@ describe('what the buttons say to the main agent', () => {
     const t = followUpText(sub('a1', 1000, { description: 'Map auth', type: 'Plan' }))
     expect(t).toContain('a1')
     expect(t).toContain('Map auth')
+  })
+})
+
+describe('what is happening now, and what has finished', () => {
+  const now = 10_000
+  it('puts the ones that are working first and the ones that finished or were stopped in a list of their own', () => {
+    const rows = crewRows([sub('a', 1000, { done: true }), sub('b', 2000), sub('c', 3000, { stopped: true }), sub('d', 4000)])
+    const { active, finished } = splitCrew(rows, now)
+    expect(active.map((r) => r.info.agentId)).toEqual(['b', 'd'])
+    expect(finished.map((r) => r.info.agentId)).toEqual(['c', 'a'])
+  })
+
+  it('keeps a finished one with the active list while one it started is still working, so the tree stays whole', () => {
+    const rows = crewRows([sub('p', 1000, { done: true, spawns: ['use-k'] }), sub('k', 2000, { depth: 2 }), sub('q', 3000, { done: true })])
+    const { active, finished } = splitCrew(rows, now)
+    expect(active.map((r) => [r.info.agentId, r.level])).toEqual([['p', 0], ['k', 1]])
+    expect(finished.map((r) => r.info.agentId)).toEqual(['q'])
+  })
+
+  it('has nothing active when everything is done, newest finished first', () => {
+    const { active, finished } = splitCrew(crewRows([sub('a', 1000, { done: true }), sub('b', 2000, { done: true })]), now)
+    expect(active).toEqual([])
+    expect(finished.map((r) => r.info.agentId)).toEqual(['b', 'a'])
+  })
+})
+
+describe('office characters for subagents that are over', () => {
+  const now = 10_000
+  it('names the ones the office still shows although Claude says they answered or were stopped', () => {
+    const infos = [sub('a', 1000, { done: true }), sub('b', 1000, { stopped: true }), sub('c', 1000)]
+    expect(staleInterns(['a', 'b', 'c', 'ghost'], infos, now).sort()).toEqual(['a', 'b'])
+  })
+
+  it('leaves alone one whose files are not there yet, and one that is still working', () => {
+    expect(staleInterns(['not-yet', 'c'], [sub('c', 1000)], now)).toEqual([])
   })
 })

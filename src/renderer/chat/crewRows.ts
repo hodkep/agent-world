@@ -45,3 +45,30 @@ export const stopRequestText = (i: SubagentInfo) => `Please stop the subagent ${
 
 /** What goes into the message box as a quote, so the question that follows is clearly about this subagent. */
 export const followUpText = (i: SubagentInfo) => `Subagent ${name(i)} (agent id ${i.agentId})`
+
+/**
+ * What is going on now and what is over. A subagent counts as over once it answered or was stopped and nothing it
+ * started is still going, so a parent stays with the active ones as long as a child works. Finished: newest first.
+ */
+export function splitCrew(rows: CrewRow[], now: number): { active: CrewRow[]; finished: CrewRow[] } {
+  const over = rows.map((r) => ['done', 'stopped'].includes(subagentState(r.info, now)))
+  const active: CrewRow[] = []
+  const finished: CrewRow[] = []
+  rows.forEach((r, i) => {
+    let end = i + 1
+    while (end < rows.length && rows[end]!.level > r.level) end++
+    ;(over.slice(i, end).every(Boolean) ? finished : active).push(r)
+  })
+  return { active, finished: finished.sort((a, b) => b.info.startedAt - a.info.startedAt) }
+}
+
+/**
+ * Of the subagents the office shows (by id), the ones Claude's own files say are over. A subagent that is stopped
+ * never fires the hook that removes its character, so without this it would stay at its desk, working, for good.
+ */
+export function staleInterns(shown: string[], infos: SubagentInfo[], now: number): string[] {
+  return shown.filter((id) => {
+    const info = infos.find((i) => i.agentId === id)
+    return !!info && ['done', 'stopped'].includes(subagentState(info, now))
+  })
+}

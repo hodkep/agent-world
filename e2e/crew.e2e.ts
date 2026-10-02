@@ -29,9 +29,14 @@ test('a line for subagents sits beside the commands line, and opens every subage
     await expect(row.getByRole('button')).toHaveCount(2)
     await crew.click()
     const panel = page.getByRole('dialog', { name: 'Subagents' })
-    await expect(panel).toContainText('of 20 at once')
-    // Three the main agent started, and the one the first of them started under it.
+    // 20 is the most Claude runs at once, said as a limit; it is not a count of what is running.
+    await expect(panel).toContainText('up to 20 at once')
+    await expect(panel).not.toContainText(/\d+ of 20/)
+    // What is going on is listed; what has finished waits behind a button.
+    await expect(panel).toContainText('2 done', { timeout: 20_000 })
     const rows = panel.locator('.dg-row')
+    await expect(rows).toHaveCount(3)
+    await panel.getByRole('button', { name: 'Show 1 finished' }).click()
     await expect(rows).toHaveCount(4)
     await expect(panel.locator('.dg-row[data-level="1"]')).toContainText('Nested helper')
     await expect(rows.first()).toContainText('background')
@@ -61,6 +66,7 @@ test('a finished subagent can be followed up: it goes into the message box as a 
     await page.getByRole('button', { name: /subagents? working/ }).click({ timeout: 20_000 })
     const panel = page.getByRole('dialog', { name: 'Subagents' })
     await expect(panel).toContainText('2 done', { timeout: 20_000 })
+    await panel.getByRole('button', { name: 'Show 2 finished' }).click()
     await panel.locator('.dg-row.s-done').first().getByRole('button').first().click()
     await panel.getByRole('button', { name: 'Follow up' }).first().click()
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' })).toContainText('agent id fake')
@@ -75,6 +81,9 @@ test('the Subagents view in the header lists every agent that has subagents, wit
     await page.locator('header').getByRole('button', { name: /^Subagents/ }).click()
     const view = page.getByRole('dialog', { name: 'Subagents' })
     await expect(view.getByRole('region', { name: 'Subagents of ada' })).toBeVisible({ timeout: 20_000 })
+    // Only the one still working is listed; the two that finished are behind a button.
+    await expect(view.locator('.dg-row')).toHaveCount(1, { timeout: 20_000 })
+    await view.getByRole('button', { name: 'Show 2 finished' }).click()
     await expect(view.locator('.dg-row')).toHaveCount(3)
     await expect(view).toContainText('working across 1 agent')
     await view.getByRole('button', { name: 'Open ada' }).click()
@@ -95,6 +104,19 @@ test('a subagent that was stopped shows as stopped at once, not as still working
     await expect(card.locator('.dg-row.s-stopped')).toHaveCount(1)
     await expect(card.locator('.dg-row.s-stopped')).toContainText('Look into part 2')
     await expect(card.locator('.dg-seg i.s-stopped')).toHaveCount(1)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a subagent that was stopped leaves the office instead of staying at its desk as still working', async () => {
+  // Stopping one fires no "subagent stopped" hook, so the office would keep it for good.
+  const { page, shutdown } = await chat({ FAKE_DELEGATE: '3', FAKE_DELEGATE_STOP: '2', FAKE_DELEGATE_MS: '600' })
+  try {
+    const button = page.locator('header').getByRole('button', { name: /^Subagents/ })
+    await expect(button).toHaveText(/^Subagents \d/, { timeout: 20_000 })
+    // Two answered (their hook removed them); the third was stopped and only Claude's files say so.
+    await expect(button).toHaveText('Subagents', { timeout: 30_000 })
   } finally {
     await shutdown()
   }

@@ -20,6 +20,7 @@ import { FileView } from './panel/FileView'
 import { pageLabels } from './files/context'
 import { ToolsView } from './panel/ToolsView'
 import { CrewView } from './chat/CrewView'
+import { staleInterns } from './chat/crewRows'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
@@ -179,6 +180,25 @@ export function App() {
   }
   // The world is built once and keeps the first render's `select`, so it reads the latest needs through a ref.
   const needsRef = useRef<(id: string) => Need[]>(() => [])
+  // A subagent that was stopped never fires the hook that takes its character out of the office; Claude's own files
+  // say it is over, so look now and then and let those characters go.
+  const crewRef = useRef({ world, allAgents })
+  crewRef.current = { world, allAgents }
+  useEffect(() => {
+    const t = setInterval(() => {
+      for (const a of crewRef.current.allAgents) {
+        const shown = Object.keys(crewRef.current.world[a.id]?.interns ?? {})
+        if (!shown.length) continue
+        void window.aw.subagents(a.id).then(
+          (infos) => {
+            for (const id of staleInterns(shown, infos, Date.now())) setWorld((w) => applyEvent(w, { type: 'subagent-stop', agentId: a.id, sessionId: a.sessionId, subagentId: id }))
+          },
+          () => {}
+        )
+      }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [])
   const talkRef = useRef<Talk>(readTalk())
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)

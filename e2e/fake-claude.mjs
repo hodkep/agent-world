@@ -63,6 +63,9 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
       const id = `fake${i}`
       const file = `${base}/agent-${id}.jsonl`
       wf(`${base}/agent-${id}.meta.json`, JSON.stringify({ agentType: i % 2 ? 'Explore' : 'Plan', description: `Look into part ${i}`, toolUseId: `toolu_fake_${i}`, spawnDepth: 1, requestShape: 'background' }))
+      await sleep(300)
+      // The hooks Claude runs: a subagent starts, and stops when it answers (not when it is stopped, which is the point of FAKE_DELEGATE_STOP).
+      await hook('SubagentStart', { agent_id: id, agent_type: i % 2 ? 'Explore' : 'Plan' })
       const add = (o) => appendFileSync(file, JSON.stringify({ isSidechain: true, agentId: id, timestamp: stamp(), uuid: crypto.randomUUID(), ...o }) + '\n')
       add({ type: 'user', message: { role: 'user', content: 'go' } })
       await sleep(step * i)
@@ -86,9 +89,11 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
         add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `hb${i}`, name: 'SubagentHandback', input: { message: report } }] } })
         transcript({ type: 'user', isMeta: true, message: { role: 'user', content: `Another Claude session sent a message:\n<agent-message from="${id}">\n[Subagent hand-back] The text below is the final report of a subagent. The report follows:\n${report.split('\n').map((l) => `  ${l}`).join('\n')}\n</agent-message>\n\nThat other session is an agent.` } })
         transcript({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Agent "Look into part ${i}" finished</summary>\n</task-notification>` } })
+        await hook('SubagentStop', { agent_id: id })
         return
       }
       add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: `Part ${i} is fine.` }] } })
+      await hook('SubagentStop', { agent_id: id })
     }))
   })()
 }

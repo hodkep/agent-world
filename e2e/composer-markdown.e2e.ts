@@ -40,6 +40,14 @@ test('a little markdown in the message box shows formatted above it, and in the 
     await expect(sent.locator('strong')).toHaveText('bold', { timeout: 10_000 })
     await expect(sent.locator('blockquote')).toContainText('again')
     await expect(preview).toHaveCount(0)
+
+    // Lines you wrote stay lines in the sent message, with the markdown drawn on top of them.
+    await box.fill('Step 1. start the subagents\n a. Explore: map it\n b. run `sleep 120` then answer')
+    await box.press('Enter')
+    const multi = page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user').last()
+    await expect(multi.locator('code')).toHaveText('sleep 120', { timeout: 10_000 })
+    const text = await multi.locator('.bubble > .md').innerText()
+    expect(text.split('\n').filter(Boolean)).toEqual(['Step 1. start the subagents', 'a. Explore: map it', 'b. run sleep 120 then answer'])
   } finally {
     await shutdown()
   }

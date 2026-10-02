@@ -914,6 +914,8 @@ svg.pxi { display: block; flex: none; }
 .composer-preview blockquote, .msg.user .bubble blockquote.md { margin: 0 0 6px; padding: 4px 10px; background: var(--well); border: 0; border-left: 3px solid var(--accent); color: var(--muted); box-shadow: 0 0 0 1px var(--ink); }
 .msg.user .bubble .md { white-space: normal; text-align: left; }
 .msg.user .bubble .md p { margin: 0 0 0.4em; }
+/* The lines you wrote stay lines, in the sent message and in its preview. */
+.msg.user .bubble .md p, .msg.user .bubble .md li, .composer-preview p, .composer-preview li { white-space: pre-line; }
 
 /* Quotes from a reply sit inside the message box, above what is typed. */
 .quote-cards { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow: auto; }
@@ -1031,3 +1033,4 @@ code a.file-link { font: inherit; }
 .crew-group .dg { border: 0; }
 .crew-open { justify-self: end; margin-right: 10px; font-size: 12px; padding: 3px 9px; }
 .dg-ask { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.dg-older { justify-self: start; margin: 0 10px 8px; font-size: 12px; padding: 3px 9px; }
