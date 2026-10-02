@@ -40,6 +40,11 @@ const transcript = (line) => {
   appendFileSync(`${dir}/${sessionId}.jsonl`, JSON.stringify({ isSidechain: false, timestamp: new Date().toISOString(), uuid: crypto.randomUUID(), sessionId, ...line }) + '\n')
 }
 const say = (text) => transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+// FAKE_SNAPSHOT=1: like real Claude, a new session saves the system prompt it started with; a resumed one keeps (and reuses) it.
+if (process.env.FAKE_SNAPSHOT && flag('--session-id')) {
+  transcript({ type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: JSON.stringify([flag('--append-system-prompt') ?? '']) } })
+  say('an earlier answer')
+}
 // FAKE_SAY_FILE=<path>: the file's text arrives as one assistant message.
 if (process.env.FAKE_SAY_FILE) say((await import('node:fs')).readFileSync(process.env.FAKE_SAY_FILE, 'utf8'))
 // FAKE_USER_FILE=<path>: the file's text is already in the conversation as something the user said.

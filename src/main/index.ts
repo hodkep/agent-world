@@ -28,6 +28,7 @@ import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { dropPromptSnapshots } from './promptSnapshot'
 import { type Role, withRole } from '../shared/roles'
 import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
@@ -194,19 +195,22 @@ interface Chat {
   items: ChatItem[]
 }
 const chats = new Map<string, Chat>()
-function followChat(a: AgentRecord) {
-  const now = chats.get(a.id)
-  if (now?.sessionId === a.sessionId) return
-  now?.tail.stop()
-  const chat: Chat = { tail: null as unknown as TranscriptTail, sessionId: a.sessionId, items: [] }
-  // Claude names the project folder after the real path of its working directory (symlinks resolved).
+// Claude names the project folder after the real path of its working directory (symlinks resolved).
+function transcriptFile(a: AgentRecord) {
   let real = a.cwd
   try {
     real = realpathSync(a.cwd)
   } catch {
     /* the folder is gone; the transcript will not appear */
   }
-  chat.tail = new TranscriptTail(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId), (items, replace) => {
+  return transcriptPath(CLAUDE_PROJECTS, real, a.sessionId)
+}
+function followChat(a: AgentRecord) {
+  const now = chats.get(a.id)
+  if (now?.sessionId === a.sessionId) return
+  now?.tail.stop()
+  const chat: Chat = { tail: null as unknown as TranscriptTail, sessionId: a.sessionId, items: [] }
+  chat.tail = new TranscriptTail(transcriptFile(a), (items, replace) => {
     chat.items = trimImages((replace ? items : [...chat.items, ...items]).slice(-MAX_CHAT))
     // A replacement (after a rewind) is told to the window as a reset, so it reloads the whole conversation.
     if (replace) send('chat-reset', a.id, a.sessionId)
@@ -254,6 +258,8 @@ const questionOpen = new Set<string>()
 const askedQuestions = new Map<string, Question[]>()
 // Agents being relaunched in place: their exit is not a departure.
 const restarting = new Set<string>()
+// Relaunches that must not reuse the system prompt the saved session remembers (a new role's instructions).
+const freshPrompt = new Set<string>()
 // Last size the panel gave each terminal, so a relaunch comes back at the size the user sees.
 const sizes = new Map<string, { cols: number; rows: number }>()
 let awakeBlocker: number | null = null
@@ -533,6 +539,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     if (restarting.delete(a.id)) {
       screens.get(a.id)?.dispose()
       screens.delete(a.id)
+      if (freshPrompt.delete(a.id)) dropPromptSnapshots(transcriptFile(a))
       return spawn(a, env)
     }
     for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
@@ -1003,6 +1010,7 @@ async function main() {
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
     a.options = withRole(a.options, role)
     persist()
+    freshPrompt.add(id)
     restarting.add(id)
     mailbox.restarting(id)
     p.kill()
