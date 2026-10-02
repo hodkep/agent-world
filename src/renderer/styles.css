@@ -620,7 +620,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .settings::backdrop { background: rgb(0 0 0 / 0.5); }
 .settings-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 2px solid var(--ink); }
 .settings fieldset { border: 0; border-bottom: 2px solid var(--ink); margin: 0; padding: 16px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
-.settings legend { padding: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.settings legend { float: left; width: 100%; padding: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .settings label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .settings label.check { flex-direction: row; align-items: center; gap: 8px; }
 .settings input:not([type=checkbox]), .settings select { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }
