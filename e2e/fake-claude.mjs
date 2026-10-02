@@ -62,9 +62,7 @@ const hook = async (event, extra = {}) => {
 
 console.log(`fake claude · session ${sessionId} · cwd ${process.cwd()}`)
 if (forkedFrom) console.log(`forked from ${forkedFrom}`)
-// The app adds long standing instructions to every launch; show only the end of the long ones so the screen layout stays steady.
-const shown = (v = '') => (v.length > 90 ? `…${v.slice(-90)}` : v)
-console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : shown(args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
+console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 // FAKE_DEV_PORT=n: behave like an agent that started a dev server on that port.
 if (process.env.FAKE_DEV_PORT) console.log(`  ➜  Local:   http://localhost:${process.env.FAKE_DEV_PORT}/`)
 await hook('SessionStart', { source: 'startup' })
