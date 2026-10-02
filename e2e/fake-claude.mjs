@@ -230,6 +230,16 @@ if (process.env.FAKE_CHAT) {
       const nav = use('mcp__playwright__browser_navigate', { url: 'https://experts.snorkel-ai.com/home' })
       done(nav, "### Ran Playwright code\n```js\nawait page.goto('https://experts.snorkel-ai.com/home');\n```\n### Page\n- Page URL: https://experts.snorkel-ai.com/home\n- Page Title: Snorkel AI Experts Portal")
     }
+    // FAKE_FILES=1: the agent makes a few files and names them in its reply, as a real one does.
+    if (process.env.FAKE_FILES) {
+      const fs = await import('node:fs')
+      fs.mkdirSync(`${process.cwd()}/out`, { recursive: true })
+      fs.writeFileSync(`${process.cwd()}/out/report.html`, '<html><body><h1 id="title">Quarterly report</h1><button id="go">Go</button></body></html>')
+      fs.writeFileSync(`${process.cwd()}/notes.md`, '# Meeting notes\n\nWe agreed to **ship** on Friday.')
+      fs.writeFileSync(`${process.cwd()}/deck.pptx`, 'not really a deck')
+      fs.writeFileSync(`${process.cwd()}/tool.ts`, 'export const answer = 42\n')
+      say(`I made ${process.cwd()}/out/report.html, \`notes.md\`, deck.pptx and tool.ts. See also https://example.com/docs/page.html and missing/nothing.md.`)
+    }
     const edit = { file_path: `${process.cwd()}/src/health.ts`, old_string: 'export const ok = false', new_string: 'export const ok = true' }
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')

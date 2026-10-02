@@ -129,6 +129,13 @@ export interface AwApi {
   memoryList(agentId: string): Promise<{ id: string; text: string; by: string; at: number }[]>
   memoryAdd(agentId: string, text: string): Promise<{ id: string; text: string; by: string; at: number }>
   memoryForget(agentId: string, entryId: string): Promise<void>
+  /** Which of these paths (as an agent wrote them) are real files, with what kind each is. */
+  fileInfo(agentId: string, paths: string[]): Promise<(import('./files').FileInfo | null)[]>
+  fileRead(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; text: string; truncated: boolean }>
+  fileUrl(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; url: string }>
+  fileImage(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; src: string }>
+  /** Open a file with the program this machine uses for that type; resolves to an error message, or '' when it opened. */
+  openFileExternal(agentId: string, path: string): Promise<string>
   /** The last few lines each of these agents' terminals shows. */
   peek(agentIds: string[]): Promise<Record<string, string[]>>
   /** Write a short record of this conversation to the notes folder and show it; returns the file. */

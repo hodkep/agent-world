@@ -8,6 +8,8 @@ import markedKatex from 'marked-katex-extension'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { languageFor, monaco } from '../code/monaco'
 import { followLink, linkHint } from '../links'
+import { openFileEvent } from '../files/context'
+import { handleFileClick, linkifyFiles } from '../files/linkify'
 import { EMOJI } from './emoji'
 
 marked.setOptions({ gfm: true, breaks: false })
@@ -124,6 +126,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
         })
         .catch(() => {})
     }
+    void linkifyFiles(el, agentId ?? '')
   }, [html, agentId])
   return (
     <div
@@ -132,9 +135,13 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       // The HTML above has been through DOMPurify.
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
+        if (handleFileClick(e, agentId ?? '')) return
         const a = (e.target as HTMLElement).closest('a')
         if (!a) return
         e.preventDefault()
+        // A link to a file on this machine opens it here.
+        const href = a.getAttribute('href') ?? ''
+        if (agentId && (href.startsWith('file://') || /^\/[^/]/.test(href))) return openFileEvent(agentId, decodeURI(href.replace(/^file:\/\//, '')))
         // A link to a heading or footnote in this same message scrolls there; anything else opens outside the app.
         const id = a.getAttribute('href')?.startsWith('#') ? decodeURIComponent(a.getAttribute('href')!.slice(1)) : null
         if (id !== null) return void box.current?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' })

@@ -6,6 +6,7 @@ import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, hasMarkdown, highlight, rowText, toMarkdown, toRows } from './format'
+import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
@@ -257,6 +258,7 @@ export function ChatView({
   }
 
   return (
+    <AgentIdContext.Provider value={agentId}>
     <div
       className="chat"
       ref={chatEl}
@@ -368,6 +370,7 @@ export function ChatView({
       />
       {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
     </div>
+    </AgentIdContext.Provider>
   )
 }
 

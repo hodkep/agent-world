@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
+import { AgentIdContext, openFileEvent } from '../files/context'
 import { Picture } from './Images'
 import { Code, Markdown } from './markdown'
 import { argRows, mcpHeadline, parseMcpName, resultNote, resultSections, toolLookup } from './mcp'
@@ -19,11 +20,12 @@ const dir = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1)
 const lines = (t: string) => (t ? t.split('\n') : [])
 
 function File({ path }: { path: string }) {
+  const agentId = useContext(AgentIdContext)
   return (
-    <span className="tc-file" title={path}>
+    <button className="tc-file file-link as-link" title={`${path}\nClick to open`} onClick={() => agentId && openFileEvent(agentId, path)}>
       <span className="tc-dir">{dir(path).replace(/^.*\/(?=[^/]+\/[^/]*$)/, '…/')}</span>
       <b>{base(path)}</b>
-    </span>
+    </button>
   )
 }
 

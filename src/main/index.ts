@@ -1,3 +1,4 @@
+import { readText, resolveFile, startFileServer } from './files'
 import { forget, loadMemory, recall, remember } from './memory'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
@@ -623,6 +624,7 @@ async function main() {
       return a ? recall(loadMemory(memoryFile(a.repoPath)), query) : []
     }
   })
+  const pages = await startFileServer()
   office = { mcpUrl: mcp.url, hookUrl: hooks.url }
   for (const u of [mcp.url, hooks.url]) if (u) ownPorts.push(Number(new URL(u).port))
 
@@ -738,6 +740,38 @@ async function main() {
   ipcMain.handle('memory:forget', (_, id: string, entryId: string) => {
     const a = byId(id)
     if (a) forget(memoryFile(a.repoPath), entryId)
+  })
+  // Files an agent mentions: is it a real file, what is in it, and how can it be shown or opened.
+  const fileFor = async (agentId: string, written: string) => {
+    const a = byId(agentId)
+    const info = a ? await resolveFile(a.cwd, written) : null
+    if (!info) throw new Error('That file is not there any more.')
+    return info
+  }
+  ipcMain.handle('file:info', async (_, agentId: string, paths: string[]) => {
+    const a = byId(agentId)
+    if (!a) return paths.map(() => null)
+    return Promise.all(paths.slice(0, 60).map((p) => resolveFile(a.cwd, p)))
+  })
+  ipcMain.handle('file:read', async (_, agentId: string, path: string) => {
+    const info = await fileFor(agentId, path)
+    if (!['code', 'text', 'markdown', 'html'].includes(info.kind)) throw new Error('That kind of file is not shown as text.')
+    return { info, ...(await readText(info.path)) }
+  })
+  ipcMain.handle('file:url', async (_, agentId: string, path: string) => {
+    const info = await fileFor(agentId, path)
+    if (info.kind !== 'html' && info.kind !== 'pdf') throw new Error('Only pages and PDFs open as a page.')
+    return { info, url: pages.urlFor(info.path) }
+  })
+  ipcMain.handle('file:image', async (_, agentId: string, path: string) => {
+    const info = await fileFor(agentId, path)
+    if (info.kind !== 'image' || info.size > 12 * 1024 * 1024) throw new Error('That picture is too large to show here.')
+    const ext = info.name.split('.').pop()!.toLowerCase().replace('jpg', 'jpeg').replace('svg', 'svg+xml')
+    return { info, src: `data:image/${ext};base64,${readFileSync(info.path).toString('base64')}` }
+  })
+  ipcMain.handle('file:open-external', async (_, agentId: string, path: string) => {
+    const info = await fileFor(agentId, path)
+    return shell.openPath(info.path)
   })
   ipcMain.handle('btw:close', (_, id: string) => {
     if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
@@ -1209,6 +1243,7 @@ async function main() {
     clearInterval(idleCheck)
     hooks.close()
     mcp.close()
+    pages.close()
   })
   app.on('window-all-closed', () => app.quit())
 }
