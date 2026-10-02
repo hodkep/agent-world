@@ -63,3 +63,28 @@ test('rewind a conversation from a message in the chat', async () => {
     await shutdown()
   }
 })
+
+test('your own numbered message on the terminal screen is not offered as a menu, and nothing is stuck after a reload', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-echo-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_ECHO_LIST: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    await page.getByRole('form', { name: 'Hire an agent' }).getByRole('button', { name: 'Hire' }).click()
+    await page.getByRole('tab', { name: 'Terminal' }).click()
+    await expect(page.locator('.term-host:visible')).toContainText('I mean sub-agent only', { timeout: 15_000 })
+    // A real menu shows up within a second of staying on screen; give this one three.
+    await page.waitForTimeout(3000)
+    await expect(page.getByRole('region', { name: 'ada is waiting for you' })).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByText('I mean sub-agent only', { exact: true })).toHaveCount(0) // the terminal text is drawn on a canvas, so a button with it would be a menu
+    await page.reload()
+    await page.waitForTimeout(3000)
+    await expect(page.getByRole('region', { name: 'ada is waiting for you' })).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})

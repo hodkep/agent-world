@@ -27,6 +27,11 @@ describe('Claude\'s numbered menus, whatever they ask', () => {
     expect(genericMenu('❯ hello\n⏺ Steps:\n  1. one\n  2. two\n')).toBeNull()
     expect(genericMenu('  1. Yes\n  2. No\nEsc to cancel')).toBeNull()
   })
+
+  it('is not fooled by your own numbered message echoed after the ❯ prompt marker', () => {
+    expect(genericMenu(fixture('echoed-numbered-prompt.txt'))).toBeNull()
+    expect(genericMenu('❯ 1. fix it\n  2. then test it\n\n⏺ On it.\n')).toBeNull()
+  })
 })
 
 describe('the rewind list', () => {

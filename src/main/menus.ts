@@ -29,7 +29,9 @@ export function genericMenu(screen: string): GenericMenu | null {
     const run = lines.slice(start, end + 1).map((l) => OPTION.exec(l)!)
     const numbered = run.every((m, i) => Number(m[2]) === i + 1)
     const cursors = run.filter((m) => m[1]).length
-    if (!numbered || run.length < 2 || cursors !== 1) {
+    // A menu is the last thing drawn: your own numbered message echoed after the ❯ prompt marker has Claude's reply, a status line or the input box below it.
+    const buried = lines.slice(end + 1).some((l) => /^\s*[●⏺✱✻✽❯]/.test(l) || RULE.test(l))
+    if (!numbered || run.length < 2 || cursors !== 1 || buried) {
       end = start
       continue
     }

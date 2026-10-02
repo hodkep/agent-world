@@ -1,0 +1,23 @@
+✱ Brewed for 34s · done 3:20 PM
+
+❯ 1. I mean sub-agent only
+  2. I want a view where all subagents running per main
+  agent are shown with same visualization as we show
+  as the delegation card in the chat interface
+  3. I would like you to look into claude code's
+  subagent manahement and what all do they allow or
+  not. lets all those points in our own way
+
+  I dont want any changes for the part1 you identified
+
+● claude-code-guide(Research Claude Code subagent management)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+● I've handed the Claude Code subagent research to a documentation agent. I'll write the plan once it reports back.
+
+✱ Waiting for 1 background agent to finish
+
+──────────────────────────────────────────── charlie ─
+❯ Go ahead with the plan
+────────────────────────────────────────────────────
+  Agent World · Sonnet 5.5 · context 48% · $19.78
