@@ -1,8 +1,9 @@
 import type { Role } from '../world/worldState'
-import { paletteFor } from '../world/sprites'
+import { type Pose, type View, characterPixels, paletteFor } from '../world/sprites'
 
-export const FIGURE_W = 28
-export const FIGURE_H = 38
+/** The same 16x24 grid the office characters are drawn on. */
+export const FIGURE_W = 16
+export const FIGURE_H = 24
 export type Mood = 'working' | 'idle' | 'asleep'
 
 const BUSY = new Set(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
@@ -11,200 +12,138 @@ export const figureMood = (activity: string): Mood => (BUSY.has(activity) ? 'wor
 
 type RGB = [number, number, number]
 const rgb = (n: number): RGB => [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-const shade = (c: RGB, k: number): RGB => [Math.min(255, Math.max(0, (c[0] * k) | 0)), Math.min(255, Math.max(0, (c[1] * k) | 0)), Math.min(255, Math.max(0, (c[2] * k) | 0))]
 const mix = (a: RGB, b: RGB, t: number): RGB => [(a[0] + (b[0] - a[0]) * t) | 0, (a[1] + (b[1] - a[1]) * t) | 0, (a[2] + (b[2] - a[2]) * t) | 0]
-const INK: RGB = [38, 28, 46]
-const hashKey = (k: string) => [...k].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
+const INK: RGB = [26, 21, 34]
 
-/** Sway steps: a happy head tilt left and right, never a turn away, so it always looks at you. */
-const SWAY = [0, 0, 1, 1, 0, 0, -1, -1]
+/** The head looks at you, then to each side, like the character does in the office when it turns. */
+const LOOK: { view: View; flip: boolean }[] = [
+  { view: 'front', flip: false },
+  { view: 'front', flip: false },
+  { view: 'side', flip: false },
+  { view: 'side', flip: false },
+  { view: 'front', flip: false },
+  { view: 'front', flip: false },
+  { view: 'side', flip: true },
+  { view: 'side', flip: true }
+]
 const STEP_MS = 420
 
 export interface FigureOptions {
-  /** The agent's id: the colours are the same as its character in the office. */
+  /** The agent's id: it is the character the office draws for that id, in the same colours and hair. */
   key: string
   role: Role
   mood: Mood
-  /** Milliseconds, any origin: the head sways, the body bounces and the hands move with it. */
+  /** Milliseconds, any origin: the head turns, the body hops and the hands move with it. */
   t: number
   reduced: boolean
 }
 
 /**
- * A cheerful cartoon portrait drawn pixel by pixel: a big round head with bright eyes, a smile and rosy cheeks,
- * outlined in dark ink on a bright background. It bounces, sways its head and looks around; it waves when idle,
- * types on a little laptop when working and dozes with a smile when asleep. Hair and style come from the agent's id,
- * so each one is its own character, in the same colours as its figure in the office. Pure: the same options give
- * the same picture, so it is cheap to cache and to test.
+ * The agent's character, drawn from the very same sprite as its figure in the office (same hair, skin, hood or suit,
+ * crown), a little larger and happier: a smile and rosy cheeks, a hop, a wave when idle, a laptop when working, a
+ * doze when asleep, on a bright backdrop. Pure: the same options give the same picture.
  */
 export function renderFigure(o: FigureOptions): { width: number; height: number; data: Uint8ClampedArray } {
   const pal = paletteFor(o.key, o.role)
-  const skin = rgb(pal.s)
-  const hair = rgb(pal.h)
-  const coat = rgb(pal.c)
-  const gold = rgb(pal.g)
-  const h = hashKey(o.key)
-  const style = h % 3 // 0 side-swept, 1 buns, 2 spiky
+  const col = (c: string): RGB | null => {
+    const n = (pal as Record<string, number>)[c]
+    return n === undefined ? null : rgb(n)
+  }
   const step = o.reduced ? 0 : Math.floor(o.t / STEP_MS)
-  const sway = o.reduced ? 0 : SWAY[step % SWAY.length]!
+  const look = LOOK[step % LOOK.length]!
   const hop = o.reduced ? 0 : Math.floor(o.t / 600) % 2
   const wave = o.reduced ? 0 : step % 2
+  const blink = !o.reduced && Math.floor(o.t / 100) % 40 === 0
   const asleep = o.mood === 'asleep'
   const working = o.mood === 'working'
+  const pose: Pose = working || asleep ? 'sit' : 'stand'
 
-  // The figure is drawn on its own layer (transparent), outlined, then laid over the backdrop.
-  const fig = new Array<RGB | null>(FIGURE_W * FIGURE_H).fill(null)
+  const rows = characterPixels(o.key, o.role, look.view, pose)
+  const skin = rgb(pal.s)
+  const grid: (RGB | null)[][] = rows.map((row) =>
+    [...row].map((c) => {
+      if (c === '.') return null
+      if (c === 'e' && (blink || asleep)) return rgb(pal.S)
+      return col(c)
+    })
+  )
+  if (look.flip) grid.forEach((r) => r.reverse())
+
   const put = (x: number, y: number, c: RGB) => {
-    const ix = Math.round(x)
-    const iy = Math.round(y)
-    if (ix >= 0 && iy >= 0 && ix < FIGURE_W && iy < FIGURE_H) fig[iy * FIGURE_W + ix] = c
+    if (y >= 0 && y < FIGURE_H && x >= 0 && x < FIGURE_W) grid[y]![x] = c
   }
-  const rect = (x: number, y: number, w: number, hh: number, c: RGB) => {
-    for (let j = 0; j < hh; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c)
+  // a happy face on the front view: rosy cheeks and a smile
+  if (look.view === 'front') {
+    const blush = mix(skin, [255, 110, 130], 0.55)
+    const mouth: RGB = [150, 50, 70]
+    put(4, 9, blush)
+    put(11, 9, blush)
+    put(6, 9, mouth)
+    put(9, 9, mouth)
+    put(7, 10, mouth)
+    put(8, 10, mouth)
+  } else if (look.view === 'side') {
+    const mouth: RGB = [150, 50, 70]
+    const x = look.flip ? 6 : 9
+    put(x, 9, mouth)
+    put(look.flip ? 7 : 8, 10, mouth)
   }
-  const disc = (cx: number, cy: number, rx: number, ry: number, c: RGB, lit = true) => {
-    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
-      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
-        const dx = (x - cx) / rx
-        const dy = (y - cy) / ry
-        if (dx * dx + dy * dy <= 1) put(x, y, lit && dx + dy > 0.9 ? shade(c, 0.88) : c)
-      }
-  }
-
-  const by = hop // the whole figure rises a pixel with each hop
-  const hcx = 14 + sway * 0.8
-  const hcy = 14 - by + (asleep ? 2 : 0)
-
-  // body: a small rounded torso, with the arms and what the hands are doing
-  for (let y = 25 - by; y < FIGURE_H; y++) {
-    const hw = Math.min(9, 6 + (y - 25 + by) * 0.45)
-    for (let x = Math.ceil(14 - hw); x <= Math.floor(14 + hw); x++) put(x, y, x > 14 + hw - 2 ? shade(coat, 0.86) : coat)
-  }
-  rect(12, 25 - by, 5, 2, shade(skin, 0.95)) // neck and collar
-  const arm = shade(coat, 0.92)
+  // what the hands are doing
   if (working) {
-    // both hands on a laptop: its lid shows the agent's colour and a star that twinkles
-    rect(7, 29, 15, 8, shade([120, 128, 150], 0.9))
-    rect(8, 30, 13, 6, [92, 100, 122])
-    if (step % 3 !== 2) rect(13, 32, 3, 2, gold)
-    rect(5, 28 + (wave ? 1 : 0), 3, 3, skin)
-    rect(20, 28 + (wave ? 0 : 1), 3, 3, skin)
-    rect(5, 25, 2, 3, arm)
-    rect(21, 25, 2, 3, arm)
-  } else if (asleep) {
-    rect(6, 31, 3, 6, arm)
-    rect(19, 31, 3, 6, arm)
-    rect(5, 35, 3, 2, skin)
-    rect(20, 35, 3, 2, skin)
-  } else {
-    // idle: one hand down, the other up, waving hello
-    rect(5, 29, 3, 6, arm)
-    rect(5, 34, 3, 2, skin)
-    rect(21, 24 - by, 2, 4, arm)
-    rect(22 + (wave ? 1 : 0), 21 - by + (wave ? 1 : 0), 3, 3, skin)
-  }
-
-  // head: big and round, with ears
-  disc(hcx - 9, hcy + 1, 1.5, 2, skin, false)
-  disc(hcx + 9, hcy + 1, 1.5, 2, skin, false)
-  disc(hcx, hcy, 9, 8.5, skin)
-
-  // hair, in one of three styles
-  disc(hcx, hcy - 3, 9.4, 6.2, hair, false)
-  rect(Math.round(hcx - 7), Math.round(hcy - 1), 14, 3, skin) // forehead shows under the fringe
-  for (let x = -7; x <= 7; x++) if ((x + 20) % 4 < 2) put(hcx + x, hcy - 1, hair) // a fringe in little tufts
-  if (style === 1) {
-    disc(hcx - 9, hcy - 8, 2.5, 2.5, hair, false)
-    disc(hcx + 9, hcy - 8, 2.5, 2.5, hair, false)
-  } else if (style === 2) {
-    for (const dx of [-5, 0, 5]) {
-      put(hcx + dx, hcy - 10, hair)
-      put(hcx + dx, hcy - 11, hair)
+    // a laptop in front of it, its lid showing a little star that twinkles
+    for (let y = 14; y <= 19; y++) for (let x = 3; x <= 12; x++) put(x, y, y === 14 || y === 19 || x === 3 || x === 12 ? INK : [112, 120, 140])
+    if (step % 3 !== 2) {
+      put(7, 16, rgb(pal.g))
+      put(8, 16, rgb(pal.g))
+      put(7, 17, rgb(pal.g))
+      put(8, 17, rgb(pal.g))
     }
-  } else {
-    rect(Math.round(hcx - 9), Math.round(hcy - 3), 3, 5, hair)
-  }
-  if (o.role === 'boss') {
-    for (let x = -4; x <= 4; x++) put(hcx + x, hcy - 10 - (style === 2 ? 2 : 0), gold)
-    for (const x of [-4, 0, 4]) put(hcx + x, hcy - 11 - (style === 2 ? 2 : 0), gold)
-  }
-
-  // face: big shiny eyes that look around a little, rosy cheeks, a smile
-  const look = o.reduced ? 0 : sway
-  const blink = !o.reduced && Math.floor(o.t / 100) % 40 === 0
-  for (const dx of [-4, 4]) {
-    const ex = Math.round(hcx + dx + look * 0.6)
-    const ey = Math.round(hcy + 2)
-    if (asleep || blink) {
-      // a happy closed eye: a little arch
-      put(ex - 1, ey + 1, INK)
-      put(ex, ey, INK)
-      put(ex + 1, ey + 1, INK)
-    } else {
-      rect(ex - 1, ey - 1, 3, 4, INK)
-      put(ex - 1, ey - 1, [255, 255, 255]) // the sparkle in each eye
-    }
-  }
-  const blush = mix(skin, [255, 120, 140], 0.55)
-  rect(Math.round(hcx - 7 + sway * 0.5), Math.round(hcy + 4), 2, 1, blush)
-  rect(Math.round(hcx + 5 + sway * 0.5), Math.round(hcy + 4), 2, 1, blush)
-  const mx = Math.round(hcx + sway * 0.5)
-  const my = Math.round(hcy + 5)
-  const talk = working && !o.reduced && Math.floor(o.t / 260) % 2 === 1
-  const mouth: RGB = [150, 50, 70]
-  if (talk) {
-    rect(mx - 1, my, 3, 2, mouth)
-    put(mx, my + 1, [255, 150, 160])
-  } else {
-    put(mx - 2, my, mouth)
-    for (const dx of [-1, 0, 1]) put(mx + dx, my + 1, mouth)
-    put(mx + 2, my, mouth)
+    put(2, 14 + (wave ? 1 : 0), skin)
+    put(13, 14 + (wave ? 0 : 1), skin)
+  } else if (!asleep && look.view === 'front') {
+    // one hand up, waving hello
+    const x = 13 + wave
+    put(x, 11, INK)
+    put(x, 10, rgb(pal.c))
+    put(x, 9, skin)
+    put(x + 1, 9, skin)
+    put(x, 8, skin)
+    put(x + 1, 8, INK)
+    put(x - 1, 8, INK)
   }
 
-  // outline: ink around the figure, so it reads clearly on any backdrop
-  const buf = new Uint8ClampedArray(FIGURE_W * FIGURE_H * 4)
-  const bg = mix(coat, [255, 244, 214], 0.72)
-  const bgDeep = mix(coat, [255, 244, 214], 0.58)
-  const set = (i: number, c: RGB) => {
-    buf[i * 4] = c[0]
-    buf[i * 4 + 1] = c[1]
-    buf[i * 4 + 2] = c[2]
-    buf[i * 4 + 3] = 255
-  }
+  // the whole figure rises a pixel on each hop; the feet stay put
+  const lift = hop ? 1 : 0
+  const bg = mix(rgb(pal.c), [255, 244, 214], 0.74)
+  const bgDeep = mix(rgb(pal.c), [255, 244, 214], 0.6)
+  const data = new Uint8ClampedArray(FIGURE_W * FIGURE_H * 4)
   for (let y = 0; y < FIGURE_H; y++)
     for (let x = 0; x < FIGURE_W; x++) {
-      const i = y * FIGURE_W + x
-      const f = fig[i]
-      if (f) {
-        set(i, f)
-        continue
-      }
-      const near = [fig[i - 1], fig[i + 1], fig[i - FIGURE_W], fig[i + FIGURE_W]].some((n, k) => n && !((k === 0 && x === 0) || (k === 1 && x === FIGURE_W - 1)))
-      set(i, near ? INK : (x + y) % 8 < 4 ? bg : bgDeep)
+      const sy = y + lift
+      const px = sy < FIGURE_H ? grid[sy]![x] : null
+      const c = px ?? ((x + y) % 6 < 3 ? bg : bgDeep)
+      const i = (y * FIGURE_W + x) * 4
+      data[i] = c[0]
+      data[i + 1] = c[1]
+      data[i + 2] = c[2]
+      data[i + 3] = 255
     }
-  // little sparkles round it, twinkling out of step with each other
-  const sparkle = (x: number, y: number, on: boolean) => {
-    if (!on) return
-    const c: RGB = [255, 255, 255]
-    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) set((y + dy) * FIGURE_W + x + dx, c)
+  // sparkles round it, twinkling out of step; a sleeping one gets its z instead
+  const dot = (x: number, y: number, c: RGB) => {
+    const i = (y * FIGURE_W + x) * 4
+    data[i] = c[0]
+    data[i + 1] = c[1]
+    data[i + 2] = c[2]
   }
-  if (!asleep) {
-    sparkle(3, 4, step % 4 === 0)
-    sparkle(24, 8, step % 4 === 2)
-    sparkle(4, 24, step % 4 === 1)
+  if (asleep) {
+    const z: RGB = [90, 120, 190]
+    for (const [x, y] of [[12, 2], [13, 2], [14, 2], [13, 3], [12, 4], [13, 4], [14, 4]] as const) dot(x, y, z)
   } else {
-    for (const [x, y, k] of [[22, 4, 0], [24, 2, 1]] as const) if (!o.reduced || k === 0) rect2(buf, x, y, [90, 120, 190])
+    const white: RGB = [255, 255, 255]
+    const sp = (x: number, y: number, on: boolean) => on && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => dot(x + dx!, y + dy!, white))
+    sp(2, 3, step % 4 === 0)
+    sp(13, 4, step % 4 === 2)
+    sp(2, 14, step % 4 === 1)
   }
-  return { width: FIGURE_W, height: FIGURE_H, data: buf }
-}
-
-/** A tiny "z" for a dozing figure. */
-function rect2(buf: Uint8ClampedArray, x: number, y: number, c: RGB) {
-  for (const [dx, dy] of [[0, 0], [1, 0], [2, 0], [1, 1], [0, 2], [1, 2], [2, 2]] as const) {
-    const i = ((y + dy) * FIGURE_W + x + dx) * 4
-    buf[i] = c[0]
-    buf[i + 1] = c[1]
-    buf[i + 2] = c[2]
-    buf[i + 3] = 255
-  }
+  return { width: FIGURE_W, height: FIGURE_H, data }
 }

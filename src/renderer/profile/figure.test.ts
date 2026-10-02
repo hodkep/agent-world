@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { characterPixels, paletteFor } from '../world/sprites'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
 
 const base = { key: 'agent-1', role: 'senior' as const, mood: 'working' as const, t: 0, reduced: false }
@@ -40,6 +41,23 @@ describe('the portrait', () => {
   it('is its own person: the same colours as its character in the office, so another agent looks different, and a boss wears the crown', () => {
     expect(same(renderFigure(base).data, renderFigure({ ...base, key: 'agent-2' }).data)).toBe(false)
     expect(same(renderFigure(base).data, renderFigure({ ...base, role: 'boss' }).data)).toBe(false)
+  })
+})
+
+describe('the portrait is the character you see in the office', () => {
+  const at = (d: Uint8ClampedArray, x: number, y: number) => [d[(y * FIGURE_W + x) * 4], d[(y * FIGURE_W + x) * 4 + 1], d[(y * FIGURE_W + x) * 4 + 2]]
+  const rgb = (n: number) => [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+
+  it.each([['agent-1', 'senior'], ['agent-2', 'senior'], ['boss-1', 'boss'], ['intern-1', 'intern']] as const)('%s (%s): same hair, skin and clothes as its sprite, cell for cell', (key, role) => {
+    const sprite = characterPixels(key, role, 'front', 'stand')
+    const pal = paletteFor(key, role)
+    const f = renderFigure({ key, role, mood: 'idle', t: 0, reduced: true })
+    for (const [code, color] of [['h', pal.h], ['s', pal.s], ['c', pal.c]] as const) {
+      // A cell of this kind away from the face (which gets a smile and cheeks) and the waving hand.
+      const y = sprite.findIndex((row, yy) => yy <= 6 || yy >= 12 ? [...row].some((c, x) => c === code && x < 11) : false)
+      const x = [...sprite[y]!].findIndex((c, xx) => c === code && xx < 11)
+      expect(at(f.data, x, y), `${code} at ${x},${y}`).toEqual(rgb(color))
+    }
   })
 })
 

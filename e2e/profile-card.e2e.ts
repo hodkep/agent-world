@@ -22,7 +22,7 @@ async function start(panelWidth?: number, extra: Record<string, string> = {}) {
   await page.locator('.hc-name').click()
   return { app, page, shutdown, launches: () => (existsSync(join(tmp, 'launches.jsonl')) ? readFileSync(join(tmp, 'launches.jsonl'), 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) }
 }
-const pixels = (page: Page) => page.evaluate(() => Array.from(document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!.getContext('2d')!.getImageData(0, 0, 28, 38).data).join(','))
+const pixels = (page: Page) => page.evaluate(() => (() => { const c = document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!; return Array.from(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data).join(',') })())
 
 test('clicking an agent opens its card on the side of the office away from it, with the facts as text in the panel too', async () => {
   const { page, shutdown } = await start()
