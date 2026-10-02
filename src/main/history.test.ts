@@ -40,20 +40,32 @@ describe('listing sessions', () => {
     utimesSync(f, when, when)
   }
 
-  it('lists sessions of the given folders, newest first, skipping empty ones', () => {
+  it('lists sessions of the given folders, newest first, skipping empty ones', async () => {
     put('-repo', 'a', user('old work'), 1000)
     put('-repo', 'b', user('new work'), 2000)
     put('-repo-wt', 'c', user('worktree work'), 1500)
     put('-repo', 'e', line({ type: 'attachment' }), 3000)
     put('-other', 'd', user('elsewhere'), 4000)
-    expect(listSessions(root, ['-repo', '-repo-wt'])).toEqual([
+    expect(await listSessions(root, ['-repo', '-repo-wt'])).toEqual([
       { id: 'b', title: 'new work', updated: 2000_000 },
       { id: 'c', title: 'worktree work', updated: 1500_000 },
       { id: 'a', title: 'old work', updated: 1000_000 }
     ])
   })
 
-  it('returns nothing when the folder has no history', () => {
-    expect(listSessions(root, ['-nope'])).toEqual([])
+  it('returns nothing when the folder has no history', async () => {
+    expect(await listSessions(root, ['-nope'])).toEqual([])
+  })
+
+  it('reads only as many of the newest sessions as asked for', async () => {
+    for (let i = 1; i <= 30; i++) put('-repo', `s${i}`, user(`work ${i}`), i * 1000)
+    const got = await listSessions(root, ['-repo'], 5)
+    expect(got.map((x) => x.id)).toEqual(['s30', 's29', 's28', 's27', 's26'])
+  })
+
+  it('still fills the limit when some of the newest have no prompt', async () => {
+    put('-repo', 'old', user('old work'), 1000)
+    put('-repo', 'blank', line({ type: 'attachment' }), 9000)
+    expect((await listSessions(root, ['-repo'], 2)).map((x) => x.id)).toEqual(['old'])
   })
 })

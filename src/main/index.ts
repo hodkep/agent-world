@@ -7,6 +7,7 @@ import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { readdir as readdirAsync, realpath as realpathAsync } from 'node:fs/promises'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
@@ -845,16 +846,16 @@ async function main() {
     return created
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
-  ipcMain.handle('list-history', (_, folder: string) => {
+  ipcMain.handle('list-history', async (_, folder: string) => {
     const wtPrefix = projectSlug(join(HOME, 'worktrees', repoSlug(folder))) + '-'
     let all: string[] = []
     try {
-      all = readdirSync(CLAUDE_PROJECTS)
+      all = await readdirAsync(CLAUDE_PROJECTS)
     } catch {
       /* no Claude history yet */
     }
-    const slugs = [projectSlug(realpathSync(folder)), ...all.filter((d) => d.startsWith(wtPrefix))]
-    return listSessions(CLAUDE_PROJECTS, slugs).map((s) => {
+    const slugs = [projectSlug(await realpathAsync(folder)), ...all.filter((d) => d.startsWith(wtPrefix))]
+    return (await listSessions(CLAUDE_PROJECTS, slugs)).map((s) => {
       const owner = agents.find((a) => a.sessionId === s.id)
       return { ...s, inUse: !!owner, ...(owner && { agentId: owner.id, agentName: owner.name }) }
     })

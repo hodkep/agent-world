@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync, readdirSync, statSync } from 'node:fs'
+import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export interface PastSession {
@@ -33,31 +33,53 @@ export function titleOf(jsonl: string): string {
   return ''
 }
 
-const head = (file: string) => {
-  const fd = openSync(file, 'r')
+async function head(file: string) {
+  const fh = await open(file, 'r')
   try {
     const buf = Buffer.alloc(HEAD_BYTES)
-    return buf.subarray(0, readSync(fd, buf, 0, HEAD_BYTES, 0)).toString('utf8')
+    const { bytesRead } = await fh.read(buf, 0, HEAD_BYTES, 0)
+    return buf.subarray(0, bytesRead).toString('utf8')
   } finally {
-    closeSync(fd)
+    await fh.close()
   }
 }
 
-/** Past sessions saved under the given project folders (see projectSlug), newest first; ones with no prompt are skipped. */
-export function listSessions(claudeProjectsDir: string, slugs: string[]): PastSession[] {
-  const out: PastSession[] = []
+const BATCH = 8
+
+/**
+ * Past sessions saved under the given project folders (see projectSlug), newest first; ones with no prompt are skipped.
+ * Only the newest few are read, and the reads do not hold up the app: a folder with hundreds of large transcripts
+ * must not make opening the list slow.
+ */
+export async function listSessions(claudeProjectsDir: string, slugs: string[], limit = 40): Promise<PastSession[]> {
+  const found: { id: string; path: string; updated: number }[] = []
   for (const slug of slugs) {
     let files: string[]
     try {
-      files = readdirSync(join(claudeProjectsDir, slug)).filter((f) => f.endsWith('.jsonl'))
+      files = (await readdir(join(claudeProjectsDir, slug))).filter((f) => f.endsWith('.jsonl'))
     } catch {
       continue
     }
-    for (const f of files) {
-      const path = join(claudeProjectsDir, slug, f)
-      const title = titleOf(head(path))
-      if (title) out.push({ id: f.slice(0, -'.jsonl'.length), title, updated: statSync(path).mtimeMs })
-    }
+    const stats = await Promise.all(
+      files.map(async (f) => {
+        const path = join(claudeProjectsDir, slug, f)
+        try {
+          return { id: f.slice(0, -'.jsonl'.length), path, updated: (await stat(path)).mtimeMs }
+        } catch {
+          return null
+        }
+      })
+    )
+    found.push(...stats.filter((x): x is NonNullable<typeof x> => x !== null))
   }
-  return out.sort((a, b) => b.updated - a.updated)
+  found.sort((a, b) => b.updated - a.updated)
+  const out: PastSession[] = []
+  for (let i = 0; i < found.length && out.length < limit; i += BATCH) {
+    const titles = await Promise.all(found.slice(i, i + BATCH).map((f) => head(f.path).then(titleOf, () => '')))
+    titles.forEach((title, k) => {
+      const f = found[i + k]!
+      if (title && out.length < limit) out.push({ id: f.id, title, updated: f.updated })
+    })
+  }
+  return out
 }
