@@ -37,6 +37,14 @@ export class Character {
   private readonly tagBg = new Graphics()
   private readonly tagText = new Sprite()
   private tagColor = -1
+  private tagShown = ''
+  /** How many subagents this one has started; shown after the name. */
+  subagents = 0
+  /** The seat (0-5) of a subagent gathered at its main agent's desk, else null. It has no name tag (the main agent's carries the count), and only the first two seats show an activity bubble. */
+  gathered: number | null = null
+  get tagShownNow() {
+    return this.gathered === null
+  }
   /** Claude's permission mode: anything but the default shows as a badge on the name tag and a dashed line at the feet. */
   mode: string | undefined
   private readonly badge = new Container()
@@ -120,9 +128,13 @@ export class Character {
   }
 
   get bubbleBox(): Box | null {
-    if (this.activity === 'idle' || this.effect()) return null
+    if (this.activity === 'idle' || this.effect() || this.quiet()) return null
     const atDesk = this.seated && this.goal.facing === 'up'
     return { id: this.key, x: this.view.x + (atDesk ? TILE : TILE / 2 - 6), y: this.view.y + this.top + (atDesk ? -1 : -12), w: 13, h: 12 }
+  }
+
+  private quiet() {
+    return this.gathered !== null && this.gathered >= 2
   }
 
   update(dtMs: number, t: number) {
@@ -136,7 +148,8 @@ export class Character {
     let pose: Pose = 'stand'
     if (moving) pose = Math.floor(this.walkClock / 130) % 2 ? 'walk1' : 'walk2'
     else if (settled) {
-      view = this.goal.facing === 'up' ? 'back' : 'front'
+      view = this.goal.facing === 'up' ? 'back' : this.goal.facing === 'down' ? 'front' : 'side'
+      if (view === 'side') this.flip = this.goal.facing === 'left'
       if (seated) pose = 'sit'
     }
     const blink = view !== 'back' && (asleep || (t + this.blinkPhase) % 4000 < 140)
@@ -180,8 +193,12 @@ export class Character {
     this.drawTag()
   }
 
+  private tagLabel() {
+    return `${this.label.slice(0, 8)}${this.subagents > 0 ? ` x${this.subagents}` : ''}`.slice(0, 12)
+  }
+
   private tagWidth() {
-    return textPixels(this.label.slice(0, 12))[0]!.length + 4
+    return textPixels(this.tagLabel())[0]!.length + 4
   }
 
   private step(dtMs: number) {
@@ -340,7 +357,7 @@ export class Character {
   }
 
   private drawBubble(t: number) {
-    const show = this.activity !== 'idle' && !this.effect()
+    const show = this.activity !== 'idle' && !this.effect() && !this.quiet()
     this.bubble.visible = show
     if (!show) {
       this.leader.clear()
@@ -399,16 +416,18 @@ export class Character {
 
   private drawTag() {
     const color = labelColor(this.role, this.selected)
-    const text = this.label.slice(0, 12)
+    const text = this.tagLabel()
     const w = this.tagWidth()
-    if (color !== this.tagColor) {
+    if (color !== this.tagColor || text !== this.tagShown) {
       this.tagColor = color
+      this.tagShown = text
       this.tagText.texture = pixelTexture(textPixels(text), { '#': color }, `label/${text}/${color}`)
       this.tagBg.clear()
       this.tagBg.rect(0, 0, w, TAG_H).fill({ color: 0x0c0a12, alpha: 0.82 })
       this.tagText.x = 2
       this.tagText.y = 1
     }
+    this.tag.visible = this.tagShownNow
     this.drawBadge()
     this.tag.x = TILE / 2 - Math.floor(w / 2)
     this.tag.y = TILE + 1 + this.tagDy

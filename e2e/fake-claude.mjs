@@ -315,10 +315,15 @@ await hook('UserPromptSubmit', { prompt: 'add a health check' })
 await sleep(pause)
 await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'router' } })
 await sleep(pause)
-await hook('SubagentStart', { agent_id: 'sub-1', agent_type: 'Explore' })
-await hook('PreToolUse', { agent_id: 'sub-1', tool_name: 'Read', tool_input: { file_path: `${process.cwd()}/README.md` } })
+// FAKE_SUBS=n starts n subagents at once (default 1); FAKE_SUBS_HOLD=1 keeps them running for a screenshot.
+const subIds = Array.from({ length: Number(process.env.FAKE_SUBS ?? 1) }, (_, i) => `sub-${i + 1}`)
+for (const id of subIds) {
+  await hook('SubagentStart', { agent_id: id, agent_type: 'Explore' })
+  await hook('PreToolUse', { agent_id: id, tool_name: 'Read', tool_input: { file_path: `${process.cwd()}/README.md` } })
+}
 await sleep(pause)
-await hook('SubagentStop', { agent_id: 'sub-1' })
+if (process.env.FAKE_SUBS_HOLD) await new Promise(() => {})
+for (const id of subIds) await hook('SubagentStop', { agent_id: id })
 await hook('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: `${process.cwd()}/src/health.ts` } })
 await sleep(pause)
 // FAKE_TERMINAL_PROMPT=1: like Claude 2.1.28x, show our own permission menu while the hook is pending,

@@ -8,7 +8,7 @@ import { type Ambient, type Screen, drawFloors, drawFurniture } from './furnitur
 import { GRASS, Street, drawGrounds, drawHiringSign, paintBillboard } from './grounds'
 import { PLANT, PowerPlant } from './power'
 import type { LimitView, UsageLimits } from '../../shared/usage'
-import { OFFICE, type Spot, TILE } from './office'
+import { OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
 
@@ -67,7 +67,11 @@ export class OfficeWorld {
   private street!: Street
   private onHandbook: (agentId: string) => void = () => {}
   private readonly books = new Map<string, Graphics>()
+  // Subagents gathered around their main agent's desk: which seat each has, and the stool drawn under it.
+  private readonly retinue = new Map<string, number>()
+  private readonly stools = new Map<string, Graphics>()
   private publishedBooks = -1
+  private publishedCrew = ''
   private plant!: PowerPlant
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly billboard = new Graphics()
@@ -238,10 +242,21 @@ export class OfficeWorld {
   }
 
   /** Screen positions of things drawn on the canvas, so the page (and tests) can anchor to them. */
+  // Where each gathered subagent sits and which way it faces, with its main agent's desk, for tests.
+  private crewJson() {
+    return JSON.stringify([...this.retinue].map(([key, seat]) => {
+      const c = this.chars.get(key)!
+      const parent = this.chars.get(key.split('/')[0]!)
+      return { key, seat, x: c.home.x, y: c.home.y, facing: c.home.facing, desk: parent?.home ?? null, subagents: parent?.subagents ?? 0 }
+    }))
+  }
+
   private publishAnchors() {
     this.publishedBooks = this.books.size
     this.host.dataset.power = JSON.stringify(this.plant.center())
     this.host.dataset.books = JSON.stringify([...this.books].map(([agentId, g]) => { const p = g.getGlobalPosition(); const k = this.root.scale.x; return { agentId, x: Math.round(p.x + 4 * k), y: Math.round(p.y + 5 * k) } }))
+    this.publishedCrew = this.crewJson()
+    this.host.dataset.crew = this.publishedCrew
     this.host.dataset.view = JSON.stringify({ scale: this.root.scale.x, x: this.root.x, y: this.root.y })
   }
 
@@ -265,6 +280,7 @@ export class OfficeWorld {
   }
 
   private release(key: string) {
+    this.retinue.delete(key)
     for (const m of this.claims.values()) m.delete(key)
   }
 
@@ -272,14 +288,26 @@ export class OfficeWorld {
     const existing = this.chars.get(key)
     if (existing) return existing
     const intern = role === 'intern'
-    const home = this.claim(key, intern ? 'intern' : 'desk', near)
+    const gathered = intern ? this.retinueHome(agentId, key) : null
+    const home = gathered ?? this.claim(key, intern ? 'intern' : 'desk', near)
     const place = placeFor(activity, intern)
-    const start = this.firstSync && place !== 'gone' ? this.claim(key, place) : OFFICE.door
+    const start = this.firstSync && place !== 'gone' ? (gathered ?? this.claim(key, place)) : OFFICE.door
     const c = new Character(key, label, role, home, start, OFFICE.map, () => this.onSelect(agentId))
     this.chars.set(key, c)
     this.layer.addChild(c.view)
     this.overlays.addChild(c.overlay)
     return c
+  }
+
+  // A subagent sits beside the main agent's desk (the nearest free seat of six); with none left it uses the shared table.
+  private retinueHome(parentId: string, key: string): Spot | null {
+    const desk = this.chars.get(parentId)?.home
+    if (!desk || !OFFICE.desks.includes(desk)) return null
+    const used = new Set([...this.retinue].filter(([k]) => k.startsWith(`${parentId}/`)).map(([, i]) => i))
+    const n = Array.from({ length: RETINUE_SEATS }, (_, i) => i).find((i) => !used.has(i))
+    if (n === undefined) return null
+    this.retinue.set(key, n)
+    return retinueSpot(desk, n)
   }
 
   private route(c: Character, activity: Activity, intern: boolean, detail?: string, mode?: string) {
@@ -305,6 +333,7 @@ export class OfficeWorld {
       c.selected = a.selected
       c.mode = a.state.mode
       c.contextPct = a.contextPct
+      c.subagents = Object.keys(a.state.interns).length
       this.route(c, a.state.activity, false, a.state.detail, a.state.mode)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
@@ -314,6 +343,7 @@ export class OfficeWorld {
         live.add(key)
         const ic = this.ensure(key, intern.type, 'intern', a.id, intern.activity)
         ic.selected = a.selected
+        ic.gathered = this.retinue.get(key) ?? null
         this.route(ic, intern.activity, true, intern.detail)
       }
     }
@@ -378,7 +408,8 @@ export class OfficeWorld {
     }
     this.drawPiles()
     this.syncBooks()
-    if (this.books.size !== this.publishedBooks) this.publishAnchors()
+    this.syncStools()
+    if (this.books.size !== this.publishedBooks || this.crewJson() !== this.publishedCrew) this.publishAnchors()
     this.drawMail(t)
     this.untangle()
     for (const [spot, s] of this.screens) s.draw(atScreen.get(spot) ?? null, t)
@@ -386,6 +417,30 @@ export class OfficeWorld {
     this.sign.visible = this.chars.size === 0
     this.street.update(dt, t)
     this.plant.update(t)
+  }
+
+  // A small stool under each subagent sitting at its main agent's desk, drawn over the sitter like the desk chair.
+  private syncStools() {
+    for (const [key, g] of this.stools)
+      if (!this.retinue.has(key) || !this.chars.get(key) || this.chars.get(key)!.leaving) {
+        g.destroy()
+        this.stools.delete(key)
+      }
+    for (const key of this.retinue.keys()) {
+      const c = this.chars.get(key)
+      if (!c || c.leaving || this.stools.has(key)) continue
+      const g = new Graphics()
+      const px = c.home.x * TILE
+      const py = c.home.y * TILE
+      g.rect(px + 4, py + 12, 2, 4).fill(0x8a9099)
+      g.rect(px + 10, py + 12, 2, 4).fill(0x8a9099)
+      g.rect(px + 2, py + 7, 12, 6).fill(0x5f9e5f)
+      g.rect(px + 3, py + 8, 10, 1).fill(0x7fbe7a)
+      g.rect(px + 3, py + 11, 10, 1).fill(0x4a7e4a)
+      g.zIndex = py + TILE + 2
+      this.layer.addChild(g)
+      this.stools.set(key, g)
+    }
   }
 
   // Each seated agent's handbook (CLAUDE.md) lies closed on the desk; clicking it opens the file.
@@ -520,7 +575,7 @@ export class OfficeWorld {
   // Tags push downward and bubbles upward until none cover another.
   private untangle() {
     const chars = [...this.chars.values()]
-    const tagBoxes = chars.map((c) => c.tagBox)
+    const tagBoxes = chars.filter((c) => c.tagShownNow).map((c) => c.tagBox)
     const tags = spread(tagBoxes, 1)
     const placedTags = tagBoxes.map((b) => ({ ...b, id: `tag:${b.id}`, y: b.y + (tags[b.id] ?? 0) }))
     const bubbles = spread(chars.flatMap((c) => c.bubbleBox ?? []), -1, placedTags)

@@ -62,7 +62,7 @@ export function findPath(map: OfficeMap, from: Pt, to: Pt): Pt[] | null {
 
 // ---- The office layout ---------------------------------------------------------------
 
-export type Facing = 'up' | 'down'
+export type Facing = 'up' | 'down' | 'left' | 'right'
 /** Where a character rests. `ox` nudges it off the tile grid to centre it on wide furniture. */
 export interface Spot extends Pt {
   facing: Facing
@@ -87,6 +87,18 @@ const DESK_ROWS = [3, 7]
 const TABLE = { x: 5, y: 11, w: 6, h: 2 }
 const INTERN_XS = [5, 7, 9]
 const BEANBAG_XS = [20, 22, 24]
+
+/** How many subagents fit around one main agent's desk; the rest use the shared table. */
+export const RETINUE_SEATS = 6
+// All of them face the main agent: first beside the chair, then at the sides of the desk, then across the desk.
+// [dx, dy, facing] from the chair tile, which is the left of the two tiles the agent sits across.
+const RETINUE: [number, number, Facing][] = [[2, 0, 'left'], [-1, 0, 'right'], [2, -1, 'left'], [-1, -1, 'right'], [0, -2, 'down'], [1, -2, 'down']]
+
+/** The open floor where a main agent's nth subagent sits, next to the desk chair at `desk`; null when all are taken. */
+export function retinueSpot(desk: Pt, n: number): Spot | null {
+  const s = RETINUE[n]
+  return s ? { x: desk.x + s[0], y: desk.y + s[1], facing: s[2], ox: 0, seated: true } : null
+}
 
 function buildRows(furniture: Furniture[], seats: Pt[]) {
   const grid: string[][] = Array.from({ length: H }, () => Array.from({ length: W }, () => '#'))
