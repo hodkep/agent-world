@@ -6,9 +6,11 @@ export interface PastSession {
   title: string
   /** Last modified, ms since epoch. */
   updated: number
+  /** Size of the saved conversation on disk. */
+  bytes: number
 }
 
-const TITLE_LEN = 80
+const TITLE_LEN = 160
 // Transcripts run to megabytes; the first prompt is always near the top.
 const HEAD_BYTES = 256 * 1024
 
@@ -52,7 +54,7 @@ const BATCH = 8
  * must not make opening the list slow.
  */
 export async function listSessions(claudeProjectsDir: string, slugs: string[], limit = 40): Promise<PastSession[]> {
-  const found: { id: string; path: string; updated: number }[] = []
+  const found: { id: string; path: string; updated: number; bytes: number }[] = []
   for (const slug of slugs) {
     let files: string[]
     try {
@@ -64,7 +66,8 @@ export async function listSessions(claudeProjectsDir: string, slugs: string[], l
       files.map(async (f) => {
         const path = join(claudeProjectsDir, slug, f)
         try {
-          return { id: f.slice(0, -'.jsonl'.length), path, updated: (await stat(path)).mtimeMs }
+          const st = await stat(path)
+          return { id: f.slice(0, -'.jsonl'.length), path, updated: st.mtimeMs, bytes: st.size }
         } catch {
           return null
         }
@@ -78,7 +81,7 @@ export async function listSessions(claudeProjectsDir: string, slugs: string[], l
     const titles = await Promise.all(found.slice(i, i + BATCH).map((f) => head(f.path).then(titleOf, () => '')))
     titles.forEach((title, k) => {
       const f = found[i + k]!
-      if (title && out.length < limit) out.push({ id: f.id, title, updated: f.updated })
+      if (title && out.length < limit) out.push({ id: f.id, title, updated: f.updated, bytes: f.bytes })
     })
   }
   return out

@@ -518,11 +518,14 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .pic:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--accent); background: var(--panel-3); }
 .pic.missing { padding: 8px 10px; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .tc-images { display: flex; gap: 6px; flex-wrap: wrap; }
-.lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgb(8 7 12 / 0.88); padding: 24px; }
-.lightbox img { max-width: 100%; max-height: 100%; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); }
+.lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgb(8 7 12 / 0.88); overflow: hidden; touch-action: none; }
+.lightbox img { max-width: calc(100vw - 48px); max-height: calc(100vh - 96px); object-fit: contain; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); user-select: none; -webkit-user-drag: none; cursor: grab; will-change: transform; }
+.lightbox.panning img { cursor: grabbing; }
 .lightbox-x { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; padding: 0; }
 .lightbox-x::before, .lightbox-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
 .lightbox-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.lightbox-bar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--panel); border: 2px solid var(--ink); }
+.lightbox-bar span { min-width: 5ch; text-align: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .msg.shell { display: flex; flex-direction: column; gap: 0; align-self: stretch; }
 .msg.shell .tc-cmd { margin: 0; background: var(--panel-3); box-shadow: inset 3px 0 0 var(--ok); padding: 5px 8px; font: 12px Menlo, Consolas, monospace; white-space: pre-wrap; }
 .shell-out { margin: 0; padding: 5px 8px; background: var(--well); font: 11px/1.45 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); max-height: 14em; overflow: auto; }
@@ -616,8 +619,8 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .settings { width: min(460px, 92vw); padding: 0; background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
 .settings::backdrop { background: rgb(0 0 0 / 0.5); }
 .settings-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 2px solid var(--ink); }
-.settings fieldset { border: 0; border-bottom: 2px solid var(--ink); margin: 0; padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
-.settings legend { padding: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.settings fieldset { border: 0; border-bottom: 2px solid var(--ink); margin: 0; padding: 16px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+.settings legend { padding: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .settings label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .settings label.check { flex-direction: row; align-items: center; gap: 8px; }
 .settings input:not([type=checkbox]), .settings select { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }
@@ -814,8 +817,19 @@ svg.pxi { display: block; flex: none; }
 .inline-need .dialog-body { flex: none; min-height: auto; overflow: visible; }
 
 /* History opens in a dialog of its own, like Settings. */
-.history-dialog { width: min(560px, 94vw); }
-.history-dialog .history ul { max-height: 60vh; overflow: auto; }
+.history-dialog { width: min(640px, 94vw); }
+.history-dialog .history { padding: 16px 18px 18px; }
+.history-head { gap: 10px; margin-bottom: 12px; }
+.hx-count { margin-right: auto; color: var(--muted); font-size: 12px; }
+.hx-search { width: 100%; margin-bottom: 12px; font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 6px 8px; }
+.hx-list { max-height: 58vh; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+.hx-day { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.history .hx-item { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 8px 10px; background: var(--panel-2); }
+.history .hx-item:hover:not(:disabled) { background: var(--panel-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.hx-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; white-space: normal; }
+.hx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--muted); font-size: 11px; }
+.hx-chip { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; color: var(--ink); background: var(--think); }
+.hx-chip.live { background: var(--ok); }
 
 /* Compact sits on the context row of the usage pop-up. */
 .cb-meter { grid-template-columns: auto 1fr auto auto; }
@@ -1028,7 +1042,7 @@ code a.file-link { font: inherit; }
 .crew-needs { color: var(--ink); background: var(--accent); padding: 0 6px; font-weight: 600; }
 .procs-pop.crew-pop { width: min(720px, 100%); max-height: min(420px, 60vh); overflow: auto; }
 .crew-pop .dg { border: 0; }
-.dg-told { padding: 0 10px 8px; color: var(--muted); font-size: 12px; }
+.dg-told { padding: 12px 10px 10px; color: var(--muted); font-size: 12px; }
 
 .crew-dialog.settings { width: min(820px, 96vw); }
 .crew-groups { display: grid; gap: 12px; }
@@ -1174,3 +1188,11 @@ code a.file-link { font: inherit; }
 .st-heat-row i:nth-child(-n+6)::after { left: 0; transform: none; }
 .st-heat-row i:nth-child(n+16)::after { left: auto; right: 0; transform: none; }
 @media (max-width: 640px) { .st-cards.three { grid-template-columns: 1fr; } }
+
+/* Chat search: every match is marked, the current one stands out. */
+::highlight(find) { background-color: rgb(248 208 76 / 0.35); color: inherit; }
+::highlight(find-current) { background-color: var(--accent); color: var(--ink); }
+.chat-tools .chat-step { padding: 2px 8px; }
+/* The panel's generic `aside section` rule must not lay a day group out sideways. */
+.hx-list > section { display: block; padding: 0; border-bottom: 0; }
+.hx-list ul { max-height: none; }

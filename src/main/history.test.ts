@@ -20,7 +20,7 @@ describe('session title', () => {
   })
 
   it('reads text blocks and shortens long prompts', () => {
-    expect(titleOf(user([{ type: 'text', text: 'x'.repeat(200) }]))).toHaveLength(80)
+    expect(titleOf(user([{ type: 'text', text: 'x'.repeat(200) }]))).toHaveLength(160)
   })
 
   it('is empty when there is no user message', () => {
@@ -47,10 +47,16 @@ describe('listing sessions', () => {
     put('-repo', 'e', line({ type: 'attachment' }), 3000)
     put('-other', 'd', user('elsewhere'), 4000)
     expect(await listSessions(root, ['-repo', '-repo-wt'])).toEqual([
-      { id: 'b', title: 'new work', updated: 2000_000 },
-      { id: 'c', title: 'worktree work', updated: 1500_000 },
-      { id: 'a', title: 'old work', updated: 1000_000 }
+      { id: 'b', title: 'new work', updated: 2000_000, bytes: expect.any(Number) },
+      { id: 'c', title: 'worktree work', updated: 1500_000, bytes: expect.any(Number) },
+      { id: 'a', title: 'old work', updated: 1000_000, bytes: expect.any(Number) }
     ])
+  })
+
+  it('reports how big each saved conversation is', async () => {
+    const body = user('some work')
+    put('-repo', 'a', body, 1000)
+    expect((await listSessions(root, ['-repo']))[0]!.bytes).toBe(Buffer.byteLength(body))
   })
 
   it('returns nothing when the folder has no history', async () => {

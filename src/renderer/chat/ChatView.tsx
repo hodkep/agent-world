@@ -180,14 +180,56 @@ export function ChatView({
     const at = cut ? allRows.findIndex((r) => r.id === cut) : -1
     return at < 0 ? allRows : allRows.filter((r, i) => i < at || ('pending' in r && r.pending))
   }, [allRows, cut])
-  const found = useMemo(() => {
-    const q = query?.trim().toLowerCase()
-    return q ? visible_.filter((r) => rowText(r).toLowerCase().includes(q)) : visible_
-  }, [visible_, query])
+  // Searching keeps the whole conversation in place and marks the matches in it; it does not cut the rows down.
+  const found = visible_
+  const searching = !!query?.trim()
   // Long conversations render only the latest rows; older ones load on request so the view stays quick.
   const [shown, setShown] = useState(WINDOW)
   useEffect(() => setShown(WINDOW), [agentId])
-  const rows = useMemo(() => (found.length > shown ? found.slice(-shown) : found), [found, shown])
+  const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
+
+  // Every match of the search, marked with the page's own highlighting; `at` is the one being looked at.
+  const [hits, setHits] = useState(0)
+  const [at, setAt] = useState<number | null>(null)
+  const ranges = useRef<Range[]>([])
+  useEffect(() => setAt(null), [query])
+  useEffect(() => {
+    const q = query?.trim().toLowerCase()
+    const root = log.current
+    if (!q || !root || !visible) {
+      ranges.current = []
+      setHits(0)
+      return
+    }
+    const list: Range[] = []
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const text = n.nodeValue!.toLowerCase()
+      // Text inside a folded-away section cannot be looked at, so it is not a match.
+      if (!text.includes(q) || !n.parentElement?.checkVisibility()) continue
+      for (let i = text.indexOf(q); i >= 0; i = text.indexOf(q, i + q.length)) {
+        const r = new Range()
+        r.setStart(n, i)
+        r.setEnd(n, i + q.length)
+        list.push(r)
+      }
+    }
+    ranges.current = list
+    setHits(list.length)
+    // Start at the newest match.
+    setAt((a) => (list.length === 0 ? null : a === null || a >= list.length ? list.length - 1 : a))
+    CSS.highlights.set('find', new Highlight(...list))
+    return () => void CSS.highlights.delete('find')
+  }, [query, rows, visible])
+  useEffect(() => {
+    const r = at === null ? undefined : ranges.current[at]
+    if (!r) return
+    CSS.highlights.set('find-current', new Highlight(r))
+    stick.current = false
+    r.startContainer.parentElement?.scrollIntoView({ block: 'center' })
+    return () => void CSS.highlights.delete('find-current')
+  }, [at, hits])
+  const step = (d: number) => hits > 0 && setAt((a) => (((a ?? 0) + d) % hits + hits) % hits)
 
   // Follow the conversation while the reader is at the bottom; leave them alone once they scroll up.
   // Rows grow after they are added (markdown, pictures, a streaming reply), so staying at the end is a standing job:
@@ -293,12 +335,18 @@ export function ChatView({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && (setQuery(null), e.stopPropagation())}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') (setQuery(null), e.stopPropagation())
+              // Enter goes to the previous (older) match, Shift+Enter to the next, as the buttons do.
+              else if (e.key === 'Enter') (e.preventDefault(), step(e.shiftKey ? 1 : -1))
+            }}
             placeholder="Search this conversation…"
             aria-label="Search this conversation"
             autoFocus
           />
-          <span className="chat-count">{found.length} of {allRows.length}</span>
+          <span className="chat-count" aria-live="polite">{!searching ? '' : hits === 0 ? 'No matches' : `${(at ?? 0) + 1} of ${hits}`}</span>
+          <button className="chat-step" onClick={() => step(-1)} disabled={hits === 0} aria-label="Previous match" title="Previous (older) match: Enter">↑</button>
+          <button className="chat-step" onClick={() => step(1)} disabled={hits === 0} aria-label="Next match" title="Next (newer) match: Shift+Enter">↓</button>
           <button onClick={() => setQuery(null)}>Close</button>
         </div>
       )}
@@ -306,7 +354,7 @@ export function ChatView({
       <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">
-            {query ? 'Nothing matches.' : asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
+            { asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
           </p>
         )}
         {rows.length < found.length && (

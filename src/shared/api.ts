@@ -23,6 +23,7 @@ export interface PastSession {
   id: string
   title: string
   updated: number
+  bytes: number
   /** An agent in this app already runs it. */
   inUse: boolean
   agentId?: string

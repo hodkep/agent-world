@@ -30,6 +30,13 @@ test('bring back an earlier conversation from the folder as a new agent', async 
     await expect(dialog).toBeVisible()
     expect(await page.locator('aside').isVisible()).toBe(panelBefore)
     expect(await dialog.evaluate((el) => el.matches(':modal'))).toBe(true)
+    // Grouped by day, with when it was and how big, and searchable.
+    await expect(dialog.locator('.hx-day')).toHaveText('Today')
+    await expect(dialog.locator('.hx-meta')).toContainText('KB')
+    await dialog.getByRole('textbox', { name: 'Search past conversations' }).fill('nothing like this')
+    await expect(dialog.getByText('No conversation matches.')).toBeVisible()
+    await dialog.getByRole('textbox', { name: 'Search past conversations' }).fill('pagination')
+    await expect(dialog.locator('.hx-item')).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await page.getByRole('button', { name: 'History' }).click()

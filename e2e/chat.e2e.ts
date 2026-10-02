@@ -94,7 +94,18 @@ test('attach and paste pictures, run a shell command with !, switch permission m
 
     // A picture opens full size.
     await log.locator('.pic').first().click()
-    await expect(page.getByRole('dialog', { name: 'Picture' })).toBeVisible()
+    const lightbox = page.getByRole('dialog', { name: 'Picture' })
+    await expect(lightbox).toBeVisible()
+    // Shown whole inside the window, then it zooms in and out and goes back to fitting.
+    const fits = () => lightbox.locator('img').evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth })
+    expect(await fits()).toBe(true)
+    await lightbox.getByRole('button', { name: 'Zoom in' }).click()
+    await expect(lightbox.locator('.lightbox-bar span')).toHaveText('125%')
+    await page.keyboard.press('+')
+    await expect(lightbox.locator('.lightbox-bar span')).toHaveText('156%')
+    await lightbox.getByRole('button', { name: 'Fit to window' }).click()
+    await expect(lightbox.locator('.lightbox-bar span')).toHaveText('Fit')
+    expect(await fits()).toBe(true)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Picture' })).toHaveCount(0)
 
@@ -118,12 +129,28 @@ test('attach and paste pictures, run a shell command with !, switch permission m
     await page.getByRole('menuitemradio', { name: /^Plan/ }).click()
     await expect(page.locator('.mode-chip')).toHaveText('Plan', { timeout: 10_000 })
 
-    // Search narrows the conversation.
+    // Search marks every match in the conversation, which stays whole, and steps from one to the next.
     await box.fill('')
     await chatMenu(page, 'Search')
-    await page.getByRole('textbox', { name: 'Search this conversation' }).fill('git status')
+    const find = page.getByRole('textbox', { name: 'Search this conversation' })
+    await find.fill('e')
+    const marked = () => page.evaluate(() => [CSS.highlights.get('find')?.size ?? 0, CSS.highlights.get('find-current')?.size ?? 0])
+    await expect.poll(async () => (await marked())[0]).toBeGreaterThan(1)
+    expect((await marked())[1]).toBe(1)
     await expect(log.locator('.msg.shell')).toBeVisible()
-    await expect(log.locator('.msg.assistant')).toHaveCount(0)
+    await expect(log.locator('.msg.assistant').first()).toBeVisible()
+    const count = page.locator('.chat-count')
+    const total = Number((await count.textContent())!.split(' of ')[1])
+    expect(total).toBeGreaterThan(2)
+    expect(await count.textContent()).toBe(`${total} of ${total}`)
+    await find.press('Enter')
+    await expect(count).toHaveText(`${total - 1} of ${total}`)
+    await page.getByRole('button', { name: 'Next match' }).click()
+    await expect(count).toHaveText(`${total} of ${total}`)
+    await page.getByRole('button', { name: 'Next match' }).click()
+    await expect(count).toHaveText(`1 of ${total}`)
+    await find.fill('zzzz-nothing')
+    await expect(count).toHaveText('No matches')
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'chat2.png') })
   } finally {
     await shutdown()
