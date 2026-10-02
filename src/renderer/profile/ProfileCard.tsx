@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import type { Effort } from '../../shared/types'
-import { type IconName, PixelIcon } from '../chat/PixelIcon'
+import { PixelIcon } from '../chat/PixelIcon'
 import { MODELS } from '../panel/HireForm'
 import { type CardData, factRows } from './facts'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
@@ -94,8 +94,10 @@ function Name({ name, edit }: { name: string; edit: CardEdit | null }) {
   )
 }
 
-/** A button that opens a short list to choose from, closing on a choice, a click elsewhere or Esc. */
-function Pick({ icon, iconColor, value, label, options, current, onPick, disabled, title, iconOnly }: { icon: IconName; iconColor?: string; value: string; label: string; options: { id: string; label: string; hint?: string }[]; current: string; onPick: (id: string) => void; disabled: boolean; title: string; iconOnly: boolean }) {
+const STEP_LABEL: Record<(typeof EFFORT_STEPS)[number], string> = { low: 'Low', medium: 'Med', high: 'High', xhigh: 'X-High', max: 'Max' }
+
+/** A button that shows the current choice in words and opens a short list to change it, closing on a choice, a click elsewhere or Esc. */
+function Pick({ value, label, swatch, options, current, onPick, disabled, title, wait }: { value: string; label: string; swatch?: string; options: { id: string; label: string; hint?: string }[]; current: string; onPick: (id: string) => void; disabled: boolean; title: string; wait: string }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -111,11 +113,10 @@ function Pick({ icon, iconColor, value, label, options, current, onPick, disable
   }, [open])
   return (
     <span className="pc-pick" ref={wrap}>
-      <button className="pc-ctl" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label={`${label}: ${value}`} title={disabled ? 'Wait until it finishes its turn' : title} onClick={() => setOpen((o) => !o)}>
-        <span style={iconColor ? { color: iconColor } : undefined}>
-          <PixelIcon name={icon} scale={2} />
-        </span>
-        {!iconOnly && <span className="pc-ctl-v">{value}</span>}
+      <button className="pc-sel" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label={`${label}: ${value}`} title={disabled ? wait : title} onClick={() => setOpen((o) => !o)}>
+        {swatch && <i className="pc-swatch" style={{ background: swatch }} />}
+        <span>{value}</span>
+        <span className="pc-caret" aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="pc-menu" role="menu" aria-label={label}>
@@ -131,32 +132,37 @@ function Pick({ icon, iconColor, value, label, options, current, onPick, disable
   )
 }
 
-function Gauge({ icon, label, value, children }: { icon: IconName; label: string; value: string; children: React.ReactNode }) {
+/** One reading with its name in words, a bar under it, and what the bar means. */
+function Gauge({ label, value, note, children }: { label: string; value: string; note?: string; children: React.ReactNode }) {
   return (
-    <div className="pc-gauge" role="img" aria-label={`${label}: ${value}`}>
-      <PixelIcon name={icon} scale={2} />
-      <div className="pc-gauge-bar">{children}</div>
-      <span className="pc-gauge-v">{value}</span>
+    <div className="pc-g">
+      <div className="pc-g-head">
+        <span>{label}</span>
+        <b>{value}</b>
+      </div>
+      {children}
+      {note && <small>{note}</small>}
     </div>
   )
 }
 
-function Tile({ icon, value, label }: { icon: IconName; value: string; label: string }) {
+function Tile({ value, label, hint }: { value: string; label: string; hint: string }) {
   return (
-    <div className="pc-tile" title={label}>
-      <PixelIcon name={icon} scale={2} />
+    <div className="pc-tile" title={hint}>
       <b>{value}</b>
       <span>{label}</span>
     </div>
   )
 }
 
+const STATUS: Record<string, string> = { thinking: 'Thinking', researching: 'Reading and searching', implementing: 'Editing files', running: 'Running a command', delegating: 'Handing work to subagents', compacting: 'Compacting', idle: 'Idle', waiting: 'Waiting for you', permission: 'Needs your answer', blocked: 'Blocked', asleep: 'Asleep' }
+
 /**
- * The agent's profile card, in the world's own 8-bit look: a moving portrait, three gauges, the settings you can change
- * (each is the same action as in the chat, so the chat follows), and a few numbers as tiles. The same facts are also
- * in the panel as text.
+ * The agent's profile card, in the world's own 8-bit look. Every part says what it is in words: a moving portrait
+ * with what the agent is doing now, three labelled readings, the settings you can change (each is the same action
+ * as in the chat, so the chat follows), and a few counted numbers. The same facts are also in the panel as text.
  */
-export function ProfileCard({ data, variant, now, edit }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null }) {
+export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null; onClose: () => void }) {
   const reduced = useReducedMotion()
   const compact = variant === 'compact'
   const ctx = contextGauge(data.ctx)
@@ -167,35 +173,43 @@ export function ProfileCard({ data, variant, now, edit }: { data: CardData; vari
   const pips = effortPips(data.effortId)
   const mode = modeInfo(data.modeId)
   const off = !edit || !data.canSwitch
+  const wait = 'Wait until it finishes its turn'
   return (
     <section className={`pc pc-${variant}`} data-agent={data.id} aria-label={`Profile of ${data.name}`}>
       <header className="pc-title">
         <span className={`pc-dot is-${figureMood(data.activity)}`} aria-hidden="true" />
         <Name name={data.name} edit={edit} />
         <span className="pc-role">{data.roleLabel}</span>
+        <button className="pc-x" aria-label="Close profile card" title="Close" onClick={onClose}>
+          <PixelIcon name="x" scale={1} />
+        </button>
       </header>
+      <p className="pc-status">{STATUS[data.activity] ?? data.activity}</p>
+      <div className="pc-cols">
+      <div>
       <div className="pc-top">
         <div className="pc-left">
           <Portrait id={data.id} role={data.role} activity={data.activity} reduced={reduced} />
           {!compact && (
-            <div className="pc-lv" role="img" aria-label={`Level ${lv.level}, ${lv.pct}% to the next`}>
-              <span>LV {lv.level}</span>
+            <div className="pc-lv" title="A playful level from the lines it has changed">
+              <span>Level {lv.level}</span>
               <i className="pc-bar">
                 <b style={{ width: `${lv.pct}%` }} />
               </i>
+              <small>{lv.pct}% to level {lv.level + 1}</small>
             </div>
           )}
         </div>
         <div className="pc-gauges">
-          <Gauge icon="battery" label="Context used" value={data.ctx === null ? '–' : `${ctx.pct}%`}>
+          <Gauge label="Context used" value={data.ctx === null ? 'not reported' : `${ctx.pct}%`} note={data.ctx === null ? undefined : `${100 - ctx.pct}% left`}>
             <i className={`pc-bar hp ${ctx.tone}`}>
               <b style={{ width: `${ctx.pct}%` }} />
             </i>
           </Gauge>
-          <Gauge icon="coin" label="Cost" value={cost.label.replace(' of ', '/')}>
+          <Gauge label="Spent" value={cost.label} note={cost.pct === null ? 'no budget set' : `${cost.pct}% of budget`}>
             <i className={`pc-bar hp ${cost.tone}`}>{cost.pct !== null && <b style={{ width: `${cost.pct}%` }} />}</i>
           </Gauge>
-          <Gauge icon="lines" label="Lines changed" value={lines.label}>
+          <Gauge label="Code changed" value={lines.label} note="lines added / removed">
             <i className="pc-bar split">
               <b className="add" style={{ width: `${lines.addPct}%` }} />
               <b className="del" style={{ width: `${lines.delPct}%` }} />
@@ -203,66 +217,77 @@ export function ProfileCard({ data, variant, now, edit }: { data: CardData; vari
           </Gauge>
         </div>
       </div>
-      <div className="pc-controls" role="group" aria-label="Settings">
+      </div>
+      <div>
+      <h3 className="pc-h">Settings</h3>
+      <div className="pc-set">
+        <span className="pc-k">Model</span>
         <Pick
-          icon="chip"
-          value={data.model || 'model'}
+          value={data.model || 'not reported'}
           label="Model"
           options={MODELS.filter((m) => m.value).map((m) => ({ id: m.value, label: m.label }))}
           current={data.modelId}
           onPick={(id) => edit?.onModel(id)}
           disabled={off}
           title="Change the model: the agent restarts on the same conversation"
-          iconOnly={compact}
+          wait={wait}
         />
-        <span className="pc-think" role="group" aria-label={`Thinking level: ${data.effortId || 'default'}`}>
-          <PixelIcon name="bulb" scale={2} />
-          {EFFORT_STEPS.map((s, i) => (
-            <button key={s} className={`pc-pip ${pips[i] ? 'on' : ''}`} disabled={off} aria-label={`Thinking ${s}`} aria-pressed={data.effortId === s} title={off ? 'Wait until it finishes its turn' : `Thinking: ${s}`} onClick={() => edit?.onEffort(s)} />
+        <span className="pc-k">Thinking</span>
+        <span className="pc-steps" role="group" aria-label={`Thinking level: ${data.effortId || 'default'}`}>
+          {EFFORT_STEPS.map((st, i) => (
+            <button key={st} className={`pc-step ${pips[i] ? 'on' : ''} ${data.effortId === st ? 'now' : ''}`} disabled={off} aria-label={`Thinking ${st}`} aria-pressed={data.effortId === st} title={off ? wait : `Thinking: ${st}`} onClick={() => edit?.onEffort(st)}>
+              {STEP_LABEL[st]}
+            </button>
           ))}
         </span>
+        <span className="pc-k">Mode</span>
         <Pick
-          icon="shield"
-          iconColor={cssColor(mode.color)}
           value={mode.label}
           label="Mode"
+          swatch={cssColor(mode.color)}
           options={PICKABLE_MODES.map((m) => ({ id: m.id, label: m.label, hint: m.blurb }))}
           current={data.modeId}
           onPick={(id) => edit?.onMode(id)}
           disabled={!edit}
-          title="Change what it may do without asking"
-          iconOnly={compact}
+          title={mode.blurb}
+          wait={wait}
         />
-        <button className="pc-ctl" disabled={off} aria-label="Compact the conversation" title={off ? 'Wait until it finishes its turn' : 'Summarise the conversation to free up context (/compact)'} onClick={() => edit?.onCompact()}>
-          <PixelIcon name="squeeze" scale={2} />
-          {!compact && <span className="pc-ctl-v">Compact</span>}
+        <button className="pc-compact-btn" disabled={off} aria-label="Compact the conversation" title={off ? wait : 'Summarise the conversation to free up context (/compact)'} onClick={() => edit?.onCompact()}>
+          Compact conversation
+          <small>frees up context</small>
         </button>
       </div>
       {!compact && (
         <>
+          <h3 className="pc-h">So far</h3>
           <div className="pc-tiles">
-            <Tile icon="clock" value={p ? durationLabel(p.workedMs) : '…'} label="worked" />
-            <Tile icon="calendar" value={p ? agoShort(p.hiredAt, now) : '…'} label={p?.hiredEstimated ? 'hired ~' : 'hired'} />
-            <Tile icon="chat" value={p ? String(p.turns) : '…'} label="turns" />
-            <Tile icon="file" value={p ? String(p.files) : '…'} label="files" />
-            <Tile icon="team" value={p ? String(p.subagents) : '…'} label="subagents" />
-            <Tile icon="branch" value={p ? (p.commits === null ? '–' : String(p.commits)) : '…'} label="commits" />
+            <Tile value={p ? durationLabel(p.workedMs) : '…'} label="Worked" hint="Time spent actually working, not waiting for you" />
+            <Tile value={p ? agoShort(p.hiredAt, now) : '…'} label={p?.hiredEstimated ? 'Hired ~ ago' : 'Hired ago'} hint="How long ago it was hired" />
+            <Tile value={p ? String(p.turns) : '…'} label="Turns" hint="Messages you have sent it" />
+            <Tile value={p ? String(p.files) : '…'} label="Files" hint="Different files it has written or edited" />
+            <Tile value={p ? String(p.subagents) : '…'} label="Subagents" hint="Subagents it has started" />
+            <Tile value={p ? (p.commits === null ? '–' : String(p.commits)) : '…'} label="Commits" hint="Commits on its own branch" />
           </div>
           {p && p.tools.length > 0 && (
-            <div className="pc-toolbars" role="img" aria-label={`Most used tools: ${p.tools.map(([n, c]) => `${n} ${c}`).join(', ')}`}>
-              {toolBars(p.tools).map((t) => (
-                <div key={t.name}>
-                  <span>{t.name}</span>
-                  <i className="pc-bar">
-                    <b style={{ width: `${t.pct}%` }} />
-                  </i>
-                  <span>{t.count}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <h3 className="pc-h">Most used tools</h3>
+              <div className="pc-toolbars">
+                {toolBars(p.tools).map((t) => (
+                  <div key={t.name}>
+                    <span>{t.name}</span>
+                    <i className="pc-bar">
+                      <b style={{ width: `${t.pct}%` }} />
+                    </i>
+                    <span>{t.count}×</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
+      </div>
+      </div>
     </section>
   )
 }

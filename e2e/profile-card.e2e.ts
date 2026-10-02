@@ -18,6 +18,8 @@ async function start(panelWidth?: number, extra: Record<string, string> = {}) {
   await page.reload()
   await hire(page)
   await page.getByRole('tab', { name: 'Chat' }).click()
+  // Hiring opened the card, but clicking the Chat tab was a click outside it; the name brings it back.
+  await page.locator('.hc-name').click()
   return { app, page, shutdown, launches: () => (existsSync(join(tmp, 'launches.jsonl')) ? readFileSync(join(tmp, 'launches.jsonl'), 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) }
 }
 const pixels = (page: Page) => page.evaluate(() => Array.from(document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!.getContext('2d')!.getImageData(0, 0, 28, 38).data).join(','))
@@ -29,9 +31,14 @@ test('clicking an agent opens its card on the side of the office away from it, w
     await expect(card).toBeVisible({ timeout: 15_000 })
     await expect(card.locator('.pc-name')).toHaveText('ada')
     // Gauges and tiles carry the numbers, each with a name for assistive technology.
-    await expect(card.getByRole('img', { name: /^Context used: 42%/ })).toBeVisible()
-    await expect(card.getByRole('img', { name: /^Cost: \$1\.50/ })).toBeVisible()
+    await expect(card.getByText('Context used')).toBeVisible()
+    await expect(card.getByText('58% left')).toBeVisible()
+    await expect(card.getByText('Spent')).toBeVisible()
+    await expect(card.getByText('Settings', { exact: true })).toBeVisible()
     await expect(card.locator('.pc-tile', { hasText: 'hired' })).toContainText('new')
+    // No picture-only controls: each setting says what it is in words.
+    for (const word of ['Model', 'Thinking', 'Mode']) await expect(card.getByText(word, { exact: true })).toBeVisible()
+    await expect(card.getByRole('button', { name: 'Compact the conversation' })).toContainText('Compact conversation')
     await expect(card.getByRole('region', { name: 'Profile of ada' })).toBeVisible()
     const stage = (await page.locator('.stage').boundingBox())!
     const box = (await card.boundingBox())!
@@ -68,35 +75,47 @@ test('the figure moves, and holds still with reduced motion', async () => {
   }
 })
 
-test('the card can be hidden and the choice is kept', async () => {
+test('the card closes with its × and when you click outside it, and there is no separate toggle button', async () => {
   const { page, shutdown } = await start()
   try {
-    await expect(page.locator('.profile-overlay')).toBeVisible({ timeout: 15_000 })
-    await page.getByRole('button', { name: 'Profile card' }).click()
-    await expect(page.locator('.profile-overlay')).toHaveCount(0)
-    await page.reload()
-    await expect(page.getByRole('button', { name: 'Profile card' })).toHaveAttribute('aria-pressed', 'false')
-    await expect(page.locator('.profile-overlay')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Profile card' }).click()
-    await expect(page.locator('.profile-overlay')).toBeVisible()
+    const card = page.locator('.profile-overlay')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Profile card', exact: true })).toHaveCount(0)
+    await card.getByRole('button', { name: 'Close profile card' }).click()
+    await expect(card).toHaveCount(0)
+    // The name in the header brings it back; a click anywhere else sends it away again.
+    await page.locator('.hc-name').click()
+    await expect(card).toBeVisible()
+    await page.locator('.chat').first().click({ position: { x: 40, y: 200 } })
+    await expect(card).toHaveCount(0)
+    await page.locator('.hc-name').click()
+    await expect(card).toBeVisible()
+    // Clicking inside the card (its settings, its name) does not close it.
+    await card.getByRole('button', { name: /^Model:/ }).click()
+    await expect(card.getByRole('menu', { name: 'Model' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(card.getByRole('menu', { name: 'Model' })).toHaveCount(0)
+    await expect(card).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(card).toHaveCount(0)
   } finally {
     await shutdown()
   }
 })
 
-test('with too little room over the office the card moves into the panel, folded until you open it', async () => {
+test('with too little room over the office the card opens in the panel instead, and closes the same way', async () => {
   // A wide side panel leaves the office little room.
   const { page, shutdown } = await start(1000)
   try {
-    await expect(page.locator('.profile-bar')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada', { timeout: 15_000 })
     await expect(page.locator('.profile-overlay')).toHaveCount(0)
+    await page.locator('.profile-dock').getByRole('button', { name: 'Close profile card' }).click()
     await expect(page.locator('.profile-dock')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Show card' }).click()
-    await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada')
-    await expect(page.getByRole('button', { name: 'Hide card' })).toBeVisible()
-    // The facts as text are there either way.
+    // The facts as text are in the panel either way (opening them is a click outside the card, which closes it).
     await page.locator('.profile-facts summary').click()
     await expect(page.locator('.profile-facts')).toContainText('Hired')
+    await page.locator('.hc-name').click()
+    await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada')
   } finally {
     await shutdown()
   }
@@ -143,32 +162,6 @@ test('the card edits the agent: name, model, thinking level, mode and compact, e
     await expect(page.locator('.hc-name')).toHaveText('zed')
     const [agent] = await page.evaluate(() => window.aw.listAgents())
     expect(agent!.name).toBe('zed')
-  } finally {
-    await shutdown()
-  }
-})
-
-test('clicking the name in the header brings up the card, even when it was hidden', async () => {
-  const { page, shutdown } = await start()
-  try {
-    await expect(page.locator('.profile-overlay')).toBeVisible({ timeout: 15_000 })
-    await page.getByRole('button', { name: 'Profile card' }).click()
-    await expect(page.locator('.profile-overlay')).toHaveCount(0)
-    await page.locator('.hc-name').click()
-    await expect(page.locator('.profile-overlay')).toBeVisible()
-    await expect(page.locator('.profile-overlay .pc-name')).toHaveText('ada')
-  } finally {
-    await shutdown()
-  }
-})
-
-test('with no room over the office, clicking the name opens the card in the panel', async () => {
-  const { page, shutdown } = await start(1000)
-  try {
-    await expect(page.locator('.profile-bar')).toBeVisible({ timeout: 15_000 })
-    await expect(page.locator('.profile-dock')).toHaveCount(0)
-    await page.locator('.hc-name').click()
-    await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada')
   } finally {
     await shutdown()
   }

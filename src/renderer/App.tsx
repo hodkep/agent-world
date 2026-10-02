@@ -97,8 +97,7 @@ export function App() {
   const [history, setHistory] = useState(false)
   const [crewOpen, setCrewOpen] = useState(false)
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
-  const [cardOn, setCardOn] = useState(() => store('aw.card') !== '0')
-  const [dockOpen, setDockOpen] = useState(() => store('aw.carddock') === '1')
+  const [cardOpen, setCardOpen] = useState(false)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
   const [agentX, setAgentX] = useState(0)
   const [profile, setProfile] = useState<{ id: string; data: AgentProfile } | null>(null)
@@ -176,9 +175,23 @@ export function App() {
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
+  // The card goes away when you click anywhere outside it (its own name in the header opens it again) or press Esc.
+  useEffect(() => {
+    if (!cardOpen) return
+    const away = (e: MouseEvent) => {
+      if (!(e.target as Element | null)?.closest('.pc, .hc-name, .pc-menu')) setCardOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setCardOpen(false)
+    document.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [cardOpen])
   // While a card is showing: follow the agent's character (so the card stays on the far side) and keep its counts fresh.
   useEffect(() => {
-    if (!selected || !cardOn) return
+    if (!selected || !cardOpen) return
     let alive = true
     const where = () => {
       const p = office.current?.screenPosOf(selected)
@@ -195,9 +208,10 @@ export function App() {
       clearInterval(a)
       clearInterval(b)
     }
-  }, [selected, cardOn])
+  }, [selected, cardOpen])
   const select = (id: string) => {
     setSelected(id)
+    setCardOpen(true)
     keep('aw.selected', id)
     setView(talkRef.current)
     setOpenFile(undefined)
@@ -418,7 +432,7 @@ export function App() {
       }
     : null
   const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX }) : null
-  const cardAt = cardOn ? cardLay : null
+  const cardAt = cardOpen ? cardLay : null
   const renameTo = (id: string, value: string) =>
     window.aw.renameAgent(id, value).then((name) => {
       setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
@@ -443,9 +457,7 @@ export function App() {
     : null
   // Clicking the agent's name brings up its card (opening the dock when the card has no room over the office).
   const showCard = () => {
-    keep('aw.card', '1')
-    setCardOn(true)
-    if (cardLay?.mode === 'panel') (keep('aw.carddock', '1'), setDockOpen(true))
+    setCardOpen(true)
     setFlash((n) => n + 1)
   }
   const state = current ? world[current.id] : undefined
@@ -816,7 +828,7 @@ export function App() {
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
             <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }}>
-              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} />
+              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} />
             </div>
           )}
           {grid && agents.length > 0 && (
@@ -1055,19 +1067,9 @@ export function App() {
           )}
           {cardData && (
             <>
-              <div className="profile-bar">
-                <button aria-pressed={cardOn} onClick={() => (keep('aw.card', cardOn ? '0' : '1'), setCardOn(!cardOn))} title="Show this agent's profile card on the office, or hide it">
-                  Profile card
-                </button>
-                {cardAt?.mode === 'panel' && (
-                  <button aria-expanded={dockOpen} onClick={() => (keep('aw.carddock', dockOpen ? '' : '1'), setDockOpen(!dockOpen))} title="There is not enough room over the office: the card opens here instead">
-                    {dockOpen ? 'Hide card' : 'Show card'}
-                  </button>
-                )}
-              </div>
-              {cardAt?.mode === 'panel' && dockOpen && (
+              {cardAt?.mode === 'panel' && (
                 <div key={flash} className={`profile-dock ${flash ? 'flash' : ''}`}>
-                  <ProfileCard data={cardData} variant="docked" now={clock} edit={cardEdit} />
+                  <ProfileCard data={cardData} variant="docked" now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} />
                 </div>
               )}
               <ProfileFacts data={cardData} now={clock} />

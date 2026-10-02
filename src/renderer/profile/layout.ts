@@ -1,6 +1,6 @@
 /** The card's size on the page (CSS pixels) in its two overlay forms. */
-export const CARD_FULL = { w: 236, h: 300 }
-export const CARD_COMPACT = { w: 176, h: 250 }
+export const CARD_FULL = { w: 292, h: 640 }
+export const CARD_COMPACT = { w: 216, h: 440 }
 const MARGIN = 16
 
 export type CardMode = 'full' | 'compact' | 'panel'
