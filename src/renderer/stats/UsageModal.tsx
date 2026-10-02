@@ -45,7 +45,7 @@ export function UsageModal({ onClose }: { onClose: () => void }) {
                 ))}
               </span>
             </div>
-            <Bars label="Daily cost" rows={r.days.map((d, i) => ({ label: days <= 7 || i % Math.ceil(days / 6) === 0 ? d.date.slice(5) : '', value: d.usd }))} show={money} />
+            <Bars label="Daily cost" rows={r.days.map((d, i) => ({ label: days <= 7 || (r.days.length - 1 - i) % Math.ceil(days / 5) === 0 ? d.date.slice(5) : '', full: dayLabel(d.date), value: d.usd }))} show={money} />
           </section>
           <section>
             <h3>Cost by model</h3>

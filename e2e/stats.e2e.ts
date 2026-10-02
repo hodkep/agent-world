@@ -42,7 +42,19 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
     await usage.getByRole('button', { name: '90d' }).click()
     await expect(usage.locator('.st-card', { hasText: 'Last 90 days' })).toContainText('$1.50')
     await expect(usage.locator('.st-list li')).toHaveCount(1)
-    await page.keyboard.press('Escape')
+    // Cycling the range never makes the page wider than the window.
+    for (const n of ['7d', '30d', '90d', '7d']) {
+      await usage.getByRole('button', { name: n, exact: true }).click()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    }
+    // Hovering a column says its day and cost, at once.
+    const today = usage.locator('.st-col').last()
+    await today.hover()
+    expect(await today.evaluate((el) => getComputedStyle(el, '::after').opacity)).toBe('1')
+    expect(await today.getAttribute('data-tip')).toContain('$1.50')
+    // A click outside the dialog closes it.
+    await page.mouse.click(5, 5)
+    await expect(usage).toHaveCount(0)
 
     await header.getByRole('button', { name: 'Weekly Rewind', exact: true }).click()
     const week = page.getByRole('dialog', { name: 'Weekly Rewind' })
@@ -52,6 +64,15 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
     await expect(week.locator('.st-card', { hasText: 'Cost' })).toContainText('$0.00')
     await expect(week.getByText('Nothing recorded this week')).toBeVisible()
     await expect(week.getByRole('button', { name: 'Next week' })).toBeEnabled()
+    await page.mouse.click(5, 5)
+    await expect(week).toHaveCount(0)
+    // The same goes for Settings and History.
+    for (const name of ['Settings', 'History']) {
+      await header.getByRole('button', { name, exact: true }).click()
+      await expect(page.locator('dialog[open]')).toHaveCount(1)
+      await page.mouse.click(5, 5)
+      await expect(page.locator('dialog[open]')).toHaveCount(0)
+    }
   } finally {
     await shutdown()
   }

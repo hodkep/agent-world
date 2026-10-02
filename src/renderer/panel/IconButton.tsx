@@ -20,7 +20,7 @@ export type HeaderIconName = keyof typeof ICONS
 export function IconButton({ icon, label, tip, onClick, disabled, pressed, expanded, haspopup, badge, className = '' }: { icon: HeaderIconName; label: string; tip: string; onClick: () => void; disabled?: boolean; pressed?: boolean; expanded?: boolean; haspopup?: boolean; badge?: number; className?: string }) {
   return (
     <button className={`tip-btn ${className}`} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={pressed} aria-expanded={expanded} aria-haspopup={haspopup ? 'dialog' : undefined} data-tip={tip === label ? label : `${label} · ${tip}`}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
         {ICONS[icon]}
       </svg>
       {badge !== undefined && <span className="tip-badge" aria-hidden="true">{badge}</span>}

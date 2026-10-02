@@ -1032,10 +1032,13 @@ code a.file-link { font: inherit; }
 .dg-told { padding: 0 10px 8px; color: var(--muted); font-size: 12px; }
 
 .crew-dialog { width: min(820px, 96vw); }
-.crew-groups { display: grid; gap: 12px; max-height: 70vh; overflow: auto; }
-.crew-group { display: grid; gap: 6px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); padding-bottom: 8px; }
+.crew-dialog .history { padding: 18px 22px 20px; }
+.crew-dialog .history-head { margin-bottom: 14px; }
+.crew-groups { display: grid; gap: 16px; max-height: 70vh; overflow: auto; }
+.crew-group { display: grid; gap: 10px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); padding: 8px 6px 12px; }
+.crew-group > :not(.dg) { margin-left: 10px; }
 .crew-group .dg { border: 0; }
-.crew-open { justify-self: end; margin-right: 10px; font-size: 12px; padding: 3px 9px; }
+.crew-open { justify-self: end; margin-right: 12px; font-size: 12px; padding: 3px 9px; }
 .dg-ask { flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .dg-older { justify-self: start; margin: 0 10px 8px; font-size: 12px; padding: 3px 9px; }
 
@@ -1120,14 +1123,15 @@ code a.file-link { font: inherit; }
 .pc-branch b { font-family: Menlo, Consolas, monospace; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Icon buttons in the top bar: the hint shows at once, below the button. */
-.tip-btn { position: relative; padding: 6px 8px; line-height: 0; }
-.tip-btn::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 50; width: max-content; max-width: 260px; padding: 4px 8px; background: var(--ink); color: var(--text); border: 2px solid var(--line); font-size: 12px; line-height: 1.35; text-align: left; white-space: normal; pointer-events: none; opacity: 0; }
-.tip-btn:hover::after, .tip-btn:focus-visible::after { opacity: 1; }
-.tip-btn:last-child::after { left: auto; right: 0; transform: none; }
+.tip-btn { position: relative; padding: 5px 7px; line-height: 0; }
+.tip-btn::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 50; width: max-content; max-width: 260px; padding: 4px 8px; background: var(--ink); color: var(--text); border: 2px solid var(--line); font-size: 12px; line-height: 1.35; text-align: left; white-space: normal; pointer-events: none; display: none; }
+.tip-btn:hover::after, .tip-btn:focus-visible::after { display: block; opacity: 1; }
+/* The right-hand buttons sit at the window's edge: their hints open leftwards so the page never grows wider. */
+.tip-btn.push::after, .tip-btn:last-child::after { left: auto; right: 0; transform: none; }
 .tip-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; padding: 1px 3px; background: var(--accent); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 1.2; }
 
 /* Usage and Weekly Rewind. */
-.settings.stats { width: min(920px, 94vw); max-height: 92vh; }
+.settings.stats { width: min(920px, 94vw); max-height: 92vh; overflow: hidden; }
 .stats .settings-head { gap: 12px; }
 .st-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--muted); }
 .st-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; max-height: calc(92vh - 52px); }
@@ -1145,11 +1149,17 @@ code a.file-link { font: inherit; }
 .st-row h3 { margin: 0; }
 .st-seg { display: flex; gap: 2px; }
 .st-seg button.on { background: var(--accent); color: var(--ink); }
-.st-bars { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 150px; padding: 14px 0 0 0; }
+.st-bars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 170px; padding: 16px 0 18px; overflow: hidden; }
 .st-axis { position: absolute; top: 0; left: 0; font-size: 10px; color: var(--muted); }
-.st-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 3px; }
+.st-col { position: relative; flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
 .st-col i { display: block; background: var(--think); min-height: 0; }
-.st-col small { height: 14px; font-size: 10px; color: var(--muted); text-align: center; overflow: visible; white-space: nowrap; }
+.st-col:hover i, .st-col:focus-visible i { background: var(--accent); }
+.st-col:focus-visible { outline: none; }
+.st-col small { position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+[data-tip]:not(.tip-btn)::after { content: attr(data-tip); position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 5; width: max-content; padding: 3px 7px; background: var(--ink); color: var(--text); border: 2px solid var(--line); font-size: 11px; font-style: normal; white-space: nowrap; pointer-events: none; display: none; }
+[data-tip]:not(.tip-btn):hover::after, [data-tip]:not(.tip-btn):focus-visible::after { display: block; opacity: 1; }
+.st-col:nth-child(-n+4)::after { left: 0; transform: none; }
+.st-col:nth-last-child(-n+3)::after { left: auto; right: 0; transform: none; }
 .st-model { display: grid; grid-template-columns: minmax(8ch, 14ch) 1fr auto; gap: 8px; align-items: center; font-size: 12px; padding: 3px 0; }
 .st-model i { display: block; height: 8px; background: var(--track); }
 .st-model b { display: block; height: 100%; background: var(--think); }
@@ -1161,5 +1171,8 @@ code a.file-link { font: inherit; }
 .st-heat-row { display: flex; align-items: center; gap: 2px; }
 .st-heat-row > span { width: 12px; }
 .st-heat-row > div { flex: 1; margin-left: 0; }
-.st-heat-row i { display: block; height: 12px; background: var(--ok); }
+.st-heat-row i { position: relative; display: block; height: 12px; background: var(--ok); }
+.st-heat-row i::after { top: 14px; }
+.st-heat-row i:nth-child(-n+6)::after { left: 0; transform: none; }
+.st-heat-row i:nth-child(n+16)::after { left: auto; right: 0; transform: none; }
 @media (max-width: 640px) { .st-cards.three { grid-template-columns: 1fr; } }

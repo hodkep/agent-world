@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Role } from '../../shared/roles'
 import type { Prefs } from '../../shared/types'
 import { MODELS } from './HireForm'
+import { closeOnBackdrop } from './Modal'
 
 const PERMISSIONS = [
   { value: '', label: "Claude's default" },
@@ -26,7 +27,7 @@ export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; ro
   }
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
   return (
-    <dialog ref={dialog} className="settings" aria-label="Settings" onClose={onClose} onCancel={onClose}>
+    <dialog ref={dialog} className="settings" aria-label="Settings" onClose={onClose} onCancel={onClose} {...closeOnBackdrop(onClose)}>
       <header className="settings-head">
         <b>Settings</b>
         <button onClick={onClose} aria-label="Close settings">
