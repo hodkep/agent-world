@@ -1,4 +1,4 @@
-import type { ChatItem } from './chat'
+import type { ChatItem, SubagentInfo } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
@@ -81,6 +81,8 @@ export interface AwApi {
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
+  /** What an agent's subagents have done so far. */
+  subagents(agentId: string): Promise<SubagentInfo[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */
   setRole(agentId: string, role: Role | null): Promise<AgentOptions>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */

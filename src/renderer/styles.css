@@ -969,3 +969,42 @@ code a.file-link { font: inherit; }
 .tc-toggle .tc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tc-chevron { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
 .tc.foldable:not(:has([aria-expanded='true'])) { padding-bottom: 6px; }
+
+/* A delegation: the subagents one reply started, as one card. Same night-ink world as the tool cards. */
+.dg { background: var(--panel-3); border: 2px solid var(--ink); display: grid; min-width: 0; }
+.dg-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; }
+.dg-title { flex: 1; min-width: 12ch; font-weight: 600; }
+.dg-count { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.dg-dot { width: 9px; height: 9px; flex: none; background: var(--dim); box-shadow: 0 0 0 1px var(--ink); }
+.s-working > .dg-dot, .s-working .dg-dot, .dg-dot.s-working { background: var(--think); animation: dg-blink 1s steps(2) infinite; }
+.s-done > .dg-dot, .s-done .dg-dot, .dg-dot.s-done { background: var(--ok); }
+.s-stopped > .dg-dot, .s-stopped .dg-dot { background: var(--danger); }
+@keyframes dg-blink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .s-working > .dg-dot, .s-working .dg-dot, .dg-dot.s-working { animation: none; } }
+.dg-seg { display: flex; gap: 2px; padding: 0 10px 8px; }
+.dg-seg i { flex: 1; height: 6px; background: var(--dim); box-shadow: 0 0 0 1px var(--ink); }
+.dg-seg i.s-working { background: var(--think); }
+.dg-seg i.s-done { background: var(--ok); }
+.dg-seg i.s-stopped { background: var(--danger); }
+.dg-rows { border-top: 2px solid var(--ink); display: grid; }
+.dg-row + .dg-row { border-top: 1px solid var(--line); }
+.dg-line { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(40px, 24%) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 10px; text-align: left; background: transparent; border: 0; box-shadow: none; color: inherit; font: inherit; cursor: pointer; }
+.dg-line:hover { background: var(--panel-hover); }
+.dg-what { display: grid; min-width: 0; }
+.dg-type { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.dg-now { font: 12px Menlo, Consolas, monospace; color: var(--think); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-done .dg-now { color: var(--ok-text); }
+.s-waiting .dg-now { color: var(--dim); }
+.s-stopped .dg-now { color: var(--danger-text); }
+.dg-time { font: 12px Menlo, Consolas, monospace; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dg-track { position: relative; height: 16px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
+.dg-tick { position: absolute; top: 2px; bottom: 2px; width: 3px; margin-left: -1px; background: var(--think); }
+.s-done .dg-tick { background: var(--ok-text); }
+.s-stopped .dg-tick { background: var(--danger-text); }
+.dg-open { display: grid; gap: 2px; padding: 0 10px 8px 29px; }
+.dg-call { display: flex; gap: 8px; min-width: 0; font: 12px Menlo, Consolas, monospace; }
+.dg-at { color: var(--dim); width: 7ch; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.dg-detail { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dg-muted { color: var(--muted); }
+.dg-result { margin-top: 6px; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
+.dg-toggle { padding: 3px 9px; }

@@ -31,6 +31,7 @@ import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
 import { dropPromptSnapshots } from './promptSnapshot'
+import { listSubagents } from './subagents'
 import { type Role, withRole } from '../shared/roles'
 import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
@@ -1109,6 +1110,11 @@ async function main() {
   })
   // Diagnostics only: the app's own view of an agent's screen, for figuring out what Claude drew.
   if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${looksWorking(screens.get(id)?.text() ?? '')} inputReady=${inputReady(screens.get(id)?.text() ?? '')}`)
+  // What the agent's subagents have done so far, from the files Claude keeps for them next to the session.
+  ipcMain.handle('subagents:list', (_, id: string) => {
+    const a = byId(id)
+    return a ? listSubagents(transcriptFile(a).replace(/\.jsonl$/, '')) : []
+  })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => {

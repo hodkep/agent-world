@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
-import { hasMarkdown, highlight, isImagePath, modeLabel, rowText, splitMentions, toMarkdown, toRows } from './format'
+import type { SubagentInfo } from '../../shared/chat'
+import { elapsedLabel, hasMarkdown, highlight, isImagePath, modeLabel, rowText, splitMentions, subagentState, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -179,5 +180,43 @@ describe('spotting markdown in a message', () => {
 
   it('leaves plain sentences, commands and mentions alone', () => {
     for (const t of ['just words', '/compact', 'fix @src/app.ts please', 'a * b and c * d', '2 > 1', 'well - maybe']) expect(hasMarkdown(t), t).toBe(false)
+  })
+})
+
+describe('subagents started in one reply', () => {
+  const agent = (id: string, name: 'Agent' | 'Task', description: string): ChatItem => ({ kind: 'tool', id, at: t0, toolUseId: `use-${id}`, name, input: { description, subagent_type: 'Explore' } })
+  const result = (id: string): ChatItem => ({ kind: 'tool-result', id: `r-${id}`, at: t0, toolUseId: `use-${id}`, text: 'Async agent launched', isError: false })
+
+  it('are one delegation row, in the order they were started, whatever they are called and wherever the results landed', () => {
+    const rows = toRows([user('u', t0, 'audit'), say('a', t0, 'Splitting this up'), agent('1', 'Agent', 'Map auth'), agent('2', 'Task', 'Find callers'), result('1'), agent('3', 'Agent', 'Draft plan'), result('2'), result('3')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'assistant', 'delegation'])
+    const d = rows[2]!
+    if (d.kind !== 'delegation') throw new Error('not a delegation')
+    expect(d.calls.map((c) => [c.toolUseId, c.description, c.subagentType])).toEqual([['use-1', 'Map auth', 'Explore'], ['use-2', 'Find callers', 'Explore'], ['use-3', 'Draft plan', 'Explore']])
+  })
+
+  it('make a second row when something else was said in between, and leave other tools alone', () => {
+    const grep: ChatItem = { kind: 'tool', id: 'g', at: t0, toolUseId: 'use-g', name: 'Grep', input: { pattern: 'x' } }
+    const rows = toRows([agent('1', 'Agent', 'One'), say('a', t0, 'and then'), agent('2', 'Agent', 'Two'), grep], [])
+    expect(rows.map((r) => r.kind)).toEqual(['delegation', 'assistant', 'delegation', 'tool'])
+  })
+})
+
+describe('where a subagent is at', () => {
+  const info = (over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: 'a', toolUseId: 'u', type: 'Explore', description: 'd', startedAt: 1000, updatedAt: 5000, done: false, calls: [], result: '', ...over })
+
+  it('is waiting before its file exists, working while it makes calls, and done once it has answered', () => {
+    expect(subagentState(undefined, 9000)).toBe('waiting')
+    expect(subagentState(info(), 6000)).toBe('working')
+    expect(subagentState(info({ done: true, result: 'ok' }), 9_000_000)).toBe('done')
+  })
+
+  it('is stopped when it never answered and has gone quiet for ten minutes', () => {
+    expect(subagentState(info(), 5000 + 9 * 60_000)).toBe('working')
+    expect(subagentState(info(), 5000 + 11 * 60_000)).toBe('stopped')
+  })
+
+  it('writes elapsed time the way the world does: tenths under a minute, then minutes and seconds', () => {
+    expect([elapsedLabel(400), elapsedLabel(6700), elapsedLabel(65_000), elapsedLabel(3_725_000)]).toEqual(['0.4 s', '6.7 s', '1m 05s', '62m 05s'])
   })
 })

@@ -45,6 +45,36 @@ if (process.env.FAKE_SNAPSHOT && flag('--session-id')) {
   transcript({ type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: JSON.stringify([flag('--append-system-prompt') ?? '']) } })
   say('an earlier answer')
 }
+// FAKE_DELEGATE=n: the conversation has n Agent calls, and Claude's own files for those subagents fill in over time
+// (a trail of calls, then an answer; step length FAKE_DELEGATE_MS, default 600). FAKE_DELEGATE_HOLD=1 leaves the last one working.
+if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.FAKE_TRANSCRIPT) {
+  const n = Number(process.env.FAKE_DELEGATE)
+  const step = Number(process.env.FAKE_DELEGATE_MS ?? 600)
+  const base = `${process.env.AW_CLAUDE_PROJECTS}/${realpathSync(process.cwd()).replace(/[^a-zA-Z0-9]/g, '-')}/${sessionId}/subagents`
+  const { mkdirSync: mkd, writeFileSync: wf } = await import('node:fs')
+  mkd(base, { recursive: true })
+  const stamp = () => new Date().toISOString()
+  for (let i = 1; i <= n; i++) {
+    transcript({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `toolu_fake_${i}`, name: 'Agent', input: { description: `Look into part ${i}`, subagent_type: i % 2 ? 'Explore' : 'Plan', prompt: 'go' } }] } })
+  }
+  ;(async () => {
+    await Promise.all(Array.from({ length: n }, async (_, k) => {
+      const i = k + 1
+      const id = `fake${i}`
+      const file = `${base}/agent-${id}.jsonl`
+      wf(`${base}/agent-${id}.meta.json`, JSON.stringify({ agentType: i % 2 ? 'Explore' : 'Plan', description: `Look into part ${i}`, toolUseId: `toolu_fake_${i}` }))
+      const add = (o) => appendFileSync(file, JSON.stringify({ isSidechain: true, agentId: id, timestamp: stamp(), uuid: crypto.randomUUID(), ...o }) + '\n')
+      add({ type: 'user', message: { role: 'user', content: 'go' } })
+      await sleep(step * i)
+      for (const [name, input] of [['Grep', { pattern: `part${i}` }], ['Read', { file_path: `/repo/src/part${i}.ts` }], ['Glob', { pattern: '**/*.ts' }]]) {
+        add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${i}${name}`, name, input }] } })
+        await sleep(step)
+      }
+      if (process.env.FAKE_DELEGATE_HOLD && i === n) return
+      add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: `Part ${i} is fine.` }] } })
+    }))
+  })()
+}
 // FAKE_SAY_FILE=<path>: the file's text arrives as one assistant message.
 if (process.env.FAKE_SAY_FILE) say((await import('node:fs')).readFileSync(process.env.FAKE_SAY_FILE, 'utf8'))
 // FAKE_USER_FILE=<path>: the file's text is already in the conversation as something the user said.

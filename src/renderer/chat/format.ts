@@ -1,4 +1,4 @@
-import type { ChatItem } from '../../shared/chat'
+import type { ChatItem, SubagentInfo } from '../../shared/chat'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
@@ -9,6 +9,8 @@ export type Row =
   | { kind: 'assistant'; id: string; text: string; /** Seconds the turn took, when it took a while. */ took?: number }
   | { kind: 'thinking'; id: string }
   | { kind: 'tool'; id: string; run: ToolRun }
+  /** The subagents one reply started, together; their progress comes from Claude's own files for them. */
+  | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
   | { kind: 'note'; id: string; text: string; detail?: string }
 
 export interface Sent {
@@ -40,6 +42,13 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     lastAt = i.at
     switch (i.kind) {
       case 'tool': {
+        if (i.name === 'Agent' || i.name === 'Task') {
+          const call = { toolUseId: i.toolUseId, description: String(i.input.description ?? i.input.subagent_type ?? 'subagent'), subagentType: String(i.input.subagent_type ?? 'agent') }
+          const last = rows.at(-1)
+          if (last?.kind === 'delegation') last.calls.push(call)
+          else rows.push({ kind: 'delegation', id: i.id, calls: [call] })
+          break
+        }
         const r = results.get(i.toolUseId)
         rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined } as ToolRun })
         break
@@ -127,6 +136,8 @@ export function rowText(r: Row): string {
       return `${r.name} ${r.args}`
     case 'shell':
       return `${r.command} ${r.out?.stdout ?? ''} ${r.out?.stderr ?? ''}`
+    case 'delegation':
+      return `Delegated ${r.calls.map((c) => `${c.subagentType} ${c.description}`).join(' ')}`
     case 'tool': {
       const i = r.run.input
       return [r.run.name, s(i.command), s(i.description), s(i.file_path), s(i.pattern), s(i.url), s(i.query), s(i.old_string), s(i.new_string), r.run.result?.text].join(' ')
@@ -153,6 +164,9 @@ export function toMarkdown(rows: Row[], agentName: string): string {
       case 'command':
         out.push(`\`${r.name} ${r.args}\``.trim())
         break
+      case 'delegation':
+        out.push(`Delegated to ${r.calls.length} subagent${r.calls.length === 1 ? '' : 's'}:\n${r.calls.map((c) => `- ${c.description}`).join('\n')}`)
+        break
       case 'tool': {
         const i = r.run.input
         if (r.run.name === 'Bash') out.push(`Ran \`${s(i.command)}\``)
@@ -169,6 +183,21 @@ export function toMarkdown(rows: Row[], agentName: string): string {
   return out.join('\n\n')
 }
 export { modeLabel } from '../../shared/modes'
+
+export type SubagentState = 'waiting' | 'working' | 'done' | 'stopped'
+const QUIET_MS = 10 * 60_000
+
+/** Waiting until Claude has made a file for it; done once it has answered; stopped when it never did and has gone quiet. */
+export function subagentState(info: SubagentInfo | undefined, now: number): SubagentState {
+  if (!info) return 'waiting'
+  if (info.done) return 'done'
+  return now - info.updatedAt > QUIET_MS ? 'stopped' : 'working'
+}
+
+export function elapsedLabel(ms: number): string {
+  const s = Math.max(0, ms) / 1000
+  return s < 60 ? `${s.toFixed(1)} s` : `${Math.floor(s / 60)}m ${String(Math.floor(s % 60)).padStart(2, '0')}s`
+}
 
 /** Splits a message into plain text and @file mentions (`@"a path.png"` or `@src/app.ts`); an @ inside a word is not a mention. */
 export function splitMentions(text: string): { file: boolean; text: string }[] {

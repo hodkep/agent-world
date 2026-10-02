@@ -11,6 +11,7 @@ import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
+import { Delegation } from './Delegation'
 import { ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
 import { PixelIcon } from './PixelIcon'
@@ -555,6 +556,8 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
           <span className="tc-dot" aria-hidden="true" /> Thought about it
         </div>
       )
+    case 'delegation':
+      return <Delegation agentId={agentId} calls={r.calls} />
     case 'tool':
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'note':
