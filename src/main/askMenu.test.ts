@@ -48,6 +48,8 @@ describe('reading Claude\'s question menu', () => {
 
 // A stand-in for Claude's menu that follows the behaviour seen in real runs: Enter picks and moves on
 // (but toggles in multi-select), Space toggles, Right goes to the next tab, typing on the last row writes text.
+// A terminal wraps what is typed onto further lines; only the first holds the row number.
+const wrap = (t: string) => t.replace(/(.{30})(?=.)/g, '$1\n     ')
 class FakeMenu {
   tab = 0
   cursor = 1
@@ -66,7 +68,7 @@ class FakeMenu {
     const rows = q.options.map((o, i) => `${this.cursor === i + 1 ? '❯' : ' '} ${i + 1}. ${q.multiSelect ? (this.picked[this.tab]!.has(i + 1) ? '[✔] ' : '[ ] ') : ''}${o.label}\n     ${o.description}\n`).join('')
     const n = q.options.length + 1
     const typed = this.other[this.tab]
-    return `${bar}${q.question}\n${rows}${this.cursor === n ? '❯' : ' '} ${n}. ${typed ?? 'Type something.'}\n${'─'.repeat(20)}\n  ${n + 1}. Chat about this\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel\n`
+    return `${bar}${q.question}\n${rows}${this.cursor === n ? '❯' : ' '} ${n}. ${wrap(typed ?? 'Type something.')}\n${'─'.repeat(20)}\n  ${n + 1}. Chat about this\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel\n`
   }
   write(keys: string) {
     const q = this.qs[this.tab]
@@ -117,6 +119,14 @@ describe('answering Claude\'s questions', () => {
     const { ok, sim } = await run([colour], [{ picks: [], other: 'Purple' }])
     expect(ok).toBe(true)
     expect(sim.other[0]).toBe('Purple')
+    expect(sim.done).toBe(true)
+  })
+
+  it('types text too long for one terminal line, which wraps onto several', async () => {
+    const long = 'two buttons in the top bar, but we need to update the existing button in there as well as they are taking up much space'
+    const { ok, sim } = await run([colour], [{ picks: [], other: long }])
+    expect(ok).toBe(true)
+    expect(sim.other[0]).toBe(long)
     expect(sim.done).toBe(true)
   })
 

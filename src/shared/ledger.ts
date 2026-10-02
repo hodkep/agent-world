@@ -1,0 +1,148 @@
+/**
+ * What the app records as agents work, so the Usage and Weekly Rewind screens have a history to show.
+ * Claude only reports a running cost per conversation, so the app saves each increase as it arrives, with
+ * the model that was in use, and each finished stretch of work with when it began and how long it ran.
+ */
+export type LedgerEvent =
+  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number }
+  | { k: 'work'; t: number; agent: string; project: string; ms: number }
+
+/** How much a running total grew; a lower total means a new conversation started from zero. */
+export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
+
+export function parseLedger(text: string): LedgerEvent[] {
+  const out: LedgerEvent[] = []
+  for (const line of text.split('\n')) {
+    try {
+      const e = JSON.parse(line) as LedgerEvent
+      if ((e.k === 'cost' || e.k === 'work') && Number.isFinite(e.t)) out.push(e)
+    } catch {
+      /* a half-written last line is expected after a crash */
+    }
+  }
+  return out
+}
+
+const DAY = 86_400_000
+const dayStart = (t: number) => {
+  const d = new Date(t)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+/** Monday 00:00, local time. */
+export function weekStartOf(t: number) {
+  const d = new Date(dayStart(t))
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)).getTime()
+}
+const dateKey = (t: number) => {
+  const d = new Date(t)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const sorted = (m: Map<string, number>) => [...m].map(([model, usd]) => ({ model, usd })).sort((a, b) => b.usd - a.usd)
+
+/** A stretch of work cut at each hour boundary: [timestamp of the hour's start, ms inside it]. */
+function* hours(t: number, ms: number): Generator<[number, number]> {
+  let at = t
+  const end = t + ms
+  while (at < end) {
+    const d = new Date(at)
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime()
+    yield [new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime(), Math.min(next, end) - at]
+    at = next
+  }
+}
+
+export interface WeekReport {
+  start: number
+  agentMs: number
+  /** Agents that worked during the week. */
+  agents: number
+  /** Work stretches (turns that kept an agent busy). */
+  turns: number
+  costUsd: number
+  /** The three hours (24h clock, `to` exclusive) that held the most work. */
+  peak: { from: number; to: number; ms: number } | null
+  topProject: { name: string; agents: number } | null
+  /** Day 0 is Monday. */
+  busiest: { day: number; agents: number } | null
+  perDay: { agents: number; usd: number }[]
+  byModel: { model: string; usd: number }[]
+  /** Work in ms by day (Monday first) and hour. */
+  heat: number[][]
+}
+
+export function weekReport(events: LedgerEvent[], start: number): WeekReport {
+  const end = start + 7 * DAY + 3_600_000 // a week is 7 calendar days; the slack covers a clock change
+  const dayOf = (t: number) => Math.floor((dayStart(t) - start + 12 * 3_600_000) / DAY)
+  const agentDays: Set<string>[] = Array.from({ length: 7 }, () => new Set())
+  const usd = Array<number>(7).fill(0)
+  const heat = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
+  const projects = new Map<string, Set<string>>()
+  const models = new Map<string, number>()
+  const all = new Set<string>()
+  let agentMs = 0
+  let turns = 0
+  let costUsd = 0
+  for (const e of events) {
+    if (e.t < start || e.t >= end) continue
+    const day = dayOf(e.t)
+    if (day < 0 || day > 6) continue
+    if (e.k === 'cost') {
+      usd[day]! += e.usd
+      costUsd += e.usd
+      models.set(e.model, (models.get(e.model) ?? 0) + e.usd)
+      continue
+    }
+    agentMs += e.ms
+    turns++
+    all.add(e.agent)
+    agentDays[day]!.add(e.agent)
+    projects.set(e.project, (projects.get(e.project) ?? new Set()).add(e.agent))
+    for (const [h, ms] of hours(e.t, e.ms)) {
+      const d = dayOf(h)
+      if (d >= 0 && d <= 6) heat[d]![new Date(h).getHours()]! += ms
+    }
+  }
+  const byHour = Array.from({ length: 24 }, (_, h) => heat.reduce((n, row) => n + row[h]!, 0))
+  let peak: WeekReport['peak'] = null
+  for (let h = 0; h < 22; h++) {
+    const ms = byHour[h]! + byHour[h + 1]! + byHour[h + 2]!
+    // A window opens on an hour that has work, so "2–5 PM" never starts in the quiet.
+    if (byHour[h]! > 0 && ms > (peak?.ms ?? 0)) peak = { from: h, to: h + 3, ms }
+  }
+  const top = [...projects].sort((a, b) => b[1].size - a[1].size)[0]
+  const perDay = agentDays.map((s, i) => ({ agents: s.size, usd: usd[i]! }))
+  const best = perDay.reduce((b, d, i) => (d.agents > (b?.agents ?? 0) ? { day: i, agents: d.agents } : b), null as WeekReport['busiest'])
+  return { start, agentMs, agents: all.size, turns, costUsd, peak, topProject: top ? { name: top[0], agents: top[1].size } : null, busiest: best, perDay, byModel: sorted(models), heat }
+}
+
+export interface UsageReport {
+  today: number
+  last7: number
+  /** Everything in the window. */
+  total: number
+  /** One entry per day of the window, oldest first. */
+  days: { date: string; usd: number; byModel: Record<string, number> }[]
+  byModel: { model: string; usd: number }[]
+}
+
+export function usageReport(events: LedgerEvent[], days: number, now: number): UsageReport {
+  const today = dayStart(now)
+  const first = new Date(new Date(today).getFullYear(), new Date(today).getMonth(), new Date(today).getDate() - (days - 1)).getTime()
+  const list = Array.from({ length: days }, (_, i) => {
+    const d = new Date(new Date(first).getFullYear(), new Date(first).getMonth(), new Date(first).getDate() + i)
+    return { date: dateKey(d.getTime()), usd: 0, byModel: {} as Record<string, number> }
+  })
+  const index = new Map(list.map((d, i) => [d.date, i]))
+  const models = new Map<string, number>()
+  for (const e of events) {
+    if (e.k !== 'cost') continue
+    const i = index.get(dateKey(e.t))
+    if (i === undefined) continue
+    const d = list[i]!
+    d.usd += e.usd
+    d.byModel[e.model] = (d.byModel[e.model] ?? 0) + e.usd
+    models.set(e.model, (models.get(e.model) ?? 0) + e.usd)
+  }
+  const sum = (n: number) => list.slice(-n).reduce((s, d) => s + d.usd, 0)
+  return { today: sum(1), last7: sum(7), total: sum(days), days: list, byModel: sorted(models) }
+}

@@ -101,6 +101,15 @@ export async function driveAnswers(io: TerminalIO, questions: Question[], answer
     return false
   }
   const row = (n: number) => parseAsk(io.screen())?.rows.find((r) => r.n === n)
+  // Long text wraps onto further lines below its row, so look at everything from the row down to the next option or divider.
+  const typedOn = (n: number, text: string) => {
+    const lines = stripVTControlCharacters(io.screen()).split('\n')
+    const at = lines.findIndex((l) => new RegExp(`^\\s*(?:❯)?\\s*${n}\\.\\s`).test(l))
+    if (at < 0) return false
+    const end = lines.findIndex((l, i) => i > at && (/^\s*(?:❯)?\s*\d+\.\s/.test(l) || /^[\s─━-]{8,}$/.test(l) || /Enter to select/.test(l)))
+    const squash = (t: string) => t.replace(/[\s│┃]+/g, '')
+    return squash(lines.slice(at, end < 0 ? undefined : end).join('')).includes(squash(text))
+  }
 
   // Start from the first question, whichever tab the menu was left on.
   for (let i = 0; i < questions.length && !asked(questions[0]!)(); i++) {
@@ -126,7 +135,7 @@ export async function driveAnswers(io: TerminalIO, questions: Question[], answer
       const n = q.options.length + 1
       if (!text || !(await moveTo(n))) return false
       io.write(text)
-      if (!(await until(() => row(n)?.label.includes(text)))) return false
+      if (!(await until(() => typedOn(n, text)))) return false
       io.write('\r')
     } else {
       const pick = a.picks[0]
