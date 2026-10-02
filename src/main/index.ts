@@ -1324,13 +1324,15 @@ async function main() {
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (e) => e.preventDefault())
-  // Electron draws no right-click menu by itself; give every page (the app, and the preview) the system's own.
-  app.on('web-contents-created', (_, contents) => {
+  // Electron draws no right-click menu by itself; give the app's page and the preview pane the system's own.
+  // The window's page exists already, so it is wired directly; the preview webviews are wired as they appear.
+  const rightClick = (contents: Electron.WebContents) =>
     contents.on('context-menu', (_e, params) => {
       const items = contextItems(params, (u) => void clipboard.writeText(u))
       if (items.length) Menu.buildFromTemplate(items).popup()
     })
-  })
+  rightClick(win.webContents)
+  app.on('web-contents-created', (_, contents) => contents.getType() === 'webview' && rightClick(contents))
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
