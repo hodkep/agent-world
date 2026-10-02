@@ -238,6 +238,42 @@ export function highlight(text: string): { kind: 'plain' | 'command' | 'plugin' 
   return out
 }
 
+export type MdKind = 'plain' | 'mark' | 'bold' | 'italic' | 'code' | 'list' | 'quote'
+
+/**
+ * Text split so markdown can be styled where it is typed. The pieces always join back to `text`, and the styling
+ * never changes a glyph's width, so the styled copy drawn behind the box stays aligned with the caret.
+ */
+export function markdownSpans(text: string): { kind: MdKind; text: string }[] {
+  const out: { kind: MdKind; text: string }[] = []
+  const push = (kind: MdKind, t: string) => {
+    if (!t) return
+    const prev = out[out.length - 1]
+    if (prev && prev.kind === kind && kind === 'plain') prev.text += t
+    else out.push({ kind, text: t })
+  }
+  for (const line of text.split(/(?<=\n)/)) {
+    const head = /^(\s*)((?:[-*+]|\d+\.)\s+)/.exec(line) ?? /^()(>\s?)/.exec(line)
+    let rest = line
+    if (head) {
+      push('plain', head[1]!)
+      push(head[2]!.trim().startsWith('>') ? 'quote' : 'list', head[2]!)
+      rest = line.slice(head[0].length)
+    }
+    let last = 0
+    for (const m of rest.matchAll(/(`)([^`\n]+)`|(\*\*)(\S[^*\n]*)\*\*|(?<![*\w])(\*)([^\s*](?:[^*\n]*[^\s*])?)\*(?!\*)/g)) {
+      push('plain', rest.slice(last, m.index))
+      const [mark, kind, body] = m[1] ? ['`', 'code', m[2]!] : m[3] ? ['**', 'bold', m[4]!] : ['*', 'italic', m[6]!]
+      push('mark', mark!)
+      push(kind as MdKind, body)
+      push('mark', mark!)
+      last = m.index! + m[0].length
+    }
+    push('plain', rest.slice(last))
+  }
+  return out
+}
+
 export const isImagePath = (p: string) => /\.(png|jpe?g|gif|webp)$/i.test(p)
 
 /** The message uses a little markdown: a "> " quote, **bold**, *italic*, `code` or a list. */

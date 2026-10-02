@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('a little markdown in the message box shows formatted above it, and in the sent message', async () => {
+test('a little markdown is styled in place as you type, with no separate preview, and formatted in the sent message', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-md-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -31,14 +31,27 @@ test('a little markdown in the message box shows formatted above it, and in the 
     await expect(mirror.locator('mark.tok-plugin')).toHaveText('/impeccable:polish')
     await expect(mirror.locator('mark.tok-file')).toHaveText('@src/app.ts')
 
-    await box.fill('> again\n\nmake it **bold** please')
-    await expect(preview.locator('blockquote')).toHaveText('again')
-    await expect(preview.locator('strong')).toHaveText('bold')
+    // Styled where it is typed: the text stays as typed (so the caret lines up), and nothing is drawn above the box.
+    await box.fill('1. I mean sub-agent only\n2. ')
+    await expect(mirror.locator('.md-list')).toHaveText(['1. ', '2. '])
+    await expect(preview).toHaveCount(0)
+    await expect(box).toHaveValue('1. I mean sub-agent only\n2. ')
+    await expect.poll(() => mirror.evaluate((m) => m.textContent)).toBe('1. I mean sub-agent only\n2. \n')
+    await page.screenshot({ path: join(tmpdir(), 'aw-composer-list.png') })
+
+    await box.fill('> again\n\nmake it **bold** and *soft* and `code` please')
+    await expect(mirror.locator('.md-quote')).toHaveText('> ')
+    await expect(mirror.locator('.md-bold')).toHaveText('bold')
+    await expect(mirror.locator('.md-italic')).toHaveText('soft')
+    await expect(mirror.locator('.md-code')).toHaveText('code')
+    await expect(preview).toHaveCount(0)
+    await page.screenshot({ path: join(tmpdir(), 'aw-composer-inline.png') })
 
     await box.press('Enter')
     const sent = page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user').last()
     await expect(sent.locator('strong')).toHaveText('bold', { timeout: 10_000 })
     await expect(sent.locator('blockquote')).toContainText('again')
+    await expect(sent.locator('code')).toHaveText('code')
     await expect(preview).toHaveCount(0)
   } finally {
     await shutdown()

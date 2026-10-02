@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
 import type { SubagentInfo } from '../../shared/chat'
-import { elapsedLabel, hasMarkdown, highlight, isImagePath, modeLabel, rowText, splitMentions, subagentState, toMarkdown, toRows } from './format'
+import { elapsedLabel, hasMarkdown, highlight, markdownSpans, isImagePath, modeLabel, rowText, splitMentions, subagentState, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -223,5 +223,34 @@ describe('where a subagent is at', () => {
 
   it('writes elapsed time the way the world does: tenths under a minute, then minutes and seconds', () => {
     expect([elapsedLabel(400), elapsedLabel(6700), elapsedLabel(65_000), elapsedLabel(3_725_000)]).toEqual(['0.4 s', '6.7 s', '1m 05s', '62m 05s'])
+  })
+})
+
+describe('styling markdown in place in the message box', () => {
+  const kinds = (t: string) => markdownSpans(t).map((p) => [p.kind, p.text])
+  const joined = (t: string) => markdownSpans(t).map((p) => p.text).join('')
+
+  it('keeps every character, so the styled copy lines up with what is typed', () => {
+    for (const t of ['1. I mean sub-agent only\n2. ', '**bold** and *it* and `code`', '> quoted\n- item', 'a ** b * c ` d', '']) expect(joined(t)).toBe(t)
+  })
+
+  it('marks list numbers and bullets, and the words after them stay plain', () => {
+    expect(kinds('1. I mean sub-agent only\n2. ')).toEqual([['list', '1. '], ['plain', 'I mean sub-agent only\n'], ['list', '2. ']])
+    expect(kinds('- one')).toEqual([['list', '- '], ['plain', 'one']])
+  })
+
+  it('styles bold, italic and code with their markers set apart', () => {
+    expect(kinds('a **b** c')).toEqual([['plain', 'a '], ['mark', '**'], ['bold', 'b'], ['mark', '**'], ['plain', ' c']])
+    expect(kinds('*i*')).toEqual([['mark', '*'], ['italic', 'i'], ['mark', '*']])
+    expect(kinds('use `x`')).toEqual([['plain', 'use '], ['mark', '`'], ['code', 'x'], ['mark', '`']])
+  })
+
+  it('marks a quote line', () => {
+    expect(kinds('> hi')).toEqual([['quote', '> '], ['plain', 'hi']])
+  })
+
+  it('leaves stray stars and a half-typed span alone', () => {
+    expect(kinds('2 * 3 * 4')).toEqual([['plain', '2 * 3 * 4']])
+    expect(kinds('**not closed')).toEqual([['plain', '**not closed']])
   })
 })
