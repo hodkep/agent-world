@@ -1,14 +1,11 @@
 import { closeSync, openSync, readSync, statSync } from 'node:fs'
 import { StringDecoder } from 'node:string_decoder'
 import type { ChatItem } from '../shared/chat'
-import { lineNode, parseTranscriptLine } from './chat'
+import { type LineNode, lineNode, parseTranscriptLine } from './chat'
 
 const CHUNK = 1024 * 1024
 
-interface Node {
-  uuid: string
-  parent: string | null
-  message: boolean
+interface Node extends LineNode {
   items: ChatItem[]
 }
 
@@ -96,7 +93,18 @@ export class TranscriptTail {
     const leaf = [...this.nodes].reverse().find((n) => n.message)
     const chain: Node[] = []
     for (let n = leaf, guard = 0; n && guard < 200_000; n = n.parent ? this.byId.get(n.parent) : undefined, guard++) chain.push(n)
-    return chain.reverse().flatMap((n) => n.items)
+    chain.reverse()
+    // The calls of one reply made side by side hang off each other and their results off their own call, so the
+    // conversation carries on from only one of them. Keep the rest: same reply, or the result of a kept call.
+    const keep = new Set(chain)
+    const replies = new Set(chain.map((n) => n.reply).filter(Boolean))
+    const calls = new Set(chain.flatMap((n) => n.uses))
+    for (const n of this.nodes) {
+      if (keep.has(n) || !n.message) continue
+      if (n.reply && n.uses.length && replies.has(n.reply)) (keep.add(n), n.uses.forEach((u) => calls.add(u)))
+    }
+    for (const n of this.nodes) if (!keep.has(n) && n.message && n.results.length > 0 && n.results.every((r) => calls.has(r))) keep.add(n)
+    return this.nodes.filter((n) => keep.has(n)).flatMap((n) => n.items)
   }
 
   private emit() {

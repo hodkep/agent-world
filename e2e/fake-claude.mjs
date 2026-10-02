@@ -71,6 +71,14 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
         await sleep(step)
       }
       if (process.env.FAKE_DELEGATE_HOLD && i === n) return
+      if (process.env.FAKE_DELEGATE_HANDBACK) {
+        // Like a subagent run in the background: it reports by a hand-back call, and the harness types the report and a notice into the conversation.
+        const report = `Part ${i} is fine.\nChecked three files.`
+        add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `hb${i}`, name: 'SubagentHandback', input: { message: report } }] } })
+        transcript({ type: 'user', isMeta: true, message: { role: 'user', content: `Another Claude session sent a message:\n<agent-message from="${id}">\n[Subagent hand-back] The text below is the final report of a subagent. The report follows:\n${report.split('\n').map((l) => `  ${l}`).join('\n')}\n</agent-message>\n\nThat other session is an agent.` } })
+        transcript({ type: 'user', message: { role: 'user', content: `<task-notification>\n<task-id>${id}</task-id>\n<status>completed</status>\n<summary>Agent "Look into part ${i}" finished</summary>\n</task-notification>` } })
+        return
+      }
       add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: `Part ${i} is fine.` }] } })
     }))
   })()

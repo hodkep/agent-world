@@ -1,4 +1,5 @@
 import { unwrapPasted } from '../shared/pasted'
+import { parseHandback, parseTaskNotification } from '../shared/subagentMessages'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChatItem } from '../shared/chat'
@@ -37,11 +38,16 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
   } catch {
     return []
   }
-  if (o.isSidechain === true || o.isMeta === true) return []
+  if (o.isSidechain === true) return []
   const at = Date.parse(str(o.timestamp)) || 0
   const uuid = str(o.uuid) || `${at}`
   const type = str(o.type)
   const message = obj(o.message)
+  // The harness marks a subagent's hand-back as not typed by the user, but it is the answer the chat should show.
+  if (o.isMeta === true) {
+    const report = type === 'user' ? parseHandback(typeof message.content === 'string' ? message.content : resultText(message.content)) : null
+    return report ? [{ kind: 'subagent-report', id: uuid, at, ...report }] : []
+  }
 
   // Typed while Claude was busy: it is saved as a queued command when Claude picks it up, not as a user line.
   const queued = obj(o.attachment)
@@ -118,6 +124,9 @@ function userText(id: string, at: number, text: string): ChatItem[] {
     // The compaction card already says so; "ctrl+o" does nothing here.
     return clean && !/^Compacted\b/.test(clean) ? [{ kind: 'note', id, at, text: clean }] : []
   }
+  // A background task ending: the report and the card already say so, unless it did not complete.
+  const notice = parseTaskNotification(trimmed)
+  if (notice) return notice.status === 'completed' || !notice.summary ? [] : [{ kind: 'note', id, at, text: notice.summary }]
   // Caveats and reminders Claude inserts around the conversation are not the user's words.
   if (/^<(local-command-caveat|system-reminder|command-message)/.test(trimmed)) return []
   return [{ kind: 'user', id, at, text: trimmed }]
@@ -138,12 +147,31 @@ export function newestSession(dir: string, exceptId: string, sinceMs: number): s
 }
 
 /** Where a transcript line sits in the conversation tree: Claude links each line to the one before it, so a rewind makes a new branch. */
-export function lineNode(raw: string): { uuid: string; parent: string | null; message: boolean } | null {
+export interface LineNode {
+  uuid: string
+  parent: string | null
+  message: boolean
+  /** The reply it belongs to: every call of one reply shares it, so calls made side by side can be told from an abandoned try. */
+  reply: string
+  /** The tool calls it makes, or the calls whose results it carries. */
+  uses: string[]
+  results: string[]
+}
+
+export function lineNode(raw: string): LineNode | null {
   try {
     const o = JSON.parse(raw) as Obj
     const uuid = str(o.uuid)
     if (!uuid) return null
-    return { uuid, parent: str(o.parentUuid) || str(o.logicalParentUuid) || null, message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true }
+    const blocks = Array.isArray(obj(o.message).content) ? (obj(o.message).content as unknown[]).map(obj) : []
+    return {
+      uuid,
+      parent: str(o.parentUuid) || str(o.logicalParentUuid) || null,
+      message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true,
+      reply: o.type === 'assistant' ? str(o.requestId) || str(obj(o.message).id) : '',
+      uses: blocks.filter((b) => b.type === 'tool_use').map((b) => str(b.id)),
+      results: blocks.filter((b) => b.type === 'tool_result').map((b) => str(b.tool_use_id))
+    }
   } catch {
     return null
   }

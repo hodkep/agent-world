@@ -61,3 +61,27 @@ test('a subagent still working shows its latest call, and the others show as don
     await shutdown()
   }
 })
+
+test('subagents that report by hand-back finish the card and leave a report card each, with no raw notices', async () => {
+  const { page, shutdown } = await chat({ FAKE_DELEGATE: '3', FAKE_DELEGATE_MS: '300', FAKE_DELEGATE_HANDBACK: '1' })
+  try {
+    const card = page.getByRole('region', { name: 'Delegated to 3 subagents' })
+    // Handing the report back is the end: the card says done, and the hand-back call is not listed as work.
+    await expect(card).toContainText('3 done', { timeout: 30_000 })
+    await card.getByRole('button', { name: 'Show 3 results' }).click()
+    await card.locator('.dg-row').nth(0).getByRole('button').click()
+    await expect(card.locator('.dg-open .dg-call')).toHaveCount(3)
+    await expect(card.locator('.dg-open')).not.toContainText('SubagentHandback')
+    await expect(card.locator('.dg-open')).toContainText('Part 1 is fine.')
+    // Each report is a card of its own in the conversation, named for the task, folded to a few lines.
+    const reports = page.getByRole('article', { name: /^Message from agent/ })
+    await expect(reports).toHaveCount(3)
+    await expect(reports.first()).toContainText('Report from')
+    await expect(reports.first()).toContainText('Look into part 1')
+    await expect(reports.first()).toContainText('Part 1 is fine.')
+    // The notices that a task ended are not shown as something you said.
+    await expect(page.getByRole('log').getByText('task-notification')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})

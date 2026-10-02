@@ -11,6 +11,8 @@ export type Row =
   | { kind: 'tool'; id: string; run: ToolRun }
   /** The subagents one reply started, together; their progress comes from Claude's own files for them. */
   | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
+  /** The report a subagent handed back when it finished. */
+  | { kind: 'report'; id: string; agentId: string; body: string }
   | { kind: 'note'; id: string; text: string; detail?: string }
 
 export interface Sent {
@@ -53,6 +55,9 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined } as ToolRun })
         break
       }
+      case 'subagent-report':
+        rows.push({ kind: 'report', id: i.id, agentId: i.agentId, body: i.body })
+        break
       case 'thinking':
         // A run of thinking blocks reads as one.
         if (rows.at(-1)?.kind !== 'thinking') rows.push({ kind: 'thinking', id: i.id })
@@ -136,6 +141,8 @@ export function rowText(r: Row): string {
       return `${r.name} ${r.args}`
     case 'shell':
       return `${r.command} ${r.out?.stdout ?? ''} ${r.out?.stderr ?? ''}`
+    case 'report':
+      return r.body
     case 'delegation':
       return `Delegated ${r.calls.map((c) => `${c.subagentType} ${c.description}`).join(' ')}`
     case 'tool': {
@@ -163,6 +170,9 @@ export function toMarkdown(rows: Row[], agentName: string): string {
         break
       case 'command':
         out.push(`\`${r.name} ${r.args}\``.trim())
+        break
+      case 'report':
+        out.push(`**Subagent report:** ${r.body}`)
         break
       case 'delegation':
         out.push(`Delegated to ${r.calls.length} subagent${r.calls.length === 1 ? '' : 's'}:\n${r.calls.map((c) => `- ${c.description}`).join('\n')}`)

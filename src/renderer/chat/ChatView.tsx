@@ -558,6 +558,8 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
       )
     case 'delegation':
       return <Delegation agentId={agentId} calls={r.calls} />
+    case 'report':
+      return <SubagentReport agentId={agentId} subagentId={r.agentId} body={r.body} />
     case 'tool':
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'note':
@@ -565,8 +567,22 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
   }
 }
 
+/** What a subagent handed back when it finished, as the same kind of card as a message from another agent, named after its task. */
+function SubagentReport({ agentId, subagentId, body }: { agentId: string; subagentId: string; body: string }) {
+  const [name, setName] = useState('subagent')
+  useEffect(() => {
+    let alive = true
+    void window.aw.subagents(agentId).then((l) => {
+      const s = l.find((x) => x.agentId === subagentId)
+      if (alive && s) setName(`${s.type} · ${s.description}`)
+    }, () => {})
+    return () => void (alive = false)
+  }, [agentId, subagentId])
+  return <AgentMailCard from={name} body={body} expectsReply={false} label="Report from" tag="Report" />
+}
+
 /** What another agent sent: a card of its own, cut to two lines until asked for, so it is never mistaken for something you typed. */
-function AgentMailCard({ from, body, expectsReply }: { from: string; body: string; expectsReply: boolean }) {
+function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag }: { from: string; body: string; expectsReply: boolean; label?: string; tag?: string }) {
   const box = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [long, setLong] = useState(false)
@@ -587,9 +603,9 @@ function AgentMailCard({ from, body, expectsReply }: { from: string; body: strin
           <path fill="var(--ink)" d="M0 0h14v1H0zM0 9h14v1H0zM0 0h1v10H0zM13 0h1v10h-1zM1 1h1v1H1zM2 2h1v1H2zM3 3h1v1H3zM4 4h1v1H4zM5 5h3v1H5zM8 5h1v1H8zM9 4h1v1H9zM10 3h1v1h-1zM11 2h1v1h-1zM12 1h1v1h-1z" />
         </svg>
         <span className="mail-from">
-          <span className="mail-lbl">From agent</span> “{from}”
+          <span className="mail-lbl">{label}</span> “{from}”
         </span>
-        <span className={`mail-tag ${expectsReply ? 'ask' : ''}`}>{expectsReply ? 'Asks for a reply' : 'Reply'}</span>
+        <span className={`mail-tag ${expectsReply ? 'ask' : ''}`}>{tag ?? (expectsReply ? 'Asks for a reply' : 'Reply')}</span>
       </header>
       <div ref={box} className="mail-body">
         {body.split(/(`[^`]+`)/).map((part, i) => (part.length > 2 && part.startsWith('`') && part.endsWith('`') ? <code key={i}>{part.slice(1, -1)}</code> : part))}

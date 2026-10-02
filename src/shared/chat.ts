@@ -9,6 +9,8 @@ export type ChatItem =
   | { kind: 'shell'; id: string; at: number; command: string }
   | { kind: 'shell-out'; id: string; at: number; stdout: string; stderr: string }
   | { kind: 'tool-result'; id: string; at: number; toolUseId: string; text: string; isError: boolean; images?: string[] }
+  /** What a subagent run in the background handed back when it finished. */
+  | { kind: 'subagent-report'; id: string; at: number; agentId: string; body: string }
   | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary) the view keeps behind "Show summary". */ detail?: string }
 
 /** One call a subagent made, as a line of its trail. */

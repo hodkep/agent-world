@@ -25,6 +25,7 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
   let updatedAt = 0
   let done = false
   let result = ''
+  let handedBack = false
   for (const l of raw.split('\n')) {
     if (!l) continue
     let d: { type?: string; timestamp?: string; message?: { stop_reason?: string | null; content?: unknown } }
@@ -38,10 +39,17 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
       startedAt ||= at
       updatedAt = Math.max(updatedAt, at)
     }
-    if (d.type !== 'assistant' || !Array.isArray(d.message?.content)) continue
+    // Whatever follows its hand-back (the delivery receipt, a closing line) is not its answer.
+    if (handedBack || d.type !== 'assistant' || !Array.isArray(d.message?.content)) continue
     for (const b of d.message!.content as { type?: string; name?: string; input?: Record<string, unknown>; text?: string }[]) {
-      if (b.type === 'tool_use' && b.name) calls.push({ at, name: b.name, detail: callDetail(b.name, b.input ?? {}) })
+      // A subagent run in the background reports with this call; what it carries is its answer.
+      if (b.type === 'tool_use' && b.name === 'SubagentHandback') {
+        done = true
+        result = String(b.input?.message ?? '').trim()
+        handedBack = true
+      } else if (b.type === 'tool_use' && b.name) calls.push({ at, name: b.name, detail: callDetail(b.name, b.input ?? {}) })
     }
+    if (handedBack) continue
     // Its last message with no more calls to make is the answer.
     const text = (d.message!.content as { type?: string; text?: string }[]).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('\n').trim()
     done = d.message!.stop_reason === 'end_turn'

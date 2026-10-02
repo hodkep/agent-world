@@ -87,3 +87,31 @@ describe('following the branch you are on', () => {
     expect(says(got)).toEqual(['R:one,two'])
   })
 })
+
+describe('tools called side by side', () => {
+  // One reply with several tool calls is saved as a chain of call lines, and each result hangs off its own call.
+  const call = (uuid: string, parent: string, id: string, req: string) => JSON.stringify({ uuid, parentUuid: parent, type: 'assistant', timestamp: '2026-01-01T00:00:00Z', requestId: req, message: { id: `m-${req}`, role: 'assistant', content: [{ type: 'tool_use', id, name: 'Agent', input: { description: id } }] } }) + '\n'
+  const result = (uuid: string, parent: string, id: string) => JSON.stringify({ uuid, parentUuid: parent, type: 'user', timestamp: '2026-01-01T00:00:01Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } }) + '\n'
+  const say = (uuid: string, parent: string, text: string, req: string) => JSON.stringify({ uuid, parentUuid: parent, type: 'assistant', timestamp: '2026-01-01T00:00:02Z', requestId: req, message: { id: `m-${req}`, role: 'assistant', content: [{ type: 'text', text }] } }) + '\n'
+  const read = (...lines: string[]) => {
+    const file = join(dir, 'p.jsonl')
+    writeFileSync(file, lines.join(''))
+    let got: ChatItem[] = []
+    new TranscriptTail(file, (items, replace) => (got = replace ? items : [...got, ...items])).poll()
+    return got
+  }
+  const parallel = [call('c1', 'u', 'A', 'r1'), call('c2', 'c1', 'B', 'r1'), call('c3', 'c2', 'C', 'r1'), call('c4', 'c3', 'D', 'r1'), result('x1', 'c1', 'A'), result('x2', 'c2', 'B'), result('x3', 'c3', 'C'), result('x4', 'c4', 'D')]
+
+  it('keeps every call and every result, even though the conversation carried on from only one of them', () => {
+    const got = read(user('u', 'go'), ...parallel, say('s', 'x3', 'all done', 'r2'))
+    expect(got.filter((i) => i.kind === 'tool').map((i) => i.kind === 'tool' && i.toolUseId)).toEqual(['A', 'B', 'C', 'D'])
+    expect(got.filter((i) => i.kind === 'tool-result').map((i) => i.kind === 'tool-result' && i.toolUseId)).toEqual(['A', 'B', 'C', 'D'])
+    expect(got.at(-1)).toMatchObject({ kind: 'assistant', text: 'all done' })
+  })
+
+  it('still drops the calls of an answer that was rewound', () => {
+    // The first try (req r1) forked off 'u'; after a rewind the conversation went on from 'u2' with a different reply (r3).
+    const got = read(user('u', 'go'), call('c1', 'u', 'A', 'r1'), result('x1', 'c1', 'A'), user('u2', 'try again'), call('n1', 'u2', 'N', 'r3'), result('y1', 'n1', 'N'), say('s', 'y1', 'done', 'r4'))
+    expect(got.filter((i) => i.kind === 'tool').map((i) => i.kind === 'tool' && i.toolUseId)).toEqual(['N'])
+  })
+})

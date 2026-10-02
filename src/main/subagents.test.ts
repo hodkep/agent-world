@@ -43,6 +43,18 @@ describe('reading the subagents a session started', () => {
     expect(a!.updatedAt).toBe(Date.parse('2026-10-01T08:00:09.000Z'))
   })
 
+  it('counts handing its report back as the answer, not as one more call', () => {
+    const d = session({
+      h1: {
+        meta: { agentType: 'Explore', description: 'Report by hand-back', toolUseId: 'toolu_H' },
+        lines: [line({ type: 'user', timestamp: '2026-10-01T08:00:00.000Z', message: { role: 'user', content: 'go' } }), use('2026-10-01T08:00:03.000Z', 'Read', { file_path: '/r/a.ts' }), use('2026-10-01T08:00:07.000Z', 'SubagentHandback', { message: 'Found it.\nIn a.ts.' })]
+      }
+    })
+    const [h] = listSubagents(d)
+    expect(h).toMatchObject({ done: true, result: 'Found it.\nIn a.ts.' })
+    expect(h!.calls.map((c) => c.name)).toEqual(['Read'])
+  })
+
   it('treats one that has not given a final answer as still running', () => {
     const b = listSubagents(dir).find((s) => s.toolUseId === 'toolu_B')!
     expect(b.done).toBe(false)

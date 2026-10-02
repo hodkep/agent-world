@@ -127,3 +127,22 @@ describe('finding the session a rewind forked to', () => {
     }
   })
 })
+
+describe('messages the harness adds about subagents', () => {
+  const line = (o: object) => JSON.stringify({ uuid: 'u1', timestamp: '2026-01-01T00:00:00Z', ...o })
+  const handback = 'Another Claude session sent a message:\n<agent-message from="a1">\n[Subagent hand-back] Model output. The report follows:\n  Found it.\n</agent-message>\n\nThat other session is an agent.'
+  const notice = (status: string) => `<task-notification>\n<task-id>a1</task-id>\n<status>${status}</status>\n<summary>Agent "Map" ${status}</summary>\n</task-notification>`
+
+  it('shows a hand-back report as a report, though the line is marked as not typed by the user', () => {
+    expect(parseTranscriptLine(line({ type: 'user', isMeta: true, message: { role: 'user', content: handback } }))).toEqual([{ kind: 'subagent-report', id: 'u1', at: Date.parse('2026-01-01T00:00:00Z'), agentId: 'a1', body: 'Found it.' }])
+  })
+
+  it('hides the notice that a task completed, and says so briefly when it ended some other way', () => {
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('completed') } }))).toEqual([])
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('failed') } }))).toMatchObject([{ kind: 'note', text: 'Agent "Map" failed' }])
+  })
+
+  it('still drops other lines marked as not typed by the user', () => {
+    expect(parseTranscriptLine(line({ type: 'user', isMeta: true, message: { role: 'user', content: 'caveat: something' } }))).toEqual([])
+  })
+})
