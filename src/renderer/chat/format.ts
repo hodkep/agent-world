@@ -187,9 +187,9 @@ export function splitMentions(text: string): { file: boolean; text: string }[] {
 export function highlight(text: string): { kind: 'plain' | 'command' | 'plugin' | 'file'; text: string }[] {
   const out: { kind: 'plain' | 'command' | 'plugin' | 'file'; text: string }[] = []
   let last = 0
-  // A command is a lone word after a slash at the start; a longer path that begins with a slash is a file.
+  // A command is a lone word after a slash that starts a word (anywhere in the message); a longer path that begins with a slash is a file.
   // Files: @mentions, and paths written out (/abs/path, ~/path, ./path, ../path).
-  for (const m of text.matchAll(/(^\/[\w.-]+(?::[\w.-]+)*(?=\s|$))|(?<=^|\s)(@(?:"[^"]+"|[^\s"@]*[/.][^\s"@]*)|(?:~|\.{1,2})?\/[^\s"'<>|]*\/[^\s"'<>|]+)/g)) {
+  for (const m of text.matchAll(/((?<=^|\s)\/[\w.-]+(?::[\w.-]+)*(?=\s|$))|(?<=^|\s)(@(?:"[^"]+"|[^\s"@]*[/.][^\s"@]*)|(?:~|\.{1,2})?\/[^\s"'<>|]*\/[^\s"'<>|]+)/g)) {
     if (m.index! > last) out.push({ kind: 'plain', text: text.slice(last, m.index) })
     out.push({ kind: m[2] ? 'file' : m[1]!.includes(':') ? 'plugin' : 'command', text: m[0] })
     last = m.index! + m[0].length

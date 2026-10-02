@@ -24,6 +24,13 @@ test('a little markdown in the message box shows formatted above it, and in the 
     await box.fill('plain words')
     await expect(preview).toHaveCount(0)
 
+    // Commands, plugin skills and files are tinted wherever they are in the message, not only at the start.
+    await box.fill('please run /compact then /impeccable:polish on @src/app.ts')
+    const mirror = page.locator('.composer-mirror')
+    await expect(mirror.locator('mark.tok-command')).toHaveText('/compact')
+    await expect(mirror.locator('mark.tok-plugin')).toHaveText('/impeccable:polish')
+    await expect(mirror.locator('mark.tok-file')).toHaveText('@src/app.ts')
+
     await box.fill('> again\n\nmake it **bold** please')
     await expect(preview.locator('blockquote')).toHaveText('again')
     await expect(preview.locator('strong')).toHaveText('bold')

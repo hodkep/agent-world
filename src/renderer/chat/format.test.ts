@@ -152,8 +152,23 @@ describe('highlighting what is typed in the message box', () => {
     expect(highlight('/compact now')[0]).toEqual({ kind: 'command', text: '/compact' })
   })
 
-  it('leaves a slash in the middle, email addresses and lone @ signs plain', () => {
-    expect(highlight('see /compact or a@b.com or @ x')).toEqual([{ kind: 'plain', text: 'see /compact or a@b.com or @ x' }])
+  it('marks a command or plugin skill anywhere in the message, not only at the start', () => {
+    const text = 'please run /compact then /impeccable:polish on it'
+    const parts = highlight(text)
+    expect(parts.map((p) => p.text).join('')).toBe(text)
+    expect(parts.filter((p) => p.kind !== 'plain')).toEqual([
+      { kind: 'command', text: '/compact' },
+      { kind: 'plugin', text: '/impeccable:polish' }
+    ])
+    expect(highlight('line one\n/review this')[1]).toEqual({ kind: 'command', text: '/review' })
+  })
+
+  it('leaves a slash inside a word, a fraction, a URL, email addresses and lone @ signs plain', () => {
+    for (const t of ['and/or 1/2 w/o a/b', 'see https://example.com/docs now', 'a@b.com or @ x', 'a // b']) expect(highlight(t), t).toEqual([{ kind: 'plain', text: t }])
+  })
+
+  it('still reads a longer path in the middle as a file, not a command', () => {
+    expect(highlight('open /usr/bin/env now').filter((p) => p.kind !== 'plain')).toEqual([{ kind: 'file', text: '/usr/bin/env' }])
   })
 })
 
