@@ -213,9 +213,10 @@ export function App() {
       clearInterval(b)
     }
   }, [selected, cardOpen])
-  const select = (id: string) => {
+  // The profile card opens only when you ask for it (a click on the agent in the office, or on its name), never by itself.
+  const select = (id: string, withCard = false) => {
     setSelected(id)
-    setCardOpen(true)
+    if (withCard) setCardOpen(true)
     keep('aw.selected', id)
     setView(talkRef.current)
     setOpenFile(undefined)
@@ -319,7 +320,7 @@ export function App() {
   useEffect(() => {
     let alive = true
     let w: OfficeWorld | null = null
-    void OfficeWorld.create(stage.current!, select, {
+    void OfficeWorld.create(stage.current!, (id) => select(id, true), {
       plant: { onHover: (v, x, y) => plantHover.current(v, x, y) },
       handbook: (id) => handbookOpen.current(id)
     }).then((created) => {
@@ -410,7 +411,6 @@ export function App() {
       const root = paneLayout?.root ?? null
       changeLayout({ root: drop ? place(root, id, drop.target, drop.zone) : add(root, id) })
     })
-  const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
   const cardData: CardData | null = current
     ? {
@@ -812,11 +812,6 @@ export function App() {
         <IconButton icon="money" label="Usage" onClick={() => setReport('usage')} haspopup tip="What the agents have cost, by day and model" />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         <LimitChips limits={limits} />
-        {officeCost > 0 && (
-          <span className="office-cost" title="Spent by all agents this session">
-            ${officeCost.toFixed(2)}
-          </span>
-        )}
         {error && <span className="error">{error}</span>}
         <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where Claude is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />

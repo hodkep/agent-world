@@ -132,7 +132,6 @@ aside:not(.wide) .change-list { width: 190px; }
 .change-list .error { margin: 0; font-size: 12px; }
 .diff { flex: 1; min-width: 0; min-height: 0; }
 
-.office-cost { font-family: Menlo, Consolas, monospace; color: var(--accent); padding: 0 6px; }
 .hire { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); }
 .hire-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
 .hire label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
@@ -1031,13 +1030,10 @@ code a.file-link { font: inherit; }
 .crew-pop .dg { border: 0; }
 .dg-told { padding: 0 10px 8px; color: var(--muted); font-size: 12px; }
 
-.crew-dialog { width: min(820px, 96vw); }
-.crew-dialog .history { padding: 18px 22px 20px; }
-.crew-dialog .history-head { margin-bottom: 14px; }
-.crew-groups { display: grid; gap: 16px; max-height: 70vh; overflow: auto; }
-.crew-group { display: grid; gap: 10px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); padding: 8px 6px 12px; }
-.crew-group > :not(.dg) { margin-left: 10px; }
-.crew-group .dg { border: 0; }
+.crew-dialog.settings { width: min(820px, 96vw); }
+.crew-groups { display: grid; gap: 12px; }
+.crew-group { display: grid; gap: 4px; background: var(--panel-2); border: 2px solid var(--ink); padding-bottom: 10px; }
+.crew-group .dg { background: transparent; border: 0; }
 .crew-open { justify-self: end; margin-right: 12px; font-size: 12px; padding: 3px 9px; }
 .dg-ask { flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .dg-older { justify-self: start; margin: 0 10px 8px; font-size: 12px; padding: 3px 9px; }
@@ -1128,6 +1124,8 @@ code a.file-link { font: inherit; }
 .tip-btn:hover::after, .tip-btn:focus-visible::after { display: block; opacity: 1; }
 /* The right-hand buttons sit at the window's edge: their hints open leftwards so the page never grows wider. */
 .tip-btn.push::after, .tip-btn:last-child::after { left: auto; right: 0; transform: none; }
+.tip-btn[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.tip-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-hot); }
 .tip-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; padding: 1px 3px; background: var(--accent); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 1.2; }
 
 /* Usage and Weekly Rewind. */

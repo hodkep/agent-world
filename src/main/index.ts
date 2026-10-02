@@ -12,7 +12,8 @@ import { readdir as readdirAsync, realpath as realpathAsync } from 'node:fs/prom
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
-import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
+import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
@@ -1165,6 +1166,14 @@ async function main() {
   })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
   const counted = new Map<string, { size: number; items: ChatItem[] }>()
+  // A terminal draws its own text, so the page cannot tell the system what is selected: the terminal asks for the menu itself.
+  ipcMain.handle('terminal:menu', async (_, selected: string) => {
+    const waiting = await clipboard.readText()
+    return new Promise<string | null>((resolve) => {
+      const items = [...(selected ? [{ label: 'Copy', click: () => (void clipboard.writeText(selected), resolve(null)) }] : []), { label: 'Paste', enabled: waiting.length > 0, click: () => resolve(waiting) }]
+      Menu.buildFromTemplate(items).popup({ callback: () => resolve(null) })
+    })
+  })
   ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start)))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
@@ -1315,6 +1324,13 @@ async function main() {
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (e) => e.preventDefault())
+  // Electron draws no right-click menu by itself; give every page (the app, and the preview) the system's own.
+  app.on('web-contents-created', (_, contents) => {
+    contents.on('context-menu', (_e, params) => {
+      const items = contextItems(params, (u) => void clipboard.writeText(u))
+      if (items.length) Menu.buildFromTemplate(items).popup()
+    })
+  })
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))

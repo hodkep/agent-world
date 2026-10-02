@@ -33,6 +33,15 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
       expect(await b.evaluate((el) => getComputedStyle(el, '::after').opacity)).toBe('1')
       expect(await b.getAttribute('data-tip')).toContain(name)
     }
+    // The office-wide total is gone (each agent's cost is on the canvas and in the chat), and Grid shows when it is on.
+    await expect(page.locator('.office-cost')).toHaveCount(0)
+    const grid = header.getByRole('button', { name: 'Grid', exact: true })
+    expect(await grid.getAttribute('aria-pressed')).toBe('false')
+    const off = await grid.evaluate((el) => getComputedStyle(el).backgroundColor)
+    await grid.click()
+    await expect(grid).toHaveAttribute('aria-pressed', 'true')
+    expect(await grid.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(off)
+    await grid.click()
     await expect.poll(() => { try { return readFileSync(ledger, 'utf8') } catch { return '' } }, { timeout: 15_000 }).toContain('"usd":1.5')
 
     await header.getByRole('button', { name: 'Usage', exact: true }).click()

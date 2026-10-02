@@ -84,6 +84,8 @@ export interface AwApi {
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   /** What the profile card shows for an agent: counted from its conversation, its branch and its work clock. */
   profile(agentId: string): Promise<AgentProfile>
+  /** Shows the system's Copy / Paste menu for a terminal; resolves to the text to paste, or null. */
+  terminalMenu(selected: string): Promise<string | null>
   /** The week starting at `start` (Monday 00:00), from the history the app keeps of its agents' work and spending. */
   weekReport(start: number): Promise<WeekReport>
   /** Spending per day over the last `days` days. */

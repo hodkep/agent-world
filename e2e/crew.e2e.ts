@@ -85,7 +85,7 @@ test('the Subagents view in the header lists every agent that has subagents, wit
     await expect(view.locator('.dg-row')).toHaveCount(1, { timeout: 20_000 })
     await view.getByRole('button', { name: 'Show 2 finished' }).click()
     await expect(view.locator('.dg-row')).toHaveCount(3)
-    await expect(view).toContainText('working across 1 agent')
+    await expect(view.locator('.st-card', { hasText: 'Working' })).toContainText('across 1 agent')
     await view.getByRole('button', { name: 'Open ada' }).click()
     await expect(view).toHaveCount(0)
   } finally {

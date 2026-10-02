@@ -41,6 +41,11 @@ export function TerminalView({ ptyId, visible, focusTick }: { ptyId: string; vis
     })
     const input = term.onData((d) => window.aw.ptyWrite(ptyId, d))
     const resize = term.onResize(({ cols, rows }) => window.aw.ptyResize(ptyId, cols, rows))
+    const menu = (e: MouseEvent) => {
+      e.preventDefault()
+      void window.aw.terminalMenu(term.getSelection()).then((text) => text && term.paste(text))
+    }
+    el.current!.addEventListener('contextmenu', menu)
     const ro = new ResizeObserver(() => el.current?.offsetParent && fit.fit())
     ro.observe(el.current!)
 
@@ -49,6 +54,7 @@ export function TerminalView({ ptyId, visible, focusTick }: { ptyId: string; vis
       input.dispose()
       resize.dispose()
       ro.disconnect()
+      el.current?.removeEventListener('contextmenu', menu)
       term.dispose()
     }
   }, [ptyId])

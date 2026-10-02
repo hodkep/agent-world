@@ -20,6 +20,7 @@ const api: AwApi = {
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   subagents: (id) => ipcRenderer.invoke('subagents:list', id),
   profile: (id) => ipcRenderer.invoke('agent:profile', id),
+  terminalMenu: (selected) => ipcRenderer.invoke('terminal:menu', selected),
   weekReport: (start) => ipcRenderer.invoke('ledger:week', start),
   usageReport: (days) => ipcRenderer.invoke('ledger:usage', days),
   setRole: (id, role) => ipcRenderer.invoke('agent-set-role', id, role),

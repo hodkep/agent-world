@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-async function start(panelWidth?: number, extra: Record<string, string> = {}) {
+async function start(panelWidth?: number, extra: Record<string, string> = {}, openCard = true) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-card-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -19,7 +19,7 @@ async function start(panelWidth?: number, extra: Record<string, string> = {}) {
   await hire(page)
   await page.getByRole('tab', { name: 'Chat' }).click()
   // Hiring opened the card, but clicking the Chat tab was a click outside it; the name brings it back.
-  await page.locator('.hc-name').click()
+  if (openCard) await page.locator('.hc-name').click()
   return { app, page, shutdown, launches: () => (existsSync(join(tmp, 'launches.jsonl')) ? readFileSync(join(tmp, 'launches.jsonl'), 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) }
 }
 const pixels = (page: Page) => page.evaluate(() => (() => { const c = document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!; return Array.from(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data).join(',') })())
@@ -52,6 +52,23 @@ test('clicking an agent opens its card on the side of the office away from it', 
     await expect(card).toContainText('Sonnet')
     await expect(card).toContainText('$1.50')
     await expect(card.locator('.pc-branch')).toContainText('Branch')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('no card opens until asked for, not on hiring, picking an agent or after a reload', async () => {
+  const { page, shutdown } = await start(undefined, {}, false)
+  try {
+    await expect(page.locator('.hc-name')).toHaveText('ada', { timeout: 15_000 })
+    await expect(page.locator('.pc')).toHaveCount(0)
+    await page.getByRole('button', { name: 'ada', exact: false }).first().click()
+    await expect(page.locator('.pc')).toHaveCount(0)
+    await page.locator('.hc-name').click()
+    await expect(page.locator('.pc')).toHaveCount(1)
+    await page.reload()
+    await expect(page.locator('.hc-name')).toHaveText('ada', { timeout: 15_000 })
+    await expect(page.locator('.pc')).toHaveCount(0)
   } finally {
     await shutdown()
   }
