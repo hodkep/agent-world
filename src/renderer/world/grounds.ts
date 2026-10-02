@@ -9,6 +9,7 @@ import { textPixels } from './pixelfont'
 export const GROUNDS = { west: 14 * TILE, east: 14 * TILE, north: 4 * TILE, south: 7 * TILE }
 export const GRASS = 0x1e3326
 
+import type { ScoreRow } from './scoreboard'
 type G = Graphics
 const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) => g.rect(x, y, w, h).fill(a === 1 ? c : { color: c, alpha: a })
 const INK = 0x14111c
@@ -254,6 +255,35 @@ export function drawHiringSign(map: OfficeMap): G {
 const MAX_BILLBOARD = 22
 
 /** A roadside hoarding behind the office, naming the folder the office is working in. */
+/** A sign on the north lawn, beside the billboard: who has changed the most lines. Nothing is drawn when there are no rows. */
+export function paintScoreboard(g: G, rows: ScoreRow[]) {
+  g.clear()
+  if (!rows.length) return
+  const x = 150
+  const y = -62
+  const w = 110
+  const h = 15 + rows.length * 8
+  ellipse(g, x + w / 2, -4, w / 2 + 3, 3, 0x000000, 0.3)
+  for (const px of [x + 10, x + w - 13]) {
+    r(g, px, y + h, 3, -4 - (y + h), INK)
+    r(g, px + 1, y + h, 1, -4 - (y + h), 0x8e5b34)
+  }
+  r(g, x, y, w, h, INK)
+  r(g, x + 2, y + 2, w - 4, h - 4, 0x1c2a4a)
+  r(g, x + 2, y + 2, w - 4, 1, 0x2e4474)
+  const paint = (text: string, ox: number, oy: number, color: number) =>
+    textPixels(text).forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, ox + rx, oy + ry, 1, 1, color)))
+  paint('lines today', x + 6, y + 5, 0xf2c230)
+  rows.forEach((row, i) => {
+    const ry = y + 13 + i * 8
+    paint(row.name, x + 6, ry, 0xe4e4ee)
+    r(g, x + 32, ry, 100 - 52, 4, 0x0c0a12)
+    r(g, x + 32, ry, Math.max(1, Math.round(((100 - 52) * row.pct) / 100)), 4, 0x5f9e5f)
+    const n = String(row.lines)
+    paint(n, x + w - 6 - textPixels(n)[0]!.length, ry, 0x9fdc9f)
+  })
+}
+
 export function paintBillboard(g: G, name: string | null) {
   g.clear()
   if (!name) return

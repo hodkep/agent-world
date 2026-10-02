@@ -5,7 +5,8 @@ import type { Activity } from '../../shared/types'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
-import { GRASS, Street, drawGrounds, drawHiringSign, paintBillboard } from './grounds'
+import { GRASS, Street, drawGrounds, drawHiringSign, paintBillboard, paintScoreboard } from './grounds'
+import { scoreboardRows } from './scoreboard'
 import { PLANT, PowerPlant } from './power'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
@@ -25,6 +26,8 @@ export interface AgentView {
   contextPct: number | null
   /** The agent this one was cloned from: it takes the free desk nearest to that one. */
   cloneOf?: string
+  /** Lines added and removed this session, from Claude's statusline feed. */
+  linesChanged: number
 }
 
 export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void }
@@ -75,6 +78,8 @@ export class OfficeWorld {
   private plant!: PowerPlant
   private readonly sign = drawHiringSign(OFFICE.map)
   private readonly billboard = new Graphics()
+  private readonly scoreboard = new Graphics()
+  private publishedScore = ''
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
   private boardKey = ''
@@ -116,7 +121,7 @@ export class OfficeWorld {
     this.street = new Street(OFFICE.map)
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
-    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -355,6 +360,14 @@ export class OfficeWorld {
         c.goTo(OFFICE.door)
       }
     this.drawBoard(agents)
+    // Who has changed the most lines, on the lawn (drawn only when there is something to show).
+    const score = scoreboardRows(agents.map((a) => ({ name: a.name, lines: a.linesChanged })))
+    const json = JSON.stringify(score)
+    if (json !== this.publishedScore) {
+      this.publishedScore = json
+      paintScoreboard(this.scoreboard, score)
+      this.host.dataset.scoreboard = json
+    }
     this.firstSync = false
   }
 
