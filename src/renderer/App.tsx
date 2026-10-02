@@ -423,11 +423,11 @@ export function App() {
     })
 
   plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
+  // The book on a desk is the agent's work in progress: clicking it shows what has changed.
   handbookOpen.current = (id) => {
-    const a = agents.find((x) => x.id === id)
-    if (!a?.branch) return setError(`${a?.name ?? 'That agent'} works in a shared folder, so there is no branch to keep a handbook in.`)
     select(id)
-    void openHandbook(a)
+    setView('code')
+    setOpenFile({ tab: 'changes' })
   }
   // Files dropped on a character are mentioned to that agent, wherever it is standing.
   const dropOnStage = (e: React.DragEvent) => {
