@@ -9,12 +9,13 @@ import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readdir as readdirAsync, realpath as realpathAsync } from 'node:fs/promises'
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
+import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
@@ -126,6 +127,27 @@ const loadUsage = () => {
     /* first run, or unreadable: start empty */
   }
 }
+// The history behind the Usage and Weekly Rewind screens: one line per cost increase and per finished stretch of work.
+const LEDGER_FILE = join(HOME, 'ledger.jsonl')
+let ledger: LedgerEvent[] = []
+const loadLedger = () => {
+  try {
+    ledger = parseLedger(readFileSync(LEDGER_FILE, 'utf8'))
+  } catch {
+    /* first run: nothing recorded yet */
+  }
+}
+function record(e: LedgerEvent) {
+  ledger.push(e)
+  try {
+    mkdirSync(HOME, { recursive: true })
+    appendFileSync(LEDGER_FILE, `${JSON.stringify(e)}\n`, { mode: 0o600 })
+  } catch {
+    /* the history is a convenience; a full disk must not stop an agent */
+  }
+}
+const projectOf = (a: AgentRecord) => basename(a.repoPath)
+
 // Folders worked in, saved once an agent has been hired there so the next launch opens where you left off.
 const WORKSPACES_FILE = join(HOME, 'workspaces.json')
 let workspaces: WorkspaceState = { active: null, recent: [] }
@@ -375,6 +397,14 @@ function onStats(s: AgentStats, agentId: string) {
       /* the reading is only a convenience; losing it is fine */
     }
   }
+  // An agent hired before the history existed has spent all its total already: that is the starting point, not new spending.
+  const fresh = a.hiredAt !== undefined && Date.now() - a.hiredAt < 30 * 60_000
+  const spent = costDelta(a.costSeen ?? (fresh ? 0 : s.costUsd), s.costUsd)
+  if (spent !== 0 || a.costSeen === undefined) {
+    a.costSeen = s.costUsd
+    persist()
+    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent })
+  }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
   lastCost.set(a.id, s.costUsd)
   if (alert) {
@@ -395,6 +425,7 @@ function runClock(a: AgentRecord, activity: string) {
   if (before.since !== null && after.since === null) {
     a.workedMs = after.total
     persist()
+    record({ k: 'work', t: before.since, agent: a.id, project: projectOf(a), ms: Date.now() - before.since })
   }
 }
 
@@ -584,6 +615,7 @@ async function main() {
   agents = loadAgents(AGENTS_FILE)
   for (const a of agents) followChat(a)
   loadUsage()
+  loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...agentEnv(process.env), PATH: loginShellPath() }
 
@@ -1133,6 +1165,8 @@ async function main() {
   })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
   const counted = new Map<string, { size: number; items: ChatItem[] }>()
+  ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start)))
+  ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)
     if (!a) throw new Error('That agent is not there any more.')

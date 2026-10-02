@@ -1,3 +1,4 @@
+import type { UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
@@ -83,6 +84,10 @@ export interface AwApi {
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   /** What the profile card shows for an agent: counted from its conversation, its branch and its work clock. */
   profile(agentId: string): Promise<AgentProfile>
+  /** The week starting at `start` (Monday 00:00), from the history the app keeps of its agents' work and spending. */
+  weekReport(start: number): Promise<WeekReport>
+  /** Spending per day over the last `days` days. */
+  usageReport(days: number): Promise<UsageReport>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */

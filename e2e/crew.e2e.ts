@@ -114,9 +114,9 @@ test('a subagent that was stopped leaves the office instead of staying at its de
   const { page, shutdown } = await chat({ FAKE_DELEGATE: '3', FAKE_DELEGATE_STOP: '2', FAKE_DELEGATE_MS: '600' })
   try {
     const button = page.locator('header').getByRole('button', { name: /^Subagents/ })
-    await expect(button).toHaveText(/^Subagents \d/, { timeout: 20_000 })
+    await expect(button).toHaveAttribute('aria-label', /^Subagents \d/, { timeout: 20_000 })
     // Two answered (their hook removed them); the third was stopped and only Claude's files say so.
-    await expect(button).toHaveText('Subagents', { timeout: 30_000 })
+    await expect(button).toHaveAttribute('aria-label', 'Subagents', { timeout: 30_000 })
   } finally {
     await shutdown()
   }

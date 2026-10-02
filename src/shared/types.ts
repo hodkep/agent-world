@@ -93,6 +93,8 @@ export interface AgentRecord {
   hiredAt?: number
   /** Milliseconds it has spent working, added up as it goes. */
   workedMs?: number
+  /** The running cost Claude last reported, so the next report adds only what is new to the usage history. */
+  costSeen?: number
   /** Live state, filled in by list-agents only (not persisted). */
   online?: boolean
   activity?: Activity

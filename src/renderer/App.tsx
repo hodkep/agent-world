@@ -28,7 +28,10 @@ import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
+import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
+import { RewindModal } from './stats/RewindModal'
+import { UsageModal } from './stats/UsageModal'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
@@ -96,6 +99,7 @@ export function App() {
   const [hiring, setHiring] = useState(false)
   const [history, setHistory] = useState(false)
   const [crewOpen, setCrewOpen] = useState(false)
+  const [report, setReport] = useState<'usage' | 'rewind' | null>(null)
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
   const [cardOpen, setCardOpen] = useState(false)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
@@ -765,6 +769,8 @@ export function App() {
           }}
         />
       )}
+      {report === 'usage' && <UsageModal onClose={() => setReport(null)} />}
+      {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
       {settings && prefs && <Settings prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
@@ -796,19 +802,15 @@ export function App() {
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
         </button>
-        <button onClick={() => setHistory((h) => !h)} disabled={!folder} aria-expanded={history} title="Bring back an earlier conversation from this folder">
-          History
-        </button>
+        <IconButton icon="history" label="History" onClick={() => setHistory((h) => !h)} disabled={!folder} expanded={history} tip="Bring back an earlier conversation from this folder" />
         {agents.length > 0 && (
-          <button onClick={() => setCrewOpen(true)} aria-haspopup="dialog" title="Every agent's subagents together">
-            Subagents{crewLive > 0 ? ` ${crewLive}` : ''}
-          </button>
+          <IconButton icon="crew" label={`Subagents${crewLive > 0 ? ` ${crewLive}` : ''}`} onClick={() => setCrewOpen(true)} haspopup tip="Every agent's subagents together" badge={crewLive > 0 ? crewLive : undefined} />
         )}
         {agents.length > 0 && (
-          <button onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} aria-pressed={grid} title="Show every agent at once, with the last lines of its terminal">
-            Grid
-          </button>
+          <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
+        <IconButton icon="money" label="Usage" onClick={() => setReport('usage')} haspopup tip="What the agents have cost, by day and model" />
+        <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         <LimitChips limits={limits} />
         {officeCost > 0 && (
           <span className="office-cost" title="Spent by all agents this session">
@@ -816,12 +818,8 @@ export function App() {
           </span>
         )}
         {error && <span className="error">{error}</span>}
-        <button className="push" onClick={() => setSettings(true)} title="Notifications, defaults for new agents, where Claude is">
-          Settings
-        </button>
-        <button onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} aria-expanded={showPanel}>
-          {showPanel ? 'Hide panel' : 'Show panel'}
-        </button>
+        <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where Claude is" />
+        <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
       <main>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>

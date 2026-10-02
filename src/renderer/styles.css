@@ -1118,3 +1118,48 @@ code a.file-link { font: inherit; }
 .pc-branch { margin: 0 0 6px; font-size: 12px; display: flex; gap: 8px; min-width: 0; }
 .pc-branch span { color: var(--muted); }
 .pc-branch b { font-family: Menlo, Consolas, monospace; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Icon buttons in the top bar: the hint shows at once, below the button. */
+.tip-btn { position: relative; padding: 6px 8px; line-height: 0; }
+.tip-btn::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 50; width: max-content; max-width: 260px; padding: 4px 8px; background: var(--ink); color: var(--text); border: 2px solid var(--line); font-size: 12px; line-height: 1.35; text-align: left; white-space: normal; pointer-events: none; opacity: 0; }
+.tip-btn:hover::after, .tip-btn:focus-visible::after { opacity: 1; }
+.tip-btn:last-child::after { left: auto; right: 0; transform: none; }
+.tip-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; padding: 1px 3px; background: var(--accent); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 1.2; }
+
+/* Usage and Weekly Rewind. */
+.settings.stats { width: min(920px, 94vw); max-height: 92vh; }
+.stats .settings-head { gap: 12px; }
+.st-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--muted); }
+.st-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; max-height: calc(92vh - 52px); }
+.st-note { margin: 0; color: var(--muted); font-size: 12px; padding: 0 2px; }
+.st-body h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.st-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.st-cards.three { grid-template-columns: repeat(3, 1fr); }
+.st-card { display: flex; flex-direction: column; gap: 2px; padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); }
+.st-card span { font-size: 11px; color: var(--muted); }
+.st-card b { font-size: 20px; color: var(--accent); }
+.st-card small { color: var(--muted); font-size: 11px; }
+.st-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.st-two > section, .st-body > section { padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; }
+.st-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.st-row h3 { margin: 0; }
+.st-seg { display: flex; gap: 2px; }
+.st-seg button.on { background: var(--accent); color: var(--ink); }
+.st-bars { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 150px; padding: 14px 0 0 0; }
+.st-axis { position: absolute; top: 0; left: 0; font-size: 10px; color: var(--muted); }
+.st-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 3px; }
+.st-col i { display: block; background: var(--think); min-height: 0; }
+.st-col small { height: 14px; font-size: 10px; color: var(--muted); text-align: center; overflow: visible; white-space: nowrap; }
+.st-model { display: grid; grid-template-columns: minmax(8ch, 14ch) 1fr auto; gap: 8px; align-items: center; font-size: 12px; padding: 3px 0; }
+.st-model i { display: block; height: 8px; background: var(--track); }
+.st-model b { display: block; height: 100%; background: var(--think); }
+.st-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.st-list li { display: grid; grid-template-columns: 12ch 1fr auto; gap: 10px; padding: 6px 2px; border-top: 1px solid var(--line); font-size: 12px; }
+.st-list li span { color: var(--muted); }
+.st-heat { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--muted); }
+.st-heat-top, .st-heat-row > div { display: grid; grid-template-columns: repeat(24, 1fr); gap: 1px; margin-left: 14px; }
+.st-heat-row { display: flex; align-items: center; gap: 2px; }
+.st-heat-row > span { width: 12px; }
+.st-heat-row > div { flex: 1; margin-left: 0; }
+.st-heat-row i { display: block; height: 12px; background: var(--ok); }
+@media (max-width: 640px) { .st-cards.three { grid-template-columns: 1fr; } }
