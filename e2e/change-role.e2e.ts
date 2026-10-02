@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -21,7 +21,7 @@ test('a Reviewer can be changed to no role: it relaunches on the same session wi
     await expect(page.locator('.job-tag')).toHaveText('Reviewer')
     await chatTab(page)
 
-    const launches = () => readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as string[])
+    const launches = () => (existsSync(log) ? readFileSync(log, 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[])
     await expect.poll(() => launches().length).toBe(1)
     expect(launches()[0]!.join(' ')).toMatch(/code reviewer/)
 
