@@ -3,7 +3,7 @@ import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import type { Effort } from '../../shared/types'
 import { PixelIcon } from '../chat/PixelIcon'
 import { MODELS } from '../panel/HireForm'
-import { type CardData, factRows } from './facts'
+import type { CardData } from './facts'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
 import { agoShort, durationLabel, levelOf } from './format'
 import { EFFORT_STEPS, contextGauge, costGauge, effortPips, linesGauge, toolBars } from './gauges'
@@ -160,7 +160,7 @@ const STATUS: Record<string, string> = { thinking: 'Thinking', researching: 'Rea
 /**
  * The agent's profile card, in the world's own 8-bit look. Every part says what it is in words: a moving portrait
  * with what the agent is doing now, three labelled readings, the settings you can change (each is the same action
- * as in the chat, so the chat follows), and a few counted numbers. The same facts are also in the panel as text.
+ * as in the chat, so the chat follows), and a few counted numbers.
  */
 export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null; onClose: () => void }) {
   const reduced = useReducedMotion()
@@ -260,6 +260,9 @@ export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardD
       {!compact && (
         <>
           <h3 className="pc-h">So far</h3>
+          <p className="pc-branch" title="The git branch it works on">
+            <span>Branch</span> <b>{data.branch || 'works in the folder itself'}</b>
+          </p>
           <div className="pc-tiles">
             <Tile value={p ? durationLabel(p.workedMs) : '…'} label="Worked" hint="Time spent actually working, not waiting for you" />
             <Tile value={p ? agoShort(p.hiredAt, now) : '…'} label={p?.hiredEstimated ? 'Hired ~ ago' : 'Hired ago'} hint="How long ago it was hired" />
@@ -289,22 +292,5 @@ export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardD
       </div>
       </div>
     </section>
-  )
-}
-
-/** The same facts as plain text, in the panel: what the keyboard and a screen reader get. */
-export function ProfileFacts({ data, now }: { data: CardData; now: number }) {
-  return (
-    <details className="profile-facts">
-      <summary>Profile</summary>
-      <dl>
-        {factRows(data, now).map((r) => (
-          <div key={r.key}>
-            <dt>{r.label}</dt>
-            <dd>{r.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </details>
   )
 }

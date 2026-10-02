@@ -24,7 +24,7 @@ async function start(panelWidth?: number, extra: Record<string, string> = {}) {
 }
 const pixels = (page: Page) => page.evaluate(() => (() => { const c = document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!; return Array.from(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data).join(',') })())
 
-test('clicking an agent opens its card on the side of the office away from it, with the facts as text in the panel too', async () => {
+test('clicking an agent opens its card on the side of the office away from it', async () => {
   const { page, shutdown } = await start()
   try {
     const card = page.locator('.profile-overlay')
@@ -46,12 +46,12 @@ test('clicking an agent opens its card on the side of the office away from it, w
     // ada sits at the first desk, in the left half of the office, so the card is on the right.
     expect(side).toBe('right')
     expect(box.x + box.width / 2).toBeGreaterThan(stage.x + stage.width / 2)
-    await page.locator('.profile-facts summary').click()
-    const facts = page.locator('.profile-facts')
-    await expect(facts).toContainText('Hired')
-    await expect(facts).toContainText('just now')
-    await expect(facts).toContainText('Sonnet')
-    await expect(facts).toContainText('$1.50')
+    // Everything the old text list held is on the card itself, and the list is gone.
+    await expect(page.locator('.profile-facts')).toHaveCount(0)
+    await expect(card).toContainText('Hired')
+    await expect(card).toContainText('Sonnet')
+    await expect(card).toContainText('$1.50')
+    await expect(card.locator('.pc-branch')).toContainText('Branch')
   } finally {
     await shutdown()
   }
@@ -111,9 +111,6 @@ test('with too little room over the office the card opens in the panel instead, 
     await expect(page.locator('.profile-overlay')).toHaveCount(0)
     await page.locator('.profile-dock').getByRole('button', { name: 'Close profile card' }).click()
     await expect(page.locator('.profile-dock')).toHaveCount(0)
-    // The facts as text are in the panel either way (opening them is a click outside the card, which closes it).
-    await page.locator('.profile-facts summary').click()
-    await expect(page.locator('.profile-facts')).toContainText('Hired')
     await page.locator('.hc-name').click()
     await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada')
   } finally {

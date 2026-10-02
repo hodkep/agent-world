@@ -1111,12 +1111,10 @@ code a.file-link { font: inherit; }
 .pc-toolbars > div { display: grid; grid-template-columns: 7ch minmax(0, 1fr) 5ch; gap: 6px; align-items: center; }
 .pc-toolbars > div span:last-child { text-align: right; color: var(--text); }
 .profile-dock { margin: 10px 14px 6px; }
-.profile-facts { margin: 6px 12px 0; font-size: 12px; }
-.profile-facts summary { cursor: pointer; color: var(--muted); }
-.profile-facts dl { display: grid; gap: 2px; margin: 6px 0 0; }
-.profile-facts dl > div { display: flex; gap: 12px; }
-.profile-facts dt { color: var(--muted); min-width: 11ch; }
-.profile-facts dd { margin: 0; font-family: Menlo, Consolas, monospace; }
 .hc-name[role='button'] { cursor: pointer; }
 .hc-name[role='button']:hover { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .pc-dot.is-working { animation: none; } .profile-overlay.flash .pc, .profile-dock.flash .pc { animation: none; } }
+
+.pc-branch { margin: 0 0 6px; font-size: 12px; display: flex; gap: 8px; min-width: 0; }
+.pc-branch span { color: var(--muted); }
+.pc-branch b { font-family: Menlo, Consolas, monospace; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

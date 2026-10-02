@@ -33,7 +33,7 @@ import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout } from './profile/layout'
-import { type CardEdit, ProfileCard, ProfileFacts } from './profile/ProfileCard'
+import { type CardEdit, ProfileCard } from './profile/ProfileCard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -1066,14 +1066,11 @@ export function App() {
             </section>
           )}
           {cardData && (
-            <>
-              {cardAt?.mode === 'panel' && (
-                <div key={flash} className={`profile-dock ${flash ? 'flash' : ''}`}>
-                  <ProfileCard data={cardData} variant="docked" now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} />
-                </div>
-              )}
-              <ProfileFacts data={cardData} now={clock} />
-            </>
+            cardAt?.mode === 'panel' && (
+              <div key={flash} className={`profile-dock ${flash ? 'flash' : ''}`}>
+                <ProfileCard data={cardData} variant="docked" now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} />
+              </div>
+            )
           )}
           {current && state?.tasks && state.tasks.length > 0 && (
             <ul className="tasks" aria-label="Tasks">
