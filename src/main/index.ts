@@ -15,7 +15,7 @@ import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Notification, app, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import type { Activity, AgentEvent, AgentOptions, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
@@ -32,6 +32,7 @@ import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
 import { dropPromptSnapshots } from './promptSnapshot'
 import { listSubagents } from './subagents'
+import { type WorkClock, advanceWork, hiredAtOf, profileCounts, workedNow } from './profile'
 import { type Role, withRole } from '../shared/roles'
 import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
@@ -384,6 +385,19 @@ function onStats(s: AgentStats, agentId: string) {
 }
 
 // Hook events tell the mailbox when each agent can take a new prompt.
+// How long each agent has been working: a stretch starts when it gets busy and ends when it stops, waits for you or goes to sleep.
+const workClocks = new Map<string, WorkClock>()
+function runClock(a: AgentRecord, activity: string) {
+  const before = workClocks.get(a.id) ?? { total: a.workedMs ?? 0, since: null }
+  const after = advanceWork(before, activity, Date.now())
+  workClocks.set(a.id, after)
+  // Only a finished stretch is saved, so this does not write to disk on every step of a turn.
+  if (before.since !== null && after.since === null) {
+    a.workedMs = after.total
+    persist()
+  }
+}
+
 function trackTurns(e: AgentEvent) {
   const a = byId(e.agentId)
   if (!a) return
@@ -405,6 +419,7 @@ function trackTurns(e: AgentEvent) {
     }
     if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
     lastActivity.set(a.id, e.activity)
+    runClock(a, e.activity)
     if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
     else mailbox.busy(a.id)
   }
@@ -549,6 +564,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     screens.get(a.id)?.dispose()
     screens.delete(a.id)
     mailbox.gone(a.id)
+    runClock(a, 'asleep')
     lastActivity.delete(a.id)
     lastCost.delete(a.id)
     refreshAttention()
@@ -838,7 +854,7 @@ async function main() {
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
     const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, options }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, hiredAt: Date.now(), options }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -874,7 +890,7 @@ async function main() {
       const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees') })
       // Plan mode keeps a reviewer from editing anything while it reads.
       created = {
-        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, started: false,
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, started: false, hiredAt: Date.now(),
         options: { permissionMode: 'plan', ...(prefs.roleModels.Reviewer && { model: prefs.roleModels.Reviewer }), instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
       }
       setWorkspaces(rememberWorkspace(workspaces, author.repoPath))
@@ -910,7 +926,7 @@ async function main() {
     const name = await nextName(folder)
     const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
-    const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true, hiredAt: Date.now() }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -925,7 +941,7 @@ async function main() {
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
-      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, options: model ? { ...src.options, model } : src.options
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
     }
     agents.push(a)
     persist()
@@ -1114,6 +1130,44 @@ async function main() {
   ipcMain.handle('subagents:list', (_, id: string) => {
     const a = byId(id)
     return a ? listSubagents(transcriptFile(a).replace(/\.jsonl$/, '')) : []
+  })
+  // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
+  const counted = new Map<string, { size: number; items: ChatItem[] }>()
+  ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
+    const a = byId(id)
+    if (!a) throw new Error('That agent is not there any more.')
+    const file = transcriptFile(a)
+    let items: ChatItem[] = []
+    try {
+      const size = statSync(file).size
+      const hit = counted.get(file)
+      if (hit && hit.size === size) items = hit.items
+      else {
+        new TranscriptTail(file, (got, replace) => (items = replace ? got : [...items, ...got])).poll()
+        counted.set(file, { size, items })
+      }
+    } catch {
+      /* no conversation yet */
+    }
+    let folder: number | null = null
+    if (a.branch) {
+      try {
+        folder = statSync(a.cwd).birthtimeMs || null
+      } catch {
+        /* the folder is gone */
+      }
+    }
+    const hired = hiredAtOf(a, { folder, conversation: items.find((i) => i.at > 0)?.at ?? null })
+    let commits: number | null = null
+    if (a.branch && a.base) {
+      try {
+        commits = Number(await git(a.cwd, 'rev-list', '--count', `${a.base}..${a.branch}`)) || 0
+      } catch {
+        /* the branch or its base is gone */
+      }
+    }
+    const clock = workClocks.get(id) ?? { total: a.workedMs ?? 0, since: null }
+    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: listSubagents(file.replace(/\.jsonl$/, '')).length, commits }
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))

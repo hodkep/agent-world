@@ -89,10 +89,28 @@ export interface AgentRecord {
   cloneOf?: string
   /** A label the roster groups agents under, chosen by the user. */
   group?: string
+  /** When it was hired (ms since 1970); older agents were hired before this was kept. */
+  hiredAt?: number
+  /** Milliseconds it has spent working, added up as it goes. */
+  workedMs?: number
   /** Live state, filled in by list-agents only (not persisted). */
   online?: boolean
   activity?: Activity
   options?: AgentOptions
+}
+
+/** What the profile card shows beyond the live numbers: counted or looked up on demand. */
+export interface AgentProfile {
+  hiredAt: number | null
+  /** The hire time was worked out from its folder or conversation, not stored. */
+  hiredEstimated: boolean
+  workedMs: number
+  turns: number
+  tools: [string, number][]
+  files: number
+  subagents: number
+  /** Commits on its branch beyond where it started; null when it has no branch of its own. */
+  commits: number | null
 }
 
 export interface AgentMessage {

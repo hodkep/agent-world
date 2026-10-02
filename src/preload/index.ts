@@ -19,6 +19,7 @@ const api: AwApi = {
   addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   subagents: (id) => ipcRenderer.invoke('subagents:list', id),
+  profile: (id) => ipcRenderer.invoke('agent:profile', id),
   setRole: (id, role) => ipcRenderer.invoke('agent-set-role', id, role),
   setGroup: (id, group) => ipcRenderer.invoke('set-group', id, group),
   renameAgent: (id, name) => ipcRenderer.invoke('rename-agent', id, name),

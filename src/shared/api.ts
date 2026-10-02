@@ -1,7 +1,7 @@
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
+import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -81,6 +81,8 @@ export interface AwApi {
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
+  /** What the profile card shows for an agent: counted from its conversation, its branch and its work clock. */
+  profile(agentId: string): Promise<AgentProfile>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */
