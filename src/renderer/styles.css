@@ -1196,3 +1196,11 @@ code a.file-link { font: inherit; }
 /* The panel's generic `aside section` rule must not lay a day group out sideways. */
 .hx-list > section { display: block; padding: 0; border-bottom: 0; }
 .hx-list ul { max-height: none; }
+
+/* The hire form in its dialog: room between the rows and around the fields. */
+.hire-dialog .hire { gap: 18px; padding: 20px 22px 22px; }
+.hire-dialog .hire-row { gap: 14px 16px; }
+.hire-dialog .hire label { gap: 6px; font-size: 12px; }
+.hire-dialog .hire .hint { margin-top: 2px; line-height: 1.4; }
+.hire-dialog .hire label.check { gap: 8px; }
+.hire-dialog .hire-row:last-child { margin-top: 6px; padding-top: 16px; border-top: 2px solid var(--ink); }
