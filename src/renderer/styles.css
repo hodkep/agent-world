@@ -1197,10 +1197,11 @@ code a.file-link { font: inherit; }
 .hx-list > section { display: block; padding: 0; border-bottom: 0; }
 .hx-list ul { max-height: none; }
 
-/* The hire form in its dialog: room between the rows and around the fields. */
-.hire-dialog .hire { gap: 18px; padding: 20px 22px 22px; }
-.hire-dialog .hire-row { gap: 14px 16px; }
-.hire-dialog .hire label { gap: 6px; font-size: 12px; }
-.hire-dialog .hire .hint { margin-top: 2px; line-height: 1.4; }
-.hire-dialog .hire label.check { gap: 8px; }
-.hire-dialog .hire-row:last-child { margin-top: 6px; padding-top: 16px; border-top: 2px solid var(--ink); }
+/* The hire form: the generic `.hint` has 12px of padding, which pushed help text away from its field. Here the help sits
+   close under its field, and the room goes between the label and the field instead. */
+.hire .hint { padding: 0; line-height: 1.4; }
+.hire label { gap: 6px; }
+.hire label .hint { margin-top: -2px; }
+.hire-dialog .hire { gap: 16px; padding: 18px 20px 20px; }
+.hire-dialog .hire-row { gap: 14px; }
+.hire-dialog .hire-row:last-child { margin-top: 4px; padding-top: 14px; border-top: 2px solid var(--ink); }
