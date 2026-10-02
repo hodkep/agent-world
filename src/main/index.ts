@@ -30,6 +30,7 @@ import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
+import { type Role, withRole } from '../shared/roles'
 import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
 import { autoUnavailable, readMode, setMode } from './modes'
@@ -1027,6 +1028,20 @@ async function main() {
     restarting.add(id)
     mailbox.restarting(id)
     p.kill()
+  })
+  // A new job for a running agent: stored options change and the same session relaunches, so the new instructions
+  // take effect and the conversation stays.
+  ipcMain.handle('agent-set-role', (_, id: string, role: Role | null) => {
+    const a = byId(id)
+    const p = sessions.get(id)
+    if (!a || !p) throw new Error('That agent is not running.')
+    if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
+    a.options = withRole(a.options, role)
+    persist()
+    restarting.add(id)
+    mailbox.restarting(id)
+    p.kill()
+    return a.options
   })
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
   // which keeps the conversation (it resumes the same session).

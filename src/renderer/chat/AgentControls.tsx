@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type Role, isCurrentRole } from '../../shared/roles'
 import type { Effort } from '../../shared/types'
 import { type UsageLimits, limitView } from '../../shared/usage'
 import { EFFORTS, MODELS } from '../panel/HireForm'
@@ -19,11 +20,16 @@ export interface AgentInfo {
   /** Model and effort can only change between turns. */
   canSwitch: boolean
   started: boolean
+  /** The job stored in the agent's options (a role's title), if any. */
+  role?: string
 }
 
 /** What the controls can do: App owns the work, the box only asks for it. */
 export interface AgentActions {
   switchTo: (change: { model?: string; effort?: Effort }) => void
+  roles: Role[]
+  /** Another job for this agent, or none; it relaunches on the same conversation. */
+  setRole: (role: Role | null) => void
   reviewers: { id: string; name: string }[]
   askReview: (reviewer: string) => void
   clone: (model?: string) => void
@@ -155,7 +161,7 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
 
 export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentActions }) {
   const [open, setOpen] = useState(false)
-  const [page, setPage] = useState<'main' | 'review' | 'clone'>('main')
+  const [page, setPage] = useState<'main' | 'review' | 'clone' | 'role'>('main')
   const close = () => setOpen(false)
   const wrap = useDismiss(open, close)
   const run = (f: () => void) => () => (close(), f())
@@ -211,6 +217,10 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                 <PixelIcon name="pencil" />
                 Rename
               </button>
+              <button className="cb-row" role="menuitem" disabled={!info.canSwitch} title={info.canSwitch ? '' : 'Wait until it finishes its turn'} onClick={() => setPage('role')}>
+                <PixelIcon name="tag" />
+                Change role…
+              </button>
               <button className="cb-row" role="menuitem" onClick={run(actions.group)}>
                 <PixelIcon name="tag" />
                 Group…
@@ -233,6 +243,22 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                 <PixelIcon name="plus" />
                 Hire a new reviewer
               </button>
+            </>
+          )}
+          {page === 'role' && (
+            <>
+              {back('Change role')}
+              <button className="cb-row" role="menuitemradio" aria-checked={isCurrentRole(info.role, null)} onClick={run(() => !isCurrentRole(info.role, null) && actions.setRole(null))}>
+                {isCurrentRole(info.role, null) && <span aria-hidden="true">✓ </span>}
+                No role
+                <small>normal agent</small>
+              </button>
+              {actions.roles.map((r) => (
+                <button key={r.id} className="cb-row" role="menuitemradio" aria-checked={isCurrentRole(info.role, r)} onClick={run(() => !isCurrentRole(info.role, r) && actions.setRole(r))} title={r.blurb}>
+                  {isCurrentRole(info.role, r) && <span aria-hidden="true">✓ </span>}
+                  {r.title}
+                </button>
+              ))}
             </>
           )}
           {page === 'clone' && (

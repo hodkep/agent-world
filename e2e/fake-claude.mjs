@@ -19,6 +19,8 @@ if (args[0] === 'plugin') {
   console.log(JSON.stringify([{ id: 'fake-plugin@market', version: '1.2.3', scope: 'user', enabled: true }]))
   process.exit(0)
 }
+// FAKE_ARGS=<file>: log every launch's arguments, so a test can check what the app started it with.
+if (process.env.FAKE_ARGS) (await import('node:fs')).appendFileSync(process.env.FAKE_ARGS, JSON.stringify(args) + '\n')
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const settings = JSON.parse(readFileSync(flag('--settings'), 'utf8'))
 // --fork-session: like real Claude, the resumed conversation continues under a new session id.

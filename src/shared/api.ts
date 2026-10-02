@@ -81,6 +81,8 @@ export interface AwApi {
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
+  /** Give a running agent another job (null: none) and relaunch it on the same conversation. */
+  setRole(agentId: string, role: Role | null): Promise<AgentOptions>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */
   renameAgent(id: string, name: string): Promise<string>
   setGroup(id: string, group: string): Promise<void>
