@@ -158,7 +158,7 @@ test('after Esc interrupts a turn (Claude sends no Stop hook) the chat stops say
     // A new message now goes straight in, not into a queue.
     await box.fill('try again')
     await box.press('Enter')
-    await expect(page.getByRole('log').locator('.msg.user .msg-meta')).not.toContainText('queued')
+    await expect(page.getByRole('log').locator('.msg.user .msg-meta')).not.toContainText('Queued')
   } finally {
     await shutdown()
   }
@@ -241,6 +241,41 @@ test('tool lookups are one quiet line and MCP calls read as a sentence, with det
     // The result's markdown symbols are not shown raw.
     await expect(card.locator('.tc-result')).not.toContainText('###')
     await expect(card.locator('.tc-result')).not.toContainText('```')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a message sent while the agent is busy is shown as queued, and stays in the chat after the agent picks it up', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-queue-'))
+  // Each tool step takes ~22s here, longer than the 20s a sent message used to be kept on screen.
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '7500', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_QUEUE: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const log = page.getByRole('log')
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('first job')
+    await box.press('Enter')
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: 10_000 })
+    await box.fill('second job')
+    await box.press('Enter')
+    const second = log.locator('.msg.user', { hasText: 'second job' })
+    await expect(second.locator('.msg-meta')).toHaveText('Queued: sends when the agent finishes its current step')
+
+    // Still there after the old 20 s cut-off, while the agent has not got to it.
+    await page.waitForTimeout(21_000)
+    await expect(second).toBeVisible()
+    // Once the agent picks it up it is an ordinary message of yours, and it stays.
+    await expect(log.locator('.msg.assistant', { hasText: 'Picked up "second job"' })).toBeVisible({ timeout: 30_000 })
+    await expect(second.locator('.msg-meta')).toHaveCount(0)
+    await expect(log.locator('.msg.user', { hasText: 'second job' })).toHaveCount(1)
   } finally {
     await shutdown()
   }
