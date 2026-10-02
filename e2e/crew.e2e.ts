@@ -38,6 +38,14 @@ test('a line for subagents sits beside the commands line, and opens every subage
     // What it can do to a working one: ask the main agent to stop it.
     await panel.locator('.dg-row.s-working').last().getByRole('button').first().click()
     await panel.getByRole('button', { name: /Ask ada to stop this one/ }).click()
+    // It costs the main agent a turn, so it asks first; nothing is sent until you confirm, and Cancel sends nothing.
+    await expect(panel.getByText(/uses one of ada.s turns/)).toBeVisible()
+    await expect(panel.getByRole('status')).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Cancel' }).click()
+    await expect(panel.getByRole('button', { name: /Ask ada to stop this one/ })).toBeVisible()
+    await expect(panel.getByRole('status')).toHaveCount(0)
+    await panel.getByRole('button', { name: /Ask ada to stop this one/ }).click()
+    await panel.getByRole('button', { name: 'Send the request' }).click()
     await expect(panel.getByRole('status')).toContainText('Asked ada to stop')
     // Interrupting stops them all, and says so.
     await panel.getByRole('button', { name: 'Interrupt all' }).click()

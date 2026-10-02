@@ -67,9 +67,7 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
               needsYou={waiting?.has(r.info.agentId)}
               actions={
                 st === 'working' ? (
-                  <button title="Claude Code has no way to stop just one from outside, so this asks the main agent to run its TaskStop tool" onClick={() => send(stopRequestText(r.info), `stop “${r.info.description}”`)}>
-                    Ask {managerName} to stop this one
-                  </button>
+                  <StopAsk managerName={managerName} onSend={() => send(stopRequestText(r.info), `stop “${r.info.description}”`)} />
                 ) : (
                   <button
                     title="Put this subagent into your message as a quote, so the main agent can continue it"
@@ -88,6 +86,24 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
         })}
       </div>
     </section>
+  )
+}
+
+/** Claude Code has no way to stop just one from outside, so this asks the main agent to run its TaskStop tool: it says so, and sends only once you confirm. */
+function StopAsk({ managerName, onSend }: { managerName: string; onSend: () => void }) {
+  const [sure, setSure] = useState(false)
+  if (!sure)
+    return (
+      <button title="Claude Code has no way to stop just one from outside, so this asks the main agent to run its TaskStop tool" onClick={() => setSure(true)}>
+        Ask {managerName} to stop this one
+      </button>
+    )
+  return (
+    <>
+      <span className="dg-ask">Sends {managerName} a message and uses one of {managerName}’s turns. It may take a moment, and {managerName} decides whether to do it.</span>
+      <button onClick={() => (setSure(false), onSend())}>Send the request</button>
+      <button onClick={() => setSure(false)}>Cancel</button>
+    </>
   )
 }
 

@@ -1030,3 +1030,4 @@ code a.file-link { font: inherit; }
 .crew-group { display: grid; gap: 6px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); padding-bottom: 8px; }
 .crew-group .dg { border: 0; }
 .crew-open { justify-self: end; margin-right: 10px; font-size: 12px; padding: 3px 9px; }
+.dg-ask { flex-basis: 100%; color: var(--muted); font-size: 12px; }
