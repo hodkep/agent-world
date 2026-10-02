@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SubagentInfo } from '../../shared/chat'
 import { CONCURRENT_LIMIT, crewCounts, crewRows, followUpText, stopRequestText } from './crewRows'
 
-const sub = (id: string, startedAt: number, over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: id, toolUseId: `use-${id}`, type: 'Explore', description: `task ${id}`, startedAt, updatedAt: startedAt + 1000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], ...over })
+const sub = (id: string, startedAt: number, over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: id, toolUseId: `use-${id}`, type: 'Explore', description: `task ${id}`, startedAt, updatedAt: startedAt + 1000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], stopped: false, ...over })
 
 describe('the subagents of one main agent, in order', () => {
   it('lists them by when they started, with the ones a subagent started itself right under it, one level in', () => {

@@ -66,6 +66,17 @@ describe('reading the subagents a session started', () => {
     expect(child).toMatchObject({ depth: 2, background: false, spawns: [] })
   })
 
+  it('knows when one was stopped (its file ends with the interruption), and when it carried on after that', () => {
+    const interrupted = line({ type: 'user', timestamp: '2026-10-01T08:00:09.000Z', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+    const d = session({
+      s1: { meta: { agentType: 'Explore', description: 'Stopped one', toolUseId: 'toolu_S' }, lines: [use('2026-10-01T08:00:03.000Z', 'Bash', { command: 'sleep 100' }), interrupted] },
+      s2: { meta: { agentType: 'Explore', description: 'Resumed one', toolUseId: 'toolu_R' }, lines: [use('2026-10-01T08:00:03.000Z', 'Bash', { command: 'sleep 100' }), interrupted, use('2026-10-01T08:00:20.000Z', 'Read', { file_path: '/r/a.ts' })] }
+    })
+    const all = listSubagents(d)
+    expect(all.find((x) => x.toolUseId === 'toolu_S')).toMatchObject({ stopped: true, done: false })
+    expect(all.find((x) => x.toolUseId === 'toolu_R')).toMatchObject({ stopped: false, done: false })
+  })
+
   it('treats one that has not given a final answer as still running', () => {
     const b = listSubagents(dir).find((s) => s.toolUseId === 'toolu_B')!
     expect(b.done).toBe(false)

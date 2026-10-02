@@ -83,3 +83,19 @@ test('the Subagents view in the header lists every agent that has subagents, wit
     await shutdown()
   }
 })
+
+test('a subagent that was stopped shows as stopped at once, not as still working', async () => {
+  const { page, shutdown } = await chat({ FAKE_DELEGATE: '3', FAKE_DELEGATE_STOP: '2' })
+  try {
+    const card = page.getByRole('region', { name: 'Delegated to 3 subagents' })
+    await expect(card).toContainText('2 done', { timeout: 30_000 })
+    await expect(card).toContainText('1 stopped')
+    // With nothing left to happen, the card folds like any finished one.
+    await card.getByRole('button', { name: 'Show 3 results' }).click()
+    await expect(card.locator('.dg-row.s-stopped')).toHaveCount(1)
+    await expect(card.locator('.dg-row.s-stopped')).toContainText('Look into part 2')
+    await expect(card.locator('.dg-seg i.s-stopped')).toHaveCount(1)
+  } finally {
+    await shutdown()
+  }
+})

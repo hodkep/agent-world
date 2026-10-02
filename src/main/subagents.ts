@@ -26,6 +26,7 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
   let done = false
   let result = ''
   let handedBack = false
+  let stopped = false
   const spawns: string[] = []
   for (const l of raw.split('\n')) {
     if (!l) continue
@@ -41,6 +42,9 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
       updatedAt = Math.max(updatedAt, at)
     }
     // Whatever follows its hand-back (the delivery receipt, a closing line) is not its answer.
+    // Stopping one ends its file with the interruption, as a message from the user; a later call of its own means it carried on.
+    if (d.type === 'user' && JSON.stringify(d.message?.content ?? '').includes('[Request interrupted by user')) stopped = true
+    else if (d.type === 'assistant') stopped = false
     if (handedBack || d.type !== 'assistant' || !Array.isArray(d.message?.content)) continue
     for (const b of d.message!.content as { type?: string; name?: string; input?: Record<string, unknown>; text?: string }[]) {
       // A subagent run in the background reports with this call; what it carries is its answer.
@@ -59,7 +63,7 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
     done = d.message!.stop_reason === 'end_turn'
     result = done ? text : ''
   }
-  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result, depth: meta.spawnDepth ?? 1, background: meta.requestShape === 'background', spawns }
+  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result, depth: meta.spawnDepth ?? 1, background: meta.requestShape === 'background', spawns, stopped: stopped && !done }
 }
 
 /** The subagents a session started, read from `<session folder>/subagents`. A file that cannot be read is skipped. */

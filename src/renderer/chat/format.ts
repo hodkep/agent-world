@@ -201,6 +201,7 @@ const QUIET_MS = 10 * 60_000
 export function subagentState(info: SubagentInfo | undefined, now: number): SubagentState {
   if (!info) return 'waiting'
   if (info.done) return 'done'
+  if (info.stopped) return 'stopped'
   return now - info.updatedAt > QUIET_MS ? 'stopped' : 'working'
 }
 

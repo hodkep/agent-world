@@ -40,4 +40,6 @@ export interface SubagentInfo {
   background: boolean
   /** The calls (by their tool call id) with which it started subagents of its own. */
   spawns: string[]
+  /** It was stopped (Claude ends its file with the interruption) and has not carried on since. */
+  stopped: boolean
 }

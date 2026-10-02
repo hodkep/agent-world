@@ -77,6 +77,8 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
         add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: name === 'Agent' ? 'toolu_kid' : `t${i}${name}`, name, input }] } })
         await sleep(step)
       }
+      // FAKE_DELEGATE_STOP=k: subagent k is stopped, which Claude records as an interruption at the end of its file.
+      if (Number(process.env.FAKE_DELEGATE_STOP) === i) return void add({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
       if (process.env.FAKE_DELEGATE_HOLD && i === n) return
       if (process.env.FAKE_DELEGATE_HANDBACK) {
         // Like a subagent run in the background: it reports by a hand-back call, and the harness types the report and a notice into the conversation.

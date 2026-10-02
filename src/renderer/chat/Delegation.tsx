@@ -13,7 +13,8 @@ export function useSubagents(agentId: string, calls: Call[] | null, keep = false
   const [now, setNow] = useState(Date.now())
   const key = calls ? calls.map((c) => c.toolUseId).join(',') : '*'
   const mine = useMemo(() => new Map((calls ? infos.filter((i) => key.includes(i.toolUseId)) : infos).map((i) => [i.toolUseId, i])), [infos, key, calls])
-  const settled = !keep && !!calls && calls.every((c) => subagentState(mine.get(c.toolUseId), now) === 'done')
+  // Nothing more will happen to a subagent that answered or was stopped.
+  const settled = !keep && !!calls && calls.every((c) => ['done', 'stopped'].includes(subagentState(mine.get(c.toolUseId), now)))
   useEffect(() => {
     let alive = true
     const look = () => void window.aw.subagents(agentId).then((l) => alive && setInfos((old) => (JSON.stringify(old) === JSON.stringify(l) ? old : l)), () => {})

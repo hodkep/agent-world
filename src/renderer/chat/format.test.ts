@@ -203,12 +203,17 @@ describe('subagents started in one reply', () => {
 })
 
 describe('where a subagent is at', () => {
-  const info = (over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: 'a', toolUseId: 'u', type: 'Explore', description: 'd', startedAt: 1000, updatedAt: 5000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], ...over })
+  const info = (over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: 'a', toolUseId: 'u', type: 'Explore', description: 'd', startedAt: 1000, updatedAt: 5000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], stopped: false, ...over })
 
   it('is waiting before its file exists, working while it makes calls, and done once it has answered', () => {
     expect(subagentState(undefined, 9000)).toBe('waiting')
     expect(subagentState(info(), 6000)).toBe('working')
     expect(subagentState(info({ done: true, result: 'ok' }), 9_000_000)).toBe('done')
+  })
+
+  it('is stopped at once when it was stopped, however recently it was active', () => {
+    expect(subagentState(info({ stopped: true }), 5100)).toBe('stopped')
+    expect(subagentState(info({ stopped: true, done: true }), 5100)).toBe('done')
   })
 
   it('is stopped when it never answered and has gone quiet for ten minutes', () => {
