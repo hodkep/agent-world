@@ -136,6 +136,8 @@ if (process.env.FAKE_CHAT) {
   await hook('Stop')
   let typed = ''
   const prompts = []
+  const waiting = []
+  let turn = false
   const MODES = ['default', 'acceptEdits', 'plan']
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
   const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
@@ -211,6 +213,9 @@ if (process.env.FAKE_CHAT) {
       transcript({ type: 'user', message: { role: 'user', content: '<bash-stdout>On branch main\nnothing to commit</bash-stdout><bash-stderr></bash-stderr>' } })
       return
     }
+    // FAKE_QUEUE=1: like the real one, something typed mid-turn waits, and is saved as a queued command (not a user line) when it is picked up.
+    if (process.env.FAKE_QUEUE && turn) return void waiting.push(prompt)
+    turn = true
     // Attached files arrive as @"path"; pictures are saved into the conversation as image blocks.
     const paths = [...prompt.matchAll(/@"([^"]+)"/g)].map((m) => m[1])
     const blocks = [{ type: 'text', text: prompt.replace(/@"[^"]+"\s*/g, '').trim() || 'see attached' }]
@@ -251,6 +256,11 @@ if (process.env.FAKE_CHAT) {
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')
     say(`Done. I changed **health.ts** for "${prompt.replace(/@"[^"]+"\s*/g, '')}".\n\n\`\`\`ts\nexport const ok = true\n\`\`\`\n\n- one\n- two`)
+    for (const q of waiting.splice(0)) {
+      transcript({ type: 'attachment', attachment: { type: 'queued_command', prompt: q, origin: { kind: 'human' }, commandMode: 'prompt' } })
+      say(`Picked up "${q}".`)
+    }
+    turn = false
     drawFoot()
     await hook('Stop')
   })

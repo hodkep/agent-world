@@ -114,6 +114,12 @@ export function ChatView({
   const [away, setAway] = useState(false)
   const session = useRef('')
   const busy = BUSY.includes(activity)
+  // Once the agent is free, a queued message that the transcript still does not show was dropped.
+  useEffect(() => {
+    if (busy) return
+    const t = setTimeout(() => setSent((cur) => cur.filter((x) => x.at > Date.now() - 20_000)), 20_000)
+    return () => clearTimeout(t)
+  }, [busy, sent.length])
   const [stopping, setStopping] = useState(false)
   useEffect(() => {
     if (!busy) setStopping(false)
@@ -223,8 +229,8 @@ export function ChatView({
         setError(errText(err))
         throw err
       }
-      // If the transcript never shows it (the agent dropped it), stop pretending after a while.
-      setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
+      // If the transcript never shows it (the agent dropped it), stop pretending after a while. A queued one waits for the step to end, which can take minutes: see the effect below.
+      if (!p.queued) setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
     },
     [agentId, activity]
   )
@@ -502,7 +508,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
               Rewind
             </button>
           )}
-          {r.pending && <span className="msg-meta">{r.queued ? 'queued: goes in when the current step finishes' : 'sending…'}</span>}
+          {r.pending && <span className="msg-meta">{r.queued ? 'Queued: sends when the agent finishes its current step' : 'Sending…'}</span>}
         </div>
       )
     }

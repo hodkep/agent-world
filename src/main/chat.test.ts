@@ -21,6 +21,14 @@ describe('reading Claude\'s transcript for the chat view', () => {
     expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: out } }))).toMatchObject([{ kind: 'note', text: 'Set model to opus' }])
   })
 
+  it('shows a message typed while Claude was busy, which Claude saves as a queued command and not as a user line', () => {
+    const queued = (prompt: string, origin: object | null) => line({ ...base, type: 'attachment', attachment: { type: 'queued_command', prompt, origin, commandMode: 'prompt' } })
+    expect(parseTranscriptLine(queued('also add a test', { kind: 'human' }))).toEqual([{ kind: 'user', id: 'u1', at: Date.parse(base.timestamp), text: 'also add a test' }])
+    // A finished background task is not something the user said.
+    expect(parseTranscriptLine(queued('<task-notification>done</task-notification>', null))).toEqual([])
+    expect(parseTranscriptLine(queued('hand-back', { kind: 'peer' }))).toEqual([])
+  })
+
   it('leaves out meta lines, hook chatter and subagent work', () => {
     expect(parseTranscriptLine(line({ ...base, type: 'user', isMeta: true, message: { role: 'user', content: '<local-command-caveat>x</local-command-caveat>' } }))).toEqual([])
     expect(parseTranscriptLine(line({ ...base, type: 'attachment', attachment: { type: 'hook_success' } }))).toEqual([])

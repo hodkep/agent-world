@@ -43,6 +43,10 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
   const type = str(o.type)
   const message = obj(o.message)
 
+  // Typed while Claude was busy: it is saved as a queued command when Claude picks it up, not as a user line.
+  const queued = obj(o.attachment)
+  if (type === 'attachment' && queued.type === 'queued_command') return obj(queued.origin).kind === 'human' ? userText(uuid, at, str(queued.prompt)) : []
+
   if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: compactNote(str(o.content) || 'Conversation compacted', obj(o.compactMetadata)) }] : []
 
   // The summary Claude writes after /compact is model context, not something the user said.
