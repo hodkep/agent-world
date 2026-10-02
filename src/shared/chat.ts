@@ -34,4 +34,10 @@ export interface SubagentInfo {
   done: boolean
   calls: SubagentCall[]
   result: string
+  /** How many levels below the main conversation it runs (1 is started by the main agent). */
+  depth: number
+  /** Run in the background, so the main agent carries on while it works. */
+  background: boolean
+  /** The calls (by their tool call id) with which it started subagents of its own. */
+  spawns: string[]
 }

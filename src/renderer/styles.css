@@ -611,7 +611,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .btw button { grid-column: 2; grid-row: 1 / span 2; align-self: start; font-size: 11px; cursor: pointer; }
 
 /* The log gives way when the panel is short; the box you type in never does. */
-.composer, .procbar, .btw, .chat-banner, .inline-need { flex-shrink: 0; }
+.composer, .statusrow, .btw, .chat-banner, .inline-need { flex-shrink: 0; }
 .composer textarea { min-height: 44px; }
 
 .settings { width: min(460px, 92vw); padding: 0; background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); }
@@ -779,7 +779,9 @@ svg.pxi { display: block; flex: none; }
 .no-bridge h1 { font-size: 14px; color: var(--accent); }
 
 /* Running commands: one line above the box; the list opens in a pop-up. */
-.procbar { position: relative; margin: 0 12px 6px; }
+.statusrow { position: relative; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 0 12px 6px; }
+.statusrow:empty { display: none; }
+.procbar { position: static; }
 .procs-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 10px; color: var(--muted); }
 .procs-btn:hover:not(:disabled), .procs-btn[aria-expanded='true'] { color: var(--text); }
 .procs-dot { width: 8px; height: 8px; background: var(--ok); }
@@ -1008,3 +1010,23 @@ code a.file-link { font: inherit; }
 .dg-muted { color: var(--muted); }
 .dg-result { margin-top: 6px; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
 .dg-toggle { padding: 3px 9px; }
+
+.dg-tag { margin-left: 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 1px 4px; box-shadow: 0 0 0 1px var(--line); vertical-align: 1px; }
+.dg-row.needs-you .dg-now { color: var(--accent); }
+.dg-row.needs-you .dg-dot { background: var(--accent); }
+.dg-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 8px 29px; }
+.dg-actions button { font-size: 12px; padding: 3px 9px; }
+
+/* The line above the message box for subagents, and the panel it opens: the delegation card's own rows. */
+.crew-dot { background: var(--think); }
+.crew-of { color: var(--dim); font-variant-numeric: tabular-nums; }
+.crew-needs { color: var(--ink); background: var(--accent); padding: 0 6px; font-weight: 600; }
+.procs-pop.crew-pop { width: min(720px, 100%); max-height: min(420px, 60vh); overflow: auto; }
+.crew-pop .dg { border: 0; }
+.dg-told { padding: 0 10px 8px; color: var(--muted); font-size: 12px; }
+
+.crew-dialog { width: min(820px, 96vw); }
+.crew-groups { display: grid; gap: 12px; max-height: 70vh; overflow: auto; }
+.crew-group { display: grid; gap: 6px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); padding-bottom: 8px; }
+.crew-group .dg { border: 0; }
+.crew-open { justify-self: end; margin-right: 10px; font-size: 12px; padding: 3px 9px; }

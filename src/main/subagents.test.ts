@@ -55,6 +55,17 @@ describe('reading the subagents a session started', () => {
     expect(h!.calls.map((c) => c.name)).toEqual(['Read'])
   })
 
+  it('knows how deep it sits, whether it runs in the background, and which subagents it started itself', () => {
+    const d = session({
+      p1: { meta: { agentType: 'Plan', description: 'Parent', toolUseId: 'toolu_P', spawnDepth: 1, requestShape: 'background' }, lines: [use('2026-10-01T08:00:01.000Z', 'Agent', { description: 'Child' })] },
+      c1: { meta: { agentType: 'Explore', description: 'Child', toolUseId: 't-2026-10-01T08:00:01.000Z', spawnDepth: 2, requestShape: 'foreground' }, lines: [use('2026-10-01T08:00:02.000Z', 'Read', { file_path: '/r/a.ts' })] }
+    })
+    const [parent, child] = listSubagents(d)
+    expect(parent).toMatchObject({ depth: 1, background: true, spawns: ['t-2026-10-01T08:00:01.000Z'] })
+    expect(parent!.calls.map((c) => c.name)).toEqual(['Agent'])
+    expect(child).toMatchObject({ depth: 2, background: false, spawns: [] })
+  })
+
   it('treats one that has not given a final answer as still running', () => {
     const b = listSubagents(dir).find((s) => s.toolUseId === 'toolu_B')!
     expect(b.done).toBe(false)

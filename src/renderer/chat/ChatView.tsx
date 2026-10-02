@@ -11,6 +11,7 @@ import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
+import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
 import { ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
@@ -82,11 +83,14 @@ export function ChatView({
   info,
   actions,
   limits,
+  waitingSubagents,
   onWake,
   onTerminal
 }: {
   agentId: string
   agentName: string
+  /** Subagents waiting on you (a permission request), by id. */
+  waitingSubagents?: Set<string>
   activity: Activity
   detail?: string
   /** Claude's permission mode as last reported. */
@@ -269,6 +273,7 @@ export function ChatView({
     <AgentIdContext.Provider value={agentId}>
     <div
       className="chat"
+      data-agent={agentId}
       ref={chatEl}
       hidden={!visible}
       onKeyDown={(e) => {
@@ -355,7 +360,12 @@ export function ChatView({
           <button onClick={() => void window.aw.closeBtw(agentId)}>Dismiss</button>
         </section>
       )}
-      {!asleep && <ProcBar agentId={agentId} />}
+      {!asleep && (
+        <div className="statusrow">
+          <ProcBar agentId={agentId} />
+          <CrewLine agentId={agentId} managerName={agentName} waiting={waitingSubagents} />
+        </div>
+      )}
       <Composer
         agentId={agentId}
         agentName={agentName}

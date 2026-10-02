@@ -19,13 +19,14 @@ interface Parsed {
 }
 const cache = new Map<string, Parsed>()
 
-function parse(meta: { agentType?: string; description?: string; toolUseId?: string }, agentId: string, raw: string): SubagentInfo {
+function parse(meta: { agentType?: string; description?: string; toolUseId?: string; spawnDepth?: number; requestShape?: string }, agentId: string, raw: string): SubagentInfo {
   const calls: SubagentCall[] = []
   let startedAt = 0
   let updatedAt = 0
   let done = false
   let result = ''
   let handedBack = false
+  const spawns: string[] = []
   for (const l of raw.split('\n')) {
     if (!l) continue
     let d: { type?: string; timestamp?: string; message?: { stop_reason?: string | null; content?: unknown } }
@@ -47,7 +48,10 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
         done = true
         result = String(b.input?.message ?? '').trim()
         handedBack = true
-      } else if (b.type === 'tool_use' && b.name) calls.push({ at, name: b.name, detail: callDetail(b.name, b.input ?? {}) })
+      } else if (b.type === 'tool_use' && b.name) {
+        calls.push({ at, name: b.name, detail: callDetail(b.name, b.input ?? {}) })
+        if ((b.name === 'Agent' || b.name === 'Task') && typeof (b as { id?: string }).id === 'string') spawns.push((b as { id: string }).id)
+      }
     }
     if (handedBack) continue
     // Its last message with no more calls to make is the answer.
@@ -55,7 +59,7 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
     done = d.message!.stop_reason === 'end_turn'
     result = done ? text : ''
   }
-  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result }
+  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result, depth: meta.spawnDepth ?? 1, background: meta.requestShape === 'background', spawns }
 }
 
 /** The subagents a session started, read from `<session folder>/subagents`. A file that cannot be read is skipped. */

@@ -62,12 +62,19 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
       const i = k + 1
       const id = `fake${i}`
       const file = `${base}/agent-${id}.jsonl`
-      wf(`${base}/agent-${id}.meta.json`, JSON.stringify({ agentType: i % 2 ? 'Explore' : 'Plan', description: `Look into part ${i}`, toolUseId: `toolu_fake_${i}` }))
+      wf(`${base}/agent-${id}.meta.json`, JSON.stringify({ agentType: i % 2 ? 'Explore' : 'Plan', description: `Look into part ${i}`, toolUseId: `toolu_fake_${i}`, spawnDepth: 1, requestShape: 'background' }))
       const add = (o) => appendFileSync(file, JSON.stringify({ isSidechain: true, agentId: id, timestamp: stamp(), uuid: crypto.randomUUID(), ...o }) + '\n')
       add({ type: 'user', message: { role: 'user', content: 'go' } })
       await sleep(step * i)
-      for (const [name, input] of [['Grep', { pattern: `part${i}` }], ['Read', { file_path: `/repo/src/part${i}.ts` }], ['Glob', { pattern: '**/*.ts' }]]) {
-        add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${i}${name}`, name, input }] } })
+      // FAKE_DELEGATE_NEST=1: the first one starts a subagent of its own, which has its own files.
+      const steps = [['Grep', { pattern: `part${i}` }], ['Read', { file_path: `/repo/src/part${i}.ts` }], ['Glob', { pattern: '**/*.ts' }]]
+      if (process.env.FAKE_DELEGATE_NEST && i === 1) {
+        steps.splice(1, 0, ['Agent', { description: 'Nested helper' }])
+        wf(`${base}/agent-fakekid.meta.json`, JSON.stringify({ agentType: 'Explore', description: 'Nested helper', toolUseId: 'toolu_kid', spawnDepth: 2, requestShape: 'foreground' }))
+        appendFileSync(`${base}/agent-fakekid.jsonl`, JSON.stringify({ isSidechain: true, agentId: 'fakekid', timestamp: stamp(), uuid: crypto.randomUUID(), type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'kid1', name: 'Read', input: { file_path: '/repo/kid.ts' } }] } }) + '\n')
+      }
+      for (const [name, input] of steps) {
+        add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: name === 'Agent' ? 'toolu_kid' : `t${i}${name}`, name, input }] } })
         await sleep(step)
       }
       if (process.env.FAKE_DELEGATE_HOLD && i === n) return
@@ -141,6 +148,13 @@ async function sendViaOffice(to, message) {
 const [sendFrom, sendTo, ...sendText] = (process.env.FAKE_SEND ?? '').split(':')
 const myName = args.includes('--name') ? flag('--name') : null
 
+// FAKE_ECHO_LIST=1: the screen of a Claude whose conversation has your own numbered message in it, shown after the ❯ prompt marker,
+// with its reply and an empty input box below. It is not a menu and nothing is waiting.
+if (process.env.FAKE_ECHO_LIST) {
+  const rule = '─'.repeat(60)
+  process.stdout.write(`\x1b[2J\x1b[H\r\n✱ Brewed for 34s · done 3:20 PM\r\n\r\n❯ 1. I mean sub-agent only\r\n  2. I want a view where all subagents running per main\r\n  agent are shown with same visualization as we show\r\n  3. I would like you to look into claude code's\r\n  subagent management\r\n\r\n● I've handed the research to a documentation agent.\r\n\r\n✱ Waiting for 1 background agent to finish\r\n\r\n${rule}\r\n❯ \r\n${rule}\r\n`)
+  await new Promise(() => {})
+}
 // FAKE_LOOP=1: endless varied work with no permission prompts, for demos and screenshots.
 if (process.env.FAKE_LOOP) {
   const steps = [

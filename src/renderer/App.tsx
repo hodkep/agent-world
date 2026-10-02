@@ -19,6 +19,7 @@ import { PreviewView } from './panel/PreviewView'
 import { FileView } from './panel/FileView'
 import { pageLabels } from './files/context'
 import { ToolsView } from './panel/ToolsView'
+import { CrewView } from './chat/CrewView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
@@ -90,6 +91,7 @@ export function App() {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
   const [history, setHistory] = useState(false)
+  const [crewOpen, setCrewOpen] = useState(false)
   const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [termMenus, setTermMenus] = useState<Record<string, TerminalMenu | null>>({})
@@ -293,6 +295,9 @@ export function App() {
   useEffect(() => {
     if (dialogFor && dialogNeeds.length === 0) setDialogFor(null)
   })
+  // Subagents alive right now, from the hooks: free to count on every render.
+  const crewLive = agents.reduce((n, a) => n + Object.keys(world[a.id]?.interns ?? {}).length, 0)
+  const waitingOf = (id: string) => new Set(Object.entries(world[id]?.interns ?? {}).filter(([, i]) => i.activity === 'permission').map(([k]) => k))
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView
       key={key}
@@ -310,6 +315,7 @@ export function App() {
       limits={limits}
       info={infoOf(a)}
       actions={actionsOf(a)}
+      waitingSubagents={waitingOf(a.id)}
       onWake={() => wake(a)}
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
     />
@@ -668,6 +674,11 @@ export function App() {
           History
         </button>
         {agents.length > 0 && (
+          <button onClick={() => setCrewOpen(true)} aria-haspopup="dialog" title="Every agent's subagents together">
+            Subagents{crewLive > 0 ? ` ${crewLive}` : ''}
+          </button>
+        )}
+        {agents.length > 0 && (
           <button onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} aria-pressed={grid} title="Show every agent at once, with the last lines of its terminal">
             Grid
           </button>
@@ -794,6 +805,7 @@ export function App() {
               el.addEventListener('pointerup', up)
             }}
           />
+          {crewOpen && <CrewView agents={agents.map((a) => ({ id: a.id, name: a.name }))} waitingOf={waitingOf} onOpen={select} onClose={() => setCrewOpen(false)} />}
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>

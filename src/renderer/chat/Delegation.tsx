@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { SubagentInfo } from '../../shared/chat'
 import { type Row, type SubagentState, elapsedLabel, subagentState } from './format'
 import { Markdown } from './markdown'
@@ -7,16 +7,16 @@ type Call = Extract<Row, { kind: 'delegation' }>['calls'][number]
 
 const WORD: Record<SubagentState, string> = { waiting: 'waiting', working: 'working', done: 'done', stopped: 'stopped' }
 
-/** Asks for the agent's subagents now and again every couple of seconds until all of them have answered. */
-function useSubagents(agentId: string, calls: Call[]) {
+/** Asks for the agent's subagents now and again every couple of seconds until all of them have answered (or for good, with `keep`). */
+export function useSubagents(agentId: string, calls: Call[] | null, keep = false) {
   const [infos, setInfos] = useState<SubagentInfo[]>([])
   const [now, setNow] = useState(Date.now())
-  const key = calls.map((c) => c.toolUseId).join(',')
-  const mine = useMemo(() => new Map(infos.filter((i) => key.includes(i.toolUseId)).map((i) => [i.toolUseId, i])), [infos, key])
-  const settled = calls.every((c) => subagentState(mine.get(c.toolUseId), now) === 'done')
+  const key = calls ? calls.map((c) => c.toolUseId).join(',') : '*'
+  const mine = useMemo(() => new Map((calls ? infos.filter((i) => key.includes(i.toolUseId)) : infos).map((i) => [i.toolUseId, i])), [infos, key, calls])
+  const settled = !keep && !!calls && calls.every((c) => subagentState(mine.get(c.toolUseId), now) === 'done')
   useEffect(() => {
     let alive = true
-    const look = () => void window.aw.subagents(agentId).then((l) => alive && setInfos(l), () => {})
+    const look = () => void window.aw.subagents(agentId).then((l) => alive && setInfos((old) => (JSON.stringify(old) === JSON.stringify(l) ? old : l)), () => {})
     look()
     if (settled) return () => void (alive = false)
     const t = setInterval(() => (look(), setNow(Date.now())), 1500)
@@ -25,10 +25,10 @@ function useSubagents(agentId: string, calls: Call[]) {
       clearInterval(t)
     }
   }, [agentId, settled, key])
-  return { mine, now, settled }
+  return { mine, infos, now, settled }
 }
 
-function Trail({ info, now }: { info: SubagentInfo | undefined; now: number }) {
+export function Trail({ info, now }: { info: SubagentInfo | undefined; now: number }) {
   if (!info) return <div className="dg-open dg-muted">Not started yet.</div>
   return (
     <div className="dg-open">
@@ -63,11 +63,34 @@ function Timeline({ info, now }: { info: SubagentInfo | undefined; now: number }
   )
 }
 
+/** One subagent as a row: its task, its latest call, a tick for each call, and its time; opens to every call and its answer. */
+export function SubagentRowView({ type, description, info, state, now, level = 0, needsYou = false, actions }: { type: string; description: string; info: SubagentInfo | undefined; state: SubagentState; now: number; level?: number; needsYou?: boolean; actions?: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const last = info?.calls.at(-1)
+  return (
+    <div className={`dg-row s-${state} ${needsYou ? 'needs-you' : ''}`} style={level ? { paddingLeft: level * 18 } : undefined} data-level={level}>
+      <button className="dg-line" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="dg-dot" aria-hidden="true" />
+        <span className="dg-what">
+          <span>
+            <span className="dg-type">{info?.type ?? type}</span> {description}
+            {info?.background && <span className="dg-tag" title="Runs in the background: the main agent carries on while it works">background</span>}
+          </span>
+          <span className="dg-now">{needsYou ? 'needs you: answer its permission request' : state === 'working' && last ? `${last.name} ${last.detail}` : WORD[state]}</span>
+        </span>
+        <Timeline info={info} now={now} />
+        <span className="dg-time">{info ? elapsedLabel((info.done ? info.updatedAt : now) - info.startedAt) : '–'}</span>
+      </button>
+      {open && <Trail info={info} now={now} />}
+      {open && actions && <div className="dg-actions">{actions}</div>}
+    </div>
+  )
+}
+
 /** The subagents one reply started, as a single card: a row for each, with where it is at and everything it did. */
 export function Delegation({ agentId, calls }: { agentId: string; calls: Call[] }) {
   const { mine, now, settled } = useSubagents(agentId, calls)
   const [open, setOpen] = useState<boolean | null>(null)
-  const [rows, setRows] = useState<Set<string>>(new Set())
   const states = calls.map((c) => subagentState(mine.get(c.toolUseId), now))
   const count = (s: SubagentState) => states.filter((x) => x === s).length
   const shown = open ?? !settled
@@ -89,32 +112,9 @@ export function Delegation({ agentId, calls }: { agentId: string; calls: Call[] 
       </div>
       {shown && (
         <div className="dg-rows">
-          {calls.map((c, i) => {
-            const info = mine.get(c.toolUseId)
-            const st = states[i]!
-            const last = info?.calls.at(-1)
-            const isOpen = rows.has(c.toolUseId)
-            return (
-              <div key={c.toolUseId} className={`dg-row s-${st}`}>
-                <button
-                  className="dg-line"
-                  aria-expanded={isOpen}
-                  onClick={() => setRows((cur) => (cur.has(c.toolUseId) ? new Set([...cur].filter((x) => x !== c.toolUseId)) : new Set(cur).add(c.toolUseId)))}
-                >
-                  <span className="dg-dot" aria-hidden="true" />
-                  <span className="dg-what">
-                    <span>
-                      <span className="dg-type">{info?.type ?? c.subagentType}</span> {c.description}
-                    </span>
-                    <span className="dg-now">{st === 'working' && last ? `${last.name} ${last.detail}` : WORD[st]}</span>
-                  </span>
-                  <Timeline info={info} now={now} />
-                  <span className="dg-time">{info ? elapsedLabel((info.done ? info.updatedAt : now) - info.startedAt) : '–'}</span>
-                </button>
-                {isOpen && <Trail info={info} now={now} />}
-              </div>
-            )
-          })}
+          {calls.map((c, i) => (
+            <SubagentRowView key={c.toolUseId} type={c.subagentType} description={c.description} info={mine.get(c.toolUseId)} state={states[i]!} now={now} />
+          ))}
         </div>
       )}
     </section>

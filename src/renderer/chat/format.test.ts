@@ -203,7 +203,7 @@ describe('subagents started in one reply', () => {
 })
 
 describe('where a subagent is at', () => {
-  const info = (over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: 'a', toolUseId: 'u', type: 'Explore', description: 'd', startedAt: 1000, updatedAt: 5000, done: false, calls: [], result: '', ...over })
+  const info = (over: Partial<SubagentInfo> = {}): SubagentInfo => ({ agentId: 'a', toolUseId: 'u', type: 'Explore', description: 'd', startedAt: 1000, updatedAt: 5000, done: false, calls: [], result: '', depth: 1, background: true, spawns: [], ...over })
 
   it('is waiting before its file exists, working while it makes calls, and done once it has answered', () => {
     expect(subagentState(undefined, 9000)).toBe('waiting')
