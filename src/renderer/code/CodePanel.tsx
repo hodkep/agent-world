@@ -3,9 +3,10 @@ import type { Changes } from '../../shared/api'
 import { editorOptions, languageFor, monaco } from './monaco'
 
 type Tab = 'changes' | 'files'
-/** Ask the Files tab to open a file; a new object each time so asking twice works. */
+/** Ask the Code view to open a file in the Files tab, or just a tab; a new object each time so asking twice works. */
 export interface OpenRequest {
-  path: string
+  path?: string
+  tab?: Tab
 }
 
 const STATUS_MARK = { added: 'A', modified: 'M', deleted: 'D' } as const
@@ -26,9 +27,9 @@ function useErrors() {
 
 /** Review an agent's work (diff against its base) and edit files in its worktree. */
 export function CodePanel({ agentId, workDone, openFile }: { agentId: string; workDone: number; openFile?: OpenRequest }) {
-  const [tab, setTab] = useState<Tab>(openFile ? 'files' : 'changes')
+  const [tab, setTab] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : 'changes')
   useEffect(() => {
-    if (openFile) setTab('files')
+    if (openFile) setTab(openFile.tab ?? 'files')
   }, [openFile])
   return (
     <div className="code">
@@ -206,7 +207,7 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
     })
 
   useEffect(() => {
-    if (openFile) open(openFile.path)
+    if (openFile?.path) open(openFile.path)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should open a file
   }, [openFile])
 

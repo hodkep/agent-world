@@ -763,12 +763,17 @@ svg.pxi { display: block; flex: none; }
 
 /* The tint sits behind a see-through textarea; the mirror must match its font, padding, border and wrapping exactly. */
 .composer-input { position: relative; flex: 1; min-width: 0; display: flex; background: var(--well); }
-.composer-input textarea { background: transparent; position: relative; }
-.composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
-.composer-mirror mark { color: transparent }
+.composer-input textarea { background: transparent; position: relative; color: transparent; caret-color: var(--text); }
+.composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: var(--text); }
+.composer-mirror mark { color: inherit }
 .composer-mirror .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
 .composer-mirror .tok-plugin { background: color-mix(in srgb, var(--ok) 35%, transparent); box-shadow: 0 0 0 1px var(--ok); }
 .composer-mirror .tok-file { background: color-mix(in srgb, var(--think) 30%, transparent); box-shadow: 0 0 0 1px var(--think); }
+.composer-mirror .md-mark, .composer-mirror .md-quote { color: var(--muted); }
+.composer-mirror .md-list { color: var(--accent); }
+.composer-mirror .md-bold { text-shadow: 0.6px 0 0 currentColor; color: var(--text); }
+.composer-mirror .md-italic { color: var(--think); }
+.composer-mirror .md-code { background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); color: var(--ok-text); }
 .composer.is-shell .composer-mirror { font-family: Menlo, Consolas, monospace; }
 
 /* Inside the message box the tint sits behind a textarea that has its own padding and no border. */
@@ -910,8 +915,7 @@ svg.pxi { display: block; flex: none; }
 .msg.user .bubble > span { white-space: pre-wrap; }
 
 /* The message box shows what its markdown will look like, above the box; sent messages use the same small subset. */
-.composer-preview { max-height: 160px; overflow: auto; padding: 6px 10px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); font-size: 12.5px; }
-.composer-preview blockquote, .msg.user .bubble blockquote.md { margin: 0 0 6px; padding: 4px 10px; background: var(--well); border: 0; border-left: 3px solid var(--accent); color: var(--muted); box-shadow: 0 0 0 1px var(--ink); }
+.msg.user .bubble blockquote.md { margin: 0 0 6px; padding: 4px 10px; background: var(--well); border: 0; border-left: 3px solid var(--accent); color: var(--muted); box-shadow: 0 0 0 1px var(--ink); }
 .msg.user .bubble .md { white-space: normal; text-align: left; }
 .msg.user .bubble .md p { margin: 0 0 0.4em; }
 /* The lines you wrote stay lines, in the sent message and in its preview. */

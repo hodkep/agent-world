@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { approve, headMenu, hire, launchApp } from './launch'
 
-test('the handbook book on the desk opens CLAUDE.md, and a clone sits beside its original', async () => {
+test('the book on the desk opens the Changes tab, and a clone sits beside its original', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-left-'))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -26,7 +26,13 @@ test('the handbook book on the desk opens CLAUDE.md, and a clone sits beside its
     const [book] = JSON.parse((await page.locator('.stage').getAttribute('data-books'))!) as { agentId: string; x: number; y: number }[]
     const box = (await page.locator('.stage').boundingBox())!
     await page.mouse.click(box.x + book!.x, box.y + book!.y)
-    await expect(page.locator('.diff')).toContainText('Project notes')
+    await expect(page.getByRole('tab', { name: 'Changes' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'false')
+    // Clicked again while the Files tab is showing, it brings the Changes tab back.
+    await page.getByRole('tab', { name: 'Files' }).click()
+    await expect(page.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'true')
+    await page.mouse.click(box.x + book!.x, box.y + book!.y)
+    await expect(page.getByRole('tab', { name: 'Changes' })).toHaveAttribute('aria-selected', 'true')
 
     // Clone: the twin takes the nearest free desk.
     await headMenu(page, /^Clone$/)

@@ -6,7 +6,7 @@ import type { ChatItem } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, hasMarkdown, highlight, rowText, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, markdownSpans, rowText, toMarkdown, toRows } from './format'
 import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
@@ -947,11 +947,6 @@ function Composer({
           ))}
         </ul>
       )}
-      {!shell && hasMarkdown(text) && (
-        <div className="composer-preview md" aria-label="Preview of your message">
-          <Markdown text={text} agentId={agentId} />
-        </div>
-      )}
       <div className="cbox">
         {quotes.length > 0 && (
           <ul className="quote-cards" aria-label="Quoted from the conversation">
@@ -979,7 +974,9 @@ function Composer({
         <div className="composer-input">
           {/* Same text, same metrics, drawn behind the transparent textarea so commands and @files get a tint. */}
           <div className="composer-mirror" ref={mirror} aria-hidden="true">
-            {highlight(text).map((p, i) => (p.kind === 'plain' ? p.text : <mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>))}
+            {highlight(text).flatMap((p, i) =>
+              p.kind !== 'plain' ? [<mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>] : shell ? [p.text] : markdownSpans(p.text).map((m, j) => (m.kind === 'plain' ? m.text : <span key={`${i}-${j}`} className={`md-${m.kind}`}>{m.text}</span>))
+            )}
             {'\n'}
           </div>
         <textarea

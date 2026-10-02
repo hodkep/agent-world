@@ -443,7 +443,7 @@ export class OfficeWorld {
     }
   }
 
-  // Each seated agent's handbook (CLAUDE.md) lies closed on the desk; clicking it opens the file.
+  // Each seated agent has a closed book on its desk; clicking it opens what the agent has changed.
   private syncBooks() {
     const seated = new Set<string>()
     for (const [key, c] of this.chars) if (OFFICE.desks.includes(c.home) && !c.leaving) seated.add(key)
