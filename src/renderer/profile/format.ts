@@ -11,6 +11,16 @@ export function agoLabel(at: number | null, now: number): string {
   return `${m}m ago`
 }
 
+/** How long ago, in one unit for a tile: "3d", "6h", "12m", or "new" for the first minute. */
+export function agoShort(at: number | null, now: number): string {
+  if (at === null) return '–'
+  const m = Math.floor(Math.max(0, now - at) / 60_000)
+  if (m < 1) return 'new'
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`
+}
+
 /** A length of time: "1h 12m", "48m", "30s". */
 export function durationLabel(ms: number): string {
   const s = Math.floor(Math.max(0, ms) / 1000)

@@ -33,7 +33,7 @@ import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout } from './profile/layout'
-import { ProfileCard, ProfileFacts } from './profile/ProfileCard'
+import { type CardEdit, ProfileCard, ProfileFacts } from './profile/ProfileCard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -103,6 +103,7 @@ export function App() {
   const [agentX, setAgentX] = useState(0)
   const [profile, setProfile] = useState<{ id: string; data: AgentProfile } | null>(null)
   const [clock, setClock] = useState(Date.now())
+  const [flash, setFlash] = useState(0)
   const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [termMenus, setTermMenus] = useState<Record<string, TerminalMenu | null>>({})
@@ -409,10 +410,44 @@ export function App() {
         budgetUsd: current.options?.budgetUsd,
         add: cur?.linesAdded ?? 0,
         del: cur?.linesRemoved ?? 0,
-        profile: profile && profile.id === current.id ? profile.data : null
+        profile: profile && profile.id === current.id ? profile.data : null,
+        modelId: current.options?.model ?? '',
+        effortId: cur?.effort ?? current.options?.effort ?? '',
+        modeId: world[current.id]?.mode ?? (current.options?.permissionMode === 'manual' || !current.options?.permissionMode ? 'default' : current.options.permissionMode),
+        canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep')
       }
     : null
-  const cardAt = cardData && cardOn ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX }) : null
+  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX }) : null
+  const cardAt = cardOn ? cardLay : null
+  const renameTo = (id: string, value: string) =>
+    window.aw.renameAgent(id, value).then((name) => {
+      setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
+    })
+  // Each setting is the same action as the chat's own control, so the chat follows.
+  const cardEdit: CardEdit | null = current
+    ? {
+        onName: (v) => renameTo(current.id, v),
+        onModel: (model) =>
+          void run(async () => {
+            await window.aw.reconfigure(current.id, { model })
+            setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, options: { ...a.options, model } } : a)))
+          }),
+        onEffort: (effort) =>
+          void run(async () => {
+            await window.aw.reconfigure(current.id, { effort })
+            setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, options: { ...a.options, effort } } : a)))
+          }),
+        onMode: (mode) => void run(() => window.aw.setMode(current.id, mode)),
+        onCompact: () => void run(() => window.aw.chatSend(current.id, '/compact'))
+      }
+    : null
+  // Clicking the agent's name brings up its card (opening the dock when the card has no room over the office).
+  const showCard = () => {
+    keep('aw.card', '1')
+    setCardOn(true)
+    if (cardLay?.mode === 'panel') (keep('aw.carddock', '1'), setDockOpen(true))
+    setFlash((n) => n + 1)
+  }
   const state = current ? world[current.id] : undefined
   const nameOf = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
 
@@ -780,8 +815,8 @@ export function App() {
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
-            <div className="profile-overlay" data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }} aria-hidden="true">
-              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} />
+            <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }}>
+              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} />
             </div>
           )}
           {grid && agents.length > 0 && (
@@ -964,7 +999,7 @@ export function App() {
                   }}
                 />
               ) : (
-                <b className="hc-name" title="Double-click to rename" onDoubleClick={() => setRenaming(current.id)}>
+                <b className="hc-name" role="button" tabIndex={0} title="Click for its profile card, double-click to rename" onClick={showCard} onKeyDown={(e) => e.key === 'Enter' && showCard()} onDoubleClick={() => setRenaming(current.id)}>
                   {current.name}
                 </b>
               )}
@@ -1031,8 +1066,8 @@ export function App() {
                 )}
               </div>
               {cardAt?.mode === 'panel' && dockOpen && (
-                <div className="profile-dock" aria-hidden="true">
-                  <ProfileCard data={cardData} variant="docked" now={clock} />
+                <div key={flash} className={`profile-dock ${flash ? 'flash' : ''}`}>
+                  <ProfileCard data={cardData} variant="docked" now={clock} edit={cardEdit} />
                 </div>
               )}
               <ProfileFacts data={cardData} now={clock} />

@@ -4,7 +4,7 @@ import { type CardData, factRows } from './facts'
 
 const now = 1_000_000_000_000
 const profile: AgentProfile = { hiredAt: now - 3 * 86400_000 - 4 * 3600_000, hiredEstimated: false, workedMs: 72 * 60_000, turns: 21, tools: [['Read', 31], ['Edit', 14], ['Bash', 9]], files: 9, subagents: 12, commits: 3 }
-const data: CardData = { id: 'a', name: 'ada', role: 'boss', roleLabel: 'Boss', activity: 'thinking', model: 'Sonnet 5.5', effort: 'medium', mode: 'Auto', branch: 'aw/ada', ctx: 42, costUsd: 1.42, budgetUsd: 5, add: 312, del: 48, profile }
+const data: CardData = { id: 'a', name: 'ada', role: 'boss', roleLabel: 'Boss', activity: 'thinking', model: 'Sonnet 5.5', effort: 'medium', mode: 'Auto', branch: 'aw/ada', ctx: 42, costUsd: 1.42, budgetUsd: 5, add: 312, del: 48, profile, modelId: 'sonnet', effortId: 'medium', modeId: 'auto', canSwitch: true }
 const by = (rows: ReturnType<typeof factRows>) => Object.fromEntries(rows.map((r) => [r.key, r.value]))
 
 describe('the facts on the card, in words', () => {

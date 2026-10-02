@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CARD_COMPACT, CARD_FULL, cardLayout } from './layout'
-import { agoLabel, durationLabel, levelOf } from './format'
+import { agoLabel, agoShort, durationLabel, levelOf } from './format'
 
 describe('where the profile card goes', () => {
   const stage = { w: 1000, h: 700 }
@@ -34,6 +34,11 @@ describe('the words on the card', () => {
   it('says how long ago in days and hours, hours and minutes, or minutes', () => {
     const now = 1_000_000_000_000
     expect([agoLabel(now - (3 * 86400 + 4 * 3600 + 5 * 60) * 1000, now), agoLabel(now - (6 * 3600 + 20 * 60) * 1000, now), agoLabel(now - 12 * 60_000, now), agoLabel(now - 20_000, now), agoLabel(null, now)]).toEqual(['3d 4h ago', '6h ago', '12m ago', 'just now', 'unknown'])
+  })
+
+  it('gives one unit for a tile', () => {
+    const now = 1_000_000_000_000
+    expect([agoShort(now - 20_000, now), agoShort(now - 12 * 60_000, now), agoShort(now - 6 * 3600_000, now), agoShort(now - 3 * 86400_000, now), agoShort(null, now)]).toEqual(['new', '12m', '6h', '3d', '–'])
   })
 
   it('writes time worked as hours and minutes, minutes, or seconds', () => {

@@ -21,6 +21,12 @@ export interface CardData {
   add: number
   del: number
   profile: AgentProfile | null
+  /** What can be edited, as the choices in use (the model alias, the thinking level, the permission mode). */
+  modelId: string
+  effortId: string
+  modeId: string
+  /** Settings can be changed now: it is not in the middle of a turn. */
+  canSwitch: boolean
 }
 
 export interface Fact {

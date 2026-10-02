@@ -1,24 +1,24 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-async function start(panelWidth?: number) {
+async function start(panelWidth?: number, extra: Record<string, string> = {}) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-card-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
   execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
-  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_COST: '1.5' }, tmp)
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_COST: '1.5', FAKE_ARGS: join(tmp, 'launches.jsonl'), ...extra }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1500, height: 900 })
   await page.evaluate(([f, w]) => (localStorage.setItem('aw.folder', f as string), w && localStorage.setItem('aw.panelw', String(w))), [dir, panelWidth])
   await page.reload()
   await hire(page)
   await page.getByRole('tab', { name: 'Chat' }).click()
-  return { app, page, shutdown }
+  return { app, page, shutdown, launches: () => (existsSync(join(tmp, 'launches.jsonl')) ? readFileSync(join(tmp, 'launches.jsonl'), 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]) }
 }
 const pixels = (page: Page) => page.evaluate(() => Array.from(document.querySelector<HTMLCanvasElement>('.pc-portrait canvas')!.getContext('2d')!.getImageData(0, 0, 28, 38).data).join(','))
 
@@ -28,11 +28,11 @@ test('clicking an agent opens its card on the side of the office away from it, w
     const card = page.locator('.profile-overlay')
     await expect(card).toBeVisible({ timeout: 15_000 })
     await expect(card.locator('.pc-name')).toHaveText('ada')
-    await expect(card.locator('.pc-row', { hasText: 'Model' })).toContainText('Sonnet')
-    await expect(card.locator('.pc-row', { hasText: 'Hired' })).toContainText('just now')
-    await expect(card.locator('.pc-row', { hasText: 'Cost' })).toContainText('$1.50')
-    // Decorative: hidden from assistive technology, because the panel says all of it in words.
-    await expect(card).toHaveAttribute('aria-hidden', 'true')
+    // Gauges and tiles carry the numbers, each with a name for assistive technology.
+    await expect(card.getByRole('img', { name: /^Context used: 42%/ })).toBeVisible()
+    await expect(card.getByRole('img', { name: /^Cost: \$1\.50/ })).toBeVisible()
+    await expect(card.locator('.pc-tile', { hasText: 'hired' })).toContainText('new')
+    await expect(card.getByRole('region', { name: 'Profile of ada' })).toBeVisible()
     const stage = (await page.locator('.stage').boundingBox())!
     const box = (await card.boundingBox())!
     const side = await card.getAttribute('data-side')
@@ -97,6 +97,78 @@ test('with too little room over the office the card moves into the panel, folded
     // The facts as text are there either way.
     await page.locator('.profile-facts summary').click()
     await expect(page.locator('.profile-facts')).toContainText('Hired')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the card edits the agent: name, model, thinking level, mode and compact, each as the chat would', async () => {
+  const { page, shutdown, launches } = await start()
+  try {
+    const card = page.locator('.profile-overlay')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => launches().length, { timeout: 15_000 }).toBe(1)
+    // Settings change while it is between turns, so wait for it to be idle.
+    await expect(card.getByRole('button', { name: /^Thinking high/ })).toBeEnabled({ timeout: 20_000 })
+
+    // Thinking level: the agent restarts on the same conversation with that level.
+    await card.getByRole('button', { name: 'Thinking high' }).click()
+    await expect.poll(() => launches().length, { timeout: 20_000 }).toBe(2)
+    expect(launches()[1]).toEqual(expect.arrayContaining(['--effort', 'high']))
+    await expect(card.getByRole('group', { name: /Thinking level: high/ })).toBeVisible()
+
+    // Model, from a short list.
+    await expect(card.getByRole('button', { name: /^Model:/ })).toBeEnabled({ timeout: 20_000 })
+    await card.getByRole('button', { name: /^Model:/ }).click()
+    await card.getByRole('menuitemradio', { name: 'Haiku' }).click()
+    await expect.poll(() => launches().length, { timeout: 20_000 }).toBe(3)
+    expect(launches()[2]).toEqual(expect.arrayContaining(['--model', 'haiku']))
+
+    // Mode: the header reflects it.
+    await expect(card.getByRole('button', { name: /^Mode:/ })).toBeEnabled({ timeout: 20_000 })
+    await card.getByRole('button', { name: /^Mode:/ }).click()
+    await card.getByRole('menuitemradio', { name: 'Edit automatically' }).click()
+    await expect(page.locator('.hc-mode')).toHaveText('Edit automatically', { timeout: 15_000 })
+
+    // Compact: the same command the chat sends.
+    await expect(card.getByRole('button', { name: 'Compact the conversation' })).toBeEnabled({ timeout: 20_000 })
+    await card.getByRole('button', { name: 'Compact the conversation' }).click()
+    await expect(page.getByRole('log', { name: 'Conversation with ada' }).getByText('/compact').first()).toBeVisible({ timeout: 15_000 })
+
+    // Name: change it in place; the header and the card follow.
+    await card.getByRole('button', { name: 'Rename ada' }).click()
+    await card.getByRole('textbox', { name: 'New name' }).fill('zed')
+    await card.getByRole('textbox', { name: 'New name' }).press('Enter')
+    await expect(card.locator('.pc-name')).toHaveText('zed')
+    await expect(page.locator('.hc-name')).toHaveText('zed')
+    const [agent] = await page.evaluate(() => window.aw.listAgents())
+    expect(agent!.name).toBe('zed')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('clicking the name in the header brings up the card, even when it was hidden', async () => {
+  const { page, shutdown } = await start()
+  try {
+    await expect(page.locator('.profile-overlay')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Profile card' }).click()
+    await expect(page.locator('.profile-overlay')).toHaveCount(0)
+    await page.locator('.hc-name').click()
+    await expect(page.locator('.profile-overlay')).toBeVisible()
+    await expect(page.locator('.profile-overlay .pc-name')).toHaveText('ada')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('with no room over the office, clicking the name opens the card in the panel', async () => {
+  const { page, shutdown } = await start(1000)
+  try {
+    await expect(page.locator('.profile-bar')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.profile-dock')).toHaveCount(0)
+    await page.locator('.hc-name').click()
+    await expect(page.locator('.profile-dock .pc-name')).toHaveText('ada')
   } finally {
     await shutdown()
   }
