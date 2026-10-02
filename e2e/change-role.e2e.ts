@@ -29,7 +29,15 @@ test('a Reviewer can be changed to no role: it relaunches on the same session wi
     const menu = page.getByRole('menu', { name: 'More actions' })
     await expect(menu.getByRole('menuitem', { name: /Change role/ })).toBeEnabled({ timeout: 15_000 })
     await menu.getByRole('menuitem', { name: /Change role/ }).click()
-    await menu.getByRole('menuitem', { name: 'No role' }).click()
+    // The current role is marked, and picking it again does nothing.
+    await expect(menu.getByRole('menuitemradio', { name: 'Reviewer' })).toHaveAttribute('aria-checked', 'true')
+    await expect(menu.getByRole('menuitemradio', { name: /No role/ })).toHaveAttribute('aria-checked', 'false')
+    await menu.getByRole('menuitemradio', { name: 'Reviewer' }).click()
+    await page.waitForTimeout(1500)
+    expect(launches().length).toBe(1)
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await menu.getByRole('menuitem', { name: /Change role/ }).click()
+    await menu.getByRole('menuitemradio', { name: /No role/ }).click()
 
     await expect.poll(() => launches().length, { timeout: 20_000 }).toBe(2)
     const [first, again] = launches()
@@ -40,6 +48,10 @@ test('a Reviewer can be changed to no role: it relaunches on the same session wi
     await expect(page.locator('.job-tag')).toHaveCount(0)
     const [rex] = await page.evaluate(() => window.aw.listAgents())
     expect(rex!.options?.role).toBeUndefined()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await menu.getByRole('menuitem', { name: /Change role/ }).click()
+    await expect(menu.getByRole('menuitemradio', { name: /No role/ })).toHaveAttribute('aria-checked', 'true', { timeout: 15_000 })
+    await expect(menu.getByRole('menuitemradio', { name: 'Reviewer' })).toHaveAttribute('aria-checked', 'false')
   } finally {
     await shutdown()
   }

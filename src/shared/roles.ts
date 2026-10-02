@@ -19,6 +19,11 @@ export function withRole(options: AgentOptions | undefined, role: Role | null): 
   return { ...keep, ...job, ...(model && { model }), role: role.title }
 }
 
+/** Is `role` (null: No role) the one stored in an agent's options? An empty or missing role means none. */
+export function isCurrentRole(current: string | undefined, role: Role | null): boolean {
+  return role ? !!current && current === role.title : !current
+}
+
 const READ_ONLY = 'Read and run read-only commands only. Never edit, create or delete files, and never commit.'
 
 /** The crew every project starts with: common jobs, each with sensible permissions and standing instructions. */

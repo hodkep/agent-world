@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { launchArgs } from '../main/claude'
-import { BUILT_IN_ROLES, withRole } from './roles'
+import { BUILT_IN_ROLES, isCurrentRole, withRole } from './roles'
 
 const reviewer = BUILT_IN_ROLES.find((r) => r.id === 'reviewer')!
 const hired = { ...reviewer.options, role: 'Reviewer', model: 'opus', budgetUsd: 5 }
@@ -22,5 +22,17 @@ describe('changing an agent to another role', () => {
     expect(args[args.indexOf('--append-system-prompt') + 1]).toMatch(/You fix bugs/)
     expect(args.join(' ')).not.toMatch(/code reviewer/)
     expect(args).not.toContain('plan')
+  })
+})
+
+describe('which role is current', () => {
+  it('matches a role by the title stored in the agent options; no stored role means No role', () => {
+    expect(isCurrentRole('Reviewer', reviewer)).toBe(true)
+    expect(isCurrentRole('Reviewer', null)).toBe(false)
+    expect(isCurrentRole('Reviewer', BUILT_IN_ROLES[0]!)).toBe(false)
+    for (const none of [undefined, '']) {
+      expect(isCurrentRole(none, null)).toBe(true)
+      expect(isCurrentRole(none, reviewer)).toBe(false)
+    }
   })
 })

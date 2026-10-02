@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import type { Role } from '../../shared/roles'
+import { type Role, isCurrentRole } from '../../shared/roles'
 import type { Effort } from '../../shared/types'
 import { type UsageLimits, limitView } from '../../shared/usage'
 import { EFFORTS, MODELS } from '../panel/HireForm'
@@ -20,6 +20,8 @@ export interface AgentInfo {
   /** Model and effort can only change between turns. */
   canSwitch: boolean
   started: boolean
+  /** The job stored in the agent's options (a role's title), if any. */
+  role?: string
 }
 
 /** What the controls can do: App owns the work, the box only asks for it. */
@@ -246,12 +248,14 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
           {page === 'role' && (
             <>
               {back('Change role')}
-              <button className="cb-row" role="menuitem" onClick={run(() => actions.setRole(null))}>
+              <button className="cb-row" role="menuitemradio" aria-checked={isCurrentRole(info.role, null)} onClick={run(() => !isCurrentRole(info.role, null) && actions.setRole(null))}>
+                {isCurrentRole(info.role, null) && <span aria-hidden="true">✓ </span>}
                 No role
                 <small>normal agent</small>
               </button>
               {actions.roles.map((r) => (
-                <button key={r.id} className="cb-row" role="menuitem" onClick={run(() => actions.setRole(r))} title={r.blurb}>
+                <button key={r.id} className="cb-row" role="menuitemradio" aria-checked={isCurrentRole(info.role, r)} onClick={run(() => !isCurrentRole(info.role, r) && actions.setRole(r))} title={r.blurb}>
+                  {isCurrentRole(info.role, r) && <span aria-hidden="true">✓ </span>}
                   {r.title}
                 </button>
               ))}

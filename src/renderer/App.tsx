@@ -517,7 +517,8 @@ export function App() {
       linesRemoved: st?.linesRemoved ?? 0,
       branch: a.branch,
       canSwitch: act !== 'asleep' && ['idle', 'waiting'].includes(act),
-      started: !!a.started
+      started: !!a.started,
+      role: a.options?.role
     }
   }
   const actionsOf = (a: AgentRecord): AgentActions => ({
