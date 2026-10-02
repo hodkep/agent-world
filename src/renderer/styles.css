@@ -944,3 +944,11 @@ code a.file-link { font: inherit; }
 .fileview-other { padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .fileview .hint { padding: 6px 12px; margin: 0; }
 .fileview-ask { position: absolute; z-index: 5; }
+
+/* A command folded to its headline */
+.tc-toggle { width: 100%; background: none; border: 0; box-shadow: none; padding: 0; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.tc-toggle:hover:not(:disabled) { background: none; }
+.tc-toggle:hover .tc-chevron, .tc-toggle:focus-visible .tc-chevron { color: var(--accent); }
+.tc-toggle .tc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-chevron { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
+.tc.foldable:not(:has([aria-expanded='true'])) { padding-bottom: 6px; }

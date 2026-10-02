@@ -26,8 +26,15 @@ test('chat with an agent: send a prompt, watch tools and the reply appear, slash
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await expect(log.locator('.msg.user')).toContainText('add a health check')
-    await expect(log.locator('.tc', { hasText: 'List the source folder' })).toContainText('$ ls src', { timeout: 10_000 })
-    await expect(log.locator('.tc', { hasText: 'List the source folder' })).toContainText('health.ts')
+    // A command is folded to its headline until clicked; clicking again folds it.
+    const cmd = log.locator('.tc', { hasText: 'List the source folder' })
+    await expect(cmd).toBeVisible({ timeout: 10_000 })
+    await expect(cmd).not.toContainText('$ ls src')
+    await cmd.getByRole('button', { name: /List the source folder/ }).click()
+    await expect(cmd).toContainText('$ ls src')
+    await expect(cmd).toContainText('health.ts')
+    await cmd.getByRole('button', { name: /List the source folder/ }).click()
+    await expect(cmd).not.toContainText('$ ls src')
     await expect(log.locator('.tc', { hasText: 'Edited' })).toContainText('export const ok = true')
     await expect(log.locator('.msg.assistant strong')).toHaveText('health.ts')
     await expect(log.locator('.msg.assistant li')).toHaveCount(2)
@@ -190,7 +197,8 @@ test('a wide picture sits in a frame no wider than itself, and a command card ha
 
     // The command card: a title, a copy button, and colour in the command.
     const card = log.locator('.tc', { hasText: 'List the source folder' })
-    await expect(card).toContainText('$ ls src', { timeout: 10_000 })
+    await card.getByRole('button', { name: /List the source folder/ }).click({ timeout: 10_000 })
+    await expect(card).toContainText('$ ls src')
     await expect(card.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(1)
     await expect(card.locator('.tc-cmd code span[class*="mtk"]').first()).toBeVisible({ timeout: 10_000 })
   } finally {

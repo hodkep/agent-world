@@ -179,6 +179,8 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
   const failed = result?.isError
   const status = result ? (failed ? 'failed' : 'done') : working ? 'running' : 'unknown'
   const out = result?.text ?? ''
+  // A command starts folded to its headline; a click on it opens the command and what it printed, and another folds it again.
+  const [open, setOpen] = useState(false)
   if (name === 'ToolSearch') return <ToolLookupLine run={run} status={status} />
   if (parseMcpName(name)) return <McpCard run={run} status={status} onImage={onImage} />
   let head: React.ReactNode = <b>{name}</b>
@@ -286,14 +288,25 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
       )
   }
 
+  const foldable = name === 'Bash'
+  const state = status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''
   return (
-    <div className={`tc is-${status}`}>
-      <div className="tc-head">
-        <span className="tc-dot" aria-hidden="true" />
-        <span className="tc-name">{head}</span>
-        <span className="tc-status">{status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''}</span>
-      </div>
-      {body}
+    <div className={`tc is-${status}${foldable ? ' foldable' : ''}`}>
+      {foldable ? (
+        <button className="tc-head tc-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)} title={open ? 'Fold' : 'Show the command and its output'}>
+          <span className="tc-dot" aria-hidden="true" />
+          <span className="tc-name">{head}</span>
+          <span className="tc-status">{state}</span>
+          <span className="tc-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        </button>
+      ) : (
+        <div className="tc-head">
+          <span className="tc-dot" aria-hidden="true" />
+          <span className="tc-name">{head}</span>
+          <span className="tc-status">{state}</span>
+        </div>
+      )}
+      {(!foldable || open) && body}
       {run.images && run.images.length > 0 && (
         <div className="tc-images">
           {run.images.map((src, i) => (
