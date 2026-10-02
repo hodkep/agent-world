@@ -522,6 +522,11 @@ export function App() {
   }
   const actionsOf = (a: AgentRecord): AgentActions => ({
     switchTo: (change) => void run(() => window.aw.reconfigure(a.id, change)),
+    roles,
+    setRole: (role) => void run(async () => {
+      const options = await window.aw.setRole(a.id, role)
+      setAgents((xs) => xs.map((x) => (x.id === a.id ? { ...x, options } : x)))
+    }),
     reviewers: agents.filter((x) => x.id !== a.id && (world[x.id]?.activity ?? 'asleep') !== 'asleep').map((x) => ({ id: x.id, name: x.name })),
     askReview: (reviewer) => void askReview(a, reviewer),
     clone: (model) => clone(a, model),

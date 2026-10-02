@@ -11,6 +11,14 @@ export interface Role {
   options: AgentOptions
 }
 
+/** An agent's options after taking a new job (null: no job): the old role, its instructions and its permission mode go; model, effort and the rest stay. */
+export function withRole(options: AgentOptions | undefined, role: Role | null): AgentOptions {
+  const { role: _r, instructions: _i, permissionMode: _p, ...keep } = options ?? {}
+  if (!role) return keep
+  const { model, ...job } = role.options
+  return { ...keep, ...job, ...(model && { model }), role: role.title }
+}
+
 const READ_ONLY = 'Read and run read-only commands only. Never edit, create or delete files, and never commit.'
 
 /** The crew every project starts with: common jobs, each with sensible permissions and standing instructions. */
