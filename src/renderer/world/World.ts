@@ -477,6 +477,14 @@ export class OfficeWorld {
     }
   }
 
+  /** Where an agent's character is on the stage (CSS px, from the stage's own corner), or null when it is not in the office. */
+  screenPosOf(id: string): { x: number; y: number } | null {
+    const c = this.chars.get(id)
+    if (!c || c.leaving) return null
+    const b = c.view.getBounds()
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  }
+
   /** The agent whose character is under a point on the stage (CSS px), for things dropped onto the canvas. */
   agentAt(x: number, y: number): string | null {
     for (const [key, c] of this.chars) if (!c.leaving && !key.includes('/') && c.view.getBounds().containsPoint(x, y)) return key

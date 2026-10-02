@@ -1038,3 +1038,43 @@ code a.file-link { font: inherit; }
 .crew-open { justify-self: end; margin-right: 10px; font-size: 12px; padding: 3px 9px; }
 .dg-ask { flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .dg-older { justify-self: start; margin: 0 10px 8px; font-size: 12px; padding: 3px 9px; }
+
+/* The profile card: the world's 8-bit look in the page, over the office or docked in the panel. Decorative; the panel has the same facts as text. */
+.profile-overlay { position: absolute; z-index: 5; pointer-events: none; }
+.pc { background: var(--panel); color: var(--text); font: 600 10px/1.3 Menlo, Consolas, monospace; letter-spacing: 0.04em; text-transform: uppercase; image-rendering: pixelated; box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim), 0 0 0 6px var(--ink), 6px 10px 0 6px rgb(0 0 0 / 0.45); }
+.pc-docked { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim), 0 0 0 6px var(--ink); }
+.pc-title { display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
+.pc-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-role { background: var(--accent); color: var(--ink); padding: 2px 5px; font-size: 9px; letter-spacing: 0.08em; }
+.pc-dot { width: 9px; height: 9px; background: var(--ok); box-shadow: 0 0 0 1px var(--ink); }
+.pc-dot.is-working { background: var(--think); animation: dg-blink 1s steps(2) infinite; }
+.pc-dot.is-asleep { background: var(--dim); }
+.pc-body { display: grid; gap: 8px; padding: 8px; grid-template-columns: 1fr; }
+.pc-full .pc-body, .pc-docked .pc-body { grid-template-columns: 112px minmax(0, 1fr); }
+.pc-portrait { width: 112px; height: 152px; background: #0b0a12; box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--line); overflow: hidden; position: relative; }
+.pc-compact .pc-portrait { width: 84px; height: 114px; margin: 0 auto; }
+.pc-portrait canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.pc-portrait::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0 3px, rgb(0 0 0 / 0.18) 3px 4px); }
+.pc-full .pc-left, .pc-docked .pc-left { display: grid; gap: 6px; align-content: start; }
+.pc-lv { display: grid; grid-template-columns: 1fr auto; gap: 3px; font-size: 9px; }
+.pc-bar { display: block; position: relative; height: 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); grid-column: 1 / -1; }
+.pc-bar b { position: absolute; inset: 0 auto 0 0; background: var(--think); }
+.pc-bar.hp.ok b { background: var(--ok); }
+.pc-bar.hp.warn b { background: var(--accent); }
+.pc-bar.hp.bad b { background: var(--danger); }
+.pc-rows { margin: 0; display: grid; gap: 3px; align-content: start; font-size: 10px; min-width: 0; }
+.pc-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; border-bottom: 1px dotted var(--line); padding-bottom: 2px; }
+.pc-row dt { color: var(--muted); }
+.pc-row dd { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-tools { display: flex; flex-wrap: wrap; gap: 4px; font-size: 9px; }
+.pc-tools span { background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 1px 4px; }
+.profile-bar { display: flex; gap: 6px; padding: 6px 12px 0; }
+.profile-bar button { font-size: 12px; padding: 2px 9px; }
+.profile-dock { margin: 10px 14px 6px; }
+.profile-facts { margin: 6px 12px 0; font-size: 12px; }
+.profile-facts summary { cursor: pointer; color: var(--muted); }
+.profile-facts dl { display: grid; gap: 2px; margin: 6px 0 0; }
+.profile-facts dl > div { display: flex; gap: 12px; }
+.profile-facts dt { color: var(--muted); min-width: 11ch; }
+.profile-facts dd { margin: 0; font-family: Menlo, Consolas, monospace; }
+@media (prefers-reduced-motion: reduce) { .pc-dot.is-working { animation: none; } }

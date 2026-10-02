@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, TerminalMenu } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -31,6 +31,9 @@ import { TracesView } from './panel/TracesView'
 import { Settings } from './panel/Settings'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
+import type { CardData } from './profile/facts'
+import { cardLayout } from './profile/layout'
+import { ProfileCard, ProfileFacts } from './profile/ProfileCard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -93,6 +96,13 @@ export function App() {
   const [hiring, setHiring] = useState(false)
   const [history, setHistory] = useState(false)
   const [crewOpen, setCrewOpen] = useState(false)
+  // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
+  const [cardOn, setCardOn] = useState(() => store('aw.card') !== '0')
+  const [dockOpen, setDockOpen] = useState(() => store('aw.carddock') === '1')
+  const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
+  const [agentX, setAgentX] = useState(0)
+  const [profile, setProfile] = useState<{ id: string; data: AgentProfile } | null>(null)
+  const [clock, setClock] = useState(Date.now())
   const [openFile, setOpenFile] = useState<OpenRequest | undefined>()
   const [planMenus, setPlanMenus] = useState<Record<string, boolean>>({})
   const [termMenus, setTermMenus] = useState<Record<string, TerminalMenu | null>>({})
@@ -165,6 +175,26 @@ export function App() {
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
   const [budgetAlerts, setBudgetAlerts] = useState<Record<string, 'near' | 'over'>>({})
   // Selecting an agent, even the one already selected, means "type to it": always hand focus to its terminal.
+  // While a card is showing: follow the agent's character (so the card stays on the far side) and keep its counts fresh.
+  useEffect(() => {
+    if (!selected || !cardOn) return
+    let alive = true
+    const where = () => {
+      const p = office.current?.screenPosOf(selected)
+      if (p) setAgentX(p.x)
+      setClock(Date.now())
+    }
+    const load = () => void window.aw.profile(selected).then((data) => alive && setProfile({ id: selected, data }), () => {})
+    where()
+    load()
+    const a = setInterval(where, 500)
+    const b = setInterval(load, 5000)
+    return () => {
+      alive = false
+      clearInterval(a)
+      clearInterval(b)
+    }
+  }, [selected, cardOn])
   const select = (id: string) => {
     setSelected(id)
     keep('aw.selected', id)
@@ -182,6 +212,15 @@ export function App() {
   const needsRef = useRef<(id: string) => Need[]>(() => [])
   // A subagent that was stopped never fires the hook that takes its character out of the office; Claude's own files
   // say it is over, so look now and then and let those characters go.
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const look = () => setStageBox((b) => (b.w === el.clientWidth && b.h === el.clientHeight ? b : { w: el.clientWidth, h: el.clientHeight }))
+    look()
+    const ro = new ResizeObserver(look)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const crewRef = useRef({ world, allAgents })
   crewRef.current = { world, allAgents }
   useEffect(() => {
@@ -354,6 +393,26 @@ export function App() {
     })
   const officeCost = Object.values(stats).reduce((sum, s) => sum + s.costUsd, 0)
   const cur = current ? stats[current.id] : undefined
+  const cardData: CardData | null = current
+    ? {
+        id: current.id,
+        name: current.name,
+        role: world[current.id] ? roleOf(world[current.id]!) : 'senior',
+        roleLabel: current.options?.role ?? (world[current.id] && roleOf(world[current.id]!) === 'boss' ? 'Boss' : 'Senior'),
+        activity: world[current.id]?.activity ?? 'asleep',
+        model: cur?.model ?? current.options?.model ?? '',
+        effort: cur?.effort ?? current.options?.effort ?? '',
+        mode: world[current.id]?.mode ? modeInfo(world[current.id]!.mode!).label : '',
+        branch: current.branch ?? '',
+        ctx: cur?.contextPct ?? null,
+        costUsd: cur?.costUsd ?? 0,
+        budgetUsd: current.options?.budgetUsd,
+        add: cur?.linesAdded ?? 0,
+        del: cur?.linesRemoved ?? 0,
+        profile: profile && profile.id === current.id ? profile.data : null
+      }
+    : null
+  const cardAt = cardData && cardOn ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX }) : null
   const state = current ? world[current.id] : undefined
   const nameOf = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
 
@@ -720,6 +779,11 @@ export function App() {
       <main>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
+          {cardData && cardAt && cardAt.mode !== 'panel' && (
+            <div className="profile-overlay" data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }} aria-hidden="true">
+              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} />
+            </div>
+          )}
           {grid && agents.length > 0 && (
             <div className="grid-area">
               <div className="grid-bar" role="toolbar" aria-label="Grid layout">
@@ -953,6 +1017,26 @@ export function App() {
                 </button>
               )}
             </section>
+          )}
+          {cardData && (
+            <>
+              <div className="profile-bar">
+                <button aria-pressed={cardOn} onClick={() => (keep('aw.card', cardOn ? '0' : '1'), setCardOn(!cardOn))} title="Show this agent's profile card on the office, or hide it">
+                  Profile card
+                </button>
+                {cardAt?.mode === 'panel' && (
+                  <button aria-expanded={dockOpen} onClick={() => (keep('aw.carddock', dockOpen ? '' : '1'), setDockOpen(!dockOpen))} title="There is not enough room over the office: the card opens here instead">
+                    {dockOpen ? 'Hide card' : 'Show card'}
+                  </button>
+                )}
+              </div>
+              {cardAt?.mode === 'panel' && dockOpen && (
+                <div className="profile-dock" aria-hidden="true">
+                  <ProfileCard data={cardData} variant="docked" now={clock} />
+                </div>
+              )}
+              <ProfileFacts data={cardData} now={clock} />
+            </>
           )}
           {current && state?.tasks && state.tasks.length > 0 && (
             <ul className="tasks" aria-label="Tasks">
