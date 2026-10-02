@@ -88,3 +88,34 @@ test('your own numbered message on the terminal screen is not offered as a menu,
     await shutdown()
   }
 })
+
+test('rewind with nothing to go back to says so in words and leaves Claude ready', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-rew-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_REWIND_EMPTY: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await box.fill('only thing')
+    await box.press('Enter')
+    await expect(log.locator('.msg.assistant').last()).toContainText('only thing', { timeout: 10_000 })
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 10_000 })
+    const msg = log.locator('.msg.user', { hasText: 'only thing' })
+    await msg.hover()
+    await msg.getByRole('button', { name: 'Rewind' }).click()
+    await expect(page.getByText(/nothing to rewind to yet/i)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/Try \/rewind in the Terminal tab/)).toHaveCount(0)
+    // Claude's own box was closed, so the terminal is ready again.
+    await page.getByRole('tab', { name: 'Terminal' }).click()
+    await expect(page.locator('.term-host:visible')).not.toContainText('Nothing to rewind to yet')
+  } finally {
+    await shutdown()
+  }
+})

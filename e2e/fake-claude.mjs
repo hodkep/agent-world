@@ -229,6 +229,13 @@ if (process.env.FAKE_CHAT) {
       return void process.stdin.on('data', onKey)
     }
     // /rewind: a list of the prompts so far, then Claude's confirmation menu (numbered), driven by keys.
+    if (prompt === '/rewind' && process.env.FAKE_REWIND_EMPTY) {
+      // FAKE_REWIND_EMPTY=1: like real Claude with no earlier prompt, the box says so and waits for Esc.
+      inMenu = true
+      process.stdout.write('\x1b[2J\x1b[H\r\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\n Rewind\r\n\r\n Nothing to rewind to yet.\r\n\r\n Esc to cancel\r\n')
+      const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), (inMenu = false), drawFoot())
+      return void process.stdin.on('data', onKey)
+    }
     if (prompt === '/rewind') {
       inMenu = true
       let at = prompts.length

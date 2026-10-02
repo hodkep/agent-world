@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
+import { driveRewind, genericMenu, nothingToRewind, openRewindList, rewindList } from './menus'
 
 const fixture = (n: string) => readFileSync(join(__dirname, 'fixtures', n), 'utf8')
 
@@ -121,5 +121,35 @@ describe('opening the rewind list', () => {
 
   it('names /rewind left sitting in the box', async () => {
     expect(await openRewindList(fakeBox({ neverRuns: true }).io)).toMatch(/without running it/)
+  })
+})
+
+describe('rewinding when there is nothing to go back to', () => {
+  // What real Claude (2.1.287) draws for /rewind in a conversation with no earlier prompt.
+  const empty = '▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n Rewind\n\n Nothing to rewind to yet.\n\n Esc to cancel\n'
+
+  it('is told from a rewind list, and from an ordinary screen', () => {
+    expect(nothingToRewind(empty)).toBe(true)
+    expect(nothingToRewind('Rewind\n  ❯ (current)\n   Enter to continue · Esc to cancel\n')).toBe(false)
+    expect(nothingToRewind('────\n❯ \n────\n')).toBe(false)
+  })
+
+  it('says so at once, in words, and closes the box Claude left open', async () => {
+    const sent: string[] = []
+    let screen = '────────\n❯ \n────────\n'
+    const io = {
+      screen: () => screen,
+      write: (k: string) => {
+        sent.push(k)
+        if (k === '\r') screen = empty
+      },
+      sleep: async () => {}
+    }
+    const failed = await openRewindList(io)
+    expect(failed).toMatch(/nothing to rewind/i)
+    expect(failed).not.toMatch(/Terminal tab/)
+    expect(sent.at(-1)).toBe('\x1b')
+    // It did not press Enter a second time or wait out the full time limit.
+    expect(sent.filter((k) => k === '\r')).toHaveLength(1)
   })
 })

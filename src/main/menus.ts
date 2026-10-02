@@ -105,6 +105,12 @@ export async function driveRewind(io: TerminalIO, target: string): Promise<boole
 }
 
 const CLEAR_LINE = '\x15'
+const NOTHING = 'There is nothing to rewind to yet. Claude can only go back to a message sent before this one, and it has none saved for this conversation.'
+
+/** Claude's /rewind box when it has no earlier prompt to go back to ("Nothing to rewind to yet."). */
+export function nothingToRewind(screen: string): boolean {
+  return /Nothing to rewind to yet/i.test(stripVTControlCharacters(screen))
+}
 
 /**
  * Type /rewind and open its list. Waits for the input box first (right after Esc the TUI can still be settling),
@@ -122,10 +128,16 @@ export async function openRewindList(io: TerminalIO): Promise<string | null> {
   io.write('/rewind')
   await io.sleep(500)
   io.write('\r')
-  if (await until(() => !!rewindList(io.screen()), 10)) return null
+  const opened = () => !!rewindList(io.screen()) || nothingToRewind(io.screen())
+  const said = async () => {
+    if (!nothingToRewind(io.screen())) return null
+    io.write('\x1b')
+    return NOTHING
+  }
+  if (await until(opened, 10)) return (await said()) ?? null
   // The first Enter can be spent on picking from the popup of matching commands.
   io.write('\r')
-  if (await until(() => !!rewindList(io.screen()), 20)) return null
+  if (await until(opened, 20)) return (await said()) ?? null
   const screen = io.screen()
   if (anyMenu(screen)) return 'Another menu is open in Claude. Close it first.'
   if (/\/rewind/.test(stripVTControlCharacters(screen).split('\n').find((l) => l.trim().startsWith('❯')) ?? '')) return 'Claude left /rewind in its message box without running it. Try /rewind in the Terminal tab.'
