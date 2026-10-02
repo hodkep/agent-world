@@ -121,6 +121,24 @@ describe('file mentions in a message', () => {
   })
 })
 
+describe('highlighting paths typed in the message box', () => {
+  it('does not take an absolute path for a slash command', () => {
+    const parts = highlight('/private/tmp/claude-501/scratchpad/mcp-cards-preview.html\nopen this link')
+    expect(parts[0]).toEqual({ kind: 'file', text: '/private/tmp/claude-501/scratchpad/mcp-cards-preview.html' })
+    expect(parts.some((p) => p.kind === 'command')).toBe(false)
+  })
+  it('marks paths in the middle of a sentence, home and relative ones too', () => {
+    expect(highlight('open ~/notes/a.md and ./src/app.ts please').filter((p) => p.kind === 'file').map((p) => p.text)).toEqual(['~/notes/a.md', './src/app.ts'])
+  })
+  it('still marks a real command, with and without arguments', () => {
+    expect(highlight('/compact')[0]).toEqual({ kind: 'command', text: '/compact' })
+    expect(highlight('/compact now')[0]).toEqual({ kind: 'command', text: '/compact' })
+  })
+  it('leaves plain slashes and fractions alone', () => {
+    expect(highlight('and/or 1/2 a/b')).toEqual([{ kind: 'plain', text: 'and/or 1/2 a/b' }])
+  })
+})
+
 describe('highlighting what is typed in the message box', () => {
   it('marks a leading command, a plugin skill and @file mentions, keeping every character', () => {
     const text = '/impeccable:impeccable polish @"a b/shot.png" and @src/app.ts now'

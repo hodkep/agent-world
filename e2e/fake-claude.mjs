@@ -223,6 +223,13 @@ if (process.env.FAKE_CHAT) {
     await sleep(pause * 3)
     done(id, 'app.ts\nhealth.ts')
     await hook('PostToolUse', { tool_name: 'Bash', tool_input: bash })
+    // FAKE_MCP=1: a tool lookup and two calls to an MCP server, as an agent using a browser would make.
+    if (process.env.FAKE_MCP) {
+      const look = use('ToolSearch', { query: 'select:mcp__playwright__browser_navigate,mcp__playwright__browser_snapshot', max_results: 5 })
+      done(look, '<functions><function>{"name":"mcp__playwright__browser_navigate"}</function></functions>')
+      const nav = use('mcp__playwright__browser_navigate', { url: 'https://experts.snorkel-ai.com/home' })
+      done(nav, "### Ran Playwright code\n```js\nawait page.goto('https://experts.snorkel-ai.com/home');\n```\n### Page\n- Page URL: https://experts.snorkel-ai.com/home\n- Page Title: Snorkel AI Experts Portal")
+    }
     const edit = { file_path: `${process.cwd()}/src/health.ts`, old_string: 'export const ok = false', new_string: 'export const ok = true' }
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')
