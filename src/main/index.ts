@@ -1271,7 +1271,18 @@ async function main() {
   app.on('window-all-closed', () => app.quit())
 }
 
-main().catch((err) => {
-  console.error(err)
-  app.exit(1)
-})
+// One Agent World per data folder: opening it again (a notification click after a relaunch, the dock, a second launch)
+// hands over to the running one and quits, instead of starting a second app on the same agents.
+if (!app.requestSingleInstanceLock()) app.exit(0)
+else {
+  app.on('second-instance', () => {
+    if (!win || win.isDestroyed()) return
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+  })
+  main().catch((err) => {
+    console.error(err)
+    app.exit(1)
+  })
+}
