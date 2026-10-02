@@ -24,6 +24,8 @@
   --danger-well: #2a1620; /* the recessed red behind a permission band */
   --accent-dim: #5a4c1e; /* the thin rim inside a sent message */
   --track: #2a2640; /* the unfilled part of a ring */
+  --mail-well: #0f1d26; /* another agent's message, tinted from the think cyan */
+  --mail-rim: #2a5a68;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -399,6 +401,21 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .chat-empty { margin: auto; max-width: 34ch; text-align: center; color: var(--muted); line-height: 1.5; }
 .msg.user { align-self: flex-end; max-width: 88%; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .msg.user .bubble { background: var(--selected); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--accent-dim); padding: 7px 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.mail { align-self: flex-start; width: min(100%, 420px); background: var(--mail-well); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--mail-rim); }
+.mail-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; color: var(--think); }
+.mail-env { flex: none; width: 14px; height: 10px; shape-rendering: crispEdges; }
+.mail-from { font-weight: 600; }
+.mail-lbl { font-weight: 400; color: var(--muted); }
+.mail-tag { margin-left: auto; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 5px; color: var(--muted); box-shadow: 0 0 0 1px var(--mail-rim); }
+.mail-tag.ask { color: var(--ink); background: var(--think); box-shadow: 0 0 0 1px var(--ink); }
+.mail-body { margin: 4px 10px 8px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mail.folded .mail-body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.mail-body code { font: 12px Menlo, Consolas, monospace; background: var(--well); padding: 0 4px; box-shadow: 0 0 0 1px var(--ink); }
+.mail-foot { display: flex; align-items: center; gap: 8px; padding: 0 10px 8px; }
+.mail-route { font: 11px Menlo, Consolas, monospace; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-foot button { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 8px; color: var(--think); }
+.mail-foot button svg { width: 9px; height: 6px; shape-rendering: crispEdges; fill: currentColor; }
+.mail.open .mail-foot button svg { transform: scaleY(-1); }
 .clamp { align-self: flex-end; max-width: 100%; position: relative; }
 .clamp.clamped { max-height: calc(1.45em * 8 + 20px); overflow: hidden; }
 .clamp.fade::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.6em; background: linear-gradient(to bottom, transparent, var(--selected)); pointer-events: none; }

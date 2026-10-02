@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { noReplyTail, replyTail } from '../shared/mail'
 import type { AgentMessage } from '../shared/types'
 
 interface AgentInfo {
@@ -29,9 +30,7 @@ const unsafe = (s: string) => s.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x0
 
 export function formatDelivery(fromName: string, rawText: string, expectsReply: boolean) {
   const text = unsafe(rawText)
-  const tail = expectsReply
-    ? `When you have an answer, reply using the agent-world send_message tool with to="${fromName}" and expects_reply=false.`
-    : 'This is a reply to you. No reply is needed; carry on with your task.'
+  const tail = expectsReply ? replyTail(fromName) : noReplyTail
   return `[Agent World] Message from ${fromName}: ${text}\n\n${tail}`
 }
 

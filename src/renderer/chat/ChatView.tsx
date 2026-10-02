@@ -1,4 +1,5 @@
 import { unwrapPasted } from '../../shared/pasted'
+import { parseAgentMail } from '../../shared/mail'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem } from '../../shared/chat'
@@ -488,7 +489,9 @@ function ProcBar({ agentId }: { agentId: string }) {
 
 function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
   switch (r.kind) {
-    case 'user':
+    case 'user': {
+      const mail = parseAgentMail(r.text)
+      if (mail) return <AgentMailCard {...mail} />
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`}>
           <Clamped>
@@ -502,6 +505,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
           {r.pending && <span className="msg-meta">{r.queued ? 'queued: goes in when the current step finishes' : 'sending…'}</span>}
         </div>
       )
+    }
     case 'image':
       return (
         <div className="msg user">
@@ -550,6 +554,50 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'note':
       return r.detail ? <SummaryNote text={r.text} detail={r.detail} /> : <div className="msg note">{r.text}</div>
   }
+}
+
+/** What another agent sent: a card of its own, cut to two lines until asked for, so it is never mistaken for something you typed. */
+function AgentMailCard({ from, body, expectsReply }: { from: string; body: string; expectsReply: boolean }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [long, setLong] = useState(false)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const measure = () => !open && setLong(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [open])
+  return (
+    <article className={`mail ${open ? 'open' : 'folded'}`} aria-label={`Message from agent ${from}`}>
+      <header className="mail-head">
+        <svg className="mail-env" viewBox="0 0 14 10" aria-hidden="true">
+          <rect width="14" height="10" fill="currentColor" />
+          <path fill="var(--ink)" d="M0 0h14v1H0zM0 9h14v1H0zM0 0h1v10H0zM13 0h1v10h-1zM1 1h1v1H1zM2 2h1v1H2zM3 3h1v1H3zM4 4h1v1H4zM5 5h3v1H5zM8 5h1v1H8zM9 4h1v1H9zM10 3h1v1h-1zM11 2h1v1h-1zM12 1h1v1h-1z" />
+        </svg>
+        <span className="mail-from">
+          <span className="mail-lbl">From agent</span> “{from}”
+        </span>
+        <span className={`mail-tag ${expectsReply ? 'ask' : ''}`}>{expectsReply ? 'Asks for a reply' : 'Reply'}</span>
+      </header>
+      <div ref={box} className="mail-body">
+        {body.split(/(`[^`]+`)/).map((part, i) => (part.length > 2 && part.startsWith('`') && part.endsWith('`') ? <code key={i}>{part.slice(1, -1)}</code> : part))}
+      </div>
+      {(long || open) && (
+        <footer className="mail-foot">
+          {open && expectsReply && <span className="mail-route">reply → send_message to “{from}”</span>}
+          <button aria-expanded={open} onClick={() => setOpen(!open)}>
+            <span>{open ? 'Show less' : 'Read more'}</span>
+            <svg viewBox="0 0 9 6" aria-hidden="true">
+              <path d="M0 0h2v1h1v1h1v1h1V2h1V1h1V0h2v1H8v1H7v1H6v1H5v1H4V5H3V4H2V3H1V2H0z" />
+            </svg>
+          </button>
+        </footer>
+      )}
+    </article>
+  )
 }
 
 /** A long message kept to a few lines until asked for; the whole text stays in the page so it can be selected and quoted. */
