@@ -409,8 +409,9 @@ export class OfficeWorld {
       g.rect(3, 3, 3, 1).fill({ color: 0xffffff, alpha: 0.7 })
       g.rect(3, 5, 3, 1).fill({ color: 0xffffff, alpha: 0.4 })
       g.rect(7, 2, 1, 6).fill(0xf0ecdc)
-      g.position.set(c.home.x * TILE + 9, (c.home.y - 1) * TILE + 2)
-      g.zIndex = c.home.y * TILE + 0.6
+      // On the desk's empty left side, clear of the monitor and keyboard; finished pages pile over it.
+      g.position.set(c.home.x * TILE + 1, (c.home.y - 1) * TILE + 2)
+      g.zIndex = c.home.y * TILE + 0.4
       g.eventMode = 'static'
       g.cursor = 'pointer'
       g.on('pointertap', () => {
