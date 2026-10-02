@@ -24,6 +24,8 @@
   --danger-well: #2a1620; /* the recessed red behind a permission band */
   --accent-dim: #5a4c1e; /* the thin rim inside a sent message */
   --track: #2a2640; /* the unfilled part of a ring */
+  --mail-well: #0f1d26; /* another agent's message, tinted from the think cyan */
+  --mail-rim: #2a5a68;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -399,6 +401,21 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .chat-empty { margin: auto; max-width: 34ch; text-align: center; color: var(--muted); line-height: 1.5; }
 .msg.user { align-self: flex-end; max-width: 88%; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .msg.user .bubble { background: var(--selected); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--accent-dim); padding: 7px 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.mail { align-self: flex-start; width: min(100%, 420px); background: var(--mail-well); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--mail-rim); }
+.mail-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; color: var(--think); }
+.mail-env { flex: none; width: 14px; height: 10px; shape-rendering: crispEdges; }
+.mail-from { font-weight: 600; }
+.mail-lbl { font-weight: 400; color: var(--muted); }
+.mail-tag { margin-left: auto; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 5px; color: var(--muted); box-shadow: 0 0 0 1px var(--mail-rim); }
+.mail-tag.ask { color: var(--ink); background: var(--think); box-shadow: 0 0 0 1px var(--ink); }
+.mail-body { margin: 4px 10px 8px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mail.folded .mail-body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.mail-body code { font: 12px Menlo, Consolas, monospace; background: var(--well); padding: 0 4px; box-shadow: 0 0 0 1px var(--ink); }
+.mail-foot { display: flex; align-items: center; gap: 8px; padding: 0 10px 8px; }
+.mail-route { font: 11px Menlo, Consolas, monospace; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-foot button { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 1px 8px; color: var(--think); }
+.mail-foot button svg { width: 9px; height: 6px; shape-rendering: crispEdges; fill: currentColor; }
+.mail.open .mail-foot button svg { transform: scaleY(-1); }
 .clamp { align-self: flex-end; max-width: 100%; position: relative; }
 .clamp.clamped { max-height: calc(1.45em * 8 + 20px); overflow: hidden; }
 .clamp.fade::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.6em; background: linear-gradient(to bottom, transparent, var(--selected)); pointer-events: none; }
@@ -904,3 +921,51 @@ svg.pxi { display: block; flex: none; }
 .quote-body blockquote { flex: none; }
 .composer .cbox .quote-body textarea { min-height: 0; field-sizing: content; resize: none; width: 100%; max-height: 120px; line-height: 1.4; font: inherit; font-size: 12.5px; color: var(--text); background: var(--well); border: 1px solid var(--ink); padding: 3px 7px; min-width: 0; }
 .composer .cbox .quote-body textarea:focus-visible { outline: 1px solid var(--accent); }
+
+/* Tool lookups and MCP calls */
+.srv-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 1px 6px; background: #1d3a44; color: var(--think); font-weight: 700; flex: none; }
+.tc-link { color: var(--think); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; overflow-wrap: anywhere; }
+.tc-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+.tc-meta .tc-muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; padding: 6px 9px; background: var(--well); font: 12px/1.5 Menlo, Consolas, monospace; }
+.kv-row { display: contents; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.kv a { color: var(--think); text-decoration: underline; text-underline-offset: 2px; }
+.tc-result { background: var(--well); padding: 6px 9px; display: flex; flex-direction: column; gap: 6px; }
+.tc-sec h4 { margin: 0 0 2px; font: 700 11px Menlo, Consolas, monospace; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.tc-sec pre { margin: 0; font: 11px/1.45 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+.tc-sec .code-block { margin: 2px 0 0; background: var(--panel-3); padding: 5px 8px; font: 11px/1.45 Menlo, Consolas, monospace; }
+.tc-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 10px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); font-size: 13px; }
+.tc-line .tc-what { color: var(--text); }
+.tc-line .chip { font: 12px Menlo, Consolas, monospace; padding: 1px 7px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
+.tc-line .chip .srv { color: var(--think); }
+
+/* Files an agent mentions */
+a.file-link, button.file-link.as-link { color: var(--think); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+button.file-link.as-link { background: none; border: 0; padding: 0; font: inherit; box-shadow: none; text-align: left; }
+button.file-link.as-link:hover:not(:disabled) { background: none; color: var(--accent); }
+a.file-link::before { content: ''; display: inline-block; width: .7em; height: .85em; margin-right: .3em; background: currentColor; clip-path: polygon(0 0, 65% 0, 100% 30%, 100% 100%, 0 100%); opacity: .8; vertical-align: -0.05em; }
+code a.file-link { font: inherit; }
+
+/* The File tab */
+.fileview { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--well); }
+.fileview-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--panel); border-bottom: 2px solid var(--ink); font-size: 12px; flex: none; }
+.fileview-bar .fileview-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fileview-bar button { font-size: 11px; padding: 1px 8px; }
+.fileview-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; position: relative; }
+.fileview-image { display: grid; place-items: start center; }
+.fileview-image img { max-width: 100%; height: auto; box-shadow: 0 0 0 2px var(--ink); }
+.fileview-code { margin: 0; padding: 0; background: none; box-shadow: none; font: 12px/1.5 Menlo, Consolas, monospace; }
+.fileview-code .copy { top: 0; }
+.fileview-other { padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.fileview .hint { padding: 6px 12px; margin: 0; }
+.fileview-ask { position: absolute; z-index: 5; }
+
+/* A command folded to its headline */
+.tc-toggle { width: 100%; background: none; border: 0; box-shadow: none; padding: 0; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.tc-toggle:hover:not(:disabled) { background: none; }
+.tc-toggle:hover .tc-chevron, .tc-toggle:focus-visible .tc-chevron { color: var(--accent); }
+.tc-toggle .tc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-chevron { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
+.tc.foldable:not(:has([aria-expanded='true'])) { padding-bottom: 6px; }

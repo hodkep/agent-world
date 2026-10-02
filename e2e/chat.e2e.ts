@@ -26,8 +26,15 @@ test('chat with an agent: send a prompt, watch tools and the reply appear, slash
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await expect(log.locator('.msg.user')).toContainText('add a health check')
-    await expect(log.locator('.tc', { hasText: 'List the source folder' })).toContainText('$ ls src', { timeout: 10_000 })
-    await expect(log.locator('.tc', { hasText: 'List the source folder' })).toContainText('health.ts')
+    // A command is folded to its headline until clicked; clicking again folds it.
+    const cmd = log.locator('.tc', { hasText: 'List the source folder' })
+    await expect(cmd).toBeVisible({ timeout: 10_000 })
+    await expect(cmd).not.toContainText('$ ls src')
+    await cmd.getByRole('button', { name: /List the source folder/ }).click()
+    await expect(cmd).toContainText('$ ls src')
+    await expect(cmd).toContainText('health.ts')
+    await cmd.getByRole('button', { name: /List the source folder/ }).click()
+    await expect(cmd).not.toContainText('$ ls src')
     await expect(log.locator('.tc', { hasText: 'Edited' })).toContainText('export const ok = true')
     await expect(log.locator('.msg.assistant strong')).toHaveText('health.ts')
     await expect(log.locator('.msg.assistant li')).toHaveCount(2)
@@ -190,9 +197,50 @@ test('a wide picture sits in a frame no wider than itself, and a command card ha
 
     // The command card: a title, a copy button, and colour in the command.
     const card = log.locator('.tc', { hasText: 'List the source folder' })
-    await expect(card).toContainText('$ ls src', { timeout: 10_000 })
+    await card.getByRole('button', { name: /List the source folder/ }).click({ timeout: 10_000 })
+    await expect(card).toContainText('$ ls src')
     await expect(card.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(1)
     await expect(card.locator('.tc-cmd code span[class*="mtk"]').first()).toBeVisible({ timeout: 10_000 })
+  } finally {
+    await shutdown()
+  }
+})
+
+test('tool lookups are one quiet line and MCP calls read as a sentence, with details on demand', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-mcp-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_MCP: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await box.fill('look at the site')
+    await box.press('Enter')
+
+    // Tool lookup: a line with a chip per tool, no JSON.
+    const line = log.locator('.tc-line')
+    await expect(line).toContainText('Loaded 2 tools', { timeout: 15_000 })
+    await expect(line.locator('.chip')).toHaveText(['playwright navigate', 'playwright snapshot'])
+    await expect(line).not.toContainText('{')
+
+    // MCP call: server badge, a verb and the address as a link; details are folded.
+    const card = log.locator('.tc', { hasText: 'Opened' })
+    await expect(card.locator('.srv-badge')).toHaveText('playwright')
+    await expect(card.getByRole('link', { name: 'experts.snorkel-ai.com/home' })).toBeVisible()
+    await expect(card).toContainText('Snorkel AI Experts Portal')
+    await expect(card.locator('.kv')).toHaveCount(0)
+    await card.getByRole('button', { name: 'Details' }).click()
+    await expect(card.locator('.kv')).toContainText('url')
+    await expect(card.locator('.tc-sec h4').first()).toHaveText('Ran Playwright code')
+    // The result's markdown symbols are not shown raw.
+    await expect(card.locator('.tc-result')).not.toContainText('###')
+    await expect(card.locator('.tc-result')).not.toContainText('```')
   } finally {
     await shutdown()
   }

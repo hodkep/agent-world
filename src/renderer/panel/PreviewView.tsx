@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DevServer } from '../../shared/api'
 import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './picker'
+import { pageLabels } from '../files/context'
 import { isPreviewable } from '../links'
 
 // The subset of the <webview> element used here.
@@ -86,6 +87,8 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
       setPicking(false)
       const picked = JSON.parse(msg.slice(PICK_MARK.length)) as PickedElement | null
       if (!picked) return
+      // A page shown from a file is named after the file, not the temporary address it is served at.
+      picked.url = pageLabels.get(picked.url) ?? picked.url
       let file: File | null = null
       try {
         const img = await el.capturePage(picked.rect)

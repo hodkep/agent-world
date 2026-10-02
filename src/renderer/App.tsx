@@ -16,6 +16,8 @@ import { Welcome } from './panel/Welcome'
 import { ChatView } from './chat/ChatView'
 import type { AgentActions, AgentInfo } from './chat/AgentControls'
 import { PreviewView } from './panel/PreviewView'
+import { FileView } from './panel/FileView'
+import { pageLabels } from './files/context'
 import { ToolsView } from './panel/ToolsView'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
@@ -83,7 +85,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'file'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -109,6 +111,10 @@ export function App() {
   // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
   const [peek, setPeek] = useState(false)
   // A local link clicked anywhere in a chat opens in that agent's Preview tab.
+  // The file each agent has open in its File tab.
+  const agentsRef = useRef<AgentRecord[]>([])
+  agentsRef.current = allAgents
+  const [fileTab, setFileTab] = useState<Record<string, string>>({})
   const [previewTarget, setPreviewTarget] = useState<Record<string, { url: string; n: number }>>({})
   // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good.
   const shellsOpen = useRef(new Set<string>())
@@ -335,6 +341,33 @@ export function App() {
     }
     window.addEventListener(PREVIEW_EVENT, on)
     return () => window.removeEventListener(PREVIEW_EVENT, on)
+  })
+
+  // A file an agent mentioned, clicked in a chat: a page or PDF goes to the Preview tab, a code file in the agent's folder to the
+  // Code tab, anything else to the File tab, which also offers the machine's own program.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const { agentId, path } = (e as CustomEvent<{ agentId: string; path: string }>).detail
+      void window.aw.fileInfo(agentId, [path]).then(async ([info]) => {
+        setPeek(true)
+        select(agentId)
+        if (info && (info.kind === 'html' || info.kind === 'pdf')) {
+          const { url } = await window.aw.fileUrl(agentId, info.path)
+          pageLabels.set(url, info.name)
+          setPreviewTarget((t) => ({ ...t, [agentId]: { url, n: (t[agentId]?.n ?? 0) + 1 } }))
+          return setView('preview')
+        }
+        // The Code tab shows files of an agent that has its own branch; for any other folder the File tab shows it.
+        if (info?.kind === 'code' && info.rel && agentsRef.current.find((x) => x.id === agentId)?.branch) {
+          setOpenFile({ path: info.rel })
+          return setView('code')
+        }
+        setFileTab((t) => ({ ...t, [agentId]: info?.path ?? path }))
+        setView('file')
+      })
+    }
+    window.addEventListener('aw-open-file', on)
+    return () => window.removeEventListener('aw-open-file', on)
   })
 
   const run = async (f: () => Promise<void>) => {
@@ -917,6 +950,11 @@ export function App() {
               <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
                 Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
+              {fileTab[current.id] && (
+                <button role="tab" aria-selected={view === 'file'} onClick={() => setView('file')} title={fileTab[current.id]}>
+                  {fileTab[current.id]!.split('/').pop()}
+                </button>
+              )}
               <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
                 Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
               </button>
@@ -931,6 +969,15 @@ export function App() {
               <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
             ))}
           </div>
+          {current && view === 'file' && fileTab[current.id] && (
+            <FileView
+              key={`${current.id}:${fileTab[current.id]}`}
+              agentId={current.id}
+              path={fileTab[current.id]!}
+              onClose={() => (setFileTab((t) => Object.fromEntries(Object.entries(t).filter(([k]) => k !== current.id))), setView('chat'))}
+              onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}
+            />
+          )}
           {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

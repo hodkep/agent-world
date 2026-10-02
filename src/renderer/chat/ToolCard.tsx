@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
+import { AgentIdContext, openFileEvent } from '../files/context'
 import { Picture } from './Images'
 import { Code, Markdown } from './markdown'
+import { argRows, mcpHeadline, parseMcpName, resultNote, resultSections, toolLookup } from './mcp'
 import { bashTitle } from './titles'
 
 export interface ToolRun {
@@ -18,11 +20,12 @@ const dir = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/') + 1)
 const lines = (t: string) => (t ? t.split('\n') : [])
 
 function File({ path }: { path: string }) {
+  const agentId = useContext(AgentIdContext)
   return (
-    <span className="tc-file" title={path}>
+    <button className="tc-file file-link as-link" title={`${path}\nClick to open`} onClick={() => agentId && openFileEvent(agentId, path)}>
       <span className="tc-dir">{dir(path).replace(/^.*\/(?=[^/]+\/[^/]*$)/, '…/')}</span>
       <b>{base(path)}</b>
-    </span>
+    </button>
   )
 }
 
@@ -69,12 +72,117 @@ function Diff({ from, to }: { from: string; to: string }) {
   )
 }
 
+const FENCE_LANG: Record<string, string> = { js: 'javascript', ts: 'typescript', sh: 'shell', bash: 'shell', zsh: 'shell', yml: 'yaml', py: 'python' }
+
+/** A tool call to an MCP server: a headline in words, with the details a click away. */
+function McpCard({ run, status, onImage }: { run: ToolRun; status: string; onImage: (src: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const { server, tool } = parseMcpName(run.name)!
+  const h = mcpHeadline(tool, run.input)
+  const out = run.result?.text ?? ''
+  const failed = run.result?.isError
+  const note = failed ? 'failed' : resultNote(tool, out)
+  const sections = out ? resultSections(out) : []
+  const structured = sections.some((x) => x.title)
+  return (
+    <div className={`tc is-${status}`}>
+      <div className="tc-head">
+        <span className="tc-dot" aria-hidden="true" />
+        <span className="srv-badge" title={`MCP server: ${server}`}>{server}</span>
+        <span className="tc-name">
+          <b>{h.verb}</b>{' '}
+          {h.link ? (
+            <a className="tc-link" href={h.link} onClick={(e) => (e.preventDefault(), void window.aw.openExternal(h.link!).catch(() => {}))}>
+              {h.target}
+            </a>
+          ) : (
+            <span className="tc-muted">{h.target}</span>
+          )}
+        </span>
+        <span className="tc-status">{status === 'running' ? 'running…' : ''}</span>
+      </div>
+      <div className="tc-meta">
+        <button className="tc-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Hide details' : 'Details'}
+        </button>
+        <span className="tc-muted">
+          {tool}
+          {note ? ` · ${note}` : ''}
+        </span>
+      </div>
+      {open && (
+        <>
+          <dl className="kv">
+            {argRows(run.input).map(([k, v]) => (
+              <div key={k} className="kv-row">
+                <dt>{k}</dt>
+                <dd>{/^https?:\/\/\S+$/.test(v) ? <a href={v} onClick={(e) => (e.preventDefault(), void window.aw.openExternal(v).catch(() => {}))}>{v}</a> : v}</dd>
+              </div>
+            ))}
+          </dl>
+          {structured ? (
+            <div className="tc-result">
+              {sections.map((x, i) => (
+                <div key={i} className="tc-sec">
+                  {x.title && <h4>{x.title}</h4>}
+                  {x.text && <pre>{x.text}</pre>}
+                  {x.code?.map((c, k) => <Code key={k} text={c.text} lang={FENCE_LANG[c.lang] ?? (c.lang || 'plaintext')} />)}
+                </div>
+              ))}
+              <button className="tc-more" onClick={() => void navigator.clipboard.writeText(out)}>Copy result</button>
+            </div>
+          ) : (
+            <Output text={out} error={failed} />
+          )}
+        </>
+      )}
+      {run.images && run.images.length > 0 && (
+        <div className="tc-images">
+          {run.images.map((src, i) => (
+            <Picture key={i} src={src} onOpen={onImage} label={`${tool} result`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Looking up tools is bookkeeping: one quiet line, never a block of JSON. */
+function ToolLookupLine({ run, status }: { run: ToolRun; status: string }) {
+  const l = toolLookup(run.input, run.result?.text)
+  return (
+    <div className={`tc-line is-${status}`}>
+      <span className="tc-dot" aria-hidden="true" />
+      {l.kind === 'load' ? (
+        <>
+          <span className="tc-what">{status === 'running' ? 'Loading' : 'Loaded'} {l.tools.length} {l.tools.length === 1 ? 'tool' : 'tools'}</span>
+          {l.tools.slice(0, 8).map((t, i) => (
+            <span key={i} className="chip">
+              {t.server && <span className="srv">{t.server}</span>} {t.tool.replace(/^browser_/, '')}
+            </span>
+          ))}
+          {l.tools.length > 8 && <span className="tc-muted">+{l.tools.length - 8} more</span>}
+        </>
+      ) : (
+        <>
+          <span className="tc-what">Looked for tools matching <b>“{l.query}”</b></span>
+          {l.found !== null && <span className="tc-muted">{l.found} found</span>}
+        </>
+      )}
+    </div>
+  )
+}
+
 /** What a tool call looks like in the conversation: a headline you can read at a glance, details on demand. */
 export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boolean; onImage: (src: string) => void }) {
   const { name, input, result } = run
   const failed = result?.isError
   const status = result ? (failed ? 'failed' : 'done') : working ? 'running' : 'unknown'
   const out = result?.text ?? ''
+  // A command starts folded to its headline; a click on it opens the command and what it printed, and another folds it again.
+  const [open, setOpen] = useState(false)
+  if (name === 'ToolSearch') return <ToolLookupLine run={run} status={status} />
+  if (parseMcpName(name)) return <McpCard run={run} status={status} onImage={onImage} />
   let head: React.ReactNode = <b>{name}</b>
   let body: React.ReactNode = null
 
@@ -172,10 +280,6 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
       break
     }
     default:
-      if (name.startsWith('mcp__')) {
-        const [, server, tool] = name.split('__')
-        head = <span>{server} <span className="tc-muted">· {tool}</span></span>
-      }
       body = (
         <>
           <pre className="tc-cmd">{JSON.stringify(input, null, 1).slice(0, 600)}</pre>
@@ -184,14 +288,25 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
       )
   }
 
+  const foldable = name === 'Bash'
+  const state = status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''
   return (
-    <div className={`tc is-${status}`}>
-      <div className="tc-head">
-        <span className="tc-dot" aria-hidden="true" />
-        <span className="tc-name">{head}</span>
-        <span className="tc-status">{status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''}</span>
-      </div>
-      {body}
+    <div className={`tc is-${status}${foldable ? ' foldable' : ''}`}>
+      {foldable ? (
+        <button className="tc-head tc-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)} title={open ? 'Fold' : 'Show the command and its output'}>
+          <span className="tc-dot" aria-hidden="true" />
+          <span className="tc-name">{head}</span>
+          <span className="tc-status">{state}</span>
+          <span className="tc-chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        </button>
+      ) : (
+        <div className="tc-head">
+          <span className="tc-dot" aria-hidden="true" />
+          <span className="tc-name">{head}</span>
+          <span className="tc-status">{state}</span>
+        </div>
+      )}
+      {(!foldable || open) && body}
       {run.images && run.images.length > 0 && (
         <div className="tc-images">
           {run.images.map((src, i) => (

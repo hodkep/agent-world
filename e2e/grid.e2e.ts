@@ -16,7 +16,8 @@ test('the grid shows every agent with its terminal and opens the one you click',
     await page.getByRole('button', { name: 'Grid', exact: true }).click()
     const list = page.getByRole('list', { name: 'All agents' })
     await expect(list.getByRole('listitem')).toHaveCount(2)
-    await expect(list.getByRole('listitem').first()).toContainText('args:', { timeout: 10_000 })
+    // The tile shows the end of what the agent's terminal printed (the launch text is long and wraps), not the placeholder.
+    await expect(list.getByRole('listitem').first().locator('pre')).not.toHaveText('…', { timeout: 10_000 })
     await list.getByRole('listitem', { name: /^ada/ }).click()
     await expect(page.locator('.hc-name')).toHaveText('ada')
     // In a narrow window the panel opens as a drawer over everything; a click outside closes it.
