@@ -18,7 +18,7 @@ import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
-import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
+import { type Alert, budgetAlert, finishedTurn, noticeToOpen, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
@@ -367,16 +367,21 @@ function agentFiles(a: AgentRecord) {
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
 
+// The window already showing this agent's project comes forward; failing that, whichever window was in front. Never a new one.
+function comeForward(agent?: AgentRecord) {
+  const w = windowFor(agent)
+  if (w?.isMinimized()) w.restore()
+  w?.show()
+  w?.focus()
+  if (agent) w?.webContents.send('select-agent', agent.id)
+}
+let lastNotice: { agentId?: string; at: number } | null = null
+
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
   if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, liveWindows().some((w) => w.isFocused()))) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
-  n.on('click', () => {
-    // The window already showing this agent's project comes forward; failing that, whichever window was in front.
-    const w = windowFor(agent)
-    w?.show()
-    w?.focus()
-    if (agent) w?.webContents.send('select-agent', agent.id)
-  })
+  lastNotice = { agentId: agent?.id, at: Date.now() }
+  n.on('click', () => comeForward(agent))
   n.show()
 }
 
@@ -1417,11 +1422,15 @@ async function main() {
   app.on('window-all-closed', () => app.quit())
 }
 
-// One app process per data folder, so its agents have a single owner: launching it again hands over to the running one and quits,
-// and the running one opens another window, which starts on the project picker.
+// One app process per data folder, so its agents have a single owner: launching it again hands over to the running one and quits.
 if (!app.requestSingleInstanceLock()) app.exit(0)
 else {
-  app.on('second-instance', () => ready && createWindow())
+  // Starting the app again, which a click on a notification can do, brings the running one forward (to the agent that notification was about); it opens no window, since one is there. Cmd/Ctrl+N opens another.
+  app.on('second-instance', () => {
+    if (!ready) return
+    const id = noticeToOpen(lastNotice, Date.now())
+    comeForward(id ? byId(id) : undefined)
+  })
   main().catch((err) => {
     console.error(err)
     app.exit(1)
