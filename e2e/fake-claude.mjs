@@ -106,6 +106,9 @@ if (process.env.FAKE_HOOK_NOTE) {
   const hook = (hookName, content) => transcript({ type: 'attachment', attachment: { type: 'hook_additional_context', hookName, hookEvent: hookName.split(':')[0], content: [content] } })
   hook('SessionStart', 'CAVEMAN MODE ACTIVE: talk short.')
   hook('Stop', '[impeccable@1] Design hook findings requiring review in src/renderer/styles.css (1 issue(s)):\n- L962 [side-tab] Side-tab accent border. Thick colored border on one side of a card.')
+  // Like a real agent, it looks into the findings with a tool call before it answers.
+  transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_hooknote', name: 'Bash', input: { command: 'git blame src/renderer/styles.css' } }] } })
+  transcript({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_hooknote', content: 'e25bb26c (Ada) .quote-cards li', is_error: false }] } })
   say('The flagged line is the quote cards rule.')
   // A hook note with no reply after it (a tool call or nothing comes next) has to show up on its own.
   hook('PostToolUse:Edit', '[lint] 2 problems found in a.css')

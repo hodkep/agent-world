@@ -110,20 +110,27 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     }
   }
   endTurn()
-  // A hook's note goes on the reply that comes right after it (past thinking), so the reply never seems to answer nothing.
-  // With no reply next (a tool, a message of yours, the end) it stays a note of its own.
-  const joined: Row[] = []
-  let held: Row[] = []
-  const flush = () => (joined.push(...held), (held = []))
-  for (const r of rows) {
-    if (r.kind === 'note' && r.hook) held.push(r)
-    else if (r.kind === 'thinking' && held.length) held.push(r)
-    else if (r.kind === 'assistant' && held.some((h) => h.kind === 'note')) {
-      joined.push(...held.filter((h) => h.kind === 'thinking'), { ...r, hooks: held.flatMap((h) => (h.kind === 'note' && h.hook ? [h.hook] : [])) })
-      held = []
-    } else (flush(), joined.push(r))
-  }
-  flush()
+  // A hook's note goes on the agent reply it caused, so the reply never seems to answer nothing. An agent usually looks into what a
+  // hook said (thinking, a tool call or two) before it answers, so a note with findings reaches the next reply of the same turn,
+  // stopping at your next message. One without findings (a clean scan) only goes on a reply right after it. Otherwise it stays a note.
+  const hasFindings = (h: HookInfo) => h.findings.length > 0 || (h.issues ?? 0) > 0
+  const yours = new Set<Row['kind']>(['user', 'command', 'shell', 'image'])
+  const onReply = new Map<number, HookInfo[]>()
+  const moved = new Set<number>()
+  rows.forEach((r, i) => {
+    if (r.kind !== 'note' || !r.hook) return
+    let adjacent = true
+    for (let j = i + 1; j < rows.length; j++) {
+      const n = rows[j]!
+      if (yours.has(n.kind)) return
+      if (n.kind === 'assistant') {
+        if (adjacent || hasFindings(r.hook)) (onReply.set(j, [...(onReply.get(j) ?? []), r.hook]), moved.add(i))
+        return
+      }
+      if (n.kind !== 'thinking' && !(n.kind === 'note' && n.hook)) adjacent = false
+    }
+  })
+  const joined = rows.flatMap((r, i): Row[] => (moved.has(i) ? [] : onReply.has(i) ? [{ ...(r as Extract<Row, { kind: 'assistant' }>), hooks: onReply.get(i)! }] : [r]))
   rows.splice(0, rows.length, ...joined)
   // Messages sent from the composer show at once, until the transcript has them.
   // Claude may record it without the attached-file mentions, as a shell command, or as a slash command.

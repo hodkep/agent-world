@@ -287,6 +287,24 @@ describe('a hook note belongs to the reply it caused', () => {
     expect(kinds([hook('h'), { kind: 'tool', id: 't', at: t0, toolUseId: 'x', name: 'Bash', input: {} } as ChatItem])).toEqual(['note', 'tool'])
   })
 
+  const flagged = (id: string): ChatItem => hook(id, { hook: { source: 'lint', event: 'Stop', title: 't', issues: 1, findings: [{ ref: 'L1', rule: 'r', text: 'x' }] } })
+  const tool = (id: string): ChatItem => ({ kind: 'tool', id, at: t0, toolUseId: id, name: 'Bash', input: {} }) as ChatItem
+
+  it('a note with findings reaches the reply that follows the agent\'s own tool calls, since that is how it answers a hook', () => {
+    const rows = toRows([flagged('h'), { kind: 'thinking', id: 'k', at: t0 }, tool('t1'), tool('t2'), say('a', t0 + 1, 'fixed it')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['thinking', 'tool', 'tool', 'assistant'])
+    expect(rows[3]).toMatchObject({ hooks: [{ event: 'Stop', issues: 1 }] })
+  })
+
+  it('a note without findings (a clean scan, or a hook that words things its own way) is not carried over tool calls', () => {
+    expect(kinds([hook('h'), tool('t1'), say('a', t0 + 1, 'ok')])).toEqual(['note', 'tool', 'assistant'])
+  })
+
+  it('stops at your next message: a note with findings does not jump over it to a later reply', () => {
+    expect(kinds([flagged('h'), tool('t1'), user('u', t0 + 1, 'next'), say('a', t0 + 2, 'ok')])).toEqual(['note', 'tool', 'user', 'assistant'])
+    expect(toRows([flagged('h'), tool('t1'), user('u', t0 + 1, 'next'), say('a', t0 + 2, 'ok')], []).at(-1)).not.toHaveProperty('hooks')
+  })
+
   it('leaves a note without hook details (the compact summary) alone', () => {
     const summary: ChatItem = { kind: 'note', id: 's', at: t0, text: 'Conversation summary', detail: 'the summary' }
     expect(kinds([summary, say('a', t0 + 1, 'ok')])).toEqual(['note', 'assistant'])
