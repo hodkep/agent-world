@@ -787,8 +787,8 @@ function Composer({
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [caret, setCaret] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
-  // Words quoted from a reply sit at the top of the box, above the line you type on; they join the message as "> " lines when it is sent.
-  const [quotes, setQuotes] = useState<string[]>([])
+  // Words quoted from a reply sit above the box as cards; they join the message as "> " lines when it is sent.
+  const [quotes, setQuotes] = useState<{ text: string; note: string }[]>([])
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -878,14 +878,14 @@ function Composer({
     [agentId, onError]
   )
 
-  // Words selected in a reply arrive as a quote at the top of the box; more can follow, each on its own.
+  // Words selected in a reply arrive as a quote card; more can follow, each as its own card.
   useEffect(() => {
     const chat = box.current?.closest('.chat')
     if (!chat) return
     const on = (e: Event) => {
       const words = String((e as CustomEvent<string>).detail ?? '').trim()
       if (!words) return
-      setQuotes((q) => [...q, words])
+      setQuotes((q) => [...q, { text: words, note: '' }])
       box.current?.focus()
     }
     chat.addEventListener('aw-quote', on)
@@ -959,7 +959,8 @@ function Composer({
     // What was picked on the Preview page goes ahead of the question, words first and then its picture.
     const picked = attached.filter((a) => a.context).map((a) => `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`).join('\n\n')
     // Attached files come first so the message reads "look at these: …".
-    const asked = quotes.map((q) => q.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')).join('\n\n')
+    // Each quote is followed by what was written about it.
+    const asked = quotes.map((q) => [q.text.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n'), q.note.trim()].filter(Boolean).join('\n\n')).join('\n\n')
     const body = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
     const full = asked ? [asked, body].filter(Boolean).join('\n\n') : body
     try {
@@ -1034,7 +1035,19 @@ function Composer({
           <ul className="quote-cards" aria-label="Quoted from the conversation">
             {quotes.map((q, i) => (
               <li key={i}>
-                <blockquote>{q}</blockquote>
+                <div className="quote-body">
+                  <blockquote>{q.text}</blockquote>
+                  <textarea
+                    rows={1}
+                    value={q.note}
+                    onChange={(e) => setQuotes((cur) => cur.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) (e.preventDefault(), box.current?.focus())
+                    }}
+                    placeholder="What about this?"
+                    aria-label="What to do about this quote"
+                  ></textarea>
+                </div>
                 <button className="chip-x" aria-label="Remove this quote" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
               </li>
             ))}
