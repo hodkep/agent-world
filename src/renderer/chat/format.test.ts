@@ -254,3 +254,12 @@ describe('styling markdown in place in the message box', () => {
     expect(kinds('**not closed')).toEqual([['plain', '**not closed']])
   })
 })
+
+describe('a note with details behind a button', () => {
+  it('keeps the button wording the note asked for, and the plain summary wording when it asked for none', () => {
+    const hook: ChatItem = { kind: 'note', id: 'h', at: t0, text: 'lint · Stop hook: 2 problems', detail: 'full text', detailLabel: 'details' }
+    const summary: ChatItem = { kind: 'note', id: 's', at: t0, text: 'Conversation summary', detail: 'the summary' }
+    expect(toRows([hook], [])).toMatchObject([{ kind: 'note', text: 'lint · Stop hook: 2 problems', detail: 'full text', detailLabel: 'details' }])
+    expect(toRows([summary], [])[0]).not.toHaveProperty('detailLabel')
+  })
+})

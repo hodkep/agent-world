@@ -13,7 +13,7 @@ export type Row =
   | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
   /** The report a subagent handed back when it finished. */
   | { kind: 'report'; id: string; agentId: string; body: string }
-  | { kind: 'note'; id: string; text: string; detail?: string }
+  | { kind: 'note'; id: string; text: string; detail?: string; detailLabel?: string }
 
 export interface Sent {
   id: string
@@ -105,7 +105,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
           rows.push({ kind: 'note', id: i.id, text: i.text, ...(written?.detail && { detail: written.detail }) })
           break
         }
-        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }) })
+        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }) })
       }
     }
   }

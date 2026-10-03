@@ -636,7 +636,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'tool':
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'note':
-      return r.detail ? <SummaryNote text={r.text} detail={r.detail} /> : <div className="msg note">{r.text}</div>
+      return r.detail ? <SummaryNote text={r.text} detail={r.detail} label={r.detailLabel} /> : <div className="msg note">{r.text}</div>
   }
 }
 
@@ -726,14 +726,14 @@ function Clamped({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** The summary /compact leaves behind is for the model, so it sits behind a button. */
-function SummaryNote({ text, detail }: { text: string; detail: string }) {
+/** The summary /compact leaves behind is for the model, and what a hook said is long, so both sit behind a button. */
+function SummaryNote({ text, detail, label = 'summary' }: { text: string; detail: string; label?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="msg note summary">
       <span>{text}</span>
       <button className="clamp-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? 'Hide summary' : 'Show summary'}
+        {open ? `Hide ${label}` : `Show ${label}`}
       </button>
       {open && <div className="summary-body">{detail}</div>}
     </div>

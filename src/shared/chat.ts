@@ -11,7 +11,7 @@ export type ChatItem =
   | { kind: 'tool-result'; id: string; at: number; toolUseId: string; text: string; isError: boolean; images?: string[] }
   /** What a subagent run in the background handed back when it finished. */
   | { kind: 'subagent-report'; id: string; at: number; agentId: string; body: string }
-  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary) the view keeps behind "Show summary". */ detail?: string }
+  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary, what a hook said) the view keeps behind a button. */ detail?: string; /** What that button calls the body ("details"); the compact summary needs none. */ detailLabel?: string }
 
 /** One call a subagent made, as a line of its trail. */
 export interface SubagentCall {

@@ -1,0 +1,51 @@
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { expect, test } from '@playwright/test'
+import { hire, launchApp } from './launch'
+
+test('what a hook told the agent is shown in the chat: who said it, with the full findings behind a button', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-hook-')))
+  const dir = join(tmp, 'proj')
+  mkdirSync(dir)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_HOOK_NOTE: '1' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), dir)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+
+    // The agent's words are there, and so is what prompted them.
+    await expect(log).toContainText('The flagged line is the quote cards rule.', { timeout: 15_000 })
+    const note = log.locator('.msg.note', { hasText: 'Stop hook' })
+    await expect(note).toContainText('impeccable@1 · Stop hook: Design hook findings requiring review in src/renderer/styles.css (1 issue(s))')
+    // The findings themselves stay folded until asked for.
+    await expect(log.getByText('L962 [side-tab]')).toHaveCount(0)
+    await note.getByRole('button', { name: 'Show details' }).click()
+    await expect(log.getByText('L962 [side-tab]')).toBeVisible()
+    await note.getByRole('button', { name: 'Hide details' }).click()
+    await expect(log.getByText('L962 [side-tab]')).toHaveCount(0)
+    // What a session starts with is not news.
+    await expect(log).not.toContainText('CAVEMAN')
+    await page.screenshot({ path: join(tmpdir(), 'aw-hook-note.png') })
+
+    // A quote card has a whole thin rim now, not a thick stripe down one side.
+    const stripe = await page.evaluate(() => {
+      const ul = document.createElement('ul')
+      ul.className = 'quote-cards'
+      ul.innerHTML = '<li>x</li>'
+      document.body.append(ul)
+      const w = getComputedStyle(ul.firstElementChild!).borderLeftWidth
+      ul.remove()
+      return w
+    })
+    expect(stripe).toBe('0px')
+  } finally {
+    await shutdown()
+  }
+})
