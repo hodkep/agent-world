@@ -11,16 +11,19 @@ test('the office is not redrawn at the screen\'s full refresh rate, and stops wh
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    await hire(page)
-    const cap = async () => Number(await page.locator('.stage').getAttribute('data-fpscap'))
-    // Never more than a calm rate by itself (60 is only for the moment after a pan or zoom).
-    await expect.poll(cap).toBeGreaterThan(0)
-    expect(await cap()).toBeLessThanOrEqual(20)
-
-    // Hidden or covered: no drawing at all. Shown again: drawing resumes.
+    // Focused, as when someone is using the window (the test window itself is never in front).
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true })
+    const cap = async () => Number(await page.locator('.stage').getAttribute('data-fpscap'))
     await expect.poll(cap).toBe(20)
+
+    // A newly hired agent walks in from the door to its desk: smooth frames while it walks (at the calm rate the gait looks uneven),
+    // and back to the calm rate, well below a 120 Hz screen, once it sits down.
+    await hire(page)
+    await expect.poll(cap, { timeout: 10_000 }).toBe(60)
+    await expect.poll(cap, { timeout: 30_000 }).toBe(20)
+
+    // Hidden or covered: no drawing at all. Shown again: drawing resumes.
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
       document.dispatchEvent(new Event('visibilitychange'))

@@ -2,7 +2,7 @@
 import 'pixi.js/unsafe-eval'
 import { Application, Container, Graphics, TextureSource, Ticker } from 'pixi.js'
 import type { Activity } from '../../shared/types'
-import { frameCap } from './frameRate'
+import { MOVING_MS, frameCap } from './frameRate'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
@@ -144,17 +144,17 @@ export class OfficeWorld {
   }
 
   // The office is redrawn only as often as it is worth it: calm while in use, smooth while panning, slow with another app in front, stopped when hidden.
-  private lastTouch = -Infinity
+  private lastActive = -Infinity
   private paceTimer: ReturnType<typeof setTimeout> | undefined
   private readonly repace = () => this.pace()
 
   private touched() {
-    this.lastTouch = performance.now()
+    this.lastActive = performance.now()
     this.pace()
   }
 
   private pace() {
-    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastTouch: this.lastTouch, now: performance.now() })
+    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastActive: this.lastActive, now: performance.now() })
     const t = this.app.ticker
     if (cap === 0) t.stop()
     else {
@@ -162,9 +162,10 @@ export class OfficeWorld {
       if (!t.started) t.start()
     }
     this.host.dataset.fpscap = String(cap)
-    // Settle back to the calm rate once the last pan or zoom is over.
+    // Settle back to the calm rate once the last pan, zoom or step is over.
     clearTimeout(this.paceTimer)
-    if (cap > 0 && document.hasFocus() && performance.now() - this.lastTouch < 1000) this.paceTimer = setTimeout(this.repace, 1050 - (performance.now() - this.lastTouch))
+    const since = performance.now() - this.lastActive
+    if (cap > 0 && document.hasFocus() && since < MOVING_MS) this.paceTimer = setTimeout(this.repace, MOVING_MS + 50 - since)
   }
 
   private bindCamera() {
@@ -453,6 +454,12 @@ export class OfficeWorld {
         continue
       }
       if (c.arrived) atScreen.set(`${c.at.x},${c.at.y}`, c.activity)
+    }
+    // Anyone walking, or an envelope in flight, needs smooth frames: at the calm rate the gait and the steps turn uneven.
+    if ([...this.chars.values()].some((c) => !c.arrived) || this.flights.length > 0) {
+      const wasMoving = t - this.lastActive < MOVING_MS
+      this.lastActive = t
+      if (!wasMoving) this.pace()
     }
     this.drawPiles()
     this.syncBooks()
