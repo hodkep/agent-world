@@ -1054,7 +1054,7 @@ function Composer({
           onScroll={(e) => mirror.current && (mirror.current.scrollTop = e.currentTarget.scrollTop)}
           value={text}
           rows={1}
-          placeholder={blocked ? `${agentName} is waiting for you above` : quotes.length ? 'Say what to do about the quote…' : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
+          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
           aria-label={`Message ${agentName}`}
           onChange={(e) => {
             search.current = null

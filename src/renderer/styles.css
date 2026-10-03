@@ -944,13 +944,9 @@ svg.pxi { display: block; flex: none; }
 .msg.user .bubble .md p, .msg.user .bubble .md li, .composer-preview p, .composer-preview li { white-space: pre-line; }
 
 /* Quotes from a reply sit inside the message box, above what is typed. */
-/* Quotes are lines at the top of the message box itself, drawn as the "> " lines they are sent as; the typing line stays right below them. */
-.quote-cards { list-style: none; margin: 0; padding: 8px 12px 0; display: flex; flex-direction: column; gap: 2px; max-height: 120px; overflow: auto; }
-.quote-cards li { display: flex; align-items: flex-start; gap: 6px; }
-.quote-cards blockquote { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.quote-cards blockquote::before { content: '> '; color: var(--accent); font-family: Menlo, Consolas, monospace; }
-.quote-cards .chip-x { flex: none; opacity: 0.45; }
-.quote-cards li:hover .chip-x, .quote-cards .chip-x:focus-visible { opacity: 1; }
+.quote-cards { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow: auto; }
+.quote-cards li { display: flex; align-items: flex-start; gap: 6px; background: var(--panel-3); border-left: 3px solid var(--accent); box-shadow: 0 0 0 1px var(--ink); padding: 4px 6px 4px 10px; }
+.quote-cards blockquote { flex: 1; min-width: 0; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Tool lookups and MCP calls */
 .srv-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 1px 6px; background: color-mix(in srgb, var(--think) 20%, var(--well)); color: var(--think); font-weight: 700; flex: none; }
