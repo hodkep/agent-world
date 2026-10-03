@@ -1,7 +1,8 @@
 // Our CSP forbids eval; this swaps Pixi's generated shaders/uniform code for precompiled paths.
 import 'pixi.js/unsafe-eval'
-import { Application, Container, Graphics, TextureSource } from 'pixi.js'
+import { Application, Container, Graphics, TextureSource, Ticker } from 'pixi.js'
 import type { Activity } from '../../shared/types'
+import { frameCap } from './frameRate'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
@@ -102,6 +103,9 @@ export class OfficeWorld {
   ) {}
 
   static async create(el: HTMLElement, onSelect: (agentId: string) => void, handlers: WorldHandlers) {
+    // Pixi starts a second, shared ticker of its own on first use; nothing here uses it, and it would wake the page at every screen refresh for nothing.
+    Ticker.shared.autoStart = false
+    Ticker.shared.stop()
     const app = new Application()
     await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
@@ -130,9 +134,37 @@ export class OfficeWorld {
     this.ambient = f.ambient
     this.app.stage.addChild(this.root)
     this.app.ticker.add((tk) => this.tick(tk.deltaMS))
+    this.pace()
+    document.addEventListener('visibilitychange', this.repace)
+    window.addEventListener('focus', this.repace)
+    window.addEventListener('blur', this.repace)
     this.app.renderer.on('resize', () => this.layout())
     this.bindCamera()
     this.layout()
+  }
+
+  // The office is redrawn only as often as it is worth it: calm while in use, smooth while panning, slow with another app in front, stopped when hidden.
+  private lastTouch = -Infinity
+  private paceTimer: ReturnType<typeof setTimeout> | undefined
+  private readonly repace = () => this.pace()
+
+  private touched() {
+    this.lastTouch = performance.now()
+    this.pace()
+  }
+
+  private pace() {
+    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastTouch: this.lastTouch, now: performance.now() })
+    const t = this.app.ticker
+    if (cap === 0) t.stop()
+    else {
+      t.maxFPS = cap
+      if (!t.started) t.start()
+    }
+    this.host.dataset.fpscap = String(cap)
+    // Settle back to the calm rate once the last pan or zoom is over.
+    clearTimeout(this.paceTimer)
+    if (cap > 0 && document.hasFocus() && performance.now() - this.lastTouch < 1000) this.paceTimer = setTimeout(this.repace, 1050 - (performance.now() - this.lastTouch))
   }
 
   private bindCamera() {
@@ -143,11 +175,13 @@ export class OfficeWorld {
       'wheel',
       (e) => {
         e.preventDefault()
+        this.touched()
         this.zoomBy(e.deltaY < 0 ? 1 : -1)
       },
       { passive: false }
     )
     stage.on('pointerdown', (e) => {
+      this.touched()
       this.drag = { x: e.global.x, y: e.global.y, moved: false }
     })
     stage.on('pointermove', (e) => {
@@ -155,6 +189,7 @@ export class OfficeWorld {
       const dx = e.global.x - this.drag.x
       const dy = e.global.y - this.drag.y
       if (!this.drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      this.touched()
       this.drag.moved = true
       this.dragged = true
       this.pan.x += dx
@@ -607,6 +642,10 @@ export class OfficeWorld {
   }
 
   destroy() {
+    clearTimeout(this.paceTimer)
+    document.removeEventListener('visibilitychange', this.repace)
+    window.removeEventListener('focus', this.repace)
+    window.removeEventListener('blur', this.repace)
     this.observer?.disconnect()
     this.app.destroy(true, { children: true })
   }
