@@ -1267,3 +1267,6 @@ code a.file-link { font: inherit; }
 .floor-plus::after { width: 4px; height: 100%; }
 .lobby-hint { margin: 4px 0 0; font-size: 11px; color: var(--muted); }
 @media (max-width: 560px) { .lobby { padding: 24px 16px; } .floors { grid-template-columns: 1fr; } }
+
+/* Out of sight or in the background: no blinking. The element stays as it is without the animation, so an alert dot is simply lit. */
+:root[data-away] *, :root[data-away] *::before, :root[data-away] *::after { animation: none !important; }

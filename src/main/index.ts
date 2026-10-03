@@ -18,7 +18,7 @@ import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
-import { type Alert, budgetAlert, finishedTurn, noticeToOpen, shouldNotify } from './attention'
+import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
@@ -722,7 +722,8 @@ async function main() {
   // An agent that looks idle (input box showing, no menu, screen quiet for a few seconds) but never sent a Stop hook,
   // as after Esc: Claude does not report an interrupted turn. Call it idle, so the office, the chat and any waiting mail move on.
   const BUSY = new Set<Activity>(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
-  const idleCheck = setInterval(() => {
+  let idleCheck: ReturnType<typeof setTimeout>
+  const sweepOnce = () => {
     for (const a of agents) {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
@@ -738,7 +739,16 @@ async function main() {
         send('agent-event', { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' })
       }
     }
-  }, 300)
+  }
+  // Looked at often only while something is being written (see idleCheckDelay), and always again, even if one look fails.
+  const sweep = () => {
+    try {
+      sweepOnce()
+    } finally {
+      idleCheck = setTimeout(sweep, idleCheckDelay(agents.filter((a) => sessions.has(a.id)).map((a) => lastOutput.get(a.id) ?? 0), Date.now()))
+    }
+  }
+  idleCheck = setTimeout(sweep, 300)
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
@@ -1414,7 +1424,7 @@ async function main() {
     clearInterval(heartbeat)
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
-    clearInterval(idleCheck)
+    clearTimeout(idleCheck)
     hooks.close()
     mcp.close()
     pages.close()

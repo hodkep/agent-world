@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { budgetAlert, finishedTurn, noticeToOpen, shouldNotify } from './attention'
+import { budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 
 describe('budget alerts', () => {
   it('warns once when crossing 80% and once when crossing the cap', () => {
@@ -46,5 +46,16 @@ describe('a notification click that starts the app again', () => {
     expect(noticeToOpen({ agentId: 'a1', at: 1000 }, 1000 + 11 * MIN)).toBeUndefined()
     expect(noticeToOpen(null, 5000)).toBeUndefined()
     expect(noticeToOpen({ at: 1000 }, 2000)).toBeUndefined()
+  })
+})
+
+describe('how soon to look at the agents\' screens again', () => {
+  it('quickly while any agent has written to its terminal in the last few seconds', () => {
+    expect(idleCheckDelay([1000, 98_000], 100_000)).toBe(300)
+  })
+
+  it('slowly once every agent has been quiet for a while, or when there are none', () => {
+    expect(idleCheckDelay([1000, 50_000], 100_000)).toBe(1000)
+    expect(idleCheckDelay([], 100_000)).toBe(1000)
   })
 })

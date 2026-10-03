@@ -11,9 +11,20 @@ test('the office is not redrawn at the screen\'s full refresh rate, and stops wh
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    // Focused, as when someone is using the window (the test window itself is never in front).
+    // With another app in front, the blinking dots are switched off: a running animation keeps the screen busy.
+    await page.evaluate(() => {
+      document.hasFocus = () => false
+      window.dispatchEvent(new Event('blur'))
+    })
+    await expect(page.locator('html')).toHaveAttribute('data-away', '')
+    // Focused again, as when someone is using the window.
+    await page.evaluate(() => {
+      delete (document as { hasFocus?: unknown }).hasFocus
+    })
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true })
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.locator('html')).not.toHaveAttribute('data-away')
     const cap = async () => Number(await page.locator('.stage').getAttribute('data-fpscap'))
     await expect.poll(cap).toBe(20)
 

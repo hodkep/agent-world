@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync, statSync } from 'node:fs'
+import { type FSWatcher, closeSync, openSync, readSync, statSync, watch } from 'node:fs'
 import { StringDecoder } from 'node:string_decoder'
 import type { ChatItem } from '../shared/chat'
 import { type LineNode, lineNode, parseTranscriptLine } from './chat'
@@ -19,6 +19,8 @@ export class TranscriptTail {
   private rest = ''
   private decoder = new StringDecoder('utf8')
   private timer: ReturnType<typeof setInterval> | null = null
+  private watcher: FSWatcher | null = null
+  private catchUp: ReturnType<typeof setTimeout> | null = null
   private nodes: Node[] = []
   private byId = new Map<string, Node>()
   private shown: string[] = []
@@ -30,14 +32,47 @@ export class TranscriptTail {
     private readonly onItems: (items: ChatItem[], replace: boolean) => void
   ) {}
 
-  start(everyMs = 400) {
+  /**
+   * The file tells us when it changes, so nothing has to look at it every few hundred milliseconds for every agent, all day.
+   * A slow check remains for what a watch can miss: a file that did not exist yet, or one that was swapped for another.
+   */
+  start(everyMs = 3000) {
     this.poll()
-    this.timer = setInterval(() => this.poll(), everyMs)
+    this.arm()
+    this.timer = setInterval(() => {
+      this.poll()
+      if (!this.watcher) this.arm()
+    }, everyMs)
   }
 
   stop() {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
+    this.disarm()
+  }
+
+  private arm() {
+    try {
+      const w = watch(this.file, (event) => {
+        this.poll()
+        // A swapped file leaves the watch on the old one; watch the new one at the next chance.
+        if (event === 'rename') this.disarm()
+      })
+      w.on('error', () => this.disarm())
+      this.watcher = w
+      // A watch takes a moment to become active: whatever was written in that moment is read now.
+      if (this.catchUp) clearTimeout(this.catchUp)
+      this.catchUp = setTimeout(() => this.poll(), 150)
+    } catch {
+      this.watcher = null // not written yet: the slow check tries again
+    }
+  }
+
+  private disarm() {
+    this.watcher?.close()
+    this.watcher = null
+    if (this.catchUp) clearTimeout(this.catchUp)
+    this.catchUp = null
   }
 
   private reset() {

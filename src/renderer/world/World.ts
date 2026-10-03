@@ -2,7 +2,7 @@
 import 'pixi.js/unsafe-eval'
 import { Application, Container, Graphics, TextureSource, Ticker } from 'pixi.js'
 import type { Activity } from '../../shared/types'
-import { MOVING_MS, frameCap } from './frameRate'
+import { FPS, MOVING_MS, frameCap } from './frameRate'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
@@ -103,9 +103,13 @@ export class OfficeWorld {
   ) {}
 
   static async create(el: HTMLElement, onSelect: (agentId: string) => void, handlers: WorldHandlers) {
-    // Pixi starts a second, shared ticker of its own on first use; nothing here uses it, and it would wake the page at every screen refresh for nothing.
+    // Pixi starts two more tickers of its own: a shared one nothing here uses, and a system one that its renderer's scheduler (texture clean-up)
+    // runs on. Left alone they ask for a frame at every screen refresh, 120 a second here, which keeps the compositor and GPU awake all day.
+    // Both are stopped; drive() advances the system one along with the office.
     Ticker.shared.autoStart = false
     Ticker.shared.stop()
+    Ticker.system.autoStart = false
+    Ticker.system.stop()
     const app = new Application()
     await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
@@ -134,6 +138,7 @@ export class OfficeWorld {
     this.ambient = f.ambient
     this.app.stage.addChild(this.root)
     this.app.ticker.add((tk) => this.tick(tk.deltaMS))
+    this.app.ticker.stop() // driven by pace() instead, see drive()
     this.pace()
     document.addEventListener('visibilitychange', this.repace)
     window.addEventListener('focus', this.repace)
@@ -153,13 +158,46 @@ export class OfficeWorld {
     this.pace()
   }
 
+  private cap = -1
+  private raf = 0
+  private frameTimer: ReturnType<typeof setTimeout> | undefined
+
+  /**
+   * Pixi's own loop asks the browser for a frame at every screen refresh (120 a second here) just to decide to skip most of them,
+   * and that alone keeps the compositor and the GPU awake. So the ticker is driven from here: by a timer at the calm and background
+   * rates, which wakes the page only when it draws, and in step with the screen only while something moves.
+   */
+  private drive(cap: number) {
+    cancelAnimationFrame(this.raf)
+    clearTimeout(this.frameTimer)
+    const t = this.app.ticker
+    if (cap === 0) return
+    if (cap >= FPS.moving) {
+      t.maxFPS = cap
+      const f = () => {
+        this.raf = requestAnimationFrame(f)
+        const now = performance.now()
+        Ticker.system.update(now)
+        t.update(now)
+      }
+      this.raf = requestAnimationFrame(f)
+    } else {
+      t.maxFPS = 0 // the timer sets the pace; a timer firing a hair early must not cost a whole frame
+      const f = () => {
+        this.frameTimer = setTimeout(f, 1000 / cap)
+        const now = performance.now()
+        Ticker.system.update(now)
+        t.update(now)
+      }
+      this.frameTimer = setTimeout(f, 1000 / cap)
+    }
+  }
+
   private pace() {
     const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastActive: this.lastActive, now: performance.now() })
-    const t = this.app.ticker
-    if (cap === 0) t.stop()
-    else {
-      t.maxFPS = cap
-      if (!t.started) t.start()
+    if (cap !== this.cap) {
+      this.cap = cap
+      this.drive(cap)
     }
     this.host.dataset.fpscap = String(cap)
     // Settle back to the calm rate once the last pan, zoom or step is over.
@@ -650,6 +688,8 @@ export class OfficeWorld {
 
   destroy() {
     clearTimeout(this.paceTimer)
+    cancelAnimationFrame(this.raf)
+    clearTimeout(this.frameTimer)
     document.removeEventListener('visibilitychange', this.repace)
     window.removeEventListener('focus', this.repace)
     window.removeEventListener('blur', this.repace)
