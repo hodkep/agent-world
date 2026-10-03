@@ -430,6 +430,18 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .msg.note.summary .summary-body { flex-basis: 100%; max-height: 40vh; overflow: auto; text-align: left; color: var(--text, inherit); }
 .msg.user.pending .bubble { opacity: 0.6; }
 .msg-meta { font-size: 11px; color: var(--muted); }
+.hook-strip { margin-bottom: 6px; }
+.hook-row { display: flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: 0 0 0 2px var(--ink); padding: 5px 6px 5px 10px; color: var(--muted); min-width: 0; }
+.hook-row > svg { flex: none; }
+.hook-sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hook-sub b { color: var(--text); font-weight: 600; }
+.hook-toggle { padding: 2px 6px; line-height: 0; flex: none; }
+.hook-strip.open .hook-toggle svg { transform: scaleY(-1); }
+.hook-body { background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); margin-top: 2px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.hook-body > div { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
+.hook-ref { font: 11px Menlo, Consolas, monospace; color: var(--accent); background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); padding: 0 4px; flex: none; }
+.hook-rule { font: 11px Menlo, Consolas, monospace; color: var(--muted); box-shadow: 0 0 0 1px var(--line); padding: 0 4px; flex: none; }
+.hook-text { min-width: 0; overflow-wrap: anywhere; }
 .msg.assistant { max-width: 100%; }
 .msg.assistant .who { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
 .msg.cmd code { font: 12px Menlo, Consolas, monospace; color: var(--think); background: var(--panel-3); padding: 2px 8px; box-shadow: 0 0 0 1px var(--ink); }

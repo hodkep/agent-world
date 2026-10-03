@@ -1,4 +1,17 @@
 /** One thing in an agent's conversation, as the chat view draws it. Built from Claude's saved transcript. */
+/** What a hook told the agent, taken apart so the chat can show who said it and what it found. */
+export interface HookInfo {
+  /** Who is speaking, from the [name] a hook starts with. */
+  source?: string
+  /** The hook event, as Claude names it ("Stop", "PostToolUse:Edit"). */
+  event: string
+  /** What it is about, without the count. */
+  title: string
+  issues?: number
+  /** One per "- L12 [rule] text" line; empty when the hook words things its own way. */
+  findings: { ref: string; rule: string; text: string }[]
+}
+
 export type ChatItem =
   | { kind: 'user'; id: string; at: number; text: string }
   | { kind: 'command'; id: string; at: number; name: string; args: string }
@@ -11,7 +24,7 @@ export type ChatItem =
   | { kind: 'tool-result'; id: string; at: number; toolUseId: string; text: string; isError: boolean; images?: string[] }
   /** What a subagent run in the background handed back when it finished. */
   | { kind: 'subagent-report'; id: string; at: number; agentId: string; body: string }
-  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary, what a hook said) the view keeps behind a button. */ detail?: string; /** What that button calls the body ("details"); the compact summary needs none. */ detailLabel?: string }
+  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary, what a hook said) the view keeps behind a button. */ detail?: string; /** What that button calls the body ("details"); the compact summary needs none. */ detailLabel?: string; /** Set when the note is what a hook told the agent. */ hook?: HookInfo }
 
 /** One call a subagent made, as a line of its trail. */
 export interface SubagentCall {

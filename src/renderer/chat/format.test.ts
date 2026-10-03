@@ -263,3 +263,32 @@ describe('a note with details behind a button', () => {
     expect(toRows([summary], [])[0]).not.toHaveProperty('detailLabel')
   })
 })
+
+describe('a hook note belongs to the reply it caused', () => {
+  const hook = (id: string, extra: object = {}): ChatItem => ({ kind: 'note', id, at: t0, text: 'lint · Stop hook: 1 problem', detail: 'raw', detailLabel: 'details', hook: { source: 'lint', event: 'Stop', title: '1 problem', findings: [] }, ...extra }) as ChatItem
+  const kinds = (items: ChatItem[]) => toRows(items, []).map((r) => r.kind)
+
+  it('rides on the agent reply that comes right after it, and no longer shows as a note of its own', () => {
+    const rows = toRows([say('a0', t0 - 1, 'done'), hook('h'), say('a1', t0 + 1, 'fixing it')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['assistant', 'assistant'])
+    expect(rows[0]).not.toHaveProperty('hooks')
+    expect(rows[1]).toMatchObject({ kind: 'assistant', text: 'fixing it', hooks: [{ source: 'lint', event: 'Stop' }] })
+  })
+
+  it('reaches over thinking, and keeps several hooks in the order they came', () => {
+    const rows = toRows([hook('h1'), hook('h2', { hook: { event: 'PostToolUse:Edit', title: 't', findings: [] } }), { kind: 'thinking', id: 'k', at: t0 }, say('a', t0 + 1, 'ok')], [])
+    expect(rows.filter((r) => r.kind === 'assistant')).toMatchObject([{ hooks: [{ event: 'Stop' }, { event: 'PostToolUse:Edit' }] }])
+    expect(rows.some((r) => r.kind === 'note')).toBe(false)
+  })
+
+  it('stays a note of its own when no reply follows it: at the end, or before a tool or a message of yours', () => {
+    expect(kinds([hook('h')])).toEqual(['note'])
+    expect(kinds([hook('h'), user('u', t0 + 1, 'next')])).toEqual(['note', 'user'])
+    expect(kinds([hook('h'), { kind: 'tool', id: 't', at: t0, toolUseId: 'x', name: 'Bash', input: {} } as ChatItem])).toEqual(['note', 'tool'])
+  })
+
+  it('leaves a note without hook details (the compact summary) alone', () => {
+    const summary: ChatItem = { kind: 'note', id: 's', at: t0, text: 'Conversation summary', detail: 'the summary' }
+    expect(kinds([summary, say('a', t0 + 1, 'ok')])).toEqual(['note', 'assistant'])
+  })
+})

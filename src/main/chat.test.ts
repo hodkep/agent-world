@@ -33,9 +33,22 @@ describe('reading Claude\'s transcript for the chat view', () => {
     const hook = (hookName: string, content: string[]) => line({ ...base, type: 'attachment', attachment: { type: 'hook_additional_context', hookName, hookEvent: hookName.split(':')[0], content } })
     const findings = '[impeccable@1] Design hook findings requiring review in src/renderer/styles.css (1 issue(s)):\n- L962 [side-tab] Side-tab accent border.\n\nTriage per the session policy.'
     expect(parseTranscriptLine(hook('Stop', [findings]))).toEqual([
-      { kind: 'note', id: 'u1', at: Date.parse(base.timestamp), text: 'impeccable@1 · Stop hook: Design hook findings requiring review in src/renderer/styles.css (1 issue(s))', detail: findings, detailLabel: 'details' }
+      {
+        kind: 'note',
+        id: 'u1',
+        at: Date.parse(base.timestamp),
+        text: 'impeccable@1 · Stop hook: Design hook findings requiring review in src/renderer/styles.css (1 issue(s))',
+        detail: findings,
+        detailLabel: 'details',
+        hook: { source: 'impeccable@1', event: 'Stop', title: 'Design hook findings requiring review in src/renderer/styles.css', issues: 1, findings: [{ ref: 'L962', rule: 'side-tab', text: 'Side-tab accent border.' }] }
+      }
     ])
     expect(parseTranscriptLine(hook('PostToolUse:Edit', ['[lint] 2 problems']))).toMatchObject([{ text: 'lint · PostToolUse:Edit hook: 2 problems' }])
+    // Findings are told apart one per line; a hook that words things its own way keeps its text whole.
+    const three = '[impeccable@1] Design hook findings requiring review in src/a.css (3 issue(s)):\n- L1 [side-tab] One.\n- L2 [design-system-color] Two: with a colon.\n- L3 [side-tab] Three.'
+    expect(parseTranscriptLine(hook('Stop', [three]))).toMatchObject([{ hook: { issues: 3, findings: [{ ref: 'L1', rule: 'side-tab', text: 'One.' }, { ref: 'L2', rule: 'design-system-color', text: 'Two: with a colon.' }, { ref: 'L3', rule: 'side-tab', text: 'Three.' }] } }])
+    expect(parseTranscriptLine(hook('PostToolUse:Write', ['[impeccable@1] Design hook scanned src/a.tsx. No deterministic design-quality issues found. That does not mean the design is good.']))).toMatchObject([{ hook: { source: 'impeccable@1', event: 'PostToolUse:Write', findings: [] } }])
+    expect(parseTranscriptLine(hook('PostToolUse:Edit', ['[lint] 2 problems']))).toMatchObject([{ hook: { source: 'lint', title: '2 problems', findings: [] } }])
     // No source in brackets: the hook's own name is all there is.
     expect(parseTranscriptLine(hook('UserPromptSubmit', ['remember the budget']))).toMatchObject([{ text: 'UserPromptSubmit hook: remember the budget', detail: 'remember the budget' }])
     // What a session starts with is the user's own setup, not news.

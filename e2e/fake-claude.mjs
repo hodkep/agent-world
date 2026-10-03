@@ -107,6 +107,8 @@ if (process.env.FAKE_HOOK_NOTE) {
   hook('SessionStart', 'CAVEMAN MODE ACTIVE: talk short.')
   hook('Stop', '[impeccable@1] Design hook findings requiring review in src/renderer/styles.css (1 issue(s)):\n- L962 [side-tab] Side-tab accent border. Thick colored border on one side of a card.')
   say('The flagged line is the quote cards rule.')
+  // A hook note with no reply after it (a tool call or nothing comes next) has to show up on its own.
+  hook('PostToolUse:Edit', '[lint] 2 problems found in a.css')
 }
 // FAKE_LONG=n: a conversation that already has n messages in it.
 for (let i = 0; i < Number(process.env.FAKE_LONG ?? 0); i++) say(`old message ${i}`)

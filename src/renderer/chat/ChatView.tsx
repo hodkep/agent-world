@@ -2,7 +2,7 @@ import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
-import type { ChatItem } from '../../shared/chat'
+import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
@@ -17,6 +17,7 @@ import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
 import { ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
+import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import type { UsageLimits } from '../../shared/usage'
 
@@ -615,6 +616,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'assistant':
       return (
         <div className="msg assistant">
+          {r.hooks?.map((h, i) => <HookStrip key={i} hook={h} agentName={agentName} />)}
           <div className="who">
             {agentName}
             <Copy text={r.text} />
@@ -723,6 +725,44 @@ function Clamped({ children }: { children: React.ReactNode }) {
         </button>
       )}
     </>
+  )
+}
+
+/** What a hook told the agent just before this reply: a strip above the reply, with the findings a click away. */
+function HookStrip({ hook, agentName }: { hook: HookInfo; agentName: string }) {
+  const [open, setOpen] = useState(false)
+  const count = hook.issues ?? (hook.findings.length || undefined)
+  const verdict = count !== undefined ? `${count} issue${count === 1 ? '' : 's'}` : /\bno\b[^.]*\bissues?\b/i.test(hook.title) ? 'No issues' : ''
+  return (
+    <div className={`hook-strip ${open ? 'open' : ''}`}>
+      <div className="hook-row">
+        <OutlineIcon name="flag" />
+        <span className="hook-sub">
+          {agentName.charAt(0).toUpperCase() + agentName.slice(1)} replied after {hook.source ? <b>{hook.source}</b> : 'a'} {hook.source ? '· ' : ''}
+          {hook.event} hook{verdict ? ` · ${verdict}` : ''}
+        </span>
+        <button className="hook-toggle" aria-expanded={open} aria-label={open ? 'Hide details' : 'Show details'} title={open ? 'Hide details' : 'Show details'} onClick={() => setOpen(!open)}>
+          <OutlineIcon name="chevron" />
+        </button>
+      </div>
+      {open && (
+        <div className="hook-body">
+          {hook.findings.length > 0 ? (
+            hook.findings.map((f, i) => (
+              <div key={i}>
+                <span className="hook-ref">{f.ref}</span>
+                <span className="hook-rule">{f.rule}</span>
+                <span className="hook-text">{f.text}</span>
+              </div>
+            ))
+          ) : (
+            <div>
+              <span className="hook-text">{hook.title}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

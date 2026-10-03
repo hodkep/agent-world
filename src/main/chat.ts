@@ -40,7 +40,15 @@ function hookNote(id: string, at: number, a: Obj): ChatItem[] {
   const from = /^\[([^\]]+)\]\s*/.exec(detail)
   const first = detail.slice(from?.[0].length ?? 0).split('\n')[0]!.trim().replace(/[:.]$/, '')
   const gist = first.length > 110 ? `${first.slice(0, 109)}…` : first
-  return [{ kind: 'note', id, at, text: `${from ? `${from[1]} · ` : ''}${event} hook: ${gist}`, detail, detailLabel: 'details' }]
+  const lines = detail.slice(from?.[0].length ?? 0).split('\n')
+  const count = /\((\d+) issue\(s\)\)/.exec(lines[0]!)
+  const findings = lines.flatMap((l) => {
+    const m = /^-\s+(\S+)\s+\[([^\]]+)\]\s+(.+)$/.exec(l.trim())
+    return m ? [{ ref: m[1]!, rule: m[2]!, text: m[3]! }] : []
+  })
+  const title = lines[0]!.replace(/\s*\(\d+ issue\(s\)\):?\s*$/, '').trim().replace(/[:.]$/, '')
+  const hook = { ...(from && { source: from[1]! }), event, title, ...(count && { issues: Number(count[1]) }), findings }
+  return [{ kind: 'note', id, at, text: `${from ? `${from[1]} · ` : ''}${event} hook: ${gist}`, detail, detailLabel: 'details', hook }]
 }
 
 /** One saved transcript line as chat items (none for the many kinds of bookkeeping lines Claude also writes). */

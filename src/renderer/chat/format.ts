@@ -1,4 +1,4 @@
-import type { ChatItem, SubagentInfo } from '../../shared/chat'
+import type { ChatItem, HookInfo, SubagentInfo } from '../../shared/chat'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
@@ -6,14 +6,14 @@ export type Row =
   | { kind: 'image'; id: string; src: string }
   | { kind: 'shell'; id: string; command: string; out?: { stdout: string; stderr: string } }
   | { kind: 'command'; id: string; name: string; args: string }
-  | { kind: 'assistant'; id: string; text: string; /** Seconds the turn took, when it took a while. */ took?: number }
+  | { kind: 'assistant'; id: string; text: string; /** Seconds the turn took, when it took a while. */ took?: number; /** What hooks told the agent just before this reply, which is why it was written. */ hooks?: HookInfo[] }
   | { kind: 'thinking'; id: string }
   | { kind: 'tool'; id: string; run: ToolRun }
   /** The subagents one reply started, together; their progress comes from Claude's own files for them. */
   | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
   /** The report a subagent handed back when it finished. */
   | { kind: 'report'; id: string; agentId: string; body: string }
-  | { kind: 'note'; id: string; text: string; detail?: string; detailLabel?: string }
+  | { kind: 'note'; id: string; text: string; detail?: string; detailLabel?: string; hook?: HookInfo }
 
 export interface Sent {
   id: string
@@ -105,11 +105,26 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
           rows.push({ kind: 'note', id: i.id, text: i.text, ...(written?.detail && { detail: written.detail }) })
           break
         }
-        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }) })
+        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }), ...(i.hook && { hook: i.hook }) })
       }
     }
   }
   endTurn()
+  // A hook's note goes on the reply that comes right after it (past thinking), so the reply never seems to answer nothing.
+  // With no reply next (a tool, a message of yours, the end) it stays a note of its own.
+  const joined: Row[] = []
+  let held: Row[] = []
+  const flush = () => (joined.push(...held), (held = []))
+  for (const r of rows) {
+    if (r.kind === 'note' && r.hook) held.push(r)
+    else if (r.kind === 'thinking' && held.length) held.push(r)
+    else if (r.kind === 'assistant' && held.some((h) => h.kind === 'note')) {
+      joined.push(...held.filter((h) => h.kind === 'thinking'), { ...r, hooks: held.flatMap((h) => (h.kind === 'note' && h.hook ? [h.hook] : [])) })
+      held = []
+    } else (flush(), joined.push(r))
+  }
+  flush()
+  rows.splice(0, rows.length, ...joined)
   // Messages sent from the composer show at once, until the transcript has them.
   // Claude may record it without the attached-file mentions, as a shell command, or as a slash command.
   const norm = (t: string) => t.replace(/@"[^"]*"/g, '').replace(/\s+/g, ' ').trim()

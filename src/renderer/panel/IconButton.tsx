@@ -19,7 +19,10 @@ const ICONS = {
   hide: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><path d="M3 3l18 18" /></>,
   undo: <><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>,
   redo: <><path d="M15 14l5-5-5-5" /><path d="M20 9H10a6 6 0 0 0 0 12h3" /></>,
-  trash: <path d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 11v6M14 11v6" />
+  trash: <path d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 11v6M14 11v6" />,
+  // A note from a hook, and the fold button on it.
+  flag: <path d="M5 21V4h13l-3 4.5 3 4.5H5" />,
+  chevron: <path d="M6 9l6 6 6-6" />
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS
