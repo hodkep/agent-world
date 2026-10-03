@@ -528,6 +528,20 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgb(8 7 12 / 0.88); overflow: hidden; touch-action: none; }
 .lightbox img { max-width: calc(100vw - 48px); max-height: calc(100vh - 96px); object-fit: contain; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); user-select: none; -webkit-user-drag: none; cursor: grab; will-change: transform; }
 .lightbox.panning img { cursor: grabbing; }
+.lightbox-edit { position: fixed; z-index: 81; top: 16px; right: 60px; display: inline-flex; align-items: center; gap: 6px; }
+.editor { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; background: rgb(8 7 12 / 0.92); padding: 24px 24px 12px; gap: 14px; }
+.editor-stage { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
+.editor-canvas { position: relative; display: grid; max-width: 100%; max-height: 100%; min-height: 0; }
+.editor-canvas canvas { max-width: 100%; max-height: calc(100vh - 120px); width: auto; height: auto; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); cursor: crosshair; touch-action: none; background: var(--well); }
+.editor-text { position: absolute; min-width: 8em; padding: 0 2px; font-weight: 700; background: rgb(8 7 12 / 0.55); border: 0; outline: 2px dashed var(--accent); }
+.editor-error { color: var(--danger-text); }
+.editor-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); max-width: 100%; flex-wrap: wrap; justify-content: center; }
+.editor-group { display: flex; align-items: center; gap: 4px; padding-right: 10px; border-right: 2px solid var(--ink); }
+.editor-group:last-of-type { border-right: 0; padding-right: 0; }
+.editor-bar .tool { padding: 5px 7px; line-height: 0; }
+.editor-bar .tool[aria-checked='true'] { background: var(--well); color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.editor-bar .swatch { width: 22px; height: 22px; padding: 0; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4), 0 0 0 2px var(--ink); }
+.editor-bar .swatch[aria-checked='true'] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.4), 0 0 0 2px var(--ink), 0 0 0 4px var(--accent); }
 .lightbox-x { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; padding: 0; }
 .lightbox-x::before, .lightbox-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
 .lightbox-x::after { transform: translate(-50%, -50%) rotate(-45deg); }

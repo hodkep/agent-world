@@ -10,6 +10,7 @@ import { type Row, type Sent, highlight, markdownSpans, rowText, toMarkdown, toR
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
+import { AttachmentViewer } from './ImageEditor'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
 import { CrewLine } from './Crew'
@@ -796,6 +797,8 @@ function Composer({
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [caret, setCaret] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
+  // The attached picture being looked at full size, where it can also be edited.
+  const [viewing, setViewing] = useState<string | null>(null)
   // Words quoted from a reply sit above the box as cards; they join the message as "> " lines when it is sent.
   const [quotes, setQuotes] = useState<{ text: string; note: string }[]>([])
   const [over, setOver] = useState(false)
@@ -1019,13 +1022,25 @@ function Composer({
           ))}
         </ul>
       )}
+      {(() => {
+        const a = attached.find((x) => x.id === viewing)
+        if (!a?.preview) return null
+        // An edited picture is saved as a new file and replaces the attached one, so the agent reads the marked-up version.
+        const save = async (png: Blob) => {
+          const stem = a.name.replace(/\.[^.]+$/, '') || 'picture'
+          const path = await window.aw.saveAttachment(agentId, `${stem}.png`, await png.arrayBuffer(), 'image/png')
+          URL.revokeObjectURL(a.preview!)
+          setAttached((cur) => cur.map((x) => (x.id === a.id ? { ...x, path, name: `${stem}.png`, preview: URL.createObjectURL(png) } : x)))
+        }
+        return <AttachmentViewer src={a.preview} name={a.name} onSave={save} onClose={() => setViewing(null)} />
+      })()}
       {attached.length > 0 && (
         <ul className="attached" aria-label="Attached files">
           {attached.map((a) => (
             <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text}>
               {a.context && <span className="chip-from">Preview</span>}
               {a.preview ? (
-                <button className="chip-img" onClick={() => onImage(a.preview!)} aria-label={`Preview ${a.name}`}>
+                <button className="chip-img" onClick={() => setViewing(a.id)} aria-label={`Preview ${a.name}`}>
                   <img src={a.preview} alt="" />
                 </button>
               ) : (
