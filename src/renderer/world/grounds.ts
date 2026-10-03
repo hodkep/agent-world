@@ -155,6 +155,41 @@ interface Walker {
   hair: number
 }
 
+/** Between the fronts of two cars in a lane: a car's length and a little air, so they never overlap. */
+export const CAR_SPACING = 32
+
+interface Mover {
+  x: number
+  speed: number
+}
+
+/**
+ * Moves the cars of one lane (all heading the same way) a step. A car that comes up behind a slower one stays a car length
+ * back, and so travels at that car's speed, instead of driving through it. Nobody ever goes backwards.
+ */
+export function driveLane(cars: Mover[], dtMs: number, spacing = CAR_SPACING) {
+  if (cars.length === 0) return
+  const dir = cars[0]!.speed >= 0 ? 1 : -1
+  // Leaders first: a follower looks at where the car ahead is after it has moved.
+  const order = [...cars].sort((a, b) => (dir > 0 ? b.x - a.x : a.x - b.x))
+  order.forEach((c, i) => {
+    const want = c.x + c.speed * dtMs
+    if (i === 0) return void (c.x = want)
+    const limit = order[i - 1]!.x - dir * spacing
+    c.x = dir > 0 ? Math.max(c.x, Math.min(want, limit)) : Math.min(c.x, Math.max(want, limit))
+  })
+}
+
+/** Where a car entering the road at `entry`, heading `dir`, can start without sitting on (or in front of) a car already there. */
+export function clearStart(cars: Mover[], entry: number, dir: 1 | -1, spacing = CAR_SPACING) {
+  let x = entry
+  for (let again = true, n = 0; again && n <= cars.length; n++) {
+    again = false
+    for (const c of cars) if (Math.abs(c.x - x) < spacing) ((x = c.x - dir * spacing), (again = true))
+  }
+  return x
+}
+
 /** How many cars are on the road for a given number of busy agents: an idle office is a quiet street. */
 export const carsFor = (busy: number) => 1 + Math.min(7, busy * 2)
 
@@ -195,18 +230,23 @@ export class Street {
     const g = this.view
     g.clear()
     // Add a car at a road end when there are too few; retire one that has left the screen when there are too many.
+    // A car only enters where there is room, and cars in a lane never drive through the one ahead.
+    const enter = (c: Vehicle) => {
+      const dir = c.speed > 0 ? 1 : -1
+      c.x = clearStart(this.cars.filter((o) => o !== c && o.lane === c.lane), dir > 0 ? this.left - 30 : this.right, dir)
+    }
     if (this.cars.length < this.wanted) {
       const c = this.newCar(0)
-      c.x = c.speed > 0 ? this.left - 30 : this.right
+      enter(c)
       this.cars.push(c)
     }
+    for (const lane of [0, 1] as const) driveLane(this.cars.filter((c) => c.lane === lane), dt)
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const c = this.cars[i]!
-      c.x += c.speed * dt
       const gone = c.speed > 0 ? c.x > this.right : c.x < this.left - 30
       if (!gone) continue
       if (this.cars.length > this.wanted) this.cars.splice(i, 1)
-      else c.x = c.speed > 0 ? this.left - 30 : this.right
+      else enter(c)
     }
     for (const c of this.cars) car(g, Math.round(c.x), this.roadY + (c.lane ? 22 : 4), c.color, { dir: c.lane ? -1 : 1, lights: true })
     const walkY = this.map.h * TILE + 8
