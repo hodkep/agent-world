@@ -45,6 +45,12 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     // Nothing is offered until something is selected.
     await expect(page.getByRole('button', { name: 'Ask ada' })).toHaveCount(0)
 
+    // A whole paragraph picked with a triple click is offered too, even the last one of a reply (its selection ends outside the reply).
+    await log.getByText('The rollback keeps the old table').click({ clickCount: 3 })
+    await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible()
+    await page.evaluate(() => window.getSelection()!.removeAllRanges())
+    await expect(page.getByRole('button', { name: 'Ask ada' })).toHaveCount(0)
+
     // Select a word, then ask: it lands in the box as a quote.
     await select(page, 'rewrite')
     const ask = page.getByRole('button', { name: 'Ask ada' })

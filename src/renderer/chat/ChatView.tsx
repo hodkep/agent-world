@@ -292,10 +292,19 @@ export function ChatView({
       const el = log.current
       const root = chatEl.current
       if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !el || !root) return setPick(null)
-      const range = sel.getRangeAt(0)
-      const reply = (range.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement)?.closest('.msg.assistant')
-      const text = sel.toString().trim()
-      if (!reply || !el.contains(reply) || !text) return setPick(null)
+      const found = sel.getRangeAt(0)
+      const reply = (found.startContainer instanceof Element ? found.startContainer : found.startContainer.parentElement)?.closest('.msg.assistant')
+      if (!reply || !el.contains(reply)) return setPick(null)
+      // A triple click on a paragraph ends the selection at the start of whatever follows, outside the reply: trim it back to the reply.
+      // Words that really reach into another message are not offered.
+      let range = found
+      if (!reply.contains(found.endContainer)) {
+        range = found.cloneRange()
+        range.setEnd(reply, reply.childNodes.length)
+        if (range.toString().trim() !== sel.toString().trim()) return setPick(null)
+      }
+      const text = range.toString().trim()
+      if (!text) return setPick(null)
       const r = range.getBoundingClientRect()
       const c = root.getBoundingClientRect()
       const mid = r.left - c.left + r.width / 2
