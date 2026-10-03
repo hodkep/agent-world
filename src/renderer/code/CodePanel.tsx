@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Changes } from '../../shared/api'
 import { editorOptions, languageFor, monaco } from './monaco'
+import { ancestors, visibleRows } from './tree'
 
 type Tab = 'changes' | 'files'
 /** Ask the Code view to open a file in the Files tab, or just a tab; a new object each time so asking twice works. */
@@ -160,14 +161,17 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
 function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequest }) {
   const [files, setFiles] = useState<string[]>([])
   const [filter, setFilter] = useState('')
+  const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const [path, setPath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLUListElement>(null)
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const current = useRef<string | null>(null)
 
-  useEffect(() => void run(async () => setFiles(await window.aw.code.files(agentId))), [agentId, run])
+  const loadFiles = useCallback(() => void run(async () => setFiles(await window.aw.code.files(agentId))), [agentId, run])
+  useEffect(loadFiles, [loadFiles])
 
   const save = useCallback(async () => {
     if (!current.current || !editor.current) return
@@ -211,20 +215,53 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should open a file
   }, [openFile])
 
-  const shown = files.filter((f) => f.toLowerCase().includes(filter.toLowerCase()))
+  const toggle = (dir: string) =>
+    setOpenDirs((s) => {
+      const n = new Set(s)
+      if (!n.delete(dir)) n.add(dir)
+      return n
+    })
+  // Opens every folder above the file so its row exists, then scrolls to it.
+  const locate = (p: string | null) => {
+    if (!p) return
+    setFilter('')
+    setOpenDirs((s) => new Set([...s, ...ancestors(p)]))
+    requestAnimationFrame(() => list.current?.querySelector('li.on')?.scrollIntoView({ block: 'nearest' }))
+  }
+  useEffect(() => {
+    if (openFile?.path) locate(openFile.path)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should reveal a file
+  }, [openFile])
+
+  const rows = visibleRows(files, openDirs, filter)
   return (
     <div className="changes">
       <div className="change-list">
-        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter files" aria-label="Filter files" />
-        <ul>
-          {shown.map((f) => (
-            <li key={f} className={f === path ? 'on' : ''}>
-              <button className="file" onClick={() => open(f)} title={f}>
-                <span className="dir">{f.includes('/') ? f.slice(0, f.lastIndexOf('/') + 1) : ''}</span>
-                {f.slice(f.lastIndexOf('/') + 1)}
+        <div className="tree-head">
+          <span>Files</span>
+          <button className="icon" onClick={() => locate(path)} disabled={!path} title="Show the open file in the tree" aria-label="Show the open file in the tree">
+            ◎
+          </button>
+          <button className="icon" onClick={loadFiles} title="Refresh the file list" aria-label="Refresh the file list">
+            ↻
+          </button>
+        </div>
+        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search…" aria-label="Filter files" />
+        <ul className="tree" ref={list} role="tree">
+          {rows.map((r) => (
+            <li key={r.path} className={r.path === path ? 'on' : ''} role="treeitem" aria-expanded={r.dir ? filter !== '' || openDirs.has(r.path) : undefined}>
+              <button
+                className={`file ${r.dir ? 'is-dir' : ''}`}
+                style={{ paddingLeft: 6 + r.depth * 14 }}
+                onClick={() => (r.dir ? toggle(r.path) : open(r.path))}
+                title={r.path}
+              >
+                <span className="chev">{r.dir ? (filter !== '' || openDirs.has(r.path) ? '▾' : '▸') : ''}</span>
+                {r.name}
               </button>
             </li>
           ))}
+          {files.length > 0 && rows.length === 0 && <li className="empty">No files match.</li>}
         </ul>
         <div className="land">
           <button onClick={() => void save()} disabled={!path || !dirty}>

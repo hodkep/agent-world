@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Picture } from './Images'
 import { followLink, linkHint } from '../links'
-import { hasMarkdown, isImagePath, splitMentions } from './format'
+import { hasMarkdown, highlight, isImagePath, splitMentions } from './format'
 import { Markdown } from './markdown'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
+
+/** Commands, plugin skills and written-out paths get the same tint here as in the message box. */
+const tinted = (text: string) => highlight(text).map((p, i) => (p.kind === 'plain' ? p.text : <mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>))
 
 /** Web addresses in a message are links; trailing punctuation belongs to the sentence, not the address. */
 function withLinks(text: string, agentId: string) {
@@ -14,7 +17,7 @@ function withLinks(text: string, agentId: string) {
         {part}
       </a>
     ) : (
-      part
+      <span key={i}>{tinted(part)}</span>
     )
   )
 }

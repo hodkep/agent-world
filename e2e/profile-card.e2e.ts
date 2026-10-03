@@ -180,3 +180,26 @@ test('the card edits the agent: name, model, thinking level, mode and compact, e
     await shutdown()
   }
 })
+
+test('the card has a toggle between its full and compact forms, and the full form shows everything', async () => {
+  const { page, shutdown } = await start()
+  try {
+    const card = page.locator('.profile-overlay .pc')
+    await expect(card).toHaveClass(/pc-full/, { timeout: 15_000 })
+    await expect(card.getByText('So far')).toBeVisible()
+    await expect(card.getByText('Level 1')).toBeVisible()
+
+    await card.getByRole('button', { name: 'Show the compact card' }).click()
+    await expect(card).toHaveClass(/pc-compact/)
+    await expect(card.getByText('So far')).toHaveCount(0)
+    await expect(card.getByText('Settings', { exact: true })).toBeVisible()
+
+    // And back, as often as wanted.
+    await card.getByRole('button', { name: 'Show the full card' }).click()
+    await expect(card).toHaveClass(/pc-full/)
+    await expect(card.getByText('So far')).toBeVisible()
+    await expect(card.getByText('Level 1')).toBeVisible()
+  } finally {
+    await shutdown()
+  }
+})

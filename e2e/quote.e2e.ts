@@ -60,14 +60,12 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
     await expect(box).toHaveValue('')
 
-    // Each quote takes its own instruction.
-    const note = page.getByRole('textbox', { name: 'What to do about this quote' }).first()
-    const one = (await note.boundingBox())!.height
-    expect(one).toBeLessThan(32) // starts as one line
-    // A long instruction folds onto more lines instead of scrolling sideways.
-    await note.fill('word '.repeat(80))
-    expect((await note.boundingBox())!.height).toBeGreaterThan(one * 1.5)
-    await note.fill('is this the right word?')
+    // The quotes and the line you type on are one box: the line is still there, directly below the last quote.
+    const lastQuote = (await page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote').last().boundingBox())!
+    expect((await box.boundingBox())!.y).toBeGreaterThan(lastQuote.y)
+    await expect(page.getByRole('textbox', { name: 'What to do about this quote' })).toHaveCount(0)
+
+    await page.screenshot({ path: join(__dirname, '..', 'test-results', 'quote.png') })
 
     // The question goes after them, and the sent message shows both as quotes.
     await box.fill('why these?')
@@ -76,7 +74,6 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(sent.locator('blockquote')).toHaveCount(2, { timeout: 10_000 })
     await expect(sent.locator('blockquote').first()).toHaveText('rewrite')
     await expect(sent).toContainText('why these?')
-    await expect(sent).toContainText('is this the right word?')
 
 
     // Words in your own message are not offered.

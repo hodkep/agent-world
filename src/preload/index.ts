@@ -15,6 +15,7 @@ const api: AwApi = {
   getWorkspaces: () => ipcRenderer.invoke('workspaces:get'),
   activateWorkspace: (path) => ipcRenderer.invoke('workspaces:activate', path),
   forgetWorkspace: (path) => ipcRenderer.invoke('workspaces:forget', path),
+  newWindow: () => ipcRenderer.invoke('window:new'),
   listAgents: () => ipcRenderer.invoke('list-agents'),
   addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),

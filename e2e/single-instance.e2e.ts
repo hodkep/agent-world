@@ -6,19 +6,19 @@ import { expect, test } from '@playwright/test'
 import electronPath from 'electron'
 import { launchApp } from './launch'
 
-test('opening the app again (a notification click, the dock, a second launch) brings the running one forward instead of starting another', async () => {
+test('launching the app again hands over to the running one, which opens another window instead of a second app', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-single-'))
   const env = { AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs') }
   const { app, shutdown } = await launchApp(env, tmp)
   try {
     const first = await app.firstWindow()
     await expect(first.locator('header')).toBeVisible()
-    // Same data folder, so the same app: the second process must hand over and exit by itself.
+    // Same data folder, so the same app: the second process must hand over and exit by itself, and the first opens a new window.
     const second = spawn(electronPath as unknown as string, [resolve(__dirname, '..')], { env: { ...process.env, AW_ZOOM: '1', AW_HIDDEN: '1', ...env }, stdio: 'ignore' })
     const exited = new Promise<number | null>((r) => second.once('exit', (code) => r(code)))
     try {
       expect(await Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 15_000))])).toBe(0)
-      expect(app.windows()).toHaveLength(1)
+      await expect.poll(() => app.windows().length).toBe(2)
     } finally {
       second.kill()
     }

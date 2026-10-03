@@ -6,12 +6,14 @@ export function WorkspaceMenu({
   workspaces,
   onOpen,
   onPick,
-  onForget
+  onForget,
+  onNewWindow
 }: {
   workspaces: Workspaces | null
   onOpen: (path: string) => void
   onPick: () => void
   onForget: (path: string) => void
+  onNewWindow: () => void
 }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -74,6 +76,17 @@ export function WorkspaceMenu({
             }}
           >
             Open another folder…
+          </button>
+          <button
+            className="ws-open"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onNewWindow()
+            }}
+            title="Another window onto the same agents, to work in a different project"
+          >
+            New window
           </button>
         </div>
       )}

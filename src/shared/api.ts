@@ -79,6 +79,8 @@ export interface AwApi {
   getWorkspaces(): Promise<Workspaces>
   activateWorkspace(path: string): Promise<Workspaces>
   forgetWorkspace(path: string): Promise<Workspaces>
+  /** Another window onto the same agents; it starts on the project picker. */
+  newWindow(): Promise<void>
   listAgents(): Promise<AgentRecord[]>
   addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
   /** Relaunch the agent's session with a different model or effort (between turns only). */

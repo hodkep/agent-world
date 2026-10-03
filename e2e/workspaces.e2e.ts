@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('the project you worked in is saved, reopened on the next launch, and switchable from the header', async () => {
+test('the project you worked in is saved, offered first on the next launch, and switchable from the header', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-ws-')))
   const home = join(tmp, 'home')
   const shop = join(tmp, 'shop-api')
@@ -23,11 +23,16 @@ test('the project you worked in is saved, reopened on the next launch, and switc
     await page.reload()
     await expect(page.locator('.ws-button')).toContainText('shop-api')
     await hire(page)
+    // That key only stands in for an old install's folder; a real next launch has no such thing.
+    await page.evaluate(() => localStorage.removeItem('aw.folder'))
     await first.shutdown()
 
-    // Second launch: it opens where you left off, with no folder picking.
+    // Second launch: the window asks which project, with the one you worked in listed, and no folder picking.
     const second = await launchApp(env, join(tmp, 'unused'))
     page = await second.app.firstWindow()
+    const picker = page.getByRole('dialog', { name: 'Choose a project for this window' })
+    await expect(picker.getByRole('button', { name: /^shop-api/ })).toContainText('1 agent')
+    await picker.getByRole('button', { name: /^shop-api/ }).click()
     await expect(page.locator('.ws-button')).toContainText('shop-api')
     await expect(page.locator('.ws-button')).toContainText('git')
     // A restart within seconds brings the agent straight back instead of leaving it asleep.

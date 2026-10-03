@@ -7,6 +7,7 @@ import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, highlight, markdownSpans, rowText, toMarkdown, toRows } from './format'
+import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
 import { Markdown } from './markdown'
@@ -318,8 +319,12 @@ export function ChatView({
       data-agent={agentId}
       ref={chatEl}
       hidden={!visible}
+      // Focusable, so a click anywhere in the conversation puts the keyboard here and Esc works without clicking the box first.
+      tabIndex={-1}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
+        // Esc interrupts the agent from anywhere in the conversation, unless a menu or dialog is open: that takes the Esc to close itself.
+        else if (e.key === 'Escape' && busy && !stopping && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (setStopping(true), void window.aw.chatInterrupt(agentId))
       }}
     >
       {pick && (
@@ -778,10 +783,12 @@ function Composer({
   const [commands, setCommands] = useState<PaletteCommand[]>([])
   const [files, setFiles] = useState<string[]>([])
   const [at, setAt] = useState(0)
+  // Esc closes the open list of completions; it stays closed until the words before the caret change.
+  const [dismissed, setDismissed] = useState<string | null>(null)
   const [caret, setCaret] = useState(0)
   const [attached, setAttached] = useState<Attachment[]>([])
-  // Words quoted from a reply sit above the box as cards; they join the message as "> " lines when it is sent.
-  const [quotes, setQuotes] = useState<{ text: string; note: string }[]>([])
+  // Words quoted from a reply sit at the top of the box, above the line you type on; they join the message as "> " lines when it is sent.
+  const [quotes, setQuotes] = useState<string[]>([])
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -793,7 +800,34 @@ function Composer({
   // Ctrl+R: the words being searched for, kept while pressing it again to reach older matches.
   const search = useRef<string | null>(null)
   const shell = text.startsWith('!')
-  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (setText(t), box.current?.focus())), [agentId])
+  // Every change to the message goes through `edit`, so undo and redo see completions, recalled messages and pastes too.
+  const undo = useRef<UndoStack>(null!)
+  undo.current ??= new UndoStack({ text, caret: text.length })
+  const edit = (next: string, kind: 'type' | 'edit' = 'edit', caret = next.length) => {
+    undo.current.record({ text: next, caret }, kind, Date.now())
+    setText(next)
+    setCaret(caret)
+  }
+  const restore = (s: Snap | null) => {
+    if (!s) return
+    setText(s.text)
+    setCaret(s.caret)
+    requestAnimationFrame(() => box.current?.setSelectionRange(s.caret, s.caret))
+  }
+  const step = (redo: boolean) => restore(redo ? undo.current.redo() : undo.current.undo())
+  // The Edit menu and the right-click menu ask the box to undo too; they get the same history.
+  useEffect(() => {
+    const el = box.current
+    const on = (e: Event) => {
+      const t = (e as InputEvent).inputType
+      if (t !== 'historyUndo' && t !== 'historyRedo') return
+      e.preventDefault()
+      step(t === 'historyRedo')
+    }
+    el?.addEventListener('beforeinput', on)
+    return () => el?.removeEventListener('beforeinput', on)
+  })
+  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (edit(t), box.current?.focus())), [agentId])
   const modeWrap = useRef<HTMLSpanElement>(null)
   // The mode menu closes on Esc or a click anywhere else.
   useEffect(() => {
@@ -844,14 +878,14 @@ function Composer({
     [agentId, onError]
   )
 
-  // Words selected in a reply arrive as a quote card; more can follow, each as its own card.
+  // Words selected in a reply arrive as a quote at the top of the box; more can follow, each on its own.
   useEffect(() => {
     const chat = box.current?.closest('.chat')
     if (!chat) return
     const on = (e: Event) => {
       const words = String((e as CustomEvent<string>).detail ?? '').trim()
       if (!words) return
-      setQuotes((q) => [...q, { text: words, note: '' }])
+      setQuotes((q) => [...q, words])
       box.current?.focus()
     }
     chat.addEventListener('aw-quote', on)
@@ -882,6 +916,7 @@ function Composer({
   const startOf = (m: RegExpExecArray) => m.index + (/^\s/.test(m[0]) ? 1 : 0)
   const folders = useMemo(() => [...new Set(files.flatMap((f) => f.split('/').slice(0, -1).map((_, i, a) => `${a.slice(0, i + 1).join('/')}/`)))], [files])
   const suggestions = useMemo<Suggestion[]>(() => {
+    if (dismissed === before) return []
     // Inserted mid-sentence, a completion needs a space after it unless one is already there.
     const tail = /^\s|^$/.test(text.slice(end)) ? '' : ' '
     if (slash) {
@@ -909,11 +944,10 @@ function Composer({
         .map((f) => ({ label: f, hint: '', tag: f.endsWith('/') ? 'folder' : 'file', from, to: end, insert: (/\s/.test(f) ? `@"${f}"` : `@${f}`) + (f.endsWith('/') ? '' : ' ') }))
     }
     return []
-  }, [slash?.[1], mention?.[1], commands, files, folders, text, end])
+  }, [slash?.[1], mention?.[1], commands, files, folders, text, end, dismissed, before])
   const apply = (s: Suggestion) => {
-    setText(text.slice(0, s.from) + s.insert + text.slice(s.to))
     const pos = s.from + s.insert.length
-    setCaret(pos)
+    edit(text.slice(0, s.from) + s.insert + text.slice(s.to), 'edit', pos)
     requestAnimationFrame(() => box.current?.setSelectionRange(pos, pos))
   }
   useEffect(() => setAt(0), [suggestions.length, slash?.[1], mention?.[1]])
@@ -925,14 +959,14 @@ function Composer({
     // What was picked on the Preview page goes ahead of the question, words first and then its picture.
     const picked = attached.filter((a) => a.context).map((a) => `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`).join('\n\n')
     // Attached files come first so the message reads "look at these: …".
-    // Each quote is followed by what was written about it.
-    const asked = quotes.map((q) => [q.text.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n'), q.note.trim()].filter(Boolean).join('\n\n')).join('\n\n')
+    const asked = quotes.map((q) => q.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')).join('\n\n')
     const body = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
     const full = asked ? [asked, body].filter(Boolean).join('\n\n') : body
     try {
       await onSend(full)
       if (value) (sent.current.unshift(value), (recall.current = -1))
       setText('')
+      undo.current.reset({ text: '', caret: 0 })
       setQuotes([])
       for (const a of attached) if (a.preview) URL.revokeObjectURL(a.preview)
       setAttached([])
@@ -1000,19 +1034,7 @@ function Composer({
           <ul className="quote-cards" aria-label="Quoted from the conversation">
             {quotes.map((q, i) => (
               <li key={i}>
-                <div className="quote-body">
-                  <blockquote>{q.text}</blockquote>
-                  <textarea
-                    rows={1}
-                    value={q.note}
-                    onChange={(e) => setQuotes((cur) => cur.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) (e.preventDefault(), box.current?.focus())
-                    }}
-                    placeholder="What about this?"
-                    aria-label="What to do about this quote"
-                  ></textarea>
-                </div>
+                <blockquote>{q}</blockquote>
                 <button className="chip-x" aria-label="Remove this quote" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
               </li>
             ))}
@@ -1032,9 +1054,13 @@ function Composer({
           onScroll={(e) => mirror.current && (mirror.current.scrollTop = e.currentTarget.scrollTop)}
           value={text}
           rows={1}
-          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
+          placeholder={blocked ? `${agentName} is waiting for you above` : quotes.length ? 'Say what to do about the quote…' : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
           aria-label={`Message ${agentName}`}
-          onChange={(e) => ((search.current = null), setText(e.target.value), setCaret(e.target.selectionStart))}
+          onChange={(e) => {
+            search.current = null
+            const t = (e.nativeEvent as InputEvent).inputType ?? ''
+            edit(e.target.value, /^(insertFromPaste|insertFromDrop|deleteByCut)/.test(t) ? 'edit' : 'type', e.target.selectionStart)
+          }}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onPaste={(e) => {
             // Text copied with <pasted_content> markers goes in without them.
@@ -1048,6 +1074,14 @@ function Composer({
             if (files.length) (e.preventDefault(), void attach(files))
           }}
           onKeyDown={(e) => {
+            // With the list of completions open, Esc closes it; the next Esc is the one that stops the agent.
+            if (e.key === 'Escape' && suggestions.length > 0) return void (e.preventDefault(), e.stopPropagation(), setDismissed(before))
+            const key = e.key.toLowerCase()
+            if ((e.metaKey || e.ctrlKey) && !e.altKey && (key === 'z' || (key === 'y' && e.ctrlKey))) {
+              e.preventDefault()
+              step(key === 'y' || e.shiftKey)
+              return
+            }
             // Enter on a command that is already typed in full sends it, instead of completing it to itself.
             const complete = suggestions.length > 0 && suggestions[at]!.insert.trim() !== text.trim()
             if (suggestions.length) {
@@ -1059,21 +1093,20 @@ function Composer({
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
               void submit()
-            } else if (e.key === 'Escape' && busy) (onStopping(true), onStop())
-            else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
+            } else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
             else if (e.key === 'r' && e.ctrlKey && sent.current.length) {
               e.preventDefault()
               search.current ??= text.trim().toLowerCase()
               const at = sent.current.findIndex((m, i) => i > recall.current && m.toLowerCase().includes(search.current!))
-              if (at >= 0) (setText(sent.current[at]!), (recall.current = at))
+              if (at >= 0) (edit(sent.current[at]!), (recall.current = at))
             } else if (e.key === 'ArrowUp' && !text && sent.current.length) {
               e.preventDefault()
               recall.current = Math.min(sent.current.length - 1, recall.current + 1)
-              setText(sent.current[recall.current]!)
+              edit(sent.current[recall.current]!)
             } else if (e.key === 'ArrowDown' && recall.current >= 0 && text === sent.current[recall.current]) {
               e.preventDefault()
               recall.current -= 1
-              setText(recall.current >= 0 ? sent.current[recall.current]! : '')
+              edit(recall.current >= 0 ? sent.current[recall.current]! : '')
             }
           }}
         />

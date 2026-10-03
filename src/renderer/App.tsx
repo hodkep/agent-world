@@ -8,6 +8,7 @@ import { PREVIEW_EVENT } from './links'
 import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
+import { WorkspacePicker } from './panel/WorkspacePicker'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { cssColor, modeInfo } from '../shared/modes'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
@@ -102,6 +103,8 @@ export function App() {
   const [report, setReport] = useState<'usage' | 'rewind' | null>(null)
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
   const [cardOpen, setCardOpen] = useState(false)
+  // Which size of card the toggle on it asked for; until then, whatever the room allows.
+  const [cardSize, setCardSize] = useState<'full' | 'compact' | null>(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
   const [agentX, setAgentX] = useState(0)
   const [profile, setProfile] = useState<{ id: string; data: AgentProfile } | null>(null)
@@ -435,7 +438,7 @@ export function App() {
         canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep')
       }
     : null
-  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX }) : null
+  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX, prefer: cardSize ?? undefined }) : null
   const cardAt = cardOpen ? cardLay : null
   const renameTo = (id: string, value: string) =>
     window.aw.renameAgent(id, value).then((name) => {
@@ -739,6 +742,15 @@ export function App() {
 
   return (
     <div className="app">
+      {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
+      {workspaces && !workspaces.active && workspaces.items.length > 0 && (
+        <WorkspacePicker
+          workspaces={workspaces}
+          onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
+          onPick={pick}
+          onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
+        />
+      )}
       {dialogFor && dialogNeeds.length > 0 && (
         <InputDialog
           agentName={agents.find((a) => a.id === dialogFor)?.name ?? 'agent'}
@@ -798,6 +810,7 @@ export function App() {
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
           onPick={pick}
           onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
+          onNewWindow={() => void window.aw.newWindow()}
         />
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
@@ -821,7 +834,7 @@ export function App() {
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
             <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }}>
-              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} />
+              <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} onToggleSize={() => setCardSize(cardAt.mode === 'full' ? 'compact' : 'full')} />
             </div>
           )}
           {grid && agents.length > 0 && (

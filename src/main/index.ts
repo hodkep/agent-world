@@ -42,7 +42,8 @@ import { autoUnavailable, readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
-import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, resume as resumeWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
+import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
+import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { driveAnswers, parseAsk } from './askMenu'
@@ -88,7 +89,13 @@ function loginShellPath() {
   }
 }
 
-let win: BrowserWindow | null = null
+// Several windows share this one process (and so one set of agents); each shows its own project.
+const windows = new Set<BrowserWindow>()
+const windowWorkspaces = new WindowWorkspaces()
+const liveWindows = () => [...windows].filter((w) => !w.isDestroyed())
+const frontWindow = () => BrowserWindow.getFocusedWindow() ?? liveWindows()[0] ?? null
+const windowFor = (agent?: AgentRecord) => (agent && liveWindows().find((w) => windowWorkspaces.get(w.webContents.id) === agent.repoPath)) || frontWindow()
+let ready = false
 let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
 // Plain shells opened in the grid, in the project folder: not agents, so they have no hooks, screen or chat. Ids start with `term:`.
@@ -315,7 +322,7 @@ const mailbox = new Mailbox({
 })
 // PTYs exit after the window is gone during quit; messages then have nowhere to go.
 const send = (channel: string, ...args: unknown[]) => {
-  if (win && !win.isDestroyed()) win.webContents.send(channel, ...args)
+  for (const w of liveWindows()) w.webContents.send(channel, ...args)
 }
 const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
@@ -361,12 +368,14 @@ function agentFiles(a: AgentRecord) {
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
 
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
-  if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, !!win && !win.isDestroyed() && win.isFocused())) return
+  if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, liveWindows().some((w) => w.isFocused()))) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
   n.on('click', () => {
-    win?.show()
-    win?.focus()
-    if (agent) send('select-agent', agent.id)
+    // The window already showing this agent's project comes forward; failing that, whichever window was in front.
+    const w = windowFor(agent)
+    w?.show()
+    w?.focus()
+    if (agent) w?.webContents.send('select-agent', agent.id)
   })
   n.show()
 }
@@ -608,6 +617,63 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
 }
 
+const isLocalHttp = (u: string) => {
+  try {
+    const x = new URL(u)
+    return x.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(x.hostname)
+  } catch {
+    return false
+  }
+}
+// Electron draws no right-click menu by itself; give the app's pages and the preview panes the system's own.
+const rightClick = (contents: Electron.WebContents) =>
+  contents.on('context-menu', (_e, params) => {
+    const items = contextItems(params, (u) => void clipboard.writeText(u), () => contents.copyImageAt(params.x, params.y))
+    if (items.length) Menu.buildFromTemplate(items).popup()
+  })
+
+/** Opens another window onto the same agents. It has no project yet, so it shows the picker. */
+function createWindow() {
+  const near = frontWindow()?.getBounds()
+  const w = new BrowserWindow({
+    show: !HIDDEN,
+    width: 1440,
+    height: 900,
+    // Offset from the window in front, so a new one does not hide exactly behind it.
+    ...(near && { x: near.x + 32, y: near.y + 32 }),
+    minWidth: 980,
+    minHeight: 640,
+    backgroundColor: '#14121c',
+    title: 'Agent World',
+    // A step or two larger than the default, which is what pressing Cmd+ twice gave every launch; AW_ZOOM=1 turns it off (tests).
+    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true, zoomFactor: Number(process.env.AW_ZOOM) || 1.2 }
+  })
+  const id = w.webContents.id
+  windows.add(w)
+  w.on('closed', () => {
+    windows.delete(w)
+    windowWorkspaces.drop(id)
+  })
+  w.webContents.on('will-attach-webview', (e, prefs, params) => {
+    delete prefs.preload
+    prefs.nodeIntegration = false
+    prefs.contextIsolation = true
+    prefs.sandbox = true
+    if (!isLocalHttp(params.src ?? '')) e.preventDefault()
+  })
+  w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  w.webContents.on('will-navigate', (e) => e.preventDefault())
+  // Cmd+N on a Mac; Ctrl+Shift+N elsewhere, since Ctrl+N belongs to the shell in the terminal.
+  w.webContents.on('before-input-event', (e, input) => {
+    const mac = process.platform === 'darwin'
+    if (input.type === 'keyDown' && input.key.toLowerCase() === 'n' && !input.alt && (mac ? input.meta && !input.shift : input.control && input.shift)) (e.preventDefault(), createWindow())
+  })
+  rightClick(w.webContents)
+  if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(process.env.ELECTRON_RENDERER_URL)
+  else void w.loadFile(join(__dirname, '../renderer/index.html'))
+  return w
+}
+
 async function main() {
   await app.whenReady()
   // The packaged app has its icon built in; a development run needs it set.
@@ -686,8 +752,8 @@ async function main() {
   office = { mcpUrl: mcp.url, hookUrl: hooks.url }
   for (const u of [mcp.url, hooks.url]) if (u) ownPorts.push(Number(new URL(u).port))
 
-  ipcMain.handle('pick-folder', async () => {
-    const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
+  ipcMain.handle('pick-folder', async (e) => {
+    const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender) ?? frontWindow()!, { properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
   // A reloaded window asks again while sessions are still running, so it must learn who is at work, not assume everyone left.
@@ -855,8 +921,9 @@ async function main() {
     return shell.openExternal(u.toString())
   })
   setInterval(() => void probeServers(), 3000)
-  const workspaceInfo = async () => {
-    const active = resumeWorkspace(workspaces, isDir)
+  // Each window has its own project, chosen on the picker a fresh window opens with; the saved list is shared.
+  const workspaceInfo = async (windowId: number) => {
+    const active = windowWorkspaces.get(windowId)
     const paths = [...new Set([...workspaces.recent, ...(active ? [active] : [])])]
     const items = await Promise.all(
       paths.map(async (path) => ({
@@ -870,16 +937,19 @@ async function main() {
     )
     return { active, items }
   }
-  ipcMain.handle('workspaces:get', workspaceInfo)
-  ipcMain.handle('workspaces:activate', async (_, path: string) => {
+  ipcMain.handle('workspaces:get', (e) => workspaceInfo(e.sender.id))
+  ipcMain.handle('workspaces:activate', async (e, path: string) => {
     if (!isDir(path)) throw new Error('That folder is not there any more.')
+    windowWorkspaces.set(e.sender.id, path)
     setWorkspaces(activateWorkspace(workspaces, path))
-    return workspaceInfo()
+    return workspaceInfo(e.sender.id)
   })
-  ipcMain.handle('workspaces:forget', async (_, path: string) => {
+  ipcMain.handle('workspaces:forget', async (e, path: string) => {
     setWorkspaces(forgetWorkspace(workspaces, path))
-    return workspaceInfo()
+    windowWorkspaces.forget(path)
+    return workspaceInfo(e.sender.id)
   })
+  ipcMain.handle('window:new', () => void createWindow())
   ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
@@ -1295,51 +1365,15 @@ async function main() {
     )
   })
 
-  win = new BrowserWindow({
-    show: !HIDDEN,
-    width: 1440,
-    height: 900,
-    minWidth: 980,
-    minHeight: 640,
-    backgroundColor: '#14121c',
-    title: 'Agent World',
-    // A step or two larger than the default, which is what pressing Cmd+ twice gave every launch; AW_ZOOM=1 turns it off (tests).
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true, zoomFactor: Number(process.env.AW_ZOOM) || 1.2 }
-  })
-  // The preview pane is a <webview>; it may only ever show local dev servers, with no access to the app.
-  const isLocalHttp = (u: string) => {
-    try {
-      const x = new URL(u)
-      return x.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(x.hostname)
-    } catch {
-      return false
-    }
-  }
-  win.webContents.on('will-attach-webview', (e, prefs, params) => {
-    delete prefs.preload
-    prefs.nodeIntegration = false
-    prefs.contextIsolation = true
-    prefs.sandbox = true
-    if (!isLocalHttp(params.src ?? '')) e.preventDefault()
-  })
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  win.webContents.on('will-navigate', (e) => e.preventDefault())
-  // Electron draws no right-click menu by itself; give the app's page and the preview pane the system's own.
-  // The window's page exists already, so it is wired directly; the preview webviews are wired as they appear.
-  const rightClick = (contents: Electron.WebContents) =>
-    contents.on('context-menu', (_e, params) => {
-      const items = contextItems(params, (u) => void clipboard.writeText(u))
-      if (items.length) Menu.buildFromTemplate(items).popup()
-    })
-  rightClick(win.webContents)
-  app.on('web-contents-created', (_, contents) => contents.getType() === 'webview' && rightClick(contents))
+  // The preview panes are <webview>s: each may only ever show local dev servers, with no access to the app.
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return
+    rightClick(contents)
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
     contents.on('will-navigate', (e, url) => !isLocalHttp(url) && e.preventDefault())
   })
-  if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
-  else win.loadFile(join(__dirname, '../renderer/index.html'))
+  createWindow()
+  ready = true
 
   // A restart within seconds (a code change in dev, a crash) brings back the agents that were running, so nothing
   // you had open goes to sleep. A restart after a longer gap starts asleep, as before.
@@ -1383,16 +1417,11 @@ async function main() {
   app.on('window-all-closed', () => app.quit())
 }
 
-// One Agent World per data folder: opening it again (a notification click after a relaunch, the dock, a second launch)
-// hands over to the running one and quits, instead of starting a second app on the same agents.
+// One app process per data folder, so its agents have a single owner: launching it again hands over to the running one and quits,
+// and the running one opens another window, which starts on the project picker.
 if (!app.requestSingleInstanceLock()) app.exit(0)
 else {
-  app.on('second-instance', () => {
-    if (!win || win.isDestroyed()) return
-    if (win.isMinimized()) win.restore()
-    win.show()
-    win.focus()
-  })
+  app.on('second-instance', () => ready && createWindow())
   main().catch((err) => {
     console.error(err)
     app.exit(1)

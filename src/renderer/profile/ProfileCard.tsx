@@ -162,7 +162,7 @@ const STATUS: Record<string, string> = { thinking: 'Thinking', researching: 'Rea
  * with what the agent is doing now, three labelled readings, the settings you can change (each is the same action
  * as in the chat, so the chat follows), and a few counted numbers.
  */
-export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null; onClose: () => void }) {
+export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null; onClose: () => void; onToggleSize?: () => void }) {
   const reduced = useReducedMotion()
   const compact = variant === 'compact'
   const ctx = contextGauge(data.ctx)
@@ -180,6 +180,11 @@ export function ProfileCard({ data, variant, now, edit, onClose }: { data: CardD
         <span className={`pc-dot is-${figureMood(data.activity)}`} aria-hidden="true" />
         <Name name={data.name} edit={edit} />
         <span className="pc-role">{data.roleLabel}</span>
+        {onToggleSize && (
+          <button className="pc-x" aria-label={compact ? 'Show the full card' : 'Show the compact card'} title={compact ? 'Show everything: level, counts and most used tools' : 'Show less'} onClick={onToggleSize}>
+            <PixelIcon name={compact ? 'expand' : 'shrink'} scale={1} />
+          </button>
+        )}
         <button className="pc-x" aria-label="Close profile card" title="Close" onClick={onClose}>
           <PixelIcon name="x" scale={1} />
         </button>

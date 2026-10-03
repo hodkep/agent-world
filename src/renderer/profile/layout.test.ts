@@ -20,6 +20,19 @@ describe('where the profile card goes', () => {
     expect(cardLayout({ w: 1000, h: CARD_COMPACT.h, agentX: 100 }).mode).toBe('panel')
   })
 
+  it('shows the compact card on a roomy stage when that is what was asked for', () => {
+    expect(cardLayout({ ...stage, agentX: 100, prefer: 'compact' })).toMatchObject({ mode: 'compact', size: CARD_COMPACT })
+  })
+
+  it('shows the full card on a stage that only had room for the compact one, when that is what was asked for', () => {
+    expect(cardLayout({ w: 760, h: 700, agentX: 100, prefer: 'full' })).toMatchObject({ mode: 'full', size: CARD_FULL })
+  })
+
+  it('still uses the panel when there is no room for any overlay, whatever was asked for', () => {
+    expect(cardLayout({ w: 560, h: 700, agentX: 100, prefer: 'full' }).mode).toBe('panel')
+    expect(cardLayout({ w: 1000, h: CARD_COMPACT.h, agentX: 100, prefer: 'full' }).mode).toBe('panel')
+  })
+
   it('stays in the panel when asked to', () => {
     expect(cardLayout({ ...stage, agentX: 100, panel: true }).mode).toBe('panel')
   })

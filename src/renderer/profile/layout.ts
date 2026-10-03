@@ -10,10 +10,12 @@ export type CardMode = 'full' | 'compact' | 'panel'
  * smaller when the window is narrower; in the panel above the chat when there is too little room, rather than
  * cover the office.
  */
-export function cardLayout(o: { w: number; h: number; agentX: number; panel?: boolean }): { mode: CardMode; side: 'left' | 'right'; size: typeof CARD_FULL | null } {
+export function cardLayout(o: { w: number; h: number; agentX: number; panel?: boolean; prefer?: 'full' | 'compact' }): { mode: CardMode; side: 'left' | 'right'; size: typeof CARD_FULL | null } {
   const side = o.agentX >= o.w / 2 ? 'left' : 'right'
   if (o.panel) return { mode: 'panel', side, size: null }
-  if (o.w >= 860 && o.h >= CARD_FULL.h + MARGIN) return { mode: 'full', side, size: CARD_FULL }
-  if (o.w >= 640 && o.h >= CARD_COMPACT.h + MARGIN) return { mode: 'compact', side, size: CARD_COMPACT }
-  return { mode: 'panel', side, size: null }
+  const fits = o.w >= 640 && o.h >= CARD_COMPACT.h + MARGIN
+  if (!fits) return { mode: 'panel', side, size: null }
+  // The size the user picked with the card's toggle wins; the full card on a short stage scrolls rather than not showing.
+  const full = o.prefer ? o.prefer === 'full' : o.w >= 860 && o.h >= CARD_FULL.h + MARGIN
+  return full ? { mode: 'full', side, size: CARD_FULL } : { mode: 'compact', side, size: CARD_COMPACT }
 }
