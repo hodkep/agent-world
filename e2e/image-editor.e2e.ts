@@ -50,6 +50,17 @@ test('an attached picture can be marked up full size, and the marked-up one is w
     const bar = editor.getByRole('toolbar', { name: 'Picture tools' })
     for (const name of ['Pen', 'Line', 'Arrow', 'Rectangle', 'Ellipse', 'Text', 'Hide (black out an area)']) await expect(bar.getByRole('radio', { name, exact: true })).toBeVisible()
     for (const name of ['Red', 'Blue', 'Green', 'Black', 'White']) await expect(bar.getByRole('radio', { name, exact: true })).toBeVisible()
+    // The ring round the chosen colour is drawn inside the swatch, so no neighbour or edge can cut it off: first, middle and last.
+    for (const name of ['Red', 'Green', 'White']) {
+      const swatch = bar.getByRole('radio', { name, exact: true })
+      await swatch.click()
+      const shadows = (await swatch.evaluate((el) => getComputedStyle(el).boxShadow)).split(/,\s(?=rgba?\()/)
+      const ring = shadows.filter((x) => x.startsWith('rgb(242, 194, 48)'))
+      expect(ring.length).toBeGreaterThan(0)
+      for (const r of ring) expect(r).toContain('inset')
+      await bar.screenshot({ path: join(tmpdir(), `aw-swatch-${name.toLowerCase()}.png`) })
+    }
+    await bar.getByRole('radio', { name: 'Red', exact: true }).click()
     await expect(bar.getByRole('button', { name: 'Save' })).toBeDisabled() // nothing drawn yet
     await expect(bar.getByRole('button', { name: 'Undo' })).toBeDisabled()
 

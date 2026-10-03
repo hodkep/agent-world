@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type History, type Pt, type Shape, type Tool, add, canRedo, canUndo, clear, drawShapes, empty, lineWidth, redo, undo } from './annotate'
 import { Lightbox } from './Images'
-import { type IconName, PixelIcon } from './PixelIcon'
+import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 
-const TOOLS: { tool: Tool; icon: IconName; label: string }[] = [
-  { tool: 'pen', icon: 'pencil', label: 'Pen' },
+const TOOLS: { tool: Tool; icon: HeaderIconName; label: string }[] = [
+  { tool: 'pen', icon: 'pen', label: 'Pen' },
   { tool: 'line', icon: 'line', label: 'Line' },
   { tool: 'arrow', icon: 'arrow', label: 'Arrow' },
   { tool: 'rect', icon: 'rect', label: 'Rectangle' },
@@ -29,7 +29,7 @@ export function AttachmentViewer({ src, name, onSave, onClose }: { src: string; 
     <>
       <Lightbox src={src} onClose={onClose} />
       <button className="lightbox-edit primary" onClick={() => setEditing(true)}>
-        <PixelIcon name="pencil" />
+        <OutlineIcon name="pen" />
         Edit
       </button>
     </>
@@ -163,7 +163,7 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
         <div className="editor-group" role="radiogroup" aria-label="Tool">
           {TOOLS.map((t) => (
             <button key={t.tool} role="radio" aria-checked={tool === t.tool} className="tool" onClick={() => setTool(t.tool)} aria-label={t.label} title={t.label}>
-              <PixelIcon name={t.icon} />
+              <OutlineIcon name={t.icon} size={18} />
             </button>
           ))}
         </div>
@@ -174,13 +174,13 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
         </div>
         <div className="editor-group">
           <button className="tool" onClick={() => setHist(undo)} disabled={!canUndo(hist)} aria-label="Undo" title="Undo (⌘Z)">
-            <PixelIcon name="undo" />
+            <OutlineIcon name="undo" size={18} />
           </button>
           <button className="tool" onClick={() => setHist(redo)} disabled={!canRedo(hist)} aria-label="Redo" title="Redo (⇧⌘Z)">
-            <PixelIcon name="redo" />
+            <OutlineIcon name="redo" size={18} />
           </button>
           <button className="tool" onClick={() => setHist(clear)} disabled={hist.done.length === 0} aria-label="Clear all marks" title="Clear all marks">
-            <PixelIcon name="trash" />
+            <OutlineIcon name="trash" size={18} />
           </button>
         </div>
         <button onClick={onClose}>Close</button>
