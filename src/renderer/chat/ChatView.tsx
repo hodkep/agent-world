@@ -802,7 +802,7 @@ interface Attachment {
   /** A local preview for pictures. */
   preview?: string
   /** Set when it is a thing picked on the Preview page: the words that go with it, sent with the message but not shown in the box. */
-  context?: { text: string; label: string }
+  context?: { text: string; label: string; /** Where it came from, as the chip says: Preview, Code. */ source?: string; /** Where to bring the code back to. */ jump?: { path: string; from: number; to: number } }
 }
 
 function Composer({
@@ -962,18 +962,41 @@ function Composer({
   // Something picked on the Preview page arrives as one chip (its picture, and the words that describe it) to send with a question about it.
   useEffect(() => {
     const on = (e: Event) => {
-      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; label?: string; handled?: boolean }>).detail
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; label?: string; source?: string; jump?: { path: string; from: number; to: number }; handled?: boolean }>).detail
       // The same agent can be open in the side panel and in a grid cell; only the first box takes it.
       if (d.agentId !== agentId || d.handled) return
       d.handled = true
-      const context = { text: d.text, label: d.label ?? 'an element' }
+      const context = { text: d.text, label: d.label ?? 'an element', source: d.source, jump: d.jump }
       if (d.file) void attach([d.file], context)
-      else setAttached((cur) => [...cur, { id: `${Date.now()}-${cur.length}`, name: context.label, path: '', context }])
+      // The same words twice would only say it twice.
+      else setAttached((cur) => (cur.some((a) => a.context?.text === d.text) ? cur : [...cur, { id: `${Date.now()}-${cur.length}`, name: context.label, path: '', context }]))
       box.current?.focus()
     }
     window.addEventListener('aw-context', on)
     return () => window.removeEventListener('aw-context', on)
   }, [agentId, attach])
+
+  // The Code view shows these chips too, and can take one off: it is told what is here and asked to remove by name.
+  const chipsRef = useRef<Attachment[]>([])
+  chipsRef.current = attached
+  const tell = useCallback(() => {
+    const chips = chipsRef.current.filter((a) => a.context).map((a) => ({ id: a.id, label: a.name, source: a.context!.source ?? 'Preview', jump: a.context!.jump }))
+    window.dispatchEvent(new CustomEvent('aw-context-changed', { detail: { agentId, chips } }))
+  }, [agentId])
+  useEffect(tell, [attached, tell])
+  useEffect(() => {
+    const remove = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; id: string }>).detail
+      if (d.agentId === agentId) setAttached((cur) => cur.filter((a) => a.id !== d.id))
+    }
+    const ask = (e: Event) => (e as CustomEvent<{ agentId: string }>).detail.agentId === agentId && tell()
+    window.addEventListener('aw-context-remove', remove)
+    window.addEventListener('aw-context-ask', ask)
+    return () => {
+      window.removeEventListener('aw-context-remove', remove)
+      window.removeEventListener('aw-context-ask', ask)
+    }
+  }, [agentId, tell])
 
   // "/co" completes a command or skill and "@fi" a file or folder, wherever the caret is in the message.
   const end = Math.min(caret, text.length)
@@ -1093,7 +1116,7 @@ function Composer({
         <ul className="attached" aria-label="Attached files">
           {attached.map((a) => (
             <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text}>
-              {a.context && <span className="chip-from">Preview</span>}
+              {a.context && <span className="chip-from">{a.context.source ?? 'Preview'}</span>}
               {a.preview ? (
                 <button className="chip-img" onClick={() => setViewing(a.id)} aria-label={`Preview ${a.name}`}>
                   <img src={a.preview} alt="" />

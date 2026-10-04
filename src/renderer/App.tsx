@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
@@ -9,6 +9,7 @@ import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { WorkspacePicker } from './panel/WorkspacePicker'
+import { TerminalDrawer } from './panel/TerminalDrawer'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
 import { cssColor, modeInfo } from '../shared/modes'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
@@ -103,6 +104,18 @@ export function App() {
   const [report, setReport] = useState<'usage' | 'rewind' | null>(null)
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
   const [cardOpen, setCardOpen] = useState(false)
+  // The terminals drawer under the office: shown or hidden, how tall, and how many terminals the project has.
+  const [termOpen, setTermOpen] = useState(() => store('aw.term') === '1')
+  const [termH, setTermH] = useState(() => Math.max(110, Number(store('aw.termH')) || 230))
+  const [termCount, setTermCount] = useState(0)
+  const toggleTerm = useCallback(() => setTermOpen((o) => (keep('aw.term', o ? '' : '1'), !o)), [])
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === '`') (e.preventDefault(), e.stopPropagation(), toggleTerm())
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  }, [toggleTerm])
   // Which size of card the toggle on it asked for; until then, whatever the room allows.
   const [cardSize, setCardSize] = useState<'full' | 'compact' | null>(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
@@ -924,16 +937,28 @@ export function App() {
               )}
             </div>
           )}
-          <div className="zoom-ctl" role="group" aria-label="View">
-            <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
-            <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
-            <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
-              Fit office
-            </button>
-            <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
-              Reset
-            </button>
+          <div className="stage-ctl" style={{ bottom: termOpen && folder ? termH + 10 : 10 }}>
+            <div className="zoom-ctl" role="group" aria-label="View">
+              <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
+              <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
+              <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
+                Fit office
+              </button>
+              <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
+                Reset
+              </button>
+            </div>
+            {folder && (
+              <div className="zoom-ctl" role="group" aria-label="Terminals">
+                <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title="Show or hide the terminals in this project (Ctrl+`)">
+                  <span className="term-gl" aria-hidden="true">&gt;_</span>
+                  Terminal
+                  {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+                </button>
+              </div>
+            )}
           </div>
+          <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
               <PlantTip five={tip.five} week={tip.week} />
@@ -1166,7 +1191,7 @@ export function App() {
           {current && view === 'preview' && <PreviewView key={current.id} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
-          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} workDone={state?.files ?? 0} openFile={openFile} />}
+          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>
       </main>
     </div>

@@ -100,6 +100,7 @@ let agents: AgentRecord[] = []
 const sessions = new Map<string, pty.IPty>()
 // Plain shells opened in the grid, in the project folder: not agents, so they have no hooks, screen or chat. Ids start with `term:`.
 const shells = new Map<string, pty.IPty>()
+const shellIdle = new Map<string, string>()
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
@@ -1315,6 +1316,8 @@ async function main() {
     const p = pty.spawn(file, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: env as Record<string, string> })
     shells.set(id, p)
     p.onData((d) => {
+      // When the first prompt is drawn the shell is what is in front: that is its name for "waiting for a command".
+      if (!shellIdle.has(id)) shellIdle.set(id, p.process)
       const b = buffers.get(id) ?? { text: '', end: 0 }
       const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
       buffers.set(id, next)
@@ -1322,6 +1325,7 @@ async function main() {
     })
     p.onExit(() => {
       shells.delete(id)
+      shellIdle.delete(id)
       buffers.delete(id)
       send('pty-exit', id)
     })
@@ -1330,9 +1334,11 @@ async function main() {
   ipcMain.on('shell:close', (_, id: string) => {
     shells.get(id)?.kill()
     shells.delete(id)
+    shellIdle.delete(id)
     buffers.delete(id)
   })
   ipcMain.handle('shell:list', () => [...shells.keys()])
+  ipcMain.handle('shell:processes', () => Object.fromEntries([...shells].map(([id, p]) => [id, { front: p.process, idle: shellIdle.get(id) ?? p.process }])))
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
   ipcMain.handle('list-commands', (_, id: string) => {
     const a = byId(id)

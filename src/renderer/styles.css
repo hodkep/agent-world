@@ -138,6 +138,39 @@ aside:not(.wide) .change-list { width: 190px; }
 .notice { color: var(--ok); margin: 0; font-size: 12px; word-break: break-all; }
 .change-list .error { margin: 0; font-size: 12px; }
 .diff { flex: 1; min-width: 0; min-height: 0; }
+/* The Files view: tabs of open files over the editor, the file's path under them, and the chips waiting in the message under it. */
+.files-ed { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.files-edwrap { position: relative; flex: 1; min-height: 0; display: flex; }
+/* The editor is its own layer, so the Ask bubble and toast are always above whatever Monaco stacks inside it. */
+.files-edwrap .diff { position: relative; z-index: 0; }
+.ftabs { display: flex; flex: none; overflow-x: auto; background: var(--panel-3); border-bottom: 2px solid var(--ink); scrollbar-width: thin; }
+.ftab { display: flex; align-items: center; gap: 8px; flex: none; max-width: 220px; padding: 5px 6px 5px 12px; border-right: 1px solid var(--line); color: var(--muted); cursor: pointer; }
+.ftab:hover { color: var(--text); background: var(--panel-2); }
+.ftab.on { background: var(--well); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.ftab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ftab .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftab .x { width: 18px; height: 18px; padding: 0; line-height: 1; background: transparent; box-shadow: none; border-color: transparent; color: var(--muted); }
+.ftab .x:hover { color: var(--accent); background: var(--well); }
+.fdot { width: 8px; height: 8px; flex: none; background: var(--accent); }
+.fcrumb { display: flex; align-items: center; gap: 10px; flex: none; padding: 4px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px Menlo, Consolas, monospace; }
+.fcrumb .fpath { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fcrumb .flang { color: var(--think); }
+.fcrumb button { margin-left: auto; flex: none; font: 12px inherit; padding: 1px 10px; }
+.fask { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap; padding: 5px 10px; background: var(--danger-well); border-bottom: 1px solid var(--line); }
+.fask span { flex: 1; min-width: 160px; }
+.fask .danger { color: var(--danger-text); }
+.file.is-open::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--accent); vertical-align: middle; }
+.ctx-tray { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; background: var(--panel-3); border-top: 2px solid var(--ink); }
+.ctx-lab { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.ctx-chip { display: inline-flex; align-items: center; background: var(--well); box-shadow: 0 0 0 1px var(--accent-dim); max-width: 100%; }
+.ctx-jump { background: transparent; border: 0; box-shadow: none; color: var(--text); font: 11px Menlo, Consolas, monospace; padding: 2px 4px 2px 8px; cursor: pointer; }
+.ctx-jump:hover:not(:disabled) { color: var(--accent); background: transparent; }
+.ctx-chip .chip-x { width: 18px; height: 18px; }
+.ctx-open { margin-left: auto; font-size: 12px; padding: 1px 10px; }
+.code-ask { z-index: 50; gap: 8px; }
+.code-ask kbd { font: 10px Menlo, Consolas, monospace; color: var(--muted); background: var(--well); border: 1px solid var(--line); padding: 0 4px; }
+.code-ask.under::after { top: auto; bottom: 100%; border: 0; border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); transform: translate(-50%, 4px) rotate(45deg); }
+.code-toast { position: absolute; right: 12px; bottom: 12px; z-index: 50; max-width: 80%; padding: 4px 10px; background: var(--ink); color: var(--text); border: 2px solid var(--line); font-size: 12px; }
 
 .hire { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 2px solid var(--ink); background: var(--panel-2); }
 .hire-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
@@ -375,7 +408,8 @@ aside.drawer { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; wid
 aside.drawer.wide { width: min(94vw, 900px); }
 
 /* ---- View controls over the office ------------------------------------------------------------ */
-.zoom-ctl { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
+.stage-ctl { position: absolute; left: 10px; bottom: 10px; z-index: 6; display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.zoom-ctl { display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
 .zoom-ctl button { font-size: 12px; padding: 3px 9px; }
 .zc-minus, .zc-plus { width: 28px; position: relative; padding: 0 !important; }
 .zc-minus::before, .zc-plus::before, .zc-plus::after { content: ''; position: absolute; left: 50%; top: 50%; background: var(--text); transform: translate(-50%, -50%); }
@@ -965,6 +999,10 @@ svg.pxi { display: block; flex: none; }
 .pick-body dl { margin: 0; display: grid; gap: 6px; }
 .pick-body dt { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
 .pick-body dd { margin: 0; font: 11px/1.45 Menlo, Consolas, monospace; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
+.chip-from.code { background: var(--ok); }
+.pick-note { color: var(--muted); font-size: 11px; }
+.pick-sub { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.pick-code { margin: 0; max-height: 14em; overflow: auto; font-size: 11px; }
 .chip-from { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); background: var(--think); padding: 1px 6px; flex: none; }
 .chip-context .chip-name { max-width: 260px; font-family: Menlo, Consolas, monospace; }
 
@@ -1290,3 +1328,38 @@ code a.file-link { font: inherit; }
 
 /* Out of sight or in the background: no blinking. The element stays as it is without the animation, so an alert dot is simply lit. */
 :root[data-away] *, :root[data-away] *::before, :root[data-away] *::after { animation: none !important; }
+
+/* ---- Terminals under the office ---- */
+.term-btn { display: inline-flex; align-items: center; gap: 7px; }
+.term-gl { font: 700 11px Menlo, Consolas, monospace; color: var(--accent); }
+.term-count { font: 700 10px Menlo, Consolas, monospace; background: var(--well); color: var(--text); padding: 0 5px; box-shadow: 0 0 0 1px var(--ink); }
+.term-btn[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.term-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-hot); }
+.term-btn[aria-pressed='true'] .term-gl { color: var(--ink); }
+.term-btn[aria-pressed='true'] .term-count { background: var(--ink); color: var(--accent); }
+.tdrawer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 120px); background: var(--well); border-top: 2px solid var(--ink); box-shadow: 0 -2px 0 var(--line), 0 -10px 24px rgb(0 0 0 / 0.5); }
+.tdrawer[hidden] { display: none; }
+.tgrip { height: 6px; flex: none; cursor: ns-resize; background: var(--panel-2); border-bottom: 1px solid var(--ink); position: relative; touch-action: none; }
+.tgrip::after { content: ''; position: absolute; left: 50%; top: 1px; width: 36px; height: 3px; background: var(--line); transform: translateX(-50%); }
+.tgrip:hover::after { background: var(--accent); }
+.ttop { display: flex; align-items: stretch; flex: none; min-width: 0; background: var(--panel-3); border-bottom: 2px solid var(--ink); }
+.ttabs { display: flex; overflow-x: auto; min-width: 0; scrollbar-width: thin; }
+.ttab { display: flex; align-items: center; gap: 7px; flex: none; max-width: 200px; padding: 5px 6px 5px 12px; border-right: 1px solid var(--line); color: var(--muted); cursor: pointer; }
+.ttab:hover { color: var(--text); background: var(--panel-2); }
+.ttab.on { color: var(--text); background: var(--well); box-shadow: inset 0 -2px 0 var(--accent); }
+.ttab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ttab .nm { font-family: Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tst { width: 7px; height: 7px; flex: none; background: var(--dim); }
+.tst.run { background: var(--ok); }
+.ttab .x { width: 18px; height: 18px; padding: 0; line-height: 1; background: transparent; box-shadow: none; border-color: transparent; color: var(--muted); }
+.ttab .x:hover { color: var(--accent); background: var(--well); }
+.tadd, .thide { flex: none; background: transparent; box-shadow: none; border-color: transparent; color: var(--muted); padding: 0 12px; font-size: 15px; }
+.tadd:hover, .thide:hover { color: var(--accent); background: var(--panel-2); }
+.twhere { margin-left: auto; align-self: center; padding: 0 8px; font: 11px Menlo, Consolas, monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.task { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap; padding: 5px 10px; background: var(--danger-well); border-bottom: 1px solid var(--line); }
+.task span { flex: 1; min-width: 160px; }
+.task .danger { color: var(--danger-text); }
+.tdrawer-error { margin: 0; padding: 4px 10px; }
+.tbody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tbody .term-host { flex: 1; min-height: 0; height: auto; padding: 6px 10px; }
+.tnone { flex: 1; display: grid; place-items: center; align-content: center; gap: 8px; color: var(--muted); }

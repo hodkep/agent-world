@@ -118,6 +118,8 @@ export interface AwApi {
   openShell(folder: string): Promise<string>
   closeShell(id: string): void
   listShells(): Promise<string[]>
+  /** For each shell: what is running in front now, and what the shell itself was called when it first showed its prompt. */
+  shellProcesses(): Promise<Record<string, { front: string; idle: string }>>
   ptyWrite(id: string, data: string): void
   ptyResize(id: string, cols: number, rows: number): void
   // `end` is the stream offset after the returned text, so live chunks already in it can be skipped.

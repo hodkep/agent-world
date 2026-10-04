@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Changes } from '../../shared/api'
+import { ContextTray, type CodeJump, useAskSelection } from './askAgent'
+import { codeContext } from './codeContext'
 import { editorOptions, languageFor, monaco } from './monaco'
+import { closeTab, openTab, type TabState } from './tabs'
 import { ancestors, visibleRows } from './tree'
 
 type Tab = 'changes' | 'files'
@@ -8,6 +11,8 @@ type Tab = 'changes' | 'files'
 export interface OpenRequest {
   path?: string
   tab?: Tab
+  /** Lines to select once the file is open. */
+  range?: { from: number; to: number }
 }
 
 const STATUS_MARK = { added: 'A', modified: 'M', deleted: 'D' } as const
@@ -27,11 +32,14 @@ function useErrors() {
 }
 
 /** Review an agent's work (diff against its base) and edit files in its worktree. */
-export function CodePanel({ agentId, workDone, openFile }: { agentId: string; workDone: number; openFile?: OpenRequest }) {
+export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat }: { agentId: string; agentName: string; workDone: number; openFile?: OpenRequest; onOpenChat: () => void }) {
   const [tab, setTab] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : 'changes')
+  // What to open in the Files tab: what was asked from outside, or the lines of a chip clicked under the editor.
+  const [request, setRequest] = useState<OpenRequest | undefined>(openFile)
   useEffect(() => {
-    if (openFile) setTab(openFile.tab ?? 'files')
+    if (openFile) (setTab(openFile.tab ?? 'files'), setRequest(openFile))
   }, [openFile])
+  const jump = (j: CodeJump) => (setRequest({ path: j.path, tab: 'files', range: { from: j.from, to: j.to } }), setTab('files'))
   return (
     <div className="code">
       <div className="tabs" role="tablist">
@@ -41,12 +49,12 @@ export function CodePanel({ agentId, workDone, openFile }: { agentId: string; wo
           </button>
         ))}
       </div>
-      {tab === 'changes' ? <ChangesView agentId={agentId} workDone={workDone} /> : <FilesView agentId={agentId} openFile={openFile} />}
+      {tab === 'changes' ? <ChangesView agentId={agentId} agentName={agentName} workDone={workDone} onJump={jump} onOpenChat={onOpenChat} /> : <FilesView agentId={agentId} agentName={agentName} openFile={request} onOpenChat={onOpenChat} />}
     </div>
   )
 }
 
-function ChangesView({ agentId, workDone }: { agentId: string; workDone: number }) {
+function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { agentId: string; agentName: string; workDone: number; onJump: (j: CodeJump) => void; onOpenChat: () => void }) {
   const [data, setData] = useState<Changes | null>(null)
   const [path, setPath] = useState<string | null>(null)
   const [message, setMessage] = useState('')
@@ -54,6 +62,35 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
   const diff = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
+  const wrap = useRef<HTMLDivElement>(null)
+  const shown = useRef<string | null>(null)
+  shown.current = path
+  // Selected code in a diff goes in as the code after the change, with what the same lines were before when the selection touches a change.
+  const ask = useAskSelection({
+    agentId,
+    agentName,
+    host: wrap,
+    describe: (e, sel) => {
+      const p = shown.current
+      const d = diff.current
+      if (!p || !d) return null
+      const from = sel.startLineNumber
+      const to = sel.endColumn === 1 && sel.endLineNumber > from ? sel.endLineNumber - 1 : sel.endLineNumber
+      const hit = (d.getLineChanges() ?? []).filter((c) => c.originalEndLineNumber > 0 && c.modifiedStartLineNumber <= to && (c.modifiedEndLineNumber || c.modifiedStartLineNumber) >= from)
+      const orig = d.getModel()?.original
+      const before = hit.length && orig ? { from: Math.min(...hit.map((c) => c.originalStartLineNumber)), to: Math.max(...hit.map((c) => c.originalEndLineNumber)) } : null
+      const text = codeContext({
+        path: p,
+        from,
+        to,
+        code: e.getModel()!.getValueInRange(sel),
+        after: true,
+        ...(before && orig && { before: { ...before, code: orig.getValueInRange(new monaco.Range(before.from, 1, before.to, orig.getLineMaxColumn(before.to))) } })
+      })
+      return { text, label: `${p.slice(p.lastIndexOf('/') + 1)}:${from === to ? from : `${from}–${to}`}`, jump: { path: p, from, to } }
+    }
+  })
+  const attachAsk = ask.attach
 
   const refresh = useCallback(() => void run(async () => setData(await window.aw.code.changes(agentId))), [agentId, run])
   // Re-read whenever the agent writes or edits another file.
@@ -61,7 +98,9 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
 
   useEffect(() => {
     diff.current = monaco.editor.createDiffEditor(host.current!, { ...editorOptions, readOnly: true, renderSideBySide: false })
+    const asking = attachAsk(diff.current.getModifiedEditor())
     return () => {
+      asking.dispose()
       const m = diff.current?.getModel()
       diff.current?.dispose()
       m?.original.dispose()
@@ -153,67 +192,172 @@ function ChangesView({ agentId, workDone }: { agentId: string; workDone: number 
         {notice && <p className="notice">{notice}</p>}
         {error && <p className="error">{error}</p>}
       </div>
-      <div className="diff" ref={host} aria-label={path ? `Diff of ${path}` : 'Diff'} data-hint={path ? undefined : 'Pick a file to review its changes'} />
+      <div className="files-ed">
+        <div className="files-edwrap" ref={wrap}>
+          <div className="diff" ref={host} aria-label={path ? `Diff of ${path}` : 'Diff'} data-hint={path ? undefined : 'Pick a file to review its changes'} />
+          {ask.view}
+        </div>
+        <ContextTray agentId={agentId} onJump={onJump} onOpenChat={onOpenChat} />
+      </div>
     </div>
   )
 }
 
-function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequest }) {
+/** What is open in the Files view of each agent. It lives outside the view, so flipping to Changes and back loses nothing. */
+interface Session {
+  tabs: TabState
+  /** What each open file held when it was read or last saved: unlike this, what the editor holds may be edited. */
+  saved: Map<string, string>
+  views: Map<string, monaco.editor.ICodeEditorViewState | null>
+  subs: Map<string, monaco.IDisposable>
+}
+const sessions = new Map<string, Session>()
+const sessionOf = (agentId: string): Session => sessions.get(agentId) ?? sessions.set(agentId, { tabs: { open: [], active: null }, saved: new Map(), views: new Map(), subs: new Map() }).get(agentId)!
+const uriOf = (agentId: string, path: string) => monaco.Uri.from({ scheme: 'aw-file', authority: agentId, path: `/${path}` })
+const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1)
+
+function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: string; agentName: string; openFile?: OpenRequest; onOpenChat: () => void }) {
+  const sess = sessionOf(agentId)
   const [files, setFiles] = useState<string[]>([])
   const [filter, setFilter] = useState('')
+  const [tabs, setTabs] = useState<TabState>(sess.tabs)
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
-  const [path, setPath] = useState<string | null>(null)
-  const [dirty, setDirty] = useState(false)
+  const [asking, setAsking] = useState<string | null>(null)
+  const [, bump] = useState(0)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
+  const wrap = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLUListElement>(null)
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-  const current = useRef<string | null>(null)
+  const model = (p: string) => monaco.editor.getModel(uriOf(agentId, p))
+  const dirtyOf = (p: string) => {
+    const m = model(p)
+    return !!m && m.getValue() !== sess.saved.get(p)
+  }
+  const active = tabs.active
+
+  const ask = useAskSelection({
+    agentId,
+    agentName,
+    host: wrap,
+    describe: (e, sel) => {
+      const p = sess.tabs.active
+      if (!p) return null
+      const from = sel.startLineNumber
+      const to = sel.endColumn === 1 && sel.endLineNumber > from ? sel.endLineNumber - 1 : sel.endLineNumber
+      return { text: codeContext({ path: p, from, to, code: e.getModel()!.getValueInRange(sel) }), label: `${baseName(p)}:${from === to ? from : `${from}–${to}`}`, jump: { path: p, from, to } }
+    }
+  })
+  const attachAsk = ask.attach
 
   const loadFiles = useCallback(() => void run(async () => setFiles(await window.aw.code.files(agentId))), [agentId, run])
   useEffect(loadFiles, [loadFiles])
 
-  const save = useCallback(async () => {
-    if (!current.current || !editor.current) return
-    const p = current.current
-    await run(async () => {
-      await window.aw.code.write(agentId, p, editor.current!.getValue())
-      setDirty(false)
+  // Show a file (or nothing) in the editor, putting the cursor and scroll back where they were, or on the lines asked for.
+  const show = (p: string | null, range?: { from: number; to: number }) => {
+    const e = editor.current!
+    e.setModel(p ? model(p) : null)
+    if (!p) return
+    const m = model(p)!
+    const view = sess.views.get(p)
+    if (range) {
+      e.setSelection(new monaco.Range(range.from, 1, range.to, m.getLineMaxColumn(range.to)))
+      e.revealLineInCenter(range.from)
+    } else if (view) e.restoreViewState(view)
+    e.focus()
+  }
+  const rememberView = () => {
+    const a = sess.tabs.active
+    if (a && editor.current) sess.views.set(a, editor.current.saveViewState())
+  }
+  const setTabState = (next: TabState) => ((sess.tabs = next), setTabs(next))
+
+  const open = (p: string, range?: { from: number; to: number }) =>
+    void run(async () => {
+      if (!model(p)) {
+        const text = await window.aw.code.read(agentId, p)
+        const m = monaco.editor.createModel(text, languageFor(p), uriOf(agentId, p))
+        sess.saved.set(p, text)
+        sess.subs.set(p, m.onDidChangeContent(() => bump((n) => n + 1)))
+      }
+      rememberView()
+      setAsking(null)
+      setTabState(openTab(sess.tabs, p))
+      show(p, range)
     })
-  }, [agentId, run])
+
+  const switchTo = (p: string) => {
+    if (p === sess.tabs.active) return editor.current?.focus()
+    rememberView()
+    setAsking(null)
+    setTabState({ ...sess.tabs, active: p })
+    show(p)
+  }
+
+  const close = (p: string, force = false) => {
+    // An unsaved tab asks first, and is brought forward so what would be lost can be seen.
+    if (!force && dirtyOf(p)) {
+      if (sess.tabs.active !== p) switchTo(p)
+      return setAsking(p)
+    }
+    rememberView()
+    const wasActive = sess.tabs.active === p
+    const next = closeTab(sess.tabs, p)
+    model(p)?.dispose()
+    sess.subs.get(p)?.dispose()
+    for (const m of [sess.subs, sess.saved, sess.views] as Map<string, unknown>[]) m.delete(p)
+    setAsking(null)
+    setTabState(next)
+    if (wasActive) show(next.active)
+  }
+  const closeRef = useRef(close)
+  closeRef.current = close
+
+  const save = async () => {
+    const p = sess.tabs.active
+    const m = p && model(p)
+    if (!p || !m) return
+    await run(async () => {
+      const text = m.getValue()
+      await window.aw.code.write(agentId, p, text)
+      sess.saved.set(p, text)
+      bump((n) => n + 1)
+    })
+  }
+  const saveRef = useRef(save)
+  saveRef.current = save
 
   useEffect(() => {
-    editor.current = monaco.editor.create(host.current!, { ...editorOptions, value: '' })
-    editor.current.onDidChangeModelContent(() => setDirty(true))
+    const e = monaco.editor.create(host.current!, { ...editorOptions, model: null })
+    editor.current = e
+    const parts = [
+      attachAsk(e),
+      e.addAction({ id: 'aw.save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS], run: () => void saveRef.current() }),
+      e.addAction({ id: 'aw.closeTab', label: 'Close tab', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW], run: () => void (sess.tabs.active && closeRef.current(sess.tabs.active)) })
+    ]
+    show(sess.tabs.active)
     return () => {
-      editor.current?.getModel()?.dispose()
-      editor.current?.dispose()
+      rememberView()
+      parts.forEach((x) => x.dispose())
+      // The models stay: they are the open tabs, kept for when this view comes back.
+      e.setModel(null)
+      e.dispose()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- made once, with the view
   }, [])
 
   useEffect(() => {
-    const e = editor.current
-    if (!e) return
-    const binding = e.addAction({ id: 'aw.save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS], run: () => void save() })
-    return () => binding.dispose()
-  }, [save])
-
-  const open = (p: string) =>
-    void run(async () => {
-      if (dirty && !window.confirm(`Discard unsaved edits to ${current.current}?`)) return
-      const text = await window.aw.code.read(agentId, p)
-      const old = editor.current!.getModel()
-      editor.current!.setModel(monaco.editor.createModel(text, languageFor(p)))
-      old?.dispose()
-      current.current = p
-      setPath(p)
-      setDirty(false)
-    })
-
-  useEffect(() => {
-    if (openFile?.path) open(openFile.path)
+    if (openFile?.path) open(openFile.path, openFile.range)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should open a file
   }, [openFile])
+
+  // The tree follows the tab shown: the folders above its file open and the file scrolls into view.
+  useEffect(() => {
+    if (!active) return
+    setOpenDirs((s) => new Set([...s, ...ancestors(active)]))
+    const f = requestAnimationFrame(() => list.current?.querySelector('li.on')?.scrollIntoView({ block: 'nearest' }))
+    return () => cancelAnimationFrame(f)
+  }, [active])
 
   const toggle = (dir: string) =>
     setOpenDirs((s) => {
@@ -221,27 +365,14 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
       if (!n.delete(dir)) n.add(dir)
       return n
     })
-  // Opens every folder above the file so its row exists, then scrolls to it.
-  const locate = (p: string | null) => {
-    if (!p) return
-    setFilter('')
-    setOpenDirs((s) => new Set([...s, ...ancestors(p)]))
-    requestAnimationFrame(() => list.current?.querySelector('li.on')?.scrollIntoView({ block: 'nearest' }))
-  }
-  useEffect(() => {
-    if (openFile?.path) locate(openFile.path)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new request should reveal a file
-  }, [openFile])
 
   const rows = visibleRows(files, openDirs, filter)
+  const dirty = !!active && dirtyOf(active)
   return (
     <div className="changes">
       <div className="change-list">
         <div className="tree-head">
           <span>Files</span>
-          <button className="icon" onClick={() => locate(path)} disabled={!path} title={path ? 'Show the open file in the tree' : 'Open a file to find it in the tree'} aria-label="Show the open file in the tree">
-            ◎
-          </button>
           <button className="icon" onClick={loadFiles} title="Refresh the file list" aria-label="Refresh the file list">
             ↻
           </button>
@@ -249,9 +380,9 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
         <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search…" aria-label="Filter files" />
         <ul className="tree" ref={list} role="tree">
           {rows.map((r) => (
-            <li key={r.path} className={r.path === path ? 'on' : ''} role="treeitem" aria-expanded={r.dir ? filter !== '' || openDirs.has(r.path) : undefined}>
+            <li key={r.path} className={r.path === active ? 'on' : ''} role="treeitem" aria-expanded={r.dir ? filter !== '' || openDirs.has(r.path) : undefined}>
               <button
-                className={`file ${r.dir ? 'is-dir' : ''}`}
+                className={`file ${r.dir ? 'is-dir' : ''} ${!r.dir && tabs.open.includes(r.path) ? 'is-open' : ''}`}
                 style={{ paddingLeft: 6 + r.depth * 14 }}
                 onClick={() => (r.dir ? toggle(r.path) : open(r.path))}
                 title={r.path}
@@ -263,14 +394,59 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
           ))}
           {files.length > 0 && rows.length === 0 && <li className="empty">No files match.</li>}
         </ul>
-        <div className="land">
-          <button onClick={() => void save()} disabled={!path || !dirty}>
-            Save{dirty ? ' •' : ''}
-          </button>
-        </div>
         {error && <p className="error">{error}</p>}
       </div>
-      <div className="diff" ref={host} aria-label={path ? `Editing ${path}` : 'Editor'} data-hint={path ? undefined : 'Pick a file to edit it'} />
+      <div className="files-ed">
+        {tabs.open.length > 0 && (
+          <div className="ftabs" role="tablist" aria-label="Open files">
+            {tabs.open.map((p) => (
+              <div
+                key={p}
+                className={`ftab ${p === active ? 'on' : ''}`}
+                role="tab"
+                tabIndex={0}
+                aria-selected={p === active}
+                title={p}
+                onClick={() => switchTo(p)}
+                onAuxClick={(e) => e.button === 1 && (e.preventDefault(), close(p))}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), switchTo(p))}
+              >
+                <span className="nm">{baseName(p)}</span>
+                {dirtyOf(p) && <i className="fdot" title="Unsaved changes" />}
+                <button className="x" aria-label={`Close ${baseName(p)}`} title="Close (⌘W)" onClick={(e) => (e.stopPropagation(), close(p))}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {active && (
+          <div className="fcrumb">
+            <span className="fpath" title={active}>{active}</span>
+            <span aria-hidden="true">·</span>
+            <span className="flang">{languageFor(active)}</span>
+            <button onClick={() => void save()} disabled={!dirty} title="Save this file (⌘S)">
+              Save{dirty ? ' •' : ''}
+            </button>
+          </div>
+        )}
+        {asking && (
+          <div className="fask" role="alert">
+            <span>
+              Discard unsaved changes to <b>{baseName(asking)}</b>?
+            </span>
+            <button className="danger" onClick={() => close(asking, true)}>
+              Discard
+            </button>
+            <button onClick={() => (setAsking(null), editor.current?.focus())}>Keep editing</button>
+          </div>
+        )}
+        <div className="files-edwrap" ref={wrap}>
+          <div className="diff" ref={host} aria-label={active ? `Editing ${active}` : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
+          {ask.view}
+        </div>
+        <ContextTray agentId={agentId} onJump={(j) => open(j.path, { from: j.from, to: j.to })} onOpenChat={onOpenChat} />
+      </div>
     </div>
   )
 }

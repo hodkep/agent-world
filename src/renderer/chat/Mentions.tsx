@@ -3,7 +3,8 @@ import { Picture } from './Images'
 import { followLink, linkHint } from '../links'
 import { hasMarkdown, highlight, isImagePath, splitMentions } from './format'
 import { type Picked, splitPicked } from './pickedContext'
-import { Markdown } from './markdown'
+import { Code, Markdown } from './markdown'
+import { type CodeBlock, splitCode } from '../code/codeContext'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
@@ -38,6 +39,29 @@ export function quoted(text: string): { quote: boolean; text: string }[] {
   return out.map((b) => ({ ...b, text: b.quote ? b.text : b.text.replace(/^\n+|\n+$/g, '') })).filter((b) => b.text !== '' || b.quote)
 }
 
+/** Some code from a file, sent with a message: one small card with where it is from; the code opens on a click. */
+function CodeCard({ block }: { block: CodeBlock }) {
+  const lang = /\.([a-z0-9]{1,5})$/i.exec(block.path)?.[1]?.toLowerCase() ?? ''
+  return (
+    <details className="pick-card code-card">
+      <summary title={`${block.path}, ${block.lines.includes('–') ? 'lines' : 'line'} ${block.lines}`}>
+        <span className="chip-from code">Code</span>
+        <span className="pick-label">{block.label}</span>
+        {block.note && <span className="pick-note">{block.note}</span>}
+      </summary>
+      <div className="pick-body">
+        <Code text={block.code} lang={lang} className="pick-code" />
+        {block.before && (
+          <>
+            <div className="pick-sub">Before the change, {block.before.lines.includes('–') ? 'lines' : 'line'} {block.before.lines}</div>
+            <Code text={block.before.code} lang={lang} className="pick-code" />
+          </>
+        )}
+      </div>
+    </details>
+  )
+}
+
 /** An element picked on the Preview: one small card, with its picture; what it is made of opens on a click. */
 function PickCard({ pick, thumb, onImage }: { pick: Picked; thumb?: string; onImage: (src: string) => void }) {
   const rows = [['Page', pick.from], ['Selector', pick.selector], ['Text', pick.text], ['HTML', pick.html], ['Style', pick.style]].filter((r): r is [string, string] => !!r[1])
@@ -65,7 +89,8 @@ function PickCard({ pick, thumb, onImage }: { pick: Picked; thumb?: string; onIm
 
 /** A message with its @file mentions shown as chips, mentioned pictures as thumbnails above it, and picked elements as cards. */
 export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string) => void }) {
-  const { picks, rest } = splitPicked(text)
+  const code = splitCode(text)
+  const { picks, rest } = splitPicked(code.rest)
   const parts = splitMentions(rest)
   const pictures = parts.filter((p) => p.file && isImagePath(p.text)).map((p) => p.text)
   const pickPictures = picks.flatMap((p) => (p.picture ? [p.picture] : []))
@@ -87,6 +112,9 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
         </div>
       )}
       <div className="bubble">
+        {code.blocks.map((b, i) => (
+          <CodeCard key={`c${i}`} block={b} />
+        ))}
         {picks.map((p, i) => (
           <PickCard key={i} pick={p} thumb={p.picture ? thumbs[p.picture] : undefined} onImage={onImage} />
         ))}
