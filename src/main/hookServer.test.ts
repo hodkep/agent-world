@@ -7,19 +7,21 @@ let server: Server | undefined
 afterEach(() => server?.close())
 
 async function setup(permissionTimeoutMs = 5_000) {
+  const toolInputs: [string, string][] = []
   const events: AgentEvent[] = []
   const asks: PermissionRequest[] = []
   const settled: string[] = []
   const stats: unknown[] = []
   server = await startHookServer({
     onStatus: (s) => stats.push(s),
+    onToolInput: (id, json) => toolInputs.push([id, json]),
     agentForToken: (t) => (t === 'secret' ? 'a1' : null),
     permissionTimeoutMs,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled, stats }
+  return { server, events, asks, settled, stats, toolInputs }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -34,6 +36,12 @@ describe('hook server', () => {
   it('listens on loopback only', async () => {
     const { server } = await setup()
     expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/hook$/)
+  })
+
+  it('passes on what a tool call was given, for whoever wants the addresses in it', async () => {
+    const { server, toolInputs } = await setup()
+    await post(server.url, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'mcp__playwright__browser_navigate', tool_input: { url: 'http://localhost:5287/login' } })
+    expect(toolInputs).toEqual([['a1', '{"url":"http://localhost:5287/login"}']])
   })
 
   it('rejects requests without the token', async () => {

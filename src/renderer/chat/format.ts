@@ -7,7 +7,7 @@ export type Row =
   | { kind: 'shell'; id: string; command: string; out?: { stdout: string; stderr: string } }
   | { kind: 'command'; id: string; name: string; args: string }
   | { kind: 'assistant'; id: string; text: string; /** Seconds the turn took, when it took a while. */ took?: number }
-  | { kind: 'thinking'; id: string }
+  | { kind: 'thinking'; id: string; /** Seconds it spent, when that is worth saying. */ took?: number }
   | { kind: 'tool'; id: string; run: ToolRun }
   /** The subagents one reply started, together; their progress comes from Claude's own files for them. */
   | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
@@ -24,21 +24,31 @@ export interface Sent {
 }
 
 const LONG_TURN_MS = 8000
+/** A thinking time longer than this is a gap in the saved conversation (a session picked up later), not thinking. */
+const MAX_THINK_MS = 15 * 60_000
+
+/** A span of whole seconds, as a reply says how long it worked: 4s, 1m 12s. */
+export const spanLabel = (sec: number) => (sec >= 60 ? `${Math.floor(sec / 60)}m ${sec % 60}s` : `${sec}s`)
 
 /** Items in order, with tool results folded into their calls, shell output joined to its command, and turn times added. */
 export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
-  const results = new Map<string, { text: string; isError: boolean; images: string[] }>()
-  for (const i of items) if (i.kind === 'tool-result') results.set(i.toolUseId, { text: i.text, isError: i.isError, images: i.images ?? [] })
+  const results = new Map<string, { text: string; isError: boolean; images: string[]; at: number }>()
+  for (const i of items) if (i.kind === 'tool-result') results.set(i.toolUseId, { text: i.text, isError: i.isError, images: i.images ?? [], at: i.at })
   const rows: Row[] = []
   let turnStart = 0
   let lastReply: Extract<Row, { kind: 'assistant' }> | null = null
   let lastAt = 0
+  // When the step before this one was saved, results included: thinking is timed from there.
+  let before: number | null = null
+  let thinkMs = 0
   const endTurn = () => {
     // A reply before any message of yours (a session-start greeting) has no turn to time.
     if (lastReply && turnStart > 0 && lastAt - turnStart > LONG_TURN_MS) lastReply.took = Math.round((lastAt - turnStart) / 1000)
     lastReply = null
   }
   for (const i of items) {
+    const stepBefore = before
+    before = i.at
     if (i.kind === 'tool-result') continue
     if (i.kind === 'user') (endTurn(), (turnStart = i.at))
     lastAt = i.at
@@ -52,15 +62,24 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
           break
         }
         const r = results.get(i.toolUseId)
-        rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined } as ToolRun })
+        const sec = r ? Math.round((r.at - i.at) / 1000) : 0
+        rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined, ...(sec >= 1 && { sec }) } as ToolRun })
         break
       }
       case 'subagent-report':
         rows.push({ kind: 'report', id: i.id, agentId: i.agentId, body: i.body })
         break
       case 'thinking':
-        // A run of thinking blocks reads as one.
-        if (rows.at(-1)?.kind !== 'thinking') rows.push({ kind: 'thinking', id: i.id })
+        // A run of thinking blocks reads as one, and its time is the blocks' together.
+        {
+          const gap = stepBefore === null ? 0 : i.at - stepBefore
+          const last = rows.at(-1)
+          const row: Extract<Row, { kind: 'thinking' }> = last?.kind === 'thinking' ? last : { kind: 'thinking', id: i.id }
+          if (row !== last) (rows.push(row), (thinkMs = 0))
+          thinkMs = gap > 0 && gap <= MAX_THINK_MS ? thinkMs + gap : thinkMs
+          const sec = Math.round(thinkMs / 1000)
+          if (sec >= 1) row.took = sec
+        }
         break
       case 'user':
         rows.push({ kind: 'user', id: i.id, text: i.text })

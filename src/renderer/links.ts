@@ -8,6 +8,14 @@ export function isPreviewable(url: string): boolean {
   }
 }
 
+/** What was typed into the Preview bar as an address on this machine: a port, host:port, or a full http address; null for anything else. */
+export function localAddress(text: string): string | null {
+  const t = text.trim()
+  if (!t) return null
+  const full = /^https?:\/\//i.test(t) ? t : /^\d{1,5}$/.test(t) ? `http://localhost:${t}` : `http://${t}`
+  return isPreviewable(full) ? new URL(full).href : null
+}
+
 export const PREVIEW_EVENT = 'aw-preview'
 
 /**

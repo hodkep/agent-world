@@ -46,7 +46,7 @@ export function ToolsView({ agentId }: { agentId: string }) {
         <button onClick={() => setAdding((v) => !v)} aria-expanded={adding}>
           Add server
         </button>
-        <button onClick={() => setTick((n) => n + 1)} disabled={!info} aria-label="Check again">
+        <button onClick={() => setTick((n) => n + 1)} disabled={!info} aria-label="Check again" title="Check these servers and plugins again">
           ↻
         </button>
       </div>

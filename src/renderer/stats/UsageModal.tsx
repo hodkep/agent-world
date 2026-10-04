@@ -23,7 +23,7 @@ export function UsageModal({ onClose }: { onClose: () => void }) {
         <b>Usage &amp; Estimated Costs</b>
         <span className="st-nav">
           <button onClick={load} aria-label="Refresh" title="Refresh">↻</button>
-          <button onClick={onClose} aria-label="Close">×</button>
+          <button onClick={onClose} aria-label="Close" title="Close">×</button>
         </span>
       </header>
       {!r ? (

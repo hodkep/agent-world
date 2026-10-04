@@ -32,7 +32,7 @@ export function CrewView({ agents, waitingOf, onOpen, onClose }: { agents: { id:
       <header className="settings-head">
         <b>Subagents</b>
         <span className="st-nav">
-          <button onClick={onClose} aria-label="Close">×</button>
+          <button onClick={onClose} aria-label="Close" title="Close">×</button>
         </span>
       </header>
       <div className="st-body">

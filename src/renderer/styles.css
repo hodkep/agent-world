@@ -390,6 +390,13 @@ aside.drawer.wide { width: min(94vw, 900px); }
 /* ---- Preview tab ------------------------------------------------------------------------------ */
 .preview { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .preview.empty { justify-content: center; }
+.preview-go { display: flex; gap: 6px; align-items: center; padding: 6px 8px 0; flex-wrap: wrap; }
+.preview.empty .preview-go { padding: 8px 10px; }
+.preview-go input { flex: 1; min-width: 0; font: 12px Menlo, Consolas, monospace; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; }
+.preview-go input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.preview-go input[aria-invalid='true'] { border-color: var(--danger); }
+.preview-go button { font-size: 12px; padding: 2px 8px; }
+.preview-bad { flex: 1 1 100%; color: var(--danger-text); font-size: 12px; }
 .preview-bar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
 .preview-url { font: 12px Menlo, Consolas, monospace; color: var(--accent); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .preview-bar select { flex: 1; min-width: 0; font: 12px Menlo, Consolas, monospace; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 3px 4px; }
@@ -455,7 +462,7 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .tc { background: var(--panel-3); border: 2px solid var(--ink); padding: 6px 9px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tc-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-.tc-status { font-size: 11px; color: var(--muted); flex: none; }
+.tc-status { font-size: 11px; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
 .tc-dot { width: 8px; height: 8px; flex: none; background: var(--muted); box-shadow: 0 0 0 1px var(--ink); display: inline-block; }
 .tc.is-done .tc-dot { background: var(--ok); }
 .tc.is-running .tc-dot { background: var(--think); animation: blink 0.8s steps(2) infinite; }
@@ -483,6 +490,7 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .tc-plan { max-height: 16em; overflow: auto; padding: 4px 8px; background: var(--well); font-size: 12px; }
 
 .live { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.live-time { margin-left: auto; flex: none; font-variant-numeric: tabular-nums; }
 .live-detail { font-family: Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dots { display: inline-flex; gap: 3px; }
 .dots i { width: 5px; height: 5px; background: var(--think); animation: blink 0.9s steps(2) infinite; }
@@ -945,7 +953,7 @@ svg.pxi { display: block; flex: none; }
 
 /* Quotes from a reply sit inside the message box, above what is typed. */
 .quote-cards { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow: auto; }
-.quote-cards li { display: flex; align-items: flex-start; gap: 6px; background: var(--panel-3); border-left: 3px solid var(--accent); box-shadow: 0 0 0 1px var(--ink); padding: 4px 6px 4px 10px; }
+.quote-cards li { display: flex; align-items: flex-start; gap: 6px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--accent-dim); padding: 4px 6px; }
 .quote-cards blockquote { flex: 1; min-width: 0; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .quote-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .quote-body blockquote { flex: none; }

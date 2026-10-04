@@ -47,7 +47,7 @@ export function RewindModal({ onClose }: { onClose: () => void }) {
           <span>{range(start)}</span>
           <button onClick={() => shift(1)} disabled={thisWeek} aria-label="Next week" title="Next week">›</button>
         </span>
-        <button onClick={onClose} aria-label="Close">×</button>
+        <button onClick={onClose} aria-label="Close" title="Close">×</button>
       </header>
       {!r ? (
         <p className="st-note">Loading…</p>

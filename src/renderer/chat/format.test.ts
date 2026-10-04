@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
 import type { SubagentInfo } from '../../shared/chat'
-import { elapsedLabel, hasMarkdown, highlight, markdownSpans, isImagePath, modeLabel, rowText, splitMentions, subagentState, toMarkdown, toRows } from './format'
+import { elapsedLabel, hasMarkdown, highlight, markdownSpans, isImagePath, modeLabel, rowText, spanLabel, splitMentions, subagentState, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -252,5 +252,36 @@ describe('styling markdown in place in the message box', () => {
   it('leaves stray stars and a half-typed span alone', () => {
     expect(kinds('2 * 3 * 4')).toEqual([['plain', '2 * 3 * 4']])
     expect(kinds('**not closed')).toEqual([['plain', '**not closed']])
+  })
+})
+
+describe('how long things took', () => {
+  const call = (id: string, at: number): ChatItem => ({ kind: 'tool', id, at, toolUseId: id, name: 'Bash', input: { command: 'ls' } })
+  const result = (id: string, at: number): ChatItem => ({ kind: 'tool-result', id: `${id}-r`, at, toolUseId: id, text: 'ok', isError: false })
+  const think = (id: string, at: number): ChatItem => ({ kind: 'thinking', id, at })
+
+  it('says a span of seconds the way a reply does', () => {
+    expect([spanLabel(4), spanLabel(59), spanLabel(72), spanLabel(3600)]).toEqual(['4s', '59s', '1m 12s', '60m 0s'])
+  })
+
+  it('gives a tool call the seconds between the call and its result, once they are worth saying', () => {
+    const rows = toRows([user('u', t0, 'go'), call('a', t0 + 1000), result('a', t0 + 5400), call('b', t0 + 6000), result('b', t0 + 6300), call('c', t0 + 7000)], [])
+    const sec = rows.filter((r) => r.kind === 'tool').map((r) => (r.kind === 'tool' ? r.run.sec : null))
+    expect(sec).toEqual([4, undefined, undefined])
+  })
+
+  it('gives thinking the seconds since the step before it, summing a run of thinking blocks', () => {
+    const rows = toRows([user('u', t0, 'go'), think('t1', t0 + 9000), think('t2', t0 + 12_000), say('a', t0 + 12_500, 'done')], [])
+    expect(rows.find((r) => r.kind === 'thinking')).toMatchObject({ took: 12 })
+  })
+
+  it('leaves out a thinking time that cannot be true, like one counted from a session picked up hours later', () => {
+    const rows = toRows([user('u', t0, 'go'), think('t1', t0 + 3 * 3600_000)], [])
+    expect(rows.find((r) => r.kind === 'thinking')).not.toHaveProperty('took')
+  })
+
+  it('says nothing for thinking that took under a second, or that has nothing before it', () => {
+    expect(toRows([user('u', t0, 'go'), think('t1', t0 + 400)], [])[1]).not.toHaveProperty('took')
+    expect(toRows([think('t1', t0 + 9000)], [])[0]).not.toHaveProperty('took')
   })
 })

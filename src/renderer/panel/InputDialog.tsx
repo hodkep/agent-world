@@ -91,7 +91,7 @@ export function InputDialog({ agentName, need, more, onClose, onFinishInTerminal
           <PixelWord text={agentName} scale={2} color="#08070c" />
           <span className="dialog-kind">{needTitle(need)}</span>
           {more > 0 && <span className="dialog-more">+{more} waiting</span>}
-          <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)" />
+          <button className="dialog-x" onClick={onClose} aria-label="Close (Esc)" title="Close (Esc)" />
         </header>
         <NeedPanel need={need} actions={actions} onFinishInTerminal={onFinishInTerminal} hint="Esc closes this box; the agent keeps waiting." />
       </div>

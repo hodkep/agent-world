@@ -182,10 +182,10 @@ const served = new Map<string, Map<number, Served>>()
 const serverTail = new Map<string, string>()
 const ownPorts: number[] = []
 const serversOf = (id: string) => [...(served.get(id)?.values() ?? [])].map(({ port, url, alive }) => ({ port, url, alive }))
-function noteServers(id: string, chunk: string) {
-  // An address can arrive split across two chunks.
-  const text = (serverTail.get(id) ?? '') + chunk
-  serverTail.set(id, text.slice(-160))
+function noteServers(id: string, chunk: string, terminal = true) {
+  // An address in terminal output can arrive split across two chunks; a tool call's words are whole.
+  const text = terminal ? (serverTail.get(id) ?? '') + chunk : chunk
+  if (terminal) serverTail.set(id, text.slice(-160))
   const found = findLocalServers(text, ownPorts)
   if (!found.length) return
   const mine = served.get(id) ?? new Map<number, Served>()
@@ -688,6 +688,8 @@ async function main() {
 
   const hooks = await startHookServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
+    // The page an agent opens in a browser tool or curls is the one to preview, even when it did not start that server itself.
+    onToolInput: (id, json) => noteServers(id, json, false),
     permissionTimeoutMs: PERMISSION_TIMEOUT_SEC * 1000,
     onEvent: (e) => {
       // Only the terminal process exiting means the agent left. SessionEnd also fires on /clear and when we

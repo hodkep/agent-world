@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { DevServer } from '../../shared/api'
 import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './picker'
 import { pageLabels } from '../files/context'
-import { isPreviewable } from '../links'
+import { PREVIEW_EVENT, isPreviewable, localAddress } from '../links'
 
 // The subset of the <webview> element used here.
 interface WebviewEl extends HTMLElement {
@@ -15,6 +15,32 @@ interface WebviewEl extends HTMLElement {
   loadURL(url: string): Promise<void>
   executeJavaScript(code: string): Promise<unknown>
   capturePage(rect?: { x: number; y: number; width: number; height: number }): Promise<{ toDataURL(): string; isEmpty(): boolean }>
+}
+
+/** Where to type an address that was not found by itself: a port, localhost:port, or a full local address. */
+function AddressBar({ agentId }: { agentId: string }) {
+  const [typed, setTyped] = useState('')
+  const [bad, setBad] = useState(false)
+  return (
+    <form
+      className="preview-go"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const url = localAddress(typed)
+        setBad(!url)
+        if (!url) return
+        // The same path a link in the chat takes, so a server already listed is switched to and anything else is shown by its own address.
+        window.dispatchEvent(new CustomEvent(PREVIEW_EVENT, { detail: { agentId, url } }))
+        setTyped('')
+      }}
+    >
+      <input value={typed} onChange={(e) => (setTyped(e.target.value), setBad(false))} placeholder="Open a local address, like 5287 or localhost:3000/app" aria-label="Local address to preview" aria-invalid={bad} />
+      <button type="submit" disabled={!typed.trim()}>
+        Open
+      </button>
+      {bad && <span className="preview-bad" role="alert">Only addresses on this computer, like localhost:3000.</span>}
+    </form>
+  )
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
@@ -121,13 +147,15 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
     return (
       <div className="preview empty">
         <p className="hint">
-          When {agentName} starts a dev server (Vite, Next, a Python or Node app…), its page appears here. Ask it to run the project and preview it.
+          When {agentName} starts a dev server (Vite, Next, a Python or Node app…), its page appears here. Ask it to run the project and preview it, or open an address yourself.
         </p>
+        <AddressBar agentId={agentId} />
       </div>
     )
 
   return (
     <div className="preview">
+      <AddressBar agentId={agentId} />
       <div className="preview-bar">
         {servers.length > 1 ? (
           <select aria-label="Dev server" value={current.port} onChange={(e) => setPort(Number(e.target.value))}>

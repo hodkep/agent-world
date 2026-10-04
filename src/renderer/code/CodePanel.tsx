@@ -239,7 +239,7 @@ function FilesView({ agentId, openFile }: { agentId: string; openFile?: OpenRequ
       <div className="change-list">
         <div className="tree-head">
           <span>Files</span>
-          <button className="icon" onClick={() => locate(path)} disabled={!path} title="Show the open file in the tree" aria-label="Show the open file in the tree">
+          <button className="icon" onClick={() => locate(path)} disabled={!path} title={path ? 'Show the open file in the tree' : 'Open a file to find it in the tree'} aria-label="Show the open file in the tree">
             ◎
           </button>
           <button className="icon" onClick={loadFiles} title="Refresh the file list" aria-label="Refresh the file list">

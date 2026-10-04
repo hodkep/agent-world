@@ -6,7 +6,7 @@ import type { ChatItem } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, highlight, markdownSpans, rowText, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, markdownSpans, rowText, spanLabel, toMarkdown, toRows } from './format'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
@@ -127,6 +127,20 @@ export function ChatView({
     return () => clearTimeout(t)
   }, [busy, sent.length])
   const [stopping, setStopping] = useState(false)
+  // How long this turn has been going, counted live: from your last message, or from when this view saw the agent start
+  // if it started by itself (a subagent report, a queued message).
+  const [now, setNow] = useState(() => Date.now())
+  const busySince = useRef(0)
+  const idleAt = useRef(0)
+  useEffect(() => {
+    if (!busy) return void (idleAt.current = Date.now(), (busySince.current = 0))
+    busySince.current ||= Date.now()
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [busy])
+  const lastUserAt = items.findLast((i) => i.kind === 'user')?.at ?? 0
+  const turnStart = lastUserAt >= idleAt.current ? lastUserAt : busySince.current
+  const turnSec = busy && turnStart ? Math.max(0, Math.floor((now - turnStart) / 1000)) : 0
   useEffect(() => {
     if (!busy) setStopping(false)
   }, [busy])
@@ -388,6 +402,7 @@ export function ChatView({
             </span>
             {stopping ? `Stopping ${agentName}…` : `${agentName} ${VERB[activity]}`}
             {!stopping && detail ? <span className="live-detail"> · {detail}</span> : null}
+            {turnSec >= 1 && <span className="live-time" aria-hidden="true">{spanLabel(turnSec)}</span>}
           </div>
         )}
       </div>
@@ -619,13 +634,13 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
             <Copy text={r.text} />
           </div>
           <Markdown text={r.text} agentId={agentId} />
-          {r.took !== undefined && <div className="msg-meta">worked for {r.took >= 60 ? `${Math.floor(r.took / 60)}m ${r.took % 60}s` : `${r.took}s`}</div>}
+          {r.took !== undefined && <div className="msg-meta">worked for {spanLabel(r.took)}</div>}
         </div>
       )
     case 'thinking':
       return (
         <div className="msg think">
-          <span className="tc-dot" aria-hidden="true" /> Thought about it
+          <span className="tc-dot" aria-hidden="true" /> {r.took ? `Thought for ${spanLabel(r.took)}` : 'Thought about it'}
         </div>
       )
     case 'delegation':
@@ -1034,7 +1049,7 @@ function Composer({
               <span className="chip-name" title={a.context ? undefined : a.path}>
                 {a.context?.label ?? a.name}
               </span>
-              <button className="chip-x" aria-label={`Remove ${a.name}`} onClick={() => setAttached((cur) => cur.filter((x) => x.id !== a.id))} />
+              <button className="chip-x" aria-label={`Remove ${a.name}`} title="Take this off the message" onClick={() => setAttached((cur) => cur.filter((x) => x.id !== a.id))} />
             </li>
           ))}
         </ul>
@@ -1057,7 +1072,7 @@ function Composer({
                     aria-label="What to do about this quote"
                   ></textarea>
                 </div>
-                <button className="chip-x" aria-label="Remove this quote" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
+                <button className="chip-x" aria-label="Remove this quote" title="Take this quote off the message" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
               </li>
             ))}
           </ul>

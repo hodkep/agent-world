@@ -1,3 +1,4 @@
+import { spanLabel } from './format'
 import { useContext, useState } from 'react'
 import { AgentIdContext, openFileEvent } from '../files/context'
 import { Picture } from './Images'
@@ -12,6 +13,8 @@ export interface ToolRun {
   result?: { text: string; isError: boolean }
   /** Pictures the tool returned (a screenshot, an image file read). */
   images?: string[]
+  /** Whole seconds between the call and its result, when that is worth saying. */
+  sec?: number
 }
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -99,7 +102,7 @@ function McpCard({ run, status, onImage }: { run: ToolRun; status: string; onIma
             <span className="tc-muted">{h.target}</span>
           )}
         </span>
-        <span className="tc-status">{status === 'running' ? 'running…' : ''}</span>
+        <span className="tc-status">{status === 'running' ? 'running…' : run.sec ? spanLabel(run.sec) : ''}</span>
       </div>
       <div className="tc-meta">
         <button className="tc-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -289,7 +292,7 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
   }
 
   const foldable = name === 'Bash'
-  const state = status === 'running' ? 'running…' : status === 'failed' ? 'failed' : ''
+  const state = status === 'running' ? 'running…' : [status === 'failed' ? 'failed' : '', run.sec ? spanLabel(run.sec) : ''].filter(Boolean).join(' · ')
   return (
     <div className={`tc is-${status}${foldable ? ' foldable' : ''}`}>
       {foldable ? (

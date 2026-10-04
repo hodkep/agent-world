@@ -221,6 +221,10 @@ export function App() {
     setSelected(id)
     if (withCard) setCardOpen(true)
     keep('aw.selected', id)
+    // Each project remembers its own last agent, for when it is opened again.
+    // (One just hired is not in the list yet, and is always in the project that is open.)
+    const where = agentsRef.current.find((a) => a.id === id)?.repoPath ?? folder
+    if (where) keep(`aw.selected.${where}`, id)
     setView(talkRef.current)
     setOpenFile(undefined)
     // An agent that is waiting on you opens its box; otherwise keys go to its terminal.
@@ -348,6 +352,18 @@ export function App() {
   useEffect(() => {
     if (selected && !current && allAgents.length) setSelected(null)
   }, [selected, current, allAgents.length])
+  // Opening a project brings back the agent that was open in it last.
+  const openedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!folder || !allAgents.length || openedFor.current === folder) return
+    openedFor.current = folder
+    if (selected && allAgents.some((a) => a.id === selected && a.repoPath === folder)) return
+    const last = store(`aw.selected.${folder}`)
+    const there = allAgents.find((a) => a.id === last && a.repoPath === folder)
+    // As after a reload: the agent is open again, without a narrow window's drawer sliding over what was clicked.
+    if (there) setSelected(there.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a project being opened restores its agent
+  }, [folder, allAgents])
   useEffect(() => {
     office.current?.setWorkspace(folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : null)
   }, [folder, officeReady])
@@ -976,8 +992,8 @@ export function App() {
           )}
           {current && (
             <section className="head-compact" aria-label="Selected agent">
-              <button onClick={() => step(-1)} aria-label="Previous agent" className="hc-step hc-prev" />
-              <button onClick={() => step(1)} aria-label="Next agent" className="hc-step hc-next" />
+              <button onClick={() => step(-1)} aria-label="Previous agent" title="Previous agent in this project" className="hc-step hc-prev" />
+              <button onClick={() => step(1)} aria-label="Next agent" title="Next agent in this project" className="hc-step hc-next" />
               <span className="hc-wrap" ref={switchWrap}>
                 <button className="hc-switch" onClick={() => setSwitcher((o) => !o)} aria-haspopup="menu" aria-expanded={switcher} aria-label="Agents" title="All agents in this project">
                   {agents.length}

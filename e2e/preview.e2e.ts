@@ -75,3 +75,32 @@ test('selecting an element on the preview adds it to the message as one chip of 
     dev.close()
   }
 })
+
+test('an address typed into the Preview bar opens even though the agent never printed it', async () => {
+  const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<h1>started by someone else</h1>'))
+  await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+  const port = (dev.address() as AddressInfo).port
+  const home = mkdtempSync(join(tmpdir(), 'aw-prevbar-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const bar = page.getByRole('textbox', { name: 'Local address to preview' })
+    // Nothing but a local address is accepted.
+    await bar.fill('example.com')
+    await bar.press('Enter')
+    await expect(page.getByRole('alert')).toContainText('on this computer')
+    // A bare port is enough.
+    await bar.fill(String(port))
+    await bar.press('Enter')
+    await expect(page.locator('.preview-url')).toHaveText(`http://localhost:${port}/`)
+    const text = () => page.evaluate(() => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<string> }).executeJavaScript('document.body.innerText'))
+    await expect.poll(text, { timeout: 10_000 }).toContain('started by someone else')
+  } finally {
+    await shutdown()
+    dev.close()
+  }
+})

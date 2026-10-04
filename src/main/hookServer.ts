@@ -17,6 +17,8 @@ interface Options {
   onPermission: (r: PermissionRequest) => void
   onPermissionSettled: (id: string) => void
   onStatus: (s: AgentStats, agentId: string) => void
+  /** What each tool call was given, as JSON: the addresses an agent works with turn up here (a browser tool's URL, a curl). */
+  onToolInput?: (agentId: string, json: string) => void
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -103,6 +105,7 @@ export async function startHookServer(o: Options) {
       return void res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(statusText(stats))
     }
     const p = payload as Record<string, unknown>
+    if (p?.tool_input && typeof p.tool_input === 'object') o.onToolInput?.(agentId, JSON.stringify(p.tool_input))
     if (p?.hook_event_name === 'PermissionRequest' && typeof p.session_id === 'string') {
       // A hook "allow" does not approve a plan (the session stays in plan mode), so let Claude show its own
       // plan menu; the app watches the screen for it and answers it for the user. The plan text itself

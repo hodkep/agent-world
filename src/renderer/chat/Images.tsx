@@ -70,12 +70,12 @@ export function Lightbox({ src, onClose }: { src: string; onClose: () => void })
         }}
       />
       <div className="lightbox-bar" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-        <button onClick={() => zoomTo((s) => s / 1.25)} aria-label="Zoom out" disabled={view.s <= MIN}>−</button>
+        <button onClick={() => zoomTo((s) => s / 1.25)} aria-label="Zoom out" title="Zoom out (−)" disabled={view.s <= MIN}>−</button>
         <span>{view.s === 1 ? 'Fit' : `${Math.round(view.s * 100)}%`}</span>
-        <button onClick={() => zoomTo((s) => s * 1.25)} aria-label="Zoom in" disabled={view.s >= MAX}>+</button>
+        <button onClick={() => zoomTo((s) => s * 1.25)} aria-label="Zoom in" title="Zoom in (+)" disabled={view.s >= MAX}>+</button>
         <button onClick={() => setView({ s: 1, x: 0, y: 0 })} aria-label="Fit to window" disabled={view.s === 1}>Fit</button>
       </div>
-      <button onClick={onClose} className="lightbox-x" aria-label="Close" />
+      <button onClick={onClose} className="lightbox-x" aria-label="Close" title="Close (Esc)" />
     </div>
   )
 }

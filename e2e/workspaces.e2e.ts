@@ -60,3 +60,38 @@ test('the project you worked in is saved, offered first on the next launch, and 
     rmSync(tmp, { recursive: true, force: true })
   }
 })
+
+test('opening a project brings back the agent that was open in it last', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-last-')))
+  const home = join(tmp, 'home')
+  const shop = join(tmp, 'shop-api')
+  const notes = join(tmp, 'notes')
+  mkdirSync(shop)
+  mkdirSync(notes)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: shop })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: shop })
+  const env = { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }
+  const { app, shutdown } = await launchApp(env, join(tmp, 'unused'))
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), shop)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    await page.evaluate((f) => window.aw.activateWorkspace(f), notes)
+    await page.reload()
+    await hire(page, { name: 'bea' })
+    await expect(page.locator('.hc-name')).toHaveText('bea')
+
+    // Back to the first project: its agent is open, not an empty panel.
+    await page.locator('.ws-button').click()
+    await page.getByRole('menuitem', { name: /shop-api/ }).click()
+    await expect(page.locator('.hc-name')).toHaveText('ada')
+    // And across again.
+    await page.locator('.ws-button').click()
+    await page.getByRole('menuitem', { name: /notes/ }).click()
+    await expect(page.locator('.hc-name')).toHaveText('bea')
+  } finally {
+    await shutdown()
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})
