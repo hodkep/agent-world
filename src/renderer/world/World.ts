@@ -1,7 +1,8 @@
 // Our CSP forbids eval; this swaps Pixi's generated shaders/uniform code for precompiled paths.
 import 'pixi.js/unsafe-eval'
-import { Application, Container, Graphics, TextureSource } from 'pixi.js'
+import { Application, Container, Graphics, TextureSource, Ticker } from 'pixi.js'
 import type { Activity } from '../../shared/types'
+import { FPS, MOVING_MS, frameCap } from './frameRate'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
@@ -102,6 +103,13 @@ export class OfficeWorld {
   ) {}
 
   static async create(el: HTMLElement, onSelect: (agentId: string) => void, handlers: WorldHandlers) {
+    // Pixi starts two more tickers of its own: a shared one nothing here uses, and a system one that its renderer's scheduler (texture clean-up)
+    // runs on. Left alone they ask for a frame at every screen refresh, 120 a second here, which keeps the compositor and GPU awake all day.
+    // Both are stopped; drive() advances the system one along with the office.
+    Ticker.shared.autoStart = false
+    Ticker.shared.stop()
+    Ticker.system.autoStart = false
+    Ticker.system.stop()
     const app = new Application()
     await app.init({ resizeTo: el, background: GRASS, antialias: false, autoDensity: true, resolution: window.devicePixelRatio })
     el.appendChild(app.canvas)
@@ -130,9 +138,72 @@ export class OfficeWorld {
     this.ambient = f.ambient
     this.app.stage.addChild(this.root)
     this.app.ticker.add((tk) => this.tick(tk.deltaMS))
+    this.app.ticker.stop() // driven by pace() instead, see drive()
+    this.pace()
+    document.addEventListener('visibilitychange', this.repace)
+    window.addEventListener('focus', this.repace)
+    window.addEventListener('blur', this.repace)
     this.app.renderer.on('resize', () => this.layout())
     this.bindCamera()
     this.layout()
+  }
+
+  // The office is redrawn only as often as it is worth it: calm while in use, smooth while panning, slow with another app in front, stopped when hidden.
+  private lastActive = -Infinity
+  private paceTimer: ReturnType<typeof setTimeout> | undefined
+  private readonly repace = () => this.pace()
+
+  private touched() {
+    this.lastActive = performance.now()
+    this.pace()
+  }
+
+  private cap = -1
+  private raf = 0
+  private frameTimer: ReturnType<typeof setTimeout> | undefined
+
+  /**
+   * Pixi's own loop asks the browser for a frame at every screen refresh (120 a second here) just to decide to skip most of them,
+   * and that alone keeps the compositor and the GPU awake. So the ticker is driven from here: by a timer at the calm and background
+   * rates, which wakes the page only when it draws, and in step with the screen only while something moves.
+   */
+  private drive(cap: number) {
+    cancelAnimationFrame(this.raf)
+    clearTimeout(this.frameTimer)
+    const t = this.app.ticker
+    if (cap === 0) return
+    if (cap >= FPS.moving) {
+      t.maxFPS = cap
+      const f = () => {
+        this.raf = requestAnimationFrame(f)
+        const now = performance.now()
+        Ticker.system.update(now)
+        t.update(now)
+      }
+      this.raf = requestAnimationFrame(f)
+    } else {
+      t.maxFPS = 0 // the timer sets the pace; a timer firing a hair early must not cost a whole frame
+      const f = () => {
+        this.frameTimer = setTimeout(f, 1000 / cap)
+        const now = performance.now()
+        Ticker.system.update(now)
+        t.update(now)
+      }
+      this.frameTimer = setTimeout(f, 1000 / cap)
+    }
+  }
+
+  private pace() {
+    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastActive: this.lastActive, now: performance.now() })
+    if (cap !== this.cap) {
+      this.cap = cap
+      this.drive(cap)
+    }
+    this.host.dataset.fpscap = String(cap)
+    // Settle back to the calm rate once the last pan, zoom or step is over.
+    clearTimeout(this.paceTimer)
+    const since = performance.now() - this.lastActive
+    if (cap > 0 && document.hasFocus() && since < MOVING_MS) this.paceTimer = setTimeout(this.repace, MOVING_MS + 50 - since)
   }
 
   private bindCamera() {
@@ -143,11 +214,13 @@ export class OfficeWorld {
       'wheel',
       (e) => {
         e.preventDefault()
+        this.touched()
         this.zoomBy(e.deltaY < 0 ? 1 : -1)
       },
       { passive: false }
     )
     stage.on('pointerdown', (e) => {
+      this.touched()
       this.drag = { x: e.global.x, y: e.global.y, moved: false }
     })
     stage.on('pointermove', (e) => {
@@ -155,6 +228,7 @@ export class OfficeWorld {
       const dx = e.global.x - this.drag.x
       const dy = e.global.y - this.drag.y
       if (!this.drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      this.touched()
       this.drag.moved = true
       this.dragged = true
       this.pan.x += dx
@@ -419,6 +493,12 @@ export class OfficeWorld {
       }
       if (c.arrived) atScreen.set(`${c.at.x},${c.at.y}`, c.activity)
     }
+    // Anyone walking, or an envelope in flight, needs smooth frames: at the calm rate the gait and the steps turn uneven.
+    if ([...this.chars.values()].some((c) => !c.arrived) || this.flights.length > 0) {
+      const wasMoving = t - this.lastActive < MOVING_MS
+      this.lastActive = t
+      if (!wasMoving) this.pace()
+    }
     this.drawPiles()
     this.syncBooks()
     this.syncStools()
@@ -607,6 +687,12 @@ export class OfficeWorld {
   }
 
   destroy() {
+    clearTimeout(this.paceTimer)
+    cancelAnimationFrame(this.raf)
+    clearTimeout(this.frameTimer)
+    document.removeEventListener('visibilitychange', this.repace)
+    window.removeEventListener('focus', this.repace)
+    window.removeEventListener('blur', this.repace)
     this.observer?.disconnect()
     this.app.destroy(true, { children: true })
   }

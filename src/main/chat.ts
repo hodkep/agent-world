@@ -30,6 +30,27 @@ function resultText(content: unknown): string {
 }
 const resultImages = (content: unknown): string[] => (Array.isArray(content) ? content.filter((b) => obj(b).type === 'image').map((b) => imageSrc(obj(b))) : [])
 
+/** A hook's message to the agent as a one-line note (who, and what it is about) with the full text behind a button. */
+function hookNote(id: string, at: number, a: Obj): ChatItem[] {
+  const event = str(a.hookName) || str(a.hookEvent)
+  // What a session starts with is the user's own setup, not news.
+  if (event.startsWith('SessionStart')) return []
+  const detail = (Array.isArray(a.content) ? a.content.map(str) : [str(a.content)]).join('\n\n').trim()
+  if (!detail) return []
+  const from = /^\[([^\]]+)\]\s*/.exec(detail)
+  const first = detail.slice(from?.[0].length ?? 0).split('\n')[0]!.trim().replace(/[:.]$/, '')
+  const gist = first.length > 110 ? `${first.slice(0, 109)}…` : first
+  const lines = detail.slice(from?.[0].length ?? 0).split('\n')
+  const count = /\((\d+) issue\(s\)\)/.exec(lines[0]!)
+  const findings = lines.flatMap((l) => {
+    const m = /^-\s+(\S+)\s+\[([^\]]+)\]\s+(.+)$/.exec(l.trim())
+    return m ? [{ ref: m[1]!, rule: m[2]!, text: m[3]! }] : []
+  })
+  const title = lines[0]!.replace(/\s*\(\d+ issue\(s\)\):?\s*$/, '').trim().replace(/[:.]$/, '')
+  const hook = { ...(from && { source: from[1]! }), event, title, ...(count && { issues: Number(count[1]) }), findings }
+  return [{ kind: 'note', id, at, text: `${from ? `${from[1]} · ` : ''}${event} hook: ${gist}`, detail, detailLabel: 'details', hook }]
+}
+
 /** One saved transcript line as chat items (none for the many kinds of bookkeeping lines Claude also writes). */
 export function parseTranscriptLine(raw: string): ChatItem[] {
   let o: Obj
@@ -48,6 +69,9 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
     const report = type === 'user' ? parseHandback(typeof message.content === 'string' ? message.content : resultText(message.content)) : null
     return report ? [{ kind: 'subagent-report', id: uuid, at, ...report }] : []
   }
+
+  // What a hook told the agent (a linter's findings, a reminder) is shown, or the agent's next words answer something nobody can see.
+  if (type === 'attachment' && obj(o.attachment).type === 'hook_additional_context') return hookNote(uuid, at, obj(o.attachment))
 
   // Typed while Claude was busy: it is saved as a queued command when Claude picks it up, not as a user line.
   const queued = obj(o.attachment)

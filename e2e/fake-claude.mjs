@@ -101,6 +101,18 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
 if (process.env.FAKE_SAY_FILE) say((await import('node:fs')).readFileSync(process.env.FAKE_SAY_FILE, 'utf8'))
 // FAKE_USER_FILE=<path>: the file's text is already in the conversation as something the user said.
 if (process.env.FAKE_USER_FILE) transcript({ type: 'user', message: { role: 'user', content: (await import('node:fs')).readFileSync(process.env.FAKE_USER_FILE, 'utf8') } })
+// FAKE_HOOK_NOTE=1: what hooks told the agent, as Claude saves it: a session-start brief, then a Stop hook's findings.
+if (process.env.FAKE_HOOK_NOTE) {
+  const hook = (hookName, content) => transcript({ type: 'attachment', attachment: { type: 'hook_additional_context', hookName, hookEvent: hookName.split(':')[0], content: [content] } })
+  hook('SessionStart', 'CAVEMAN MODE ACTIVE: talk short.')
+  hook('Stop', '[impeccable@1] Design hook findings requiring review in src/renderer/styles.css (1 issue(s)):\n- L962 [side-tab] Side-tab accent border. Thick colored border on one side of a card.')
+  // Like a real agent, it looks into the findings with a tool call before it answers.
+  transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_hooknote', name: 'Bash', input: { command: 'git blame src/renderer/styles.css' } }] } })
+  transcript({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_hooknote', content: 'e25bb26c (Ada) .quote-cards li', is_error: false }] } })
+  say('The flagged line is the quote cards rule.')
+  // A hook note with no reply after it (a tool call or nothing comes next) has to show up on its own.
+  hook('PostToolUse:Edit', '[lint] 2 problems found in a.css')
+}
 // FAKE_LONG=n: a conversation that already has n messages in it.
 for (let i = 0; i < Number(process.env.FAKE_LONG ?? 0); i++) say(`old message ${i}`)
 const use = (name, input) => {

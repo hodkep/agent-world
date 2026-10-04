@@ -248,6 +248,19 @@ export function App() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  // With the window out of sight or another app in front, nobody sees the blinking dots, and a running animation keeps the screen busy: the page says so and the styles switch them off.
+  useEffect(() => {
+    const mark = () => document.documentElement.toggleAttribute('data-away', document.hidden || !document.hasFocus())
+    mark()
+    window.addEventListener('focus', mark)
+    window.addEventListener('blur', mark)
+    document.addEventListener('visibilitychange', mark)
+    return () => {
+      window.removeEventListener('focus', mark)
+      window.removeEventListener('blur', mark)
+      document.removeEventListener('visibilitychange', mark)
+    }
+  }, [])
   const crewRef = useRef({ world, allAgents })
   crewRef.current = { world, allAgents }
   useEffect(() => {

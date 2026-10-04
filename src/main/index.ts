@@ -18,7 +18,7 @@ import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
-import { type Alert, budgetAlert, finishedTurn, shouldNotify } from './attention'
+import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
@@ -367,16 +367,21 @@ function agentFiles(a: AgentRecord) {
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
 
+// The window already showing this agent's project comes forward; failing that, whichever window was in front. Never a new one.
+function comeForward(agent?: AgentRecord) {
+  const w = windowFor(agent)
+  if (w?.isMinimized()) w.restore()
+  w?.show()
+  w?.focus()
+  if (agent) w?.webContents.send('select-agent', agent.id)
+}
+let lastNotice: { agentId?: string; at: number } | null = null
+
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
   if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, liveWindows().some((w) => w.isFocused()))) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
-  n.on('click', () => {
-    // The window already showing this agent's project comes forward; failing that, whichever window was in front.
-    const w = windowFor(agent)
-    w?.show()
-    w?.focus()
-    if (agent) w?.webContents.send('select-agent', agent.id)
-  })
+  lastNotice = { agentId: agent?.id, at: Date.now() }
+  n.on('click', () => comeForward(agent))
   n.show()
 }
 
@@ -719,7 +724,8 @@ async function main() {
   // An agent that looks idle (input box showing, no menu, screen quiet for a few seconds) but never sent a Stop hook,
   // as after Esc: Claude does not report an interrupted turn. Call it idle, so the office, the chat and any waiting mail move on.
   const BUSY = new Set<Activity>(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
-  const idleCheck = setInterval(() => {
+  let idleCheck: ReturnType<typeof setTimeout>
+  const sweepOnce = () => {
     for (const a of agents) {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
@@ -735,7 +741,16 @@ async function main() {
         send('agent-event', { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' })
       }
     }
-  }, 300)
+  }
+  // Looked at often only while something is being written (see idleCheckDelay), and always again, even if one look fails.
+  const sweep = () => {
+    try {
+      sweepOnce()
+    } finally {
+      idleCheck = setTimeout(sweep, idleCheckDelay(agents.filter((a) => sessions.has(a.id)).map((a) => lastOutput.get(a.id) ?? 0), Date.now()))
+    }
+  }
+  idleCheck = setTimeout(sweep, 300)
   const mcp = await startMcpServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
@@ -1411,7 +1426,7 @@ async function main() {
     clearInterval(heartbeat)
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
-    clearInterval(idleCheck)
+    clearTimeout(idleCheck)
     hooks.close()
     mcp.close()
     pages.close()
@@ -1419,11 +1434,15 @@ async function main() {
   app.on('window-all-closed', () => app.quit())
 }
 
-// One app process per data folder, so its agents have a single owner: launching it again hands over to the running one and quits,
-// and the running one opens another window, which starts on the project picker.
+// One app process per data folder, so its agents have a single owner: launching it again hands over to the running one and quits.
 if (!app.requestSingleInstanceLock()) app.exit(0)
 else {
-  app.on('second-instance', () => ready && createWindow())
+  // Starting the app again, which a click on a notification can do, brings the running one forward (to the agent that notification was about); it opens no window, since one is there. Cmd/Ctrl+N opens another.
+  app.on('second-instance', () => {
+    if (!ready) return
+    const id = noticeToOpen(lastNotice, Date.now())
+    comeForward(id ? byId(id) : undefined)
+  })
   main().catch((err) => {
     console.error(err)
     app.exit(1)

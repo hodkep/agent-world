@@ -22,3 +22,18 @@ export function finishedTurn(prev: Activity | undefined, next: Activity) {
 export function shouldNotify(kind: Alert, windowFocused: boolean) {
   return kind === 'budget' || !windowFocused
 }
+
+const NOTICE_FRESH_MS = 10 * 60_000
+
+/**
+ * Clicking a notification can start the app a second time, which hands over to the running one with nothing to say which
+ * notification it was. The last one shown, while it is fresh, tells where the click was meant to go.
+ */
+export function noticeToOpen(last: { agentId?: string; at: number } | null, now: number): string | undefined {
+  return last && now - last.at <= NOTICE_FRESH_MS ? last.agentId : undefined
+}
+
+/** Looking at every agent's screen is work, so it is done often only while something is being written; a quiet office is looked at once a second. */
+export function idleCheckDelay(lastOutputs: number[], now: number): number {
+  return lastOutputs.some((t) => now - t < 6000) ? 300 : 1000
+}

@@ -8,10 +8,33 @@ const ICONS = {
   money: <><circle cx="12" cy="12" r="9" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 6v12" /></>,
   week: <><rect x="3" y="4" width="18" height="18" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
   gear: <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />,
-  panel: <><rect x="3" y="3" width="18" height="18" /><path d="M15 3v18" /></>
+  panel: <><rect x="3" y="3" width="18" height="18" /><path d="M15 3v18" /></>,
+  // The picture editor's tools.
+  pen: <><path d="M3 21l1-5L16 4l4 4L8 20z" /><path d="M14 6l4 4" /></>,
+  line: <path d="M4 20L20 4" />,
+  arrow: <path d="M4 20L20 4M9 4h11v11" />,
+  rect: <rect x="4" y="5" width="16" height="14" />,
+  ellipse: <ellipse cx="12" cy="12" rx="9" ry="7" />,
+  text: <path d="M5 6V4h14v2M12 4v16M9 20h6" />,
+  hide: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><path d="M3 3l18 18" /></>,
+  undo: <><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>,
+  redo: <><path d="M15 14l5-5-5-5" /><path d="M20 9H10a6 6 0 0 0 0 12h3" /></>,
+  trash: <path d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 11v6M14 11v6" />,
+  // A note from a hook, and the fold button on it.
+  flag: <path d="M5 21V4h13l-3 4.5 3 4.5H5" />,
+  chevron: <path d="M6 9l6 6 6-6" />
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS
+
+/** The same outline icons without a button around them, for toolbars elsewhere. */
+export function OutlineIcon({ name, size = 16 }: { name: HeaderIconName; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
+      {ICONS[name]}
+    </svg>
+  )
+}
 
 /**
  * A top-bar button shown as an icon, to save room. Its name is still the accessible name, and the tooltip

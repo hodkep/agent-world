@@ -1,4 +1,4 @@
-import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -113,5 +113,74 @@ describe('tools called side by side', () => {
     // The first try (req r1) forked off 'u'; after a rewind the conversation went on from 'u2' with a different reply (r3).
     const got = read(user('u', 'go'), call('c1', 'u', 'A', 'r1'), result('x1', 'c1', 'A'), user('u2', 'try again'), call('n1', 'u2', 'N', 'r3'), result('y1', 'n1', 'N'), say('s', 'y1', 'done', 'r4'))
     expect(got.filter((i) => i.kind === 'tool').map((i) => i.kind === 'tool' && i.toolUseId)).toEqual(['N'])
+  })
+})
+
+describe('following a transcript file without polling it all the time', () => {
+  const until = async (ok: () => boolean, ms = 2000) => {
+    for (let t = 0; t < ms && !ok(); t += 25) await new Promise((r) => setTimeout(r, 25))
+    return ok()
+  }
+
+  it('hears about a new line when the file changes, long before the slow safety check would', async () => {
+    const file = join(dir, 'live.jsonl')
+    writeFileSync(file, user('a', 'one'))
+    const got: ChatItem[] = []
+    const tail = new TranscriptTail(file, (items) => got.push(...items))
+    tail.start(60_000) // the safety check is a minute away: only a file event can explain what follows
+    try {
+      await new Promise((r) => setTimeout(r, 400)) // past the moment a new watch needs to become active
+      appendFileSync(file, user('b', 'two'))
+      expect(await until(() => got.length === 2)).toBe(true)
+    } finally {
+      tail.stop()
+    }
+  })
+
+  it('reads what was written in the moment after it started following', async () => {
+    const file = join(dir, 'quick.jsonl')
+    writeFileSync(file, user('a', 'one'))
+    const got: ChatItem[] = []
+    const tail = new TranscriptTail(file, (items) => got.push(...items))
+    tail.start(60_000)
+    try {
+      appendFileSync(file, user('b', 'two')) // before the watch is active
+      expect(await until(() => got.length === 2)).toBe(true)
+    } finally {
+      tail.stop()
+    }
+  })
+
+  it('still finds a file that is only written after it started following', async () => {
+    const file = join(dir, 'late.jsonl')
+    const got: ChatItem[] = []
+    const tail = new TranscriptTail(file, (items) => got.push(...items))
+    tail.start(100)
+    try {
+      writeFileSync(file, user('a', 'hello'))
+      expect(await until(() => got.length === 1)).toBe(true)
+      appendFileSync(file, user('b', 'there'))
+      expect(await until(() => got.length === 2)).toBe(true)
+    } finally {
+      tail.stop()
+    }
+  })
+
+  it('keeps following a file that is replaced by a shorter one', async () => {
+    const file = join(dir, 'swap.jsonl')
+    writeFileSync(file, user('a', 'one') + user('b', 'two') + user('c', 'three'))
+    const got: ChatItem[] = []
+    const tail = new TranscriptTail(file, (items, replace) => (replace ? (got.length = 0, got.push(...items)) : got.push(...items)))
+    tail.start(100)
+    try {
+      expect(await until(() => got.length === 3)).toBe(true)
+      writeFileSync(join(dir, 'new.jsonl'), user('x', 'fresh'))
+      renameSync(join(dir, 'new.jsonl'), file) // the file is swapped for a new one
+      expect(await until(() => got.some((i) => i.kind === 'user' && i.text === 'fresh'))).toBe(true)
+      appendFileSync(file, user('y', 'after'))
+      expect(await until(() => got.some((i) => i.kind === 'user' && i.text === 'after'))).toBe(true)
+    } finally {
+      tail.stop()
+    }
   })
 })

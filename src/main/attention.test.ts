@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { budgetAlert, finishedTurn, shouldNotify } from './attention'
+import { budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 
 describe('budget alerts', () => {
   it('warns once when crossing 80% and once when crossing the cap', () => {
@@ -32,5 +32,30 @@ describe('notifications', () => {
     expect(shouldNotify('permission', true)).toBe(false)
     expect(shouldNotify('finished', true)).toBe(false)
     expect(shouldNotify('budget', true)).toBe(true)
+  })
+})
+
+describe('a notification click that starts the app again', () => {
+  const MIN = 60_000
+
+  it('goes to the agent the last notification was about, while that notification is fresh', () => {
+    expect(noticeToOpen({ agentId: 'a1', at: 1000 }, 1000 + 5 * MIN)).toBe('a1')
+  })
+
+  it('goes nowhere in particular once the notification is old, or when none was shown, or it was not about an agent', () => {
+    expect(noticeToOpen({ agentId: 'a1', at: 1000 }, 1000 + 11 * MIN)).toBeUndefined()
+    expect(noticeToOpen(null, 5000)).toBeUndefined()
+    expect(noticeToOpen({ at: 1000 }, 2000)).toBeUndefined()
+  })
+})
+
+describe('how soon to look at the agents\' screens again', () => {
+  it('quickly while any agent has written to its terminal in the last few seconds', () => {
+    expect(idleCheckDelay([1000, 98_000], 100_000)).toBe(300)
+  })
+
+  it('slowly once every agent has been quiet for a while, or when there are none', () => {
+    expect(idleCheckDelay([1000, 50_000], 100_000)).toBe(1000)
+    expect(idleCheckDelay([], 100_000)).toBe(1000)
   })
 })
