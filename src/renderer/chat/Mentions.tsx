@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Picture } from './Images'
 import { followLink, linkHint } from '../links'
 import { hasMarkdown, highlight, isImagePath, splitMentions } from './format'
+import { type Picked, splitPicked } from './pickedContext'
 import { Markdown } from './markdown'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
@@ -37,19 +38,46 @@ export function quoted(text: string): { quote: boolean; text: string }[] {
   return out.map((b) => ({ ...b, text: b.quote ? b.text : b.text.replace(/^\n+|\n+$/g, '') })).filter((b) => b.text !== '' || b.quote)
 }
 
-/** A message with its @file mentions shown as chips, and mentioned pictures as thumbnails above it. */
+/** An element picked on the Preview: one small card, with its picture; what it is made of opens on a click. */
+function PickCard({ pick, thumb, onImage }: { pick: Picked; thumb?: string; onImage: (src: string) => void }) {
+  const rows = [['Page', pick.from], ['Selector', pick.selector], ['Text', pick.text], ['HTML', pick.html], ['Style', pick.style]].filter((r): r is [string, string] => !!r[1])
+  return (
+    <details className="pick-card">
+      <summary title="Show what was picked">
+        {thumb && <img className="pick-thumb" src={thumb} alt="" />}
+        <span className="chip-from">Preview</span>
+        <span className="pick-label">{pick.label}</span>
+      </summary>
+      <div className="pick-body">
+        {thumb && <Picture src={thumb} onOpen={onImage} label="Picture of the element" />}
+        <dl>
+          {rows.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </details>
+  )
+}
+
+/** A message with its @file mentions shown as chips, mentioned pictures as thumbnails above it, and picked elements as cards. */
 export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string) => void }) {
-  const parts = splitMentions(text)
+  const { picks, rest } = splitPicked(text)
+  const parts = splitMentions(rest)
   const pictures = parts.filter((p) => p.file && isImagePath(p.text)).map((p) => p.text)
+  const pickPictures = picks.flatMap((p) => (p.picture ? [p.picture] : []))
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
   useEffect(() => {
     let alive = true
-    for (const p of pictures)
+    for (const p of [...pictures, ...pickPictures])
       void window.aw.readImage(agentId, p).then((src) => alive && setThumbs((t) => (t[p] === src ? t : { ...t, [p]: src })))
     return () => {
       alive = false
     }
-  }, [agentId, pictures.join('\n')])
+  }, [agentId, pictures.join('\n'), pickPictures.join('\n')])
   const words = parts.filter((p) => !p.file).map((p) => p.text).join('').trim()
   return (
     <>
@@ -59,6 +87,9 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
         </div>
       )}
       <div className="bubble">
+        {picks.map((p, i) => (
+          <PickCard key={i} pick={p} thumb={p.picture ? thumbs[p.picture] : undefined} onImage={onImage} />
+        ))}
         {parts.filter((p) => p.file).length > 0 && (
           <span className="mention-row">
             {parts.filter((p) => p.file).map((p, i) => (

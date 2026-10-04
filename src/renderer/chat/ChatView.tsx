@@ -299,7 +299,7 @@ export function ChatView({
     [agentId, activity]
   )
 
-  // Words selected in one of the agent's replies offer "Ask": they go into the message box as a quote.
+  // Words selected in one of the agent's replies, or in what its tools and commands printed, offer "Ask": they go into the message box as a quote.
   const chatEl = useRef<HTMLDivElement>(null)
   const [pick, setPick] = useState<{ text: string; x: number; y: number; nx: number } | null>(null)
   useEffect(() => {
@@ -309,7 +309,7 @@ export function ChatView({
       const root = chatEl.current
       if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !el || !root) return setPick(null)
       const found = sel.getRangeAt(0)
-      const reply = (found.startContainer instanceof Element ? found.startContainer : found.startContainer.parentElement)?.closest('.msg.assistant')
+      const reply = (found.startContainer instanceof Element ? found.startContainer : found.startContainer.parentElement)?.closest('.msg.assistant, .msg.note, .msg.shell, .tc')
       if (!reply || !el.contains(reply)) return setPick(null)
       // A triple click on a paragraph ends the selection at the start of whatever follows, outside the reply: trim it back to the reply.
       // Words that really reach into another message are not offered.

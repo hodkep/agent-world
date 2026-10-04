@@ -66,9 +66,15 @@ test('selecting an element on the preview adds it to the message as one chip of 
     await box.press('Enter')
     const sent = page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user').last()
     await expect(sent).toContainText('make this bigger', { timeout: 10_000 })
-    await expect(sent).toContainText(/Selector: .*button#cta/)
-    await expect(sent).toContainText('Text: "Sign up"')
-    await expect(sent).toContainText(`Element picked from http://localhost:${port}/`)
+    // In the conversation it is one small card, not the page's HTML; a click opens what was picked.
+    const card = sent.locator('.pick-card')
+    await expect(card).toHaveCount(1)
+    await expect(card).toContainText(`button on localhost:${port}`)
+    await expect(sent.locator('.pick-body')).toBeHidden()
+    await card.locator('summary').click()
+    await expect(card).toContainText(/Selector.*button#cta/)
+    await expect(card).toContainText('Sign up')
+    await expect(card).toContainText(`http://localhost:${port}/`)
     await expect(chip).toHaveCount(0)
   } finally {
     await shutdown()
@@ -102,5 +108,44 @@ test('an address typed into the Preview bar opens even though the agent never pr
   } finally {
     await shutdown()
     dev.close()
+  }
+})
+
+test('the picture of a picked element is that element, at the app\'s own zoom as well as at 100%', async () => {
+  const page_html = '<body style="margin:0;background:#2244aa"><div style="height:380px"></div><div id="t" style="margin-left:60px;width:300px;height:40px;background:#ff0000"></div></body>'
+  for (const zoom of ['1', '1.2']) {
+    const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end(page_html))
+    await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+    const port = (dev.address() as AddressInfo).port
+    const home = mkdtempSync(join(tmpdir(), 'aw-pz-'))
+    const { app, shutdown } = await launchApp({ AW_ZOOM: zoom, AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_DEV_PORT: String(port) }, home)
+    try {
+      const page = await app.firstWindow()
+      await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+      await page.reload()
+      await hire(page)
+      await page.getByRole('tab', { name: /Preview/ }).click()
+      const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code)
+      await expect.poll(() => run('!!document.getElementById("t")'), { timeout: 10_000 }).toBe(true)
+      await page.getByRole('button', { name: 'Select element' }).click()
+      await run("const b = document.querySelector('#t').getBoundingClientRect(); const at = { clientX: b.left + 5, clientY: b.top + 5, bubbles: true }; window.dispatchEvent(new MouseEvent('mousemove', at)); window.dispatchEvent(new MouseEvent('click', at))")
+      const chip = page.locator('.attached li.chip-context img')
+      await expect(chip).toHaveCount(1, { timeout: 10_000 })
+      // Nothing but the red box is in the picture: its middle and its corners are all red.
+      const colours = await chip.evaluate(async (img: HTMLImageElement) => {
+        await img.decode()
+        const c = document.createElement('canvas')
+        c.width = img.naturalWidth
+        c.height = img.naturalHeight
+        const g = c.getContext('2d')!
+        g.drawImage(img, 0, 0)
+        const at = (x: number, y: number) => Array.from(g.getImageData(x, y, 1, 1).data).slice(0, 3).join(',')
+        return [at(c.width >> 1, c.height >> 1), at(2, 2), at(c.width - 3, c.height - 3)]
+      })
+      expect(colours, `at zoom ${zoom}`).toEqual(['255,0,0', '255,0,0', '255,0,0'])
+    } finally {
+      await shutdown()
+      dev.close()
+    }
   }
 })

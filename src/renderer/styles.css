@@ -953,6 +953,18 @@ svg.pxi { display: block; flex: none; }
 
 /* Something picked on the Preview page: one chip with its picture and where it came from; the words behind it ride along with the message. */
 .attached li.chip-context { box-shadow: 0 0 0 2px var(--think); }
+.pick-card { margin: 0 0 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--think); text-align: left; white-space: normal; }
+.pick-card summary { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; list-style: none; }
+.pick-card summary::-webkit-details-marker { display: none; }
+.pick-card summary::after { content: '▸'; margin-left: auto; color: var(--muted); }
+.pick-card[open] summary::after { content: '▾'; }
+.pick-card summary:hover .pick-label { color: var(--accent); }
+.pick-thumb { height: 28px; max-width: 64px; object-fit: contain; flex: none; background: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.pick-label { font: 12px Menlo, Consolas, monospace; overflow-wrap: anywhere; min-width: 0; }
+.pick-body { padding: 8px; display: grid; gap: 8px; border-top: 1px solid var(--line); }
+.pick-body dl { margin: 0; display: grid; gap: 6px; }
+.pick-body dt { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.pick-body dd { margin: 0; font: 11px/1.45 Menlo, Consolas, monospace; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
 .chip-from { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); background: var(--think); padding: 1px 6px; flex: none; }
 .chip-context .chip-name { max-width: 260px; font-family: Menlo, Consolas, monospace; }
 

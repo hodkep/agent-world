@@ -12,6 +12,7 @@ interface WebviewEl extends HTMLElement {
   canGoBack(): boolean
   canGoForward(): boolean
   getURL(): string
+  getZoomFactor(): number
   loadURL(url: string): Promise<void>
   executeJavaScript(code: string): Promise<unknown>
   capturePage(rect?: { x: number; y: number; width: number; height: number }): Promise<{ toDataURL(): string; isEmpty(): boolean }>
@@ -117,7 +118,10 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
       picked.url = pageLabels.get(picked.url) ?? picked.url
       let file: File | null = null
       try {
-        const img = await el.capturePage(picked.rect)
+        // The picture is asked for in the page's zoomed pixels (the app opens at 120%), the rectangle comes in the page's own.
+        const k = el.getZoomFactor()
+        const r = picked.rect
+        const img = await el.capturePage({ x: Math.round(r.x * k), y: Math.round(r.y * k), width: Math.round(r.width * k), height: Math.round(r.height * k) })
         if (!img.isEmpty()) file = new File([Uint8Array.from(atob(img.toDataURL().split(',')[1]!), (c) => c.charCodeAt(0))], `${picked.tag}-picked.png`, { type: 'image/png' })
       } catch {
         /* the words alone still go */
