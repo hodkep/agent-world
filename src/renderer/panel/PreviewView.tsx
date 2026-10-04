@@ -54,7 +54,21 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
   // A link clicked in the chat opens here, whether or not the agent started that server.
   const [opened, setOpened] = useState<string | null>(null)
   const known = opened ? servers.find((s) => new URL(opened).port === String(s.port)) : undefined
-  const asked: DevServer | undefined = opened && !known ? { port: Number(new URL(opened).port) || 80, url: opened, alive: true } : undefined
+  const askedPort = opened && !known ? Number(new URL(opened).port) || 80 : null
+  // An address that was typed or clicked is not one the app has been watching, so it is looked at here: is anything answering?
+  const [askedUp, setAskedUp] = useState(true)
+  useEffect(() => {
+    if (askedPort === null) return
+    let alive = true
+    const look = () => void window.aw.probePort(askedPort).then((up) => alive && setAskedUp(up))
+    look()
+    const t = setInterval(look, 2000)
+    return () => {
+      alive = false
+      clearInterval(t)
+    }
+  }, [askedPort])
+  const asked: DevServer | undefined = opened && askedPort !== null ? { port: askedPort, url: opened, alive: askedUp } : undefined
   const current = asked ?? servers.find((s) => s.port === port) ?? servers.find((s) => s.alive) ?? servers[0]
   useEffect(() => {
     if (!target || !isPreviewable(target.url)) return
@@ -102,7 +116,7 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
       el.removeEventListener('did-fail-load', fail)
       el.removeEventListener('did-finish-load', ok)
     }
-  }, [current?.url])
+  }, [current?.url, current?.alive])
 
   // Point at something on the page: it goes into the message box as words plus a picture of it.
   useEffect(() => {
@@ -138,7 +152,7 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
     }
     el.addEventListener('console-message', heard)
     return () => el.removeEventListener('console-message', heard)
-  }, [current?.url, agentId, onAttached])
+  }, [current?.url, current?.alive, agentId, onAttached])
   const togglePick = () => {
     const el = view.current
     if (!el) return
@@ -184,9 +198,22 @@ export function PreviewView({ servers, agentName, agentId, onAttached, target }:
         </button>
         <button onClick={() => void window.aw.openExternal(current.url)}>Open in browser</button>
       </div>
-      {error && <p className="preview-error">{error}</p>}
-      {/* Keyed by address so each server gets a fresh, isolated page. */}
-      <webview key={current.url} ref={view as never} src={current.url} className="preview-frame" partition="preview" />
+      {/* Nothing answering, or a page that would not load: say so here instead of showing a blank white page. */}
+      {(!current.alive || error) && (
+        <div className="preview-down" role="status">
+          <b>{!current.alive ? `Nothing is answering at ${new URL(current.url).host}` : 'The page did not load'}</b>
+          <p>
+            {!current.alive
+              ? `Start the dev server there, or ask ${agentName} to run the project. The page appears here on its own as soon as something answers.`
+              : `${error}. The server answered but the page could not be shown.`}
+          </p>
+          {current.alive && (
+            <button onClick={() => (setError(null), view.current?.reload())}>Try again</button>
+          )}
+        </div>
+      )}
+      {/* Keyed by address so each server gets a fresh, isolated page; it is only there while something answers. */}
+      {current.alive && <webview key={current.url} ref={view as never} src={current.url} className="preview-frame" partition="preview" style={error ? { display: 'none' } : undefined} />}
     </div>
   )
 }

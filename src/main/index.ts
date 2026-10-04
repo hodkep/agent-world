@@ -1338,6 +1338,7 @@ async function main() {
     buffers.delete(id)
   })
   ipcMain.handle('shell:list', () => [...shells.keys()])
+  ipcMain.handle('probe-port', (_, port: number) => (Number.isInteger(port) && port > 0 && port < 65536 ? isListening(port) : false))
   ipcMain.handle('shell:processes', () => Object.fromEntries([...shells].map(([id, p]) => [id, { front: p.process, idle: shellIdle.get(id) ?? p.process }])))
   ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
   ipcMain.handle('list-commands', (_, id: string) => {

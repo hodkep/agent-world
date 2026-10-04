@@ -113,6 +113,9 @@ test('selected code goes into the message as a chip, from the Files tab and from
     await page.getByRole('tab', { name: 'Changes', exact: true }).click()
     await page.locator('.change-list ul').getByRole('button', { name: /cart\.ts/ }).click()
     await expect(page.locator('.diff')).toContainText('1.2')
+    // The diff names its file and what changed, as the Files view does, and the tree has no marker for open files.
+    await expect(page.locator('.fcrumb')).toContainText('src/cart.ts')
+    await expect(page.locator('.fcrumb')).toContainText('changed vs main')
     // Dragged across the changed line, as a person would (the line may be wider than the editor, so by the editor's own edges).
     const changed = page.locator('.diff .view-line', { hasText: '1.2' }).last()
     await expect(changed).toBeVisible()
@@ -124,6 +127,10 @@ test('selected code goes into the message as a chip, from the Files tab and from
     await page.mouse.up()
     await page.getByRole('button', { name: /^Ask ada/ }).click()
     await expect(tray.locator('.ctx-chip')).toHaveCount(3)
+    if (process.env.AW_SHOTS) {
+      await page.waitForTimeout(3200)
+      await page.locator('aside').screenshot({ path: `${process.env.AW_SHOTS}/changes-tray.png` })
+    }
 
     // The chips are in the message box, and the message carries the code; it reads as cards in the conversation.
     await tray.getByRole('button', { name: 'Open chat' }).click()

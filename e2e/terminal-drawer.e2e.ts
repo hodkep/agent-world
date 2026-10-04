@@ -25,8 +25,23 @@ test('a Terminal button shows a drawer of shells in the project folder, with tab
     await expect(drawer).toBeHidden()
     await expect(button).toHaveAttribute('aria-pressed', 'false')
 
-    // Opening it starts one shell, in the project folder.
+    // Opening it starts one shell, in the project folder, and the page never grows a scroll bar while the terminal sizes itself.
+    const overflow = page.evaluate(
+      () =>
+        new Promise<number>((done) => {
+          const d = document.documentElement
+          let worst = 0
+          let frames = 0
+          const tick = () => {
+            worst = Math.max(worst, d.scrollHeight - d.clientHeight, d.scrollWidth - d.clientWidth)
+            if (++frames < 90) requestAnimationFrame(tick)
+            else done(worst)
+          }
+          requestAnimationFrame(tick)
+        })
+    )
     await button.click()
+    expect(await overflow).toBe(0)
     await expect(drawer).toBeVisible()
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     const tabs = drawer.getByRole('tab')

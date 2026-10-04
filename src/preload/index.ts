@@ -38,6 +38,7 @@ const api: AwApi = {
   openShell: (folder) => ipcRenderer.invoke('shell:open', folder),
   closeShell: (id) => ipcRenderer.send('shell:close', id),
   listShells: () => ipcRenderer.invoke('shell:list'),
+  probePort: (port) => ipcRenderer.invoke('probe-port', port),
   shellProcesses: () => ipcRenderer.invoke('shell:processes'),
   ptyWrite: (id, data) => ipcRenderer.send('pty-write', id, data),
   ptyResize: (id, cols, rows) => ipcRenderer.send('pty-resize', id, cols, rows),

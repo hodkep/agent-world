@@ -149,3 +149,39 @@ test('the picture of a picked element is that element, at the app\'s own zoom as
     }
   }
 })
+
+test('an address nothing answers on says so, not a blank page, and the page appears by itself once a server starts there', async () => {
+  // A port that is free: a server is started on it and stopped again.
+  const probe = createServer()
+  await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r))
+  const port = (probe.address() as AddressInfo).port
+  await new Promise<void>((r) => probe.close(() => r()))
+  const home = mkdtempSync(join(tmpdir(), 'aw-prevdown-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, home)
+  let dev: ReturnType<typeof createServer> | undefined
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const bar = page.getByRole('textbox', { name: 'Local address to preview' })
+    await bar.fill(String(port))
+    await bar.press('Enter')
+    // Nothing is listening: the panel says so and the state says it too.
+    const down = page.locator('.preview-down')
+    await expect(down).toContainText(`Nothing is answering at localhost:${port}`, { timeout: 10_000 })
+    await expect(page.locator('.preview-state')).toHaveText('not answering')
+    await expect(page.locator('webview')).toHaveCount(0)
+    // Start it: the page shows up without asking.
+    dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<h1>now it is up</h1>'))
+    await new Promise<void>((r) => dev!.listen(port, '127.0.0.1', r))
+    await expect(page.locator('.preview-state')).toHaveText('running', { timeout: 15_000 })
+    await expect(down).toHaveCount(0)
+    const text = () => page.evaluate(() => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<string> }).executeJavaScript('document.body.innerText'))
+    await expect.poll(text, { timeout: 10_000 }).toContain('now it is up')
+  } finally {
+    await shutdown()
+    dev?.close()
+  }
+})

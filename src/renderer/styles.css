@@ -95,7 +95,7 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .dirty { flex-direction: column; align-items: stretch; }
 .dirty pre { margin: 0; max-height: 120px; overflow: auto; background: var(--ink); padding: 6px; }
 .terminals { flex: 1; min-height: 0; background: var(--well); }
-.term-host { height: 100%; padding: 8px 10px; }
+.term-host { height: 100%; padding: 8px 10px; overflow: hidden; }
 .message .status { float: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .message.is-queued .status { color: var(--accent); }
 .message.is-delivered .status { color: var(--ok); }
@@ -140,7 +140,7 @@ aside:not(.wide) .change-list { width: 190px; }
 .diff { flex: 1; min-width: 0; min-height: 0; }
 /* The Files view: tabs of open files over the editor, the file's path under them, and the chips waiting in the message under it. */
 .files-ed { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.files-edwrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.files-edwrap { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
 /* The editor is its own layer, so the Ask bubble and toast are always above whatever Monaco stacks inside it. */
 .files-edwrap .diff { position: relative; z-index: 0; }
 .ftabs { display: flex; flex: none; overflow-x: auto; background: var(--panel-3); border-bottom: 2px solid var(--ink); scrollbar-width: thin; }
@@ -159,8 +159,7 @@ aside:not(.wide) .change-list { width: 190px; }
 .fask { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap; padding: 5px 10px; background: var(--danger-well); border-bottom: 1px solid var(--line); }
 .fask span { flex: 1; min-width: 160px; }
 .fask .danger { color: var(--danger-text); }
-.file.is-open::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; background: var(--accent); vertical-align: middle; }
-.ctx-tray { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; background: var(--panel-3); border-top: 2px solid var(--ink); }
+.ctx-tray { position: relative; z-index: 1; flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; background: var(--panel-3); border-top: 2px solid var(--ink); }
 .ctx-lab { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .ctx-chip { display: inline-flex; align-items: center; background: var(--well); box-shadow: 0 0 0 1px var(--accent-dim); max-width: 100%; }
 .ctx-jump { background: transparent; border: 0; box-shadow: none; color: var(--text); font: 11px Menlo, Consolas, monospace; padding: 2px 4px 2px 8px; cursor: pointer; }
@@ -432,12 +431,15 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .preview-go button { font-size: 12px; padding: 2px 8px; }
 .preview-bad { flex: 1 1 100%; color: var(--danger-text); font-size: 12px; }
 .preview-bar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
-.preview-url { font: 12px Menlo, Consolas, monospace; color: var(--accent); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.preview-url { font: 12px Menlo, Consolas, monospace; color: var(--accent); flex: 1 1 22ch; min-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
 .preview-bar select { flex: 1; min-width: 0; font: 12px Menlo, Consolas, monospace; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 3px 4px; }
 .preview-bar button { font-size: 12px; padding: 2px 8px; }
 .preview-state { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 6px; box-shadow: 0 0 0 1px var(--ink); }
 .preview-state.up { color: var(--ok); background: var(--well); }
 .preview-state.down { color: var(--danger-text); background: var(--well); }
+.preview-down { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: 24px; background: var(--well); }
+.preview-down b { font-size: 15px; }
+.preview-down p { margin: 0; max-width: 52ch; color: var(--muted); line-height: 1.5; }
 .preview-error { margin: 0; padding: 6px 10px; color: var(--danger-text); font-size: 12px; }
 .preview-frame { flex: 1; min-height: 0; width: 100%; background: white; border: 0; }
 
@@ -1337,7 +1339,7 @@ code a.file-link { font: inherit; }
 .term-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-hot); }
 .term-btn[aria-pressed='true'] .term-gl { color: var(--ink); }
 .term-btn[aria-pressed='true'] .term-count { background: var(--ink); color: var(--accent); }
-.tdrawer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 120px); background: var(--well); border-top: 2px solid var(--ink); box-shadow: 0 -2px 0 var(--line), 0 -10px 24px rgb(0 0 0 / 0.5); }
+.tdrawer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 120px); overflow: hidden; background: var(--well); border-top: 2px solid var(--ink); box-shadow: 0 -2px 0 var(--line), 0 -10px 24px rgb(0 0 0 / 0.5); }
 .tdrawer[hidden] { display: none; }
 .tgrip { height: 6px; flex: none; cursor: ns-resize; background: var(--panel-2); border-bottom: 1px solid var(--ink); position: relative; touch-action: none; }
 .tgrip::after { content: ''; position: absolute; left: 50%; top: 1px; width: 36px; height: 3px; background: var(--line); transform: translateX(-50%); }
@@ -1360,6 +1362,6 @@ code a.file-link { font: inherit; }
 .task span { flex: 1; min-width: 160px; }
 .task .danger { color: var(--danger-text); }
 .tdrawer-error { margin: 0; padding: 4px 10px; }
-.tbody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.tbody .term-host { flex: 1; min-height: 0; height: auto; padding: 6px 10px; }
+.tbody { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.tbody .term-host { flex: 1; min-height: 0; height: auto; padding: 6px 10px; overflow: hidden; }
 .tnone { flex: 1; display: grid; place-items: center; align-content: center; gap: 8px; color: var(--muted); }

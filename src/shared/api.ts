@@ -118,6 +118,8 @@ export interface AwApi {
   openShell(folder: string): Promise<string>
   closeShell(id: string): void
   listShells(): Promise<string[]>
+  /** Is anything accepting connections on this local port? */
+  probePort(port: number): Promise<boolean>
   /** For each shell: what is running in front now, and what the shell itself was called when it first showed its prompt. */
   shellProcesses(): Promise<Record<string, { front: string; idle: string }>>
   ptyWrite(id: string, data: string): void

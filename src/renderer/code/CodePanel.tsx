@@ -193,6 +193,13 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
         {error && <p className="error">{error}</p>}
       </div>
       <div className="files-ed">
+        {path && (
+          <div className="fcrumb">
+            <span className="fpath" title={path}>{path}</span>
+            <span aria-hidden="true">·</span>
+            <span className="flang">{{ added: 'new file', modified: 'changed', deleted: 'deleted' }[data?.files.find((f) => f.path === path)?.status ?? 'modified']} vs {data?.base ?? 'base'}</span>
+          </div>
+        )}
         <div className="files-edwrap" ref={wrap}>
           <div className="diff" ref={host} aria-label={path ? `Diff of ${path}` : 'Diff'} data-hint={path ? undefined : 'Pick a file to review its changes'} />
           {ask.view}
@@ -382,7 +389,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
           {rows.map((r) => (
             <li key={r.path} className={r.path === active ? 'on' : ''} role="treeitem" aria-expanded={r.dir ? filter !== '' || openDirs.has(r.path) : undefined}>
               <button
-                className={`file ${r.dir ? 'is-dir' : ''} ${!r.dir && tabs.open.includes(r.path) ? 'is-open' : ''}`}
+                className={`file ${r.dir ? 'is-dir' : ''}`}
                 style={{ paddingLeft: 6 + r.depth * 14 }}
                 onClick={() => (r.dir ? toggle(r.path) : open(r.path))}
                 title={r.path}
