@@ -76,6 +76,8 @@ export interface ScreenAdapter {
   rewindList(screen: string): RewindList | null
   openRewindList(io: TerminalIO): Promise<string | null>
   driveRewind(io: TerminalIO, target: string): Promise<boolean>
+  /** The model and effort the screen's footer names, for a provider that reports no statistics itself. */
+  readModel?(screen: string): { model: string; effort: string | null } | null
   /** The side-question overlay, if it is showing. */
   btwOverlay(screen: string): Btw | null
 }
@@ -229,6 +231,9 @@ export interface Provider {
   readonly models: ModelOption[]
   /** The autonomy levels it offers, in its own words, with how the app shows each. */
   readonly modes: ModeInfo[]
+  /** Modes the mode key reaches while the agent runs, and modes that need a relaunch between turns. */
+  readonly liveModes: string[]
+  readonly relaunchModes: string[]
   /** What the hire form offers for how much it may do alone; the empty value is the provider's own default. */
   readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */

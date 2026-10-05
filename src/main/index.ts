@@ -1295,13 +1295,14 @@ async function main() {
       sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
     }
     if (ui(id).anyMenu(io.screen())) throw new Error('Answer the open menu first.')
-    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && ui(id).readMode(io.screen()) && (await ui(id).setMode(io, mode))) {
+    const prov = providerOf(a)
+    if (prov.liveModes.includes(mode) && ui(id).readMode(io.screen()) && (await ui(id).setMode(io, mode))) {
       seenMode.set(id, mode)
       send('agent-event', { type: 'mode', agentId: id, sessionId: a.sessionId, mode })
       return
     }
-    if (mode === 'auto' && ui(id).autoUnavailable(io.screen())) throw new Error('Claude says Auto mode is unavailable for this account or model.')
-    if (!['auto', 'dontAsk'].includes(mode)) throw new Error('Claude did not switch to that mode. Try Shift+Tab in the Terminal tab.')
+    if (mode === 'auto' && ui(id).autoUnavailable(io.screen())) throw new Error(`${prov.label} says Auto mode is unavailable for this account or model.`)
+    if (!prov.relaunchModes.includes(mode)) throw new Error(`${prov.label} did not switch to that mode. Try Shift+Tab in the Terminal tab.`)
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
     a.options = { ...a.options, permissionMode: mode as PermissionMode }
     persist()

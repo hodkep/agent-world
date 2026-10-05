@@ -761,7 +761,9 @@ export function App() {
       branch: a.branch,
       canSwitch: act !== 'asleep' && ['idle', 'waiting'].includes(act),
       started: !!a.started,
-      role: a.options?.role
+      role: a.options?.role,
+      models: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.models,
+      modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes
     }
   }
   const actionsOf = (a: AgentRecord): AgentActions => ({

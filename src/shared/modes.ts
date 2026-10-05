@@ -18,7 +18,9 @@ export const MODES: ModeInfo[] = [
   { id: 'bypassPermissions', label: 'Bypass', blurb: 'Nothing is asked. Only for a sandbox.', color: 0xd83a3a, glyph: ['.###.', '#.#.#', '#####', '.###.', '.#.#.'] }
 ]
 
-export const modeInfo = (mode: string | undefined): ModeInfo => MODES.find((m) => m.id === (mode ?? 'default')) ?? MODES[0]!
+/** agy's names for the same levels. */
+const ALIASES: Record<string, string> = { 'request-review': 'default', 'accept-edits': 'acceptEdits', 'skip-permissions': 'bypassPermissions' }
+export const modeInfo = (mode: string | undefined): ModeInfo => MODES.find((m) => m.id === (ALIASES[mode ?? ''] ?? mode ?? 'default')) ?? MODES[0]!
 export const modeLabel = (mode: string | undefined) => modeInfo(mode).label
 export const cssColor = (n: number) => `#${n.toString(16).padStart(6, '0')}`
 /** The modes worth offering in the picker: bypass stays a deliberate choice at hire time. */

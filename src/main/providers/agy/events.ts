@@ -50,6 +50,7 @@ const same = (a: string, b: string) => {
 const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
 
 interface Seen {
+  model: string | null
   activity: Activity | null
   question: string | null
   requestId: string | null
@@ -79,15 +80,21 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
       .filter((c) => !taken.has(c.id) && c.bornAt >= since && (c.workspace === undefined || same(c.workspace, a.cwd)))
       .at(-1)
     if (!hit) return false
-    o.onSession?.(a.id, hit.id)
+    if (hit.id !== a.sessionId) o.onSession?.(a.id, hit.id)
     return true
   }
 
   function look(a: AgentRecord) {
     const screen = term.screen(a.id)
     if (!screen) return
-    const s = seen.get(a.id) ?? { activity: null, question: null, requestId: null }
+    const s = seen.get(a.id) ?? { model: null, activity: null, question: null, requestId: null }
     seen.set(a.id, s)
+    // What the footer names is the nearest thing agy gives to statistics: the model and its effort.
+    const shown = agyScreen.readModel?.(screen)
+    if (shown && `${shown.model}|${shown.effort}` !== s.model && resolve(a)) {
+      s.model = `${shown.model}|${shown.effort}`
+      o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null } }, a.id)
+    }
     const menu = agyScreen.genericMenu(screen)
     let activity: Activity | null = null
     if (menu) activity = 'permission'

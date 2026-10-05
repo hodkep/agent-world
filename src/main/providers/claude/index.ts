@@ -35,6 +35,8 @@ export const claude: Provider = {
     { value: 'fable', label: 'Fable' }
   ],
   modes: MODES,
+  liveModes: ['default', 'acceptEdits', 'plan', 'auto'],
+  relaunchModes: ['auto', 'dontAsk'],
   hireModes: [] = [
   { value: '', label: "Claude's default", hint: 'Usually auto: a classifier approves safe actions' },
   { value: 'manual', label: 'Ask for everything', hint: 'Every edit, command and fetch waits for your approval' },

@@ -5,6 +5,7 @@ import { agyKeys } from './keys'
 import { agyMail } from './mail'
 import { agyArgs, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
+import { agyTools } from './tools'
 import { agyTranscript } from './transcript'
 
 const run = (file: string, args: string[]) =>
@@ -14,7 +15,7 @@ export const agy: Provider = {
   id: 'agy',
   label: 'agy (Antigravity)',
   bin: 'agy',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: false, rewind: false, compact: false, limits: true, tools: false, mail: false },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: false, rewind: false, compact: false, limits: true, tools: true, mail: false },
   async detect(bin, ask = run) {
     let version: string | undefined
     try {
@@ -34,6 +35,7 @@ export const agy: Provider = {
   // agy starts the office bridge itself (see mail.ts); the bridge learns who it speaks for from the environment of this terminal.
   prepare: (i) => ({ env: { AW_MCP_URL: i.mcpUrl, AW_AGENT_TOKEN: i.agentToken } }),
   mail: agyMail,
+  tools: agyTools,
   args: agyArgs,
   limits: { read: async (bin, ask = run) => parseUsage(await ask(bin, ['-p', '/usage'])) },
   events: agyEvents,
@@ -49,6 +51,8 @@ export const agy: Provider = {
     { value: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B' }
   ],
   modes: agyModes,
+  liveModes: ['request-review', 'accept-edits', 'plan'],
+  relaunchModes: ['skip-permissions'],
   hireModes: [
     { value: '', label: "agy's default", hint: 'Asks before it edits or runs anything' },
     { value: 'request-review', label: 'Ask first', hint: 'Every edit and command waits for your approval' },

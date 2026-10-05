@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
+// Node's own notice that SQLite is experimental would be drawn under the screen; real agy prints nothing of the kind.
+process.removeAllListeners('warning')
 const args = process.argv.slice(2)
 const home = process.env.AW_AGY_HOME
 if (args[0] === '--version') (console.log('1.2.17'), process.exit(0))
@@ -17,10 +19,20 @@ if (args[0] === '-p' && args[1] === '/usage') {
 }
 
 // agy keeps its MCP servers in one global list that its own `mcp add` and `mcp remove` edit.
+if (args[0] === 'plugin') {
+  console.log('No imported plugins.')
+  process.exit(0)
+}
 if (args[0] === 'mcp') {
   const file = process.env.AW_AGY_CONFIG
   let cfg = { mcpServers: {} }
   try { cfg = JSON.parse(readFileSync(file, 'utf8')) } catch {}
+  // Like the real one, the list prints the whole command line, keys and all.
+  if (args[1] === 'list') {
+    console.log('NAME      TYPE   STATUS    COMMAND/URL')
+    for (const [n, e] of Object.entries(cfg.mcpServers)) console.log(`${n.padEnd(9)} stdio  ${e.disabled ? 'disabled' : 'enabled '} ${[e.command, ...(e.args ?? [])].join(' ')}`)
+    process.exit(0)
+  }
   if (args[1] === 'add') {
     const dash = args.indexOf('--')
     const env = {}
@@ -49,7 +61,13 @@ const addStep = (type, status, payload) => db.prepare('insert into steps (idx, s
 
 const W = process.stdout.columns ?? 100
 const rule = '─'.repeat(W)
-const footer = (left) => left.padEnd(W - 'Gemini 3.8 Flash · high'.length) + 'Gemini 3.8 Flash · high'
+// Shift+Tab cycles how much it may do alone; the footer names every level but the first.
+const MODES = ['', 'accept-edits', 'plan']
+let mode = args.includes('--mode') ? Math.max(0, MODES.indexOf(args[args.indexOf('--mode') + 1])) : 0
+const footer = (left) => {
+  const right = (mode && left.startsWith('?') ? `${MODES[mode]} · ` : '') + 'Gemini 3.8 Flash · high'
+  return left.padEnd(W - right.length) + right
+}
 const draw = (lines) => process.stdout.write('\x1b[2J\x1b[H' + lines.join('\r\n'))
 const idle = (shown = '') => draw(['', '  Antigravity CLI 1.2.17', '  Gemini 3.8 Flash (High)', '', rule, `> ${shown}`, rule, footer('? for shortcuts')])
 const working = (said) => draw(['', `> ${said}`, '⣷  Generating...', rule, '>', rule, footer('esc to cancel')])
@@ -89,6 +107,10 @@ process.stdin.on('data', (d) => {
       return idle()
     }
     return
+  }
+  if (s === '\x1b[Z' && state === 'idle') {
+    mode = (mode + 1) % MODES.length
+    return idle(typed)
   }
   if (s === '\x1b' && state === 'working') {
     clearTimeout(timer)

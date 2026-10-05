@@ -115,7 +115,15 @@ function readMode(screen: string): string | null {
   return /^(?:\? for shortcuts\s+)?(accept-edits|plan)\s+·/.exec(f)?.[1] ?? 'request-review'
 }
 
+/** The footer ends with the model and its effort ("Gemini 3.8 Flash · high"), after a hint or a mode label. */
+function readModel(screen: string) {
+  const f = footer(screen).replace(/^(\? for shortcuts|esc to cancel)\s+/, '').replace(/^(accept-edits|plan)\s+·\s+/, '')
+  const m = /^(\S.*?)\s+·\s+(\w+)$/.exec(f)
+  return m ? { model: m[1]!, effort: m[2]! } : null
+}
+
 export const agyScreen: ScreenAdapter = {
+  readModel,
   trustPrompt,
   answerTrust: (io, trust) => answerMenu(io, trustMenu, trust ? 0 : 1),
   inputReady: idle,

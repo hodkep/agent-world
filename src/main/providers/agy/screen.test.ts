@@ -117,6 +117,16 @@ describe('the autonomy level in the footer', () => {
   })
 })
 
+describe('the model named in the footer', () => {
+  it('is read with its effort, whatever else the footer says', () => {
+    for (const name of ['idle', 'working', 'permission', 'mode-accept', 'mode-plan']) expect(s.readModel!(fx(name)), name).toEqual({ model: 'Gemini 3.8 Flash', effort: 'high' })
+  })
+  it('is nothing on a screen with no footer of agy\'s', () => {
+    expect(s.readModel!('just some text')).toBeNull()
+    expect(s.readModel!(fx('trust'))).toBeNull()
+  })
+})
+
 describe('what agy cannot do from here', () => {
   it('has no rewind list, side questions or plan menu to read', () => {
     expect(s.rewindList(fx('idle'))).toBeNull()

@@ -16,13 +16,14 @@ function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; wor
   const settled: string[] = []
   const sessions: [string, string][] = []
   const written: string[] = []
+  const statuses: (string | null)[][] = []
   const o: EventSourceOptions = {
     agentForToken: () => null,
     permissionTimeoutMs: 1000,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asked.push(r),
     onPermissionSettled: (id) => settled.push(id),
-    onStatus: () => {},
+    onStatus: (st) => statuses.push([st.model, st.effort]),
     onSession: (id, s) => {
       sessions.push([id, s])
       agents.find((a) => a.id === id)!.sessionId = s
@@ -30,7 +31,7 @@ function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; wor
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
   const src = createAgyEvents(o, { conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
-  return { src, screens, events, asked, settled, sessions, written, agents }
+  return { src, screens, events, asked, settled, sessions, written, agents, statuses }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
 
@@ -51,6 +52,20 @@ describe('agy activity, read from its screen', () => {
     t.screens.a1 = ''
     t.src.tick()
     expect(t.events).toEqual([])
+  })
+})
+
+describe('what the footer says about the model', () => {
+  it('is reported once, and again only when it changes', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })] })
+    t.src.tick()
+    t.src.tick()
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.statuses).toEqual([['Gemini 3.8 Flash', 'high']])
+    t.screens.a1 = fx('idle').replace('Gemini 3.8 Flash · high', 'Gemini 3.1 Pro · low')
+    t.src.tick()
+    expect(t.statuses.at(-1)).toEqual(['Gemini 3.1 Pro', 'low'])
   })
 })
 

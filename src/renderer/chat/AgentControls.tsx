@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import type { ModeInfo } from '../../shared/modes'
 import { type Role, isCurrentRole } from '../../shared/roles'
 import type { Effort } from '../../shared/types'
 import { type UsageLimits, limitView } from '../../shared/usage'
@@ -22,6 +23,9 @@ export interface AgentInfo {
   started: boolean
   /** The job stored in the agent's options (a role's title), if any. */
   role?: string
+  /** What its program offers; Claude's lists when not given. */
+  models?: { value: string; label: string }[]
+  modes?: ModeInfo[]
 }
 
 /** What the controls can do: App owns the work, the box only asks for it. */
@@ -82,6 +86,7 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
   const [open, setOpen] = useState(false)
   const wrap = useDismiss(open, () => setOpen(false))
   const current = (info.model ?? '').toLowerCase()
+  const models = (info.models ?? MODELS).filter((m) => m.value)
   return (
     <span className="cb-anchor" ref={wrap}>
       <button className="cb-chip" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Model and effort" title={`${info.model ?? 'Model'}${info.effort ? ` · effort ${info.effort}` : ''}`}>
@@ -92,12 +97,15 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
       {open && (
         <Pop label="Model and effort">
           <h6>Model</h6>
-          {MODELS.filter((m) => m.value).map((m) => (
-            <button key={m.value} className="cb-row" role="menuitemradio" aria-checked={current.includes(m.value)} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ model: m.value }))}>
-              <span className="tick">{current.includes(m.value) ? '▪' : ''}</span>
+          {models.map((m) => {
+            const on = current.includes(m.value) || current === m.label.toLowerCase()
+            return (
+            <button key={m.value} className="cb-row" role="menuitemradio" aria-checked={on} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ model: m.value }))}>
+              <span className="tick">{on ? '▪' : ''}</span>
               {m.label}
             </button>
-          ))}
+            )
+          })}
           <h6>Effort</h6>
           <div className="cb-steps">
             {EFFORTS.filter((e) => e.value).map((e) => (

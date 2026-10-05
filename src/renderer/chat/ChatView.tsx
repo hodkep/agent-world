@@ -1289,13 +1289,13 @@ function Composer({
             onClick={() => setModeOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={modeOpen}
-            title="Permission mode: how much Claude may do without asking. Shift+Tab moves to the next one."
+            title="Permission mode: how much this agent may do without asking. Shift+Tab moves to the next one."
           >
             {switching ? 'Switching…' : modeInfo(mode).label}
           </button>
           {modeOpen && (
             <div className="pop-menu mode-menu" role="menu" aria-label="Permission mode">
-              {PICKABLE_MODES.map((m) => (
+              {(info?.modes?.filter((m) => !/bypass|skip/.test(m.id)) ?? PICKABLE_MODES).map((m) => (
                 <button
                   key={m.id}
                   role="menuitemradio"

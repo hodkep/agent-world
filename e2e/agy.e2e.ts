@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -148,6 +148,63 @@ test('agy is connected to the message box only after its change is shown and app
       p.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_agents', arguments: {} } }) + '\n')
     })
     expect(JSON.parse(reply).result.content[0].text).toContain('"you":true')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agy agent\'s controls show its own model and modes, and switching mode presses the key agy uses', async () => {
+  const { page, shutdown } = await open('aw-agy-controls-')
+  try {
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    // The model comes from agy's own footer: there are no statistics to report it.
+    const chip = page.getByRole('button', { name: 'Model and effort' })
+    await expect(chip).toContainText('Gemini 3.8 Flash', { timeout: 15_000 })
+    await expect(chip).toContainText('high')
+    await chip.click()
+    const models = page.getByRole('menu', { name: 'Model and effort' })
+    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.1 Pro/ })).toBeVisible()
+    await expect(models.getByRole('menuitemradio', { name: /Fable|Haiku/ })).toHaveCount(0)
+    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.8 Flash/ })).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
+
+    // Its modes are its own levels (no bypass offered), and a live switch goes through its Shift+Tab.
+    await page.getByRole('button', { name: /^Ask first|Permission mode/ }).first().click()
+    const modes = page.getByRole('menu', { name: 'Permission mode' })
+    await expect(modes.getByRole('menuitemradio')).toHaveCount(3)
+    await expect(modes.getByRole('menuitemradio', { name: /Bypass/ })).toHaveCount(0)
+    await modes.getByRole('menuitemradio', { name: /Plan/ }).click()
+    await expect(page.getByRole('button', { name: /^Plan/ }).first()).toBeVisible({ timeout: 15_000 })
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the Tools tab of an agy agent lists what agy has connected without showing the keys on its command lines, and removes a server through agy', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-agy-tools-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const folder = join(home, 'project')
+  mkdirSync(folder)
+  const config = join(home, 'mcp_config.json')
+  writeFileSync(config, JSON.stringify({ mcpServers: { payments: { command: 'npx', args: ['-y', '@pay/mcp', '--api-key=sk_test_SECRET456'] }, notes: { command: 'notes-server', args: [] } } }))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, AW_AGY_CONFIG: config, FAKE_DELAY_MS: '50' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
+    await page.reload()
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Tools' }).click()
+    const row = page.locator('.tools li', { hasText: 'payments' })
+    await expect(row).toContainText('npx (arguments hidden)')
+    await expect(page.locator('.tools')).not.toContainText('SECRET456')
+    await expect(page.locator('.tools')).not.toContainText('--api-key')
+    await expect(page.locator('.tools li', { hasText: 'notes' })).toContainText('notes-server')
+    await row.getByRole('button', { name: 'Remove' }).click()
+    await page.getByRole('button', { name: 'Sure?' }).click()
+    await expect(page.locator('.tools li', { hasText: 'payments' })).toHaveCount(0, { timeout: 10_000 })
+    expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['notes'])
   } finally {
     await shutdown()
   }
