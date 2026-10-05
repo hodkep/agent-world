@@ -1,3 +1,5 @@
+import { DEFAULT_PROVIDER } from '../shared/types'
+import { BRAND } from '../shared/brand'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
@@ -489,7 +491,7 @@ export function App() {
       changeLayout({ root: drop ? place(root, id, drop.target, drop.zone) : add(root, id) })
     })
   const cur = current ? stats[current.id] : undefined
-  const curProv = current ? providers?.find((p) => p.id === (current.provider ?? 'claude')) : undefined
+  const curProv = current ? providers?.find((p) => p.id === (current.provider ?? DEFAULT_PROVIDER)) : undefined
   const cardData: CardData | null = current
     ? {
         id: current.id,
@@ -512,7 +514,7 @@ export function App() {
         effortId: cur?.effort ?? current.options?.effort ?? '',
         modeId: world[current.id]?.mode ?? (current.options?.permissionMode === 'manual' || !current.options?.permissionMode ? 'default' : current.options.permissionMode),
         canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep'),
-        provider: { id: current.provider ?? 'claude', label: curProv?.label ?? 'Claude Code' },
+        provider: { id: current.provider ?? DEFAULT_PROVIDER, label: curProv?.label ?? BRAND[DEFAULT_PROVIDER].short },
         models: (curProv?.models ?? MODELS).filter((m) => m.value),
         efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
@@ -631,7 +633,7 @@ export function App() {
   // CLAUDE.md is the standing brief Claude reads at every start; start one if the project has none yet.
   const openHandbook = (a: AgentRecord) =>
     run(async () => {
-      const book = providers?.find((p) => p.id === (a.provider ?? 'claude'))?.handbook ?? 'CLAUDE.md'
+      const book = providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.handbook ?? 'CLAUDE.md'
       if (!(await window.aw.code.files(a.id)).includes(book)) await window.aw.code.write(a.id, book, '# Project notes\n\nWhat every agent here should know: how to build and test, conventions, things to avoid.\n')
       setView('code')
       setOpenFile({ path: book })
@@ -658,7 +660,7 @@ export function App() {
   const shownLimits = pool.length ? pooled(pool) : limits
   // The tanks on the lawn: a bank of two for each connected program, so each program's allowance can be read apart.
   const readyIds = (providers ?? []).filter((p) => p.detection.state === 'ready').map((p) => p.id)
-  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : ['claude'])
+  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER])
   const plantKey = JSON.stringify(plantBanks)
   useEffect(() => office.current?.setBanks(plantBanks), [plantKey, officeReady])
   useEffect(() => {
@@ -729,7 +731,7 @@ export function App() {
 
   // The agent rows, shared by the list and by the switcher that stands in for it when the list is folded away.
   // A colour only helps once there is more than one program to tell apart: two ready here, or agents of two kinds.
-  const mixed = (providers ?? []).filter((p) => p.detection.state === 'ready').length > 1 || new Set(allAgents.map((a) => a.provider ?? 'claude')).size > 1
+  const mixed = (providers ?? []).filter((p) => p.detection.state === 'ready').length > 1 || new Set(allAgents.map((a) => a.provider ?? DEFAULT_PROVIDER)).size > 1
   const rosterRows = (after?: () => void) =>
     [...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
                 const st = world[a.id]
@@ -742,7 +744,7 @@ export function App() {
                     <span className="dot" aria-hidden="true" />
                     <span className="name">
                       {a.name}
-                      {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? 'claude'))?.label ?? 'Claude Code'} />}
+                      {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.label ?? BRAND[DEFAULT_PROVIDER].short} />}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
                           {a.repoPath.split(/[\\/]/).pop()}
@@ -795,13 +797,13 @@ export function App() {
       started: !!a.started,
       role: a.options?.role,
       tokens: st?.tokens,
-      canCompact: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.compact,
-      can: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities,
-      handbook: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.handbook,
-      liveLimits: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.liveLimits,
-      models: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.models,
-      modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes,
-      relaunch: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.relaunchModes
+      canCompact: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities.compact,
+      can: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities,
+      handbook: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.handbook,
+      liveLimits: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities.liveLimits,
+      models: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.models,
+      modes: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.modes,
+      relaunch: providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.relaunchModes
     }
   }
   const actionsOf = (a: AgentRecord): AgentActions => ({

@@ -78,7 +78,11 @@ export interface AgentOptions {
 }
 
 /** The agent programs the office can run. */
-export type ProviderId = 'claude' | 'agy'
+export const PROVIDER_IDS = ['claude', 'agy'] as const
+export type ProviderId = (typeof PROVIDER_IDS)[number]
+/** The program of an agent saved before there was a choice. */
+export const DEFAULT_PROVIDER: ProviderId = 'claude'
+export const isProviderId = (v: unknown): v is ProviderId => (PROVIDER_IDS as readonly unknown[]).includes(v)
 
 /** What a provider can do; the screens hide what it cannot, instead of showing it broken. */
 export interface Capabilities {

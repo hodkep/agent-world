@@ -41,6 +41,7 @@ import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { fitOptions } from '../shared/efforts'
+import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
@@ -58,7 +59,8 @@ let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
 /** Whether a provider can use the office message box: natively, once connected, or not (yet). */
 const mailState = (p: Provider): ProviderInfo['mail'] => (p.capabilities.mail ? 'yes' : p.mail ? (p.mail.status() === 'connected' ? 'connected' : 'missing') : 'no')
-const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : p.id === 'agy' ? process.env.AW_AGY_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
+// A test or a package can name the program with AW_<ID>_BIN (AW_CLAUDE_BIN, AW_AGY_BIN…); else Settings, else its usual name.
+const binFor = (p: Provider) => process.env[`AW_${p.id.toUpperCase()}_BIN`] ?? (prefs.providers[p.id]?.path || p.bin)
 /** The program and arguments that start a provider here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
 const providerCmd = (p: Provider, args: string[]) => {
   const l = resolveCommand(binFor(p))
@@ -822,10 +824,12 @@ async function main() {
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
     if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
+    // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
+    const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
     const live = claudeWindows(usage)
-    const asked = polled.flat().filter((w) => w.provider === 'claude')
-    const claude = live.length ? [...live, ...asked.filter((w) => w.group !== 'Claude Code')] : asked
-    return [...claude, ...polled.flat().filter((w) => w.provider !== 'claude')]
+    const askedLive = polled.flat().filter((w) => w.provider === liveId)
+    const own = live.length ? [...live, ...askedLive.filter((w) => w.group !== live[0]!.group)] : askedLive
+    return [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
@@ -1109,7 +1113,7 @@ async function main() {
       const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees') })
       // Plan mode keeps a reviewer from editing anything while it reads.
       created = {
-        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, provider: 'claude', started: false, hiredAt: Date.now(),
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, provider: DEFAULT_PROVIDER, started: false, hiredAt: Date.now(),
         options: { permissionMode: 'plan', ...(prefs.roleModels.Reviewer && { model: prefs.roleModels.Reviewer }), instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
       }
       setWorkspaces(rememberWorkspace(workspaces, author.repoPath))

@@ -9,6 +9,7 @@ import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { startHookServer } from './hookServer'
+import { identityTranslator } from '../../../shared/tools'
 import { parseClaudeUsage } from './usage'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
@@ -28,6 +29,9 @@ export const claude: Provider = {
   },
   // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
   limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },
+  // Claude Code's tools already carry the chat's names.
+  calls: identityTranslator,
+  callSamples: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Agent', 'mcp__docs__search'].map((name) => ({ id: 'c', name, args: {} })),
   transcript: claudeTranscript,
   screen: claudeScreen,
   keys: claudeKeys,

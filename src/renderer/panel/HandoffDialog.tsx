@@ -1,3 +1,5 @@
+import { BRAND } from '../../shared/brand'
+import { DEFAULT_PROVIDER } from '../../shared/types'
 import { useState } from 'react'
 import { type HandoffKind, handoffText } from '../../shared/handoff'
 import type { AgentRecord, ProviderId, ProviderInfo } from '../../shared/types'
@@ -24,7 +26,7 @@ interface Who {
 
 /** Hand an agent's branch to another agent (or a hired one) to review, continue from, or answer a question about. Only agents that can answer through the message box are offered. */
 export function HandoffDialog({ author, others, asleep, providers, onSend, onClose }: { author: AgentRecord; others: AgentRecord[]; asleep: (id: string) => boolean; providers: ProviderInfo[]; onSend: (to: Target, kind: HandoffKind, note: string) => Promise<boolean>; onClose: () => void }) {
-  const info = (id: ProviderId | undefined) => providers.find((p) => p.id === (id ?? 'claude'))
+  const info = (id: ProviderId | undefined) => providers.find((p) => p.id === (id ?? DEFAULT_PROVIDER))
   const canMail = (p?: ProviderInfo) => !!p && (p.mail === 'yes' || p.mail === 'connected')
   const who: Who[] = [
     ...others.map((a): Who => {
@@ -34,8 +36,8 @@ export function HandoffDialog({ author, others, asleep, providers, onSend, onClo
         to: { agent: a.id },
         name: a.name,
         note: a.branch ?? 'shared folder',
-        provider: a.provider ?? 'claude',
-        label: p?.label ?? 'Claude Code',
+        provider: a.provider ?? DEFAULT_PROVIDER,
+        label: p?.label ?? BRAND[DEFAULT_PROVIDER].short,
         blocked: asleep(a.id) ? 'asleep: wake it first' : canMail(p) ? undefined : 'not connected to the message box (Settings)'
       }
     }),

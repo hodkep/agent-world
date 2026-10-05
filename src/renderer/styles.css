@@ -1456,8 +1456,6 @@ code a.file-link { font: inherit; }
 /* ---- Which program an agent runs on ---- */
 .ptag { --c: var(--dim); display: inline-flex; align-items: center; gap: 5px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--text); white-space: nowrap; }
 .ptag::before { content: ''; width: 7px; height: 7px; background: var(--c); }
-.ptag.claude { --c: var(--claude); }
-.ptag.agy { --c: var(--think); }
 .agent-row .name .swatch { margin-left: 8px; vertical-align: 1px; }
 
 /* ---- Usage: limits, by provider ---- */
@@ -1492,8 +1490,6 @@ code a.file-link { font: inherit; }
 
 /* ---- Handing work to another agent ---- */
 .swatch { --c: var(--dim); display: inline-block; width: 10px; height: 10px; background: var(--c); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); flex: none; }
-.swatch.claude { --c: var(--claude); }
-.swatch.agy { --c: var(--think); }
 dialog.handoff { width: min(640px, 94vw); }
 .ho-branch { font: 11px Menlo, Consolas, monospace; color: var(--muted); }
 .ho-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; overflow: auto; max-height: calc(92vh - 52px); }

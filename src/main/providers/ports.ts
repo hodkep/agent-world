@@ -1,3 +1,4 @@
+import type { RawCall, ToolTranslator } from '../../shared/tools'
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
 import type { PaletteCommand } from '../../shared/commands'
 import type { ModeInfo } from '../../shared/modes'
@@ -234,6 +235,10 @@ export interface Provider {
   /** Is it here, and usable? `run` lets tests answer instead of starting a program. */
   detect(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<Detection>
   readonly transcript: TranscriptSource
+  /** Says this program's tool calls in the chat's vocabulary (shared/tools.ts), so its work is drawn like everyone's. */
+  readonly calls: ToolTranslator
+  /** Real calls of its own, one per tool it has been seen to use: the contract test checks each translates to something the chat draws. */
+  readonly callSamples: RawCall[]
   readonly screen: ScreenAdapter
   readonly keys: Keys
   readonly models: ModelOption[]

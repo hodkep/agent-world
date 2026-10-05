@@ -1,4 +1,5 @@
 import { unwrapPasted } from '../../../shared/pasted'
+import { identityTranslator } from '../../../shared/tools'
 import { parseHandback, parseTaskNotification } from '../../../shared/subagentMessages'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -110,7 +111,7 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
       const id = `${uuid}:${i}`
       if (block.type === 'text' && str(block.text).trim()) return [{ kind: 'assistant', id, at, text: str(block.text) }]
       if (block.type === 'thinking') return [{ kind: 'thinking', id, at }]
-      if (block.type === 'tool_use') return [{ kind: 'tool', id, at, toolUseId: str(block.id), name: str(block.name), input: obj(block.input) }]
+      if (block.type === 'tool_use') return identityTranslator.translate({ id: str(block.id), name: str(block.name), args: obj(block.input) }).map((c) => ({ kind: 'tool' as const, id, at, toolUseId: c.id, name: c.name, input: c.input }))
       return []
     })
   }

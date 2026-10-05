@@ -7,6 +7,7 @@ import { agyMail } from './mail'
 import { agyArgs, agyContextWindow, agyModels, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
 import { agyTools } from './tools'
+import { agyCalls, agyCallSamples } from './toolTable'
 import { agyTranscript } from './transcript'
 
 const run = (file: string, args: string[]) =>
@@ -44,6 +45,8 @@ export const agy: Provider = {
   transcript: agyTranscript,
   screen: agyScreen,
   keys: agyKeys,
+  calls: agyCalls,
+  callSamples: agyCallSamples,
   models: [{ value: '', label: 'Default model' }, ...agyModels],
   modes: agyModes,
   rewindConfirms: false,

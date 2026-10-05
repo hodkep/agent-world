@@ -1,5 +1,7 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
+import { BRAND } from '../../shared/brand'
 import type { Bank } from '../../shared/limits'
+import { DEFAULT_PROVIDER } from '../../shared/types'
 import { type LimitView, limitView } from '../../shared/usage'
 import { shade } from './grounds'
 import { textPixels } from './pixelfont'
@@ -15,8 +17,6 @@ const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) =
 
 export const PLANT = { w: 156, h: 54 }
 const LIQUID = { ok: 0x46c8e6, warn: 0xf2b830, hot: 0xe05050 }
-/** The colour each program wears everywhere else (its mark in setup, the swatch on its agents), here on its tanks' labels. */
-const PROGRAM = { claude: 0xe08a5a, agy: 0x6ad0e0 } as const
 
 function text(g: G, s: string, x: number, y: number, color: number) {
   textPixels(s).forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, x + rx, y + ry, 1, 1, color)))
@@ -118,11 +118,11 @@ export class PowerPlant {
     r(g, 1, 47, PLANT.w - 2, 6, 0x4a4e5a)
     r(g, 1, 47, PLANT.w - 2, 1, 0x6a6f7c)
     // A bank of two tanks for each program: one program as before, several side by side, each labelled in its own colour.
-    const banks: Bank[] = this.banks.length ? this.banks : [{ provider: 'claude', five: null, week: null }]
+    const banks: Bank[] = this.banks.length ? this.banks : [{ provider: DEFAULT_PROVIDER, five: null, week: null }]
     const n = banks.length
     const lows: number[] = []
     banks.forEach((b, i) => {
-      const plate = PROGRAM[b.provider]
+      const plate = BRAND[b.provider].color
       const wide = n === 1
       const bw = wide ? 96 : Math.floor((100 - (n - 1) * 4) / n)
       const bx = wide ? 6 : 4 + i * (bw + 4)

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { PROVIDER_IDS } from '../../shared/types'
+import { BRAND } from '../../shared/brand'
 import { providerById, providerOf, providers } from './registry'
 
 describe('provider registry', () => {
@@ -6,6 +8,18 @@ describe('provider registry', () => {
     expect(providers().map((p) => p.id)).toEqual(['claude', 'agy'])
     expect(providerOf({}).id).toBe('claude')
     expect(providerById('claude').label).toBe('Claude Code')
+  })
+})
+
+describe('a provider is known in every table that needs it', () => {
+  it('has an id, a registered provider and a brand, and each provider ships its own models, modes and tool translator', () => {
+    expect(providers().map((p) => p.id)).toEqual([...PROVIDER_IDS])
+    for (const id of PROVIDER_IDS) expect(BRAND[id].color).toBeGreaterThan(0)
+    for (const p of providers()) {
+      expect(p.models.length, p.id).toBeGreaterThan(0)
+      expect(p.modes.length, p.id).toBeGreaterThan(0)
+      expect(typeof p.calls.translate, p.id).toBe('function')
+    }
   })
 })
 

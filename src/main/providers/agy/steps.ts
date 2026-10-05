@@ -1,3 +1,4 @@
+import { agyCalls, subagentCallId } from './toolTable'
 import type { ChatItem } from '../../../shared/chat'
 import { all, num, text } from './wire'
 
@@ -13,6 +14,7 @@ const USER = 14
 const MODEL = 15
 const TOOL = 132
 /** Statuses of a finished step: 3 done, 6 cancelled, 7 refused. Others are still being worked on. */
+export { subagentCallId }
 export const FINISHED = new Set([3, 6, 7])
 /** The first message the app sends carries the house rules; it is ours, not something the user said. */
 const OURS = 'House rules for this session.'
@@ -31,40 +33,8 @@ export const json = (s: string | undefined): Record<string, unknown> => {
   }
 }
 
-const str = (v: unknown) => (typeof v === 'string' ? v : '')
-
-/**
- * agy's tools, under the names the chat already knows how to draw: the chat has one vocabulary (Bash, Read, Glob, WebSearch, Agent,
- * mcp__server__tool…) and each program's transcript is translated into it here, so the same work looks the same whoever did it.
- */
-export function toolView(name: string, args: Record<string, unknown>): { name: string; input: Record<string, unknown> } {
-  switch (name) {
-    case 'run_command':
-      return { name: 'Bash', input: { command: args.CommandLine, ...(typeof args.toolAction === 'string' && { description: args.toolAction }) } }
-    case 'view_file':
-      return { name: 'Read', input: { file_path: str(args.AbsolutePath) || str(args.Path) || str(args.File) } }
-    case 'list_dir':
-      return { name: 'Glob', input: { pattern: '*', path: str(args.DirectoryPath) } }
-    case 'find_by_name':
-      return { name: 'Glob', input: { pattern: str(args.Pattern), path: str(args.SearchDirectory) } }
-    case 'search_web':
-      return { name: 'WebSearch', input: { query: str(args.query) } }
-    case 'call_mcp_tool':
-      return { name: `mcp__${str(args.ServerName) || 'server'}__${str(args.ToolName) || 'tool'}`, input: args.Arguments && typeof args.Arguments === 'object' ? (args.Arguments as Record<string, unknown>) : {} }
-    default:
-      return { name, input: args }
-  }
-}
-
-/** What one call shows in the chat: usually one card, but one call that starts several subagents is one delegation of several. */
-export function toolViews(callId: string, name: string, args: Record<string, unknown>): { id: string; name: string; input: Record<string, unknown> }[] {
-  if (name !== 'invoke_subagent') return [{ id: callId, ...toolView(name, args) }]
-  const asked = Array.isArray(args.Subagents) ? (args.Subagents as { Prompt?: string; Role?: string; TypeName?: string }[]) : []
-  return asked.map((a, i) => ({ id: subagentCallId(callId, i), name: 'Agent', input: { description: a.Role ?? (a.Prompt ?? '').replace(/\s+/g, ' ').slice(0, 80), subagent_type: a.TypeName ?? 'subagent', prompt: a.Prompt ?? '' } }))
-}
-
-/** The call that started a subagent, as the chat names it: one agy call can start several, so each gets its place in it. */
-export const subagentCallId = (callId: string, index: number) => `${callId}:${index}`
+/** One step's calls in the chat's vocabulary (see toolTable.ts). */
+export const toolView = (name: string, args: Record<string, unknown>) => agyCalls.translate({ id: '', name, args })[0]!
 
 export interface StepUsage {
   /** Everything it read for this step, what came from cache included. */
@@ -107,7 +77,7 @@ export function decodeStep(s: StepRow): ChatItem[] {
     if (say) items.push({ kind: 'assistant', id: `agy:${s.idx}:say`, at, text: say })
     for (const call of all(s.payload, '20.7')) {
       const id = text(call.b, '1') ?? ''
-      for (const v of toolViews(id, text(call.b, '2') ?? 'tool', json(text(call.b, '3')))) items.push({ kind: 'tool', id: `agy:${s.idx}:${v.id}`, at, toolUseId: v.id, name: v.name, input: v.input })
+      for (const v of agyCalls.translate({ id, name: text(call.b, '2') ?? 'tool', args: json(text(call.b, '3')) })) items.push({ kind: 'tool', id: `agy:${s.idx}:${v.id}`, at, toolUseId: v.id, name: v.name, input: v.input })
     }
     return items
   }
@@ -115,7 +85,7 @@ export function decodeStep(s: StepRow): ChatItem[] {
     const toolUseId = text(s.payload, '5.4.1')
     if (!toolUseId) return []
     // Each subagent's answer comes from its own conversation, not from the line saying they were created.
-    if (text(s.payload, '5.4.2') === 'invoke_subagent') return []
+    if (agyCalls.silentResult(text(s.payload, '5.4.2') ?? '')) return []
     const out = text(s.payload, '140.2.1')
     const ok = s.status === 3
     return [{ kind: 'tool-result', id: `agy:${s.idx}`, at, toolUseId, text: ok ? (out ?? '') : (out ?? 'Not run: it was cancelled or refused.'), isError: !ok }]

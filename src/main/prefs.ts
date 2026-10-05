@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { Prefs } from '../shared/types'
+import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
 export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false } }
 
@@ -21,7 +21,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     houseRules: str(r.houseRules, 4000) ?? base.houseRules,
     roleModels: cleanRoleModels(r.roleModels, base.roleModels),
     defaults: {
-      provider: d.provider === 'claude' || d.provider === 'agy' ? d.provider : base.defaults.provider,
+      provider: isProviderId(d.provider) ? d.provider : base.defaults.provider,
       model: str(d.model, 60) ?? base.defaults.model,
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
       inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace
@@ -33,7 +33,7 @@ function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   return {
     done: typeof s.done === 'boolean' ? s.done : base.done,
-    defaultProvider: s.defaultProvider === 'claude' || s.defaultProvider === 'agy' || s.defaultProvider === '' ? s.defaultProvider : base.defaultProvider
+    defaultProvider: s.defaultProvider === '' || isProviderId(s.defaultProvider) ? s.defaultProvider : base.defaultProvider
   }
 }
 
@@ -41,9 +41,9 @@ function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {
 function cleanProviders(r: Record<string, unknown>, base: Prefs['providers']): Prefs['providers'] {
   const out: Prefs['providers'] = {}
   const given = (r.providers && typeof r.providers === 'object' ? r.providers : {}) as Record<string, unknown>
-  for (const id of ['claude', 'agy'] as const) {
+  for (const id of PROVIDER_IDS) {
     const o = given[id]
-    const path = str(o && typeof o === 'object' ? (o as Record<string, unknown>).path : undefined, 500) ?? (id === 'claude' ? str(r.claudePath, 500) : undefined)
+    const path = str(o && typeof o === 'object' ? (o as Record<string, unknown>).path : undefined, 500) ?? (id === DEFAULT_PROVIDER ? str(r.claudePath, 500) : undefined)
     const clean = path?.trim() ?? base[id]?.path
     if (clean) out[id] = { path: clean }
   }

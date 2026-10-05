@@ -167,6 +167,18 @@ Because worktrees are plain git, a Claude agent and an agy agent can work on or 
 
 Opens on first launch and whenever no provider is ready. It is skippable except where a choice is truly required: you cannot hire until at least one provider is **ready**, so step 2 cannot be skipped when none is. Steps 3 to 5 (project folder, defaults, first agent) are skippable with sane defaults. There is no "how it stays safe" step for now, since later features will touch provider and system files and that promise would not hold. It can be re-run from Settings. Setup never handles credentials: "needs sign-in" opens the terminals drawer with the provider's own login command.
 
+## Adding another program
+
+The core knows programs only through `src/main/providers/ports.ts` and the registry; the screens know them through `ProviderInfo`. Adding one is a folder of its own plus a few one-line table entries. Checklist:
+
+1. **Folder** `src/main/providers/<id>/` with an object that satisfies `Provider` (launch arguments, screen adapter, keys, transcript, events, models, modes, limits, commands, capabilities). Register it in `registry.ts`: that is the only place the core names it.
+2. **Tool calls** (`calls`, `callSamples`): a `ToolTranslator` that says the program's tool names in the chat's vocabulary (`src/shared/tools.ts`: Bash, Read, Write, Edit, MultiEdit, Glob, Grep, WebFetch, WebSearch, Agent, `mcp__server__tool`). Use `tableTranslator`: one line per tool, built with the `call.*` builders; a tool with no line is drawn as a plain card. Ship one real sample per tool: `tools.contract.test.ts` checks that each becomes something the chat draws, so a subagent, an edit or a search looks the same for every program.
+3. **Tables the screens read** (one line each): the id in `PROVIDER_IDS` (`shared/types.ts`), its colour and short name in `BRAND` (`shared/brand.ts`), its mark in `LOGOS` (`renderer/panel/ProviderLogo.tsx`), and the override variable `AW_<ID>_BIN` for tests.
+4. **Capabilities, not names**: the screens ask `capabilities` and the provider's own `models` (with `efforts` per model, none when it has no thinking setting), `modes`, `hireModes`, `relaunchModes` and `handbook`. Nothing in the screens branches on the program's name.
+5. **Registry test** (`registry.test.ts`) fails if an id has no provider or brand, and the boundary test (`boundaries.test.ts`) fails if a provider reaches into another or the core into a provider.
+
+Known places that still name the two programs, to be generalised when a third arrives: the per-program drill-downs in the Usage tab (`stats/UsageModal.tsx`), the live-limits feed (`claudeWindows` in `shared/limits.ts`, fed by the one program with `liveLimits`), and Claude's setup-only concepts (plan menu, questions) which agy reaches through its screen instead.
+
 ## Spike results (agy 1.2.17)
 
 1. **Interactive events: there are none to subscribe to.** No hooks; `cli.log` is noise; the conversation database fills in batches, after a step finishes. So agy gets a **screen adapter**, as Claude has. Verified screens: idle (`>` prompt, footer `? for shortcuts`), working (spinner `Generating…` / `Running…`, footer `esc to cancel`), permission asked (`Requesting permission for:`, `Run this command?`, a numbered menu with a `>` cursor), and a trust menu for a new folder.
