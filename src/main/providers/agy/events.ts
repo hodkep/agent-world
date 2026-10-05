@@ -46,6 +46,9 @@ const same = (a: string, b: string) => {
   return a === b || real(a) === real(b)
 }
 
+/** What the question is about: a command, or a tool of a connected server (named in the question). */
+const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context : m.title === 'Command' ? 'Bash' : m.title)
+
 interface Seen {
   activity: Activity | null
   question: string | null
@@ -97,7 +100,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
       s.question = menu.context
       s.requestId = randomUUID()
       pending.set(s.requestId, { agentId: a.id, question: menu.context })
-      o.onPermission({ id: s.requestId, agentId: a.id, sessionId: a.sessionId, tool: 'Bash', detail: menu.context })
+      o.onPermission({ id: s.requestId, agentId: a.id, sessionId: a.sessionId, tool: toolOf(menu), detail: menu.context })
     } else if (!menu && s.requestId) {
       pending.delete(s.requestId)
       o.onPermissionSettled(s.requestId)
@@ -106,7 +109,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     }
     if (activity && activity !== s.activity) {
       s.activity = activity
-      say({ type: 'activity', agentId: a.id, sessionId: a.sessionId, activity, ...(menu && { tool: 'Bash', detail: menu.context }) })
+      say({ type: 'activity', agentId: a.id, sessionId: a.sessionId, activity, ...(menu && { tool: toolOf(menu), detail: menu.context }) })
     }
   }
 

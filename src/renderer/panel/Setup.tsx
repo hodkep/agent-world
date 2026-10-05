@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Workspaces } from '../../shared/api'
+import { MailConnect } from './MailConnect'
 import type { AgentOptions, AutonomyLevel, Prefs, ProviderInfo } from '../../shared/types'
 
 const STEPS = [
@@ -110,6 +111,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
         <div className="su-extra">
           {p.detection.hint && <span className="hint">{p.detection.hint}</span>}
           {howto === p.id && p.detection.install && <code className="su-howto">{p.detection.install}</code>}
+          {st === 'ready' && <MailConnect provider={p} onChanged={onRescan} />}
         </div>
       </div>
     )

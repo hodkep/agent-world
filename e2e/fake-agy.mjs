@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the agy CLI: draws the screens a real agy 1.2.17 draws (idle, working, asking permission), and keeps
 // its conversation the way agy does (a SQLite file of protobuf steps, plus a line per prompt in history.jsonl).
-import { appendFileSync, mkdirSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -14,12 +14,31 @@ if (args[0] === '-p' && args[1] === '/usage') {
   process.exit(0)
 }
 
+// agy keeps its MCP servers in one global list that its own `mcp add` and `mcp remove` edit.
+if (args[0] === 'mcp') {
+  const file = process.env.AW_AGY_CONFIG
+  let cfg = { mcpServers: {} }
+  try { cfg = JSON.parse(readFileSync(file, 'utf8')) } catch {}
+  if (args[1] === 'add') {
+    const dash = args.indexOf('--')
+    const env = {}
+    for (let i = 2; i < dash; i++) if (args[i] === '--env') { const [k, v] = args[++i].split('='); env[k] = v }
+    const name = args.slice(2, dash).filter((a, i, all) => all[i - 1] !== '--env' && a !== '--env').at(-1)
+    cfg.mcpServers[name] = { command: args[dash + 1], args: args.slice(dash + 2), env }
+  } else if (args[1] === 'remove') delete cfg.mcpServers[args[2]]
+  writeFileSync(file, JSON.stringify(cfg, null, 2))
+  process.exit(0)
+}
+
 const enc = (n) => { const o = []; let v = n; while (v > 127) { o.push((v & 127) | 128); v = Math.floor(v / 128) } o.push(v); return Buffer.from(o) }
 const varint = (f, v) => Buffer.concat([enc(f << 3), enc(v)])
 const str = (f, s) => { const b = Buffer.from(s); return Buffer.concat([enc((f << 3) | 2), enc(b.length), b]) }
 const msg = (f, ...p) => { const b = Buffer.concat(p); return Buffer.concat([enc((f << 3) | 2), enc(b.length), b]) }
 const stamp = () => { const t = Date.now(); return msg(5, msg(1, varint(1, Math.floor(t / 1000)), varint(2, (t % 1000) * 1e6))) }
 
+// FAKE_ARGS and FAKE_ENV_FILE: log how this session was started, so a test can check it.
+if (process.env.FAKE_ARGS) appendFileSync(process.env.FAKE_ARGS, args.join(' ') + '\n')
+if (process.env.FAKE_ENV_FILE) appendFileSync(process.env.FAKE_ENV_FILE, JSON.stringify({ url: process.env.AW_MCP_URL ?? null, token: process.env.AW_AGENT_TOKEN ?? null }) + '\n')
 const conv = args.includes('--conversation') ? args[args.indexOf('--conversation') + 1] : randomUUID()
 mkdirSync(join(home, 'conversations'), { recursive: true })
 const db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))

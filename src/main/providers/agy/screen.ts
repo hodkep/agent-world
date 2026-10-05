@@ -7,34 +7,41 @@ const lines = (screen: string) => stripVTControlCharacters(screen).split('\n')
 const footer = (screen: string) => lines(screen).map((l) => l.trim()).filter(Boolean).at(-1) ?? ''
 const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
 
-/** The question agy asks before it runs something: "Requesting permission for: <what>", then numbered answers. */
+const RULE = /^[─━]{8,}$/
+
+/**
+ * The question agy asks before it acts ("Run this command?", "Allow calling this tool?"), with numbered answers under it. Only agy's
+ * own question counts: it is the last thing on the screen (a hint line, then the footer) with a rule above what it is about. The same
+ * words in something the model printed higher up are text, not a question, and must never become a card that can be allowed.
+ */
 function permission(screen: string): GenericMenu | null {
-  const all = lines(screen)
-  const at = all.findLastIndex((l) => /^\s*Requesting permission for:/.test(l))
-  if (at < 0) return null
-  // Only agy's own question counts: it is the last thing on the screen (hint, then footer) with a rule above it. The same words in
-  // something the model printed higher up are text, not a question, and must never become a card that can be allowed.
-  const shown = all.map((l) => l.trim()).filter(Boolean)
-  const real = shown.findLastIndex((l) => l.startsWith('Requesting permission for:'))
-  if (!/^[─━]{8,}$/.test(shown[real - 1] ?? '') || !shown.at(-1)?.startsWith('esc to cancel') || !shown.at(-2)?.startsWith('↑/↓')) return null
-  const rest = all.slice(at + 1)
-  const ask = rest.findIndex((l) => /\?\s*$/.test(l.trim()))
-  if (ask < 0) return null
+  const shown = lines(screen).map((l) => l.trim()).filter(Boolean)
+  if (!shown.at(-1)?.startsWith('esc to cancel')) return null
+  const hint = shown.length - 2
+  if (!shown[hint]?.startsWith('↑/↓')) return null
+  // The answers sit just above the hint; a long answer may wrap onto a line of its own.
+  let first = hint
+  while (first > 0 && !/^>?\s*1\.\s/.test(shown[first]!)) first--
+  if (!/^>?\s*1\.\s/.test(shown[first] ?? '')) return null
   const options: string[] = []
   let highlighted = -1
-  for (const l of rest.slice(ask + 1)) {
+  for (const l of shown.slice(first, hint)) {
     const m = OPTION.exec(l)
     if (!m) continue
     if (m[1]) highlighted = options.length
     options.push(m[3]!)
   }
-  if (options.length < 2) return null
+  const ask = first - 1
+  if (options.length < 2 || !/\?$/.test(shown[ask] ?? '')) return null
+  let top = ask - 1
+  while (top >= 0 && !RULE.test(shown[top]!)) top--
+  if (top < 0) return null
   return {
-    title: 'Requesting permission',
-    context: rest.slice(0, ask).map((l) => l.trim()).filter(Boolean).join('\n'),
+    title: shown[top - 1] ?? 'Requesting permission',
+    context: shown.slice(top + 1, ask).filter((l) => !l.startsWith('Requesting permission for:')).join('\n'),
     options,
     highlighted: Math.max(highlighted, 0),
-    hint: rest.map((l) => l.trim()).find((l) => l.startsWith('↑/↓')) ?? ''
+    hint: shown[hint]!
   }
 }
 

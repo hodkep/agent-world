@@ -127,7 +127,7 @@ export interface ToolPlugin {
 export interface LaunchInput {
   agent: AgentRecord
   /** Per-agent files from `prepare`. */
-  files: { settingsFile?: string; mcpFile?: string }
+  files: { settingsFile?: string; mcpFile?: string; env?: Record<string, string> }
   permissionMode?: string
   options?: AgentOptions
   houseRules?: string
@@ -205,6 +205,15 @@ export interface TranscriptSource {
   forgetInstructions(agent: AgentRecord): void
 }
 
+/** For a provider that reaches the office message box through a change in its own settings, which the user approves first. */
+export interface MailSetup {
+  status(): 'connected' | 'missing'
+  /** What connecting would change, word for word, shown before the user approves it. */
+  plan(): { files: string[]; commands: string[]; note: string }
+  connect(bin: string): Promise<void>
+  disconnect(bin: string): Promise<void>
+}
+
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
 export interface Provider {
   readonly id: ProviderId
@@ -226,6 +235,8 @@ export interface Provider {
   readonly autonomy: Record<AutonomyLevel, string | null>
   /** For a provider whose limits have to be asked for (the others report them as they go, through the event source). */
   readonly limits?: { read(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<LimitWindow[]> }
+  /** Present when the provider needs a change of its own settings to use the message box (see `capabilities.mail`). */
+  readonly mail?: MailSetup
   /** Present when `capabilities.tools`. */
   readonly tools?: ToolsManager
   /** Tells the office what the agents are doing and asking. */
@@ -233,6 +244,6 @@ export interface Provider {
   /** Environment for its sessions, without whatever a parent session of the same program left behind. */
   env(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv
   /** Writes this agent's own settings and message-box config; returns their paths. */
-  prepare(i: PrepareInput): { settingsFile?: string; mcpFile?: string }
+  prepare(i: PrepareInput): { settingsFile?: string; mcpFile?: string; /** Added to the terminal's environment. */ env?: Record<string, string> }
   args(i: LaunchInput): string[]
 }

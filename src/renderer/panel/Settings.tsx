@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Role } from '../../shared/roles'
-import type { Prefs } from '../../shared/types'
+import type { Prefs, ProviderInfo } from '../../shared/types'
+import { MailConnect } from './MailConnect'
 import { MODELS } from './HireForm'
 import { closeOnBackdrop } from './Modal'
 
@@ -12,7 +13,7 @@ const PERMISSIONS = [
 ]
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [path, setPath] = useState(prefs.providers.claude?.path ?? '')
   const [rules, setRules] = useState(prefs.houseRules)
@@ -113,6 +114,17 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup }: { prefs: 
           <span className="hint" role="status">{update}</span>
         </div>
       </fieldset>
+      {providers.some((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing')) && (
+        <fieldset>
+          <legend>Message box</legend>
+          {providers.filter((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing')).map((p) => (
+            <div key={p.id} className="mc-line">
+              <b>{p.label}</b>
+              <MailConnect provider={p} onChanged={onProviders} />
+            </div>
+          ))}
+        </fieldset>
+      )}
       <fieldset>
         <legend>Setup</legend>
         <button onClick={onSetup} title="Walk through the first-run setup again: agent tools found here, project folder, defaults">Set up again</button>

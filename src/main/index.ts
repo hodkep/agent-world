@@ -52,6 +52,8 @@ if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
+/** Whether a provider can use the office message box: natively, once connected, or not (yet). */
+const mailState = (p: Provider): ProviderInfo['mail'] => (p.capabilities.mail ? 'yes' : p.mail ? (p.mail.status() === 'connected' ? 'connected' : 'missing') : 'no')
 const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : p.id === 'agy' ? process.env.AW_AGY_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
 /** The program and arguments that start a provider here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
 const providerCmd = (p: Provider, args: string[]) => {
@@ -529,11 +531,13 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
   const provider = providerOf(a)
-  const args = provider.args({ agent: a, files: agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [provider.capabilities.mail && MEMORY_HINT, provider.capabilities.mail && DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  const files = agentFiles(a)
+  const mail = mailState(provider)
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [(mail === 'yes' || mail === 'connected') && MEMORY_HINT, (mail === 'yes' || mail === 'connected') && DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -1043,8 +1047,16 @@ async function main() {
     return created
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
+  // Reaching the message box can take a change in a provider's own settings: it is shown first, and made only when asked.
+  ipcMain.handle('provider:mail-plan', (_, id: string) => providers().find((p) => p.id === id)?.mail?.plan() ?? null)
+  ipcMain.handle('provider:mail-set', async (_, id: string, on: boolean) => {
+    const p = providers().find((x) => x.id === id)
+    if (!p?.mail) throw new Error('That provider has nothing to connect.')
+    await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
+    return mailState(p)
+  })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, autonomy: p.autonomy })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, autonomy: p.autonomy, mail: mailState(p) })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))

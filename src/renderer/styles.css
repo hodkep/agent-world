@@ -1471,3 +1471,11 @@ code a.file-link { font: inherit; }
 .lm-bar b { display: block; height: 100%; background: var(--ok); }
 .lm-row[data-level='warn'] .lm-bar b { background: var(--accent); }
 .lm-row[data-level='hot'] .lm-bar b { background: var(--danger); }
+
+/* ---- Connecting a provider to the message box ---- */
+.mc { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mc-plan { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); min-width: 0; width: 100%; }
+.mc-plan p { margin: 0; color: var(--muted); font-size: 12px; max-width: 70ch; }
+.mc-plan b { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.mc-plan code { font: 12px Menlo, Consolas, monospace; color: var(--text); background: var(--panel-2); padding: 4px 8px; overflow-wrap: anywhere; user-select: all; }
+.mc-line { display: flex; flex-direction: column; gap: 6px; }

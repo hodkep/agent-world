@@ -38,7 +38,7 @@ describe('reading what agy is doing', () => {
 describe('the permission menu', () => {
   it('reads what is asked and the options, with the cursor on the first', () => {
     const m = s.genericMenu(fx('permission'))!
-    expect(m.title).toBe('Requesting permission')
+    expect(m.title).toBe('Command')
     expect(m.context).toBe('sleep 4')
     expect(m.options).toHaveLength(4)
     expect(m.options[0]).toBe('Yes, run command')
@@ -48,6 +48,20 @@ describe('the permission menu', () => {
   })
   it('is not read from an idle screen', () => {
     expect(s.genericMenu(fx('idle'))).toBeNull()
+  })
+})
+
+describe('the question about a tool from a connected server', () => {
+  it('reads which tool, and the choices with their cursor', () => {
+    const m = s.genericMenu(fx('permission-mcp'))!
+    expect(m.title).toBe('MCP')
+    expect(m.context).toBe('agent-world/list_agents')
+    expect(m.options).toHaveLength(6)
+    expect(m.options[0]).toBe('Yes, allow tool call')
+    expect(m.options[3]).toBe('No, deny tool call')
+    expect(m.highlighted).toBe(0)
+    expect(s.anyMenu(fx('permission-mcp'))).toBe(true)
+    expect(s.inputReady(fx('permission-mcp'))).toBe(false)
   })
 })
 

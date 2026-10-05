@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import type { Provider } from '../ports'
 import { agyEvents } from './events'
 import { agyKeys } from './keys'
+import { agyMail } from './mail'
 import { agyArgs, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
 import { agyTranscript } from './transcript'
@@ -30,7 +31,9 @@ export const agy: Provider = {
     return { state: 'needs-sign-in', version, path: bin, hint: 'agy is installed but not signed in. Run `agy` once in a terminal and follow the prompts.' }
   },
   env: (env) => env,
-  prepare: () => ({}),
+  // agy starts the office bridge itself (see mail.ts); the bridge learns who it speaks for from the environment of this terminal.
+  prepare: (i) => ({ env: { AW_MCP_URL: i.mcpUrl, AW_AGENT_TOKEN: i.agentToken } }),
+  mail: agyMail,
   args: agyArgs,
   limits: { read: async (bin, ask = run) => parseUsage(await ask(bin, ['-p', '/usage'])) },
   events: agyEvents,

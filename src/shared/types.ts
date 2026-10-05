@@ -126,6 +126,8 @@ export interface ProviderInfo {
   hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means for this provider (null when it has none). */
   autonomy: Record<AutonomyLevel, string | null>
+  /** Whether it can use the office message box: always, once connected (and what that changes), or not at all. */
+  mail: 'yes' | 'connected' | 'missing' | 'no'
 }
 
 export interface AgentRecord {

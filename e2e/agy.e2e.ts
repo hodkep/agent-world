@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -87,6 +88,63 @@ test('Usage opens on one summary across providers, and a provider row opens its 
     await expect(modal.getByText(/no price/)).toBeVisible()
     await modal.getByRole('button', { name: '‹ All providers' }).click()
     await expect(modal.getByRole('button', { name: 'Open agy (Antigravity)' })).toBeVisible()
+  } finally {
+    await shutdown()
+  }
+})
+
+test('agy is connected to the message box only after its change is shown and approved, and then its agents reach the office through it', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-agy-mail-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const folder = join(home, 'project')
+  mkdirSync(folder)
+  const config = join(home, 'mcp_config.json')
+  const envFile = join(home, 'env.log')
+  const argsFile = join(home, 'args.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, AW_AGY_CONFIG: config, FAKE_ENV_FILE: envFile, FAKE_ARGS: argsFile, FAKE_DELAY_MS: '300' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
+    await page.reload()
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    const box = settings.locator('fieldset', { hasText: 'Message box' })
+    await box.getByRole('button', { name: /Let agy .* message other agents/ }).click()
+    // The exact change is on screen before anything is written.
+    const plan = box.getByRole('group', { name: /Connect agy/ })
+    await expect(plan).toContainText('agy mcp add --env ELECTRON_RUN_AS_NODE=1 agent-world --')
+    await expect(plan).toContainText('aw-mcp-bridge.cjs')
+    expect(existsSync(config)).toBe(false)
+    await plan.getByRole('button', { name: 'Not now' }).click()
+    expect(existsSync(config)).toBe(false)
+
+    await box.getByRole('button', { name: /Let agy/ }).click()
+    await plan.getByRole('button', { name: 'Connect' }).click()
+    await expect(box.getByText('Its agents can message the others')).toBeVisible()
+    expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['agent-world'])
+    expect(existsSync(join(home, 'aw', 'bin', 'aw-mcp-bridge.cjs'))).toBe(true)
+    await settings.getByRole('button', { name: 'Close settings' }).click()
+
+    // An agy agent now starts with the identity the bridge needs, and is told about the message box.
+    await hireAgy(page, 'ada')
+    await expect.poll(() => readFileSync(envFile, 'utf8')).toMatch(/"token":"[0-9a-f]{48}"/)
+    const started = JSON.parse(readFileSync(envFile, 'utf8').trim().split('\n').at(-1)!)
+    expect(started.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/)
+    await expect.poll(() => readFileSync(argsFile, 'utf8')).toContain('recall tool')
+
+    // What agy would do: start the bridge with that environment and ask the office who is there.
+    const reply = await new Promise<string>((resolve, reject) => {
+      const p = spawn(process.execPath, [join(home, 'aw', 'bin', 'aw-mcp-bridge.cjs')], { env: { ...process.env, AW_MCP_URL: started.url, AW_AGENT_TOKEN: started.token } })
+      let out = ''
+      p.stdout.on('data', (d) => {
+        out += d
+        if (out.includes('\n')) (p.kill(), resolve(out))
+      })
+      p.on('error', reject)
+      p.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_agents', arguments: {} } }) + '\n')
+    })
+    expect(JSON.parse(reply).result.content[0].text).toContain('"you":true')
   } finally {
     await shutdown()
   }
