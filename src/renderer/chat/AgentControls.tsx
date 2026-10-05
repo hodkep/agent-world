@@ -168,7 +168,7 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
             <div key={r.name} className="cb-meter">
               <Ring pct={r.pct} small />
               <span>{r.name}</span>
-              <span className="muted">{r.pct === null ? '–' : `${Math.round(r.pct)}%`}</span>
+              <span className="muted">{r.pct === null ? '–' : `${Math.round(100 - r.pct)}% left`}</span>
               {r.name === 'Context' && info.canCompact !== false && (
                 <button className="cb-compact" disabled={!info.canSwitch || !info.started} onClick={() => (setOpen(false), actions.compact())} title={info.canSwitch ? 'Summarise the conversation to free up context (/compact)' : 'Available between turns'}>
                   Compact

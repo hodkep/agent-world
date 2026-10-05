@@ -1360,7 +1360,7 @@ function LimitChips({ limits }: { limits: UsageLimits }) {
       {chips.map((c) => (
         <span key={c.key} className={`chip level-${c.v.level}`} role="status" aria-label={`${c.name} limit: ${Math.round(100 - c.v.pct!)}% left, resets in ${c.v.reset}`} title={`${c.name} limit · resets in ${c.v.reset}`}>
           <span className="chip-dot" aria-hidden="true" />
-          {c.key} {Math.round(100 - c.v.pct!)}%
+          {c.key} {Math.round(100 - c.v.pct!)}% left
         </span>
       ))}
     </span>

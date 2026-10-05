@@ -1164,8 +1164,9 @@ code a.file-link { font: inherit; }
 .pc-docked { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim), 0 0 0 6px var(--ink); }
 .pc-title { display: flex; align-items: center; gap: 6px; padding: 7px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
 .pc-name { min-width: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-title .pc-prov { display: inline-flex; align-items: center; gap: 5px; flex: none; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
-.pc-role { margin-left: auto; }
+.pc-title .pc-name { flex: none; }
+.pc-prov { display: inline-flex; align-items: center; gap: 5px; flex: none; white-space: nowrap; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
+.pc-title .pc-role { margin-left: auto; }
 .pc-pencil, .pc-x { padding: 3px 4px; background: transparent; box-shadow: none; color: var(--muted); line-height: 0; flex: none; }
 .pc-pencil:hover, .pc-x:hover { color: var(--accent); background: transparent; }
 .pc-name-edit { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }

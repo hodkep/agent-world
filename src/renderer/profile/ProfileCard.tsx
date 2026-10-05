@@ -184,7 +184,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
         <span className="pc-role">{data.roleLabel}</span>
         <span className="pc-prov" title={`Runs on ${data.provider.label}`}>
           <Swatch id={data.provider.id} label={data.provider.label} />
-          {data.provider.label}
+          {data.provider.label.split(' (')[0]}
         </span>
         {onToggleSize && (
           <button className="pc-x" aria-label={compact ? 'Show the full card' : 'Show the compact card'} title={compact ? 'Show everything: level, counts and most used tools' : 'Show less'} onClick={onToggleSize}>

@@ -23,7 +23,7 @@ test('hire with options, see live cost and context, get a budget warning, switch
     await expect(row).toHaveClass(/budget-near/)
     await chatTab(page)
     await page.getByRole('button', { name: 'Context and usage' }).click()
-    await expect(page.getByRole('dialog', { name: 'Usage' })).toContainText('42%')
+    await expect(page.getByRole('dialog', { name: 'Usage' })).toContainText('58% left')
     await expect(page.getByRole('dialog', { name: 'Usage' })).toContainText('$0.90 / $1.00')
     await page.keyboard.press('Escape')
     await page.getByRole('tab', { name: 'Terminal' }).click()
