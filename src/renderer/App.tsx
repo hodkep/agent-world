@@ -338,6 +338,17 @@ export function App() {
   // Each message flies once, when first seen, even though it is reported again on delivery.
   const seenFlights = useRef(new Set<string>())
 
+  // The terminal drawer covers the bottom of the stage: the office is fitted to what is left above it.
+  useEffect(() => {
+    const el = document.getElementById('terminal-drawer')
+    if (!el) return
+    const tell = () => office.current?.setInset(el.hidden ? 0 : el.offsetHeight)
+    tell()
+    const ro = new ResizeObserver(tell)
+    ro.observe(el)
+    return () => (ro.disconnect(), office.current?.setInset(0))
+  }, [termOpen, termH, folder, officeReady])
+
   useEffect(() => {
     void window.aw.getWorkspaces().then(async (w) => {
       const old = legacyFolder()

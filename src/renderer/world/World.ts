@@ -268,7 +268,7 @@ export class OfficeWorld {
   private sceneScale() {
     const dpr = this.app.renderer.resolution
     const W = this.app.screen.width * dpr
-    const H = this.app.screen.height * dpr
+    const H = this.viewHeight() * dpr
     return Math.max(1, Math.floor(Math.min(W / (OFFICE.map.w * TILE), H / (OFFICE.map.h * TILE + BAND.north + BAND.south))))
   }
 
@@ -276,7 +276,7 @@ export class OfficeWorld {
   private officeScale() {
     const dpr = this.app.renderer.resolution
     const W = this.app.screen.width * dpr
-    const H = this.app.screen.height * dpr
+    const H = this.viewHeight() * dpr
     const pad = 12
     return Math.max(1, Math.min(W / (OFFICE.map.w * TILE + pad), H / (OFFICE.map.h * TILE + pad)))
   }
@@ -294,6 +294,22 @@ export class OfficeWorld {
     this.pan.x *= clamped / now
     this.pan.y *= clamped / now
     this.zoom = clamped
+    this.layout()
+  }
+
+  /** Height at the bottom of the stage that something else (the terminal drawer) covers; the office is fitted and centred above it. */
+  private inset = 0
+
+  private viewHeight() {
+    return Math.max(1, this.app.screen.height - this.inset)
+  }
+
+  setInset(px: number) {
+    px = Math.max(0, Math.round(px))
+    if (px === this.inset) return
+    this.inset = px
+    // A fitted view is a fixed zoom, so it is fitted again to the room that is left.
+    if (this.mode === 'office') this.zoom = this.officeScale()
     this.layout()
   }
 
@@ -315,7 +331,8 @@ export class OfficeWorld {
 
   // Integer scale in *device* pixels keeps every art pixel the same size on HiDPI screens (the fit-to-office view is exact instead).
   private layout() {
-    const { width, height } = this.app.screen
+    const width = this.app.screen.width
+    const height = this.viewHeight()
     const dpr = this.app.renderer.resolution
     const bw = OFFICE.map.w * TILE
     const bh = OFFICE.map.h * TILE
