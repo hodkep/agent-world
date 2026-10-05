@@ -128,7 +128,7 @@ describe('the model named in the footer', () => {
 })
 
 describe('what agy cannot do from here', () => {
-  it('has no rewind list, side questions or plan menu to read', () => {
+  it('has no side questions or plan menu to read', () => {
     expect(s.rewindList(fx('idle'))).toBeNull()
     expect(s.btwOverlay(fx('idle'))).toBeNull()
     expect(s.planMenu(fx('idle'))).toBeNull()
@@ -207,5 +207,66 @@ describe('what a permission card shows', () => {
   it('has invisible direction and zero-width characters taken out, so it shows what it says', () => {
     const screen = fx('permission').replace('   sleep 4', '   sleep‮ 4​')
     expect(s.genericMenu(screen)?.context).toBe('sleep 4')
+  })
+})
+
+describe('the rewind list', () => {
+  it('reads the earlier messages with the cursor on the current point', () => {
+    const l = s.rewindList(fx('rewind-panel'))!
+    expect(l.entries.map((e) => e.text)).toEqual([
+      'House rules for this session. Keep them in mind; reply only "ok" now.  This p...',
+      'Call the agent-world MCP tool list_agents and tell me what it returned. Do no...',
+      '(current)'
+    ])
+    expect(l.entries.map((e) => e.current)).toEqual([false, false, true])
+    expect(l.highlighted).toBe(2)
+  })
+  it('follows the cursor as it moves up', () => {
+    expect(s.rewindList(fx('rewind-up'))!.highlighted).toBe(1)
+  })
+  it('is nothing on a screen with no rewind list, and a menu is not mistaken for one', () => {
+    expect(s.rewindList(fx('idle'))).toBeNull()
+    expect(s.rewindList(fx('permission'))).toBeNull()
+  })
+})
+
+describe('what is typed in the input box', () => {
+  it('is the words waiting there, as after a rewind puts a message back', () => {
+    expect(s.typedText!(fx('rewind-after'))).toBe('Call the agent-world MCP tool list_agents and tell me what it returned. Do nothing else.')
+  })
+  it('is nothing when the box is empty', () => {
+    expect(s.typedText!(fx('idle'))).toBe('')
+  })
+})
+
+// A pretend terminal for the rewind panel: arrows move the cursor, Enter chooses.
+function panel(screens: string[], onKey: (k: string, i: number) => number) {
+  const state = { i: 0, keys: [] as string[] }
+  const io: TerminalIO = { screen: () => screens[state.i]!, write: (k) => (state.keys.push(k), (state.i = onKey(k, state.i))), sleep: async () => {} }
+  return { io, state }
+}
+
+describe('going back to a message with the keys agy uses', () => {
+  it('moves up to the message and presses Enter only there', async () => {
+    const t = panel([fx('rewind-panel'), fx('rewind-up'), fx('rewind-after')], (k, i) => (k === '\x1b[A' ? 1 : k === '\r' ? 2 : i))
+    expect(await s.driveRewind(t.io, 'Call the agent-world MCP tool list_agents and tell me what it returned. Do nothing else.')).toBe(true)
+    expect(t.state.keys).toEqual(['\x1b[A', '\r'])
+  })
+  it('presses nothing for a message that is not in the list', async () => {
+    const t = panel([fx('rewind-panel')], (_k, i) => i)
+    expect(await s.driveRewind(t.io, 'a message from nowhere')).toBe(false)
+    expect(t.state.keys).not.toContain('\r')
+  })
+  it('never presses Enter on the current point', async () => {
+    const t = panel([fx('rewind-panel')], (_k, i) => i)
+    await s.driveRewind(t.io, '(current)')
+    expect(t.state.keys).not.toContain('\r')
+  })
+  it('opens the list by typing its command, and says so when it does not open', async () => {
+    const open = panel([fx('idle'), fx('rewind-panel')], (k, i) => (k === '\r' ? 1 : i))
+    expect(await s.openRewindList(open.io)).toBeNull()
+    expect(open.state.keys).toEqual(['/rewind', '\r'])
+    const shut = panel([fx('idle')], (_k, i) => i)
+    expect(await s.openRewindList(shut.io)).toMatch(/did not open/)
   })
 })

@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { Question, QuestionAnswer } from '../../../shared/types'
 import type { AskRow, AskScreen, TerminalIO } from '../ports'
+import { inputBoxAfter } from './box'
 
 const ROW = /^\s*(❯)?\s*(\d+)\.\s+(?:\[( |✔)\]\s+)?(.*?)\s*$/
 
@@ -14,7 +15,7 @@ export function parseAsk(screen: string): AskScreen | null {
   // A lone question has no tab bar to submit from, only its own tab (` ☐ Page`) above it; an open menu always ends with the hint line.
   const lone = tabs >= 0 ? -1 : lines.map((l, i) => /^\s*[☐☒☑✔]\s+\S/.test(l) && lines.slice(i + 1).some((x) => /Enter to select/.test(x))).lastIndexOf(true)
   const bar = tabs >= 0 ? tabs : lone
-  if (bar < 0) return null
+  if (bar < 0 || inputBoxAfter(lines, bar)) return null
   const rest = lines.slice(bar + 1)
   const first = rest.findIndex((l) => l.trim())
   if (first < 0) return null

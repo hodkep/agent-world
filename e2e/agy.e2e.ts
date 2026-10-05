@@ -88,7 +88,7 @@ test('Usage opens on one summary across providers, and a provider row opens its 
     await expect(modal.getByText('Gemini Models', { exact: true })).toBeVisible()
     await expect(modal.getByText('Claude and GPT models', { exact: true })).toBeVisible()
     await expect(modal.getByText('73% left', { exact: false }).first()).toBeVisible()
-    await expect(modal.getByText(/no price/)).toBeVisible()
+    await expect(modal.getByText(/no price/).first()).toBeVisible()
     await modal.getByRole('button', { name: '‹ All providers' }).click()
     await expect(modal.getByRole('button', { name: 'Open agy (Antigravity)' })).toBeVisible()
   } finally {
@@ -205,6 +205,60 @@ test('the Tools tab of an agy agent lists what agy has connected without showing
     await page.getByRole('button', { name: 'Sure?' }).click()
     await expect(page.locator('.tools li', { hasText: 'payments' })).toHaveCount(0, { timeout: 10_000 })
     expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['notes'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('going back to an earlier message works on agy: the conversation shows only what came before, and the message is back in the box', async () => {
+  const { page, shutdown } = await open('aw-agy-rewind-')
+  try {
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: /message/i }).first()
+    for (const words of ['first thing', 'second thing']) {
+      await box.fill(words)
+      await box.press('Enter')
+      await expect(page.locator('.chat:visible').getByText(`echo: ${words}`)).toBeVisible({ timeout: 15_000 })
+      await expect(page.locator('.agent-row', { hasText: 'ada' })).toHaveClass(/is-idle/, { timeout: 15_000 })
+    }
+    const msg = page.locator('.chat:visible .msg.user', { hasText: 'second thing' })
+    await msg.hover()
+    await msg.getByRole('button', { name: 'Rewind' }).click()
+    // agy removed the later steps from its file: the chat starts over from what is left, and the message is waiting to be sent again.
+    await expect(page.locator('.chat:visible').getByText('echo: second thing')).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.locator('.chat:visible').getByText('echo: first thing')).toBeVisible()
+    await expect(box).toHaveValue('second thing')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('agy counts in tokens: the agent shows what it holds and what it used, there is no Compact or Claude limit on it, and Usage totals them', async () => {
+  const { page, shutdown } = await open('aw-agy-tokens-')
+  try {
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: /message/i }).first()
+    await box.fill('count these')
+    await box.press('Enter')
+    await expect(page.locator('.chat:visible').getByText('echo: count these')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Context and usage' }).click()
+    const usage = page.getByRole('dialog', { name: 'Usage' })
+    // Read 1000, written 50: the conversation holds about 1.1k tokens, and no price is shown.
+    await expect(usage).toContainText('about 1.1k tokens', { timeout: 20_000 })
+    await expect(usage).toContainText('1k read · 50 written')
+    await expect(usage.getByRole('button', { name: 'Compact' })).toHaveCount(0)
+    await expect(usage).not.toContainText('5-hour limit')
+    await expect(usage).not.toContainText('$')
+    await page.keyboard.press('Escape')
+
+    await page.locator('header').getByRole('button', { name: 'Usage', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    await expect(modal.locator('.st-card', { hasText: 'Spent, last 7 days' })).toContainText('1.1k tokens', { timeout: 15_000 })
+    await modal.getByRole('button', { name: 'Open agy (Antigravity)' }).click()
+    await expect(modal.getByText('Tokens, last 7 days')).toBeVisible()
+    await expect(modal.locator('.st-card', { hasText: 'Written' })).toContainText('50')
   } finally {
     await shutdown()
   }

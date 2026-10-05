@@ -89,6 +89,8 @@ export interface Capabilities {
   compact: boolean
   limits: boolean
   tools: boolean
+  /** Its limits arrive with each agent's own reports, so the agent's controls can show them (otherwise they are in the Usage tab). */
+  liveLimits: boolean
   /** It can use the office's message box and notes: agents can write to each other and share what they learn. */
   mail: boolean
 }
@@ -161,6 +163,8 @@ export interface AgentRecord {
   hiredAt?: number
   /** Milliseconds it has spent working, added up as it goes. */
   workedMs?: number
+  /** For a program that reports tokens: what was already counted into the history, so the next report adds only what is new. */
+  tokensSeen?: { input: number; output: number }
   /** The running cost Claude last reported, so the next report adds only what is new to the usage history. */
   costSeen?: number
   /** Live state, filled in by list-agents only (not persisted). */
@@ -203,6 +207,8 @@ export interface AgentStats {
   effort: string | null
   fast: boolean
   limits: UsageLimits
+  /** For a program that reports tokens rather than a price: everything read and written so far, and roughly how much its context holds now. */
+  tokens?: { input: number; output: number; context: number }
 }
 
 /** A choice menu Claude is showing in its own terminal (a permission dialog it insists on, the rewind confirmation…). */

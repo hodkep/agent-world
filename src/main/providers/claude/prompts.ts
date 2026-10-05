@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { Menu, TerminalIO, TrustPrompt } from '../ports'
+import { inputBoxAfter } from './box'
 
 const YES = 'Yes, I trust this folder'
 const CONFIRM = 'Enter to confirm'
@@ -10,6 +11,8 @@ export function trustPrompt(screen: string): TrustPrompt | null {
   const yesAt = text.lastIndexOf(YES)
   const confirmAt = text.lastIndexOf(CONFIRM)
   if (yesAt < 0 || confirmAt < yesAt) return null
+  // Claude's own menu is the last thing drawn, with only its hint line after it; anything more (above all its input box) means these are words in the conversation.
+  if (text.slice(confirmAt).split('\n').filter((l) => l.trim()).length > 1 || inputBoxAfter(text.split('\n'), text.slice(0, yesAt).split('\n').length - 1)) return null
   const start = text.lastIndexOf('Accessing workspace:', yesAt)
   const end = text.indexOf('Quick safety check', start)
   const path = start >= 0 && end > start ? text.slice(start + 'Accessing workspace:'.length, end).split(/\r?\n/).map((l) => l.trim()).join('') : ''
@@ -29,7 +32,7 @@ export function inputReady(screen: string): boolean {
 export function planMenu(screen: string): { highlighted: number } | null {
   const text = stripVTControlCharacters(screen)
   const at = text.search(/Would\s+you\s+like\s+to\s+proceed\?/)
-  if (at < 0 || !/ready to execute/.test(text)) return null
+  if (at < 0 || !/ready to execute/.test(text) || inputBoxAfter(text.split('\n'), text.slice(0, at).split('\n').length - 1)) return null
   const options = text
     .slice(at)
     .split('\n')
@@ -42,7 +45,9 @@ export function planMenu(screen: string): { highlighted: number } | null {
 /** Any of Claude's terminal menus is open (trust, plan, permission...): typing now would answer it. */
 export function anyMenu(screen: string): boolean {
   if (trustPrompt(screen)) return true
-  return /^\s*❯\s*\d+\.\s/m.test(stripVTControlCharacters(screen))
+  const lines = stripVTControlCharacters(screen).split('\n')
+  const at = lines.findLastIndex((l) => /^\s*❯\s*\d+\.\s/.test(l))
+  return at >= 0 && !inputBoxAfter(lines, at)
 }
 
 export { answerMenu } from '../shared/menu'

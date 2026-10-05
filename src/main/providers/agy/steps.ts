@@ -17,12 +17,12 @@ export const FINISHED = new Set([3, 6, 7])
 /** The first message the app sends carries the house rules; it is ours, not something the user said. */
 const OURS = 'House rules for this session.'
 
-const ms = (payload: Buffer | null) => {
+export const stepTime = (payload: Buffer | null) => {
   const s = num(payload, '5.1.1')
   return s === undefined ? 0 : s * 1000 + Math.round((num(payload, '5.1.2') ?? 0) / 1e6)
 }
 
-const json = (s: string | undefined): Record<string, unknown> => {
+export const json = (s: string | undefined): Record<string, unknown> => {
   try {
     const v: unknown = JSON.parse(s ?? '')
     return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
@@ -32,14 +32,41 @@ const json = (s: string | undefined): Record<string, unknown> => {
 }
 
 /** agy's tools, under the names the chat already knows how to draw. */
-function tool(name: string, args: Record<string, unknown>): { name: string; input: Record<string, unknown> } {
+export function toolView(name: string, args: Record<string, unknown>): { name: string; input: Record<string, unknown> } {
   if (name === 'run_command') return { name: 'Bash', input: { command: args.CommandLine, ...(typeof args.toolAction === 'string' && { description: args.toolAction }) } }
   return { name, input: args }
 }
 
+export interface StepUsage {
+  /** Everything it read for this step, what came from cache included. */
+  input: number
+  /** Everything it wrote: its thinking and its reply. */
+  output: number
+  thinking: number
+}
+
+/**
+ * The token counts of a model step. The file is undocumented; these fields were matched against what agy itself draws ("Thought for 12s,
+ * 3.5k tokens" is field 9, and field 3 is always field 9 plus field 10). What was read is field 2 plus the cached part in field 5.
+ */
+export function usageOf(payload: Buffer | null): StepUsage | null {
+  const read = num(payload, '5.9.2')
+  const wrote = num(payload, '5.9.3')
+  if (read === undefined || wrote === undefined) return null
+  return { input: read + (num(payload, '5.9.5') ?? 0), output: wrote, thinking: num(payload, '5.9.9') ?? 0 }
+}
+
+/** A conversation's totals, and how much the last step held (what it read plus what it wrote): roughly how full its context is. */
+export function sumUsage(steps: (StepUsage | null)[]): { input: number; output: number; context: number } | null {
+  const used = steps.filter((s): s is StepUsage => !!s)
+  if (!used.length) return null
+  const last = used.at(-1)!
+  return { input: used.reduce((n, s) => n + s.input, 0), output: used.reduce((n, s) => n + s.output, 0), context: last.input + last.output }
+}
+
 /** One step of a conversation as chat items: what was said, thought and run. */
 export function decodeStep(s: StepRow): ChatItem[] {
-  const at = ms(s.payload)
+  const at = stepTime(s.payload)
   if (s.type === USER) {
     const t = text(s.payload, '19.2')?.trim()
     return t && !t.startsWith(OURS) ? [{ kind: 'user', id: `agy:${s.idx}`, at, text: t }] : []
@@ -51,7 +78,7 @@ export function decodeStep(s: StepRow): ChatItem[] {
     if (say) items.push({ kind: 'assistant', id: `agy:${s.idx}:say`, at, text: say })
     for (const call of all(s.payload, '20.7')) {
       const id = text(call.b, '1') ?? ''
-      const t = tool(text(call.b, '2') ?? 'tool', json(text(call.b, '3')))
+      const t = toolView(text(call.b, '2') ?? 'tool', json(text(call.b, '3')))
       items.push({ kind: 'tool', id: `agy:${s.idx}:${id}`, at, toolUseId: id, ...t })
     }
     return items

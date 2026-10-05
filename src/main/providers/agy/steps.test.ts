@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { decodeStep } from './steps'
+import { decodeStep, sumUsage, usageOf } from './steps'
 import { bytes, msg, str, varint } from './wire.test-helper'
 
 const at = (sec: number, nanos = 0) => msg(1, varint(1, sec), varint(2, nanos))
+
+describe('what a model step cost in tokens', () => {
+  // Fields as seen in agy 1.2 conversation files and checked against the "Thought for 12s, 3.5k tokens" lines it draws:
+  // 9 = thinking tokens, 3 = all it wrote (thinking plus the reply, field 10), 2 = what it read, 5 = of that, read from cache.
+  const step = (read: number, cached: number | undefined, wrote: number, thinking: number, reply: number) =>
+    Buffer.concat([varint(1, 15), msg(5, msg(9, varint(2, read), varint(3, wrote), ...(cached === undefined ? [] : [varint(5, cached)]), varint(9, thinking), varint(10, reply)))])
+  it('gives what was read (cache included), what was written and the thinking', () => {
+    expect(usageOf(step(4519, 16515, 103, 43, 60))).toEqual({ input: 21034, output: 103, thinking: 43 })
+    expect(usageOf(step(17178, undefined, 3518, 3487, 31))).toEqual({ input: 17178, output: 3518, thinking: 3487 })
+  })
+  it('is nothing for a step that carries no usage', () => {
+    expect(usageOf(Buffer.concat([varint(1, 14)]))).toBeNull()
+    expect(usageOf(null)).toBeNull()
+  })
+  it('adds up a conversation, and takes the last step as how much it holds now', () => {
+    const sum = sumUsage([usageOf(step(1000, undefined, 100, 80, 20)), null, usageOf(step(1200, 300, 50, 10, 40))])
+    expect(sum).toEqual({ input: 2500, output: 150, context: 1550 })
+    expect(sumUsage([])).toBeNull()
+  })
+})
 
 describe('what a conversation step says', () => {
   it('a user step is what the user typed', () => {

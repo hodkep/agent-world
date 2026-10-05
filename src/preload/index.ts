@@ -23,6 +23,7 @@ const api: AwApi = {
   profile: (id) => ipcRenderer.invoke('agent:profile', id),
   terminalMenu: (selected) => ipcRenderer.invoke('terminal:menu', selected),
   weekReport: (start) => ipcRenderer.invoke('ledger:week', start),
+  tokensReport: (days) => ipcRenderer.invoke('ledger:tokens', days),
   usageReport: (days) => ipcRenderer.invoke('ledger:usage', days),
   setRole: (id, role) => ipcRenderer.invoke('agent-set-role', id, role),
   setGroup: (id, group) => ipcRenderer.invoke('set-group', id, group),

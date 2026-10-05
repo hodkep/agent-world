@@ -7,6 +7,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import type { CardData } from './facts'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
 import { agoShort, durationLabel, levelOf } from './format'
+import { tokenLabel } from '../../shared/usage'
 import { EFFORT_STEPS, contextGauge, costGauge, effortPips, linesGauge, toolBars } from './gauges'
 
 /** What the card can change; each is the same action the chat's own controls take, so the chat follows. */
@@ -207,14 +208,20 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           )}
         </div>
         <div className="pc-gauges">
-          <Gauge label="Context used" value={data.ctx === null ? 'not reported' : `${ctx.pct}%`} note={data.ctx === null ? undefined : `${100 - ctx.pct}% left`}>
+          <Gauge label="Context used" value={data.ctx === null ? (data.tokens ? `about ${tokenLabel(data.tokens.context)} tokens` : 'not reported') : `${ctx.pct}%`} note={data.ctx === null ? undefined : `${100 - ctx.pct}% left`}>
             <i className={`pc-bar hp ${ctx.tone}`}>
               <b style={{ width: `${ctx.pct}%` }} />
             </i>
           </Gauge>
-          <Gauge label="Spent" value={cost.label} note={cost.pct === null ? 'no budget set' : `${cost.pct}% of budget`}>
-            <i className={`pc-bar hp ${cost.tone}`}>{cost.pct !== null && <b style={{ width: `${cost.pct}%` }} />}</i>
-          </Gauge>
+          {data.tokens ? (
+            <Gauge label="Tokens" value={`${tokenLabel(data.tokens.input)} read · ${tokenLabel(data.tokens.output)} written`} note="no price is reported for this program">
+              <i className="pc-bar hp ok" />
+            </Gauge>
+          ) : (
+            <Gauge label="Spent" value={cost.label} note={cost.pct === null ? 'no budget set' : `${cost.pct}% of budget`}>
+              <i className={`pc-bar hp ${cost.tone}`}>{cost.pct !== null && <b style={{ width: `${cost.pct}%` }} />}</i>
+            </Gauge>
+          )}
           <Gauge label="Code changed" value={lines.label} note="lines added / removed">
             <i className="pc-bar split">
               <b className="add" style={{ width: `${lines.addPct}%` }} />

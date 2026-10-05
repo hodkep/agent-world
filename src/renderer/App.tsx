@@ -496,6 +496,7 @@ export function App() {
         branch: current.branch ?? '',
         ctx: cur?.contextPct ?? null,
         costUsd: cur?.costUsd ?? 0,
+        tokens: cur?.tokens ?? null,
         budgetUsd: current.options?.budgetUsd,
         add: cur?.linesAdded ?? 0,
         del: cur?.linesRemoved ?? 0,
@@ -762,6 +763,9 @@ export function App() {
       canSwitch: act !== 'asleep' && ['idle', 'waiting'].includes(act),
       started: !!a.started,
       role: a.options?.role,
+      tokens: st?.tokens,
+      canCompact: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.compact,
+      liveLimits: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.liveLimits,
       models: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.models,
       modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes
     }

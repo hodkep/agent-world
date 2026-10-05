@@ -1,4 +1,4 @@
-import type { UsageReport, WeekReport } from './ledger'
+import type { TokensReport, UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
@@ -93,6 +93,8 @@ export interface AwApi {
   /** The week starting at `start` (Monday 00:00), from the history the app keeps of its agents' work and spending. */
   weekReport(start: number): Promise<WeekReport>
   /** Spending per day over the last `days` days. */
+  /** Tokens used per day, for the programs that report tokens instead of a price. */
+  tokensReport(days: number): Promise<TokensReport>
   usageReport(days: number): Promise<UsageReport>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>

@@ -7,5 +7,7 @@ import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, t
 
 export const claudeScreen: ScreenAdapter = {
   trustPrompt, answerTrust, inputReady, looksWorking, anyMenu, planMenu, genericMenu, answerMenu, parseAsk, driveAnswers,
-  readMode, setMode, autoUnavailable, rewindList, openRewindList, driveRewind, btwOverlay
+  readMode, setMode, autoUnavailable, rewindList, openRewindList, driveRewind, btwOverlay,
+  // What is waiting in the input box: the words after the "❯" of its prompt line.
+  typedText: (screen) => screen.split('\n').find((l) => /^❯[ \u00a0]/.test(l))?.slice(2).trim() ?? ''
 }

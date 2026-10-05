@@ -16,6 +16,8 @@ export interface CardData {
   branch: string
   ctx: number | null
   costUsd: number
+  /** For a program that counts tokens rather than dollars. */
+  tokens?: { input: number; output: number; context: number } | null
   budgetUsd?: number
   add: number
   del: number

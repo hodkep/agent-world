@@ -8,7 +8,7 @@ import { createAgyEvents } from './events'
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
 const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
 
-function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
+function setup(opts: { usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
   const agents = opts.agents ?? [agent()]
   const screens: Record<string, string> = { a1: fx('idle') }
   const events: AgentEvent[] = []
@@ -17,21 +17,22 @@ function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; wor
   const sessions: [string, string][] = []
   const written: string[] = []
   const statuses: (string | null)[][] = []
+  const tokenReports: ({ input: number; output: number; context: number } | null)[] = []
   const o: EventSourceOptions = {
     agentForToken: () => null,
     permissionTimeoutMs: 1000,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asked.push(r),
     onPermissionSettled: (id) => settled.push(id),
-    onStatus: (st) => statuses.push([st.model, st.effort]),
+    onStatus: (st) => (statuses.push([st.model, st.effort]), tokenReports.push(st.tokens ?? null)),
     onSession: (id, s) => {
       sessions.push([id, s])
       agents.find((a) => a.id === id)!.sessionId = s
     },
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
-  return { src, screens, events, asked, settled, sessions, written, agents, statuses }
+  const src = createAgyEvents(o, { usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
+  return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
 
@@ -66,6 +67,19 @@ describe('what the footer says about the model', () => {
     t.screens.a1 = fx('idle').replace('Gemini 3.8 Flash · high', 'Gemini 3.1 Pro · low')
     t.src.tick()
     expect(t.statuses.at(-1)).toEqual(['Gemini 3.1 Pro', 'low'])
+  })
+})
+
+describe('what the conversation file says about tokens', () => {
+  it('is reported with the status for a conversation that has started, and again when it grows', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })], usage: { input: 100, output: 10, context: 110 } })
+    t.src.tick()
+    expect(t.tokenReports.at(-1)).toEqual({ input: 100, output: 10, context: 110 })
+  })
+  it('is not asked for before a conversation has started', () => {
+    const t = setup({ usage: { input: 100, output: 10, context: 110 }, conversations: [{ id: 'conv-1' }] })
+    t.src.tick()
+    expect(t.tokenReports.every((r) => r === null)).toBe(true)
   })
 })
 

@@ -14,7 +14,7 @@ import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, pow
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
+import { costDelta, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, RetiredTool, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
@@ -420,6 +420,16 @@ function onStats(s: AgentStats, agentId: string) {
     persist()
     if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent })
   }
+  // A program that counts tokens instead of dollars: record how many it used since the last report.
+  if (s.tokens) {
+    const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : s.tokens)
+    const grew = { input: costDelta(prev.input, s.tokens.input), output: costDelta(prev.output, s.tokens.output) }
+    if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
+      a.tokensSeen = { input: s.tokens.input, output: s.tokens.output }
+      persist()
+      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew })
+    }
+  }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
   lastCost.set(a.id, s.costUsd)
   if (alert) {
@@ -508,7 +518,7 @@ function surfaceTerminalMenu(id: string, text: string) {
   }
 }
 
-/** After a rewind: Claude puts the restored prompt back in its input box and forks the conversation to a new session. */
+/** After a rewind the restored prompt is back in the input box (and the conversation may have forked to a new session). */
 function finishRewind(id: string) {
   const r = rewinding.get(id)
   const a = byId(id)
@@ -516,7 +526,7 @@ function finishRewind(id: string) {
   if (!r || !a) return
   const text = screens.get(id)?.text() ?? ''
   const head = r.text.slice(0, 30)
-  if (text.split('\n').some((l) => /^❯[ \u00a0]/.test(l) && l.slice(2).trim().startsWith(head))) {
+  if (ui(id).typedText?.(text).startsWith(head)) {
     sessions.get(id)?.write(keysOf(id).clearInput)
     send('composer-prefill', id, r.text)
   }
@@ -1339,6 +1349,9 @@ async function main() {
       throw new Error('Could not find that message in the rewind list (older ones may be out of range).')
     }
     rewinding.set(id, { text: promptText, at: Date.now() })
+    // Claude then asks what to restore, and is finished when that menu goes; where nothing more is asked, the rewind is done.
+    const a = byId(id)
+    if (a && !providerOf(a).rewindConfirms) setTimeout(() => finishRewind(id), 1500)
   })
   // Diagnostics only: the app's own view of an agent's screen, for figuring out what Claude drew.
   if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${ui(id).looksWorking(screens.get(id)?.text() ?? '')} inputReady=${ui(id).inputReady(screens.get(id)?.text() ?? '')}`)
@@ -1357,6 +1370,7 @@ async function main() {
     })
   })
   ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start)))
+  ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)

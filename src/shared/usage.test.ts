@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { limitView, mergeLimits, untilReset } from './usage'
+import { limitView, mergeLimits, tokenLabel, untilReset } from './usage'
 
 const H = 3_600_000
 const now = 1_000_000_000_000
@@ -30,5 +30,11 @@ describe('usage limits', () => {
   it('keeps the last reading of a window the newest update does not mention', () => {
     const prev = { fiveHour: { pct: 10, resetsAt: 5 }, sevenDay: { pct: 40, resetsAt: 9 } }
     expect(mergeLimits(prev, { fiveHour: { pct: 12, resetsAt: 5 }, sevenDay: null })).toEqual({ fiveHour: { pct: 12, resetsAt: 5 }, sevenDay: { pct: 40, resetsAt: 9 } })
+  })
+})
+
+describe('tokenLabel', () => {
+  it('keeps a few characters, the way agy draws its own counts', () => {
+    expect([409, 3487, 21034, 1_900_000, 1_000, 999_999].map(tokenLabel)).toEqual(['409', '3.5k', '21k', '1.9M', '1k', '1M'])
   })
 })

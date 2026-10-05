@@ -76,6 +76,8 @@ export interface ScreenAdapter {
   rewindList(screen: string): RewindList | null
   openRewindList(io: TerminalIO): Promise<string | null>
   driveRewind(io: TerminalIO, target: string): Promise<boolean>
+  /** What is typed in the input box right now. */
+  typedText?(screen: string): string
   /** The model and effort the screen's footer names, for a provider that reports no statistics itself. */
   readModel?(screen: string): { model: string; effort: string | null } | null
   /** The side-question overlay, if it is showing. */
@@ -199,6 +201,8 @@ export interface TranscriptSource {
   /** The whole saved conversation, read once. */
   readAll(agent: AgentRecord): ChatItem[]
   subagents(agent: AgentRecord): SubagentInfo[]
+  /** Tokens used so far, for a program whose conversation file records them. */
+  usage?(agent: AgentRecord): { input: number; output: number; context: number } | null
   /** Sessions saved for this folder, including ones its agents ran in worktrees under `worktreeRoot`. */
   history(folder: string, worktreeRoot: string): Promise<PastSession[]>
   /** The session this agent moved to since `sinceMs` (a rewind forks to a new one), if any. */
@@ -231,6 +235,8 @@ export interface Provider {
   readonly models: ModelOption[]
   /** The autonomy levels it offers, in its own words, with how the app shows each. */
   readonly modes: ModeInfo[]
+  /** Choosing a message in the rewind list leads to a question (what to restore) that the user answers; false when the rewind is done at once. */
+  readonly rewindConfirms: boolean
   /** Modes the mode key reaches while the agent runs, and modes that need a relaunch between turns. */
   readonly liveModes: string[]
   readonly relaunchModes: string[]

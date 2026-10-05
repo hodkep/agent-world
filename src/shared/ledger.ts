@@ -6,6 +6,8 @@
 export type LedgerEvent =
   | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number }
   | { k: 'work'; t: number; agent: string; project: string; ms: number }
+  /** For a program that reports tokens, not a price: how many it used since the last record. */
+  | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number }
 
 /** How much a running total grew; a lower total means a new conversation started from zero. */
 export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
@@ -15,7 +17,7 @@ export function parseLedger(text: string): LedgerEvent[] {
   for (const line of text.split('\n')) {
     try {
       const e = JSON.parse(line) as LedgerEvent
-      if ((e.k === 'cost' || e.k === 'work') && Number.isFinite(e.t)) out.push(e)
+      if ((e.k === 'cost' || e.k === 'work' || e.k === 'tokens') && Number.isFinite(e.t)) out.push(e)
     } catch {
       /* a half-written last line is expected after a crash */
     }
@@ -86,6 +88,7 @@ export function weekReport(events: LedgerEvent[], start: number): WeekReport {
     if (e.t < start || e.t >= end) continue
     const day = dayOf(e.t)
     if (day < 0 || day > 6) continue
+    if (e.k === 'tokens') continue
     if (e.k === 'cost') {
       usd[day]! += e.usd
       costUsd += e.usd
@@ -113,6 +116,27 @@ export function weekReport(events: LedgerEvent[], start: number): WeekReport {
   const perDay = agentDays.map((s, i) => ({ agents: s.size, usd: usd[i]! }))
   const best = perDay.reduce((b, d, i) => (d.agents > (b?.agents ?? 0) ? { day: i, agents: d.agents } : b), null as WeekReport['busiest'])
   return { start, agentMs, agents: all.size, turns, costUsd, peak, topProject: top ? { name: top[0], agents: top[1].size } : null, busiest: best, perDay, byModel: sorted(models), heat }
+}
+
+export interface TokensReport {
+  days: { date: string; input: number; output: number }[]
+  total: { input: number; output: number }
+}
+
+/** Tokens used per day over the last `days` days (today last), for programs that count tokens rather than dollars. */
+export function tokensReport(events: LedgerEvent[], days: number, now: number): TokensReport {
+  const today = new Date(dayStart(now))
+  const list = Array.from({ length: days }, (_, i) => ({ date: dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1 - i)).getTime()), input: 0, output: 0 }))
+  const index = new Map(list.map((d, i) => [d.date, i]))
+  for (const e of events) {
+    if (e.k !== 'tokens') continue
+    const d = list[index.get(dateKey(e.t)) ?? -1]
+    if (d) {
+      d.input += e.input
+      d.output += e.output
+    }
+  }
+  return { days: list, total: { input: list.reduce((n, d) => n + d.input, 0), output: list.reduce((n, d) => n + d.output, 0) } }
 }
 
 export interface UsageReport {

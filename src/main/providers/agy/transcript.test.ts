@@ -60,6 +60,69 @@ describe('agy conversations', () => {
   })
 })
 
+describe('subagents agy started', () => {
+  const at = (sec: number) => msg(5, msg(1, varint(1, sec), varint(2, 0)))
+  const tool = (idx: number, call: string, name: string, args: object, result: string) =>
+    Buffer.concat([varint(1, 132), msg(5, msg(1, varint(1, 1000 + idx), varint(2, 0)), msg(4, str(1, call), str(2, name), str(3, JSON.stringify(args)))), msg(140, msg(2, str(1, result)))])
+  const model = (sec: number, say: string, call?: { id: string; name: string; args: object }) =>
+    Buffer.concat([varint(1, 15), at(sec), msg(20, str(1, say), ...(call ? [msg(7, str(1, call.id), str(2, call.name), str(3, JSON.stringify(call.args)))] : []))])
+
+  function parentAndChild(childDone: boolean) {
+    const made = 'Created the following subagents:\n{\n  "conversationId":  "child-1",\n  "workspaceUris": []\n}\nThe subagents will send you a message.'
+    conversation('parent', [
+      { type: 14, status: 3, payload: user('check the folder') },
+      { type: 132, status: 3, payload: tool(1, 'call_9', 'invoke_subagent', { Subagents: [{ Prompt: 'List the files and report.', Role: 'File Researcher', TypeName: 'research' }] }, made) }
+    ])
+    conversation('child-1', [
+      { type: 101, status: 3, payload: Buffer.concat([varint(1, 101), at(2000)]) },
+      { type: 15, status: 3, payload: model(2001, '', { id: 'c1', name: 'run_command', args: { CommandLine: 'ls -la', toolAction: 'Listing' } }) },
+      { type: 132, status: 3, payload: tool(2, 'c1', 'run_command', { CommandLine: 'ls -la' }, 'total 0') },
+      ...(childDone ? [{ type: 15, status: 3, payload: model(2003, 'The folder is empty.') }] : [])
+    ])
+  }
+
+  it('are found from the call that started them, with the conversation each one has of its own', () => {
+    parentAndChild(true)
+    const [s] = agyTranscript.subagents(agent('parent'))
+    expect(s).toMatchObject({ agentId: 'child-1', toolUseId: 'call_9', type: 'research', description: 'File Researcher', depth: 1, background: false, spawns: [], stopped: false })
+    expect(s!.calls).toEqual([{ at: 1_002_000, name: 'Bash', detail: 'ls -la' }])
+  })
+  it('are done, with their answer, once they have said it', () => {
+    parentAndChild(true)
+    expect(agyTranscript.subagents(agent('parent'))[0]).toMatchObject({ done: true, result: 'The folder is empty.' })
+  })
+  it('are still working while their last step is a call', () => {
+    parentAndChild(false)
+    expect(agyTranscript.subagents(agent('parent'))[0]).toMatchObject({ done: false, result: '' })
+  })
+  it('are none for a conversation that started none', () => {
+    conversation('plain', [{ type: 14, status: 3, payload: user('hello') }])
+    expect(agyTranscript.subagents(agent('plain'))).toEqual([])
+    expect(agyTranscript.subagents(agent('missing'))).toEqual([])
+  })
+})
+
+describe('a conversation rewound to an earlier message', () => {
+  it('is shown again from the start with what is left, since agy removes the later steps from the same file', () => {
+    conversation('c4', [
+      { type: 14, status: 3, payload: user('one') },
+      { type: 14, status: 3, payload: user('two') }
+    ])
+    const calls: { items: string[]; replace: boolean }[] = []
+    const tail = agyTranscript.follow(agent('c4'), (items, replace) => calls.push({ items: items.map((i) => (i.kind === 'user' ? i.text : '')), replace }))
+    tail.poll?.()
+    const db = new DatabaseSync(join(home, 'conversations', 'c4.db'))
+    db.exec('delete from steps where idx >= 1')
+    db.close()
+    tail.poll?.()
+    tail.stop()
+    expect(calls).toEqual([
+      { items: ['one', 'two'], replace: false },
+      { items: ['one'], replace: true }
+    ])
+  })
+})
+
 describe('earlier agy conversations in a folder', () => {
   it('are listed from agy history, newest first, titled by the first thing asked', () => {
     conversation('c1', [])

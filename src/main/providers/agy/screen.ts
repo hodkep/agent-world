@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
-import type { GenericMenu, Menu, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
+import type { GenericMenu, Menu, RewindList, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
 import { answerMenu } from '../shared/menu'
 
 // Direction overrides and zero-width characters let text read differently from what it says; they are never part of what is shown or matched.
@@ -115,6 +115,75 @@ function readMode(screen: string): string | null {
   return /^(?:\? for shortcuts\s+)?(accept-edits|plan)\s+·/.exec(f)?.[1] ?? 'request-review'
 }
 
+const TIME = /^\((?:\d+\S*\s+ago|just now)\)$/
+const UP = '\x1b[A'
+const DOWN = '\x1b[B'
+const MAX_MOVES = 80
+const squash = (t: string) => t.replace(/\s+/g, ' ').trim()
+
+/**
+ * agy's /rewind panel: its earlier messages (each cut with "..." and followed by how long ago), then "(current)", with ">" on the one
+ * chosen. Like the questions it counts only as agy drew it, as the last thing on the screen before the footer.
+ */
+function rewindList(screen: string): RewindList | null {
+  const all = lines(screen).map((l) => l.trim()).filter(Boolean)
+  if (!all.at(-2)?.startsWith('Keyboard:')) return null
+  const head = all.findLastIndex((l) => l === 'Rewind Conversation')
+  if (head < 0) return null
+  const entries: RewindList['entries'] = []
+  let highlighted = -1
+  for (const l of all.slice(head + 1, -2)) {
+    if (TIME.test(l)) continue
+    if (l.startsWith('>')) highlighted = entries.length
+    const text = l.replace(/^>\s*/, '')
+    entries.push({ text, current: text === '(current)' })
+  }
+  return entries.length ? { entries, highlighted } : null
+}
+
+/** The words in the input box: what follows ">" between the two rules above the footer. */
+function typedText(screen: string): string {
+  const all = lines(screen)
+  const rules = all.flatMap((l, i) => (RULE.test(l.trim()) ? [i] : []))
+  for (let k = rules.length - 2; k >= 0; k--) {
+    const body = all.slice(rules[k]! + 1, rules[k + 1]!)
+    if (body[0]?.startsWith('>')) return body.map((l, i) => (i === 0 ? l.slice(1) : l)).map((l) => l.trim()).filter(Boolean).join('\n')
+  }
+  return ''
+}
+
+async function openRewindList(io: TerminalIO): Promise<string | null> {
+  if (typedText(io.screen())) return 'Clear what is typed in the message box first.'
+  io.write('/rewind')
+  await io.sleep(500)
+  io.write('\r')
+  for (let i = 0; i < 20; i++) {
+    await io.sleep(150)
+    const l = rewindList(io.screen())
+    if (l) return l.entries.length > 1 ? null : 'There is nothing to rewind to yet: agy can only go back to a message sent before this one.'
+  }
+  return 'agy did not open its rewind list.'
+}
+
+/** Walks the list to the message (it moves a step at a time and reads the screen after each) and presses Enter only on it, never on the current point. */
+async function driveRewind(io: TerminalIO, target: string): Promise<boolean> {
+  const want = squash(target).slice(0, 40)
+  const is = (e: { text: string; current: boolean }) => !e.current && squash(e.text).startsWith(want)
+  for (let i = 0; i < MAX_MOVES; i++) {
+    const l = rewindList(io.screen())
+    if (!l || l.highlighted < 0 || !want) return false
+    if (is(l.entries[l.highlighted]!)) {
+      io.write('\r')
+      return true
+    }
+    const at = l.entries.findIndex(is)
+    if (at < 0) return false
+    io.write(at < l.highlighted ? UP : DOWN)
+    await io.sleep(120)
+  }
+  return false
+}
+
 /** The footer ends with the model and its effort ("Gemini 3.8 Flash · high"), after a hint or a mode label. */
 function readModel(screen: string) {
   const f = footer(screen).replace(/^(\? for shortcuts|esc to cancel)\s+/, '').replace(/^(accept-edits|plan)\s+·\s+/, '')
@@ -138,8 +207,9 @@ export const agyScreen: ScreenAdapter = {
   readMode,
   setMode,
   autoUnavailable: () => false,
-  rewindList: () => null,
-  openRewindList: async () => 'agy cannot rewind a conversation from here.',
-  driveRewind: async () => false,
+  rewindList,
+  openRewindList,
+  driveRewind,
+  typedText,
   btwOverlay: () => null
 }

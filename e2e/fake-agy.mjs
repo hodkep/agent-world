@@ -76,7 +76,17 @@ const asking = (cmd) => draw(['', '● Bash(' + cmd + ') (ctrl+o to expand)', 'C
 let typed = ''
 let state = 'idle'
 let timer
+// What was asked, with the step each message began at: /rewind lists these, and going back removes the steps from there on.
+let prompts = []
+let cursor = 0
+const rewindPanel = () => draw(['', rule, 'Rewind Conversation', ...prompts.flatMap((p, i) => [`${cursor === i ? '>' : ' '} ${p.text.length > 70 ? p.text.slice(0, 70) + '...' : p.text}`, '    (1m ago)']), `${cursor === prompts.length ? '>' : ' '} (current)`, 'Keyboard: ↑/↓ Navigate  enter Select  esc Cancel', footer('')])
 const submit = (text) => {
+  if (text === '/rewind') {
+    state = 'rewind'
+    cursor = prompts.length
+    return rewindPanel()
+  }
+  prompts.push({ text, step: db.prepare('select coalesce(max(idx), -1) + 1 as n from steps').get().n })
   appendFileSync(join(home, 'history.jsonl'), JSON.stringify({ display: text, timestamp: Date.now(), workspace: process.cwd(), conversationId: conv }) + '\n')
   addStep(14, 3, Buffer.concat([varint(1, 14), stamp(), msg(19, str(2, text))]))
   if (/permission/.test(text)) {
@@ -86,7 +96,8 @@ const submit = (text) => {
   state = 'working'
   working(text)
   timer = setTimeout(() => {
-    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, str(1, `echo: ${text}`))]))
+    // Each answer carries the token counts agy records: read 2 (cache part in 5), written 3 (thinking 9 plus reply 10).
+    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(5, msg(9, varint(2, 1000), varint(3, 50), varint(9, 30), varint(10, 20))), msg(20, str(1, `echo: ${text}`))]))
     state = 'idle'
     idle()
   }, Number(process.env.FAKE_DELAY_MS ?? 1200))
@@ -96,6 +107,24 @@ process.stdin.setRawMode?.(true)
 process.stdin.resume()
 process.stdin.on('data', (d) => {
   const s = d.toString()
+  if (state === 'rewind') {
+    if (s === '\x1b[A') cursor = Math.max(0, cursor - 1)
+    else if (s === '\x1b[B') cursor = Math.min(prompts.length, cursor + 1)
+    else if (s === '\x1b') {
+      state = 'idle'
+      return idle()
+    } else if (s === '\r') {
+      state = 'idle'
+      if (cursor === prompts.length) return idle()
+      // Going back removes everything from that message on, in the same file, and puts the message back in the box.
+      const back = prompts[cursor]
+      db.prepare('delete from steps where idx >= ?').run(back.step)
+      prompts = prompts.slice(0, cursor)
+      typed = back.text
+      return idle(typed)
+    }
+    return rewindPanel()
+  }
   if (state === 'asking') {
     if (s === '\r') {
       addStep(132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'call_1'), str(2, 'run_command'))), msg(140, msg(2, str(1, 'done')))]))

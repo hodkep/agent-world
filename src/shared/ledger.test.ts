@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
+import { costDelta, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
 
 // Local-time dates, so the tests hold in any timezone. 2026-09-07 is a Monday.
 const at = (d: number, h = 0, m = 0) => new Date(2026, 8, d, h, m).getTime()
 const cost = (t: number, usd: number, agent = 'a', project = 'p', model = 'Sonnet'): LedgerEvent => ({ k: 'cost', t, agent, project, model, usd })
 const work = (t: number, mins: number, agent = 'a', project = 'p'): LedgerEvent => ({ k: 'work', t, agent, project, ms: mins * 60_000 })
+
+const tokens = (t: number, input: number, output: number, agent = 'a'): LedgerEvent => ({ k: 'tokens', t, agent, project: 'p', model: 'Gemini 3.8 Flash', input, output })
+
+describe('tokens, for programs that report no price', () => {
+  it('are kept by the ledger, and never counted as work or as cost', () => {
+    expect(parseLedger(JSON.stringify(tokens(1, 5, 2))).map((e) => e.k)).toEqual(['tokens'])
+    const week = weekReport([tokens(at(7, 10), 1000, 100), work(at(7, 10), 30)], at(7))
+    expect(week.turns).toBe(1)
+    expect(week.agentMs).toBe(30 * 60_000)
+    expect(usageReport([tokens(at(7, 10), 1000, 100)], 7, at(8)).total).toBe(0)
+  })
+  it('add up by day and for the week, oldest day first', () => {
+    const r = tokensReport([tokens(at(6, 9), 1000, 100), tokens(at(7, 9), 2000, 300), tokens(at(7, 15), 500, 50), tokens(at(1, 9), 9, 9)], 3, at(7, 20))
+    expect(r.days.map((d) => [d.date, d.input, d.output])).toEqual([['2026-09-05', 0, 0], ['2026-09-06', 1000, 100], ['2026-09-07', 2500, 350]])
+    expect(r.total).toEqual({ input: 3500, output: 450 })
+  })
+})
 
 describe('costDelta', () => {
   it('is the growth of the running total, and the whole total when a new conversation started', () => {

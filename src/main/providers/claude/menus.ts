@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 import { anyMenu, inputReady } from './prompts'
 import type { GenericMenu, RewindList, TerminalIO } from '../ports'
+import { inputBoxAfter } from './box'
 
 const RULE = /^\s*[─▔━═]{8,}/
 const OPTION = /^\s*(❯)?\s*(\d+)\.\s+(\S.*?)\s*$/
@@ -39,7 +40,7 @@ export function genericMenu(screen: string): GenericMenu | null {
 export function rewindList(screen: string): RewindList | null {
   const lines = stripVTControlCharacters(screen).split('\n')
   const head = lines.map((l) => l.trim()).lastIndexOf('Rewind')
-  if (head < 0) return null
+  if (head < 0 || inputBoxAfter(lines, head)) return null
   const end = lines.findIndex((l, i) => i > head && /Enter to continue/.test(l))
   if (end < 0) return null
   const entries: RewindList['entries'] = []

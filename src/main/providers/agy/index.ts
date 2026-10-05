@@ -15,7 +15,7 @@ export const agy: Provider = {
   id: 'agy',
   label: 'agy (Antigravity)',
   bin: 'agy',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: false, rewind: false, compact: false, limits: true, tools: true, mail: false },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false },
   async detect(bin, ask = run) {
     let version: string | undefined
     try {
@@ -51,6 +51,7 @@ export const agy: Provider = {
     { value: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B' }
   ],
   modes: agyModes,
+  rewindConfirms: false,
   liveModes: ['request-review', 'accept-edits', 'plan'],
   relaunchModes: ['skip-permissions'],
   hireModes: [

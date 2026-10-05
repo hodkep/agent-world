@@ -596,7 +596,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
             <UserText agentId={agentId} text={r.text} onImage={onImage} />
           </Clamped>
           {!r.pending && !busy && !asleep && (
-            <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too if Claude tracked changes">
+            <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too where the agent's program tracked changes">
               Rewind
             </button>
           )}

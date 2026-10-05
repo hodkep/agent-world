@@ -38,3 +38,11 @@ export function limitView(l: Limit | null, now: number): LimitView {
   if (l.resetsAt <= now) return { pct: 0, level: 'ok', reset: 'reset' }
   return { pct: l.pct, level: l.pct >= 90 ? 'hot' : l.pct >= 70 ? 'warn' : 'ok', reset: untilReset(l.resetsAt, now) }
 }
+
+/** A token count in a few characters: 409, 3.5k, 21k, 1.9M. */
+export function tokenLabel(n: number): string {
+  if (n < 1000) return String(Math.round(n))
+  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  if (n < 999_500) return `${Math.round(n / 1000)}k`
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+}

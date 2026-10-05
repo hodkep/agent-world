@@ -14,7 +14,7 @@ export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, tools: true, mail: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, liveLimits: true, tools: true, mail: true },
   async detect(bin, run) {
     try {
       const out = await (run ?? defaultRun)(bin, ['--version'])
@@ -35,6 +35,7 @@ export const claude: Provider = {
     { value: 'fable', label: 'Fable' }
   ],
   modes: MODES,
+  rewindConfirms: true,
   liveModes: ['default', 'acceptEdits', 'plan', 'auto'],
   relaunchModes: ['auto', 'dontAsk'],
   hireModes: [] = [

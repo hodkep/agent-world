@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { UsageReport } from '../../shared/ledger'
+import type { TokensReport, UsageReport } from '../../shared/ledger'
 import { LOW_PCT, busiest } from '../../shared/limits'
-import { untilReset } from '../../shared/usage'
+import { tokenLabel, untilReset } from '../../shared/usage'
 import type { LimitWindow, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderTag } from '../panel/ProviderTag'
 import { Modal } from '../panel/Modal'
@@ -39,10 +39,12 @@ export function UsageModal({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<'all' | ProviderId>('all')
   const [limits, setLimits] = useState<LimitWindow[] | null>(null)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
+  const [tokens, setTokens] = useState<TokensReport | null>(null)
   const now = at
   useEffect(() => {
     void window.aw.getLimits(true).then(setLimits, () => setLimits([]))
     void window.aw.listProviders().then(setProviders, () => setProviders([]))
+    void window.aw.tokensReport(7).then(setTokens, () => setTokens(null))
   }, [])
   const shown = providers.filter((p) => p.detection.state === 'ready' || limits?.some((w) => w.provider === p.id))
   const tight = limits ? busiest(limits) : null
@@ -74,7 +76,7 @@ export function UsageModal({ onClose }: { onClose: () => void }) {
                   <b>{tight ? `${Math.round(tight.remainingPct)}% left` : '—'}</b>
                   <small>{tight ? `${tight.group}, ${KIND[tight.kind]}, resets in ${untilReset(Date.parse(tight.resetsAt), now)}` : limits ? 'No limits reported yet' : 'Asking…'}</small>
                 </div>
-                <div className="st-card"><span>Spent, last 7 days</span><b>{money7}</b><small>Dollars, where a provider reports a price</small></div>
+                <div className="st-card"><span>Spent, last 7 days</span><b>{money7}</b><small>{tokens && tokens.total.input + tokens.total.output > 0 ? `+ ${tokenLabel(tokens.total.input + tokens.total.output)} tokens where no price is reported` : 'Dollars, where a provider reports a price'}</small></div>
                 <div className="st-card"><span>Providers ready</span><b>{providers.filter((p) => p.detection.state === 'ready').length}</b><small>of {providers.length}</small></div>
               </div>
               <section className="lm-overview">
@@ -109,7 +111,32 @@ export function UsageModal({ onClose }: { onClose: () => void }) {
               )}
             </section>
           )}
-          {view === 'agy' && <p className="st-note">agy reports its limits but no price, so there are no dollar figures for it. Its work is not counted in the costs of other providers.</p>}
+          {view === 'agy' && (
+            <section>
+              <h3>Tokens, last 7 days</h3>
+              {!tokens || tokens.total.input + tokens.total.output === 0 ? (
+                <p className="st-note">{tokens ? 'No tokens recorded yet.' : 'Asking…'}</p>
+              ) : (
+                <>
+                  <div className="st-cards three">
+                    <div className="st-card"><span>Read</span><b>{tokenLabel(tokens.total.input)}</b><small>everything sent to the model, cached parts too</small></div>
+                    <div className="st-card"><span>Written</span><b>{tokenLabel(tokens.total.output)}</b><small>thinking and replies</small></div>
+                    <div className="st-card"><span>Together</span><b>{tokenLabel(tokens.total.input + tokens.total.output)}</b><small>agy reports no price</small></div>
+                  </div>
+                  <ul className="st-list">
+                    {tokens.days.filter((d) => d.input + d.output > 0).reverse().map((d) => (
+                      <li key={d.date}>
+                        <b>{dayLabel(d.date)}</b>
+                        <span>{tokenLabel(d.input)} read · {tokenLabel(d.output)} written</span>
+                        <b>{tokenLabel(d.input + d.output)}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p className="st-note">agy reports its limits and token counts but no price, so there are no dollar figures for it. Its work is not counted in the dollar costs of other providers.</p>
+            </section>
+          )}
           {view === 'claude' && (<>
           <p className="st-note">Costs are the figures Claude reports for each agent. The history is kept on this computer, from when the app first recorded it.</p>
           <div className="st-cards three">

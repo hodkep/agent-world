@@ -1,0 +1,32 @@
+  ✅ RULES ACKNOWLEDGED: I will follow all Global AI Rules strictly. The user's request involves...
+
+● Read(~/.gemini/antigravity-cli/mcp/agent-world/list_agents.json)
+● agent-world/list_agents({}) (ctrl+o to expand)
+
+⚠ Warning
+  ⎿  Invalid "unsandboxed" permission rules found; they are ignored and grant nothing:
+       ~/.gemini/config/config.json:
+         • unsandboxed(gh)
+         • unsandboxed(echo)
+         • unsandboxed(git worktree)
+         • unsandboxed(git branch)
+
+     Fix: replace "unsandboxed" with "command" (e.g. command(git status)), or remove the rule. Edit
+     the file directly or use /permissions.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────
+Rewind Conversation
+
+  House rules for this session. Keep them in mind; reply only "ok" now.  This p...
+    (3h ago)
+
+> Call the agent-world MCP tool list_agents and tell me what it returned. Do no...
+    (3h ago)
+
+  (current)
+
+Keyboard: ↑/↓ Navigate  enter Select  esc Cancel
+
+                                                                             Gemini 3.8 Flash · high

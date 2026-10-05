@@ -4,7 +4,9 @@ import type { TerminalIO } from '../ports'
 /** Claude's permission mode, as shown in the footer under its input box ("⏸ plan mode on"). */
 export function readMode(screen: string): string | null {
   // The footer sits at the bottom of a full screen; take the last one shown, and only when it carries Claude's glyph.
-  const all = [...stripVTControlCharacters(screen).matchAll(/[⏸⏵]+\s*(manual|accept edits|plan|auto|bypass permissions|don'?t ask)(?: mode)? on\b/gi)]
+  // Only the bottom of the screen counts: the same words in the conversation above it are text.
+  const bottom = stripVTControlCharacters(screen).split('\n').filter((l) => l.trim()).slice(-6).join('\n')
+  const all = [...bottom.matchAll(/[⏸⏵]+\s*(manual|accept edits|plan|auto|bypass permissions|don'?t ask)(?: mode)? on\b/gi)]
   const name = all.at(-1)?.[1]?.toLowerCase()
   if (!name) return null
   return name === 'manual' ? 'default' : name === 'accept edits' ? 'acceptEdits' : name === 'bypass permissions' ? 'bypassPermissions' : name.startsWith('don') ? 'dontAsk' : name

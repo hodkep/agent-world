@@ -4,9 +4,11 @@ import { join } from 'node:path'
 import type { Activity, AgentEvent, AgentRecord } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions, TerminalIO } from '../ports'
 import { agyScreen } from './screen'
-import { agyHome, conversationWorkspace } from './transcript'
+import { agyHome, agyTranscript, conversationWorkspace } from './transcript'
 
 const POLL_MS = 500
+/** The conversation file is read every this many looks (about every ten seconds). */
+const USAGE_EVERY = 20
 
 export interface Conversation {
   id: string
@@ -18,6 +20,8 @@ export interface Conversation {
 
 export interface Deps {
   conversations: () => Conversation[]
+  /** Tokens used so far in an agent's conversation. */
+  usage: (a: AgentRecord) => { input: number; output: number; context: number } | null
   sleep: (ms: number) => Promise<void>
 }
 
@@ -50,6 +54,8 @@ const same = (a: string, b: string) => {
 const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
 
 interface Seen {
+  readAt?: number
+  usage?: { input: number; output: number; context: number } | null
   model: string | null
   activity: Activity | null
   question: string | null
@@ -62,6 +68,7 @@ interface Seen {
  */
 export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
   const term = o.terminal!
+  let turn = 0
   const seen = new Map<string, Seen>()
   const pending = new Map<string, { agentId: string; question: string }>()
 
@@ -91,9 +98,15 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     seen.set(a.id, s)
     // What the footer names is the nearest thing agy gives to statistics: the model and its effort.
     const shown = agyScreen.readModel?.(screen)
-    if (shown && `${shown.model}|${shown.effort}` !== s.model && resolve(a)) {
-      s.model = `${shown.model}|${shown.effort}`
-      o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null } }, a.id)
+    // The conversation file is read the first time and then every so often: it is the only place agy records tokens.
+    const due = a.started && turn - (s.readAt ?? -USAGE_EVERY) >= USAGE_EVERY
+    if (due) s.readAt = turn
+    if (due) s.usage = deps.usage(a) ?? s.usage
+    const key = `${shown?.model}|${shown?.effort}|${s.usage?.input}|${s.usage?.output}`
+    if (shown && key !== s.model && resolve(a)) {
+      s.model = key
+      // Each report replaces the last, so the tokens go with every one.
+      o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null }, ...(s.usage && { tokens: s.usage }) }, a.id)
     }
     const menu = agyScreen.genericMenu(screen)
     let activity: Activity | null = null
@@ -149,12 +162,12 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     hasPending: (agentId) => [...pending.values()].some((p) => p.agentId === agentId),
     close: () => {}
   }
-  return { tick: () => term.agents().forEach(look), handle }
+  return { tick: () => (turn++, term.agents().forEach(look)), handle }
 }
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }

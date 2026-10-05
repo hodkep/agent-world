@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ModeInfo } from '../../shared/modes'
 import { type Role, isCurrentRole } from '../../shared/roles'
 import type { Effort } from '../../shared/types'
-import { type UsageLimits, limitView } from '../../shared/usage'
+import { type UsageLimits, limitView, tokenLabel } from '../../shared/usage'
 import { EFFORTS, MODELS } from '../panel/HireForm'
 import { PixelIcon } from './PixelIcon'
 
@@ -26,6 +26,11 @@ export interface AgentInfo {
   /** What its program offers; Claude's lists when not given. */
   models?: { value: string; label: string }[]
   modes?: ModeInfo[]
+  /** For a program that counts tokens rather than dollars. */
+  tokens?: { input: number; output: number; context: number }
+  /** Whether its program can summarise the conversation on request, and shows its limits with each agent. */
+  canCompact?: boolean
+  liveLimits?: boolean
 }
 
 /** What the controls can do: App owns the work, the box only asks for it. */
@@ -127,10 +132,13 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
   const now = Date.now()
   const five = limitView(limits.fiveHour, now)
   const week = limitView(limits.sevenDay, now)
+  // Context is a share where the program says so; where it only counts tokens, it is that count (roughly what the conversation holds).
   const rows: { name: string; pct: number | null; note?: string }[] = [
-    { name: 'Context', pct: info.contextPct },
-    { name: '5-hour limit', pct: five.pct, note: five.reset && `resets ${five.reset}` },
-    { name: 'Weekly limit', pct: week.pct, note: week.reset && `resets ${week.reset}` }
+    { name: 'Context', pct: info.contextPct, note: info.contextPct === null && info.tokens ? `about ${tokenLabel(info.tokens.context)} tokens` : undefined },
+    ...(info.liveLimits === false ? [] : [
+      { name: '5-hour limit', pct: five.pct, note: five.reset && `resets ${five.reset}` },
+      { name: 'Weekly limit', pct: week.pct, note: week.reset && `resets ${week.reset}` }
+    ])
   ]
   return (
     <span className="cb-anchor" ref={wrap}>
@@ -145,7 +153,7 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
               <Ring pct={r.pct} small />
               <span>{r.name}</span>
               <span className="muted">{r.pct === null ? '–' : `${Math.round(r.pct)}%`}</span>
-              {r.name === 'Context' && (
+              {r.name === 'Context' && info.canCompact !== false && (
                 <button className="cb-compact" disabled={!info.canSwitch || !info.started} onClick={() => (setOpen(false), actions.compact())} title={info.canSwitch ? 'Summarise the conversation to free up context (/compact)' : 'Available between turns'}>
                   Compact
                 </button>
@@ -154,10 +162,14 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
             </div>
           ))}
           <div className="cb-facts">
-            <span className={info.budgetAlert ? `budget-${info.budgetAlert}` : ''}>
-              ${info.costUsd.toFixed(2)}
-              {info.budgetUsd ? ` / $${info.budgetUsd.toFixed(2)}` : ''}
-            </span>
+            {info.tokens ? (
+              <span title="This program reports tokens, not a price">{tokenLabel(info.tokens.input)} read · {tokenLabel(info.tokens.output)} written</span>
+            ) : (
+              <span className={info.budgetAlert ? `budget-${info.budgetAlert}` : ''}>
+                ${info.costUsd.toFixed(2)}
+                {info.budgetUsd ? ` / $${info.budgetUsd.toFixed(2)}` : ''}
+              </span>
+            )}
             <span>
               +{info.linesAdded} −{info.linesRemoved}
             </span>
