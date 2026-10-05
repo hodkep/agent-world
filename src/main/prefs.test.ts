@@ -26,6 +26,10 @@ describe('preferences', () => {
     expect(cleanPrefs({ claudePath: '/old/claude' }).providers).toEqual({ claude: { path: '/old/claude' } })
     expect(cleanPrefs({ claudePath: '/old/claude', providers: { claude: { path: '/new/claude' }, agy: { path: ' /bin/agy ' }, other: { path: '/x' } } }).providers).toEqual({ claude: { path: '/new/claude' }, agy: { path: '/bin/agy' } })
   })
+  it('keep whether setup was finished and the default provider, ignoring an unknown provider', () => {
+    expect(cleanPrefs({ setup: { done: true, defaultProvider: 'agy' } }).setup).toEqual({ done: true, defaultProvider: 'agy' })
+    expect(cleanPrefs({ setup: { done: 'yes', defaultProvider: 'gemini' } }).setup).toEqual({ done: false, defaultProvider: '' })
+  })
   it('survive a corrupt file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'bad.json')
     writeFileSync(file, '{nope')

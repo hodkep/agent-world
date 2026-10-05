@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import type { Prefs } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { model: '', permissionMode: '', inPlace: false } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { model: '', permissionMode: '', inPlace: false } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -15,6 +15,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     notifications: isMode(r.notifications) ? r.notifications : base.notifications,
     keepAwake: typeof r.keepAwake === 'boolean' ? r.keepAwake : base.keepAwake,
     wrapUp: typeof r.wrapUp === 'boolean' ? r.wrapUp : base.wrapUp,
+    setup: cleanSetup(r.setup, base.setup),
     providers: cleanProviders(r, base.providers),
     updateUrl: str(r.updateUrl, 500)?.trim() ?? base.updateUrl,
     houseRules: str(r.houseRules, 4000) ?? base.houseRules,
@@ -24,6 +25,14 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
       inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace
     }
+  }
+}
+
+function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  return {
+    done: typeof s.done === 'boolean' ? s.done : base.done,
+    defaultProvider: s.defaultProvider === 'claude' || s.defaultProvider === 'agy' || s.defaultProvider === '' ? s.defaultProvider : base.defaultProvider
   }
 }
 

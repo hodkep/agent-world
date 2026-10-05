@@ -22,6 +22,8 @@ describe('claude provider surface', () => {
   it('offers its models and modes, and manages tools through its own commands', () => {
     expect(claude.models.map((m) => m.value)).toContain('sonnet')
     expect(claude.modes.map((m) => m.id)).toContain('acceptEdits')
+    expect(claude.autonomy).toEqual({ ask: 'default', edit: 'acceptEdits', plan: 'plan', full: 'auto' })
+    for (const mode of Object.values(claude.autonomy)) expect(claude.modes.map((m) => m.id)).toContain(mode)
     expect(claude.tools?.list.servers).toEqual(['mcp', 'list'])
     expect(claude.tools?.manage({ kind: 'mcp-remove', name: 'docs' })).toEqual(['mcp', 'remove', 'docs'])
   })

@@ -1,6 +1,6 @@
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
 import type { ModeInfo } from '../../shared/modes'
-import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, Capabilities, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
+import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
 
 export interface TrustPrompt {
   path: string
@@ -206,6 +206,8 @@ export interface Provider {
   readonly models: ModelOption[]
   /** The autonomy levels it offers, in its own words, with how the app shows each. */
   readonly modes: ModeInfo[]
+  /** The mode each neutral level means here (null when it has none). */
+  readonly autonomy: Record<AutonomyLevel, string | null>
   /** Present when `capabilities.tools`. */
   readonly tools?: ToolsManager
   /** Tells the office what the agents are doing and asking. */

@@ -35,6 +35,7 @@ export const claude: Provider = {
     { value: 'fable', label: 'Fable' }
   ],
   modes: MODES,
+  autonomy: { ask: 'default', edit: 'acceptEdits', plan: 'plan', full: 'auto' },
   tools: {
     list: { servers: ['mcp', 'list'], plugins: ['plugin', 'list', '--json'] },
     parse: (servers, plugins) => ({ mcp: parseMcpList(servers), plugins: parsePlugins(plugins) }),

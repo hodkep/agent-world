@@ -54,6 +54,9 @@ export interface PermissionRequest {
   detail: string
 }
 
+/** How much an agent may do alone, whatever program runs it. Each provider maps these to its own modes. */
+export type AutonomyLevel = 'ask' | 'edit' | 'plan' | 'full'
+
 export type PermissionMode = 'manual' | 'acceptEdits' | 'plan' | 'auto' | 'dontAsk'
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
@@ -62,6 +65,8 @@ export interface AgentOptions {
   model?: string
   effort?: Effort
   permissionMode?: PermissionMode
+  /** Which program runs the agent; the default provider in Settings when unset. */
+  provider?: ProviderId
   /** Soft cap: the app warns as the session's cost approaches it (Claude only enforces budgets in --print mode). */
   budgetUsd?: number
   instructions?: string
@@ -103,6 +108,8 @@ export interface ProviderInfo {
   detection: Detection
   models: { value: string; label: string }[]
   modes: import('./modes').ModeInfo[]
+  /** The mode each neutral level means for this provider (null when it has none). */
+  autonomy: Record<AutonomyLevel, string | null>
 }
 
 export interface AgentRecord {
@@ -201,6 +208,8 @@ export interface Prefs {
   keepAwake: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
   wrapUp: boolean
+  /** First-run setup: whether it was finished or skipped, and which provider new agents use unless told otherwise. */
+  setup: { done: boolean; defaultProvider: ProviderId | '' }
   /** Where each provider's program is, when it is not on the PATH. Empty means its usual name. */
   providers: Partial<Record<ProviderId, { path: string }>>
   /** Where new builds are published; empty means the app does not look for updates. */
