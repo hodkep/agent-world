@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
-import type { GenericMenu, Menu, RewindList, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
+import type { Btw, GenericMenu, Menu, RewindList, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
 import { answerMenu } from '../shared/menu'
 
 // Direction overrides and zero-width characters let text read differently from what it says; they are never part of what is shown or matched.
@@ -186,10 +186,33 @@ async function driveRewind(io: TerminalIO, target: string): Promise<boolean> {
   return false
 }
 
+/** agy's /btw side question: a box of "┃" lines, the question first, then "Thinking…" or the answer, ending with how to dismiss it. */
+function btwOverlay(screen: string): Btw | null {
+  const all = lines(screen)
+  const at = all.findLastIndex((l) => /^\s*┃\s*\/btw\s+\S/.test(l))
+  if (at < 0) return null
+  const body: string[] = []
+  let dismiss = false
+  for (const l of all.slice(at + 1)) {
+    if (!/^\s*┃/.test(l)) break
+    const t = l.replace(/^\s*┃ ?/, '')
+    if (/Enter\/Esc to dismiss/.test(t)) {
+      dismiss = true
+      break
+    }
+    body.push(t)
+  }
+  const words = body.map((l) => l.trim()).filter(Boolean)
+  const pending = !dismiss && words.length === 1 && /^[\u2800-\u28ff]\s+Thinking/.test(words[0]!)
+  if (!dismiss && !pending) return null
+  return { question: all[at]!.replace(/^\s*┃\s*\/btw\s+/, '').trim(), answer: pending ? null : words.join('\n') }
+}
+
 /** The footer ends with the model and its effort ("Gemini 3.8 Flash · high"), after a hint or a mode label. */
 function readModel(screen: string) {
   const f = footer(screen).replace(/^(\? for shortcuts|esc to cancel)\s+/, '').replace(/^(accept-edits|plan)\s+·\s+/, '')
-  const m = /^(\S.*?)\s+·\s+(\w+)$/.exec(f)
+  // While a side question is answered the footer also counts the subagent doing it ("· 1 subagent(s)").
+  const m = /^(\S.*?)\s+·\s+(\w+)(?:\s+·\s+\d+ subagents?\(s\))?$/.exec(f)
   return m ? { model: m[1]!, effort: m[2]! } : null
 }
 
@@ -213,5 +236,5 @@ export const agyScreen: ScreenAdapter = {
   openRewindList,
   driveRewind,
   typedText,
-  btwOverlay: () => null
+  btwOverlay
 }

@@ -3,6 +3,7 @@ import { readdirSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Activity, AgentEvent, AgentRecord } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions, TerminalIO } from '../ports'
+import { agyContextWindow } from './launch'
 import { agyScreen } from './screen'
 import { agyHome, agyTranscript, conversationWorkspace } from './transcript'
 
@@ -26,6 +27,8 @@ export interface Deps {
   subagents: (a: AgentRecord) => { agentId: string; type: string; done: boolean; stopped: boolean }[]
   /** Tokens used so far in an agent's conversation. */
   usage: (a: AgentRecord) => { input: number; output: number; context: number } | null
+  /** The model's context size in tokens, where known. */
+  window: (model: string) => number | null
   sleep: (ms: number) => Promise<void>
 }
 
@@ -58,6 +61,8 @@ const same = (a: string, b: string) => {
 const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
 
 interface Seen {
+  /** A clone has been told to branch its conversation. */
+  forked?: boolean
   /** Subagents shown as at work in the office. */
   subs?: Set<string>
   subsAt?: number
@@ -111,11 +116,18 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     if (due) s.readAt = turn
     if (due) s.usage = deps.usage(a) ?? s.usage
     const key = `${shown?.model}|${shown?.effort}|${s.usage?.input}|${s.usage?.output}`
+    // A clone opened the conversation it copies; branching it gives it one of its own, and the source stays as it was.
+    if (a.forkOf && !a.started && !s.forked && agyScreen.inputReady(screen) && !agyScreen.typedText?.(screen)) {
+      s.forked = true
+      term.write(a.id, '/fork')
+      void deps.sleep(500).then(() => term.write(a.id, '\r'))
+    }
     // The model is on the footer from the start; naming the conversation can wait for a first message, which is when agy makes one.
     if (shown && key !== s.model) {
       s.model = key
       // Each report replaces the last, so the tokens go with every one.
-      o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null }, ...(s.usage && { tokens: s.usage }) }, a.id)
+      const size = deps.window(shown.model)
+      o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: size && s.usage ? Math.min(100, (s.usage.context / size) * 100) : null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null }, ...(s.usage && { tokens: s.usage }) }, a.id)
     }
     // Subagents are colleagues in the office while they work; agy tells nothing of them, so its file of conversations is looked at now and then.
     if (a.started && turn - (s.subsAt ?? -SUBS_EVERY) >= SUBS_EVERY) {
@@ -185,7 +197,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, subagents: (a) => agyTranscript.subagents(a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, window: agyContextWindow, subagents: (a) => agyTranscript.subagents(a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }

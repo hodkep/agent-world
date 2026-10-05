@@ -18,21 +18,22 @@ function setup(opts: { subs?: { agentId: string; type: string; done: boolean; st
   const written: string[] = []
   const statuses: (string | null)[][] = []
   const tokenReports: ({ input: number; output: number; context: number } | null)[] = []
+  const pcts: (number | null)[] = []
   const o: EventSourceOptions = {
     agentForToken: () => null,
     permissionTimeoutMs: 1000,
     onEvent: (e) => events.push(e),
     onPermission: (r) => asked.push(r),
     onPermissionSettled: (id) => settled.push(id),
-    onStatus: (st) => (statuses.push([st.model, st.effort]), tokenReports.push(st.tokens ?? null)),
+    onStatus: (st) => (statuses.push([st.model, st.effort]), tokenReports.push(st.tokens ?? null), pcts.push(st.contextPct)),
     onSession: (id, s) => {
       sessions.push([id, s])
       agents.find((a) => a.id === id)!.sessionId = s
     },
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { subagents: () => opts.subs ?? [], usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
-  return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports }
+  const src = createAgyEvents(o, { window: (m) => (m.startsWith('Gemini') ? 1_000_000 : null), subagents: () => opts.subs ?? [], usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
+  return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports, pcts }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
 
@@ -53,6 +54,33 @@ describe('agy activity, read from its screen', () => {
     t.screens.a1 = ''
     t.src.tick()
     expect(t.events).toEqual([])
+  })
+})
+
+describe('a clone', () => {
+  const clone = () => agent({ forkOf: 'src-conv' })
+  it('branches the conversation it opened, once, when agy is ready and nothing is typed', async () => {
+    const t = setup({ agents: [clone()] })
+    t.src.tick()
+    t.src.tick()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(t.written).toEqual(['/fork', '\r'])
+  })
+  it('waits while agy is busy or asking, and does nothing for an agent that is not a clone', async () => {
+    const busy = setup({ agents: [clone()] })
+    busy.screens.a1 = fx('working')
+    busy.src.tick()
+    const plain = setup()
+    plain.src.tick()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(busy.written).toEqual([])
+    expect(plain.written).toEqual([])
+  })
+  it('does not branch again once it has a conversation of its own', async () => {
+    const t = setup({ agents: [agent({ forkOf: 'src-conv', started: true, sessionId: 'mine' })] })
+    t.src.tick()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(t.written).toEqual([])
   })
 })
 
@@ -104,6 +132,16 @@ describe('what the conversation file says about tokens', () => {
     const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })], usage: { input: 100, output: 10, context: 110 } })
     t.src.tick()
     expect(t.tokenReports.at(-1)).toEqual({ input: 100, output: 10, context: 110 })
+  })
+  it('becomes a share of the model\'s context where its size is known, like Claude\'s, and stays a count where it is not', () => {
+    const known = setup({ agents: [agent({ started: true, sessionId: 'c1' })], usage: { input: 190_000, output: 10_000, context: 200_000 } })
+    known.screens.a1 = fx('idle')
+    known.src.tick()
+    expect(known.pcts.at(-1)).toBeCloseTo(20)
+    const unknown = setup({ agents: [agent({ started: true, sessionId: 'c1' })], usage: { input: 1, output: 1, context: 2 } })
+    unknown.screens.a1 = fx('idle').replaceAll('Gemini 3.8 Flash', 'Claude Sonnet 4.6')
+    unknown.src.tick()
+    expect(unknown.pcts.at(-1)).toBeNull()
   })
   it('is not asked for before a conversation has started', () => {
     const t = setup({ usage: { input: 100, output: 10, context: 110 }, conversations: [{ id: 'conv-1' }] })

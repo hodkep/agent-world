@@ -2,7 +2,7 @@
 
 Status: built on branch `aw/charlie`, not merged. Claude Code and agy both run behind the provider interface (`src/main/providers/`), with first-run setup, provider colour on agents, limits in the Usage tab, an approved MCP bridge for agy mail, and hand-offs. Spike results below are from agy 1.2.17.
 
-Known gaps: agy has no manual compact (its `/compact` does not exist; it compacts by itself), the agy token fields were matched against what agy itself draws but not documented by Google (so the context is shown as a token count, never a percentage), and agy's rewind, subagents, model and trust were driven through the app against live agy 1.2.17 (Flash, low effort) once; rewind shows in the chat a few seconds late because agy saves its conversation file in batches.
+Known gaps: agy has no manual compact (it compacts by itself), so Compact is not offered for it; the agy token fields are matched against what agy itself draws, not documented by Google, so a context share is shown only for models whose window was measured (Gemini, 1M, from agy's own /context panel) and other models show a token count; agy saves its conversation file in batches, so its rewind and a clone's copied history can appear a few seconds late. Verified against live agy 1.2.17 (Flash, low effort): rewind, subagents, model, trust, a message from an agy agent to a Claude agent through the shared message tool, /btw, and clone through /fork.
 
 ## Why
 

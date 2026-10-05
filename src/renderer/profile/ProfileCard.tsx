@@ -208,7 +208,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           )}
         </div>
         <div className="pc-gauges">
-          <Gauge label="Context used" value={data.ctx === null ? (data.tokens ? `about ${tokenLabel(data.tokens.context)} tokens` : 'not reported') : `${ctx.pct}%`} note={data.ctx === null ? undefined : `${100 - ctx.pct}% left`}>
+          <Gauge label="Context used" value={data.ctx === null ? (data.tokens ? `about ${tokenLabel(data.tokens.context)} tokens` : 'not reported') : `${ctx.pct}%`} note={data.ctx === null ? undefined : data.tokens ? `about ${tokenLabel(data.tokens.context)} tokens` : `${100 - ctx.pct}% left`}>
             <i className={`pc-bar hp ${ctx.tone}`}>
               <b style={{ width: `${ctx.pct}%` }} />
             </i>

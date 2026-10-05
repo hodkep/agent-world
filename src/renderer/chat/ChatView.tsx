@@ -89,6 +89,7 @@ export function ChatView({
   actions,
   limits,
   waitingSubagents,
+  outgoing,
   onWake,
   onTerminal
 }: {
@@ -96,6 +97,8 @@ export function ChatView({
   agentName: string
   /** Subagents waiting on you (a permission request), by id. */
   waitingSubagents?: Set<string>
+  /** Work this agent handed to others, to show in the conversation. */
+  outgoing?: Extract<ChatItem, { kind: 'handoff-out' }>[]
   activity: Activity
   detail?: string
   /** Claude's permission mode as last reported. */
@@ -180,7 +183,18 @@ export function ChatView({
     }
   }, [agentId])
 
-  const allRows = useMemo(() => toRows(items, sent), [items, sent])
+  // What this agent handed to others is not in its conversation file: it joins the conversation where it was sent.
+  const merged = useMemo(() => {
+    if (!outgoing?.length) return items
+    const out = [...items]
+    for (const o of [...outgoing].sort((a, b) => a.at - b.at)) {
+      let at = out.length
+      while (at > 0 && out[at - 1]!.at > o.at && out[at - 1]!.at > 0) at--
+      out.splice(at, 0, o)
+    }
+    return out
+  }, [items, outgoing])
+  const allRows = useMemo(() => toRows(merged, sent), [merged, sent])
   // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
   // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
   const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
@@ -589,7 +603,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
-      if (mail) return parseHandoff(mail.body) ? <HandoffCard from={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
+      if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`}>
           <Clamped>
@@ -654,6 +668,8 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
       return <SubagentReport agentId={agentId} subagentId={r.agentId} body={r.body} />
     case 'tool':
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
+    case 'handoff-out':
+      return <HandoffCard who={r.to} body={r.text} out status={r.status} />
     case 'note':
       return r.detail ? <SummaryNote text={r.text} detail={r.detail} label={r.detailLabel} /> : <div className="msg note">{r.text}</div>
   }
@@ -676,15 +692,16 @@ function SubagentReport({ agentId, subagentId, body }: { agentId: string; subage
 const HANDOFF = { review: 'Review', continue: 'Continue', answer: 'Answer' } as const
 
 /** Work another agent handed over, as a card: what is asked, which branch, how to read it; the words it was given are behind a button. */
-function HandoffCard({ from, body }: { from: string; body: string }) {
+function HandoffCard({ who, body, out, status }: { who: string; body: string; out?: boolean; status?: 'queued' | 'delivered' | 'dropped' }) {
   const h = parseHandoff(body)!
   return (
-    <article className="mail handoff-card" aria-label={`Hand-off from agent ${from}`}>
+    <article className={`mail handoff-card ${out ? 'out' : ''}`} aria-label={`Hand-off ${out ? 'to' : 'from'} agent ${who}`}>
       <header className="mail-head">
         <span className="mail-from">
-          <span className="mail-lbl">Hand-off from</span> “{from}”
+          <span className="mail-lbl">Hand-off {out ? 'to' : 'from'}</span> “{who}”
         </span>
         <span className="mail-tag ask">{HANDOFF[h.kind]}</span>
+        {status && <span className={`mail-tag ho-status ${status}`}>{status === 'queued' ? 'waiting its turn' : status === 'dropped' ? 'not delivered' : 'delivered'}</span>}
       </header>
       <dl className="ho-kv">
         <dt>Branch</dt>

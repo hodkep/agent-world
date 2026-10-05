@@ -8,6 +8,10 @@ describe('starting agy', () => {
     expect(agyArgs({ agent, files: {} })).toEqual([])
     expect(agyArgs({ agent: { ...agent, started: true }, files: {} })).toEqual(['--conversation', 'conv-1'])
   })
+  it('opens the conversation it is a copy of, until it has a conversation of its own', () => {
+    expect(agyArgs({ agent: { ...agent, forkOf: 'src-conv' }, files: {} })).toEqual(['--conversation', 'src-conv'])
+    expect(agyArgs({ agent: { ...agent, forkOf: 'src-conv', started: true }, files: {} })).toEqual(['--conversation', 'conv-1'])
+  })
   it('passes the model, effort and extra folders', () => {
     expect(agyArgs({ agent, files: {}, options: { model: 'gemini-3.1-pro-high', effort: 'high' }, addDirs: ['/a', '/b'] })).toEqual(['--model', 'gemini-3.1-pro-high', '--effort', 'high', '--add-dir', '/a', '--add-dir', '/b'])
   })

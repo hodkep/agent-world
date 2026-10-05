@@ -3,6 +3,9 @@ import { MODES } from '../../../shared/modes'
 import type { LimitWindow } from '../../../shared/types'
 import type { LaunchInput } from '../ports'
 
+/** agy's own /context panel shows "Free space: 1.0M" on a Gemini model; the other models it offers are not measured, so their context stays a count of tokens. */
+export const agyContextWindow = (model: string): number | null => (/^Gemini\b/.test(model) ? 1_000_000 : null)
+
 /** agy's own names for how much it may do alone, shown like Claude's levels. */
 const OWN: Record<string, string> = { default: 'request-review', acceptEdits: 'accept-edits', plan: 'plan', bypassPermissions: 'skip-permissions' }
 export const agyModes: ModeInfo[] = MODES.filter((m) => OWN[m.id]).map((m) => ({ ...m, id: OWN[m.id]! }))
@@ -14,7 +17,9 @@ export const agyModes: ModeInfo[] = MODES.filter((m) => OWN[m.id]).map((m) => ({
 export function agyArgs(i: LaunchInput) {
   const args: string[] = []
   const o = i.options ?? {}
+  // A clone opens the conversation it copies and branches it (see events: /fork); once it has branched, it has its own.
   if (i.agent.started) args.push('--conversation', i.agent.sessionId)
+  else if (i.agent.forkOf) args.push('--conversation', i.agent.forkOf)
   if (o.model) args.push('--model', o.model)
   if (o.effort) args.push('--effort', o.effort)
   const mode = (o.permissionMode ?? i.permissionMode) as string | undefined

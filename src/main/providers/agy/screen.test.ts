@@ -127,10 +127,29 @@ describe('the model named in the footer', () => {
   })
 })
 
-describe('what agy cannot do from here', () => {
-  it('has no side questions or plan menu to read', () => {
-    expect(s.rewindList(fx('idle'))).toBeNull()
+describe('the side question overlay (/btw)', () => {
+  it('shows the question while agy is still answering', () => {
+    expect(s.btwOverlay(fx('btw-pending'))).toEqual({ question: 'what is 2+2?', answer: null })
+  })
+  it('gives the question and the whole answer once it is there', () => {
+    const o = s.btwOverlay(fx('btw-answer'))!
+    expect(o.question).toBe('what is 2+2?')
+    expect(o.answer).toContain('RULES ACKNOWLEDGED')
+    expect(o.answer!.endsWith('4')).toBe(true)
+  })
+  it('is nothing once dismissed, and a notice box is not mistaken for it', () => {
+    expect(s.btwOverlay(fx('btw-closed'))).toBeNull()
     expect(s.btwOverlay(fx('idle'))).toBeNull()
+  })
+  it('does not keep an agent from being ready for a message while the question is answered', () => {
+    expect(s.inputReady(fx('btw-pending'))).toBe(true)
+    expect(s.readModel!(fx('btw-pending'))).toEqual({ model: 'Gemini 3.8 Flash', effort: 'low' })
+  })
+})
+
+describe('what agy cannot do from here', () => {
+  it('has no plan menu to read', () => {
+    expect(s.rewindList(fx('idle'))).toBeNull()
     expect(s.planMenu(fx('idle'))).toBeNull()
     expect(s.parseAsk(fx('idle'))).toBeNull()
     expect(s.autoUnavailable(fx('idle'))).toBe(false)

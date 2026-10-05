@@ -243,6 +243,8 @@ export interface Provider {
   readonly relaunchModes: string[]
   /** The file of standing project notes this program reads, which the Handbook button opens. */
   readonly handbook: string
+  /** How many tokens the named model keeps in context, where known: with it the context is a share, like Claude's, not just a count. */
+  contextWindow?(model: string): number | null
   /** What the hire form offers for how much it may do alone; the empty value is the provider's own default. */
   readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */

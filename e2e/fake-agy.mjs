@@ -53,9 +53,9 @@ const stamp = () => { const t = Date.now(); return msg(5, msg(1, varint(1, Math.
 // FAKE_ARGS and FAKE_ENV_FILE: log how this session was started, so a test can check it.
 if (process.env.FAKE_ARGS) appendFileSync(process.env.FAKE_ARGS, args.join(' ') + '\n')
 if (process.env.FAKE_ENV_FILE) appendFileSync(process.env.FAKE_ENV_FILE, JSON.stringify({ url: process.env.AW_MCP_URL ?? null, token: process.env.AW_AGENT_TOKEN ?? null }) + '\n')
-const conv = args.includes('--conversation') ? args[args.indexOf('--conversation') + 1] : randomUUID()
+let conv = args.includes('--conversation') ? args[args.indexOf('--conversation') + 1] : randomUUID()
 mkdirSync(join(home, 'conversations'), { recursive: true })
-const db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))
+let db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))
 db.exec('create table if not exists steps (idx integer primary key, step_type integer not null default 0, status integer not null default 0, step_payload blob)')
 const openDb = (id) => {
   const d = new DatabaseSync(join(home, 'conversations', `${id}.db`))
@@ -79,6 +79,8 @@ const idle = (shown = '') => draw(['', '  Antigravity CLI 1.2.17', '  Gemini 3.8
 const working = (said) => draw(['', `> ${said}`, '⣷  Generating...', rule, '>', rule, footer('esc to cancel')])
 const asking = (cmd) => draw(['', '● Bash(' + cmd + ') (ctrl+o to expand)', 'Command', rule, 'Requesting permission for:', `   ${cmd}`, 'Run this command?', '> 1. Yes, run command', "  2. Yes, and always allow in this conversation for commands that start with 'x'", '  3. Yes, and always allow for commands that start with \'x\' (Persist to settings.json)', '  4. No, cancel', '  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command', footer('esc to cancel')])
 
+// /btw: a side question, answered in a box of "┃" lines over the screen while the agent stays free.
+const btwBox = (q, answer) => draw(['', `┃ /btw ${q}`, '┃ ', answer === null ? '┃ ⣽  Thinking...' : `┃   ${answer}`, ...(answer === null ? [] : ['┃ Tab to expand · Enter/Esc to dismiss']), rule, '>', rule, footer('? for shortcuts')])
 let typed = ''
 let state = 'idle'
 let timer
@@ -87,6 +89,23 @@ let prompts = []
 let cursor = 0
 const rewindPanel = () => draw(['', rule, 'Rewind Conversation', ...prompts.flatMap((p, i) => [`${cursor === i ? '>' : ' '} ${p.text.length > 70 ? p.text.slice(0, 70) + '...' : p.text}`, '    (1m ago)']), `${cursor === prompts.length ? '>' : ' '} (current)`, 'Keyboard: ↑/↓ Navigate  enter Select  esc Cancel', footer('')])
 const submit = (text) => {
+  if (/^\/btw\s+\S/.test(text)) {
+    const q = text.replace(/^\/btw\s+/, '')
+    state = 'btw'
+    btwBox(q, null)
+    setTimeout(() => state === 'btw' && btwBox(q, `the answer to: ${q}`), 700)
+    return
+  }
+  if (text === '/fork') {
+    // Branching copies the conversation into a new file and carries on in it.
+    const fresh = randomUUID()
+    const copy = openDb(fresh)
+    for (const r of db.prepare('select step_type, status, step_payload from steps order by idx').all()) stepIn(copy, r.step_type, r.status, r.step_payload)
+    conv = fresh
+    db = copy
+    state = 'idle'
+    return idle()
+  }
   if (text === '/rewind') {
     state = 'rewind'
     cursor = prompts.length
@@ -132,6 +151,13 @@ process.stdin.setRawMode?.(true)
 process.stdin.resume()
 process.stdin.on('data', (d) => {
   const s = d.toString()
+  if (state === 'btw') {
+    if (s === '\x1b' || s === '\r') {
+      state = 'idle'
+      return idle()
+    }
+    return
+  }
   if (state === 'rewind') {
     if (s === '\x1b[A') cursor = Math.max(0, cursor - 1)
     else if (s === '\x1b[B') cursor = Math.min(prompts.length, cursor + 1)

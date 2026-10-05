@@ -18,6 +18,8 @@ export type ChatItem =
   | { kind: 'assistant'; id: string; at: number; text: string }
   | { kind: 'thinking'; id: string; at: number }
   | { kind: 'tool'; id: string; at: number; toolUseId: string; name: string; input: Record<string, unknown> }
+  /** Work this agent handed to another one: not part of its conversation file, drawn where it was sent. */
+  | { kind: 'handoff-out'; id: string; at: number; to: string; status: 'queued' | 'delivered' | 'dropped'; text: string }
   | { kind: 'image'; id: string; at: number; mediaType: string; /** A data: URL, or '' when the picture was too big to carry. */ src: string }
   | { kind: 'shell'; id: string; at: number; command: string }
   | { kind: 'shell-out'; id: string; at: number; stdout: string; stderr: string }

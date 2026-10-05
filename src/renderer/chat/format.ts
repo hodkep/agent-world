@@ -1,4 +1,5 @@
 import type { ChatItem, HookInfo, SubagentInfo } from '../../shared/chat'
+import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
@@ -14,6 +15,8 @@ export type Row =
   /** The report a subagent handed back when it finished. */
   | { kind: 'report'; id: string; agentId: string; body: string }
   | { kind: 'note'; id: string; text: string; detail?: string; detailLabel?: string; hook?: HookInfo }
+  /** Work this agent handed to another. */
+  | { kind: 'handoff-out'; id: string; to: string; status: 'queued' | 'delivered' | 'dropped'; handoff: ParsedHandoff; text: string }
 
 export interface Sent {
   id: string
@@ -87,6 +90,11 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
       case 'image':
         rows.push({ kind: 'image', id: i.id, src: i.src })
         break
+      case 'handoff-out': {
+        const handoff = parseHandoff(i.text)
+        if (handoff) rows.push({ kind: 'handoff-out', id: i.id, to: i.to, status: i.status, handoff, text: i.text })
+        break
+      }
       case 'shell':
         rows.push({ kind: 'shell', id: i.id, command: i.command })
         break
@@ -184,6 +192,8 @@ export function rowText(r: Row): string {
       return `${r.command} ${r.out?.stdout ?? ''} ${r.out?.stderr ?? ''}`
     case 'report':
       return r.body
+    case 'handoff-out':
+      return `Hand-off to ${r.to} ${r.text}`
     case 'delegation':
       return `Delegated ${r.calls.map((c) => `${c.subagentType} ${c.description}`).join(' ')}`
     case 'tool': {

@@ -1515,3 +1515,8 @@ dialog.handoff { width: min(640px, 94vw); }
 .su-signin { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .su-term { height: 230px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); padding: 6px; overflow: hidden; }
 .su-term > * { height: 100%; }
+.handoff-card.out { align-self: flex-end; }
+.ho-status { color: var(--think); }
+.ho-status.delivered { color: var(--ok-text); }
+.ho-status.queued { color: var(--accent); }
+.ho-status.dropped { color: var(--danger-text); }

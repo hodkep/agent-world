@@ -59,6 +59,12 @@ test('work is handed to another agent with a note; the receiver sees it as a car
     await expect(dialog.locator('.ho-preview')).toContainText('Hand-off (review) from ada: branch aw/ada, based on main.')
     await dialog.getByRole('button', { name: 'Send hand-off' }).click()
     await expect(dialog).toBeHidden()
+    // The sender sees it in its own chat, as a card to where it went.
+    const sentCard = page.getByRole('article', { name: 'Hand-off to agent linus' })
+    await expect(sentCard).toContainText('Review')
+    await expect(sentCard).toContainText('aw/ada')
+    await expect(sentCard).toContainText('the auth change is the risky part')
+
 
     await page.locator('.roster button', { hasText: 'linus' }).click()
     // The office's own record of the message: from ada to linus, with the hand-off in it.

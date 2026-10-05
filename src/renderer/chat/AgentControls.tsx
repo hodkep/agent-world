@@ -138,7 +138,7 @@ export function UsageRing({ info, limits, actions }: { info: AgentInfo; limits: 
   const week = limitView(limits.sevenDay, now)
   // Context is a share where the program says so; where it only counts tokens, it is that count (roughly what the conversation holds).
   const rows: { name: string; pct: number | null; note?: string }[] = [
-    { name: 'Context', pct: info.contextPct, note: info.contextPct === null && info.tokens ? `about ${tokenLabel(info.tokens.context)} tokens` : undefined },
+    { name: 'Context', pct: info.contextPct, note: info.tokens ? `about ${tokenLabel(info.tokens.context)} tokens` : undefined },
     ...(info.liveLimits === false ? [] : [
       { name: '5-hour limit', pct: five.pct, note: five.reset && `resets ${five.reset}` },
       { name: 'Weekly limit', pct: week.pct, note: week.reset && `resets ${week.reset}` }
@@ -303,7 +303,7 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
               <button className="cb-row" role="menuitem" onClick={run(() => actions.clone())}>
                 Same model
               </button>
-              {MODELS.filter((m) => m.value).map((m) => (
+              {(info.models ?? MODELS).filter((m) => m.value).map((m) => (
                 <button key={m.value} className="cb-row" role="menuitem" onClick={run(() => actions.clone(m.value))}>
                   {m.label}
                 </button>

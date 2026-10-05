@@ -4,7 +4,7 @@ import { agyCommands } from './commands'
 import { agyEvents } from './events'
 import { agyKeys } from './keys'
 import { agyMail } from './mail'
-import { agyArgs, agyModes, parseUsage } from './launch'
+import { agyArgs, agyContextWindow, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
 import { agyTools } from './tools'
 import { agyTranscript } from './transcript'
@@ -16,7 +16,7 @@ export const agy: Provider = {
   id: 'agy',
   label: 'agy (Antigravity)',
   bin: 'agy',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false, clone: false, changeRole: false, chrome: false, budget: false, sideQuestion: false },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false, clone: true, changeRole: false, chrome: false, budget: false, sideQuestion: true },
   async detect(bin, ask = run) {
     let version: string | undefined
     try {
@@ -54,6 +54,7 @@ export const agy: Provider = {
   ],
   modes: agyModes,
   rewindConfirms: false,
+  contextWindow: agyContextWindow,
   handbook: 'AGENTS.md',
   liveModes: ['request-review', 'accept-edits', 'plan'],
   relaunchModes: ['skip-permissions'],

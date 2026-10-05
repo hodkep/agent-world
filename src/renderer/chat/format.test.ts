@@ -7,6 +7,19 @@ const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
 const say = (id: string, at: number, text: string): ChatItem => ({ kind: 'assistant', id, at, text })
 
+describe('work this agent handed to another', () => {
+  const sentText = 'Hand-off (review) from ada: branch aw/ada, based on main.\nRead it with: git diff main...aw/ada\nNote from ada: the auth part'
+  const out = (at: number): ChatItem => ({ kind: 'handoff-out', id: 'h1', at, to: 'grace', status: 'queued', text: sentText })
+  it('is a row of its own, in the place it was sent, with where it went and what it said', () => {
+    const rows = toRows([user('u1', t0, 'hand it over'), out(t0 + 5), say('a1', t0 + 10, 'Done')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'handoff-out', 'assistant'])
+    expect(rows[1]).toMatchObject({ kind: 'handoff-out', to: 'grace', status: 'queued', handoff: { kind: 'review', branch: 'aw/ada', note: 'the auth part' } })
+  })
+  it('is left out when the text is not a hand-off', () => {
+    expect(toRows([{ kind: 'handoff-out', id: 'x', at: t0, to: 'grace', status: 'delivered', text: 'hello' }], [])).toEqual([])
+  })
+})
+
 describe('a compaction', () => {
   const cmd: ChatItem = { kind: 'command', id: 'c', at: t0, name: '/compact', args: '' }
   const boundary: ChatItem = { kind: 'note', id: 'b', at: t0, text: 'Conversation compacted · 82k → 9k tokens (manual, 22s)' }

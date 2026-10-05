@@ -33,6 +33,8 @@ import { TracesView } from './panel/TracesView'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
+import type { ChatItem } from '../shared/chat'
+import { parseHandoff } from '../shared/handoff'
 import { HandoffDialog } from './panel/HandoffDialog'
 import { lowCount } from '../shared/limits'
 import { Swatch } from './panel/ProviderTag'
@@ -464,6 +466,7 @@ export function App() {
       info={infoOf(a)}
       actions={actionsOf(a)}
       waitingSubagents={waitingOf(a.id)}
+      outgoing={outgoingOf(a)}
       onWake={() => wake(a)}
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
     />
@@ -746,6 +749,18 @@ export function App() {
                 )
               })
   // What the controls under each agent's message box show and can do.
+  // Work this agent handed to others: the message box keeps them, and the agent's own file does not.
+  const outgoingBy = useMemo(() => {
+    const by = new Map<string, Extract<ChatItem, { kind: 'handoff-out' }>[]>()
+    for (const m of messages) {
+      if (!parseHandoff(m.text)) continue
+      const list = by.get(m.fromId) ?? []
+      list.push({ kind: 'handoff-out', id: `handoff:${m.id}`, at: m.at, to: allAgents.find((x) => x.id === m.toId)?.name ?? 'another agent', status: m.status, text: m.text })
+      by.set(m.fromId, list)
+    }
+    return by
+  }, [messages, allAgents])
+  const outgoingOf = (a: AgentRecord) => outgoingBy.get(a.id)
   const infoOf = (a: AgentRecord): AgentInfo => {
     // Before the agent's first report there are no numbers yet, but the menus are still needed.
     const st = stats[a.id]

@@ -305,7 +305,7 @@ test('a subagent agy starts is a colleague in the office while it works, listed 
   }
 })
 
-test('what agy does not have is not offered: no Clone, role change, Compact, budget or Chrome, and its own handbook and commands show instead', async () => {
+test('what agy does not have is not offered: no role change, Compact, budget or Chrome, and its own handbook and commands show instead', async () => {
   const { page, shutdown, folder } = await open('aw-agy-gating-')
   try {
     // The Handbook belongs to an agent with a branch, so the project is a git repository.
@@ -329,7 +329,7 @@ test('what agy does not have is not offered: no Clone, role change, Compact, bud
     await page.getByRole('tab', { name: 'Chat' }).click()
     await page.getByRole('button', { name: 'More actions' }).click()
     const menu = page.getByRole('menu', { name: 'More actions' })
-    await expect(menu.getByRole('menuitem', { name: /Clone/ })).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: /Clone/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /Change role/ })).toHaveCount(0)
     await expect(menu.getByRole('menuitem', { name: /Handbook/ })).toContainText('AGENTS.md')
     await expect(menu.getByRole('menuitem', { name: /Tools/ })).toBeVisible()
@@ -340,6 +340,53 @@ test('what agy does not have is not offered: no Clone, role change, Compact, bud
     expect(names).toEqual(expect.arrayContaining(['context', 'rewind', 'fork']))
     expect(names).not.toContain('compact')
     expect(names).not.toContain('cost')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a clone of an agy agent branches its conversation and has the history, and a /btw side question answers in the chat', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-agy-clone-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const folder = join(home, 'project')
+  mkdirSync(folder)
+  const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: folder })
+  git('init', '-q', '-b', 'main')
+  git('commit', '-q', '--allow-empty', '-m', 'init')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '300' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
+    await page.reload()
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: /message/i }).first()
+    await box.fill('first thing')
+    await box.press('Enter')
+    await expect(page.locator('.chat:visible').getByText('echo: first thing')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('.agent-row', { hasText: 'ada' })).toHaveClass(/is-idle/, { timeout: 15_000 })
+
+    // A side question is answered in a card, and the agent stays free.
+    await box.fill('/btw what is it')
+    await box.press('Enter')
+    const card = page.locator('.chat:visible .btw')
+    await expect(card).toContainText('the answer to: what is it', { timeout: 15_000 })
+    await card.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(card).toHaveCount(0, { timeout: 10_000 })
+
+    await page.getByRole('button', { name: 'More actions' }).click()
+    await page.getByRole('menuitem', { name: /Clone/ }).click()
+    await page.getByRole('menuitem', { name: 'Same model' }).click()
+    await expect(page.locator('.roster button')).toHaveCount(2)
+    const [ada, copy] = await page.evaluate(() => window.aw.listAgents())
+    expect(copy!.forkOf).toBe(ada!.sessionId)
+    // It branched what it opened: a conversation of its own, with the history in it.
+    await expect.poll(async () => (await page.evaluate(() => window.aw.listAgents()))[1]!.sessionId, { timeout: 30_000 }).not.toBe(copy!.sessionId)
+    const mine = (await page.evaluate(() => window.aw.listAgents()))[1]!.sessionId
+    expect(mine).not.toBe(ada!.sessionId)
+    await page.locator('.roster button', { hasText: copy!.name }).click()
+    await expect(page.locator('.chat:visible').getByText('echo: first thing')).toBeVisible({ timeout: 20_000 })
   } finally {
     await shutdown()
   }
