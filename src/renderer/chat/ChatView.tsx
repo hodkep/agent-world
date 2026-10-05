@@ -861,6 +861,8 @@ function Composer({
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
+  // The box itself (or the asleep bar that stands in for it): quotes are heard from the conversation around it, whichever is showing.
+  const root = useRef<HTMLDivElement>(null)
   const mirror = useRef<HTMLDivElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
@@ -948,7 +950,7 @@ function Composer({
 
   // Words selected in a reply arrive as a quote card; more can follow, each as its own card.
   useEffect(() => {
-    const chat = box.current?.closest('.chat')
+    const chat = root.current?.closest('.chat')
     if (!chat) return
     const on = (e: Event) => {
       const words = String((e as CustomEvent<string>).detail ?? '').trim()
@@ -958,7 +960,8 @@ function Composer({
     }
     chat.addEventListener('aw-quote', on)
     return () => chat.removeEventListener('aw-quote', on)
-  }, [])
+    // Heard again when the agent wakes: an asleep agent has no box, but what is quoted meanwhile waits for it.
+  }, [asleep])
 
   // Something picked on the Preview page arrives as one chip (its picture, and the words that describe it) to send with a question about it.
   useEffect(() => {
@@ -1069,8 +1072,12 @@ function Composer({
 
   if (asleep)
     return (
-      <div className="composer asleep">
-        <span>{agentName} is asleep.</span>
+      <div className="composer asleep" ref={root}>
+        <span>
+          {agentName} is asleep.
+          {quotes.length > 0 && ` ${quotes.length} quote${quotes.length === 1 ? '' : 's'} waiting.`}
+          {attached.some((a) => a.context) && ` ${attached.filter((a) => a.context).length} picked item${attached.filter((a) => a.context).length === 1 ? '' : 's'} waiting.`}
+        </span>
         <button className="primary" onClick={onWake}>
           Wake {agentName}
         </button>
@@ -1079,6 +1086,7 @@ function Composer({
 
   return (
     <div
+      ref={root}
       className={`composer ${over ? 'over' : ''} ${shell ? 'is-shell' : ''}`}
       style={{ borderTopColor: mode && mode !== 'default' ? cssColor(modeInfo(mode).color) : undefined }}
       onDragOver={(e) => (e.preventDefault(), setOver(true))}
