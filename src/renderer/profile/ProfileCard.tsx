@@ -3,6 +3,7 @@ import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import type { Effort } from '../../shared/types'
 import { PixelIcon } from '../chat/PixelIcon'
 import { MODELS } from '../panel/HireForm'
+import { OutlineIcon } from '../panel/IconButton'
 import type { CardData } from './facts'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
 import { agoShort, durationLabel, levelOf } from './format'
@@ -281,12 +282,18 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
               <h3 className="pc-h">Most used tools</h3>
               <div className="pc-toolbars">
                 {toolBars(p.tools).map((t) => (
-                  <div key={t.name}>
-                    <span>{t.name}</span>
-                    <i className="pc-bar">
+                  <div key={t.name} title={t.name}>
+                    <span className="pc-tico">
+                      <OutlineIcon name={t.icon} size={14} />
+                    </span>
+                    <span className="pc-tname">
+                      <span className="pc-tlabel">{t.label}</span>
+                      {t.source && <span className="pc-tsrc">{t.source}</span>}
+                    </span>
+                    <span className="pc-tcount">{t.count.toLocaleString('en-US')}×</span>
+                    <i className="pc-bar" aria-hidden="true">
                       <b style={{ width: `${t.pct}%` }} />
                     </i>
-                    <span>{t.count}×</span>
                   </div>
                 ))}
               </div>

@@ -15,11 +15,16 @@ test('the grid shows every agent with its terminal and opens the one you click',
     await hire(page, { name: 'linus' })
     await page.getByRole('button', { name: 'Grid', exact: true }).click()
     const list = page.getByRole('list', { name: 'All agents' })
-    await expect(list.getByRole('listitem')).toHaveCount(2)
+    // The side panel is showing linus (hired last), so he is left out of the grid and only ada is in it.
+    await expect(list.getByRole('listitem')).toHaveCount(1)
+    await expect(list.getByRole('listitem', { name: /^ada/ })).toBeVisible()
     // The tile shows the end of what the agent's terminal printed (the launch text is long and wraps), not the placeholder.
     await expect(list.getByRole('listitem').first().locator('pre')).not.toHaveText('…', { timeout: 10_000 })
     await list.getByRole('listitem', { name: /^ada/ }).click()
     await expect(page.locator('.hc-name')).toHaveText('ada')
+    // Now the panel shows ada: she is out of the grid and linus is back in it.
+    await expect(list.getByRole('listitem', { name: /^linus/ })).toBeVisible()
+    await expect(list.getByRole('listitem', { name: /^ada/ })).toHaveCount(0)
     // In a narrow window the panel opens as a drawer over everything; a click outside closes it.
     if (await page.locator('.scrim').count()) await page.locator('.scrim').click({ position: { x: 5, y: 5 } })
     await page.getByRole('button', { name: 'Grid', exact: true }).click()

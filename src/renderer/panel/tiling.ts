@@ -84,6 +84,20 @@ export function resizeAt(n: Node | null, path: number[], at: number): Node | nul
   return head === 0 ? { ...n, a: resizeAt(n.a, rest, next)! } : { ...n, b: resizeAt(n.b, rest, next)! }
 }
 
+/**
+ * The layout as drawn while `hidden` is out of the way: the tile keeps its place in the tree but takes no space, and its
+ * neighbour fills the gap. Nothing is removed, so the layout that was saved is untouched, edits made meanwhile apply to it
+ * (the splits keep their paths), and showing the tile again puts it back exactly where it was.
+ */
+export function collapse(n: Node | null, hidden: string | null): Node | null {
+  if (!n || !hidden || n.kind === 'leaf') return n
+  if (n.a.kind === 'leaf' && n.a.tile === hidden) return { ...n, at: 0 }
+  if (n.b.kind === 'leaf' && n.b.tile === hidden) return { ...n, at: 1 }
+  const a = collapse(n.a, hidden)!
+  const b = collapse(n.b, hidden)!
+  return a === n.a && b === n.b ? n : { ...n, a, b }
+}
+
 /** Take a tile out; the one it shared a split with takes its space. */
 export function remove(n: Node | null, tile: string): Node | null {
   if (!n) return null

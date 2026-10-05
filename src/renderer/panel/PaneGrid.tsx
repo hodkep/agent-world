@@ -2,7 +2,7 @@ import { type ReactNode, useRef, useState } from 'react'
 import { cssColor, modeInfo } from '../../shared/modes'
 import type { Activity, AgentRecord } from '../../shared/types'
 import { TerminalView } from './TerminalView'
-import { type Node, type Zone, addAll, isTerm, keepOnly, place, rectsOf, remove, resizeAt, splitsOf, tilesOf } from './tiling'
+import { type Node, type Zone, addAll, collapse, isTerm, keepOnly, place, rectsOf, remove, resizeAt, splitsOf, tilesOf } from './tiling'
 
 export { isTerm, readLayout, TERM } from './tiling'
 
@@ -47,6 +47,7 @@ export function PaneGrid({
   modeOf,
   onChange,
   onOpen,
+  hidden = null,
   renderChat,
   folderName,
   onNewTerminal
@@ -57,6 +58,8 @@ export function PaneGrid({
   modeOf: (id: string) => string | undefined
   onChange: (l: GridLayout) => void
   onOpen: (id: string) => void
+  /** The agent the side panel is showing: out of the grid until the panel closes or moves on. Its chat stays mounted, so a draft is not lost. */
+  hidden?: string | null
   renderChat: (agent: AgentRecord) => ReactNode
   /** The project the terminals are open in. */
   folderName: string
@@ -69,6 +72,9 @@ export function PaneGrid({
   const root = keepOnly(layout.root, (id) => isTerm(id) || agents.some((a) => a.id === id))
   const tiles = tilesOf(root)
   const change = (r: Node | null) => onChange({ root: r })
+  // What is drawn: the same layout with the hidden agent's tile taking no space. Edits still go to `root`.
+  const drawn = collapse(root, hidden && tiles.includes(hidden) ? hidden : null)
+  const outCount = hidden && tiles.includes(hidden) ? 1 : 0
 
   const drop = (target: string | null, zone: Zone, e: React.DragEvent) => {
     e.preventDefault()
@@ -122,32 +128,40 @@ export function PaneGrid({
             draggable
             onDragStart={(e) => (e.dataTransfer.setData(AGENT_DRAG, a.id), (e.dataTransfer.effectAllowed = 'copyMove'))}
             onClick={() => (listed.has(a.id) ? document.querySelector<HTMLElement>(`.pane[data-pane="${CSS.escape(a.id)}"]`)?.scrollIntoView({ block: 'nearest' }) : change(addAll(root, [a.id])))}
-            title={listed.has(a.id) ? `${a.name} is in the grid` : `Add ${a.name} to the grid, or drag it in`}
+            title={listed.has(a.id) ? (a.id === hidden ? `${a.name} is in the grid, and open in the side panel for now` : `${a.name} is in the grid`) : `Add ${a.name} to the grid, or drag it in`}
             aria-pressed={listed.has(a.id)}
           >
             <span className={`dot is-${activity(a.id)}`} aria-hidden="true" />
             <span className="side-name">{a.name}</span>
-            <span className="side-meta">{listed.has(a.id) ? 'in grid' : activity(a.id)}</span>
+            <span className="side-meta">{listed.has(a.id) ? (a.id === hidden ? 'in panel' : 'in grid') : activity(a.id)}</span>
           </button>
         ))}
       </div>
       <div className="panes" ref={area} onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(null, 'center', e)}>
+        {tiles.length - outCount === 0 && tiles.length > 0 && (
+          <div className="pane-hint">
+            <b>{agents.find((a) => a.id === hidden)?.name ?? 'This agent'} is open in the side panel</b>
+            <span>It comes back here when the panel closes or moves on to another agent.</span>
+          </div>
+        )}
         {tiles.length === 0 && (
           <div className="pane-hint">
             <b>Drag an agent or a terminal here</b>
             <span>or click one in the list on the left. Drop one on the edge of another to put it beside it, and drag the gap between two to resize them.</span>
           </div>
         )}
-        {rectsOf(root).map(({ tile: id, rect }) => {
+        {rectsOf(drawn).map(({ tile: id, rect }) => {
           const agent = isTerm(id) ? undefined : agents.find((a) => a.id === id)
           const drag = (e: React.DragEvent) => (e.dataTransfer.setData(PANE_DRAG, id), (e.dataTransfer.effectAllowed = 'move'))
           const mark = over?.id === id ? over.zone : null
-          const style = { left: `calc(${rect.x * 100}% + ${GAP}px)`, top: `calc(${rect.y * 100}% + ${GAP}px)`, width: `calc(${rect.w * 100}% - ${GAP * 2}px)`, height: `calc(${rect.h * 100}% - ${GAP * 2}px)` }
+          const out = id === hidden
+          const style = { ...(out && { display: 'none' }), left: `calc(${rect.x * 100}% + ${GAP}px)`, top: `calc(${rect.y * 100}% + ${GAP}px)`, width: `calc(${rect.w * 100}% - ${GAP * 2}px)`, height: `calc(${rect.h * 100}% - ${GAP * 2}px)` }
           return (
             <div
               key={id}
               data-pane={id}
               style={style}
+              aria-hidden={out || undefined}
               className={`pane ${mark ? 'dropping' : ''}`}
               // Captured, so the chat's own drop target (for attached files) never swallows a tile dropped over it.
               onDragOverCapture={(e) => {
@@ -196,7 +210,10 @@ export function PaneGrid({
             </div>
           )
         })}
-        {splitsOf(root).map(({ path, dir, rect, at }) => {
+        {splitsOf(drawn)
+          // A split with the hidden tile on one side is not a divider while that tile takes no space.
+          .filter(({ at }) => at > 0 && at < 1)
+          .map(({ path, dir, rect, at }) => {
           const style =
             dir === 'row'
               ? { left: `calc(${(rect.x + rect.w * at) * 100}% - 5px)`, top: `calc(${rect.y * 100}% + ${GAP}px)`, width: 10, height: `calc(${rect.h * 100}% - ${GAP * 2}px)` }

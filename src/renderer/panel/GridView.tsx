@@ -13,7 +13,7 @@ export interface Tile {
 }
 
 /** Every agent at once: state, cost and the last lines of its terminal. A tile opens that agent. */
-export function GridView({ tiles, selected, onOpen }: { tiles: Tile[]; selected: string | null; onOpen: (id: string) => void }) {
+export function GridView({ tiles, selected, onOpen, inPanel = null }: { tiles: Tile[]; selected: string | null; onOpen: (id: string) => void; /** Who the side panel is showing, and so who is not among the tiles. */ inPanel?: string | null }) {
   const [lines, setLines] = useState<Record<string, string[]>>({})
   const key = tiles.map((t) => t.agent.id).join(',')
   useEffect(() => {
@@ -27,6 +27,7 @@ export function GridView({ tiles, selected, onOpen }: { tiles: Tile[]; selected:
       clearInterval(t)
     }
   }, [key])
+  if (tiles.length === 0 && inPanel) return <p className="hint">{inPanel} is open in the side panel, so there is nobody else to show. It is back here when the panel closes.</p>
   return (
     <div className="grid-view" role="list" aria-label="All agents">
       {tiles.map((t) => (

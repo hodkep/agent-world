@@ -57,6 +57,47 @@ test('clicking an agent opens its card on the side of the office away from it', 
   }
 })
 
+test('the most used tools read in words, with an icon, and every bar starts in one column without touching a name', async () => {
+  const { page, shutdown } = await start(undefined, { FAKE_MCP: '1' }, false)
+  try {
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('look something up')
+    await box.press('Enter')
+    await expect(page.getByRole('log', { name: 'Conversation with ada' })).toContainText('Done.', { timeout: 15_000 })
+    await page.locator('.hc-name').click()
+    const card = page.locator('.profile-overlay')
+    await expect(card.getByRole('heading', { name: 'Most used tools' })).toBeVisible({ timeout: 15_000 })
+    const rows = card.locator('.pc-toolbars > div')
+    // An MCP call is worded, with its server beside it; the raw mcp__server__tool name is only in the tooltip.
+    const nav = rows.filter({ hasText: 'Navigate' })
+    await expect(nav.locator('.pc-tlabel')).toHaveText('Navigate')
+    await expect(nav.locator('.pc-tsrc')).toHaveText('playwright')
+    await expect(nav).toHaveAttribute('title', 'mcp__playwright__browser_navigate')
+    await expect(card.locator('.pc-toolbars')).not.toContainText('mcp__')
+    await expect(rows.filter({ hasText: 'Bash' }).locator('.pc-tico svg')).toBeVisible()
+    await expect(card.locator('.pc-toolbars .pc-tcount').first()).toHaveText(/\d+×/)
+    // One column for the bars, and a name never runs under its bar.
+    const n = await rows.count()
+    expect(n).toBeGreaterThanOrEqual(3)
+    const lefts: number[] = []
+    const rights: number[] = []
+    for (let i = 0; i < n; i++) {
+      const row = rows.nth(i)
+      const bar = (await row.locator('.pc-bar').boundingBox())!
+      const name = (await row.locator('.pc-tname').boundingBox())!
+      const count = (await row.locator('.pc-tcount').boundingBox())!
+      expect(name.y + name.height).toBeLessThanOrEqual(bar.y + 1)
+      lefts.push(Math.round(bar.x))
+      rights.push(Math.round(count.x + count.width))
+    }
+    expect(new Set(lefts).size).toBe(1)
+    expect(new Set(rights).size).toBe(1)
+    await card.locator('.pc-toolbars').screenshot({ path: join(tmpdir(), 'aw-tool-rows.png') })
+  } finally {
+    await shutdown()
+  }
+})
+
 test('no card opens until asked for, not on hiring, picking an agent or after a reload', async () => {
   const { page, shutdown } = await start(undefined, {}, false)
   try {
