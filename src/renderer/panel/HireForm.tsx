@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Role } from '../../shared/roles'
-import type { AgentOptions, Effort, PermissionMode, Prefs } from '../../shared/types'
+import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -28,6 +28,8 @@ const MODES: { value: PermissionMode | ''; label: string; hint: string }[] = [
 
 /** Everything Claude lets you choose at launch, before the agent walks in. */
 export function HireForm({
+  providers,
+  defaultProvider,
   roles,
   defaults,
   roleModels,
@@ -35,6 +37,9 @@ export function HireForm({
   onCancel,
   onSaveRole
 }: {
+  /** The programs that are ready here; the choice shows only when there is more than one. */
+  providers: ProviderInfo[]
+  defaultProvider: ProviderId | ''
   roles: Role[]
   /** From Settings: what a new agent starts with. */
   defaults: Prefs['defaults']
@@ -45,6 +50,9 @@ export function HireForm({
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
 }) {
   const [roleId, setRoleId] = useState('')
+  const [provider, setProvider] = useState<ProviderId | ''>(defaultProvider)
+  const chosen = providers.find((p) => p.id === provider) ?? providers[0]
+  const models = chosen?.models ?? MODELS
   const [saving, setSaving] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [model, setModel] = useState(defaults.model)
@@ -72,6 +80,7 @@ export function HireForm({
   const current = (): AgentOptions => {
     const budgetUsd = Number.parseFloat(budget)
     return {
+      ...(providers.length > 1 && chosen && { provider: chosen.id }),
       ...(model && { model }),
       ...(effort && { effort }),
       ...(mode && { permissionMode: mode }),
@@ -102,6 +111,20 @@ export function HireForm({
       }}
       onKeyDown={(e) => e.key === 'Escape' && onCancel()}
     >
+      {providers.length > 1 && (
+        <div className="hire-row">
+          <label className="grow">
+            Provider
+            <select value={chosen?.id} onChange={(e) => (setProvider(e.target.value as ProviderId), setModel(''))}>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       <div className="hire-row">
         <label className="grow">
           Role
@@ -131,7 +154,7 @@ export function HireForm({
         <label>
           Model
           <select value={model} onChange={(e) => setModel(e.target.value)}>
-            {MODELS.map((m) => (
+            {models.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>

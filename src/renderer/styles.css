@@ -1441,3 +1441,10 @@ code a.file-link { font: inherit; }
 .su-toggle[aria-pressed='true'] i { background: var(--ok); }
 .su-toggle[aria-pressed='true'] i::after { left: 18px; }
 @media (max-width: 760px) { .su-win { grid-template-columns: 1fr; } .su-rail { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 2px solid var(--ink); } .su-brand, .su-rail .foot, .su-step .tag { display: none; } .su-prov { grid-template-columns: auto 1fr; } .su-act { grid-column: 1 / -1; grid-row: auto; align-items: flex-start; } }
+
+/* ---- Which program an agent runs on ---- */
+.ptag { --c: var(--dim); display: inline-flex; align-items: center; gap: 5px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--text); white-space: nowrap; }
+.ptag::before { content: ''; width: 7px; height: 7px; background: var(--c); }
+.ptag.claude { --c: #e08a5a; }
+.ptag.agy { --c: var(--think); }
+.agent-row .name .ptag { margin-left: 6px; vertical-align: 1px; }

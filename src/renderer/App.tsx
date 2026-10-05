@@ -33,6 +33,7 @@ import { TracesView } from './panel/TracesView'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
+import { ProviderTag } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
 import { TerminalView } from './panel/TerminalView'
@@ -692,6 +693,8 @@ export function App() {
   const between = !state || ['idle', 'waiting'].includes(state.activity)
 
   // The agent rows, shared by the list and by the switcher that stands in for it when the list is folded away.
+  // Tags only help once there is more than one program to tell apart.
+  const mixed = (providers?.length ?? 0) > 1
   const rosterRows = (after?: () => void) =>
     [...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
                 const st = world[a.id]
@@ -704,6 +707,7 @@ export function App() {
                     <span className="dot" aria-hidden="true" />
                     <span className="name">
                       {a.name}
+                      {mixed && <ProviderTag id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? 'claude'))?.label} />}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
                           {a.repoPath.split(/[\\/]/).pop()}
@@ -1037,7 +1041,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.setup.defaultProvider ?? ''} roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (
