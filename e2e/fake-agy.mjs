@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the agy CLI: draws the screens a real agy 1.2.17 draws (idle, working, asking permission), and keeps
 // its conversation the way agy does (a SQLite file of protobuf steps, plus a line per prompt in history.jsonl).
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -9,6 +9,8 @@ import { DatabaseSync } from 'node:sqlite'
 const args = process.argv.slice(2)
 const home = process.env.AW_AGY_HOME
 if (args[0] === '--version') (console.log('1.2.17'), process.exit(0))
+// FAKE_SIGNED_OUT_FILE=<path>: agy counts as signed out until that file exists.
+if (args[0] === '-p' && args[1] === '/usage' && process.env.FAKE_SIGNED_OUT_FILE && !existsSync(process.env.FAKE_SIGNED_OUT_FILE)) process.exit(1)
 if (args[0] === '-p' && args[1] === '/usage') {
   console.log('Gemini Models\tWeekly Limit Remaining\t100%\t2026-10-12T06:23:31Z\nGemini Models\tFive Hour Limit Remaining\t73%\t2026-10-05T16:23:31Z\nClaude and GPT models\tFive Hour Limit Remaining\t100%\t2026-10-05T16:30:41Z')
   process.exit(0)

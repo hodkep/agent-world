@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Workspaces } from '../../shared/api'
 import { MailConnect } from './MailConnect'
-import type { AgentOptions, AutonomyLevel, Prefs, ProviderInfo } from '../../shared/types'
+import { TerminalView } from './TerminalView'
+import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo, RetiredTool } from '../../shared/types'
 
 const STEPS = [
   { id: 'welcome', name: 'Welcome' },
@@ -22,6 +23,8 @@ const STATE_LABEL = { ready: 'Ready', 'needs-sign-in': 'Needs sign-in', 'not-ins
 
 interface Props {
   providers: ProviderInfo[]
+  /** Tools found here that no longer work: named, never offered. */
+  retired: RetiredTool[]
   prefs: Prefs
   onPrefs: (patch: Partial<Prefs>) => void
   workspaces: Workspaces | null
@@ -37,7 +40,7 @@ interface Props {
 }
 
 /** First run: what is on this machine, where to work, how much freedom agents get, and the first agent. Skippable except where nothing else would work. */
-export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened }: Props) {
+export function Setup({ providers, retired, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened }: Props) {
   const ready = providers.filter((p) => p.detection.state === 'ready')
   const [step, setStep] = useState(0)
   const [visited, setVisited] = useState(() => new Set([0]))
@@ -47,6 +50,17 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const [crew, setCrew] = useState(false)
   const [busy, setBusy] = useState(false)
   const [howto, setHowto] = useState<string | null>(null)
+  // The terminal where a provider's own sign-in runs, opened on request and shown right in the step.
+  const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
+  const openSignIn = async (provider: ProviderId) => {
+    if (signIn) window.aw.closeShell(signIn.pty)
+    setSignIn({ provider, pty: await window.aw.openSignIn(provider) })
+  }
+  const doneSigningIn = () => {
+    if (signIn) window.aw.closeShell(signIn.pty)
+    setSignIn(null)
+    onRescan()
+  }
   const root = useRef<HTMLDivElement>(null)
   const chosen = ready.find((p) => p.id === prefs.setup.defaultProvider) ?? ready[0]
   const [hireWith, setHireWith] = useState('')
@@ -101,6 +115,10 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
               <i />
               {on ? 'Default for new agents' : <button className="su-link" onClick={() => onPrefs({ setup: { ...prefs.setup, defaultProvider: p.id } })}>Make default</button>}
             </label>
+          ) : st === 'needs-sign-in' ? (
+            <button className="primary" onClick={() => void openSignIn(p.id)}>
+              Open a terminal to sign in
+            </button>
           ) : st === 'not-installed' ? (
             <button onClick={() => setHowto(howto === p.id ? null : p.id)} aria-expanded={howto === p.id}>
               How to install
@@ -112,6 +130,15 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
           {p.detection.hint && <span className="hint">{p.detection.hint}</span>}
           {howto === p.id && p.detection.install && <code className="su-howto">{p.detection.install}</code>}
           {st === 'ready' && <MailConnect provider={p} onChanged={onRescan} />}
+          {signIn?.provider === p.id && (
+            <div className="su-signin">
+              <div className="su-term"><TerminalView ptyId={signIn.pty} visible focusTick={0} /></div>
+              <div className="su-row">
+                <span className="hint">Sign in there, in the program's own window. The app never sees what you type.</span>
+                <button className="primary" onClick={doneSigningIn}>I have signed in: check again</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -158,6 +185,13 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
               </div>
               <div className="su-content">
                 {providers.map(providerRow)}
+                {retired.map((r) => (
+                  <div key={r.id} className="su-prov gone" data-retired={r.id}>
+                    <span className="su-mark gone">{r.label[0]}</span>
+                    <div className="su-name">{r.label}<span className="su-state retired">Retired</span></div>
+                    <div className="su-sub">{r.why}</div>
+                  </div>
+                ))}
                 {ready.length === 0 ? (
                   <div className="su-note"><b>Nothing is ready yet.</b> Install or sign in to at least one of them, then press Re-scan. You cannot hire an agent until then.</div>
                 ) : ready.length === 1 && providers.length > 1 ? (

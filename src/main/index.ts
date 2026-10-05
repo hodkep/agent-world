@@ -15,7 +15,7 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, RetiredTool, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
@@ -1096,6 +1096,33 @@ async function main() {
     if (!p?.mail) throw new Error('That provider has nothing to connect.')
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
+  })
+  // The Gemini CLI is dead (Google retired the client; its sign-in fails), so it is never offered, only named, so setup can say to use agy.
+  ipcMain.handle('list-retired', () =>
+    new Promise<RetiredTool[]>((resolve) =>
+      execFile(process.env.AW_GEMINI_BIN ?? 'gemini', ['--version'], { timeout: 8000, env }, (err) =>
+        resolve(err ? [] : [{ id: 'gemini', label: 'Gemini CLI', why: 'Google has retired this client; its sign-in now fails. Use agy instead: it is Google\'s replacement.' }])
+      )
+    )
+  )
+  // Signing in is the provider's own business: a shell is opened where the user can see it, and its program started. The app never sees credentials.
+  ipcMain.handle('provider:sign-in', (_, id: string) => {
+    const p = providers().find((x) => x.id === id)
+    if (!p) throw new Error('Unknown provider.')
+    const shell = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
+    const sid = `term:${randomUUID()}`
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: env as Record<string, string> })
+    shells.set(sid, pt)
+    pt.onData((d) => {
+      const b = buffers.get(sid) ?? { text: '', end: 0 }
+      const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
+      buffers.set(sid, next)
+      send('pty-data', sid, d, next.end)
+    })
+    pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
+    // The shell draws its prompt first; the program is typed after it, quoted so a path with spaces still runs.
+    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"\r`), 900)
+    return sid
   })
   ipcMain.handle('list-providers', () =>
     Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, autonomy: p.autonomy, mail: mailState(p) })))

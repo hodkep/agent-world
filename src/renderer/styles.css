@@ -1509,3 +1509,9 @@ dialog.handoff { width: min(640px, 94vw); }
 .ho-told { padding: 0 10px 8px; font-size: 12px; color: var(--muted); }
 .ho-told summary { cursor: pointer; }
 .ho-told pre { margin: 6px 0 0; font: 11px/1.5 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--well); padding: 6px 8px; }
+.su-prov.gone { opacity: 0.85; }
+.su-mark.gone { background: var(--dim); color: var(--text); }
+.su-state.retired { color: var(--danger-text); }
+.su-signin { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.su-term { height: 230px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); padding: 6px; overflow: hidden; }
+.su-term > * { height: 100%; }

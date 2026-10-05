@@ -130,6 +130,14 @@ export interface ProviderInfo {
   mail: 'yes' | 'connected' | 'missing' | 'no'
 }
 
+/** An agent tool found here that no longer works, so setup says what to use instead. */
+export interface RetiredTool {
+  id: string
+  label: string
+  /** Why it is not offered, and what to use. */
+  why: string
+}
+
 export interface AgentRecord {
   id: string
   /** Which program runs this agent. Agents saved before providers existed are Claude Code. */

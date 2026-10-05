@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -86,6 +86,53 @@ test('setup can be run again from Settings and closed at any step', async () => 
     await expect(setup.getByRole('heading', { name: 'Welcome to Agent World' })).toBeVisible()
     await setup.getByRole('button', { name: 'Close' }).click()
     await expect(setup).toBeHidden()
+  } finally {
+    await shutdown()
+  }
+})
+
+const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
+
+test('a retired Gemini CLI is named, never offered, and setup says to use agy', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-gemini-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_GEMINI_BIN: '/bin/echo', AW_NO_SETUP: '' }, home)
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const gemini = setup.locator('[data-retired="gemini"]')
+    await expect(gemini).toContainText('Gemini CLI')
+    await expect(gemini).toContainText('Retired')
+    await expect(gemini).toContainText('Use agy instead')
+    // It is not something to pick: no default radio, no hire choice.
+    await expect(gemini.getByRole('button')).toHaveCount(0)
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    await setup.getByRole('button', { name: 'Skip for now' }).click()
+    await setup.getByRole('button', { name: 'Skip for now' }).click()
+    await expect(setup.getByLabel('Provider').locator('option')).toHaveText(['Claude Code', 'agy (Antigravity)'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agy that is installed but signed out can be signed in from setup, in a terminal right there', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-signin-'))
+  const signedIn = join(home, 'signed-in')
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), FAKE_SIGNED_OUT_FILE: signedIn, AW_NO_SETUP: '' }, home)
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const agy = setup.locator('[data-provider="agy"]')
+    await expect(agy).toContainText('Needs sign-in')
+    await agy.getByRole('button', { name: 'Open a terminal to sign in' }).click()
+    // The terminal runs the provider's own program; the app only starts it.
+    await expect(agy.locator('.xterm')).toBeVisible({ timeout: 10_000 })
+    await expect(agy.locator('.xterm-rows')).toContainText('Antigravity CLI', { timeout: 10_000 })
+    writeFileSync(signedIn, '')
+    await agy.getByRole('button', { name: 'I have signed in: check again' }).click()
+    await expect(agy).toContainText('Ready')
+    await expect(agy.locator('.xterm')).toHaveCount(0)
   } finally {
     await shutdown()
   }
