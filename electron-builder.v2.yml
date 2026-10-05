@@ -11,4 +11,10 @@ extraMetadata:
   awHome: .agent-world-2
 dmg:
   title: "Agent World 2"
+  background: build/background.png
+  window: { width: 540, height: 380 }
+  iconSize: 112
+  contents:
+    - { x: 140, y: 200 }
+    - { x: 400, y: 200, type: link, path: /Applications }
 artifactName: "${productName}-${version}-${arch}.${ext}"
