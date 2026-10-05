@@ -3,6 +3,7 @@ import type { CarPose } from './arrival'
 import type { Fleet, Visit } from './fleet'
 import { textPixels } from './pixelfont'
 import { shade } from './grounds'
+import type { Shouts } from './shouts'
 
 const DEG = Math.PI / 180
 const STEP = 15 * DEG
@@ -85,6 +86,8 @@ export class VisitorsView {
   readonly view = new Container()
   private readonly cars = new Container()
   private readonly fx = new Graphics()
+  /** Every speech bubble, on a layer of its own so the world can put it above the floors and the people. */
+  readonly bubbles = new Graphics()
   private readonly sprites = new Map<string, Sprite>()
   private readonly marks: Mark[] = []
   private readonly puffs: Puff[] = []
@@ -93,7 +96,10 @@ export class VisitorsView {
   private clock = 0
   calm = false
 
-  constructor(private readonly fleet: Fleet) {
+  constructor(
+    private readonly fleet: Fleet,
+    private readonly shouts: Shouts
+  ) {
     this.view.addChild(this.cars, this.fx)
   }
 
@@ -102,7 +108,7 @@ export class VisitorsView {
 
   update(dtMs: number) {
     // Most of the time there is no car, no mark and no smoke: nothing to do.
-    if (this.fleet.visits.size === 0 && this.marks.length === 0 && this.puffs.length === 0 && this.sprites.size === 0 && !this.drawn) return
+    if (this.fleet.visits.size === 0 && this.marks.length === 0 && this.puffs.length === 0 && this.sprites.size === 0 && this.shouts.size === 0 && !this.drawn) return
     this.clock += dtMs
     const seen = new Set<string>()
     for (const v of this.fleet.visits.values()) {
@@ -118,7 +124,7 @@ export class VisitorsView {
       this.last.delete(`${k}/1`)
     }
     this.draw()
-    this.drawn = this.fleet.visits.size > 0 || this.marks.length > 0 || this.puffs.length > 0
+    this.drawn = this.fleet.visits.size > 0 || this.marks.length > 0 || this.puffs.length > 0 || this.shouts.size > 0
   }
 
   private place(v: Visit) {
@@ -162,6 +168,7 @@ export class VisitorsView {
   private draw() {
     const g = this.fx
     g.clear()
+    this.bubbles.clear()
     for (let i = this.marks.length - 1; i >= 0; i--) {
       const age = this.clock - this.marks[i]!.at
       if (age > MARK_LIFE) {
@@ -188,12 +195,14 @@ export class VisitorsView {
           const [dx, dy] = rot(lx, ly, v.pose.h)
           rect(g, Math.round(v.pose.x + dx), Math.round(v.pose.y + dy), 2, 2, 0xffb000)
         }
-      if (!this.calm && v.pose.text) bubble(g, v.pose.text, Math.round(v.pose.x), Math.round(v.pose.y) - 24)
+      if (!this.calm && v.pose.text) bubble(this.bubbles, v.pose.text, Math.round(v.pose.x), Math.round(v.pose.y) - 24)
     }
+    if (!this.calm) for (const sh of this.shouts.active()) bubble(this.bubbles, sh.text, Math.round(sh.x), Math.round(sh.y))
   }
 
   destroy() {
     this.view.destroy({ children: true })
+    this.bubbles.destroy()
   }
 }
 

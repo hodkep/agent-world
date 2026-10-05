@@ -27,6 +27,14 @@ async function start(env: Record<string, string>) {
   // Someone is looking at the window, so the office is drawn at the pace it is meant to be.
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true })
+  // A shout lasts about a second, so keep a record of them as they change instead of looking now and then.
+  await page.locator('.stage').waitFor()
+  await page.evaluate(() => {
+    const w = window as unknown as { __shouts: string[] }
+    w.__shouts = []
+    const stage = document.querySelector('.stage')!
+    new MutationObserver(() => w.__shouts.push(stage.getAttribute('data-shouts') ?? '')).observe(stage, { attributes: true, attributeFilter: ['data-shouts'] })
+  })
   await hire(page)
   return { page, shutdown }
 }
@@ -34,6 +42,12 @@ async function start(env: Record<string, string>) {
 test('a subagent arrives by car, parks by the door, rushes in, and rushes back to the car which drives off', async () => {
   const { page, shutdown } = await start({ FAKE_DELEGATE: '2', FAKE_DELEGATE_MS: '1800' })
   try {
+    // The agent that called for help shouts for it once, however many it called for together, and the shout goes away again.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __shouts: string[] }).__shouts), { timeout: 20_000 }).toContain('[]')
+    const said = await page.evaluate(() => (window as unknown as { __shouts: string[] }).__shouts)
+    expect(said.filter((x) => x === '["HELP!"]')).toHaveLength(1)
+    expect(said.at(-1)).toBe('[]')
+
     // Two cars come, one for each subagent, and nobody is out of a car until it has parked.
     await seen(page, (v) => v.length === 2 && v.every((c) => c.phase === 'driving' && c.rider === 'in the car'), 20_000)
     await page.locator('.stage').screenshot({ path: join(tmpdir(), 'aw-car-driving.png') })

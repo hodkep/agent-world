@@ -5,6 +5,7 @@ import type { Activity } from '../../shared/types'
 import { RUSH, type Lot, carDoorPoint } from './arrival'
 import { Fleet, type FleetEvent } from './fleet'
 import { FPS, MOVING_MS, frameCap } from './frameRate'
+import { Shouts } from './shouts'
 import { VisitorsView } from './visitors'
 import { Character } from './character'
 import { paletteFor } from './sprites'
@@ -82,8 +83,10 @@ export class OfficeWorld {
   private street!: Street
   // Subagents come and go by car: where the cars are, how they are drawn, and who is in one.
   private readonly fleet = new Fleet(LOT)
-  private readonly visitors = new VisitorsView(this.fleet)
+  private readonly shouts = new Shouts()
+  private readonly visitors = new VisitorsView(this.fleet, this.shouts)
   private publishedVisits = ''
+  private publishedShouts = ''
   private onHandbook: (agentId: string) => void = () => {}
   private readonly books = new Map<string, Graphics>()
   // Subagents gathered around their main agent's desk: which seat each has, and the stool drawn under it.
@@ -145,7 +148,7 @@ export class OfficeWorld {
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, this.visitors.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
-    this.overlays.addChild(this.mail)
+    this.overlays.addChild(this.mail, this.visitors.bubbles)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
     const f = drawFurniture(OFFICE.furniture, OFFICE.decor, this.layer, shadows, COFFEE_SPOUT)
@@ -389,7 +392,14 @@ export class OfficeWorld {
     const c = new Character(key, label, role, home, start, OFFICE.map, () => this.onSelect(agentId))
     // A subagent that starts while you watch arrives by car (out of sight until it has parked); with the parking full, or when
     // motion is turned down, it simply comes in at the door as before.
-    if (intern && !this.firstSync && !calmMotion() && this.fleet.arrive(key, CAR_COLORS[[...key].reduce((n, ch) => n + ch.charCodeAt(0), 0) % CAR_COLORS.length]!)) c.waiting = true
+    if (intern && !this.firstSync && !calmMotion()) {
+      // The agent that called for help shouts for it, once however many it called for at the same moment.
+      this.shouts.say(`help:${agentId}`, 'HELP!', 1200, () => {
+        const caller = this.chars.get(agentId)
+        return caller ? { x: caller.view.x + TILE / 2, y: caller.view.y - 36 } : null
+      })
+      if (this.fleet.arrive(key, CAR_COLORS[[...key].reduce((n, ch) => n + ch.charCodeAt(0), 0) % CAR_COLORS.length]!)) c.waiting = true
+    }
     this.chars.set(key, c)
     this.layer.addChild(c.view)
     this.overlays.addChild(c.overlay)
@@ -532,10 +542,16 @@ export class OfficeWorld {
     }
     for (const e of this.fleet.update(dt)) this.onFleet(e)
     this.visitors.calm = calmMotion()
+    this.shouts.update(dt)
     this.visitors.update(dt)
     // Ordinary traffic keeps out of the way of a car that is racing through.
     this.street.makeWay(this.fleet.wayRanges())
     this.publishVisits()
+    const said = this.shouts.active().map((x) => x.text).join()
+    if (said !== this.publishedShouts) {
+      this.publishedShouts = said
+      this.host.dataset.shouts = JSON.stringify(this.shouts.active().map((x) => x.text))
+    }
     this.drawPiles()
     this.syncBooks()
     this.syncStools()
