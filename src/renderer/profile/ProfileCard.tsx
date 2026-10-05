@@ -157,6 +157,13 @@ function Tile({ value, label, hint }: { value: string; label: string; hint: stri
   )
 }
 
+/** What the tag beside an agent's name says about it: a plain agent is a Senior; Boss and Intern follow from what it is doing, a job is the one it was hired for. */
+const ROLE_HINT: Record<string, string> = {
+  Senior: 'A regular agent, working at its own desk. It is not assigned: an agent that delegates becomes a Boss, and a subagent is an Intern.',
+  Boss: 'An agent that has handed work to subagents (it wears the crown while they work).',
+  Intern: 'A subagent: started by another agent to do one piece of work.'
+}
+
 const STATUS: Record<string, string> = { thinking: 'Thinking', researching: 'Reading and searching', implementing: 'Editing files', running: 'Running a command', delegating: 'Handing work to subagents', compacting: 'Compacting', idle: 'Idle', waiting: 'Waiting for you', permission: 'Needs your answer', blocked: 'Blocked', asleep: 'Asleep' }
 
 /**
@@ -202,21 +209,25 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
   return (
     <section className={`pc pc-${variant}`} data-agent={data.id} aria-label={`Profile of ${data.name}`}>
       <header className="pc-title">
-        <span className={`pc-dot is-${figureMood(data.activity)}`} aria-hidden="true" />
-        <Name name={data.name} edit={edit} />
-        <span className="pc-role">{data.roleLabel}</span>
-        <span className="pc-prov" title={`Runs on ${data.provider.label}`}>
-          <Swatch id={data.provider.id} label={data.provider.label} />
-          {data.provider.label.split(' (')[0]}
-        </span>
-        {onToggleSize && (
-          <button className="pc-x" aria-label={compact ? 'Show the full card' : 'Show the compact card'} title={compact ? 'Show everything: level, counts and most used tools' : 'Show less'} onClick={onToggleSize}>
-            <PixelIcon name={compact ? 'expand' : 'shrink'} scale={1} />
+        <div className="pc-line">
+          <span className={`pc-dot is-${figureMood(data.activity)}`} aria-hidden="true" />
+          <Name name={data.name} edit={edit} />
+          {onToggleSize && (
+            <button className="pc-x pc-push" aria-label={compact ? 'Show the full card' : 'Show the compact card'} title={compact ? 'Show everything: level, counts and most used tools' : 'Show less'} onClick={onToggleSize}>
+              <PixelIcon name={compact ? 'expand' : 'shrink'} scale={1} />
+            </button>
+          )}
+          <button className={`pc-x ${onToggleSize ? '' : 'pc-push'}`} aria-label="Close profile card" title="Close" onClick={onClose}>
+            <PixelIcon name="x" scale={1} />
           </button>
-        )}
-        <button className="pc-x" aria-label="Close profile card" title="Close" onClick={onClose}>
-          <PixelIcon name="x" scale={1} />
-        </button>
+        </div>
+        <div className="pc-tags">
+          <span className="pc-role" title={ROLE_HINT[data.roleLabel] ?? `The job it was hired for: ${data.roleLabel}`}>{data.roleLabel}</span>
+          <span className="pc-prov" title={`Runs on ${data.provider.label}`}>
+            <Swatch id={data.provider.id} label={data.provider.label} />
+            {data.provider.label.split(' (')[0]}
+          </span>
+        </div>
       </header>
       <p className="pc-status">{STATUS[data.activity] ?? data.activity}</p>
       <div className="pc-cols">

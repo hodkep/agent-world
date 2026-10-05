@@ -122,6 +122,8 @@ const submit = (text) => {
     stepIn(kid, 15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, msg(7, str(1, 'k1'), str(2, 'run_command'), str(3, JSON.stringify({ CommandLine: 'ls -la' }))))]))
     stepIn(kid, 132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'k1'), str(2, 'run_command'), str(3, JSON.stringify({ CommandLine: 'ls -la' })))), msg(140, msg(2, str(1, 'total 0')))]))
     const made = `Created the following subagents:\n{\n  "conversationId":  "${child}",\n  "workspaceUris": []\n}\nThe subagents will send you a message.`
+    // The model's step with the call comes first, as in real agy; the tool step with the answer follows.
+    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, msg(7, str(1, 'call_s'), str(2, 'invoke_subagent'), str(3, JSON.stringify({ Subagents: [{ Prompt: 'List the files.', Role: 'File Researcher', TypeName: 'research' }] }))))]))
     addStep(132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'call_s'), str(2, 'invoke_subagent'), str(3, JSON.stringify({ Subagents: [{ Prompt: 'List the files.', Role: 'File Researcher', TypeName: 'research' }] })))), msg(140, msg(2, str(1, made)))]))
     state = 'working'
     working(text)

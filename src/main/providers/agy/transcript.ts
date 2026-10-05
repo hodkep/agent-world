@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import type { ChatItem, SubagentInfo } from '../../../shared/chat'
 import type { AgentRecord } from '../../../shared/types'
 import type { PastSession, TranscriptSource } from '../ports'
-import { FINISHED, decodeStep, json, stepTime, sumUsage, toolView, usageOf, type StepRow } from './steps'
+import { FINISHED, decodeStep, json, stepTime, subagentCallId, sumUsage, toolView, usageOf, type StepRow } from './steps'
 import { all, text } from './wire'
 
 /** agy keeps its state under one folder; the environment can point elsewhere (tests, other machines). */
@@ -121,7 +121,7 @@ function subagentsOf(parent: AgentRecord): SubagentInfo[] {
       const done = !!last && last.type === 15 && FINISHED.has(last.status) && all(last.payload, '20.7').length === 0
       out.push({
         agentId: id,
-        toolUseId: text(r.payload, '5.4.1') ?? '',
+        toolUseId: subagentCallId(text(r.payload, '5.4.1') ?? '', i),
         type: asked[i]?.TypeName ?? 'subagent',
         description: asked[i]?.Role ?? (asked[i]?.Prompt ?? '').slice(0, 80),
         startedAt: stepTime(rows[0]?.payload ?? null) || stepTime(r.payload),

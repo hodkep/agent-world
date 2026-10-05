@@ -291,6 +291,9 @@ test('a subagent agy starts is a colleague in the office while it works, listed 
     const seats = async () => JSON.parse((await page.locator('.stage').getAttribute('data-crew')) ?? '[]') as unknown[]
     await expect.poll(async () => (await seats()).length, { timeout: 20_000 }).toBe(1)
     await expect(page.getByRole('button', { name: '1 subagent working' })).toBeVisible({ timeout: 20_000 })
+    // In the conversation it is the same delegation card as for Claude Code, not a raw tool call.
+    await expect(page.locator('.chat:visible').getByRole('region', { name: 'Delegated to 1 subagent' })).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('.chat:visible').getByText('invoke_subagent')).toHaveCount(0)
     await page.getByRole('button', { name: '1 subagent working' }).click()
     const panel = page.getByRole('dialog', { name: 'Subagents' })
     await expect(panel).toContainText('research')

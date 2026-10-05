@@ -1158,16 +1158,18 @@ code a.file-link { font: inherit; }
 
 /* The profile card: the world's 8-bit look in the page, over the office or docked in the panel. Every part says what it is in words. */
 .profile-overlay { position: absolute; z-index: 5; pointer-events: none; display: flex; flex-direction: column; max-height: calc(100% - 20px); }
-.profile-overlay .pc { pointer-events: auto; min-height: 0; overflow-y: auto; }
+.profile-overlay .pc { pointer-events: auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .profile-overlay.flash .pc, .profile-dock.flash .pc { animation: pc-flash 0.7s steps(5); }
 @keyframes pc-flash { 30% { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent), 0 0 0 6px var(--ink), 6px 10px 0 6px rgb(0 0 0 / 0.45); } }
 .pc { display: block; padding: 0; border-bottom: 0; background: var(--panel); color: var(--text); font: 600 11px/1.35 Menlo, Consolas, monospace; letter-spacing: 0.03em; image-rendering: pixelated; box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim), 0 0 0 6px var(--ink), 6px 10px 0 6px rgb(0 0 0 / 0.45); }
 .pc-docked { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim), 0 0 0 6px var(--ink); }
-.pc-title { display: flex; align-items: center; gap: 6px; padding: 7px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
+.pc-title { display: flex; flex-direction: column; gap: 5px; padding: 7px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
 .pc-name { min-width: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-title .pc-name { flex: none; }
 .pc-prov { display: inline-flex; align-items: center; gap: 5px; flex: none; white-space: nowrap; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
-.pc-title .pc-role { margin-left: auto; }
+.pc-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pc-line .pc-name { min-width: 0; flex: 0 1 auto; }
+.pc-push { margin-left: auto; }
+.pc-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .pc-pencil, .pc-x { padding: 3px 4px; background: transparent; box-shadow: none; color: var(--muted); line-height: 0; flex: none; }
 .pc-pencil:hover, .pc-x:hover { color: var(--accent); background: transparent; }
 .pc-name-edit { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }

@@ -37,7 +37,7 @@ import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
 import { HandoffDialog } from './panel/HandoffDialog'
-import { lowCount, pooled, tightest } from '../shared/limits'
+import { banks, claudeWindows, lowCount, pooled, tightest } from '../shared/limits'
 import { Swatch } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
@@ -654,9 +654,13 @@ export function App() {
     window.aw.ptyWrite(id, text)
     select(id)
   }
-  // The tightest allowance of each kind across providers; before any provider has answered, what Claude's agents report.
+  // The tightest allowance of each kind across programs, for the chips; before any program has answered, what Claude's agents report.
   const shownLimits = pool.length ? pooled(pool) : limits
-  useEffect(() => office.current?.setLimits(shownLimits), [shownLimits.fiveHour?.pct, shownLimits.fiveHour?.resetsAt, shownLimits.sevenDay?.pct, shownLimits.sevenDay?.resetsAt, officeReady])
+  // The tanks on the lawn: a bank of two for each connected program, so each program's allowance can be read apart.
+  const readyIds = (providers ?? []).filter((p) => p.detection.state === 'ready').map((p) => p.id)
+  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : ['claude'])
+  const plantKey = JSON.stringify(plantBanks)
+  useEffect(() => office.current?.setBanks(plantBanks), [plantKey, officeReady])
   useEffect(() => {
     void window.aw.listRoles(folder ?? '').then(setRoles, () => setRoles([]))
   }, [folder, hiring])
@@ -752,7 +756,7 @@ export function App() {
                     ) : (
                       <span />
                     )}
-                    <span className="role">{st ? roleOf(st) : 'senior'}</span>
+                    <span className="role" title={{ senior: 'A regular agent at its own desk. An agent that delegates becomes a boss; a subagent is an intern.', boss: 'Has handed work to subagents.', intern: 'A subagent, started by another agent.' }[st ? roleOf(st) : 'senior']}>{st ? roleOf(st) : 'senior'}</span>
                     <span className="activity">{activity}</span>
                     <span className="cost">{stats[a.id] ? `$${stats[a.id]!.costUsd.toFixed(2)}` : ''}</span>
                   </button>

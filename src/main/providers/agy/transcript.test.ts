@@ -84,7 +84,7 @@ describe('subagents agy started', () => {
   it('are found from the call that started them, with the conversation each one has of its own', () => {
     parentAndChild(true)
     const [s] = agyTranscript.subagents(agent('parent'))
-    expect(s).toMatchObject({ agentId: 'child-1', toolUseId: 'call_9', type: 'research', description: 'File Researcher', depth: 1, background: false, spawns: [], stopped: false })
+    expect(s).toMatchObject({ agentId: 'child-1', toolUseId: 'call_9:0', type: 'research', description: 'File Researcher', depth: 1, background: false, spawns: [], stopped: false })
     expect(s!.calls).toEqual([{ at: 1_002_000, name: 'Bash', detail: 'ls -la' }])
   })
   it('are done, with their answer, once they have said it', () => {

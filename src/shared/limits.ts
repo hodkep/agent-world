@@ -26,3 +26,17 @@ export function pooled(ws: LimitWindow[]): UsageLimits {
   }
   return { fiveHour: one('five_hour'), sevenDay: one('weekly') }
 }
+
+/** One program's pair of allowances, for the plant on the lawn: a bank of two tanks for each program that is connected. */
+export interface Bank {
+  provider: LimitWindow['provider']
+  five: Limit | null
+  week: Limit | null
+}
+
+/** A bank for each of the given programs, from the windows every program reports (a program with none yet has empty tanks). */
+export const banks = (ws: LimitWindow[], providers: LimitWindow['provider'][]): Bank[] =>
+  providers.map((provider) => {
+    const p = pooled(ws.filter((w) => w.provider === provider))
+    return { provider, five: p.fiveHour, week: p.sevenDay }
+  })

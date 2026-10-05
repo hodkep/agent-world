@@ -628,8 +628,8 @@ export class OfficeWorld {
     paintBillboard(this.billboard, name)
   }
 
-  setLimits(l: UsageLimits) {
-    this.plant.setLimits(l)
+  setBanks(b: import('../../shared/limits').Bank[]) {
+    this.plant.setBanks(b)
   }
 
   /** An envelope flies from sender to recipient; it's how one agent visibly asks another for something. */

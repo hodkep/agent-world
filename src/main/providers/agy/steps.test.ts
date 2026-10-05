@@ -55,6 +55,24 @@ describe('what a conversation step says', () => {
     const payload = Buffer.concat([varint(1, 15), msg(5, at(10)), msg(20, msg(7, str(1, 'c9'), str(2, 'mystery_tool'), str(3, '{"a":1}')))])
     expect(decodeStep({ idx: 4, type: 15, status: 3, payload })[0]).toMatchObject({ kind: 'tool', name: 'mystery_tool', input: { a: 1 } })
   })
+  it('agy tools come out under the names the chat draws, so the same work looks the same for every program', () => {
+    const call = (name: string, args: string) => decodeStep({ idx: 7, type: 15, status: 3, payload: Buffer.concat([varint(1, 15), msg(5, at(10)), msg(20, msg(7, str(1, 'c1'), str(2, name), str(3, args)))]) })[0]
+    expect(call('view_file', '{"AbsolutePath":"/a/b.ts"}')).toMatchObject({ name: 'Read', input: { file_path: '/a/b.ts' } })
+    expect(call('find_by_name', '{"Pattern":"*.ts","SearchDirectory":"/a"}')).toMatchObject({ name: 'Glob', input: { pattern: '*.ts', path: '/a' } })
+    expect(call('list_dir', '{"DirectoryPath":"/a"}')).toMatchObject({ name: 'Glob', input: { pattern: '*', path: '/a' } })
+    expect(call('search_web', '{"query":"weather pune"}')).toMatchObject({ name: 'WebSearch', input: { query: 'weather pune' } })
+    expect(call('call_mcp_tool', '{"ServerName":"agent-world","ToolName":"list_agents","Arguments":{}}')).toMatchObject({ name: 'mcp__agent-world__list_agents', input: {} })
+  })
+  it('one call that starts subagents is one Agent call each, as the delegation card expects, and its own answer line adds nothing', () => {
+    const args = JSON.stringify({ Subagents: [{ Model: 'flash', Prompt: 'Search the web for the weather in Pune', TypeName: 'researcher' }, { Model: 'flash', Prompt: 'Summarise', Role: 'writer' }] })
+    const model = Buffer.concat([varint(1, 15), msg(5, at(10)), msg(20, msg(7, str(1, 'c1'), str(2, 'invoke_subagent'), str(3, args)))])
+    expect(decodeStep({ idx: 8, type: 15, status: 3, payload: model })).toMatchObject([
+      { kind: 'tool', toolUseId: 'c1:0', name: 'Agent', input: { description: 'Search the web for the weather in Pune', subagent_type: 'researcher' } },
+      { kind: 'tool', toolUseId: 'c1:1', name: 'Agent', input: { description: 'writer', subagent_type: 'subagent' } }
+    ])
+    const made = Buffer.concat([varint(1, 132), msg(5, at(20), msg(4, str(1, 'c1'), str(2, 'invoke_subagent'))), msg(140, msg(2, str(1, 'Created the following subagents')))])
+    expect(decodeStep({ idx: 9, type: 132, status: 3, payload: made })).toEqual([])
+  })
   it('steps of kinds it does not know add nothing, and garbage does not throw', () => {
     expect(decodeStep({ idx: 5, type: 999, status: 3, payload: Buffer.from([1, 2, 3]) })).toEqual([])
     expect(decodeStep({ idx: 6, type: 15, status: 3, payload: bytes('ffffffff') })).toEqual([])

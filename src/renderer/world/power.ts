@@ -1,5 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
-import { type LimitView, type UsageLimits, limitView, noLimits } from '../../shared/usage'
+import type { Bank } from '../../shared/limits'
+import { type LimitView, limitView } from '../../shared/usage'
 import { shade } from './grounds'
 import { textPixels } from './pixelfont'
 
@@ -14,6 +15,8 @@ const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) =
 
 export const PLANT = { w: 156, h: 54 }
 const LIQUID = { ok: 0x46c8e6, warn: 0xf2b830, hot: 0xe05050 }
+/** The colour each program wears everywhere else (its mark in setup, the swatch on its agents), here on its tanks' labels. */
+const PROGRAM = { claude: 0xe08a5a, agy: 0x6ad0e0 } as const
 
 function text(g: G, s: string, x: number, y: number, color: number) {
   textPixels(s).forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, x + rx, y + ry, 1, 1, color)))
@@ -27,7 +30,7 @@ export function tankState(v: LimitView) {
   return { left, color: LIQUID[v.level], urgent: left <= 10 }
 }
 
-function tank(g: G, x: number, y: number, w: number, h: number, v: LimitView, label: string, t: number, seed: number) {
+function tank(g: G, x: number, y: number, w: number, h: number, v: LimitView, label: string, t: number, seed: number, plate: number) {
   const s = tankState(v)
   const inner = { x: x + 2, y: y + 3, w: w - 4, h: h - 6 }
   // Steel cap and legs, glass body.
@@ -62,8 +65,8 @@ function tank(g: G, x: number, y: number, w: number, h: number, v: LimitView, la
     if (drip < 9) r(g, x + 5, y + h + drip, 1, 2, s.color)
   }
   // Label above, level below.
-  r(g, x, y - 13, textW(label) + 4, 8, INK)
-  text(g, label, x + 2, y - 11, 0xf0f0f6)
+  r(g, x, y - 13, textW(label) + 4, 8, plate)
+  text(g, label, x + 2, y - 11, INK)
   return s
 }
 
@@ -73,7 +76,7 @@ const STATE_TEXT = (worst: number | null) => (worst === null ? 'wait' : worst <=
 export class PowerPlant {
   readonly view = new Container()
   private readonly g = new Graphics()
-  private limits: UsageLimits = noLimits()
+  private banks: Bank[] = []
   private views = { five: limitView(null, 0), week: limitView(null, 0) }
 
   constructor(
@@ -91,8 +94,9 @@ export class PowerPlant {
     this.view.on('pointerout', () => this.h.onHover(null, 0, 0))
   }
 
-  setLimits(l: UsageLimits) {
-    this.limits = l
+  /** One bank of two tanks for each connected program. */
+  setBanks(b: Bank[]) {
+    this.banks = b
   }
 
   /** Where to find it on screen, for the page (and tests) to anchor to. */
@@ -104,30 +108,44 @@ export class PowerPlant {
 
   update(t: number) {
     const now = Date.now()
-    this.views = { five: limitView(this.limits.fiveHour, now), week: limitView(this.limits.sevenDay, now) }
+    // The tooltip's fallback view is the tightest of each kind across the banks.
+    const tight = (pick: (b: Bank) => Bank['five']) => this.banks.map(pick).filter((l): l is NonNullable<Bank['five']> => !!l).reduce<NonNullable<Bank['five']> | null>((a, l) => (!a || l.pct > a.pct ? l : a), null)
+    this.views = { five: limitView(tight((b) => b.five), now), week: limitView(tight((b) => b.week), now) }
     const g = this.g
     g.clear()
     // Concrete pad with a lip.
     r(g, 0, 46, PLANT.w, 8, INK)
     r(g, 1, 47, PLANT.w - 2, 6, 0x4a4e5a)
     r(g, 1, 47, PLANT.w - 2, 1, 0x6a6f7c)
-    // Pipes between the tanks and the control box.
-    for (const [x0, x1] of [[50, 62], [96, 106]] as const) {
-      r(g, x0, 39, x1 - x0, 4, INK)
-      r(g, x0, 40, x1 - x0, 2, STEEL)
-      r(g, x0 + Math.floor((x1 - x0) / 2) - 1, 37, 3, 3, 0xd83a3a)
-    }
-    const wk = tank(g, 6, 12, 44, 34, this.views.week, 'wk', t, 3)
-    const fh = tank(g, 62, 18, 34, 28, this.views.five, '5h', t, 1)
-    // Level read-outs on the pad.
-    for (const [s, x] of [[wk, 9], [fh, 65]] as const) {
-      if (s.left === null) continue
-      const label = `${Math.round(s.left)}%`
-      text(g, label, x, 48, s.color)
-    }
+    // A bank of two tanks for each program: one program as before, several side by side, each labelled in its own colour.
+    const banks: Bank[] = this.banks.length ? this.banks : [{ provider: 'claude', five: null, week: null }]
+    const n = banks.length
+    const lows: number[] = []
+    banks.forEach((b, i) => {
+      const plate = PROGRAM[b.provider]
+      const wide = n === 1
+      const bw = wide ? 96 : Math.floor((100 - (n - 1) * 4) / n)
+      const bx = wide ? 6 : 4 + i * (bw + 4)
+      const tw = wide ? 44 : Math.floor((bw - 2) / 2)
+      const fw = wide ? 34 : tw
+      const wk = tank(g, bx, wide ? 12 : 16, tw, wide ? 34 : 30, limitView(b.week, now), 'wk', t, 3 + i, plate)
+      const fx = wide ? 62 : bx + tw + 2
+      const fh = tank(g, fx, wide ? 18 : 22, fw, wide ? 28 : 24, limitView(b.five, now), '5h', t, 1 + i, plate)
+      if (wide)
+        for (const [x0, x1] of [[50, 62], [96, 106]] as const) {
+          r(g, x0, 39, x1 - x0, 4, INK)
+          r(g, x0, 40, x1 - x0, 2, STEEL)
+          r(g, x0 + Math.floor((x1 - x0) / 2) - 1, 37, 3, 3, 0xd83a3a)
+        }
+      // Level read-outs on the pad.
+      for (const [s, x] of [[wk, bx + 3], [fh, fx + 3]] as const) {
+        if (s.left === null) continue
+        text(g, `${Math.round(s.left)}%`, x, 48, s.color)
+        lows.push(s.left)
+      }
+    })
     // Control box: a lightning bolt, a lamp and a one-word verdict.
-    const worst = [wk.left, fh.left].filter((v): v is number => v !== null)
-    const low = worst.length ? Math.min(...worst) : null
+    const low = lows.length ? Math.min(...lows) : null
     const lamp = low === null ? 0x5a6a80 : low <= 10 ? (Math.floor(t / 350) % 2 ? 0xff6a5a : 0x8a2020) : low <= 30 ? 0xf2b830 : 0x5fd07a
     r(g, 106, 24, 46, 22, INK)
     r(g, 107, 25, 44, 20, STEEL_DARK)
