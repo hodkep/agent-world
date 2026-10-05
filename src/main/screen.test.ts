@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { inputReady, trustPrompt } from './prompts'
+import { providerOf } from './providers/registry'
+
+const { trustPrompt, inputReady } = providerOf({}).screen
 import { Screen } from './screen'
 
 // One real Claude Code 2.1.284 session, captured from launch: at the trust menu, after an arrow key, after Enter.
 // Each file is the whole stream up to that point, so absolute cursor moves replay exactly.
-const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name), 'utf8')
+const fixture = (name: string) => readFileSync(join(__dirname, 'providers', 'claude', 'fixtures', name), 'utf8')
 
 describe('headless screen', () => {
   it('renders what the user would see, cursor moves and all', async () => {

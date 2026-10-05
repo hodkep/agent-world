@@ -1,20 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
-import type { Question, QuestionAnswer } from '../shared/types'
-
-export interface AskRow {
-  n: number
-  label: string
-  /** Multi-select rows only. */
-  checked?: boolean
-}
-export interface AskScreen {
-  kind: 'question' | 'review'
-  prompt: string
-  /** Row number under the `❯` cursor (0 if none). */
-  cursor: number
-  rows: AskRow[]
-  multi: boolean
-}
+import type { Question, QuestionAnswer } from '../../../shared/types'
+import type { AskRow, AskScreen, TerminalIO } from '../ports'
 
 const ROW = /^\s*(❯)?\s*(\d+)\.\s+(?:\[( |✔)\]\s+)?(.*?)\s*$/
 
@@ -60,12 +46,6 @@ const RIGHT = '\x1b[C'
 const LEFT = '\x1b[D'
 const POLL_MS = 100
 const SETTLE_MS = 150
-
-interface TerminalIO {
-  screen: () => string
-  write: (keys: string) => void
-  sleep: (ms: number) => Promise<void>
-}
 
 // Claude may drop or re-space quotes and punctuation when it draws a question, so compare the words only.
 const words = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()

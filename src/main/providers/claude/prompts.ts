@@ -1,12 +1,8 @@
 import { stripVTControlCharacters } from 'node:util'
+import type { Menu, TerminalIO, TrustPrompt } from '../ports'
 
 const YES = 'Yes, I trust this folder'
 const CONFIRM = 'Enter to confirm'
-
-export interface TrustPrompt {
-  path: string
-  highlighted: 'yes' | 'no'
-}
 
 /** Claude Code's first-run "do you trust this folder?" menu, if it is on the given rendered screen. */
 export function trustPrompt(screen: string): TrustPrompt | null {
@@ -54,14 +50,6 @@ const CONFIRM_SETTLE_MS = 1200
 const MAX_STEPS = 6
 const DOWN = '\x1b[B'
 const UP = '\x1b[A'
-
-interface TerminalIO {
-  screen: () => string
-  write: (keys: string) => void
-  sleep: (ms: number) => Promise<void>
-}
-
-type Menu = (screen: string) => { highlighted: number } | null
 
 /**
  * Answer one of Claude's terminal menus: move the cursor a step at a time, re-reading the screen after each

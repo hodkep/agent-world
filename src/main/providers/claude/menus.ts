@@ -1,16 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
 import { anyMenu, inputReady } from './prompts'
-
-export interface GenericMenu {
-  /** The first line of the block the menu belongs to ("Bash command", "Rewind"…). */
-  title: string
-  /** The lines between the title and the options: what is being asked about. */
-  context: string
-  options: string[]
-  highlighted: number
-  /** The key hint under the options ("Esc to cancel · Tab to amend"). */
-  hint: string
-}
+import type { GenericMenu, RewindList, TerminalIO } from '../ports'
 
 const RULE = /^\s*[─▔━═]{8,}/
 const OPTION = /^\s*(❯)?\s*(\d+)\.\s+(\S.*?)\s*$/
@@ -45,11 +35,6 @@ export function genericMenu(screen: string): GenericMenu | null {
   return null
 }
 
-export interface RewindList {
-  entries: { text: string; current: boolean }[]
-  highlighted: number
-}
-
 /** The /rewind list: prompts to go back to, each with a line under it, and a `❯` on the one selected. */
 export function rewindList(screen: string): RewindList | null {
   const lines = stripVTControlCharacters(screen).split('\n')
@@ -68,12 +53,6 @@ export function rewindList(screen: string): RewindList | null {
     entries.push({ text, current: text === '(current)' })
   }
   return entries.length ? { entries, highlighted } : null
-}
-
-interface TerminalIO {
-  screen: () => string
-  write: (keys: string) => void
-  sleep: (ms: number) => Promise<void>
 }
 
 const UP = '\x1b[A'

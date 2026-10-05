@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
+import type { TerminalIO } from '../ports'
 
 /** Claude's permission mode, as shown in the footer under its input box ("⏸ plan mode on"). */
 export function readMode(screen: string): string | null {
@@ -15,12 +16,6 @@ export const autoUnavailable = (screen: string) => /auto mode unavailable/i.test
 const SHIFT_TAB = '\x1b[Z'
 const SETTLE_MS = 350
 const MAX_PRESSES = 8
-
-interface TerminalIO {
-  screen: () => string
-  write: (keys: string) => void
-  sleep: (ms: number) => Promise<void>
-}
 
 /**
  * Move Claude to a permission mode with Shift+Tab, reading the footer after each press. Stops as soon as the footer

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Provider } from '../ports'
+import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
 import { startHookServer } from './hookServer'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
@@ -21,6 +22,7 @@ export const claude: Provider = {
     }
   },
   transcript: claudeTranscript,
+  screen: claudeScreen,
   events: { start: startHookServer },
   env: agentEnv,
   prepare(i) {

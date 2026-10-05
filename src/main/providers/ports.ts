@@ -1,5 +1,83 @@
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
-import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, Capabilities, Decision, Detection, PermissionRequest, ProviderId } from '../../shared/types'
+import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, Capabilities, Decision, Detection, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
+
+export interface TrustPrompt {
+  path: string
+  highlighted: 'yes' | 'no'
+}
+
+export interface TerminalIO {
+  screen: () => string
+  write: (keys: string) => void
+  sleep: (ms: number) => Promise<void>
+}
+
+/** Reads which option of a menu is highlighted from a rendered screen; null when the menu is not showing. */
+export type Menu = (screen: string) => { highlighted: number } | null
+
+export interface GenericMenu {
+  /** The first line of the block the menu belongs to ("Bash command", "Rewind"…). */
+  title: string
+  /** The lines between the title and the options: what is being asked about. */
+  context: string
+  options: string[]
+  highlighted: number
+  /** The key hint under the options ("Esc to cancel · Tab to amend"). */
+  hint: string
+}
+
+export interface RewindList {
+  entries: { text: string; current: boolean }[]
+  highlighted: number
+}
+
+export interface AskRow {
+  n: number
+  label: string
+  /** Multi-select rows only. */
+  checked?: boolean
+}
+export interface AskScreen {
+  kind: 'question' | 'review'
+  prompt: string
+  /** Row number under the `❯` cursor (0 if none). */
+  cursor: number
+  rows: AskRow[]
+  multi: boolean
+}
+
+export interface Btw {
+  question: string
+  /** null while Claude is still working on it. */
+  answer: string | null
+}
+
+
+/** Reads one provider's terminal screen, and drives its menus with keys. A screen is the rendered text. */
+export interface ScreenAdapter {
+  /** The "do you trust this folder?" menu of a first run. */
+  trustPrompt(screen: string): TrustPrompt | null
+  answerTrust(io: TerminalIO, trust: boolean): Promise<boolean>
+  /** The input box is showing and ready for a message. */
+  inputReady(screen: string): boolean
+  /** A working indicator is on the screen. */
+  looksWorking(screen: string): boolean
+  anyMenu(screen: string): boolean
+  planMenu: Menu
+  genericMenu(screen: string): GenericMenu | null
+  answerMenu(io: TerminalIO, detect: Menu, want: number): Promise<boolean>
+  parseAsk(screen: string): AskScreen | null
+  driveAnswers(io: TerminalIO, questions: Question[], answers: QuestionAnswer[], o?: { timeoutMs?: number }): Promise<boolean>
+  /** The autonomy level named in the footer, in the provider's own words, or null. */
+  readMode(screen: string): string | null
+  setMode(io: TerminalIO, want: string): Promise<boolean>
+  autoUnavailable(screen: string): boolean
+  rewindList(screen: string): RewindList | null
+  openRewindList(io: TerminalIO): Promise<string | null>
+  driveRewind(io: TerminalIO, target: string): Promise<boolean>
+  /** The side-question overlay, if it is showing. */
+  btwOverlay(screen: string): Btw | null
+}
 
 export interface LaunchInput {
   agent: AgentRecord
@@ -78,6 +156,7 @@ export interface Provider {
   /** Is it here, and usable? `run` lets tests answer instead of starting a program. */
   detect(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<Detection>
   readonly transcript: TranscriptSource
+  readonly screen: ScreenAdapter
   /** Tells the office what the agents are doing and asking. */
   readonly events: { start(o: EventSourceOptions): Promise<EventHandle> }
   /** Environment for its sessions, without whatever a parent session of the same program left behind. */

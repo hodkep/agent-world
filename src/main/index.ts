@@ -4,7 +4,6 @@ import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
-import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -31,9 +30,7 @@ import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
 import { type WorkClock, advanceWork, hiredAtOf, profileCounts, workedNow } from './profile'
 import { type Role, withRole } from '../shared/roles'
-import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
 import { recentlyRunning, writeRunning } from './resume'
-import { autoUnavailable, readMode, setMode } from './modes'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
@@ -41,8 +38,6 @@ import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspace
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
-import { driveAnswers, parseAsk } from './askMenu'
-import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
@@ -296,7 +291,7 @@ const mailbox = new Mailbox({
       const p = sessions.get(id)
       if (!p) return
       // Never type into an open menu: the message's Enter would answer it.
-      if (anyMenu(screens.get(id)?.text() ?? '') && left > 0) return void setTimeout(() => attempt(left - 1), MENU_RETRY_MS)
+      if (ui(id).anyMenu(screens.get(id)?.text() ?? '') && left > 0) return void setTimeout(() => attempt(left - 1), MENU_RETRY_MS)
       // Bracketed paste keeps multi-line messages as one prompt instead of submitting at the first newline.
       p.write(`\x1b[200~${text}\x1b[201~`)
       setTimeout(() => p.write('\r'), 150)
@@ -311,6 +306,8 @@ const send = (channel: string, ...args: unknown[]) => {
 }
 const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
+/** How to read an agent's terminal screen: that agent's provider knows its own screens. */
+const ui = (id: string) => providerOf(byId(id) ?? {}).screen
 
 // Names handed out but not yet on an agent (creating a worktree takes a moment), so two hires at once never share one.
 const reservedNames = new Set<string>()
@@ -456,7 +453,7 @@ function trackTurns(e: AgentEvent) {
  * already handles (trust, plan, questions, a permission it holds) are left to those.
  */
 function surfaceTerminalMenu(id: string, text: string) {
-  const menu = genericMenu(text)
+  const menu = ui(id).genericMenu(text)
   const covered = trustOpen.has(id) || planOpen.has(id) || questionOpen.has(id) || !!eventsOf(id)?.hasPending(id)
   const sig = menu && !covered ? JSON.stringify([menu.title, menu.context, menu.options]) : ''
   if (!sig) {
@@ -531,17 +528,17 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       const text = screen.text()
       // A permission answered in the terminal: its menu was up while our card was open, and now it is gone.
       if (eventsOf(a.id)?.hasPending(a.id)) {
-        if (anyMenu(text)) menuSeen.add(a.id)
+        if (ui(a.id).anyMenu(text)) menuSeen.add(a.id)
         else if (menuSeen.delete(a.id)) eventsOf(a.id)?.dismiss(a.id)
       } else menuSeen.delete(a.id)
-      const mode = readMode(text)
+      const mode = ui(a.id).readMode(text)
       if (mode && mode !== seenMode.get(a.id)) {
         seenMode.set(a.id, mode)
         send('agent-event', { type: 'mode', agentId: a.id, sessionId: a.sessionId, mode })
       }
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
-      if (inputReady(text)) mailbox.started(a.id)
-      const trust = trustPrompt(text)
+      if (ui(a.id).inputReady(text)) mailbox.started(a.id)
+      const trust = ui(a.id).trustPrompt(text)
       if (trust && !trustOpen.has(a.id)) {
         trustOpen.add(a.id)
         send('trust-prompt', a.id, trust.path || a.cwd)
@@ -551,7 +548,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         send('trust-prompt', a.id, null)
         refreshAttention()
       }
-      const asking = !!parseAsk(text)
+      const asking = !!ui(a.id).parseAsk(text)
       if (asking !== questionOpen.has(a.id)) {
         if (asking) {
           questionOpen.add(a.id)
@@ -560,7 +557,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         send('question-menu', a.id, asking)
         refreshAttention()
       }
-      const plan = !!planMenu(text)
+      const plan = !!ui(a.id).planMenu(text)
       if (plan !== planOpen.has(a.id)) {
         if (plan) {
           planOpen.add(a.id)
@@ -682,7 +679,7 @@ async function main() {
     onPermission: (r) => {
       pendingPermissions.set(r.id, r)
       // The terminal menu may already be drawn (and static) by the time the hook arrives.
-      if (anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
+      if (ui(r.agentId).anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
       refreshAttention()
       send('permission', r)
       notify('permission', byId(r.agentId), `Wants to use ${r.tool}: ${r.detail}`)
@@ -704,10 +701,10 @@ async function main() {
       if (!sessions.has(a.id)) continue
       const text = screens.get(a.id)?.text() ?? ''
       surfaceTerminalMenu(a.id, text)
-      const btw = btwOverlay(text)
+      const btw = ui(a.id).btwOverlay(text)
       const sig = btw ? JSON.stringify(btw) : ''
       if (btwSent.get(a.id) !== sig && (btw || btwSent.has(a.id))) (btwSent.set(a.id, sig), send('btw', a.id, btw))
-      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !inputReady(text) || anyMenu(text) || looksWorking(text)) continue
+      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !ui(a.id).inputReady(text) || ui(a.id).anyMenu(text) || ui(a.id).looksWorking(text)) continue
       mailbox.looksIdle(a.id)
       const act = lastActivity.get(a.id)
       if (act && BUSY.has(act)) {
@@ -765,7 +762,7 @@ async function main() {
     if (!p) throw new Error('That agent is not running. Wake it first.')
     const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
     if (!text) return
-    if (anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
+    if (ui(id).anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
     // Only an agent that is free takes /clear at once; a busy one queues it, and its conversation is still there.
     const clearing = /^\/clear$/i.test(text) && ['idle', 'waiting', undefined].includes(lastActivity.get(id))
     p.write(`\x1b[200~${text}\x1b[201~`)
@@ -793,7 +790,7 @@ async function main() {
   })
   // Shift+Tab is how Claude's terminal cycles its permission mode; the new mode arrives with the next event.
   ipcMain.handle('chat:cycle-mode', (_, id: string) => {
-    if (anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Answer the open menu first.')
+    if (ui(id).anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Answer the open menu first.')
     sessions.get(id)?.write('\x1b[Z')
   })
   // Esc is how Claude's own terminal interrupts a running turn.
@@ -889,7 +886,7 @@ async function main() {
     return shell.openPath(info.path)
   })
   ipcMain.handle('btw:close', (_, id: string) => {
-    if (btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
+    if (ui(id).btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
   })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
@@ -899,7 +896,7 @@ async function main() {
     p.write('\x1b')
     for (const [delay, keys] of [[1200, '\x1b'], [2400, '\x1b'], [3600, '\x03']] as const)
       setTimeout(() => {
-        if (sessions.get(id) === p && looksWorking(screens.get(id)?.text() ?? '')) p.write(keys)
+        if (sessions.get(id) === p && ui(id).looksWorking(screens.get(id)?.text() ?? '')) p.write(keys)
       }, delay)
   })
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
@@ -1166,13 +1163,13 @@ async function main() {
       write: (keys: string) => p.write(keys),
       sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
     }
-    if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
-    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && readMode(io.screen()) && (await setMode(io, mode))) {
+    if (ui(id).anyMenu(io.screen())) throw new Error('Answer the open menu first.')
+    if (['default', 'acceptEdits', 'plan', 'auto'].includes(mode) && ui(id).readMode(io.screen()) && (await ui(id).setMode(io, mode))) {
       seenMode.set(id, mode)
       send('agent-event', { type: 'mode', agentId: id, sessionId: a.sessionId, mode })
       return
     }
-    if (mode === 'auto' && autoUnavailable(io.screen())) throw new Error('Claude says Auto mode is unavailable for this account or model.')
+    if (mode === 'auto' && ui(id).autoUnavailable(io.screen())) throw new Error('Claude says Auto mode is unavailable for this account or model.')
     if (!['auto', 'dontAsk'].includes(mode)) throw new Error('Claude did not switch to that mode. Try Shift+Tab in the Terminal tab.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
     a.options = { ...a.options, permissionMode: mode as PermissionMode }
@@ -1189,11 +1186,11 @@ async function main() {
   })
   ipcMain.handle('menu:answer', async (_, id: string, index: number) => {
     const detect = (screen: string) => {
-      const m = genericMenu(screen)
+      const m = ui(id).genericMenu(screen)
       return m ? { highlighted: m.highlighted } : null
     }
-    if (!genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
-    if (!(await answerMenu(ioFor(id), detect, index))) throw new Error('Could not pick that option. Finish it in the Terminal tab.')
+    if (!ui(id).genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
+    if (!(await ui(id).answerMenu(ioFor(id), detect, index))) throw new Error('Could not pick that option. Finish it in the Terminal tab.')
   })
   ipcMain.handle('menu:cancel', (_, id: string) => void sessions.get(id)?.write('\x1b'))
   // /rewind lists your earlier prompts; go to the one asked for. Claude's own "restore what?" menu then shows in the chat.
@@ -1202,17 +1199,17 @@ async function main() {
     if (!p) throw new Error('That agent is not running.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes, or stop it first.')
     const io = ioFor(id)
-    if (anyMenu(io.screen())) throw new Error('Answer the open menu first.')
-    const failed = await openRewindList(io)
+    if (ui(id).anyMenu(io.screen())) throw new Error('Answer the open menu first.')
+    const failed = await ui(id).openRewindList(io)
     if (failed) throw new Error(failed)
-    if (!(await driveRewind(io, promptText))) {
+    if (!(await ui(id).driveRewind(io, promptText))) {
       p.write('\x1b')
       throw new Error('Could not find that message in the rewind list (older ones may be out of range).')
     }
     rewinding.set(id, { text: promptText, at: Date.now() })
   })
   // Diagnostics only: the app's own view of an agent's screen, for figuring out what Claude drew.
-  if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${looksWorking(screens.get(id)?.text() ?? '')} inputReady=${inputReady(screens.get(id)?.text() ?? '')}`)
+  if (process.env.AW_DEBUG) ipcMain.handle('debug:screen', (_, id: string) => `${screens.get(id)?.text() ?? ''}\n--- activity=${lastActivity.get(id)} session=${byId(id)?.sessionId} rewinding=${JSON.stringify(rewinding.get(id))} lastOutputAgo=${Date.now() - (lastOutput.get(id) ?? 0)} working=${ui(id).looksWorking(screens.get(id)?.text() ?? '')} inputReady=${ui(id).inputReady(screens.get(id)?.text() ?? '')}`)
   // What the agent's subagents have done so far, from the files Claude keeps for them next to the session.
   ipcMain.handle('subagents:list', (_, id: string) => {
     const a = byId(id)
@@ -1310,7 +1307,7 @@ async function main() {
       write: (keys: string) => sessions.get(id)?.write(keys),
       sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
     }
-    if (!(await answerMenu(io, planMenu, choice))) throw new Error('Could not answer the plan menu; answer it in the terminal.')
+    if (!(await ui(id).answerMenu(io, ui(id).planMenu, choice))) throw new Error('Could not answer the plan menu; answer it in the terminal.')
     // "Tell Claude what to change" opens an input for the feedback; paste it as one line of plain text.
     const text = feedback?.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
     if (choice === 2 && text) {
@@ -1328,10 +1325,10 @@ async function main() {
       write: (keys: string) => sessions.get(id)?.write(keys),
       sleep: (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
     }
-    if (!(await driveAnswers(io, questions, answers))) throw new Error('Could not answer the question menu; finish it in the terminal.')
+    if (!(await ui(id).driveAnswers(io, questions, answers))) throw new Error('Could not answer the question menu; finish it in the terminal.')
   })
   ipcMain.on('answer-trust', (_, id: string, trust: boolean) => {
-    void answerTrust(
+    void ui(id).answerTrust(
       {
         // Always the live screen: the user may also be moving the cursor in the terminal.
         screen: () => screens.get(id)?.text() ?? '',

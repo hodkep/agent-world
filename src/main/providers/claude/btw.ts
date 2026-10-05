@@ -1,9 +1,4 @@
-export interface Btw {
-  question: string
-  /** null while Claude is still working on it. */
-  answer: string | null
-}
-
+import type { Btw } from '../ports'
 const RULE = /^\s*▔{6,}\s*$/
 
 /** The side-question overlay `/btw` opens over the conversation: its question, then the answer once there is one. */

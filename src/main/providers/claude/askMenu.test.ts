@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { Question, QuestionAnswer } from '../shared/types'
+import type { Question, QuestionAnswer } from '../../../shared/types'
 import { driveAnswers, parseAsk } from './askMenu'
 
 const fixture = (n: string) => readFileSync(join(__dirname, 'fixtures', n), 'utf8')
