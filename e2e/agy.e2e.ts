@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
 
+// A file the fake writes when it starts: not there yet is just "nothing yet" while polling.
+const read = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8') : '')
 const fakeClaude = resolve(__dirname, 'fake-claude.mjs')
 const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
 
@@ -129,10 +131,10 @@ test('agy is connected to the message box only after its change is shown and app
 
     // An agy agent now starts with the identity the bridge needs, and is told about the message box.
     await hireAgy(page, 'ada')
-    await expect.poll(() => readFileSync(envFile, 'utf8')).toMatch(/"token":"[0-9a-f]{48}"/)
+    await expect.poll(() => read(envFile)).toMatch(/"token":"[0-9a-f]{48}"/)
     const started = JSON.parse(readFileSync(envFile, 'utf8').trim().split('\n').at(-1)!)
     expect(started.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/)
-    await expect.poll(() => readFileSync(argsFile, 'utf8')).toContain('recall tool')
+    await expect.poll(() => read(argsFile)).toContain('recall tool')
 
     // What agy would do: start the bridge with that environment and ask the office who is there.
     const reply = await new Promise<string>((resolve, reject) => {
