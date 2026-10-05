@@ -22,7 +22,12 @@ const ICONS = {
   trash: <path d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 11v6M14 11v6" />,
   // A note from a hook, and the fold button on it.
   flag: <path d="M5 21V4h13l-3 4.5 3 4.5H5" />,
-  chevron: <path d="M6 9l6 6 6-6" />
+  chevron: <path d="M6 9l6 6 6-6" />,
+  // The kinds of tool on the profile card.
+  terminal: <path d="M4 5h16v14H4zM7 10l3 2-3 2M12 15h5" />,
+  plug: <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3" />,
+  search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
+  file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS

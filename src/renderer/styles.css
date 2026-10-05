@@ -1222,9 +1222,14 @@ code a.file-link { font: inherit; }
 .pc-docked .pc-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .pc-docked .pc-cols > div:first-child { border-right: 2px solid var(--ink); }
 .pc-docked .pc-cols .pc-h:first-child { border-top: 0; }
-.pc-toolbars { display: grid; gap: 4px; padding: 8px; font-size: 10px; color: var(--muted); }
-.pc-toolbars > div { display: grid; grid-template-columns: 7ch minmax(0, 1fr) 5ch; gap: 6px; align-items: center; }
-.pc-toolbars > div span:last-child { text-align: right; color: var(--text); }
+.pc-toolbars { display: grid; gap: 8px; padding: 9px 8px 10px; font-size: 11px; color: var(--text); }
+.pc-toolbars > div { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 4px; align-items: center; }
+.pc-tico { grid-row: 1 / 3; width: 22px; height: 22px; display: grid; place-items: center; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--think); }
+.pc-tname { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.pc-tlabel { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-tsrc { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-weight: 400; font-size: 10px; }
+.pc-tcount { text-align: right; font-variant-numeric: tabular-nums; }
+.pc-toolbars .pc-bar { grid-column: 2 / 4; height: 5px; }
 .profile-dock { margin: 10px 14px 6px; }
 .hc-name[role='button'] { cursor: pointer; }
 .hc-name[role='button']:hover { color: var(--accent); }
