@@ -1,3 +1,6 @@
+import type { HeaderIconName } from '../panel/IconButton'
+import { humanize, parseMcpName } from '../chat/mcp'
+
 export type Tone = 'ok' | 'warn' | 'bad' | 'none'
 const clamp = (n: number) => Math.max(0, Math.min(100, n))
 const toneFor = (pct: number): Tone => (pct > 80 ? 'bad' : pct > 60 ? 'warn' : 'ok')
@@ -23,10 +26,22 @@ export function linesGauge(add: number, del: number): { addPct: number; delPct: 
   return { addPct: total ? Math.round((add / total) * 100) : 0, delPct: total ? Math.round((del / total) * 100) : 0, label: `+${add} −${del}` }
 }
 
-/** The most used tools as bars, the busiest full length. */
-export function toolBars(tools: [string, number][]): { name: string; count: number; pct: number }[] {
+/** An outline icon for what a tool does: run a command, look something up, change a file, call an MCP server, or read. */
+export function toolIcon(name: string): HeaderIconName {
+  if (/^mcp__/.test(name)) return 'plug'
+  if (/^bash$/i.test(name)) return 'terminal'
+  if (/search|grep|glob/i.test(name)) return 'search'
+  if (/edit|write|notebook/i.test(name)) return 'pen'
+  return 'file'
+}
+
+/** The most used tools as bars, the busiest full length. An MCP tool is worded ("Send message") with its server beside it. */
+export function toolBars(tools: [string, number][]): { name: string; label: string; source: string; count: number; pct: number; icon: HeaderIconName }[] {
   const max = Math.max(1, ...tools.map((t) => t[1]))
-  return tools.map(([name, count]) => ({ name, count, pct: Math.round((count / max) * 100) }))
+  return tools.map(([name, count]) => {
+    const mcp = parseMcpName(name)
+    return { name, label: mcp ? humanize(mcp.tool) : name, source: mcp?.server ?? '', count, pct: Math.round((count / max) * 100), icon: toolIcon(name) }
+  })
 }
 
 export const EFFORT_STEPS = ['low', 'medium', 'high', 'xhigh', 'max'] as const

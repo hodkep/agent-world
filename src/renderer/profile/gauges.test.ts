@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EFFORT_STEPS, contextGauge, costGauge, effortPips, linesGauge, toolBars } from './gauges'
+import { EFFORT_STEPS, contextGauge, costGauge, effortPips, linesGauge, toolBars, toolIcon } from './gauges'
 
 describe('the gauges on the card', () => {
   it('shows context as how full it is, and goes from green through gold to red as it fills', () => {
@@ -22,9 +22,23 @@ describe('the gauges on the card', () => {
     expect(linesGauge(0, 0)).toEqual({ addPct: 0, delPct: 0, label: '+0 −0' })
   })
 
-  it('draws the top tools as bars, the busiest full length', () => {
-    expect(toolBars([['Read', 40], ['Edit', 20], ['Bash', 10]])).toEqual([{ name: 'Read', count: 40, pct: 100 }, { name: 'Edit', count: 20, pct: 50 }, { name: 'Bash', count: 10, pct: 25 }])
+  it('draws the top tools as bars, the busiest full length, each with an icon for the kind of tool', () => {
+    expect(toolBars([['Read', 40], ['Edit', 20], ['Bash', 10]])).toEqual([
+      { name: 'Read', label: 'Read', source: '', count: 40, pct: 100, icon: 'file' },
+      { name: 'Edit', label: 'Edit', source: '', count: 20, pct: 50, icon: 'pen' },
+      { name: 'Bash', label: 'Bash', source: '', count: 10, pct: 25, icon: 'terminal' }
+    ])
     expect(toolBars([])).toEqual([])
+  })
+
+  it('writes an MCP tool in words with its server beside it, instead of the raw mcp__server__tool name', () => {
+    const [a, b] = toolBars([['mcp__agent-world__send_message', 2], ['mcp__playwright__browser_take_screenshot', 1]])
+    expect(a).toMatchObject({ name: 'mcp__agent-world__send_message', label: 'Send message', source: 'agent-world', icon: 'plug' })
+    expect(b).toMatchObject({ label: 'Take screenshot', source: 'playwright' })
+  })
+
+  it('picks an icon by what the tool does', () => {
+    expect(['Bash', 'Grep', 'Glob', 'ToolSearch', 'WebSearch', 'Write', 'NotebookEdit', 'Read', 'Task', 'mcp__x__y'].map(toolIcon)).toEqual(['terminal', 'search', 'search', 'search', 'search', 'pen', 'pen', 'file', 'file', 'plug'])
   })
 
   it('shows thinking level as five steps, filled up to the one in use', () => {
