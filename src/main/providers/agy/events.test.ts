@@ -100,6 +100,13 @@ describe('agy asking permission', () => {
     expect(t.asked).toEqual([])
     expect(acts(t.events)).toEqual(['permission'])
   })
+  it('never presses Enter for allow when the first answer is not a plain yes', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission').replace('Yes, run command', 'No, cancel it all')
+    t.src.tick()
+    t.src.handle.decide(t.asked[0]!.id, 'allow')
+    expect(t.written).toEqual([])
+  })
   it('knows which agents have a question open', () => {
     const t = setup({ agents: [agent(resolved)] })
     t.screens.a1 = fx('permission')

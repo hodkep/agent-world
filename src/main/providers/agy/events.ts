@@ -127,7 +127,11 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
       }
       if (!ofCard(term.screen(p.agentId))) return
       // Choosing "Yes, run command" walks the menu with the screen in view; refusing is Esc, which agy treats as "No, cancel".
-      if (d === 'allow') void agyScreen.answerMenu(io(p.agentId), (scr) => { const m = ofCard(scr); return m ? { highlighted: m.highlighted } : null }, 0)
+      // Allow presses the first answer, so it must be a "Yes" (Enter on anything else could refuse, or pick "always").
+      if (d === 'allow') {
+        if (!/^Yes\b/.test(ofCard(term.screen(p.agentId))?.options[0] ?? '')) return
+        void agyScreen.answerMenu(io(p.agentId), (scr) => { const m = ofCard(scr); return m ? { highlighted: m.highlighted } : null }, 0)
+      }
       else term.write(p.agentId, '\x1b')
     },
     dismiss(agentId) {
