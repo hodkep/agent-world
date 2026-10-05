@@ -51,7 +51,7 @@ if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
-const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
+const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : p.id === 'agy' ? process.env.AW_AGY_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
 /** The program and arguments that start a provider here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
 const providerCmd = (p: Provider, args: string[]) => {
   const l = resolveCommand(binFor(p))
@@ -508,7 +508,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
   const provider = providerOf(a)
-  const args = provider.args({ agent: a, files: agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  const args = provider.args({ agent: a, files: agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [provider.capabilities.mail && MEMORY_HINT, provider.capabilities.mail && DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
@@ -662,7 +662,7 @@ async function main() {
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }
 
-  const eventOptions: EventSourceOptions = {
+  const eventOptions = (p: Provider): EventSourceOptions => ({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     // The page an agent opens in a browser tool or curls is the one to preview, even when it did not start that server itself.
     onToolInput: (id, json) => noteServers(id, json, false),
@@ -689,9 +689,22 @@ async function main() {
       refreshAttention()
       send('permission-settled', id)
     },
-    onStatus: onStats
-  }
-  for (const p of providers()) eventHandles.set(p.id, await p.events.start(eventOptions))
+    onStatus: onStats,
+    // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
+    onSession: (id, sessionId) => {
+      const a = byId(id)
+      if (!a || a.sessionId === sessionId) return
+      a.sessionId = sessionId
+      persist()
+      followChat(a)
+    },
+    terminal: {
+      agents: () => agents.filter((a) => providerOf(a).id === p.id),
+      screen: (id) => (sessions.has(id) ? (screens.get(id)?.text() ?? '') : ''),
+      write: (id, keys) => void sessions.get(id)?.write(keys)
+    }
+  })
+  for (const p of providers()) eventHandles.set(p.id, await p.events.start(eventOptions(p)))
   // An agent that looks idle (input box showing, no menu, screen quiet for a few seconds) but never sent a Stop hook,
   // as after Esc: Claude does not report an interrupted turn. Call it idle, so the office, the chat and any waiting mail move on.
   const BUSY = new Set<Activity>(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
@@ -1004,7 +1017,7 @@ async function main() {
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, autonomy: p.autonomy })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, autonomy: p.autonomy })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))

@@ -17,14 +17,6 @@ export const EFFORTS: { value: Effort | ''; label: string }[] = [
   { value: 'xhigh', label: 'Extra high' },
   { value: 'max', label: 'Max' }
 ]
-const MODES: { value: PermissionMode | ''; label: string; hint: string }[] = [
-  { value: '', label: "Claude's default", hint: 'Usually auto: a classifier approves safe actions' },
-  { value: 'manual', label: 'Ask for everything', hint: 'Every edit, command and fetch waits for your approval' },
-  { value: 'acceptEdits', label: 'Accept edits', hint: 'File edits go through; commands still ask' },
-  { value: 'plan', label: 'Plan first', hint: 'Reads and plans; asks before changing anything' },
-  { value: 'auto', label: 'Auto', hint: 'A classifier reviews each action instead of you' },
-  { value: 'dontAsk', label: "Don't ask", hint: 'Only pre-allowed tools run; the rest are denied' }
-]
 
 /** Everything Claude lets you choose at launch, before the agent walks in. */
 export function HireForm({
@@ -53,11 +45,12 @@ export function HireForm({
   const [provider, setProvider] = useState<ProviderId | ''>(defaultProvider)
   const chosen = providers.find((p) => p.id === provider) ?? providers[0]
   const models = chosen?.models ?? MODELS
+  const modes = chosen?.hireModes ?? [{ value: '', label: 'Default', hint: '' }]
   const [saving, setSaving] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [model, setModel] = useState(defaults.model)
   const [effort, setEffort] = useState<Effort | ''>('')
-  const [mode, setMode] = useState<PermissionMode | ''>(defaults.permissionMode as PermissionMode | '')
+  const [mode, setMode] = useState<string>(defaults.permissionMode)
   const [budget, setBudget] = useState('')
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
@@ -83,7 +76,7 @@ export function HireForm({
       ...(providers.length > 1 && chosen && { provider: chosen.id }),
       ...(model && { model }),
       ...(effort && { effort }),
-      ...(mode && { permissionMode: mode }),
+      ...(mode && modes.some((m) => m.value === mode) && { permissionMode: mode as PermissionMode }),
       ...(budgetUsd > 0 && { budgetUsd }),
       ...(instructions.trim() && { instructions: instructions.trim() }),
       ...(chrome && { chrome }),
@@ -115,7 +108,7 @@ export function HireForm({
         <div className="hire-row">
           <label className="grow">
             Provider
-            <select value={chosen?.id} onChange={(e) => (setProvider(e.target.value as ProviderId), setModel(''))}>
+            <select value={chosen?.id} onChange={(e) => (setProvider(e.target.value as ProviderId), setModel(''), setMode(''))}>
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -175,14 +168,14 @@ export function HireForm({
       <div className="hire-row">
         <label className="grow">
           Permissions
-          <select value={mode} onChange={(e) => setMode(e.target.value as PermissionMode | '')}>
-            {MODES.map((m) => (
+          <select value={modes.some((m) => m.value === mode) ? mode : ''} onChange={(e) => setMode(e.target.value)}>
+            {modes.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
             ))}
           </select>
-          <span className="hint">{MODES.find((m) => m.value === mode)!.hint}</span>
+          <span className="hint">{(modes.find((m) => m.value === mode) ?? modes[0]!).hint}</span>
         </label>
         <label>
           Budget (USD)

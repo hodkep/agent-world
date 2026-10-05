@@ -89,6 +89,18 @@ export interface Capabilities {
   compact: boolean
   limits: boolean
   tools: boolean
+  /** It can use the office's message box and notes: agents can write to each other and share what they learn. */
+  mail: boolean
+}
+
+/** One usage allowance of a provider, as it reports it: how much is left and when it refills. */
+export interface LimitWindow {
+  provider: ProviderId
+  /** A provider can limit models in groups ("Gemini Models"); one group is named after the provider. */
+  group: string
+  kind: 'five_hour' | 'weekly'
+  remainingPct: number
+  resetsAt: string
 }
 
 /** What the machine says about a provider: whether it can be used now, and what to do if not. */
@@ -110,6 +122,8 @@ export interface ProviderInfo {
   detection: Detection
   models: { value: string; label: string }[]
   modes: import('./modes').ModeInfo[]
+  /** The choices in the hire form for how much it may do alone, in the provider's own words; the empty value is its default. */
+  hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means for this provider (null when it has none). */
   autonomy: Record<AutonomyLevel, string | null>
 }

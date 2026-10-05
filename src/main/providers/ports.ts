@@ -127,7 +127,7 @@ export interface ToolPlugin {
 export interface LaunchInput {
   agent: AgentRecord
   /** Per-agent files from `prepare`. */
-  files: { settingsFile: string; mcpFile?: string }
+  files: { settingsFile?: string; mcpFile?: string }
   permissionMode?: string
   options?: AgentOptions
   houseRules?: string
@@ -144,6 +144,15 @@ export interface PrepareInput {
   platform: NodeJS.Platform
 }
 
+/** A provider's way to look at and press keys on its agents' terminals, for providers that report nothing themselves. */
+export interface TerminalAccess {
+  /** This provider's agents. */
+  agents(): AgentRecord[]
+  /** The rendered screen of an agent's terminal; empty when it is not running. */
+  screen(agentId: string): string
+  write(agentId: string, keys: string): void
+}
+
 export interface EventSourceOptions {
   /** Each agent's calls carry its own token; the token says which agent is talking. */
   agentForToken: (token: string) => string | null
@@ -154,6 +163,9 @@ export interface EventSourceOptions {
   onStatus: (s: AgentStats, agentId: string) => void
   /** What each tool call was given, as JSON: the addresses an agent works with turn up here (a browser tool's URL, a curl). */
   onToolInput?: (agentId: string, json: string) => void
+  /** The provider found the name of the agent's conversation (its first one, or after a restart): the app keeps it to resume. */
+  onSession?: (agentId: string, sessionId: string) => void
+  terminal?: TerminalAccess
 }
 
 /** A running listener for one provider's agents. */
@@ -179,7 +191,7 @@ export interface PastSession {
 /** Where an agent's conversation is kept, and how to read it. */
 export interface TranscriptSource {
   /** Follows the conversation, calling `onItems`; `replace` means the items are the whole conversation now (after a rewind). */
-  follow(agent: AgentRecord, onItems: (items: ChatItem[], replace: boolean) => void): { start(): void; stop(): void }
+  follow(agent: AgentRecord, onItems: (items: ChatItem[], replace: boolean) => void): { start(): void; stop(): void; poll?(): void }
   /** The whole saved conversation, read once. */
   readAll(agent: AgentRecord): ChatItem[]
   subagents(agent: AgentRecord): SubagentInfo[]
@@ -206,6 +218,8 @@ export interface Provider {
   readonly models: ModelOption[]
   /** The autonomy levels it offers, in its own words, with how the app shows each. */
   readonly modes: ModeInfo[]
+  /** What the hire form offers for how much it may do alone; the empty value is the provider's own default. */
+  readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */
   readonly autonomy: Record<AutonomyLevel, string | null>
   /** Present when `capabilities.tools`. */
@@ -215,6 +229,6 @@ export interface Provider {
   /** Environment for its sessions, without whatever a parent session of the same program left behind. */
   env(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv
   /** Writes this agent's own settings and message-box config; returns their paths. */
-  prepare(i: PrepareInput): { settingsFile: string; mcpFile?: string }
+  prepare(i: PrepareInput): { settingsFile?: string; mcpFile?: string }
   args(i: LaunchInput): string[]
 }

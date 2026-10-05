@@ -1,0 +1,32 @@
+
+      ▄▀▀▄
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.2.17
+  dev@example.com
+  Gemini 3.8 Flash (High)
+  /work/project
+
+⚠ Warning
+  ⎿  Invalid "unsandboxed" permission rules found; they are ignored and grant nothing:
+       ~/.gemini/config/config.json:
+         • unsandboxed(gh)
+         • unsandboxed(echo)
+         • unsandboxed(git worktree)
+         • unsandboxed(git branch)
+
+     Fix: replace "unsandboxed" with "command" (e.g. command(git status)), or remove the rule. Edit the file
+     directly or use /permissions.
+
+
+ ┃ Gemini 3.6 & 3.7 Flash Deprecation
+ ┃ Make sure you are using Gemini 3.8 Flash! We will be turning down Gemini 3.6 Flash and Gemini 3.7 Flash
+ ┃ shortly.
+ ┃ esc to dismiss
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> Accept-edits mode: file edits auto-approved (shift+tab to cycle)
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                         accept-edits · Gemini 3.8 Flash · high

@@ -1,0 +1,32 @@
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.2.17
+  dev@example.com (Google AI Pro)
+  Gemini 3.8 Flash (High)
+  /work/project
+
+────────────────────────────────────────────────────────────
+> run the command: sleep 4
+
+▸ Thought for 7s, 1.5k tokens
+  Considering the user's explicit request to execute `sleep 4`, the available tool's synchronous execution...
+
+● Bash(sleep 4) (ctrl+o to expand)
+
+Command
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Requesting permission for:
+   sleep 4
+
+Run this command?
+> 1. Yes, run command
+  2. Yes, and always allow in this conversation for commands that start with 'sleep'
+  3. Yes, and always allow for commands that start with 'sleep' (Persist to settings.json)
+  4. No, cancel
+
+  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command
+esc to cancel                                                                          Gemini 3.8 Flash · high

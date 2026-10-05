@@ -1,0 +1,31 @@
+
+      ▄▀▀▄
+     ▀▀▀▀▀▀
+    ▀▀▀▀▀▀▀▀
+   ▄▀▀    ▀▀▄
+  ▄▀▀      ▀▀▄
+
+  Antigravity CLI 1.2.17
+  dev@example.com (Google AI Pro)
+  Gemini 3.8 Flash (High)
+  /work/project
+
+────────────────────────────────────────────────────────────
+> write a 300 word story about a lighthouse
+
+  ⎿  Interrupted · What should Antigravity CLI do instead?
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                        Gemini 3.8 Flash · high
+
+
+
+
+
+
+
+
+
+
+

@@ -3,7 +3,7 @@ import { providerById, providerOf, providers } from './registry'
 
 describe('provider registry', () => {
   it('lists Claude Code, and agents saved without a provider are Claude Code', () => {
-    expect(providers().map((p) => p.id)).toEqual(['claude'])
+    expect(providers().map((p) => p.id)).toEqual(['claude', 'agy'])
     expect(providerOf({}).id).toBe('claude')
     expect(providerById('claude').label).toBe('Claude Code')
   })

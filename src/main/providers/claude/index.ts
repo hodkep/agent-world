@@ -14,7 +14,7 @@ export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, tools: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, tools: true, mail: true },
   async detect(bin, run) {
     try {
       const out = await (run ?? defaultRun)(bin, ['--version'])
@@ -35,6 +35,14 @@ export const claude: Provider = {
     { value: 'fable', label: 'Fable' }
   ],
   modes: MODES,
+  hireModes: [] = [
+  { value: '', label: "Claude's default", hint: 'Usually auto: a classifier approves safe actions' },
+  { value: 'manual', label: 'Ask for everything', hint: 'Every edit, command and fetch waits for your approval' },
+  { value: 'acceptEdits', label: 'Accept edits', hint: 'File edits go through; commands still ask' },
+  { value: 'plan', label: 'Plan first', hint: 'Reads and plans; asks before changing anything' },
+  { value: 'auto', label: 'Auto', hint: 'A classifier reviews each action instead of you' },
+  { value: 'dontAsk', label: "Don't ask", hint: 'Only pre-allowed tools run; the rest are denied' }
+],
   autonomy: { ask: 'default', edit: 'acceptEdits', plan: 'plan', full: 'auto' },
   tools: {
     list: { servers: ['mcp', 'list'], plugins: ['plugin', 'list', '--json'] },
@@ -51,7 +59,7 @@ export const claude: Provider = {
     writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: i.mcpUrl, agentToken: i.agentToken })), { mode: 0o600 })
     return { settingsFile, mcpFile }
   },
-  args: (i) => launchArgs({ ...i.agent, ...i.files, permissionMode: i.permissionMode, options: i.options, houseRules: i.houseRules, addDirs: i.addDirs })
+  args: (i) => launchArgs({ ...i.agent, settingsFile: i.files.settingsFile ?? '', mcpFile: i.files.mcpFile, permissionMode: i.permissionMode, options: i.options, houseRules: i.houseRules, addDirs: i.addDirs })
 }
 
 const defaultRun = (file: string, args: string[]) =>

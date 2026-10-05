@@ -1,0 +1,99 @@
+import { stripVTControlCharacters } from 'node:util'
+import type { GenericMenu, Menu, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
+import { answerMenu } from '../shared/menu'
+
+const lines = (screen: string) => stripVTControlCharacters(screen).split('\n')
+/** The last line with anything on it: where agy keeps its hints and its model. */
+const footer = (screen: string) => lines(screen).map((l) => l.trim()).filter(Boolean).at(-1) ?? ''
+const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
+
+/** The question agy asks before it runs something: "Requesting permission for: <what>", then numbered answers. */
+function permission(screen: string): GenericMenu | null {
+  const all = lines(screen)
+  const at = all.findLastIndex((l) => /^\s*Requesting permission for:/.test(l))
+  if (at < 0) return null
+  const rest = all.slice(at + 1)
+  const ask = rest.findIndex((l) => /\?\s*$/.test(l.trim()))
+  if (ask < 0) return null
+  const options: string[] = []
+  let highlighted = -1
+  for (const l of rest.slice(ask + 1)) {
+    const m = OPTION.exec(l)
+    if (!m) continue
+    if (m[1]) highlighted = options.length
+    options.push(m[3]!)
+  }
+  if (options.length < 2) return null
+  return {
+    title: 'Requesting permission',
+    context: rest.slice(0, ask).map((l) => l.trim()).filter(Boolean).join('\n'),
+    options,
+    highlighted: Math.max(highlighted, 0),
+    hint: rest.map((l) => l.trim()).find((l) => l.startsWith('↑/↓')) ?? ''
+  }
+}
+
+function trustPrompt(screen: string): TrustPrompt | null {
+  const all = lines(screen).map((l) => l.trim())
+  if (!all.some((l) => /^Do you trust the contents of this project\?/.test(l))) return null
+  const from = all.findIndex((l) => l === 'Accessing workspace:')
+  const to = all.findIndex((l) => l.startsWith('Do you trust'))
+  // A long folder name wraps onto the next line.
+  const path = from >= 0 ? all.slice(from + 1, to).join('') : ''
+  return { path, highlighted: all.some((l) => /^>\s*No\b/.test(l)) ? 'no' : 'yes' }
+}
+
+const anyMenu = (screen: string) => !!permission(screen) || !!trustPrompt(screen)
+// While something is typed the footer drops "? for shortcuts" and keeps only the model, so idle means: not asking, not working, a prompt showing.
+const working = (screen: string) => footer(screen).startsWith('esc to cancel')
+const idle = (screen: string) => !anyMenu(screen) && !working(screen) && /·/.test(footer(screen)) && lines(screen).some((l) => /^>(\s|$)/.test(l))
+
+/** "Yes, I trust this folder" is the first answer. */
+const trustMenu: Menu = (screen) => {
+  const p = trustPrompt(screen)
+  return p ? { highlighted: p.highlighted === 'yes' ? 0 : 1 } : null
+}
+
+const SHIFT_TAB = '\x1b[Z'
+const SETTLE_MS = 350
+const MAX_PRESSES = 4
+
+/** Shift+Tab cycles the autonomy levels; press until the footer names the wanted one. */
+async function setMode(io: TerminalIO, want: string) {
+  for (let i = 0; i <= MAX_PRESSES; i++) {
+    const now = readMode(io.screen())
+    if (now === want) return true
+    if (now === null || i === MAX_PRESSES) return false
+    io.write(SHIFT_TAB)
+    await io.sleep(SETTLE_MS)
+  }
+  return false
+}
+
+/** The footer shows `accept-edits ·` or `plan ·` before the model; with neither, agy is asking before it acts. Unreadable while it works or asks. */
+function readMode(screen: string): string | null {
+  const f = footer(screen)
+  if (anyMenu(screen) || working(screen) || !f.includes('·')) return null
+  return /^(?:\? for shortcuts\s+)?(accept-edits|plan)\s+·/.exec(f)?.[1] ?? 'request-review'
+}
+
+export const agyScreen: ScreenAdapter = {
+  trustPrompt,
+  answerTrust: (io, trust) => answerMenu(io, trustMenu, trust ? 0 : 1),
+  inputReady: idle,
+  // A braille spinner ("⣷  Generating…") shows only while it works; the footer then reads "esc to cancel".
+  looksWorking: (screen) => !anyMenu(screen) && working(screen) && lines(screen).some((l) => /^\s*[⠀-⣿]\s+\S/.test(l)),
+  anyMenu,
+  planMenu: () => null,
+  genericMenu: permission,
+  answerMenu,
+  parseAsk: () => null,
+  driveAnswers: async () => false,
+  readMode,
+  setMode,
+  autoUnavailable: () => false,
+  rewindList: () => null,
+  openRewindList: async () => 'agy cannot rewind a conversation from here.',
+  driveRewind: async () => false,
+  btwOverlay: () => null
+}

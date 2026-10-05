@@ -1,0 +1,118 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import type { AgentEvent, AgentRecord, PermissionRequest } from '../../../shared/types'
+import type { EventSourceOptions } from '../ports'
+import { createAgyEvents } from './events'
+
+const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
+const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
+
+function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; workspace: string }[] } = {}) {
+  const agents = opts.agents ?? [agent()]
+  const screens: Record<string, string> = { a1: fx('idle') }
+  const events: AgentEvent[] = []
+  const asked: PermissionRequest[] = []
+  const settled: string[] = []
+  const sessions: [string, string][] = []
+  const written: string[] = []
+  const o: EventSourceOptions = {
+    agentForToken: () => null,
+    permissionTimeoutMs: 1000,
+    onEvent: (e) => events.push(e),
+    onPermission: (r) => asked.push(r),
+    onPermissionSettled: (id) => settled.push(id),
+    onStatus: () => {},
+    onSession: (id, s) => {
+      sessions.push([id, s])
+      agents.find((a) => a.id === id)!.sessionId = s
+    },
+    terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k) }
+  }
+  const src = createAgyEvents(o, { conversations: () => opts.conversations ?? [], sleep: async () => {} })
+  return { src, screens, events, asked, settled, sessions, written, agents }
+}
+const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
+
+describe('agy activity, read from its screen', () => {
+  it('tells idle, working and idle again, once per change', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })] })
+    t.src.tick()
+    t.src.tick()
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    t.src.tick()
+    t.screens.a1 = fx('idle')
+    t.src.tick()
+    expect(acts(t.events)).toEqual(['idle', 'thinking', 'idle'])
+  })
+  it('says nothing for an agent whose terminal is not running', () => {
+    const t = setup()
+    t.screens.a1 = ''
+    t.src.tick()
+    expect(t.events).toEqual([])
+  })
+})
+
+describe('agy asking permission', () => {
+  const resolved = { started: true, sessionId: 'c1' }
+  it('raises one card for the question, and settles it when the question goes away', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission')
+    t.src.tick()
+    t.src.tick()
+    expect(t.asked).toHaveLength(1)
+    expect(t.asked[0]).toMatchObject({ agentId: 'a1', tool: 'Bash', detail: 'sleep 4' })
+    expect(acts(t.events)).toContain('permission')
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.settled).toEqual([t.asked[0]!.id])
+  })
+  it('answers allow by choosing the first option, and deny by cancelling', async () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission')
+    t.src.tick()
+    t.src.handle.decide(t.asked[0]!.id, 'deny')
+    expect(t.written).toEqual(['\x1b'])
+    t.written.length = 0
+    t.src.tick()
+    t.screens.a1 = fx('permission')
+    t.src.handle.decide('nope', 'allow')
+    expect(t.written).toEqual([])
+  })
+  it('knows which agents have a question open', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission')
+    t.src.tick()
+    expect(t.src.handle.hasPending('a1')).toBe(true)
+    expect(t.src.handle.hasPending('other')).toBe(false)
+  })
+})
+
+describe('finding the conversation agy gave a new agent', () => {
+  it('waits to say anything until it knows which conversation is the agent\'s, then names it', () => {
+    const t = setup({ conversations: [{ id: 'conv-9', workspace: '/w/ada' }] })
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.sessions).toEqual([['a1', 'conv-9']])
+    expect(acts(t.events)).toEqual(['thinking'])
+  })
+  it('holds back while there is no conversation for its folder yet', () => {
+    const t = setup({ conversations: [{ id: 'conv-x', workspace: '/w/other' }] })
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.sessions).toEqual([])
+    expect(t.events).toEqual([])
+  })
+  it('says nothing, not even idle, before the conversation is known', () => {
+    const t = setup()
+    t.src.tick()
+    expect(t.events).toEqual([])
+  })
+  it('does not take a conversation another agent already has', () => {
+    const t = setup({ agents: [agent(), agent({ id: 'a2', sessionId: 'conv-9', started: true, cwd: '/w/ada' })], conversations: [{ id: 'conv-9', workspace: '/w/ada' }] })
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.sessions).toEqual([])
+  })
+})

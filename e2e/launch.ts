@@ -9,7 +9,7 @@ const hidden: Record<string, string> = process.env.AW_SHOW ? {} : { AW_HIDDEN: '
 // Every launch gets a guaranteed teardown: a main-process error dialog blocks a normal close,
 // so we kill the process ourselves and always remove the test's temp dir.
 export async function launchApp(env: Record<string, string>, tmp: string) {
-  const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...(process.env as Record<string, string>), AW_ZOOM: '1', AW_NO_SETUP: '1', ...hidden, ...env } })
+  const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...(process.env as Record<string, string>), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', ...hidden, ...env } })
   // The agent list starts folded away for real users; tests that are not about that keep it open, as most of them click rows in it.
   if (!env.AW_DEFAULT_LAYOUT) await app.context().addInitScript(() => localStorage.getItem('aw.compact') === null && localStorage.setItem('aw.compact', '0'))
   const proc = app.process()

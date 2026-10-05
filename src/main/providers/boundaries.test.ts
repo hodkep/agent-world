@@ -15,7 +15,7 @@ describe('provider boundaries', () => {
   const edges = files.flatMap((f) => importsOf(f).map((to) => ({ from: f, to })))
 
   it('the rest of the app reaches providers only through the registry and ports', () => {
-    const bad = edges.filter((e) => providerOf(e.from) === null && providerOf(e.to) !== null && !/^(registry|ports)(\.test)?$/.test(providerOf(e.to)!.replace(/\.tsx?$/, '')) && !e.from.endsWith('.test.ts'))
+    const bad = edges.filter((e) => providerOf(e.from) === null && providerOf(e.to) !== null && !/^(registry|ports|shared)(\.test)?$/.test(providerOf(e.to)!.replace(/\.tsx?$/, '')) && !e.from.endsWith('.test.ts'))
     expect(bad.map((e) => `${rel(e.from)} -> ${rel(e.to)}`)).toEqual([])
   })
 
@@ -23,7 +23,7 @@ describe('provider boundaries', () => {
     const bad = edges.filter((e) => {
       const a = providerOf(e.from)
       const b = providerOf(e.to)
-      return a && b && a !== b && ![a, b].some((x) => /^(registry|ports)(\.tsx?)?$/.test(x))
+      return a && b && a !== b && ![a, b].some((x) => /^(registry|ports|shared)(\.tsx?)?$/.test(x))
     })
     expect(bad.map((e) => `${rel(e.from)} -> ${rel(e.to)}`)).toEqual([])
   })
