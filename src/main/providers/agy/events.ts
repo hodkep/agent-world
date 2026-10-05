@@ -9,6 +9,8 @@ import { agyHome, agyTranscript, conversationWorkspace } from './transcript'
 const POLL_MS = 500
 /** The conversation file is read every this many looks (about every ten seconds). */
 const USAGE_EVERY = 20
+/** Subagents are looked for every this many looks (about every five seconds). */
+const SUBS_EVERY = 10
 
 export interface Conversation {
   id: string
@@ -20,6 +22,8 @@ export interface Conversation {
 
 export interface Deps {
   conversations: () => Conversation[]
+  /** The subagents an agent has started, running or finished. */
+  subagents: (a: AgentRecord) => { agentId: string; type: string; done: boolean; stopped: boolean }[]
   /** Tokens used so far in an agent's conversation. */
   usage: (a: AgentRecord) => { input: number; output: number; context: number } | null
   sleep: (ms: number) => Promise<void>
@@ -54,6 +58,9 @@ const same = (a: string, b: string) => {
 const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
 
 interface Seen {
+  /** Subagents shown as at work in the office. */
+  subs?: Set<string>
+  subsAt?: number
   readAt?: number
   usage?: { input: number; output: number; context: number } | null
   model: string | null
@@ -80,11 +87,12 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     if (a.started) return true
     const taken = new Set(term.agents().filter((x) => x !== a && x.started).map((x) => x.sessionId))
     const since = term.startedAt(a.id) - 300
-    // agy creates the file as the session starts but names the folder only with the first saved step: a file with no folder yet
-    // belongs to the oldest session started since this terminal began, and one with a folder must be this agent's.
+    // The folder agy records is not always the agent's own (it may be the first extra folder it was given, such as where pictures are
+    // saved), so it only rules a conversation out when it is another agent's folder; the oldest session begun since this terminal started is taken.
+    const others = term.agents().filter((x) => x !== a)
     const hit = deps
       .conversations()
-      .filter((c) => !taken.has(c.id) && c.bornAt >= since && (c.workspace === undefined || same(c.workspace, a.cwd)))
+      .filter((c) => !taken.has(c.id) && c.bornAt >= since && (c.workspace === undefined || same(c.workspace, a.cwd) || !others.some((o) => same(c.workspace!, o.cwd))))
       .at(-1)
     if (!hit) return false
     if (hit.id !== a.sessionId) o.onSession?.(a.id, hit.id)
@@ -103,10 +111,20 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     if (due) s.readAt = turn
     if (due) s.usage = deps.usage(a) ?? s.usage
     const key = `${shown?.model}|${shown?.effort}|${s.usage?.input}|${s.usage?.output}`
-    if (shown && key !== s.model && resolve(a)) {
+    // The model is on the footer from the start; naming the conversation can wait for a first message, which is when agy makes one.
+    if (shown && key !== s.model) {
       s.model = key
       // Each report replaces the last, so the tokens go with every one.
       o.onStatus({ sessionId: a.sessionId, model: shown.model, effort: shown.effort, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, fast: false, limits: { fiveHour: null, sevenDay: null }, ...(s.usage && { tokens: s.usage }) }, a.id)
+    }
+    // Subagents are colleagues in the office while they work; agy tells nothing of them, so its file of conversations is looked at now and then.
+    if (a.started && turn - (s.subsAt ?? -SUBS_EVERY) >= SUBS_EVERY) {
+      s.subsAt = turn
+      const running = new Map(deps.subagents(a).filter((x) => !x.done && !x.stopped).map((x) => [x.agentId, x.type]))
+      const before = s.subs ?? new Set<string>()
+      for (const [id, type] of running) if (!before.has(id)) say({ type: 'subagent-start', agentId: a.id, sessionId: a.sessionId, subagentId: id, subagentType: type })
+      for (const id of before) if (!running.has(id)) say({ type: 'subagent-stop', agentId: a.id, sessionId: a.sessionId, subagentId: id })
+      s.subs = new Set(running.keys())
     }
     const menu = agyScreen.genericMenu(screen)
     let activity: Activity | null = null
@@ -167,7 +185,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, subagents: (a) => agyTranscript.subagents(a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }

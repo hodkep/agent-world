@@ -263,3 +263,44 @@ test('agy counts in tokens: the agent shows what it holds and what it used, ther
     await shutdown()
   }
 })
+
+test('a subagent agy starts is a colleague in the office while it works, listed with its role and answer, and leaves when it has answered', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-agy-subs-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const folder = join(home, 'project')
+  mkdirSync(folder)
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, FAKE_SUB_MS: '14000' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
+    await page.reload()
+    await hireAgy(page, 'ada')
+    // The conversation has to have started before subagents can be told from its own file.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: /message/i }).first()
+    await box.fill('hello')
+    await box.press('Enter')
+    await expect(page.locator('.chat:visible').getByText('echo: hello')).toBeVisible({ timeout: 15_000 })
+    await box.fill('start a subagent to list the files')
+    await box.press('Enter')
+
+    const seats = async () => JSON.parse((await page.locator('.stage').getAttribute('data-crew')) ?? '[]') as unknown[]
+    await expect.poll(async () => (await seats()).length, { timeout: 20_000 }).toBe(1)
+    await expect(page.getByRole('button', { name: '1 subagent working' })).toBeVisible({ timeout: 20_000 })
+    await page.getByRole('button', { name: '1 subagent working' }).click()
+    const panel = page.getByRole('dialog', { name: 'Subagents' })
+    await expect(panel).toContainText('research')
+    await page.keyboard.press('Escape')
+
+    // It answers: the colleague leaves, and what it said is kept.
+    await expect.poll(async () => (await seats()).length, { timeout: 30_000 }).toBe(0)
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    const subs = await page.evaluate((id) => window.aw.subagents(id), ada!.id)
+    expect(subs).toHaveLength(1)
+    expect(subs[0]).toMatchObject({ type: 'research', description: 'File Researcher', done: true, result: 'The folder is empty.' })
+    expect(subs[0]!.calls.map((c) => c.detail)).toEqual(['ls -la'])
+  } finally {
+    await shutdown()
+  }
+})

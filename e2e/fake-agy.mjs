@@ -57,6 +57,12 @@ const conv = args.includes('--conversation') ? args[args.indexOf('--conversation
 mkdirSync(join(home, 'conversations'), { recursive: true })
 const db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))
 db.exec('create table if not exists steps (idx integer primary key, step_type integer not null default 0, status integer not null default 0, step_payload blob)')
+const openDb = (id) => {
+  const d = new DatabaseSync(join(home, 'conversations', `${id}.db`))
+  d.exec('create table if not exists steps (idx integer primary key, step_type integer not null default 0, status integer not null default 0, step_payload blob)')
+  return d
+}
+const stepIn = (d, type, status, payload) => d.prepare('insert into steps (idx, step_type, status, step_payload) values ((select coalesce(max(idx), -1) + 1 from steps), ?, ?, ?)').run(type, status, payload)
 const addStep = (type, status, payload) => db.prepare('insert into steps (idx, step_type, status, step_payload) values ((select coalesce(max(idx), -1) + 1 from steps), ?, ?, ?)').run(type, status, payload)
 
 const W = process.stdout.columns ?? 100
@@ -89,6 +95,25 @@ const submit = (text) => {
   prompts.push({ text, step: db.prepare('select coalesce(max(idx), -1) + 1 as n from steps').get().n })
   appendFileSync(join(home, 'history.jsonl'), JSON.stringify({ display: text, timestamp: Date.now(), workspace: process.cwd(), conversationId: conv }) + '\n')
   addStep(14, 3, Buffer.concat([varint(1, 14), stamp(), msg(19, str(2, text))]))
+  // "start subagent": the answer names a conversation of the subagent's own, which works for a while and then reports.
+  if (/subagent/.test(text)) {
+    const child = randomUUID()
+    const kid = openDb(child)
+    stepIn(kid, 101, 3, Buffer.concat([varint(1, 101), stamp()]))
+    stepIn(kid, 15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, msg(7, str(1, 'k1'), str(2, 'run_command'), str(3, JSON.stringify({ CommandLine: 'ls -la' }))))]))
+    stepIn(kid, 132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'k1'), str(2, 'run_command'), str(3, JSON.stringify({ CommandLine: 'ls -la' })))), msg(140, msg(2, str(1, 'total 0')))]))
+    const made = `Created the following subagents:\n{\n  "conversationId":  "${child}",\n  "workspaceUris": []\n}\nThe subagents will send you a message.`
+    addStep(132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'call_s'), str(2, 'invoke_subagent'), str(3, JSON.stringify({ Subagents: [{ Prompt: 'List the files.', Role: 'File Researcher', TypeName: 'research' }] })))), msg(140, msg(2, str(1, made)))]))
+    state = 'working'
+    working(text)
+    timer = setTimeout(() => {
+      stepIn(kid, 15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, str(1, 'The folder is empty.'))]))
+      addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, str(1, 'The subagent said: the folder is empty.'))]))
+      state = 'idle'
+      idle()
+    }, Number(process.env.FAKE_SUB_MS ?? 9000))
+    return
+  }
   if (/permission/.test(text)) {
     state = 'asking'
     return asking('touch note.txt')

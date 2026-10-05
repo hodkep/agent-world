@@ -8,7 +8,7 @@ import { createAgyEvents } from './events'
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
 const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
 
-function setup(opts: { usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
+function setup(opts: { subs?: { agentId: string; type: string; done: boolean; stopped: boolean }[]; usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
   const agents = opts.agents ?? [agent()]
   const screens: Record<string, string> = { a1: fx('idle') }
   const events: AgentEvent[] = []
@@ -31,7 +31,7 @@ function setup(opts: { usage?: { input: number; output: number; context: number 
     },
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
+  const src = createAgyEvents(o, { subagents: () => opts.subs ?? [], usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
   return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
@@ -56,6 +56,26 @@ describe('agy activity, read from its screen', () => {
   })
 })
 
+describe('subagents that agy started, as colleagues in the office', () => {
+  const sub = (done = false, stopped = false) => ({ agentId: 's1', type: 'research', done, stopped })
+  const events = (t: ReturnType<typeof setup>) => t.events.filter((e) => e.type === 'subagent-start' || e.type === 'subagent-stop').map((e) => e.type + ':' + (e as { subagentId: string }).subagentId)
+  it('arrive when one starts working and leave when it has answered', () => {
+    const opts = { subs: [sub()] as ReturnType<typeof sub>[] }
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })], ...opts })
+    t.src.tick()
+    t.src.tick()
+    expect(events(t)).toEqual(['subagent-start:s1'])
+    opts.subs.splice(0, 1, sub(true))
+    for (let i = 0; i < 25; i++) t.src.tick()
+    expect(events(t)).toEqual(['subagent-start:s1', 'subagent-stop:s1'])
+  })
+  it('are not asked about before the conversation has started', () => {
+    const t = setup({ subs: [sub()], conversations: [{ id: 'conv-1' }] })
+    t.src.tick()
+    expect(events(t)).toEqual([])
+  })
+})
+
 describe('what the footer says about the model', () => {
   it('is reported once, and again only when it changes', () => {
     const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })] })
@@ -67,6 +87,15 @@ describe('what the footer says about the model', () => {
     t.screens.a1 = fx('idle').replace('Gemini 3.8 Flash · high', 'Gemini 3.1 Pro · low')
     t.src.tick()
     expect(t.statuses.at(-1)).toEqual(['Gemini 3.1 Pro', 'low'])
+  })
+})
+
+describe('the model before the first message', () => {
+  it('is reported from the footer even though no conversation exists yet', () => {
+    const t = setup({ conversations: [] })
+    t.src.tick()
+    expect(t.statuses).toEqual([['Gemini 3.8 Flash', 'high']])
+    expect(t.events).toEqual([])
   })
 })
 
@@ -165,17 +194,18 @@ describe('finding the conversation agy gave a new agent', () => {
     t.src.tick()
     expect(t.sessions).toEqual([])
   })
-  it('holds back while there is no conversation for its folder yet', () => {
-    const t = setup({ conversations: [{ id: 'conv-x', workspace: '/w/other' }] })
+  it('holds back while the only conversation is in another agent\'s folder', () => {
+    const t = setup({ agents: [agent(), agent({ id: 'a2', cwd: '/w/other', started: false })], conversations: [{ id: 'conv-x', workspace: '/w/other' }] })
     t.screens.a1 = fx('working')
     t.src.tick()
     expect(t.sessions).toEqual([])
     expect(t.events).toEqual([])
   })
-  it('says nothing, not even idle, before the conversation is known', () => {
-    const t = setup()
+  it('takes a conversation whose recorded folder is a shared one (where pictures are saved), not any agent\'s own', () => {
+    const t = setup({ conversations: [{ id: 'conv-s', workspace: '/home/u/.agent-world/attachments' }] })
+    t.screens.a1 = fx('working')
     t.src.tick()
-    expect(t.events).toEqual([])
+    expect(t.sessions).toEqual([['a1', 'conv-s']])
   })
   it('does not take a conversation another agent already has', () => {
     const t = setup({ agents: [agent(), agent({ id: 'a2', sessionId: 'conv-9', started: true, cwd: '/w/ada' })], conversations: [{ id: 'conv-9', workspace: '/w/ada' }] })

@@ -69,6 +69,8 @@ function permission(screen: string): GenericMenu | null {
  */
 function trustPrompt(screen: string): TrustPrompt | null {
   const all = lines(screen).map((l) => l.trim()).filter(Boolean)
+  // agy may draw its model on a last line under the hint ("Gemini 3.8 Flash · low"); that line is its own, not part of any text.
+  if (/^[^↑]*\s·\s(low|medium|high|xhigh|max)$/.test(all.at(-1) ?? '')) all.pop()
   if (!/^↑\/↓ Navigate · enter Confirm/.test(all.at(-1) ?? '')) return null
   const yes = all.at(-3) ?? ''
   const no = all.at(-2) ?? ''
