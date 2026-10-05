@@ -7,6 +7,7 @@ import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, highlight, markdownSpans, rowText, spanLabel, toMarkdown, toRows } from './format'
+import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { Lightbox, Picture } from './Images'
@@ -855,7 +856,7 @@ function Composer({
   // The attached picture being looked at full size, where it can also be edited.
   const [viewing, setViewing] = useState<string | null>(null)
   // Words quoted from a reply sit above the box as cards; they join the message as "> " lines when it is sent.
-  const [quotes, setQuotes] = useState<{ text: string; note: string }[]>([])
+  const [quotes, setQuotes] = useState<{ text: string; note: string; open?: boolean }[]>([])
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -1135,11 +1136,26 @@ function Composer({
       <div className="cbox">
         {quotes.length > 0 && (
           <ul className="quote-cards" aria-label="Quoted from the conversation">
-            {quotes.map((q, i) => (
-              <li key={i}>
-                <div className="quote-body">
-                  <blockquote>{q.text}</blockquote>
+            {quotes.map((q, i) => {
+              const long = q.text.split('\n').length > 3 || q.text.length > 150
+              const toggle = () => setQuotes((cur) => cur.map((x, j) => (j === i ? { ...x, open: !x.open } : x)))
+              return (
+                <li key={i} className="qa">
+                  <div className="qa-label">
+                    <QuoteMark />
+                    Quote
+                    <button className="chip-x" aria-label="Remove this quote" title="Take this quote off the message" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
+                  </div>
+                  <blockquote className={`qa-q ${long && !q.open ? 'clamp' : ''}`} onClick={() => long && toggle()} title={long ? (q.open ? 'Fold' : 'Show all') : undefined}>
+                    <span className="qt">{q.text}</span>
+                  </blockquote>
+                  {long && (
+                    <button className="qa-more" onClick={toggle}>
+                      {q.open ? 'Show less' : 'Show more'}
+                    </button>
+                  )}
                   <textarea
+                    className="qa-input"
                     rows={1}
                     value={q.note}
                     onChange={(e) => setQuotes((cur) => cur.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
@@ -1149,10 +1165,9 @@ function Composer({
                     placeholder="What about this?"
                     aria-label="What to do about this quote"
                   ></textarea>
-                </div>
-                <button className="chip-x" aria-label="Remove this quote" title="Take this quote off the message" onClick={() => setQuotes((cur) => cur.filter((_, j) => j !== i))} />
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}

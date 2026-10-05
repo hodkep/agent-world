@@ -66,6 +66,10 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
     await expect(box).toHaveValue('')
 
+    if (process.env.AW_SHOTS) await page.locator('.composer').screenshot({ path: `${process.env.AW_SHOTS}/quote-composer.png` })
+    // Each quote is a small card, labelled, with its own line for what to say about it.
+    await expect(page.locator('.quote-cards li.qa')).toHaveCount(2)
+    await expect(page.locator('.quote-cards li.qa .qa-label').first()).toContainText('Quote')
     // Each quote takes its own instruction.
     const note = page.getByRole('textbox', { name: 'What to do about this quote' }).first()
     const one = (await note.boundingBox())!.height
@@ -81,6 +85,11 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     const sent = log.locator('.msg.user').last()
     await expect(sent.locator('blockquote')).toHaveCount(2, { timeout: 10_000 })
     await expect(sent.locator('blockquote').first()).toHaveText('rewrite')
+    // In the conversation each quote and the words under it are one card too.
+    await expect(sent.locator('.qa')).toHaveCount(2)
+    await expect(sent.locator('.qa').first().locator('.qa-note')).toHaveText('is this the right word?')
+    await expect(sent.locator('.qa').nth(1).locator('.qa-note')).toContainText('why these?')
+    if (process.env.AW_SHOTS) await sent.screenshot({ path: `${process.env.AW_SHOTS}/quote-sent.png` })
     await expect(sent).toContainText('why these?')
     await expect(sent).toContainText('is this the right word?')
 

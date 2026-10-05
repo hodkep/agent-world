@@ -4,6 +4,8 @@ import { followLink, linkHint } from '../links'
 import { hasMarkdown, highlight, isImagePath, splitMentions } from './format'
 import { type Picked, splitPicked } from './pickedContext'
 import { Code, Markdown } from './markdown'
+import { QuoteMark } from './QuoteMark'
+import { pairQuotes } from './quotePairs'
 import { type CodeBlock, splitCode } from '../code/codeContext'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
@@ -24,19 +26,27 @@ function withLinks(text: string, agentId: string) {
   )
 }
 
-/** A message split into its quoted blocks (lines that start with "> ") and the words around them. */
-export function quoted(text: string): { quote: boolean; text: string }[] {
-  const out: { quote: boolean; text: string }[] = []
-  for (const line of text.split('\n')) {
-    const q = /^>\s?(.*)$/.exec(line)
-    const last = out[out.length - 1]
-    if (q) {
-      if (last?.quote) last.text += `\n${q[1]}`
-      else out.push({ quote: true, text: q[1]! })
-    } else if (last && !last.quote) last.text += `\n${line}`
-    else out.push({ quote: false, text: line })
-  }
-  return out.map((b) => ({ ...b, text: b.quote ? b.text : b.text.replace(/^\n+|\n+$/g, '') })).filter((b) => b.text !== '' || b.quote)
+/** A quote the agent said, with the words written about it: one small card; a long quote folds to three lines and opens on a click. */
+function QuoteCard({ quote, note, render }: { quote: string; note: string; render: (text: string) => React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const long = quote.split('\n').length > 3 || quote.length > 150
+  return (
+    <div className="qa">
+      <div className="qa-label">
+        <QuoteMark />
+        Quote
+      </div>
+      <blockquote className={`qa-q ${long && !open ? 'clamp' : ''}`} onClick={() => long && setOpen((o) => !o)} title={long ? (open ? 'Fold' : 'Show all') : undefined}>
+        <span className="qt">{render(quote)}</span>
+      </blockquote>
+      {long && (
+        <button className="qa-more" onClick={() => setOpen((o) => !o)}>
+          {open ? 'Show less' : 'Show more'}
+        </button>
+      )}
+      {note && <div className="qa-note">{render(note)}</div>}
+    </div>
+  )
 }
 
 /** Some code from a file, sent with a message: one small card with where it is from; the code opens on a click. */
@@ -104,6 +114,7 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
     }
   }, [agentId, pictures.join('\n'), pickPictures.join('\n')])
   const words = parts.filter((p) => !p.file).map((p) => p.text).join('').trim()
+  const pieces = pairQuotes(words)
   return (
     <>
       {pictures.length > 0 && (
@@ -111,7 +122,7 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
           {pictures.map((p) => (thumbs[p] === undefined ? null : <Picture key={p} src={thumbs[p]!} onOpen={onImage} label={base(p)} />))}
         </div>
       )}
-      <div className="bubble">
+      <div className={`bubble ${pieces.some((p) => p.kind === 'qa') ? 'has-qa' : ''}`}>
         {code.blocks.map((b, i) => (
           <CodeCard key={`c${i}`} block={b} />
         ))}
@@ -127,19 +138,18 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
             ))}
           </span>
         )}
-        {quoted(words).map((b, i) => {
+        {pieces.map((p, i) => {
           // A little markdown (bold, italic, code, lists) reads formatted; everything else stays as typed.
-          const body = hasMarkdown(b.text) ? <Markdown text={b.text} agentId={agentId} /> : withLinks(b.text, agentId)
-          return b.quote ? (
-            <blockquote key={i} className={`bubble-quote ${hasMarkdown(b.text) ? 'md' : ''}`}>
-              {body}
-            </blockquote>
-          ) : hasMarkdown(b.text) ? (
-            <div key={i} className="md">
-              {body}
+          const render = (t: string) => (hasMarkdown(t) ? <Markdown text={t} agentId={agentId} /> : withLinks(t, agentId))
+          if (p.kind === 'qa') return <QuoteCard key={i} quote={p.quote} note={p.note} render={render} />
+          return hasMarkdown(p.text) ? (
+            <div key={i} className={pieces.length > 1 ? 'md qa-free' : 'md'}>
+              {render(p.text)}
             </div>
           ) : (
-            <span key={i}>{body}</span>
+            <span key={i} className={pieces.length > 1 ? 'qa-free' : undefined}>
+              {render(p.text)}
+            </span>
           )
         })}
       </div>

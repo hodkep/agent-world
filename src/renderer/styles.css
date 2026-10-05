@@ -1017,26 +1017,33 @@ svg.pxi { display: block; flex: none; }
 .ask-selection::after { content: ''; position: absolute; top: 100%; left: clamp(12px, var(--nx, 50%), calc(100% - 12px)); width: 8px; height: 8px; background: var(--panel-3); border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); transform: translate(-50%, -4px) rotate(45deg); }
 .ask-selection:hover:not(:disabled) { background: var(--panel-hover); }
 .ask-selection:hover:not(:disabled)::after { background: var(--panel-hover); }
-.bubble-quote { margin: 0 0 6px; padding: 4px 8px; border: 2px solid var(--line); background: var(--well); color: var(--muted); white-space: pre-wrap; font-size: 12px; }
 .msg.user .bubble > span { white-space: pre-wrap; }
 
 /* The message box shows what its markdown will look like, above the box; sent messages use the same small subset. */
-.msg.user .bubble blockquote.md { margin: 0 0 6px; padding: 4px 10px; background: var(--well); border: 0; color: var(--muted); box-shadow: 0 0 0 1px var(--ink); display: grid; grid-template-columns: auto 1fr; column-gap: 6px; }
-.msg.user .bubble blockquote.md::before { content: '>'; color: var(--accent); font-family: Menlo, Consolas, monospace; }
-.msg.user .bubble blockquote.md > * { grid-column: 2; }
 .msg.user .bubble .md { white-space: normal; text-align: left; }
 .msg.user .bubble .md p { margin: 0 0 0.4em; }
 /* The lines you wrote stay lines, in the sent message and in its preview. */
 .msg.user .bubble .md p, .msg.user .bubble .md li, .composer-preview p, .composer-preview li { white-space: pre-line; }
 
 /* Quotes from a reply sit inside the message box, above what is typed. */
-.quote-cards { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow: auto; }
-.quote-cards li { display: flex; align-items: flex-start; gap: 6px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--accent-dim), 0 0 0 1px var(--ink); padding: 4px 6px 4px 8px; }
-.quote-cards blockquote { flex: 1; min-width: 0; margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.quote-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.quote-body blockquote { flex: none; }
-.composer .cbox .quote-body textarea { min-height: 0; field-sizing: content; resize: none; width: 100%; max-height: 120px; line-height: 1.4; font: inherit; font-size: 12.5px; color: var(--text); background: var(--well); border: 1px solid var(--ink); padding: 3px 7px; min-width: 0; }
-.composer .cbox .quote-body textarea:focus-visible { outline: 1px solid var(--accent); }
+.quote-cards { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow: auto; }
+/* A quote and the words about it as one small card, in the message box and in the sent message alike. */
+.qa { background: var(--selected); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--accent-dim); display: flex; flex-direction: column; gap: 0; text-align: left; white-space: normal; }
+.qa-label { display: flex; align-items: center; gap: 6px; padding: 3px 8px; background: var(--panel-3); font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.qa-label .q-mark { width: 11px; height: 9px; color: var(--accent); flex: none; }
+.qa-label .chip-x { margin-left: auto; width: 18px; height: 18px; flex: none; }
+.qa-q { margin: 0; padding: 6px 10px; background: var(--well); color: var(--muted); font: 12px/1.45 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; cursor: default; }
+.qa-q .qt { display: block; }
+.qa-q.clamp { cursor: pointer; }
+.qa-q.clamp .qt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.qa-more { display: block; text-align: left; font: 11px ui-sans-serif, system-ui, sans-serif; color: var(--think); background: var(--well); border: 0; box-shadow: none; padding: 0 10px 6px; cursor: pointer; }
+.qa-more:hover:not(:disabled) { background: var(--well); color: var(--accent); }
+.qa-note { padding: 6px 10px 8px; }
+.composer .cbox .qa-input { min-height: 0; field-sizing: content; resize: none; width: 100%; max-height: 120px; line-height: 1.4; font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 0; padding: 5px 10px 7px; min-width: 0; }
+.composer .cbox .qa-input:focus-visible { outline: none; background: rgb(0 0 0 / 0.18); }
+/* A message with quotes is a stack of cards; any words ahead of the first quote get a small bubble of their own. */
+.msg.user .bubble.has-qa { background: transparent; box-shadow: none; border: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.msg.user .bubble.has-qa > .qa-free { background: var(--selected); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--accent-dim); padding: 7px 10px; }
 
 /* Tool lookups and MCP calls */
 .srv-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; padding: 1px 6px; background: color-mix(in srgb, var(--think) 20%, var(--well)); color: var(--think); font-weight: 700; flex: none; }
