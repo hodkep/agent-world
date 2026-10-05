@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { Workspaces } from '../../shared/api'
 import { MailConnect } from './MailConnect'
 import { TerminalView } from './TerminalView'
-import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo, RetiredTool } from '../../shared/types'
+import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
+import { ProviderLogo } from './ProviderLogo'
 
 const STEPS = [
   { id: 'welcome', name: 'Welcome' },
@@ -24,14 +25,13 @@ const STATE_LABEL = { ready: 'Ready', 'needs-sign-in': 'Needs sign-in', 'not-ins
 interface Props {
   providers: ProviderInfo[]
   /** Tools found here that no longer work: named, never offered. */
-  retired: RetiredTool[]
   prefs: Prefs
   onPrefs: (patch: Partial<Prefs>) => void
   workspaces: Workspaces | null
   folder: string | null
   onPick: () => void
   onOpen: (path: string) => void
-  onRescan: () => void
+  onRescan: () => void | Promise<void>
   onHire: (options: AgentOptions, name: string, crew: boolean) => Promise<void>
   /** Setup was closed without hiring (it closes itself when it hires). */
   onClose: () => void
@@ -40,7 +40,7 @@ interface Props {
 }
 
 /** First run: what is on this machine, where to work, how much freedom agents get, and the first agent. Skippable except where nothing else would work. */
-export function Setup({ providers, retired, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened }: Props) {
+export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened }: Props) {
   const ready = providers.filter((p) => p.detection.state === 'ready')
   const [step, setStep] = useState(0)
   const [visited, setVisited] = useState(() => new Set([0]))
@@ -60,6 +60,13 @@ export function Setup({ providers, retired, prefs, onPrefs, workspaces, folder, 
     if (signIn) window.aw.closeShell(signIn.pty)
     setSignIn(null)
     onRescan()
+  }
+  // Re-scan shows it is working (the check can take a few seconds) and says what it found.
+  const [scan, setScan] = useState<'idle' | 'busy' | 'found' | 'none'>('idle')
+  const rescan = async () => {
+    setScan('busy')
+    await Promise.all([Promise.resolve(onRescan()), new Promise((r) => setTimeout(r, 700))])
+    setScan('found')
   }
   const root = useRef<HTMLDivElement>(null)
   const chosen = ready.find((p) => p.id === prefs.setup.defaultProvider) ?? ready[0]
@@ -104,7 +111,7 @@ export function Setup({ providers, retired, prefs, onPrefs, workspaces, folder, 
     const on = st === 'ready' && chosen?.id === p.id
     return (
       <div key={p.id} className={`su-prov ${on ? 'pick' : ''}`} data-provider={p.id}>
-        <span className="su-mark">{p.label[0]}</span>
+        <span className="su-mark"><ProviderLogo id={p.id} /></span>
         <div className="su-name">
           {p.label}
           <span className={`su-state ${st}`}>{STATE_LABEL[st]}</span>
@@ -185,19 +192,17 @@ export function Setup({ providers, retired, prefs, onPrefs, workspaces, folder, 
               </div>
               <div className="su-content">
                 {providers.map(providerRow)}
-                {retired.map((r) => (
-                  <div key={r.id} className="su-prov gone" data-retired={r.id}>
-                    <span className="su-mark gone">{r.label[0]}</span>
-                    <div className="su-name">{r.label}<span className="su-state retired">Retired</span></div>
-                    <div className="su-sub">{r.why}</div>
-                  </div>
-                ))}
                 {ready.length === 0 ? (
                   <div className="su-note"><b>Nothing is ready yet.</b> Install or sign in to at least one of them, then press Re-scan. You cannot hire an agent until then.</div>
                 ) : ready.length === 1 && providers.length > 1 ? (
                   <div className="su-note ok">One is ready, which is enough to start. You can add the other any time from Settings.</div>
                 ) : null}
-                <div className="su-row"><button onClick={onRescan}>Re-scan</button></div>
+                <div className="su-row">
+                  <button onClick={() => void rescan()} disabled={scan === 'busy'} aria-busy={scan === 'busy'}>
+                    {scan === 'busy' ? <><span className="su-spin" aria-hidden="true" />Scanning…</> : 'Re-scan'}
+                  </button>
+                  <span className="hint" role="status">{scan === 'busy' ? 'Looking for claude and agy…' : scan === 'found' ? (ready.length ? `Found: ${ready.map((p) => p.label).join(', ')}` : 'Nothing found yet.') : ''}</span>
+                </div>
               </div>
             </>
           )}

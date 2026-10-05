@@ -3,7 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer, RetiredTool } from './types'
+import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -114,8 +114,6 @@ export interface AwApi {
   listHistory(folder: string): Promise<PastSession[]>
   /** Every provider the app knows, with whether it is ready on this machine. */
   listProviders(): Promise<ProviderInfo[]>
-  /** Agent tools found here that are retired and never offered (the Gemini CLI, whose sign-in now fails). */
-  listRetired(): Promise<RetiredTool[]>
   /** A shell in the home folder with the provider's own program started, so the user can sign in; gives its terminal id. */
   openSignIn(provider: ProviderId): Promise<string>
   /** Continue that conversation as a new agent. */

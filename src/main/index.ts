@@ -15,7 +15,7 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, RetiredTool, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
@@ -79,6 +79,11 @@ function loginShellPath() {
   } catch {
     return process.env.PATH
   }
+}
+
+// A packaged app has to find claude and agy itself: its own PATH is bare, so it uses the login shell's plus the usual install folders.
+if (app.isPackaged && process.platform !== 'win32') {
+  process.env.PATH = [loginShellPath(), join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].join(':')
 }
 
 // Several windows share this one process (and so one set of agents); each shows its own project.
@@ -1108,14 +1113,6 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
-  // The Gemini CLI is dead (Google retired the client; its sign-in fails), so it is never offered, only named, so setup can say to use agy.
-  ipcMain.handle('list-retired', () =>
-    new Promise<RetiredTool[]>((resolve) =>
-      execFile(process.env.AW_GEMINI_BIN ?? 'gemini', ['--version'], { timeout: 8000, env }, (err) =>
-        resolve(err ? [] : [{ id: 'gemini', label: 'Gemini CLI', why: 'Google has retired this client; its sign-in now fails. Use agy instead: it is Google\'s replacement.' }])
-      )
-    )
-  )
   // Signing in is the provider's own business: a shell is opened where the user can see it, and its program started. The app never sees credentials.
   ipcMain.handle('provider:sign-in', (_, id: string) => {
     const p = providers().find((x) => x.id === id)

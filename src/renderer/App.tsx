@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, RetiredTool, TerminalMenu } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -149,9 +149,7 @@ export function App() {
     const t = setInterval(look, 120_000)
     return () => clearInterval(t)
   }, [])
-  const [retired, setRetired] = useState<RetiredTool[]>([])
   const scanProviders = useCallback(() => {
-    void window.aw.listRetired().then(setRetired, () => setRetired([]))
     return window.aw.listProviders().then(setProviders, () => setProviders([]))
   }, [])
   useEffect(() => void scanProviders(), [scanProviders])
@@ -882,7 +880,6 @@ export function App() {
       {prefs && providers && agentsLoaded && (setupAgain || (allAgents.length === 0 && (!prefs.setup.done || !providers.some((p) => p.detection.state === 'ready')))) && (
         <Setup
           providers={providers}
-          retired={retired}
           prefs={prefs}
           onPrefs={(patch) => {
             const next = { ...prefsNow.current!, ...patch }

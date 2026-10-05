@@ -93,19 +93,14 @@ test('setup can be run again from Settings and closed at any step', async () => 
 
 const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
 
-test('a retired Gemini CLI is named, never offered, and setup says to use agy', async () => {
+test('setup offers only Claude Code and agy', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-setup-gemini-'))
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_GEMINI_BIN: '/bin/echo', AW_NO_SETUP: '' }, home)
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_NO_SETUP: '' }, home)
   try {
     const page = await app.firstWindow()
     const setup = page.getByRole('dialog', { name: 'First-run setup' })
     await setup.getByRole('button', { name: 'Continue' }).click()
-    const gemini = setup.locator('[data-retired="gemini"]')
-    await expect(gemini).toContainText('Gemini CLI')
-    await expect(gemini).toContainText('Retired')
-    await expect(gemini).toContainText('Use agy instead')
-    // It is not something to pick: no default radio, no hire choice.
-    await expect(gemini.getByRole('button')).toHaveCount(0)
+    await expect(setup.getByText('Gemini')).toHaveCount(0)
     await setup.getByRole('button', { name: 'Continue' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()

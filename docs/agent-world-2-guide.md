@@ -11,7 +11,6 @@ Agent World 2 is a separate copy of the app built from the `aw/charlie` branch. 
 3. Before you start, have at least one of the agent tools installed and signed in:
    - **Claude Code**: run `claude` once in a terminal and sign in.
    - **agy**: run `agy` once and sign in. (Setup can also open a terminal for this.)
-   - The **Gemini CLI** is retired (its sign-in fails) and is never offered; setup says to use agy instead.
 
 Everything this build saves lives in `~/.agent-world-2` and `~/Library/Application Support/Agent World 2`. Agents' git worktrees are under `~/.agent-world-2/worktrees`.
 
@@ -34,7 +33,6 @@ Cases worth testing the first time:
 - **Only Claude**: no Provider choice is shown anywhere, and nothing about agy appears except its row in setup.
 - **Nothing installed**: Continue is disabled on step 2 until one tool is ready; **How to install** shows the command.
 - **agy installed but signed out**: its row says **Needs sign-in** with **Open a terminal to sign in**. A real terminal opens inside the step with `agy` started; sign in there, then press **I have signed in: check again**. The app never sees what you type.
-- **Gemini CLI on the machine**: a greyed "Retired" row says to use agy.
 
 To see first-run again: quit the app and delete `~/.agent-world-2` (all of this build's data), or in the app use **Settings → Set up again**.
 
