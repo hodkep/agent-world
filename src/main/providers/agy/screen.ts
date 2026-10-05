@@ -8,6 +8,16 @@ const footer = (screen: string) => lines(screen).map((l) => l.trim()).filter(Boo
 const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
 
 const RULE = /^[─━]{8,}$/
+/** The only headings agy puts above the question; anything else above a rule is text, never a name the card may take. */
+const HEADINGS = new Set(['Command', 'MCP'])
+const FIRST_OPTION = /^>?\s*1\.\s/
+
+/** Numbered answers with agy's hint and footer under them: some question is open and typing now would answer it, whatever it says. */
+function questionOpen(screen: string): boolean {
+  const shown = lines(screen).map((l) => l.trim()).filter(Boolean)
+  if (!shown.at(-1)?.startsWith('esc to cancel') || !shown.at(-2)?.startsWith('↑/↓')) return false
+  return shown.slice(0, -2).some((l) => FIRST_OPTION.test(l)) && /\?$/.test(shown[shown.findLastIndex((l) => FIRST_OPTION.test(l)) - 1] ?? '')
+}
 
 /**
  * The question agy asks before it acts ("Run this command?", "Allow calling this tool?"), with numbered answers under it. Only agy's
@@ -21,8 +31,8 @@ function permission(screen: string): GenericMenu | null {
   if (!shown[hint]?.startsWith('↑/↓')) return null
   // The answers sit just above the hint; a long answer may wrap onto a line of its own.
   let first = hint
-  while (first > 0 && !/^>?\s*1\.\s/.test(shown[first]!)) first--
-  if (!/^>?\s*1\.\s/.test(shown[first] ?? '')) return null
+  while (first > 0 && !FIRST_OPTION.test(shown[first]!)) first--
+  if (!FIRST_OPTION.test(shown[first] ?? '')) return null
   const options: string[] = []
   let highlighted = -1
   for (const l of shown.slice(first, hint)) {
@@ -35,10 +45,13 @@ function permission(screen: string): GenericMenu | null {
   if (options.length < 2 || !/\?$/.test(shown[ask] ?? '')) return null
   let top = ask - 1
   while (top >= 0 && !RULE.test(shown[top]!)) top--
-  if (top < 0) return null
+  // What the card says it is for must come from agy's own box: a known heading directly above the rule, and nothing in between that
+  // imitates the box (a command that prints rules, headings or a second question could otherwise hide the part that matters).
+  const body = shown.slice(top + 1, ask).filter((l, i) => !(i === 0 && l.startsWith('Requesting permission for:')))
+  if (top < 1 || !HEADINGS.has(shown[top - 1]!) || body.some((l) => RULE.test(l) || HEADINGS.has(l) || l.startsWith('Requesting permission for:') || l.startsWith('●'))) return null
   return {
-    title: shown[top - 1] ?? 'Requesting permission',
-    context: shown.slice(top + 1, ask).filter((l) => !l.startsWith('Requesting permission for:')).join('\n'),
+    title: shown[top - 1]!,
+    context: body.join('\n'),
     options,
     highlighted: Math.max(highlighted, 0),
     hint: shown[hint]!
@@ -55,7 +68,7 @@ function trustPrompt(screen: string): TrustPrompt | null {
   return { path, highlighted: all.some((l) => /^>\s*No\b/.test(l)) ? 'no' : 'yes' }
 }
 
-const anyMenu = (screen: string) => !!permission(screen) || !!trustPrompt(screen)
+const anyMenu = (screen: string) => questionOpen(screen) || !!permission(screen) || !!trustPrompt(screen)
 // While something is typed the footer drops "? for shortcuts" and keeps only the model, so idle means: not asking, not working, a prompt showing.
 const working = (screen: string) => footer(screen).startsWith('esc to cancel')
 const idle = (screen: string) => !anyMenu(screen) && !working(screen) && /·/.test(footer(screen)) && lines(screen).some((l) => /^>(\s|$)/.test(l))

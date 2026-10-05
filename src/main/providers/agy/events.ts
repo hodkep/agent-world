@@ -47,7 +47,7 @@ const same = (a: string, b: string) => {
 }
 
 /** What the question is about: a command, or a tool of a connected server (named in the question). */
-const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context : m.title === 'Command' ? 'Bash' : m.title)
+const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context : 'Bash')
 
 interface Seen {
   activity: Activity | null
@@ -91,6 +91,8 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     const menu = agyScreen.genericMenu(screen)
     let activity: Activity | null = null
     if (menu) activity = 'permission'
+    // A question the app will not draw a card for (its text imitates agy's own box) still waits on the user, in the terminal.
+    else if (agyScreen.anyMenu(screen) && !agyScreen.trustPrompt(screen)) activity = 'permission'
     else if (agyScreen.looksWorking(screen)) activity = /^\s*[⠀-⣿]\s+Running/m.test(screen) ? 'running' : 'thinking'
     else if (agyScreen.inputReady(screen)) activity = 'idle'
     // The first event marks the agent started, and a restart resumes by its conversation: so nothing is said before that is known.
@@ -109,7 +111,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     }
     if (activity && activity !== s.activity) {
       s.activity = activity
-      say({ type: 'activity', agentId: a.id, sessionId: a.sessionId, activity, ...(menu && { tool: toolOf(menu), detail: menu.context }) })
+      say({ type: 'activity', agentId: a.id, sessionId: a.sessionId, activity, ...(menu ? { tool: toolOf(menu), detail: menu.context } : activity === 'permission' && { detail: 'asks something; answer it in the terminal' }) })
     }
   }
 

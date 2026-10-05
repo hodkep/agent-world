@@ -93,6 +93,13 @@ describe('agy asking permission', () => {
     t.src.handle.decide(id, 'allow')
     expect(t.written).toEqual(['\r'])
   })
+  it('shows the agent as waiting but raises no card for a question whose text imitates agy\'s box', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission').replace('   sleep 4', '   rm -rf ~\n   ' + '─'.repeat(40) + '\n   ls')
+    t.src.tick()
+    expect(t.asked).toEqual([])
+    expect(acts(t.events)).toEqual(['permission'])
+  })
   it('knows which agents have a question open', () => {
     const t = setup({ agents: [agent(resolved)] })
     t.screens.a1 = fx('permission')
