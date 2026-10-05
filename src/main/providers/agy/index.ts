@@ -4,7 +4,7 @@ import { agyCommands } from './commands'
 import { agyEvents } from './events'
 import { agyKeys } from './keys'
 import { agyMail } from './mail'
-import { agyArgs, agyContextWindow, agyModes, parseUsage } from './launch'
+import { agyArgs, agyContextWindow, agyModels, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
 import { agyTools } from './tools'
 import { agyTranscript } from './transcript'
@@ -44,14 +44,7 @@ export const agy: Provider = {
   transcript: agyTranscript,
   screen: agyScreen,
   keys: agyKeys,
-  models: [
-    { value: '', label: 'Default model' },
-    { value: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash' },
-    { value: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro' },
-    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-    { value: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6' },
-    { value: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B' }
-  ],
+  models: [{ value: '', label: 'Default model' }, ...agyModels],
   modes: agyModes,
   rewindConfirms: false,
   contextWindow: agyContextWindow,

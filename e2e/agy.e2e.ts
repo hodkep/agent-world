@@ -169,10 +169,11 @@ test('an agy agent\'s controls show its own model and modes, and switching mode 
     await expect(models.getByRole('menuitemradio', { name: /Gemini 3.8 Flash/ })).toHaveAttribute('aria-checked', 'true')
     await page.keyboard.press('Escape')
 
-    // Its modes are its own levels (no bypass offered), and a live switch goes through its Shift+Tab.
+    // Its modes are its own levels, skip permissions among them (as in the hire form), and a live switch goes through its Shift+Tab.
     await page.getByRole('button', { name: /^Ask first|Permission mode/ }).first().click()
     const modes = page.getByRole('menu', { name: 'Permission mode' })
-    await expect(modes.getByRole('menuitemradio')).toHaveCount(3)
+    await expect(modes.getByRole('menuitemradio')).toHaveCount(4)
+    await expect(modes.getByRole('menuitemradio', { name: /Skip permissions/ })).toHaveCount(1)
     await expect(modes.getByRole('menuitemradio', { name: /Bypass/ })).toHaveCount(0)
     await modes.getByRole('menuitemradio', { name: /Plan/ }).click()
     await expect(page.getByRole('button', { name: /^Plan/ }).first()).toBeVisible({ timeout: 15_000 })

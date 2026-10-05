@@ -132,8 +132,10 @@ export interface ProviderInfo {
   label: string
   capabilities: Capabilities
   detection: Detection
-  models: { value: string; label: string }[]
+  models: { value: string; label: string; efforts?: string[] }[]
   modes: import('./modes').ModeInfo[]
+  /** The modes it can only reach by restarting the agent (chosen from the picker, which says so). */
+  relaunchModes: string[]
   /** The choices in the hire form for how much it may do alone, in the provider's own words; the empty value is its default. */
   hireModes: { value: string; label: string; hint: string }[]
   /** The file of standing project notes its program reads (CLAUDE.md, AGENTS.md). */

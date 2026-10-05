@@ -12,8 +12,12 @@ describe('starting agy', () => {
     expect(agyArgs({ agent: { ...agent, forkOf: 'src-conv' }, files: {} })).toEqual(['--conversation', 'src-conv'])
     expect(agyArgs({ agent: { ...agent, forkOf: 'src-conv', started: true }, files: {} })).toEqual(['--conversation', 'conv-1'])
   })
-  it('passes the model, effort and extra folders', () => {
-    expect(agyArgs({ agent, files: {}, options: { model: 'gemini-3.1-pro-high', effort: 'high' }, addDirs: ['/a', '/b'] })).toEqual(['--model', 'gemini-3.1-pro-high', '--effort', 'high', '--add-dir', '/a', '--add-dir', '/b'])
+  it('passes the model, with its thinking level built into the name, and extra folders', () => {
+    expect(agyArgs({ agent, files: {}, options: { model: 'gemini-3.1-pro-high', effort: 'high' }, addDirs: ['/a', '/b'] })).toEqual(['--model', 'gemini-3.1-pro-high', '--add-dir', '/a', '--add-dir', '/b'])
+    expect(agyArgs({ agent, files: {}, options: { model: 'gemini-3.8-flash', effort: 'low' } })).toEqual(['--model', 'gemini-3.8-flash-low'])
+    // Pro has no medium; a model with no levels keeps its name and is given no effort.
+    expect(agyArgs({ agent, files: {}, options: { model: 'gemini-3.1-pro', effort: 'medium' } })).toEqual(['--model', 'gemini-3.1-pro-high'])
+    expect(agyArgs({ agent, files: {}, options: { model: 'claude-sonnet-4-6', effort: 'max' } })).toEqual(['--model', 'claude-sonnet-4-6'])
   })
   it('maps how much it may do alone to its own switches', () => {
     expect(agyArgs({ agent, files: {}, options: { permissionMode: 'accept-edits' as never } })).toEqual(['--mode', 'accept-edits'])

@@ -23,7 +23,7 @@ The setup opens by itself when there are no agents yet and it was never finished
 | Welcome | What the app is, three promises | Continue |
 | Your agents (required) | One row per tool: Claude Code, agy, state (Ready / Needs sign-in / Not installed), version and path, and a "Default for new agents" choice | Make the other one default; press **Re-scan**; see the row for a tool that is missing (**How to install**) |
 | Project folder | Recent projects as cards, plus **Open a folder…** | Pick a git project to see branches per agent; Skip is allowed |
-| Defaults | Four levels: Ask first, Auto-edit, Plan first, Full auto, each showing the real mode name per tool | Pick one; toggle notifications and "commit unfinished work when I quit" |
+| Defaults | Four levels: Ask first, Auto-edit, Plan first, Full auto, each showing the real mode name per tool; it is the mode the first agent starts in | Pick one (the mode chip of the first agent says the same); toggle "tell me when an agent finishes" (a desktop notice, only while you are in another app) and "commit unfinished work to each agent's own branch when I quit" (in the installed app, not in dev) |
 | First agent | Name (optional), provider, optional starter crew | **Hire and finish** |
 
 Cases worth testing the first time:
@@ -48,7 +48,13 @@ To see first-run again: quit the app and delete `~/.agent-world-2` (all of this 
 - When an agent asks to run something, a **card with Allow / Deny** appears in the chat (and a pill on the office). For agy this covers commands and tools from connected servers; the card shows exactly what is asked, including the tool's arguments. A command that tries to imitate agy's own menu gets no card (answer it in the Terminal tab).
 - The mode button under the message box lists that tool's own levels. For agy: Ask first, Edit automatically, Plan (switched live with its Shift+Tab), and Skip permissions (relaunches the agent).
 
+### Profile card, files and changes
+- The profile card says which program the agent runs on, and shows only what that program offers: its own models, its own thinking levels, its own modes, and **Compact** only where there is one.
+- In **Code → Files**, a markdown file has a **Preview** button beside Save: it shows the file as formatted text, and **Source** goes back.
+- In **Code → Changes**, the box above the file list searches the changed files by path.
+
 ### Chat, model, context and usage ring
+- **Thinking levels follow the model.** For agy they are part of the model: Gemini Flash has low, medium and high; Gemini Pro has low and high; the Claude and GPT models have none, so no effort choice is shown for them. The hire form, the model chip and the profile card all show only what the chosen model offers.
 - The **model chip** shows the model (for agy it is read from agy's footer, e.g. "Gemini 3.8 Flash · high") and switches model and effort by relaunching the same conversation.
 - The **ring** shows context used. For Claude it is Claude's own percentage. For agy it is a percentage for Gemini models (window 1M, measured from agy's own `/context`), and "about N tokens" always; other agy models show tokens only. It also shows tokens read and written instead of dollars (agy reports no price). Claude keeps its 5-hour and weekly rows; agy has no Compact button.
 - **Rewind** (button on one of your messages) works for both: the conversation goes back, and the message returns to your message box. agy saves its file in batches, so the chat may update a few seconds late.
@@ -56,7 +62,7 @@ To see first-run again: quit the app and delete `~/.agent-world-2` (all of this 
 - Type **/** in the message box for the tool's own commands and skills (agy shows its own, e.g. `/context`, `/fork`, `/btw`, plus skills from `.agents/skills` and `~/.gemini/skills`).
 
 ### Agents talking to each other (the message box)
-- Claude agents already have it. For **agy** it is connected with one approved change: **Settings → Message box → Let agy message other agents…**. The window shows the exact file it writes (`~/.agent-world-2/bin/aw-mcp-bridge.cjs`) and the exact command (`agy mcp add … agent-world`); nothing is written until you press **Connect**. **Disconnect** removes the entry again. (agy tidies its tool list when it writes it; the other entries stay.)
+- Claude agents already have it. For **agy** it is connected with one approved change, **required in first-run setup** (setup does not go on until it is connected; Settings can disconnect it later). Each build has its own entry in agy (`agent-world` for the regular app, `agent-world-2` here): **Settings → Message box → Let agy message other agents…**. The window shows the exact file it writes (`~/.agent-world-2/bin/aw-mcp-bridge.cjs`) and the exact command (`agy mcp add … agent-world`); nothing is written until you press **Connect**. **Disconnect** removes the entry again. (agy tidies its tool list when it writes it; the other entries stay.)
 - Once connected, any agent can use the `send_message` tool to message any other, Claude to agy, agy to Claude, or the same kind. The same applies to `list_agents`, `remember` and `recall`. See every message in the **Traces** tab.
 - An agy agent that is not connected still receives messages (typed into its terminal) but cannot send any. That is why it cannot be picked as a hand-off target until connected.
 

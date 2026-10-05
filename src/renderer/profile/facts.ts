@@ -28,4 +28,11 @@ export interface CardData {
   modeId: string
   /** Settings can be changed now: it is not in the middle of a turn. */
   canSwitch: boolean
+  /** The program that runs it, and what that program offers: the card shows only these. */
+  provider: { id: import('../../shared/types').ProviderId; label: string }
+  models: { value: string; label: string; efforts?: string[] }[]
+  /** The thinking levels its model offers (none: no thinking control is shown). */
+  efforts: string[]
+  modes: import('../../shared/modes').ModeInfo[]
+  canCompact: boolean
 }

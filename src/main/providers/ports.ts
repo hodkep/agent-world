@@ -71,7 +71,8 @@ export interface ScreenAdapter {
   parseAsk(screen: string): AskScreen | null
   driveAnswers(io: TerminalIO, questions: Question[], answers: QuestionAnswer[], o?: { timeoutMs?: number }): Promise<boolean>
   /** The autonomy level named in the footer, in the provider's own words, or null. */
-  readMode(screen: string): string | null
+  /** `chosen` is the mode the agent was started in: a program whose footer cannot show it (agy's skip-permissions) keeps it. */
+  readMode(screen: string, chosen?: string): string | null
   setMode(io: TerminalIO, want: string): Promise<boolean>
   autoUnavailable(screen: string): boolean
   rewindList(screen: string): RewindList | null
@@ -106,6 +107,8 @@ export interface ModelOption {
   /** What the program is given; empty means its own default. */
   value: string
   label: string
+  /** The thinking levels this model offers; not given means all of Claude's five, an empty list means it has no switch for it. */
+  efforts?: string[]
 }
 
 /** Looks at and changes what an agent can reach: tool servers and plugins, through the provider's own commands. */

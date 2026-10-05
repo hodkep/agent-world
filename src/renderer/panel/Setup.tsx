@@ -247,10 +247,10 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                 </div>
                 <div className="su-row">
                   <button className="su-toggle" aria-pressed={prefs.notifications === 'all'} onClick={() => onPrefs({ notifications: prefs.notifications === 'all' ? 'attention' : 'all' })}>
-                    <i />Tell me when an agent finishes
+                    <i />Tell me when an agent finishes, if I am in another app
                   </button>
                   <button className="su-toggle" aria-pressed={prefs.wrapUp} onClick={() => onPrefs({ wrapUp: !prefs.wrapUp })}>
-                    <i />Commit unfinished work when I quit
+                    <i />Commit unfinished work to each agent's own branch when I quit
                   </button>
                 </div>
               </div>

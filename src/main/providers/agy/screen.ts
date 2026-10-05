@@ -111,10 +111,12 @@ async function setMode(io: TerminalIO, want: string) {
 }
 
 /** The footer shows `accept-edits ·` or `plan ·` before the model; with neither, agy is asking before it acts. Unreadable while it works or asks. */
-function readMode(screen: string): string | null {
+function readMode(screen: string, chosen?: string): string | null {
   const f = footer(screen)
   if (anyMenu(screen) || working(screen) || !f.includes('·')) return null
-  return /^(?:\? for shortcuts\s+)?(accept-edits|plan)\s+·/.exec(f)?.[1] ?? 'request-review'
+  const shown = /^(?:\? for shortcuts\s+)?(accept-edits|plan)\s+·/.exec(f)?.[1]
+  // With nothing named, agy is asking first, or it was started to skip permissions, which its footer does not say.
+  return shown ?? (chosen === 'skip-permissions' ? chosen : 'request-review')
 }
 
 const TIME = /^\((?:\d+\S*\s+ago|just now)\)$/

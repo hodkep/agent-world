@@ -1,3 +1,4 @@
+import { effortsFor, modelOf } from '../panel/efforts'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ModeInfo } from '../../shared/modes'
 import { type Role, isCurrentRole } from '../../shared/roles'
@@ -26,6 +27,8 @@ export interface AgentInfo {
   /** What its program offers; Claude's lists when not given. */
   models?: { value: string; label: string }[]
   modes?: ModeInfo[]
+  /** The modes its program only reaches by restarting the agent. */
+  relaunch?: string[]
   /** For a program that counts tokens rather than dollars. */
   tokens?: { input: number; output: number; context: number }
   /** Whether its program can summarise the conversation on request, and shows its limits with each agent. */
@@ -96,6 +99,9 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
   const wrap = useDismiss(open, () => setOpen(false))
   const current = (info.model ?? '').toLowerCase()
   const models = (info.models ?? MODELS).filter((m) => m.value)
+  const efforts = effortsFor(info.models ?? MODELS, undefined, info.model)
+  // A program that builds the level into the model's name needs the model with it.
+  const running = modelOf(info.models ?? MODELS, undefined, info.model)
   return (
     <span className="cb-anchor" ref={wrap}>
       <button className="cb-chip" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Model and effort" title={`${info.model ?? 'Model'}${info.effort ? ` · effort ${info.effort}` : ''}`}>
@@ -115,14 +121,20 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
             </button>
             )
           })}
-          <h6>Effort</h6>
-          <div className="cb-steps">
-            {EFFORTS.filter((e) => e.value).map((e) => (
-              <button key={e.value} className={info.effort === e.value ? 'on' : ''} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ effort: e.value as Effort }))}>
-                {e.value === 'medium' ? 'med' : e.value}
-              </button>
-            ))}
-          </div>
+          {efforts.length > 0 ? (
+            <>
+              <h6>Effort</h6>
+              <div className="cb-steps">
+                {EFFORTS.filter((e) => e.value && efforts.includes(e.value)).map((e) => (
+                  <button key={e.value} className={info.effort === e.value ? 'on' : ''} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ effort: e.value as Effort, ...(running?.efforts && { model: running.value }) }))}>
+                    {e.value === 'medium' ? 'med' : e.value}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="cb-note">This model has no thinking levels.</p>
+          )}
           {!info.canSwitch && <p className="cb-note">Available between turns.</p>}
         </Pop>
       )}

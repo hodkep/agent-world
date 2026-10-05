@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
+import { effortsFor } from './efforts'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -50,6 +51,7 @@ export function HireForm({
   const [name, setName] = useState('')
   const [model, setModel] = useState(defaults.model)
   const [effort, setEffort] = useState<Effort | ''>('')
+  const efforts = effortsFor(models, model)
   const [mode, setMode] = useState<string>(defaults.permissionMode)
   const [budget, setBudget] = useState('')
   const [instructions, setInstructions] = useState('')
@@ -75,7 +77,7 @@ export function HireForm({
     return {
       ...(providers.length > 1 && chosen && { provider: chosen.id }),
       ...(model && { model }),
-      ...(effort && { effort }),
+      ...(effort && efforts.includes(effort) && { effort }),
       ...(mode && modes.some((m) => m.value === mode) && { permissionMode: mode as PermissionMode }),
       ...(budgetUsd > 0 && chosen?.capabilities.budget !== false && { budgetUsd }),
       ...(instructions.trim() && { instructions: instructions.trim() }),
@@ -154,16 +156,18 @@ export function HireForm({
             ))}
           </select>
         </label>
+        {efforts.length > 0 && (
         <label>
           Effort
-          <select value={effort} onChange={(e) => setEffort(e.target.value as Effort | '')}>
-            {EFFORTS.map((m) => (
+          <select value={efforts.includes(effort) ? effort : ''} onChange={(e) => setEffort(e.target.value as Effort | '')}>
+            {EFFORTS.filter((m) => !m.value || efforts.includes(m.value)).map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
             ))}
           </select>
         </label>
+        )}
       </div>
       <div className="hire-row">
         <label className="grow">

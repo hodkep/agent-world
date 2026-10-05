@@ -110,6 +110,9 @@ describe('the autonomy level in the footer', () => {
     expect(s.readMode(fx('mode-accept'))).toBe('accept-edits')
     expect(s.readMode(fx('mode-plan'))).toBe('plan')
     expect(s.readMode(fx('idle'))).toBe('request-review')
+    // Started to skip permissions, agy's footer says nothing about it: the mode it was started in stands, unless the footer names another.
+    expect(s.readMode(fx('idle'), 'skip-permissions')).toBe('skip-permissions')
+    expect(s.readMode(fx('mode-plan'), 'skip-permissions')).toBe('plan')
   })
   it('cannot tell while it works or asks, where the footer shows something else', () => {
     expect(s.readMode(fx('working'))).toBeNull()

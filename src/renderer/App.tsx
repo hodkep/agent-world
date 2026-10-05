@@ -11,7 +11,8 @@ import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
 import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
-import { cssColor, modeInfo } from '../shared/modes'
+import { PICKABLE_MODES, cssColor, modeInfo } from '../shared/modes'
+import { effortsFor } from './panel/efforts'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
@@ -484,6 +485,7 @@ export function App() {
       changeLayout({ root: drop ? place(root, id, drop.target, drop.zone) : add(root, id) })
     })
   const cur = current ? stats[current.id] : undefined
+  const curProv = current ? providers?.find((p) => p.id === (current.provider ?? 'claude')) : undefined
   const cardData: CardData | null = current
     ? {
         id: current.id,
@@ -505,7 +507,12 @@ export function App() {
         modelId: current.options?.model ?? '',
         effortId: cur?.effort ?? current.options?.effort ?? '',
         modeId: world[current.id]?.mode ?? (current.options?.permissionMode === 'manual' || !current.options?.permissionMode ? 'default' : current.options.permissionMode),
-        canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep')
+        canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep'),
+        provider: { id: current.provider ?? 'claude', label: curProv?.label ?? 'Claude Code' },
+        models: (curProv?.models ?? MODELS).filter((m) => m.value),
+        efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model),
+        modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
+        canCompact: curProv?.capabilities.compact ?? true
       }
     : null
   const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX, prefer: cardSize ?? undefined }) : null
@@ -783,7 +790,8 @@ export function App() {
       handbook: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.handbook,
       liveLimits: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.liveLimits,
       models: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.models,
-      modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes
+      modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes,
+      relaunch: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.relaunchModes
     }
   }
   const actionsOf = (a: AgentRecord): AgentActions => ({

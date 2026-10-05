@@ -7,14 +7,17 @@ export function MailConnect({ provider, onChanged, required }: { provider: Provi
   const [busy, setBusy] = useState(false)
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState('')
+  const [done, setDone] = useState('')
   if (provider.mail === 'yes' || provider.mail === 'no') return null
 
   const change = async (on: boolean) => {
     setBusy(true)
     setError('')
     try {
-      await window.aw.setMail(provider.id, on)
+      // Held for a moment so the change can be seen happening, and then said in words.
+      await Promise.all([window.aw.setMail(provider.id, on), new Promise((r) => setTimeout(r, 700))])
       setPlan(null)
+      setDone(on ? `Connected: ${provider.label}'s agents can now message the others.` : `Disconnected: ${provider.label}'s agents cannot message the others now.`)
       onChanged()
     } catch (err) {
       setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
@@ -27,7 +30,10 @@ export function MailConnect({ provider, onChanged, required }: { provider: Provi
     return (
       <div className="mc" data-state="connected">
         <span className="hint">Its agents can message the others and share notes.</span>
-        <button className="su-link" onClick={() => void change(false)} disabled={busy}>Disconnect</button>
+        <button className="su-link" onClick={() => void change(false)} disabled={busy} aria-busy={busy}>
+          {busy ? <><span className="su-spin" aria-hidden="true" />Disconnecting…</> : 'Disconnect'}
+        </button>
+        {done && !busy && <span className="mc-done" role="status">{done}</span>}
         {error && <span className="su-why">{error}</span>}
       </div>
     )
@@ -35,6 +41,7 @@ export function MailConnect({ provider, onChanged, required }: { provider: Provi
     <div className="mc" data-state="missing">
       {!plan ? (
         <>
+          {done && <span className="mc-done" role="status">{done}</span>}
           <span className="hint">{required ? 'Needed so its agents can message the others and take hand-offs.' : 'Its agents cannot message the others yet.'}</span>
           <button className={required ? 'primary' : ''} disabled={opening} onClick={() => (setOpening(true), void window.aw.mailPlan(provider.id).then(setPlan).finally(() => setOpening(false)))}>
             {opening ? 'Opening…' : `Let ${provider.label} message other agents…`}

@@ -1318,7 +1318,7 @@ function Composer({
           </button>
           {modeOpen && (
             <div className="pop-menu mode-menu" role="menu" aria-label="Permission mode">
-              {(info?.modes?.filter((m) => !/bypass|skip/.test(m.id)) ?? PICKABLE_MODES).map((m) => (
+              {(info?.modes?.filter((m) => !/bypass|skip/.test(m.id) || info.relaunch?.includes(m.id)) ?? PICKABLE_MODES).map((m) => (
                 <button
                   key={m.id}
                   role="menuitemradio"

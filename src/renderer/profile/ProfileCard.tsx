@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
+import { cssColor, modeInfo } from '../../shared/modes'
 import type { Effort } from '../../shared/types'
 import { PixelIcon } from '../chat/PixelIcon'
-import { MODELS } from '../panel/HireForm'
+import { Swatch } from '../panel/ProviderTag'
 import { OutlineIcon } from '../panel/IconButton'
 import type { CardData } from './facts'
 import { FIGURE_H, FIGURE_W, figureMood, renderFigure } from './figure'
@@ -182,6 +182,10 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
         <span className={`pc-dot is-${figureMood(data.activity)}`} aria-hidden="true" />
         <Name name={data.name} edit={edit} />
         <span className="pc-role">{data.roleLabel}</span>
+        <span className="pc-prov" title={`Runs on ${data.provider.label}`}>
+          <Swatch id={data.provider.id} label={data.provider.label} />
+          {data.provider.label}
+        </span>
         {onToggleSize && (
           <button className="pc-x" aria-label={compact ? 'Show the full card' : 'Show the compact card'} title={compact ? 'Show everything: level, counts and most used tools' : 'Show less'} onClick={onToggleSize}>
             <PixelIcon name={compact ? 'expand' : 'shrink'} scale={1} />
@@ -238,37 +242,43 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
         <Pick
           value={data.model || 'not reported'}
           label="Model"
-          options={MODELS.filter((m) => m.value).map((m) => ({ id: m.value, label: m.label }))}
+          options={data.models.map((m) => ({ id: m.value, label: m.label }))}
           current={data.modelId}
           onPick={(id) => edit?.onModel(id)}
           disabled={off}
           title="Change the model: the agent restarts on the same conversation"
           wait={wait}
         />
+        {data.efforts.length > 0 && (
+          <>
         <span className="pc-k">Thinking</span>
         <span className="pc-steps" role="group" aria-label={`Thinking level: ${data.effortId || 'default'}`}>
-          {EFFORT_STEPS.map((st, i) => (
-            <button key={st} className={`pc-step ${pips[i] ? 'on' : ''} ${data.effortId === st ? 'now' : ''}`} disabled={off} aria-label={`Thinking ${st}`} aria-pressed={data.effortId === st} title={off ? wait : `Thinking: ${st}`} onClick={() => edit?.onEffort(st)}>
+          {EFFORT_STEPS.filter((st) => data.efforts.includes(st)).map((st) => (
+            <button key={st} className={`pc-step ${pips[EFFORT_STEPS.indexOf(st)] ? 'on' : ''} ${data.effortId === st ? 'now' : ''}`} disabled={off} aria-label={`Thinking ${st}`} aria-pressed={data.effortId === st} title={off ? wait : `Thinking: ${st}`} onClick={() => edit?.onEffort(st)}>
               {STEP_LABEL[st]}
             </button>
           ))}
         </span>
+          </>
+        )}
         <span className="pc-k">Mode</span>
         <Pick
           value={mode.label}
           label="Mode"
           swatch={cssColor(mode.color)}
-          options={PICKABLE_MODES.map((m) => ({ id: m.id, label: m.label, hint: m.blurb }))}
+          options={data.modes.map((m) => ({ id: m.id, label: m.label, hint: m.blurb }))}
           current={data.modeId}
           onPick={(id) => edit?.onMode(id)}
           disabled={!edit}
           title={mode.blurb}
           wait={wait}
         />
-        <button className="pc-compact-btn" disabled={off} aria-label="Compact the conversation" title={off ? wait : 'Summarise the conversation to free up context (/compact)'} onClick={() => edit?.onCompact()}>
+        {data.canCompact && (
+          <button className="pc-compact-btn" disabled={off} aria-label="Compact the conversation" title={off ? wait : 'Summarise the conversation to free up context (/compact)'} onClick={() => edit?.onCompact()}>
           Compact conversation
           <small>frees up context</small>
         </button>
+        )}
       </div>
       {!compact && (
         <>

@@ -575,7 +575,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         if (ui(a.id).anyMenu(text)) menuSeen.add(a.id)
         else if (menuSeen.delete(a.id)) eventsOf(a.id)?.dismiss(a.id)
       } else menuSeen.delete(a.id)
-      const mode = ui(a.id).readMode(text)
+      const mode = ui(a.id).readMode(text, a.options?.permissionMode)
       if (mode && mode !== seenMode.get(a.id)) {
         seenMode.set(a.id, mode)
         send('agent-event', { type: 'mode', agentId: a.id, sessionId: a.sessionId, mode })
@@ -1142,7 +1142,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p) })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), relaunchModes: p.relaunchModes })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))

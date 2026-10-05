@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Changes } from '../../shared/api'
 import { ContextTray, type CodeJump, useAskSelection } from './askAgent'
 import { codeContext } from './codeContext'
+import { Markdown } from '../chat/markdown'
 import { editorOptions, languageFor, monaco } from './monaco'
 import { closeTab, openTab, type TabState } from './tabs'
 import { ancestors, visibleRows } from './tree'
@@ -58,6 +59,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
   const [data, setData] = useState<Changes | null>(null)
   const [path, setPath] = useState<string | null>(null)
   const [message, setMessage] = useState('')
+  const [find, setFind] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
@@ -144,8 +146,9 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
             ↻
           </button>
         </div>
+        {data && data.files.length > 0 && <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search changed files…" aria-label="Search changed files" />}
         <ul>
-          {data?.files.map((f) => (
+          {data?.files.filter((f) => !find.trim() || f.path.toLowerCase().includes(find.trim().toLowerCase())).map((f) => (
             <li key={f.path} className={f.path === path ? 'on' : ''}>
               <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path}>
                 <span className="mark">{STATUS_MARK[f.status]}</span>
@@ -161,6 +164,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
             </li>
           ))}
           {data && data.files.length === 0 && <li className="empty">No changes yet.</li>}
+          {data && data.files.length > 0 && find.trim() && !data.files.some((f) => f.path.toLowerCase().includes(find.trim().toLowerCase())) && <li className="empty">No changed file matches.</li>}
         </ul>
         <form
           className="land"
@@ -230,6 +234,8 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const [tabs, setTabs] = useState<TabState>(sess.tabs)
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const [asking, setAsking] = useState<string | null>(null)
+  // Markdown files can be read as the page they make, instead of as source.
+  const [previewing, setPreviewing] = useState<Set<string>>(new Set())
   const [, bump] = useState(0)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
@@ -432,6 +438,15 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
             <span className="fpath" title={active}>{active}</span>
             <span aria-hidden="true">·</span>
             <span className="flang">{languageFor(active)}</span>
+            {/\.(md|markdown|mdx)$/i.test(active) && (
+              <button
+                aria-pressed={previewing.has(active)}
+                title={previewing.has(active) ? 'Back to the source' : 'Read it as formatted text'}
+                onClick={() => setPreviewing((s) => (s.has(active) ? new Set([...s].filter((x) => x !== active)) : new Set(s).add(active)))}
+              >
+                {previewing.has(active) ? 'Source' : 'Preview'}
+              </button>
+            )}
             <button onClick={() => void save()} disabled={!dirty} title="Save this file (⌘S)">
               Save{dirty ? ' •' : ''}
             </button>
@@ -449,7 +464,12 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
           </div>
         )}
         <div className="files-edwrap" ref={wrap}>
-          <div className="diff" ref={host} aria-label={active ? `Editing ${active}` : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
+          {active && previewing.has(active) && (
+            <div className="md-preview" aria-label={`Preview of ${active}`}>
+              <Markdown text={model(active)?.getValue() ?? ''} agentId={agentId} />
+            </div>
+          )}
+          <div className="diff" ref={host} style={active && previewing.has(active) ? { visibility: 'hidden' } : undefined} aria-label={active ? `Editing ${active}` : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
           {ask.view}
         </div>
         <ContextTray agentId={agentId} onJump={(j) => open(j.path, { from: j.from, to: j.to })} onOpenChat={onOpenChat} />
