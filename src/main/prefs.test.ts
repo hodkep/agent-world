@@ -10,17 +10,21 @@ describe('preferences', () => {
   })
   it('round-trip through the file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'p.json')
-    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, claudePath: '/opt/claude', updateUrl: 'https://x.example/', defaults: { model: 'haiku', permissionMode: 'plan', inPlace: true } }
+    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { model: 'haiku', permissionMode: 'plan', inPlace: true } }
     savePrefs(file, p)
     expect(loadPrefs(file)).toEqual(p)
   })
   it('ignore values of the wrong kind, keeping the rest', () => {
-    expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, claudePath: '/x/claude', defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
+    expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
   it('keep house rules and the model chosen for each job, dropping empty entries', () => {
     const p = cleanPrefs({ houseRules: 'Small commits.', roleModels: { Reviewer: ' haiku ', Explorer: '', Bad: 4 } })
     expect(p.houseRules).toBe('Small commits.')
     expect(p.roleModels).toEqual({ Reviewer: 'haiku' })
+  })
+  it('move a saved claudePath to providers.claude.path, and keep each provider\'s own path', () => {
+    expect(cleanPrefs({ claudePath: '/old/claude' }).providers).toEqual({ claude: { path: '/old/claude' } })
+    expect(cleanPrefs({ claudePath: '/old/claude', providers: { claude: { path: '/new/claude' }, agy: { path: ' /bin/agy ' }, other: { path: '/x' } } }).providers).toEqual({ claude: { path: '/new/claude' }, agy: { path: '/bin/agy' } })
   })
   it('survive a corrupt file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'bad.json')

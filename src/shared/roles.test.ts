@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { launchArgs } from '../main/claude'
+import { launchArgs } from '../main/providers/claude/launch'
 import { BUILT_IN_ROLES, isCurrentRole, withRole } from './roles'
 
 const reviewer = BUILT_IN_ROLES.find((r) => r.id === 'reviewer')!

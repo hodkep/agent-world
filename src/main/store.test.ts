@@ -30,7 +30,12 @@ describe('agent store', () => {
 
   it('round-trips agents', () => {
     saveAgents(file, [ada])
-    expect(loadAgents(file)).toEqual([ada])
+    expect(loadAgents(file)).toEqual([{ ...ada, provider: 'claude' }])
+  })
+
+  it('gives agents saved before providers existed the Claude Code provider', () => {
+    saveAgents(file, [ada, { ...ada, id: 'a2', provider: 'agy' }])
+    expect(loadAgents(file).map((a) => a.provider)).toEqual(['claude', 'agy'])
   })
 
   it('moves a corrupt file aside instead of losing it', () => {

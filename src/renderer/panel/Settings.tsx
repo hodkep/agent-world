@@ -14,7 +14,7 @@ const PERMISSIONS = [
 /** Preferences that outlive a session. Each change is saved as it is made. */
 export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const [path, setPath] = useState(prefs.claudePath)
+  const [path, setPath] = useState(prefs.providers.claude?.path ?? '')
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
   const [update, setUpdate] = useState('')
@@ -117,7 +117,7 @@ export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; ro
         <legend>Claude program</legend>
         <label>
           Location
-          <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== prefs.claudePath && set({ claudePath: path.trim() })} placeholder="claude (found on your PATH)" />
+          <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== (prefs.providers.claude?.path ?? '') && set({ providers: { ...prefs.providers, claude: { path: path.trim() } } })} placeholder="claude (found on your PATH)" />
           <span className="hint">Only needed when the app cannot find it. Applies to agents started after this.</span>
         </label>
       </fieldset>

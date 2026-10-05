@@ -19,7 +19,8 @@ import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
-import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
+import { providerOf } from './providers/registry'
+import type { Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
@@ -64,10 +65,10 @@ const AGENTS_FILE = join(HOME, 'agents.json')
 const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
-const claudeBin = () => process.env.AW_CLAUDE_BIN ?? (prefs.claudePath || 'claude')
-/** The program and arguments that start claude here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
-const claudeCmd = (args: string[]) => {
-  const l = resolveCommand(claudeBin())
+const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
+/** The program and arguments that start a provider here (on Windows the name needs its extension, or cmd.exe for a .cmd). */
+const providerCmd = (p: Provider, args: string[]) => {
+  const l = resolveCommand(binFor(p))
   return { file: l.file, args: [...l.prefix, ...args] }
 }
 // Unset keeps Claude's own starting mode (auto on recent versions); `default` makes it ask before every edit.
@@ -354,16 +355,10 @@ async function nextName(repoPath: string) {
  */
 function agentFiles(a: AgentRecord) {
   if (!office) throw new Error('Local servers are not running yet.')
-  const dir = join(HOME, 'agents', a.id)
-  mkdirSync(dir, { recursive: true })
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  const settingsFile = join(dir, 'settings.json')
-  const mcpFile = join(dir, 'mcp.json')
-  writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: office.hookUrl, token: agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })), { mode: 0o600 })
-  writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: office.mcpUrl, agentToken })), { mode: 0o600 })
-  return { settingsFile, mcpFile }
+  return providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: office.hookUrl, mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
 }
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
@@ -538,9 +533,10 @@ function finishRewind(id: string) {
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
-  const args = launchArgs({ ...a, ...agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  const provider = providerOf(a)
+  const args = provider.args({ agent: a, files: agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [MEMORY_HINT, DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
-  const cmd = claudeCmd(args)
+  const cmd = providerCmd(provider, args)
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
@@ -690,7 +686,7 @@ async function main() {
   loadUsage()
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
-  const env = { ...agentEnv(process.env), PATH: loginShellPath() }
+  const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }
 
   const hooks = await startHookServer({
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -975,7 +971,7 @@ async function main() {
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
     const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: false, hiredAt: Date.now(), options }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider: 'claude', started: false, hiredAt: Date.now(), options }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -987,14 +983,14 @@ async function main() {
     if (!a) throw new Error('Unknown agent.')
     const args = manageArgs(action)
     return new Promise<string>((resolve, reject) =>
-      execFile(claudeCmd(args).file, claudeCmd(args).args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
+      execFile(providerCmd(providerOf(a), args).file, providerCmd(providerOf(a), args).args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
     )
   })
   ipcMain.handle('list-tools', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     const claude = (...args: string[]) =>
-      new Promise<string>((resolve) => execFile(claudeCmd(args).file, claudeCmd(args).args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
+      new Promise<string>((resolve) => execFile(providerCmd(providerOf(a), args).file, providerCmd(providerOf(a), args).args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
     const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
     return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
   })
@@ -1011,7 +1007,7 @@ async function main() {
       const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees') })
       // Plan mode keeps a reviewer from editing anything while it reads.
       created = {
-        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, started: false, hiredAt: Date.now(),
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, provider: 'claude', started: false, hiredAt: Date.now(),
         options: { permissionMode: 'plan', ...(prefs.roleModels.Reviewer && { model: prefs.roleModels.Reviewer }), instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' }
       }
       setWorkspaces(rememberWorkspace(workspaces, author.repoPath))
@@ -1062,7 +1058,7 @@ async function main() {
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
-      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, provider: src.provider, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
     }
     agents.push(a)
     persist()

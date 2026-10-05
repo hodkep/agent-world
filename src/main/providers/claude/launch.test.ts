@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentEnv, hookSettings, launchArgs, mcpConfig } from './claude'
+import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
 describe('claude launch', () => {
   it('starts a fresh session with a fixed id and name', () => {

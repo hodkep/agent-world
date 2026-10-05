@@ -19,7 +19,7 @@ const OBSERVE_TIMEOUT_SEC = 5
 // Claude's own cancel must come after our server's fallback answer, or the user gets no dialog at all.
 const PERMISSION_GRACE_SEC = 30
 
-import type { AgentOptions } from '../shared/types'
+import type { AgentOptions } from '../../../shared/types'
 
 // The statusline command gets Claude's live session JSON on stdin; curl relays it to the app, and the app's
 // reply is what Claude shows in its status bar. Windows PowerShell aliases `curl`, so name the real binary.

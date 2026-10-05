@@ -7,7 +7,7 @@ export function loadAgents(file: string): AgentRecord[] {
   try {
     const data = JSON.parse(readFileSync(file, 'utf8'))
     if (!Array.isArray(data)) throw new Error('agents.json is not an array')
-    return data as AgentRecord[]
+    return (data as AgentRecord[]).map((a) => ({ ...a, provider: a.provider ?? 'claude' }))
   } catch (err) {
     // Keep the bad file for inspection; starting empty must not overwrite it on next save.
     const aside = `${file}.corrupt-${Date.now()}`

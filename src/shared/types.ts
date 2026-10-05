@@ -72,8 +72,33 @@ export interface AgentOptions {
   inPlace?: boolean
 }
 
+/** The agent programs the office can run. */
+export type ProviderId = 'claude' | 'agy'
+
+/** What a provider can do; the screens hide what it cannot, instead of showing it broken. */
+export interface Capabilities {
+  permissionsInWorld: boolean
+  liveModeSwitch: boolean
+  subagents: boolean
+  rewind: boolean
+  compact: boolean
+  limits: boolean
+  tools: boolean
+}
+
+/** What the machine says about a provider: whether it can be used now, and what to do if not. */
+export interface Detection {
+  state: 'ready' | 'needs-sign-in' | 'not-installed' | 'unsupported'
+  version?: string
+  path?: string
+  /** What to tell the user, e.g. "Run `agy` once to sign in". */
+  hint?: string
+}
+
 export interface AgentRecord {
   id: string
+  /** Which program runs this agent. Agents saved before providers existed are Claude Code. */
+  provider?: ProviderId
   name: string
   sessionId: string
   repoPath: string
@@ -166,8 +191,8 @@ export interface Prefs {
   keepAwake: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
   wrapUp: boolean
-  /** Where the claude program is, when it is not on the PATH. Empty means "claude". */
-  claudePath: string
+  /** Where each provider's program is, when it is not on the PATH. Empty means its usual name. */
+  providers: Partial<Record<ProviderId, { path: string }>>
   /** Where new builds are published; empty means the app does not look for updates. */
   updateUrl: string
   /** Standing instructions added to every agent, whatever its role. */
