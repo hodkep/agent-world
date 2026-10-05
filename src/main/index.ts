@@ -20,6 +20,7 @@ import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, sh
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine } from './commands'
+import { homeDirName } from './home'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
@@ -47,7 +48,7 @@ import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWo
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
 const HIDDEN = process.env.AW_HIDDEN === '1'
 if (HIDDEN && process.platform === 'darwin') app.dock?.hide()
-const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
+const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')))
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
