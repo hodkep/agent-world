@@ -47,7 +47,7 @@ const same = (a: string, b: string) => {
 }
 
 /** What the question is about: a command, or a tool of a connected server (named in the question). */
-const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context : 'Bash')
+const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
 
 interface Seen {
   activity: Activity | null

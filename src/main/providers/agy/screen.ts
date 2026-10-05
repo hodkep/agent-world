@@ -2,7 +2,9 @@ import { stripVTControlCharacters } from 'node:util'
 import type { GenericMenu, Menu, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
 import { answerMenu } from '../shared/menu'
 
-const lines = (screen: string) => stripVTControlCharacters(screen).split('\n')
+// Direction overrides and zero-width characters let text read differently from what it says; they are never part of what is shown or matched.
+const INVISIBLE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g
+const lines = (screen: string) => stripVTControlCharacters(screen).replace(INVISIBLE, '').split('\n')
 /** The last line with anything on it: where agy keeps its hints and its model. */
 const footer = (screen: string) => lines(screen).map((l) => l.trim()).filter(Boolean).at(-1) ?? ''
 const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
@@ -49,23 +51,34 @@ function permission(screen: string): GenericMenu | null {
   // imitates the box (a command that prints rules, headings or a second question could otherwise hide the part that matters).
   const body = shown.slice(top + 1, ask).filter((l, i) => !(i === 0 && l.startsWith('Requesting permission for:')))
   if (top < 1 || !HEADINGS.has(shown[top - 1]!) || body.some((l) => RULE.test(l) || HEADINGS.has(l) || l.startsWith('Requesting permission for:') || l.startsWith('●'))) return null
+  // A tool of a connected server is asked about by name only; what it is called with is on the call line above the box.
+  const call = shown[top - 1] === 'MCP' && shown[top - 2]?.startsWith('●') ? shown[top - 2]!.replace(/^●\s*/, '').replace(/\s*\(ctrl\+o to expand\)$/, '') : ''
   return {
     title: shown[top - 1]!,
-    context: body.join('\n'),
+    context: [...body, call].filter(Boolean).join('\n'),
     options,
     highlighted: Math.max(highlighted, 0),
     hint: shown[hint]!
   }
 }
 
+/**
+ * The trust question of a new folder. Like the permission question it counts only as agy drew it: the last thing on the screen, with its
+ * two answers and the hint under it. The same words in text the model printed are not a question, and answering one would press Enter on
+ * whatever is really there.
+ */
 function trustPrompt(screen: string): TrustPrompt | null {
-  const all = lines(screen).map((l) => l.trim())
-  if (!all.some((l) => /^Do you trust the contents of this project\?/.test(l))) return null
-  const from = all.findIndex((l) => l === 'Accessing workspace:')
-  const to = all.findIndex((l) => l.startsWith('Do you trust'))
+  const all = lines(screen).map((l) => l.trim()).filter(Boolean)
+  if (!/^↑\/↓ Navigate · enter Confirm/.test(all.at(-1) ?? '')) return null
+  const yes = all.at(-3) ?? ''
+  const no = all.at(-2) ?? ''
+  if (!/^>?\s*Yes, I trust this folder$/.test(yes) || !/^>?\s*No, exit$/.test(no)) return null
+  const q = all.findLastIndex((l) => l.startsWith('Do you trust the contents of this project?'))
+  if (q < all.length - 5 || q > all.length - 4) return null
+  const from = all.slice(0, q).findLastIndex((l) => l === 'Accessing workspace:')
+  if (from < 0) return null
   // A long folder name wraps onto the next line.
-  const path = from >= 0 ? all.slice(from + 1, to).join('') : ''
-  return { path, highlighted: all.some((l) => /^>\s*No\b/.test(l)) ? 'no' : 'yes' }
+  return { path: all.slice(from + 1, q).join(''), highlighted: no.startsWith('>') ? 'no' : 'yes' }
 }
 
 const anyMenu = (screen: string) => questionOpen(screen) || !!permission(screen) || !!trustPrompt(screen)
