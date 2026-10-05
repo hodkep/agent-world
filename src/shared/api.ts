@@ -2,7 +2,7 @@ import type { UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionRequest, ProviderInfo, QuestionAnswer } from './types'
+import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -198,6 +198,8 @@ export interface AwApi {
   saveRole(r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }): Promise<Role>
   deleteRole(id: string): Promise<void>
   getUsage(): Promise<UsageLimits>
+  /** Every provider's usage allowances, as share left; agy's are asked for, so this can take a moment. */
+  getLimits(refresh?: boolean): Promise<LimitWindow[]>
   /** Dev servers each agent has started, by agent id. */
   listProcs(agentId: string): Promise<import('./types').ProcInfo[]>
   stopProc(agentId: string, pid: number): Promise<boolean>

@@ -33,6 +33,7 @@ import { TracesView } from './panel/TracesView'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
+import { lowCount } from '../shared/limits'
 import { ProviderTag } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
@@ -136,6 +137,14 @@ export function App() {
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [setupAgain, setSetupAgain] = useState(false)
+  // How many allowances (of any provider) are nearly used up: the Usage button says so.
+  const [lowLimits, setLowLimits] = useState(0)
+  useEffect(() => {
+    const look = () => void window.aw.getLimits().then((w) => setLowLimits(lowCount(w)), () => undefined)
+    look()
+    const t = setInterval(look, 120_000)
+    return () => clearInterval(t)
+  }, [])
   const scanProviders = useCallback(() => window.aw.listProviders().then(setProviders, () => setProviders([])), [])
   useEffect(() => void scanProviders(), [scanProviders])
   const [finishing, setFinishing] = useState<string | null>(null)
@@ -903,7 +912,7 @@ export function App() {
         {agents.length > 0 && (
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
-        <IconButton icon="money" label="Usage" onClick={() => setReport('usage')} haspopup tip="What the agents have cost, by day and model" />
+        <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         <LimitChips limits={limits} />
         {error && <span className="error">{error}</span>}

@@ -15,12 +15,13 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
+import { claudeWindows } from '../shared/limits'
 import { saveAttachment } from './attachments'
 import { okfHint } from './okf'
 import { wrapUp } from './wrapUp'
@@ -90,6 +91,24 @@ const shells = new Map<string, pty.IPty>()
 const shellIdle = new Map<string, string>()
 // When each agent's terminal was started: a provider that reports nothing itself uses it to tell its sessions apart.
 const spawnedAt = new Map<string, number>()
+// Providers whose limits have to be asked for are asked at most this often, whoever is looking.
+const LIMITS_FRESH_MS = 120_000
+const polled: LimitWindow[][] = []
+let limitsAt = 0
+async function pollLimits() {
+  limitsAt = Date.now()
+  polled.length = 0
+  await Promise.all(
+    providers().map(async (p) => {
+      if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await p.detect(binFor(p))).state !== 'ready') return
+      try {
+        polled.push(await p.limits.read(binFor(p)))
+      } catch {
+        /* not signed in or offline: its windows are simply missing */
+      }
+    })
+  )
+}
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
@@ -772,6 +791,10 @@ async function main() {
   ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => usage)
+  ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
+    if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
+    return [...claudeWindows(usage), ...polled.flat()]
+  })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
   ipcMain.handle('chat:send', async (_, id: string, raw: string) => {

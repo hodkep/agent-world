@@ -69,3 +69,25 @@ test('a permission agy asks for shows as a card in the office, and allowing it c
     await shutdown()
   }
 })
+
+test('Usage opens on one summary across providers, and a provider row opens its own limits', async () => {
+  const { page, shutdown } = await open('aw-agy-usage-')
+  try {
+    await page.locator('header').getByRole('button', { name: 'Usage', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    // The busiest limit is the one with least left, whichever provider it belongs to.
+    await expect(modal.locator('.st-card', { hasText: 'Busiest limit' })).toContainText('73% left')
+    await expect(modal.locator('.st-card', { hasText: 'Busiest limit' })).toContainText('Gemini Models')
+    await expect(modal.getByRole('button', { name: 'Open agy (Antigravity)' })).toContainText('73%')
+    await expect(modal.getByRole('button', { name: 'Open Claude Code' })).toBeVisible()
+    await modal.getByRole('button', { name: 'Open agy (Antigravity)' }).click()
+    await expect(modal.getByText('Gemini Models', { exact: true })).toBeVisible()
+    await expect(modal.getByText('Claude and GPT models', { exact: true })).toBeVisible()
+    await expect(modal.getByText('73% left', { exact: false }).first()).toBeVisible()
+    await expect(modal.getByText(/no price/)).toBeVisible()
+    await modal.getByRole('button', { name: '‹ All providers' }).click()
+    await expect(modal.getByRole('button', { name: 'Open agy (Antigravity)' })).toBeVisible()
+  } finally {
+    await shutdown()
+  }
+})

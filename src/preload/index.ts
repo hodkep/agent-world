@@ -96,6 +96,7 @@ const api: AwApi = {
   saveRole: (r) => ipcRenderer.invoke('roles:save', r),
   deleteRole: (id) => ipcRenderer.invoke('roles:delete', id),
   getUsage: () => ipcRenderer.invoke('get-usage'),
+  getLimits: (refresh) => ipcRenderer.invoke('limits:get', refresh),
   onUsage: on('usage'),
   onBudgetAlert: on('budget-alert'),
   onPlanMenu: on('plan-menu'),

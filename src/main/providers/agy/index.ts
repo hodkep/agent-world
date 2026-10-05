@@ -32,6 +32,7 @@ export const agy: Provider = {
   env: (env) => env,
   prepare: () => ({}),
   args: agyArgs,
+  limits: { read: async (bin, ask = run) => parseUsage(await ask(bin, ['-p', '/usage'])) },
   events: agyEvents,
   transcript: agyTranscript,
   screen: agyScreen,

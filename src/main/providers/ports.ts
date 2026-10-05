@@ -1,6 +1,6 @@
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
 import type { ModeInfo } from '../../shared/modes'
-import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
+import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, LimitWindow, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
 
 export interface TrustPrompt {
   path: string
@@ -224,6 +224,8 @@ export interface Provider {
   readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */
   readonly autonomy: Record<AutonomyLevel, string | null>
+  /** For a provider whose limits have to be asked for (the others report them as they go, through the event source). */
+  readonly limits?: { read(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<LimitWindow[]> }
   /** Present when `capabilities.tools`. */
   readonly tools?: ToolsManager
   /** Tells the office what the agents are doing and asking. */
