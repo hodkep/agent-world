@@ -1,6 +1,6 @@
 import { type FSWatcher, closeSync, openSync, readSync, statSync, watch } from 'node:fs'
 import { StringDecoder } from 'node:string_decoder'
-import type { ChatItem } from '../shared/chat'
+import type { ChatItem } from '../../../shared/chat'
 import { type LineNode, lineNode, parseTranscriptLine } from './chat'
 
 const CHUNK = 1024 * 1024

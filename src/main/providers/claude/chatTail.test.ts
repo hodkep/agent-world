@@ -2,7 +2,7 @@ import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ChatItem } from '../shared/chat'
+import type { ChatItem } from '../../../shared/chat'
 import { TranscriptTail } from './chatTail'
 
 const user = (uuid: string, text: string) => JSON.stringify({ uuid, type: 'user', timestamp: '2026-01-01T00:00:00Z', message: { role: 'user', content: text } }) + '\n'

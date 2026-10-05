@@ -1,14 +1,7 @@
 import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
-export interface PastSession {
-  id: string
-  title: string
-  /** Last modified, ms since epoch. */
-  updated: number
-  /** Size of the saved conversation on disk. */
-  bytes: number
-}
+import type { PastSession } from '../ports'
 
 const TITLE_LEN = 160
 // Transcripts run to megabytes; the first prompt is always near the top.

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import type { SubagentCall, SubagentInfo } from '../shared/chat'
+import type { SubagentCall, SubagentInfo } from '../../../shared/chat'
 
 const FIELDS = ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'description', 'prompt']
 

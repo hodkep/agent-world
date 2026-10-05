@@ -8,10 +8,9 @@ import { btwOverlay } from './btw'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { readdir as readdirAsync, realpath as realpathAsync } from 'node:fs/promises'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, extname, isAbsolute, join } from 'node:path'
+import { basename, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
@@ -23,18 +22,13 @@ import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
-import { listSessions, projectSlug } from './history'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { saveAttachment } from './attachments'
 import { okfHint } from './okf'
 import { wrapUp } from './wrapUp'
-import { newestSession, transcriptPath } from './chat'
-import { TranscriptTail } from './chatTail'
 import type { ChatItem } from '../shared/chat'
 import { BUILT_IN_ROLES } from '../shared/roles'
 import { checkName, cleanName } from './names'
-import { dropPromptSnapshots } from './promptSnapshot'
-import { listSubagents } from './subagents'
 import { type WorkClock, advanceWork, hiredAtOf, profileCounts, workedNow } from './profile'
 import { type Role, withRole } from '../shared/roles'
 import { driveRewind, genericMenu, openRewindList, rewindList } from './menus'
@@ -61,7 +55,6 @@ const HOME = process.env.AW_HOME ?? join(homedir(), '.agent-world')
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 const AGENTS_FILE = join(HOME, 'agents.json')
-const CLAUDE_PROJECTS = process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
 const binFor = (p: Provider) => (p.id === 'claude' ? process.env.AW_CLAUDE_BIN : undefined) ?? (prefs.providers[p.id]?.path || p.bin)
@@ -225,27 +218,17 @@ function trimImages(items: ChatItem[]): ChatItem[] {
   }).reverse()
 }
 interface Chat {
-  tail: TranscriptTail
+  tail: { start(): void; stop(): void }
   sessionId: string
   items: ChatItem[]
 }
 const chats = new Map<string, Chat>()
-// Claude names the project folder after the real path of its working directory (symlinks resolved).
-function transcriptFile(a: AgentRecord) {
-  let real = a.cwd
-  try {
-    real = realpathSync(a.cwd)
-  } catch {
-    /* the folder is gone; the transcript will not appear */
-  }
-  return transcriptPath(CLAUDE_PROJECTS, real, a.sessionId)
-}
 function followChat(a: AgentRecord) {
   const now = chats.get(a.id)
   if (now?.sessionId === a.sessionId) return
   now?.tail.stop()
-  const chat: Chat = { tail: null as unknown as TranscriptTail, sessionId: a.sessionId, items: [] }
-  chat.tail = new TranscriptTail(transcriptFile(a), (items, replace) => {
+  const chat: Chat = { tail: null as unknown as Chat['tail'], sessionId: a.sessionId, items: [] }
+  chat.tail = providerOf(a).transcript.follow(a, (items, replace) => {
     chat.items = trimImages((replace ? items : [...chat.items, ...items]).slice(-MAX_CHAT))
     // A replacement (after a rewind) is told to the window as a reset, so it reloads the whole conversation.
     if (replace) send('chat-reset', a.id, a.sessionId)
@@ -516,13 +499,7 @@ function finishRewind(id: string) {
     sessions.get(id)?.write('\x15')
     send('composer-prefill', id, r.text)
   }
-  let real = a.cwd
-  try {
-    real = realpathSync(a.cwd)
-  } catch {
-    /* keep the plain path */
-  }
-  const fork = newestSession(dirname(transcriptPath(CLAUDE_PROJECTS, real, a.sessionId)), a.sessionId, r.at - 1000)
+  const fork = providerOf(a).transcript.forkedSession(a, r.at - 1000)
   if (fork) {
     a.sessionId = fork
     persist()
@@ -600,7 +577,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     if (restarting.delete(a.id)) {
       screens.get(a.id)?.dispose()
       screens.delete(a.id)
-      if (freshPrompt.delete(a.id)) dropPromptSnapshots(transcriptFile(a))
+      if (freshPrompt.delete(a.id)) providerOf(a).transcript.forgetInstructions(a)
       return spawn(a, env)
     }
     for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
@@ -1023,15 +1000,8 @@ async function main() {
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   ipcMain.handle('list-history', async (_, folder: string) => {
-    const wtPrefix = projectSlug(join(HOME, 'worktrees', repoSlug(folder))) + '-'
-    let all: string[] = []
-    try {
-      all = await readdirAsync(CLAUDE_PROJECTS)
-    } catch {
-      /* no Claude history yet */
-    }
-    const slugs = [projectSlug(await realpathAsync(folder)), ...all.filter((d) => d.startsWith(wtPrefix))]
-    return (await listSessions(CLAUDE_PROJECTS, slugs)).map((s) => {
+    const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
+    return sessions.map((s) => {
       const owner = agents.find((a) => a.sessionId === s.id)
       return { ...s, inUse: !!owner, ...(owner && { agentId: owner.id, agentName: owner.name }) }
     })
@@ -1246,10 +1216,9 @@ async function main() {
   // What the agent's subagents have done so far, from the files Claude keeps for them next to the session.
   ipcMain.handle('subagents:list', (_, id: string) => {
     const a = byId(id)
-    return a ? listSubagents(transcriptFile(a).replace(/\.jsonl$/, '')) : []
+    return a ? providerOf(a).transcript.subagents(a) : []
   })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
-  const counted = new Map<string, { size: number; items: ChatItem[] }>()
   // A terminal draws its own text, so the page cannot tell the system what is selected: the terminal asks for the menu itself.
   ipcMain.handle('terminal:menu', async (_, selected: string) => {
     const waiting = await clipboard.readText()
@@ -1263,19 +1232,7 @@ async function main() {
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)
     if (!a) throw new Error('That agent is not there any more.')
-    const file = transcriptFile(a)
-    let items: ChatItem[] = []
-    try {
-      const size = statSync(file).size
-      const hit = counted.get(file)
-      if (hit && hit.size === size) items = hit.items
-      else {
-        new TranscriptTail(file, (got, replace) => (items = replace ? got : [...items, ...got])).poll()
-        counted.set(file, { size, items })
-      }
-    } catch {
-      /* no conversation yet */
-    }
+    const items = providerOf(a).transcript.readAll(a)
     let folder: number | null = null
     if (a.branch) {
       try {
@@ -1294,7 +1251,7 @@ async function main() {
       }
     }
     const clock = workClocks.get(id) ?? { total: a.workedMs ?? 0, since: null }
-    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: listSubagents(file.replace(/\.jsonl$/, '')).length, commits }
+    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length, commits }
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))

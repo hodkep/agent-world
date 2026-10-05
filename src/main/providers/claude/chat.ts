@@ -1,8 +1,8 @@
-import { unwrapPasted } from '../shared/pasted'
-import { parseHandback, parseTaskNotification } from '../shared/subagentMessages'
+import { unwrapPasted } from '../../../shared/pasted'
+import { parseHandback, parseTaskNotification } from '../../../shared/subagentMessages'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ChatItem } from '../shared/chat'
+import type { ChatItem } from '../../../shared/chat'
 import { projectSlug } from './history'
 
 export const transcriptPath = (projectsDir: string, cwd: string, sessionId: string) => join(projectsDir, projectSlug(cwd), `${sessionId}.jsonl`)
