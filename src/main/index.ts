@@ -51,6 +51,7 @@ if (HIDDEN && process.platform === 'darwin') app.dock?.hide()
 const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')))
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
+process.env.AW_APP_HOME = HOME
 const AGENTS_FILE = join(HOME, 'agents.json')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { BRIDGE_SOURCE } from './bridge'
-import { createAgyMail } from './mail'
+import { createAgyMail, entryFor } from './mail'
 
 let dir: string
 let config: string
@@ -46,5 +46,13 @@ describe('connecting agy to the office message box', () => {
     mkdirSync(join(dir, 'bin'))
     await make(calls).disconnect('agy')
     expect(calls).toEqual([['mcp', 'remove', 'agent-world']])
+  })
+})
+
+describe('one entry per build', () => {
+  it('names the entry after the data folder, so a second build never replaces the first one', () => {
+    expect(entryFor('/Users/me/.agent-world')).toBe('agent-world')
+    expect(entryFor('/Users/me/.agent-world-2')).toBe('agent-world-2')
+    expect(entryFor('/tmp/aw-test-1234')).toBe('agent-world')
   })
 })

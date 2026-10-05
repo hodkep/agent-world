@@ -74,7 +74,8 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const hirer = ready.find((p) => p.id === hireWith) ?? chosen
   const id = STEPS[step]!.id
   const last = step === STEPS.length - 1
-  const blocked = id === 'agents' && ready.length === 0
+  const unlinked = ready.filter((p) => p.mail === 'missing')
+  const blocked = id === 'agents' && (ready.length === 0 || unlinked.length > 0)
   const canHire = !!hirer && !!folder
 
   useEffect(() => root.current?.querySelector<HTMLElement>('h3')?.focus(), [step])
@@ -136,7 +137,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
         <div className="su-extra">
           {p.detection.hint && <span className="hint">{p.detection.hint}</span>}
           {howto === p.id && p.detection.install && <code className="su-howto">{p.detection.install}</code>}
-          {st === 'ready' && <MailConnect provider={p} onChanged={onRescan} />}
+          {st === 'ready' && <MailConnect provider={p} onChanged={onRescan} required />}
           {signIn?.provider === p.id && (
             <div className="su-signin">
               <div className="su-term"><TerminalView ptyId={signIn.pty} visible focusTick={0} /></div>
@@ -292,7 +293,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
           <div className="su-nav">
             {step > 0 && <button onClick={() => go(step - 1)}>Back</button>}
             {step > 1 && !last && <button className="su-link" onClick={() => go(step + 1, true)}>Skip for now</button>}
-            {blocked && <span className="su-why">Install or sign in to one agent tool to continue.</span>}
+            {blocked && <span className="su-why">{ready.length === 0 ? 'Install or sign in to one agent tool to continue.' : `Connect ${unlinked.map((p) => p.label).join(' and ')} to the message box to continue.`}</span>}
             {reopened && <button className="su-link" onClick={close}>Close</button>}
             <button className="primary su-push" disabled={blocked || busy || (last && !canHire)} onClick={() => (last ? void finish() : go(step + 1))}>
               {last ? 'Hire and finish' : 'Continue'}

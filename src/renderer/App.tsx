@@ -834,6 +834,16 @@ export function App() {
     setAsks((q) => q.filter((x) => x.id !== id))
   }
 
+  // First run owns the screen: while the first-run state is still being read, and while setup is open, nothing behind it can be used.
+  const setupOpen = !!(prefs && providers && agentsLoaded && (setupAgain || (allAgents.length === 0 && (!prefs.setup.done || !providers.some((p) => p.detection.state === 'ready')))))
+  const starting = !prefs || (!prefs.setup.done && !(providers && agentsLoaded))
+  const covered = setupOpen || starting
+  useEffect(() => {
+    if (!covered) return
+    const behind = [...document.querySelectorAll('.app > :not(.su-overlay)')]
+    behind.forEach((e) => e.setAttribute('inert', ''))
+    return () => behind.forEach((e) => e.removeAttribute('inert'))
+  }, [covered])
   return (
     <div className="app">
       {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
@@ -877,7 +887,12 @@ export function App() {
       )}
       {report === 'usage' && <UsageModal onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
-      {prefs && providers && agentsLoaded && (setupAgain || (allAgents.length === 0 && (!prefs.setup.done || !providers.some((p) => p.detection.state === 'ready')))) && (
+      {!setupOpen && starting && (
+        <div className="su-overlay" role="status" aria-label="Starting">
+          <div className="su-wait"><span className="su-spin" aria-hidden="true" />Getting ready…</div>
+        </div>
+      )}
+      {setupOpen && (
         <Setup
           providers={providers}
           prefs={prefs}

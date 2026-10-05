@@ -95,13 +95,25 @@ const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
 
 test('setup offers only Claude Code and agy', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-setup-gemini-'))
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_NO_SETUP: '' }, home)
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fake, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_AGY_CONFIG: join(home, 'mcp_config.json'), AW_NO_SETUP: '' }, home)
   try {
     const page = await app.firstWindow()
     const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    // First run owns the screen: nothing behind it can be clicked or tabbed to.
+    await expect(setup).toBeVisible()
+    await expect(page.locator('.app > :not(.su-overlay)').first()).toHaveAttribute('inert', '')
     await setup.getByRole('button', { name: 'Continue' }).click()
     await expect(setup.getByText('Gemini')).toHaveCount(0)
-    await setup.getByRole('button', { name: 'Continue' }).click()
+    // agy is only usable with the message box, so setup does not go on until it is connected, and it is not optional.
+    const next = setup.getByRole('button', { name: 'Continue' })
+    await expect(next).toBeDisabled()
+    await expect(setup).toContainText('Connect agy (Antigravity) to the message box to continue.')
+    await setup.getByRole('button', { name: /Let agy .* message other agents/ }).click()
+    await expect(setup.getByRole('button', { name: 'Not now' })).toHaveCount(0)
+    await setup.getByRole('button', { name: 'Connect', exact: true }).click()
+    await expect(setup.getByRole('button', { name: 'Disconnect' })).toBeVisible()
+    await expect(next).toBeEnabled()
+    await next.click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await expect(setup.getByLabel('Provider').locator('option')).toHaveText(['Claude Code', 'agy (Antigravity)'])
