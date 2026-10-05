@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { Menu, TerminalIO, TrustPrompt } from '../ports'
-import { inputBoxAfter, inputBoxBefore } from './box'
+import { inputBoxAfter } from './box'
 
 const YES = 'Yes, I trust this folder'
 const CONFIRM = 'Enter to confirm'
@@ -47,7 +47,7 @@ export function anyMenu(screen: string): boolean {
   if (trustPrompt(screen)) return true
   const lines = stripVTControlCharacters(screen).split('\n')
   const at = lines.findLastIndex((l) => /^\s*❯\s*\d+\.\s/.test(l))
-  return at >= 0 && !inputBoxAfter(lines, at) && !inputBoxBefore(lines, at)
+  return at >= 0 && !inputBoxAfter(lines, at)
 }
 
 export { answerMenu } from '../shared/menu'

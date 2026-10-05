@@ -12,11 +12,3 @@ export function inputBoxAfter(lines: string[], from: number): boolean {
   }
   return false
 }
-
-/**
- * An input box drawn above a numbered line means that line is left over from a dialog Claude has closed (a tall one it could not erase
- * fully): a live menu takes the box's place, so nothing above it is a box.
- */
-export function inputBoxBefore(lines: string[], until: number): boolean {
-  return inputBoxAfter(lines.slice(0, until), -1)
-}

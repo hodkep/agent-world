@@ -1,7 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 import { anyMenu, inputReady } from './prompts'
 import type { GenericMenu, RewindList, TerminalIO } from '../ports'
-import { inputBoxAfter, inputBoxBefore } from './box'
+import { inputBoxAfter } from './box'
 
 const RULE = /^\s*[─▔━═]{8,}/
 const OPTION = /^\s*(❯)?\s*(\d+)\.\s+(\S.*?)\s*$/
@@ -21,7 +21,7 @@ export function genericMenu(screen: string): GenericMenu | null {
     const numbered = run.every((m, i) => Number(m[2]) === i + 1)
     const cursors = run.filter((m) => m[1]).length
     // A menu is the last thing drawn: your own numbered message echoed after the ❯ prompt marker has Claude's reply, a status line or the input box below it.
-    const buried = lines.slice(end + 1).some((l) => /^\s*[●⏺✱✻✽❯]/.test(l) || RULE.test(l)) || inputBoxBefore(lines, start)
+    const buried = lines.slice(end + 1).some((l) => /^\s*[●⏺✱✻✽❯]/.test(l) || RULE.test(l))
     if (!numbered || run.length < 2 || cursors !== 1 || buried) {
       end = start
       continue
