@@ -281,6 +281,8 @@ function clearChatNow(id: string) {
   }, 60_000)
 }
 // The permission mode last seen in each agent's footer: hooks only say it changed at their next event, the screen says it at once.
+// Agents whose footer has named a mode since they started: the mode they were started in no longer stands in for a footer that says nothing.
+const leftStartMode = new Set<string>()
 const seenMode = new Map<string, string>()
 const RUNNING_FILE = join(HOME, 'running.json')
 let quitting = false
@@ -559,6 +561,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
+  leftStartMode.delete(a.id)
   sessions.set(a.id, p)
   noteRunning()
   p.onData((d) => {
@@ -575,7 +578,9 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
         if (ui(a.id).anyMenu(text)) menuSeen.add(a.id)
         else if (menuSeen.delete(a.id)) eventsOf(a.id)?.dismiss(a.id)
       } else menuSeen.delete(a.id)
-      const mode = ui(a.id).readMode(text, a.options?.permissionMode)
+      const named = ui(a.id).readMode(text)
+      if (named && named !== 'request-review') leftStartMode.add(a.id)
+      const mode = ui(a.id).readMode(text, leftStartMode.has(a.id) ? undefined : a.options?.permissionMode)
       if (mode && mode !== seenMode.get(a.id)) {
         seenMode.set(a.id, mode)
         send('agent-event', { type: 'mode', agentId: a.id, sessionId: a.sessionId, mode })
@@ -1315,6 +1320,7 @@ async function main() {
     const prov = providerOf(a)
     if (prov.liveModes.includes(mode) && ui(id).readMode(io.screen()) && (await ui(id).setMode(io, mode))) {
       seenMode.set(id, mode)
+      leftStartMode.add(id)
       send('agent-event', { type: 'mode', agentId: id, sessionId: a.sessionId, mode })
       return
     }
