@@ -1,4 +1,5 @@
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
+import type { PaletteCommand } from '../../shared/commands'
 import type { ModeInfo } from '../../shared/modes'
 import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, LimitWindow, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
 
@@ -240,12 +241,16 @@ export interface Provider {
   /** Modes the mode key reaches while the agent runs, and modes that need a relaunch between turns. */
   readonly liveModes: string[]
   readonly relaunchModes: string[]
+  /** The file of standing project notes this program reads, which the Handbook button opens. */
+  readonly handbook: string
   /** What the hire form offers for how much it may do alone; the empty value is the provider's own default. */
   readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */
   readonly autonomy: Record<AutonomyLevel, string | null>
   /** For a provider whose limits have to be asked for (the others report them as they go, through the event source). */
   readonly limits?: { read(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<LimitWindow[]> }
+  /** What the composer offers after a slash: the program's own commands and the skills it would find for an agent working in `cwd`. */
+  readonly commands: { list(cwd: string, home: string): Promise<PaletteCommand[]> }
   /** Present when the provider needs a change of its own settings to use the message box (see `capabilities.mail`). */
   readonly mail?: MailSetup
   /** Present when `capabilities.tools`. */

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -20,7 +20,7 @@ async function open(prefix: string) {
   const page = await app.firstWindow()
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
   await page.reload()
-  return { page, shutdown, home }
+  return { page, shutdown, home, folder }
 }
 
 async function hireAgy(page: import('@playwright/test').Page, name: string) {
@@ -300,6 +300,46 @@ test('a subagent agy starts is a colleague in the office while it works, listed 
     expect(subs).toHaveLength(1)
     expect(subs[0]).toMatchObject({ type: 'research', description: 'File Researcher', done: true, result: 'The folder is empty.' })
     expect(subs[0]!.calls.map((c) => c.detail)).toEqual(['ls -la'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('what agy does not have is not offered: no Clone, role change, Compact, budget or Chrome, and its own handbook and commands show instead', async () => {
+  const { page, shutdown, folder } = await open('aw-agy-gating-')
+  try {
+    // The Handbook belongs to an agent with a branch, so the project is a git repository.
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: folder })
+    git('init', '-q', '-b', 'main')
+    git('commit', '-q', '--allow-empty', '-m', 'init')
+    await page.reload()
+    await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    const form = page.getByRole('form', { name: 'Hire an agent' })
+    await expect(form.getByLabel('Budget (USD)')).toBeVisible()
+    await form.getByLabel('Provider').selectOption('agy')
+    await expect(form.getByLabel('Budget (USD)')).toHaveCount(0)
+    await expect(form.getByText('Let it use Chrome')).toHaveCount(0)
+    await form.getByLabel('Provider').selectOption('claude')
+    await expect(form.getByLabel('Budget (USD)')).toBeVisible()
+    await form.getByLabel('Provider').selectOption('agy')
+    await form.getByLabel('Name').fill('ada')
+    await form.getByRole('button', { name: 'Hire' }).click()
+    await form.waitFor({ state: 'detached' })
+
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.getByRole('button', { name: 'More actions' }).click()
+    const menu = page.getByRole('menu', { name: 'More actions' })
+    await expect(menu.getByRole('menuitem', { name: /Clone/ })).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: /Change role/ })).toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: /Handbook/ })).toContainText('AGENTS.md')
+    await expect(menu.getByRole('menuitem', { name: /Tools/ })).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    const names = (await page.evaluate((id) => window.aw.listCommands(id), ada!.id)).map((c) => c.name)
+    expect(names).toEqual(expect.arrayContaining(['context', 'rewind', 'fork']))
+    expect(names).not.toContain('compact')
+    expect(names).not.toContain('cost')
   } finally {
     await shutdown()
   }

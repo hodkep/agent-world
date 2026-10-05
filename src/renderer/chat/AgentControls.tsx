@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ModeInfo } from '../../shared/modes'
 import { type Role, isCurrentRole } from '../../shared/roles'
-import type { Effort } from '../../shared/types'
+import type { Capabilities, Effort } from '../../shared/types'
 import { type UsageLimits, limitView, tokenLabel } from '../../shared/usage'
 import { EFFORTS, MODELS } from '../panel/HireForm'
 import { PixelIcon } from './PixelIcon'
@@ -31,6 +31,10 @@ export interface AgentInfo {
   /** Whether its program can summarise the conversation on request, and shows its limits with each agent. */
   canCompact?: boolean
   liveLimits?: boolean
+  /** What its program can do; anything it cannot is not offered. */
+  can?: Partial<Capabilities>
+  /** Its file of standing project notes. */
+  handbook?: string
 }
 
 /** What the controls can do: App owns the work, the box only asks for it. */
@@ -210,16 +214,18 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                     <small>ask a peer</small>
                   </button>
                 )}
-                <button className="cb-tile" role="menuitem" disabled={!info.started} onClick={() => setPage('clone')} title={info.started ? '' : 'Nothing to copy until the conversation has started'}>
-                  <PixelIcon name="clone" />
-                  Clone
-                  <small>fork this chat</small>
-                </button>
+                {info.can?.clone !== false && (
+                  <button className="cb-tile" role="menuitem" disabled={!info.started} onClick={() => setPage('clone')} title={info.started ? '' : 'Nothing to copy until the conversation has started'}>
+                    <PixelIcon name="clone" />
+                    Clone
+                    <small>fork this chat</small>
+                  </button>
+                )}
                 {info.branch && (
                   <button className="cb-tile" role="menuitem" onClick={run(actions.handbook)}>
                     <PixelIcon name="book" />
                     Handbook
-                    <small>CLAUDE.md</small>
+                    <small>{info.handbook ?? 'CLAUDE.md'}</small>
                   </button>
                 )}
                 <button className="cb-tile" role="menuitem" onClick={run(actions.tools)}>
@@ -245,10 +251,12 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                 <PixelIcon name="pencil" />
                 Rename
               </button>
-              <button className="cb-row" role="menuitem" disabled={!info.canSwitch} title={info.canSwitch ? '' : 'Wait until it finishes its turn'} onClick={() => setPage('role')}>
-                <PixelIcon name="tag" />
-                Change role…
-              </button>
+              {info.can?.changeRole !== false && (
+                <button className="cb-row" role="menuitem" disabled={!info.canSwitch} title={info.canSwitch ? '' : 'Wait until it finishes its turn'} onClick={() => setPage('role')}>
+                  <PixelIcon name="tag" />
+                  Change role…
+                </button>
+              )}
               <button className="cb-row" role="menuitem" onClick={run(actions.group)}>
                 <PixelIcon name="tag" />
                 Group…

@@ -77,9 +77,9 @@ export function HireForm({
       ...(model && { model }),
       ...(effort && { effort }),
       ...(mode && modes.some((m) => m.value === mode) && { permissionMode: mode as PermissionMode }),
-      ...(budgetUsd > 0 && { budgetUsd }),
+      ...(budgetUsd > 0 && chosen?.capabilities.budget !== false && { budgetUsd }),
       ...(instructions.trim() && { instructions: instructions.trim() }),
-      ...(chrome && { chrome }),
+      ...(chrome && chosen?.capabilities.chrome !== false && { chrome }),
       ...(inPlace && { inPlace }),
       ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
     }
@@ -177,6 +177,7 @@ export function HireForm({
           </select>
           <span className="hint">{(modes.find((m) => m.value === mode) ?? modes[0]!).hint}</span>
         </label>
+        {chosen?.capabilities.budget !== false && (
         <label>
           Budget (USD)
           <input value={budget} onChange={(e) => setBudget(e.target.value)} inputMode="decimal" placeholder="none" aria-describedby="budget-hint" />
@@ -184,15 +185,18 @@ export function HireForm({
             Warns at 80% and 100%
           </span>
         </label>
+        )}
       </div>
       <label>
         Extra instructions
-        <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} placeholder="Appended to Claude's system prompt, e.g. prefer small commits" />
+        <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} placeholder="Added to the agent's instructions, e.g. prefer small commits" />
       </label>
       <div className="hire-row">
-        <label className="check">
-          <input type="checkbox" checked={chrome} onChange={(e) => setChrome(e.target.checked)} /> Let it use Chrome
-        </label>
+        {chosen?.capabilities.chrome !== false && (
+          <label className="check">
+            <input type="checkbox" checked={chrome} onChange={(e) => setChrome(e.target.checked)} /> Let it use Chrome
+          </label>
+        )}
         <label className="check" title="No worktree and no aw/ branch: the agent edits your folder directly, so other agents on it can overwrite each other">
           <input type="checkbox" checked={inPlace} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>

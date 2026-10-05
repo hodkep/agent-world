@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import type { Provider } from '../ports'
+import { agyCommands } from './commands'
 import { agyEvents } from './events'
 import { agyKeys } from './keys'
 import { agyMail } from './mail'
@@ -15,7 +16,7 @@ export const agy: Provider = {
   id: 'agy',
   label: 'agy (Antigravity)',
   bin: 'agy',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false, clone: false, changeRole: false, chrome: false, budget: false, sideQuestion: false },
   async detect(bin, ask = run) {
     let version: string | undefined
     try {
@@ -36,6 +37,7 @@ export const agy: Provider = {
   prepare: (i) => ({ env: { AW_MCP_URL: i.mcpUrl, AW_AGENT_TOKEN: i.agentToken } }),
   mail: agyMail,
   tools: agyTools,
+  commands: agyCommands,
   args: agyArgs,
   limits: { read: async (bin, ask = run) => parseUsage(await ask(bin, ['-p', '/usage'])) },
   events: agyEvents,
@@ -52,6 +54,7 @@ export const agy: Provider = {
   ],
   modes: agyModes,
   rewindConfirms: false,
+  handbook: 'AGENTS.md',
   liveModes: ['request-review', 'accept-edits', 'plan'],
   relaunchModes: ['skip-permissions'],
   hireModes: [

@@ -19,7 +19,7 @@ import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, Age
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
-import { commandLine, listCommands } from './commands'
+import { commandLine } from './commands'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
@@ -1135,7 +1135,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, autonomy: p.autonomy, mail: mailState(p) })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p) })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
@@ -1439,7 +1439,7 @@ async function main() {
   ipcMain.on('decide', (_, requestId: string, d: Decision) => eventHandles.forEach((h) => h.decide(requestId, d)))
   ipcMain.handle('list-commands', (_, id: string) => {
     const a = byId(id)
-    return a ? listCommands(a.cwd, homedir()) : []
+    return a ? providerOf(a).commands.list(a.cwd, homedir()) : []
   })
   ipcMain.handle('run-command', (_, id: string, name: string, args: string) => {
     const p = sessions.get(id)

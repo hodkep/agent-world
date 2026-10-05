@@ -12,7 +12,7 @@ export function Welcome({ folder, onPick, onHire, onHistory, onCrew }: { folder:
   return (
     <section className="welcome" aria-label="Get started">
       <PixelWord text="now hiring" scale={4} />
-      <p className="welcome-lead">Every agent is a real Claude session with its own desk, terminal and git branch. Watch them work, step in when they ask.</p>
+      <p className="welcome-lead">Every agent is a real coding agent session (Claude Code or agy) with its own desk, terminal and git branch. Watch them work, step in when they ask.</p>
       <ul className="crew" aria-label="Who works here">
         {ROLES.map((r) => (
           <li key={r.name}>
@@ -48,7 +48,7 @@ export function Welcome({ folder, onPick, onHire, onHistory, onCrew }: { folder:
           Or bring back an earlier conversation from this folder
         </button>
       )}
-      <p className="welcome-note">Uses your own signed-in claude. Nothing here touches your Claude settings or credentials.</p>
+      <p className="welcome-note">Uses the agent tools you already have, signed in as you. Nothing here touches their credentials.</p>
     </section>
   )
 }

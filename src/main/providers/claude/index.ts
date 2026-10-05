@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Provider } from '../ports'
 import { MODES } from '../../../shared/modes'
+import { claudeCommands } from './commands'
 import { claudeKeys } from './keys'
 import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
@@ -14,7 +15,7 @@ export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, liveLimits: true, tools: true, mail: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true },
   async detect(bin, run) {
     try {
       const out = await (run ?? defaultRun)(bin, ['--version'])
@@ -36,6 +37,7 @@ export const claude: Provider = {
   ],
   modes: MODES,
   rewindConfirms: true,
+  handbook: 'CLAUDE.md',
   liveModes: ['default', 'acceptEdits', 'plan', 'auto'],
   relaunchModes: ['auto', 'dontAsk'],
   hireModes: [] = [
@@ -47,6 +49,7 @@ export const claude: Provider = {
   { value: 'dontAsk', label: "Don't ask", hint: 'Only pre-allowed tools run; the rest are denied' }
 ],
   autonomy: { ask: 'default', edit: 'acceptEdits', plan: 'plan', full: 'auto' },
+  commands: claudeCommands,
   tools: {
     list: { servers: ['mcp', 'list'], plugins: ['plugin', 'list', '--json'] },
     parse: (servers, plugins) => ({ mcp: parseMcpList(servers), plugins: parsePlugins(plugins) }),

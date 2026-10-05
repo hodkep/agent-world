@@ -12,10 +12,24 @@ const PERMISSIONS = [
   { value: 'plan', label: 'Plan first' }
 ]
 
+/** Where one program is, when the app cannot find it on its own. */
+function ProgramPath({ provider, saved, onSave }: { provider: ProviderInfo; saved: string; onSave: (path: string) => void }) {
+  const [path, setPath] = useState(saved)
+  return (
+    <fieldset>
+      <legend>{provider.label} program</legend>
+      <label>
+        Location
+        <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== saved && onSave(path.trim())} placeholder={`${provider.detection.path ?? provider.id} (found on your PATH)`} />
+        <span className="hint">Only needed when the app cannot find it. Applies to agents started after this.</span>
+      </label>
+    </fieldset>
+  )
+}
+
 /** Preferences that outlive a session. Each change is saved as it is made. */
 export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const [path, setPath] = useState(prefs.providers.claude?.path ?? '')
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
   const [update, setUpdate] = useState('')
@@ -129,14 +143,9 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
         <legend>Setup</legend>
         <button onClick={onSetup} title="Walk through the first-run setup again: agent tools found here, project folder, defaults">Set up again</button>
       </fieldset>
-      <fieldset>
-        <legend>Claude program</legend>
-        <label>
-          Location
-          <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== (prefs.providers.claude?.path ?? '') && set({ providers: { ...prefs.providers, claude: { path: path.trim() } } })} placeholder="claude (found on your PATH)" />
-          <span className="hint">Only needed when the app cannot find it. Applies to agents started after this.</span>
-        </label>
-      </fieldset>
+      {providers.map((p) => (
+        <ProgramPath key={p.id} provider={p} saved={prefs.providers[p.id]?.path ?? ''} onSave={(path) => set({ providers: { ...prefs.providers, [p.id]: { path } } })} />
+      ))}
     </dialog>
   )
 }

@@ -89,6 +89,16 @@ export interface Capabilities {
   compact: boolean
   limits: boolean
   tools: boolean
+  /** An agent can be cloned: a copy that continues from the same conversation. */
+  clone: boolean
+  /** An agent's job can be changed while it is running. */
+  changeRole: boolean
+  /** It can be allowed to use Chrome. */
+  chrome: boolean
+  /** It reports a price, so a spending budget can be set and warned about. */
+  budget: boolean
+  /** It has a side-question overlay that answers without interrupting the task (/btw). */
+  sideQuestion: boolean
   /** Its limits arrive with each agent's own reports, so the agent's controls can show them (otherwise they are in the Usage tab). */
   liveLimits: boolean
   /** It can use the office's message box and notes: agents can write to each other and share what they learn. */
@@ -126,6 +136,8 @@ export interface ProviderInfo {
   modes: import('./modes').ModeInfo[]
   /** The choices in the hire form for how much it may do alone, in the provider's own words; the empty value is its default. */
   hireModes: { value: string; label: string; hint: string }[]
+  /** The file of standing project notes its program reads (CLAUDE.md, AGENTS.md). */
+  handbook: string
   /** The mode each neutral level means for this provider (null when it has none). */
   autonomy: Record<AutonomyLevel, string | null>
   /** Whether it can use the office message box: always, once connected (and what that changes), or not at all. */

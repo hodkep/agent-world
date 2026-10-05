@@ -619,9 +619,10 @@ export function App() {
   // CLAUDE.md is the standing brief Claude reads at every start; start one if the project has none yet.
   const openHandbook = (a: AgentRecord) =>
     run(async () => {
-      if (!(await window.aw.code.files(a.id)).includes('CLAUDE.md')) await window.aw.code.write(a.id, 'CLAUDE.md', '# Project notes\n\nWhat every agent here should know: how to build and test, conventions, things to avoid.\n')
+      const book = providers?.find((p) => p.id === (a.provider ?? 'claude'))?.handbook ?? 'CLAUDE.md'
+      if (!(await window.aw.code.files(a.id)).includes(book)) await window.aw.code.write(a.id, book, '# Project notes\n\nWhat every agent here should know: how to build and test, conventions, things to avoid.\n')
       setView('code')
-      setOpenFile({ path: 'CLAUDE.md' })
+      setOpenFile({ path: book })
     })
 
   plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
@@ -765,6 +766,8 @@ export function App() {
       role: a.options?.role,
       tokens: st?.tokens,
       canCompact: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.compact,
+      can: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities,
+      handbook: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.handbook,
       liveLimits: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.capabilities.liveLimits,
       models: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.models,
       modes: providers?.find((p) => p.id === (a.provider ?? 'claude'))?.modes
