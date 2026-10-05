@@ -10,7 +10,7 @@ export type Need =
   | { kind: 'question'; questions: Question[] }
   | ({ kind: 'menu' } & TerminalMenu)
 
-export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : n.kind === 'menu' ? 'CLAUDE ASKS' : 'QUESTION')
+export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : n.kind === 'menu' ? 'ASKS YOU' : 'QUESTION')
 
 export interface NeedActions {
   trust: (yes: boolean) => void

@@ -12,6 +12,11 @@ function permission(screen: string): GenericMenu | null {
   const all = lines(screen)
   const at = all.findLastIndex((l) => /^\s*Requesting permission for:/.test(l))
   if (at < 0) return null
+  // Only agy's own question counts: it is the last thing on the screen (hint, then footer) with a rule above it. The same words in
+  // something the model printed higher up are text, not a question, and must never become a card that can be allowed.
+  const shown = all.map((l) => l.trim()).filter(Boolean)
+  const real = shown.findLastIndex((l) => l.startsWith('Requesting permission for:'))
+  if (!/^[─━]{8,}$/.test(shown[real - 1] ?? '') || !shown.at(-1)?.startsWith('esc to cancel') || !shown.at(-2)?.startsWith('↑/↓')) return null
   const rest = all.slice(at + 1)
   const ask = rest.findIndex((l) => /\?\s*$/.test(l.trim()))
   if (ask < 0) return null

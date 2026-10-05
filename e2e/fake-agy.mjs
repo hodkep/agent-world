@@ -26,7 +26,7 @@ const db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))
 db.exec('create table if not exists steps (idx integer primary key, step_type integer not null default 0, status integer not null default 0, step_payload blob)')
 const addStep = (type, status, payload) => db.prepare('insert into steps (idx, step_type, status, step_payload) values ((select coalesce(max(idx), -1) + 1 from steps), ?, ?, ?)').run(type, status, payload)
 
-const W = 110
+const W = process.stdout.columns ?? 100
 const rule = '─'.repeat(W)
 const footer = (left) => left.padEnd(W - 'Gemini 3.8 Flash · high'.length) + 'Gemini 3.8 Flash · high'
 const draw = (lines) => process.stdout.write('\x1b[2J\x1b[H' + lines.join('\r\n'))

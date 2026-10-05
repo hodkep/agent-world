@@ -6,10 +6,11 @@ import type { ChatItem } from '../../../shared/chat'
 import type { AgentRecord } from '../../../shared/types'
 import type { PastSession, TranscriptSource } from '../ports'
 import { FINISHED, decodeStep, type StepRow } from './steps'
+import { text } from './wire'
 
 /** agy keeps its state under one folder; the environment can point elsewhere (tests, other machines). */
 export const agyHome = () => process.env.AW_AGY_HOME ?? join(homedir(), '.gemini', 'antigravity-cli')
-const conversationFile = (id: string) => join(agyHome(), 'conversations', `${id}.db`)
+export const conversationFile = (id: string) => join(agyHome(), 'conversations', `${id}.db`)
 
 /** Steps after `after`, opened read-only for a moment: agy is writing the file, and a held connection would hold up its saves. */
 function stepsAfter(file: string, after: number): StepRow[] {
@@ -24,6 +25,18 @@ function stepsAfter(file: string, after: number): StepRow[] {
   } finally {
     db?.close()
   }
+}
+
+const known = new Map<string, string>()
+/** The folder a conversation runs in, which its first step records as a file address; unknown until that step is saved. */
+export function conversationWorkspace(id: string): string | undefined {
+  const hit = known.get(id)
+  if (hit) return hit
+  const first = stepsAfter(conversationFile(id), -1).find((r) => r.type === 14)
+  const uri = text(first?.payload, '19.12.12')
+  const path = uri?.startsWith('file://') ? decodeURIComponent(uri.slice('file://'.length)) : undefined
+  if (path) known.set(id, path)
+  return path
 }
 
 /** Finished steps, in order, up to the first one still being worked on: nothing is shown half-done or out of order. */

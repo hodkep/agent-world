@@ -8,7 +8,7 @@ import { createAgyEvents } from './events'
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
 const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
 
-function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; workspace: string }[] } = {}) {
+function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
   const agents = opts.agents ?? [agent()]
   const screens: Record<string, string> = { a1: fx('idle') }
   const events: AgentEvent[] = []
@@ -27,9 +27,9 @@ function setup(opts: { agents?: AgentRecord[]; conversations?: { id: string; wor
       sessions.push([id, s])
       agents.find((a) => a.id === id)!.sessionId = s
     },
-    terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k) }
+    terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { conversations: () => opts.conversations ?? [], sleep: async () => {} })
+  const src = createAgyEvents(o, { conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
   return { src, screens, events, asked, settled, sessions, written, agents }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
@@ -80,6 +80,19 @@ describe('agy asking permission', () => {
     t.src.handle.decide('nope', 'allow')
     expect(t.written).toEqual([])
   })
+  it('answers only the question the card showed: if agy has moved on to another, nothing is pressed', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission')
+    t.src.tick()
+    const id = t.asked[0]!.id
+    t.screens.a1 = fx('permission').replaceAll('sleep 4', 'rm -rf ~')
+    t.src.handle.decide(id, 'allow')
+    t.src.handle.decide(id, 'deny')
+    expect(t.written).toEqual([])
+    t.screens.a1 = fx('permission')
+    t.src.handle.decide(id, 'allow')
+    expect(t.written).toEqual(['\r'])
+  })
   it('knows which agents have a question open', () => {
     const t = setup({ agents: [agent(resolved)] })
     t.screens.a1 = fx('permission')
@@ -96,6 +109,18 @@ describe('finding the conversation agy gave a new agent', () => {
     t.src.tick()
     expect(t.sessions).toEqual([['a1', 'conv-9']])
     expect(acts(t.events)).toEqual(['thinking'])
+  })
+  it('takes a conversation whose folder is not known yet when it began after this terminal did', () => {
+    const t = setup({ conversations: [{ id: 'conv-new', bornAt: 1500 }] })
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.sessions).toEqual([['a1', 'conv-new']])
+  })
+  it('ignores a conversation that began before this terminal did', () => {
+    const t = setup({ conversations: [{ id: 'conv-old', bornAt: 100 }] })
+    t.screens.a1 = fx('working')
+    t.src.tick()
+    expect(t.sessions).toEqual([])
   })
   it('holds back while there is no conversation for its folder yet', () => {
     const t = setup({ conversations: [{ id: 'conv-x', workspace: '/w/other' }] })

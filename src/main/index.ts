@@ -88,6 +88,8 @@ const sessions = new Map<string, pty.IPty>()
 // Plain shells opened in the grid, in the project folder: not agents, so they have no hooks, screen or chat. Ids start with `term:`.
 const shells = new Map<string, pty.IPty>()
 const shellIdle = new Map<string, string>()
+// When each agent's terminal was started: a provider that reports nothing itself uses it to tell its sessions apart.
+const spawnedAt = new Map<string, number>()
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
@@ -511,6 +513,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const args = provider.args({ agent: a, files: agentFiles(a), permissionMode: PERMISSION_MODE, options: a.options, houseRules: [provider.capabilities.mail && MEMORY_HINT, provider.capabilities.mail && DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
+  spawnedAt.set(a.id, Date.now())
   const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
@@ -701,7 +704,8 @@ async function main() {
     terminal: {
       agents: () => agents.filter((a) => providerOf(a).id === p.id),
       screen: (id) => (sessions.has(id) ? (screens.get(id)?.text() ?? '') : ''),
-      write: (id, keys) => void sessions.get(id)?.write(keys)
+      write: (id, keys) => void sessions.get(id)?.write(keys),
+      startedAt: (id) => spawnedAt.get(id) ?? 0
     }
   })
   for (const p of providers()) eventHandles.set(p.id, await p.events.start(eventOptions(p)))

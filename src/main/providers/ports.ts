@@ -151,6 +151,8 @@ export interface TerminalAccess {
   /** The rendered screen of an agent's terminal; empty when it is not running. */
   screen(agentId: string): string
   write(agentId: string, keys: string): void
+  /** When its terminal was started (ms since 1970); 0 when it is not running. */
+  startedAt(agentId: string): number
 }
 
 export interface EventSourceOptions {

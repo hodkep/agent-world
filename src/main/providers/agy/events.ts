@@ -1,37 +1,40 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, realpathSync } from 'node:fs'
+import { readdirSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Activity, AgentEvent, AgentRecord } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions, TerminalIO } from '../ports'
 import { agyScreen } from './screen'
-import { agyHome } from './transcript'
+import { agyHome, conversationWorkspace } from './transcript'
 
 const POLL_MS = 500
 
+export interface Conversation {
+  id: string
+  /** When agy created its file. */
+  bornAt: number
+  /** The folder it runs in, once its first step is saved; unknown before that. */
+  workspace?: string
+}
+
 export interface Deps {
-  /** Conversations agy has started, newest first, with the folder each began in. */
-  conversations: () => { id: string; workspace: string }[]
+  conversations: () => Conversation[]
   sleep: (ms: number) => Promise<void>
 }
 
-/** agy appends a line per prompt to its history; the newest line of each conversation says where it runs. */
-function historyConversations() {
+/** Conversations agy keeps, newest first. Its file appears as soon as the session starts, but says nothing of the folder until the first step is saved. */
+function savedConversations(): Conversation[] {
+  const dir = join(agyHome(), 'conversations')
   try {
-    const seen = new Map<string, string>()
-    for (const l of readFileSync(join(agyHome(), 'history.jsonl'), 'utf8').split('\n').reverse()) {
-      try {
-        const o = JSON.parse(l) as { conversationId?: string; workspace?: string }
-        if (o.conversationId && o.workspace && !seen.has(o.conversationId)) seen.set(o.conversationId, o.workspace)
-      } catch {
-        /* a half-written last line */
-      }
-    }
-    return [...seen].map(([id, workspace]) => ({ id, workspace }))
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.db'))
+      .map((f) => ({ id: f.slice(0, -3), bornAt: statSync(join(dir, f)).birthtimeMs }))
+      .sort((a, b) => b.bornAt - a.bornAt)
+      .slice(0, 30)
+      .map((c) => ({ ...c, workspace: conversationWorkspace(c.id) }))
   } catch {
     return []
   }
 }
-
 const same = (a: string, b: string) => {
   const real = (p: string) => {
     try {
@@ -56,7 +59,7 @@ interface Seen {
 export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
   const term = o.terminal!
   const seen = new Map<string, Seen>()
-  const pending = new Map<string, { agentId: string }>()
+  const pending = new Map<string, { agentId: string; question: string }>()
 
   const io = (id: string): TerminalIO => ({ screen: () => term.screen(id), write: (k) => term.write(id, k), sleep: deps.sleep })
   const say = (e: AgentEvent) => o.onEvent(e)
@@ -65,7 +68,13 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
   function resolve(a: AgentRecord): boolean {
     if (a.started) return true
     const taken = new Set(term.agents().filter((x) => x !== a && x.started).map((x) => x.sessionId))
-    const hit = deps.conversations().find((c) => !taken.has(c.id) && same(c.workspace, a.cwd))
+    const since = term.startedAt(a.id) - 300
+    // agy creates the file as the session starts but names the folder only with the first saved step: a file with no folder yet
+    // belongs to the oldest session started since this terminal began, and one with a folder must be this agent's.
+    const hit = deps
+      .conversations()
+      .filter((c) => !taken.has(c.id) && c.bornAt >= since && (c.workspace === undefined || same(c.workspace, a.cwd)))
+      .at(-1)
     if (!hit) return false
     o.onSession?.(a.id, hit.id)
     return true
@@ -87,7 +96,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     if (menu && s.question !== menu.context) {
       s.question = menu.context
       s.requestId = randomUUID()
-      pending.set(s.requestId, { agentId: a.id })
+      pending.set(s.requestId, { agentId: a.id, question: menu.context })
       o.onPermission({ id: s.requestId, agentId: a.id, sessionId: a.sessionId, tool: 'Bash', detail: menu.context })
     } else if (!menu && s.requestId) {
       pending.delete(s.requestId)
@@ -106,11 +115,14 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     decide(requestId, d) {
       const p = pending.get(requestId)
       if (!p) return
-      // Choosing "Yes, run command" walks the menu with the screen in view; refusing is Esc, which agy treats as "No, cancel".
-      if (d === 'allow') void agyScreen.answerMenu(io(p.agentId), (scr) => {
+      // The answer is for the question the card showed. If agy has moved on to another, nothing is pressed: the new one gets its own card.
+      const ofCard = (scr: string) => {
         const m = agyScreen.genericMenu(scr)
-        return m ? { highlighted: m.highlighted } : null
-      }, 0)
+        return m && m.context === p.question ? m : null
+      }
+      if (!ofCard(term.screen(p.agentId))) return
+      // Choosing "Yes, run command" walks the menu with the screen in view; refusing is Esc, which agy treats as "No, cancel".
+      if (d === 'allow') void agyScreen.answerMenu(io(p.agentId), (scr) => { const m = ofCard(scr); return m ? { highlighted: m.highlighted } : null }, 0)
       else term.write(p.agentId, '\x1b')
     },
     dismiss(agentId) {
@@ -126,7 +138,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: historyConversations, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }
