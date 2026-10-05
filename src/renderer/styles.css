@@ -1459,7 +1459,7 @@ code a.file-link { font: inherit; }
 .lm-prow { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; text-align: left; width: 100%; padding: 8px 12px; }
 .lm-prow:hover { box-shadow: 0 0 0 2px var(--accent); }
 .lm-mini { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
-.lm-go { margin-left: auto; font-size: 18px; color: var(--accent); }
+.lm-go { margin-left: auto; font-size: 16px; color: var(--accent); }
 .lm-chip { font: 11px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 1px 7px; color: var(--ok-text); }
 .lm-chip[data-level='warn'] { color: var(--accent); }
 .lm-chip[data-level='hot'] { color: var(--danger-text); }
