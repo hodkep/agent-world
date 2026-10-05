@@ -956,6 +956,14 @@ async function main() {
     const p = sessions.get(id)
     if (!p) return
     const { first, then } = keysOf(id).interrupt
+    // Stopping answers what the agent was waiting on: a permission card still open would keep it looking busy after the Esc.
+    for (const r of [...pendingPermissions.values()]) if (r.agentId === id) eventHandles.forEach((h) => h.decide(r.id, 'deny'))
+    // Claude reports nothing after an Esc, and the idle check only settles a working agent: leave "waiting for you" so it can.
+    const a = byId(id)
+    if (a && lastActivity.get(id) === 'permission') {
+      lastActivity.set(id, 'thinking')
+      send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
+    }
     p.write(first)
     for (const [delay, keys] of then)
       setTimeout(() => {

@@ -1410,7 +1410,8 @@ code a.file-link { font: inherit; }
 .su-prov { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; padding: 12px 14px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
 .su-prov.pick { box-shadow: 0 0 0 2px var(--accent); background: var(--selected); }
 .su-mark { width: 36px; height: 36px; display: grid; place-items: center; font: 700 15px Menlo, Consolas, monospace; color: var(--ink); background: var(--claude); box-shadow: 0 0 0 2px var(--ink); }
-.su-prov[data-provider='agy'] .su-mark { background: var(--think); }
+.su-prov[data-provider='agy'] .su-mark { background: #fff; }
+.su-mark img { display: block; }
 .su-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .su-sub { grid-column: 2; font: 11px Menlo, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
 .su-act { grid-column: 3; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }

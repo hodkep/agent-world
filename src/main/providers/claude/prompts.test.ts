@@ -135,3 +135,15 @@ describe('the input box with text in it', () => {
     expect(inputReady('───────\n❯ Reply with just: alpha\n───────\n')).toBe(true)
   })
 })
+
+describe('a dialog Claude closed but could not erase', () => {
+  const rule = '─'.repeat(40)
+  const stale = ['  Bash command', '    git commit -qm "…"', '  Do you want to proceed?', '  ❯ 1. Yes', '    2. No', '  Esc to cancel']
+  it('is not a menu once the input box is drawn above its leftovers (it blocked sending until the terminal redrew)', () => {
+    const afterInterrupt = ['  ⎿ Interrupted · What should Claude do instead?', rule, '❯ ', rule, ...stale].join('\n')
+    expect(anyMenu(afterInterrupt)).toBe(false)
+  })
+  it('is still a menu while it is the last thing drawn', () => {
+    expect(anyMenu(['  ● Running the tests', ...stale].join('\n'))).toBe(true)
+  })
+})
