@@ -5,6 +5,7 @@ import { codeContext } from './codeContext'
 import { Markdown } from '../chat/markdown'
 import { editorOptions, languageFor, monaco } from './monaco'
 import { closeTab, openTab, type TabState } from './tabs'
+import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { ancestors, visibleRows } from './tree'
 
 type Tab = 'changes' | 'files'
@@ -56,6 +57,7 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat }
 }
 
 function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { agentId: string; agentName: string; workDone: number; onJump: (j: CodeJump) => void; onOpenChat: () => void }) {
+  const side = useSideWidth()
   const [data, setData] = useState<Changes | null>(null)
   const [path, setPath] = useState<string | null>(null)
   const [message, setMessage] = useState('')
@@ -133,7 +135,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
 
   return (
     <div className="changes">
-      <div className="change-list">
+      <div className="change-list" style={side.style}>
         <div className="change-head">
           {data ? (
             <>
@@ -196,6 +198,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
         {notice && <p className="notice">{notice}</p>}
         {error && <p className="error">{error}</p>}
       </div>
+      <SideSizer {...side.sizer} />
       <div className="files-ed">
         {path && (
           <div className="fcrumb">
@@ -228,6 +231,7 @@ const uriOf = (agentId: string, path: string) => monaco.Uri.from({ scheme: 'aw-f
 const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
 function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: string; agentName: string; openFile?: OpenRequest; onOpenChat: () => void }) {
+  const side = useSideWidth()
   const sess = sessionOf(agentId)
   const [files, setFiles] = useState<string[]>([])
   const [filter, setFilter] = useState('')
@@ -383,7 +387,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const dirty = !!active && dirtyOf(active)
   return (
     <div className="changes">
-      <div className="change-list">
+      <div className="change-list" style={side.style}>
         <div className="tree-head">
           <span>Files</span>
           <button className="icon" onClick={loadFiles} title="Refresh the file list" aria-label="Refresh the file list">
@@ -409,6 +413,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
         </ul>
         {error && <p className="error">{error}</p>}
       </div>
+      <SideSizer {...side.sizer} />
       <div className="files-ed">
         {tabs.open.length > 0 && (
           <div className="ftabs" role="tablist" aria-label="Open files">

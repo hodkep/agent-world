@@ -1,6 +1,7 @@
 import { type ReactNode, useRef, useState } from 'react'
 import { cssColor, modeInfo } from '../../shared/modes'
 import type { Activity, AgentRecord } from '../../shared/types'
+import { SideSizer, useSideWidth } from './SideSizer'
 import { TerminalView } from './TerminalView'
 import { type Node, type Zone, addAll, collapse, isTerm, keepOnly, place, rectsOf, remove, resizeAt, splitsOf, tilesOf } from './tiling'
 
@@ -66,6 +67,7 @@ export function PaneGrid({
   /** Open a shell in the project folder and add it (beside a tile, or wherever it fits). */
   onNewTerminal: (drop?: TerminalDrop) => void
 }) {
+  const side = useSideWidth()
   const area = useRef<HTMLDivElement>(null)
   const [over, setOver] = useState<{ id: string; zone: Zone } | null>(null)
   // Agents that have gone (removed, or in another folder) leave their tiles behind quietly.
@@ -106,7 +108,7 @@ export function PaneGrid({
   const listed = new Set(tiles)
   return (
     <div className="pane-area">
-      <div className="pane-side" role="complementary" aria-label="Agents and terminals to add">
+      <div className="pane-side" style={side.style} role="complementary" aria-label="Agents and terminals to add">
         <button
           className="side-item side-terminal"
           draggable
@@ -137,6 +139,7 @@ export function PaneGrid({
           </button>
         ))}
       </div>
+      <SideSizer {...side.sizer} />
       <div className="panes" ref={area} onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(null, 'center', e)}>
         {tiles.length - outCount === 0 && tiles.length > 0 && (
           <div className="pane-hint">

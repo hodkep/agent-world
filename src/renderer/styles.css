@@ -112,6 +112,12 @@ aside.wide { width: min(72vw, 1200px); }
 .changes { flex: 1; min-height: 0; display: flex; }
 .change-list { width: 240px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-right: 2px solid var(--ink); min-height: 0; }
 aside:not(.wide) .change-list { width: 190px; }
+/* A zero-width slot after a list; its grip straddles the list's border, like the sash in VS Code. */
+.side-sizer { position: relative; flex: none; width: 0; z-index: 15; }
+.side-grip { position: absolute; left: -5px; top: 0; bottom: 0; width: 9px; cursor: col-resize; touch-action: none; }
+.side-grip::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 3px; background: transparent; }
+.side-grip:hover::after, .side-grip:focus-visible::after, .side-grip:active::after { background: var(--accent); }
+.side-grip:focus-visible { outline: none; }
 .change-list ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
 .change-list li { display: flex; }
 .change-list li.on .file { background: var(--selected); border-color: var(--accent); }
