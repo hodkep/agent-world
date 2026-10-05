@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { add, addAll, even, keepOnly, place, readLayout, rectsOf, remove, resizeAt, splitsOf, tilesOf, type Node } from './tiling'
+import { add, addAll, collapse, even, keepOnly, place, readLayout, rectsOf, remove, resizeAt, splitsOf, tilesOf, type Node } from './tiling'
 
 const rect = (n: Node | null, tile: string) => rectsOf(n).find((r) => r.tile === tile)!.rect
 const area = (n: Node | null) => rectsOf(n).reduce((sum, r) => sum + r.rect.w * r.rect.h, 0)
@@ -122,5 +122,39 @@ describe('saved layouts', () => {
     expect(readLayout({ root: { kind: 'split' } })).toBeNull()
     const dup = { root: { kind: 'split', dir: 'row', at: 0.5, a: { kind: 'leaf', tile: 'a' }, b: { kind: 'leaf', tile: 'a' } } }
     expect(tilesOf(readLayout(dup)!.root)).toEqual(['a'])
+  })
+})
+
+describe('hiding a tile for a while without touching the layout', () => {
+  const two = even(['a', 'b'])
+  const four = even(['a', 'b', 'c', 'd'])
+
+  it('gives the space of the hidden tile to its neighbour, and leaves the others where they are', () => {
+    const shown = collapse(two, 'b')
+    expect(rect(shown, 'a')).toEqual({ x: 0, y: 0, w: 1, h: 1 })
+    expect(rect(shown, 'b').w).toBe(0)
+    const grid = collapse(four, 'a')
+    expect(rect(grid, 'b')).toEqual({ x: 0, y: 0, w: 1, h: 0.5 })
+    expect(rect(grid, 'c')).toEqual(rect(four, 'c'))
+    expect(rect(grid, 'd')).toEqual(rect(four, 'd'))
+  })
+
+  it('keeps every tile in the tree and every split where it was, so edits made meanwhile apply to the real layout', () => {
+    const shown = collapse(four, 'c')
+    expect(tilesOf(shown)).toEqual(tilesOf(four))
+    expect(splitsOf(shown).map((s) => s.path)).toEqual(splitsOf(four).map((s) => s.path))
+  })
+
+  it('changes nothing for a tile that is not in the layout, or when nothing is hidden', () => {
+    expect(collapse(four, null)).toBe(four)
+    expect(collapse(four, 'zzz')).toBe(four)
+    expect(collapse(null, 'a')).toBeNull()
+  })
+
+  it('does not alter the layout it was given, so showing the tile again puts it back exactly', () => {
+    const before = JSON.stringify(four)
+    collapse(four, 'b')
+    expect(JSON.stringify(four)).toBe(before)
+    expect(rect(four, 'b')).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.5 })
   })
 })
