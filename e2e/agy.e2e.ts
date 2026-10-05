@@ -34,7 +34,8 @@ test('an agy agent is hired beside Claude, shows its provider, and its conversat
   const { page, shutdown, home } = await open('aw-agy-')
   try {
     await hireAgy(page, 'ada')
-    await expect(page.locator('.agent-row', { hasText: 'ada' }).locator('.ptag')).toHaveText('agy (Antigravity)')
+    // The program is a colour square, named on hover.
+    await expect(page.locator('.agent-row', { hasText: 'ada' }).getByRole('img', { name: 'agy (Antigravity)' })).toBeVisible()
     await expect.poll(() => JSON.parse(readFileSync(join(home, 'agents.json'), 'utf8'))[0]).toMatchObject({ name: 'ada', provider: 'agy' })
 
     await page.getByRole('tab', { name: 'Chat' }).click()

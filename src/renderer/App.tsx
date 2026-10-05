@@ -33,8 +33,9 @@ import { TracesView } from './panel/TracesView'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
+import { HandoffDialog } from './panel/HandoffDialog'
 import { lowCount } from '../shared/limits'
-import { ProviderTag } from './panel/ProviderTag'
+import { Swatch } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
 import { TerminalView } from './panel/TerminalView'
@@ -137,6 +138,7 @@ export function App() {
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [setupAgain, setSetupAgain] = useState(false)
+  const [handoffFrom, setHandoffFrom] = useState<string | null>(null)
   // How many allowances (of any provider) are nearly used up: the Usage button says so.
   const [lowLimits, setLowLimits] = useState(0)
   useEffect(() => {
@@ -702,8 +704,8 @@ export function App() {
   const between = !state || ['idle', 'waiting'].includes(state.activity)
 
   // The agent rows, shared by the list and by the switcher that stands in for it when the list is folded away.
-  // Tags only help once there is more than one program to tell apart.
-  const mixed = (providers?.length ?? 0) > 1
+  // A colour only helps once there is more than one program to tell apart: two ready here, or agents of two kinds.
+  const mixed = (providers ?? []).filter((p) => p.detection.state === 'ready').length > 1 || new Set(allAgents.map((a) => a.provider ?? 'claude')).size > 1
   const rosterRows = (after?: () => void) =>
     [...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
                 const st = world[a.id]
@@ -716,7 +718,7 @@ export function App() {
                     <span className="dot" aria-hidden="true" />
                     <span className="name">
                       {a.name}
-                      {mixed && <ProviderTag id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? 'claude'))?.label} />}
+                      {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? 'claude'))?.label ?? 'Claude Code'} />}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
                           {a.repoPath.split(/[\\/]/).pop()}
@@ -767,6 +769,7 @@ export function App() {
     }),
     reviewers: agents.filter((x) => x.id !== a.id && (world[x.id]?.activity ?? 'asleep') !== 'asleep').map((x) => ({ id: x.id, name: x.name })),
     askReview: (reviewer) => void askReview(a, reviewer),
+    handoff: () => setHandoffFrom(a.id),
     clone: (model) => clone(a, model),
     compact: () => void run(() => window.aw.chatSend(a.id, '/compact')),
     handbook: () => openHandbook(a),
@@ -871,6 +874,27 @@ export function App() {
           }}
           onClose={() => setSetupAgain(false)}
           reopened={setupAgain}
+        />
+      )}
+      {handoffFrom && providers && agents.find((a) => a.id === handoffFrom) && (
+        <HandoffDialog
+          author={agents.find((a) => a.id === handoffFrom)!}
+          others={agents.filter((a) => a.id !== handoffFrom)}
+          asleep={(id) => (world[id]?.activity ?? 'asleep') === 'asleep'}
+          providers={providers}
+          onClose={() => setHandoffFrom(null)}
+          onSend={async (to, kind, note) => {
+            let sent = false
+            await run(async () => {
+              const created = await window.aw.sendHandoff(handoffFrom, to, kind, note)
+              sent = true
+              if (created) {
+                setAgents((xs) => [...xs, created])
+                setWorld((w) => applyEvent(w, { type: 'activity', agentId: created.id, sessionId: created.sessionId, activity: 'idle' }))
+              }
+            })
+            return sent
+          }}
         />
       )}
       {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {

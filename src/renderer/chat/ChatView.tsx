@@ -1,5 +1,6 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
+import { parseHandoff } from '../../shared/handoff'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
@@ -588,7 +589,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
-      if (mail) return <AgentMailCard {...mail} />
+      if (mail) return parseHandoff(mail.body) ? <HandoffCard from={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`}>
           <Clamped>
@@ -670,6 +671,33 @@ function SubagentReport({ agentId, subagentId, body }: { agentId: string; subage
     return () => void (alive = false)
   }, [agentId, subagentId])
   return <AgentMailCard from={name} body={body} expectsReply={false} label="Report from" tag="Report" />
+}
+
+const HANDOFF = { review: 'Review', continue: 'Continue', answer: 'Answer' } as const
+
+/** Work another agent handed over, as a card: what is asked, which branch, how to read it; the words it was given are behind a button. */
+function HandoffCard({ from, body }: { from: string; body: string }) {
+  const h = parseHandoff(body)!
+  return (
+    <article className="mail handoff-card" aria-label={`Hand-off from agent ${from}`}>
+      <header className="mail-head">
+        <span className="mail-from">
+          <span className="mail-lbl">Hand-off from</span> “{from}”
+        </span>
+        <span className="mail-tag ask">{HANDOFF[h.kind]}</span>
+      </header>
+      <dl className="ho-kv">
+        <dt>Branch</dt>
+        <dd><code>{h.branch}</code> from <code>{h.base}</code></dd>
+        {h.read && (<><dt>Read with</dt><dd><code>{h.read}</code></dd></>)}
+        {h.note && (<><dt>Note</dt><dd>{h.note}</dd></>)}
+      </dl>
+      <details className="ho-told">
+        <summary>What it was told</summary>
+        <pre>{body}</pre>
+      </details>
+    </article>
+  )
 }
 
 /** What another agent sent: a card of its own, cut to two lines until asked for, so it is never mistaken for something you typed. */

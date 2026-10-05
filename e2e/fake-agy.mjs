@@ -51,7 +51,7 @@ const footer = (left) => left.padEnd(W - 'Gemini 3.8 Flash · high'.length) + 'G
 const draw = (lines) => process.stdout.write('\x1b[2J\x1b[H' + lines.join('\r\n'))
 const idle = (shown = '') => draw(['', '  Antigravity CLI 1.2.17', '  Gemini 3.8 Flash (High)', '', rule, `> ${shown}`, rule, footer('? for shortcuts')])
 const working = (said) => draw(['', `> ${said}`, '⣷  Generating...', rule, '>', rule, footer('esc to cancel')])
-const asking = (cmd) => draw(['', '● Bash(' + cmd + ') (ctrl+o to expand)', rule, 'Requesting permission for:', `   ${cmd}`, 'Run this command?', '> 1. Yes, run command', "  2. Yes, and always allow in this conversation for commands that start with 'x'", '  3. Yes, and always allow for commands that start with \'x\' (Persist to settings.json)', '  4. No, cancel', '  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command', footer('esc to cancel')])
+const asking = (cmd) => draw(['', '● Bash(' + cmd + ') (ctrl+o to expand)', 'Command', rule, 'Requesting permission for:', `   ${cmd}`, 'Run this command?', '> 1. Yes, run command', "  2. Yes, and always allow in this conversation for commands that start with 'x'", '  3. Yes, and always allow for commands that start with \'x\' (Persist to settings.json)', '  4. No, cancel', '  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command', footer('esc to cancel')])
 
 let typed = ''
 let state = 'idle'

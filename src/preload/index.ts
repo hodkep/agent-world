@@ -27,6 +27,7 @@ const api: AwApi = {
   setRole: (id, role) => ipcRenderer.invoke('agent-set-role', id, role),
   setGroup: (id, group) => ipcRenderer.invoke('set-group', id, group),
   renameAgent: (id, name) => ipcRenderer.invoke('rename-agent', id, name),
+  sendHandoff: (fromId, to, kind, note) => ipcRenderer.invoke('handoff:send', fromId, to, kind, note),
   requestReview: (authorId, reviewer) => ipcRenderer.invoke('handoff-review', authorId, reviewer),
   cloneAgent: (id, model) => ipcRenderer.invoke('clone-agent', id, model),
   listHistory: (folder) => ipcRenderer.invoke('list-history', folder),

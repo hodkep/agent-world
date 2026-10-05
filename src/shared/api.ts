@@ -1,5 +1,6 @@
 import type { UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
+import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
@@ -101,6 +102,8 @@ export interface AwApi {
   renameAgent(id: string, name: string): Promise<string>
   setGroup(id: string, group: string): Promise<void>
   /** Ask another agent (or a fresh read-only reviewer, with 'new') to review this agent's branch. Resolves to the new reviewer, if one was hired. */
+  /** Hand an agent's branch to another agent (or a new one of either provider) to review, continue from, or answer a question about; gives the new agent when one was hired. */
+  sendHandoff(fromId: string, to: { agent: string } | { hire: ProviderId }, kind: HandoffKind, note: string): Promise<AgentRecord | null>
   requestReview(authorId: string, reviewer: string): Promise<AgentRecord | null>
   /** A second agent that continues a copy of this one's conversation, in its own worktree branched from this one's. */
   /** A second agent that continues a copy of this conversation, optionally on another model. */

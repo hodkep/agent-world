@@ -15,13 +15,14 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { claudeWindows } from '../shared/limits'
+import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
 import { okfHint } from './okf'
 import { wrapUp } from './wrapUp'
@@ -1018,6 +1019,47 @@ async function main() {
       new Promise<string>((resolve) => execFile(providerCmd(providerOf(a), args).file, providerCmd(providerOf(a), args).args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
     const [servers, plugins] = await Promise.all([claude(...tools.list.servers), claude(...tools.list.plugins)])
     return tools.parse(servers, plugins)
+  })
+  // Hand this agent's branch to another agent, or to a new one of either provider. It travels as a normal agent message, so it queues
+  // when the receiver is busy; only an agent that can use the message box is offered, since it must be able to answer through it.
+  ipcMain.handle('handoff:send', async (_, authorId: string, to: { agent: string } | { hire: ProviderId }, kind: HandoffKind, note: string) => {
+    const author = byId(authorId)
+    if (!author) throw new Error('Unknown agent.')
+    if (!author.branch || !author.base) throw new Error(`${author.name} works in a shared folder, so there is no branch to hand over.`)
+    if (!['review', 'continue', 'answer'].includes(kind)) throw new Error('Pick what you want from them.')
+    const canMail = (p: Provider) => ['yes', 'connected'].includes(mailState(p) as string)
+    let receiver: AgentRecord | undefined
+    let created: AgentRecord | null = null
+    if ('agent' in to) {
+      receiver = byId(to.agent)
+      if (!receiver || receiver.id === author.id) throw new Error('Pick a different agent.')
+      if (!canMail(providerOf(receiver))) throw new Error(`${receiver.name} cannot use the message box yet, so it could not answer. Connect it in Settings first.`)
+    } else {
+      const p = providers().find((x) => x.id === to.hire)
+      if (!p || (await p.detect(binFor(p))).state !== 'ready') throw new Error('That program is not ready here.')
+      if (!canMail(p)) throw new Error(`${p.label} cannot use the message box yet. Connect it in Settings first.`)
+      const name = await nextName(author.repoPath)
+      // A continuation begins on the sender's commits; a review or a question only reads, so it is kept from editing.
+      const wt = await createWorktree({ repoPath: author.repoPath, name, rootDir: join(HOME, 'worktrees'), ...(kind === 'continue' && { from: author.branch }) })
+      const readOnly = kind !== 'continue'
+      const model = kind === 'review' ? prefs.roleModels.Reviewer : undefined
+      created = {
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: author.repoPath, cwd: wt.path, branch: wt.branch, base: wt.base, provider: p.id, started: false, hiredAt: Date.now(),
+        options: {
+          provider: p.id,
+          ...(readOnly && p.autonomy.plan && { permissionMode: p.autonomy.plan as PermissionMode }),
+          ...(model && p.models.some((m) => m.value === model) && { model }),
+          ...(kind === 'review' && { instructions: 'You are a code reviewer. Read and run read-only commands only; never edit files. Report concrete findings.' })
+        }
+      }
+      setWorkspaces(rememberWorkspace(workspaces, author.repoPath))
+      agents.push(created)
+      persist()
+      spawn(created, env)
+      receiver = created
+    }
+    mailbox.send(author.id, receiver.name, handoffText({ kind, from: author.name, branch: author.branch, base: author.base, worktree: author.cwd, note, fresh: !!created && kind === 'continue' }), { expectsReply: true })
+    return created
   })
   // Ask another agent to review this one's branch. The request travels as a normal agent message (author to reviewer),
   // so it shows as an envelope in the office and follows the same delivery and rate-limit rules.

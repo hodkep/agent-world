@@ -32,6 +32,8 @@ export interface AgentActions {
   setRole: (role: Role | null) => void
   reviewers: { id: string; name: string }[]
   askReview: (reviewer: string) => void
+  /** Open the dialog that hands this agent's branch to another agent. */
+  handoff: () => void
   clone: (model?: string) => void
   /** Summarise the conversation to free up context (the /compact command). */
   compact: () => void
@@ -210,6 +212,12 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                 <button className="cb-row finish" role="menuitem" onClick={run(actions.finish)}>
                   <PixelIcon name="flag" />
                   Finish this branch
+                </button>
+              )}
+              {info.branch && (
+                <button className="cb-row" role="menuitem" onClick={run(actions.handoff)} title="Give this branch to another agent to review, continue or answer a question about">
+                  <PixelIcon name="review" />
+                  Hand off…
                 </button>
               )}
               <div className="cb-sep" />
