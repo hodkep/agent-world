@@ -23,6 +23,7 @@
   --dim: #4a4860; /* an asleep dot, a track with nothing in it */
   --danger-well: #2a1620; /* the recessed red behind a permission band */
   --accent-dim: #5a4c1e; /* the thin rim inside a sent message */
+  --claude: #e08a5a; /* Claude Code's mark on a provider tag and in setup */
   --track: #2a2640; /* the unfilled part of a ring */
   --mail-well: #0f1d26; /* another agent's message, tinted from the think cyan */
   --mail-rim: #2a5a68;
@@ -1408,7 +1409,7 @@ code a.file-link { font: inherit; }
 .su-link:hover:not(:disabled) { background: none; color: var(--text); }
 .su-prov { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; padding: 12px 14px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
 .su-prov.pick { box-shadow: 0 0 0 2px var(--accent); background: var(--selected); }
-.su-mark { width: 36px; height: 36px; display: grid; place-items: center; font: 700 15px Menlo, Consolas, monospace; color: var(--ink); background: var(--claude, #e08a5a); box-shadow: 0 0 0 2px var(--ink); }
+.su-mark { width: 36px; height: 36px; display: grid; place-items: center; font: 700 15px Menlo, Consolas, monospace; color: var(--ink); background: var(--claude); box-shadow: 0 0 0 2px var(--ink); }
 .su-prov[data-provider='agy'] .su-mark { background: var(--think); }
 .su-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .su-sub { grid-column: 2; font: 11px Menlo, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
@@ -1445,6 +1446,6 @@ code a.file-link { font: inherit; }
 /* ---- Which program an agent runs on ---- */
 .ptag { --c: var(--dim); display: inline-flex; align-items: center; gap: 5px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 0 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--text); white-space: nowrap; }
 .ptag::before { content: ''; width: 7px; height: 7px; background: var(--c); }
-.ptag.claude { --c: #e08a5a; }
+.ptag.claude { --c: var(--claude); }
 .ptag.agy { --c: var(--think); }
 .agent-row .name .ptag { margin-left: 6px; vertical-align: 1px; }
