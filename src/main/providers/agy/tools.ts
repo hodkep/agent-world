@@ -3,6 +3,15 @@ import type { ToolPlugin, ToolServer, ToolsManager } from '../ports'
 
 const NAME = /^[A-Za-z0-9][\w.@:-]*$/
 
+/** An address as its site only: keys are put in the query, in the path, or before the host. */
+function siteOf(address: string) {
+  try {
+    return new URL(address).origin
+  } catch {
+    return '(address hidden)'
+  }
+}
+
 /**
  * `agy mcp list` prints a table whose last column is the whole command line, and that is where keys get passed (--api-key=…, a header).
  * Only the program, or the address without its query, is shown; the rest stays hidden.
@@ -13,7 +22,7 @@ export function parseAgyMcp(out: string): ToolServer[] {
     if (!m) return []
     const [, name, kind, state, rest] = m
     const first = rest!.split(/\s+/)[0]!
-    const target = kind === 'http' ? first.replace(/[?#].*$/, '') : rest!.trim() === first ? first : `${first} (arguments hidden)`
+    const target = kind === 'http' ? siteOf(first) : /[=:]/.test(first) ? '(command hidden)' : rest!.trim() === first ? first : `${first} (arguments hidden)`
     return [{ name: name!, target, health: state === 'enabled' ? 'ok' : 'attention', status: state! }]
   })
 }

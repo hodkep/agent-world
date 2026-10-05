@@ -7,19 +7,24 @@ const LIST = [
   'stitch    stdio  disabled  npx -y mcp-remote https://stitch.example/mcp --header X-Goog-Api-Key: SECRETKEY123',
   'payments  stdio  enabled   npx -y @pay/mcp --tools=all --api-key=sk_test_SECRET456',
   'docs      http   enabled   https://docs.example/mcp?token=SECRET789',
+  'private   http   enabled   https://user:PASSWORD1@host.example/mcp/PATHTOKEN2/v1',
+  'envcmd    stdio  enabled   API_KEY=ENVSECRET3 node server.js',
   ''
 ].join('\n')
 
 describe('what agy says is connected', () => {
   it('gives each server with its kind and whether it is on', () => {
     const r = parseAgyMcp(LIST)
-    expect(r.map((s) => [s.name, s.health, s.status])).toEqual([['stitch', 'attention', 'disabled'], ['payments', 'ok', 'enabled'], ['docs', 'ok', 'enabled']])
+    expect(r.map((s) => [s.name, s.health, s.status])).toEqual([['stitch', 'attention', 'disabled'], ['payments', 'ok', 'enabled'], ['docs', 'ok', 'enabled'], ['private', 'ok', 'enabled'], ['envcmd', 'ok', 'enabled']])
   })
   it('never shows what is after the program name, since that is where keys are passed', () => {
     const shown = JSON.stringify(parseAgyMcp(LIST))
-    for (const secret of ['SECRETKEY123', 'sk_test_SECRET456', 'SECRET789', '--api-key', 'X-Goog-Api-Key']) expect(shown).not.toContain(secret)
+    for (const secret of ['SECRETKEY123', 'sk_test_SECRET456', 'SECRET789', 'PASSWORD1', 'PATHTOKEN2', 'ENVSECRET3', '--api-key', 'X-Goog-Api-Key']) expect(shown).not.toContain(secret)
     expect(parseAgyMcp(LIST)[0]!.target).toBe('npx (arguments hidden)')
-    expect(parseAgyMcp(LIST)[2]!.target).toBe('https://docs.example/mcp')
+    // An address is shown as the site only: a token can sit in its query, its path or before the host.
+    expect(parseAgyMcp(LIST)[2]!.target).toBe('https://docs.example')
+    expect(parseAgyMcp(LIST)[3]!.target).toBe('https://host.example')
+    expect(parseAgyMcp(LIST)[4]!.target).toBe('(command hidden)')
   })
   it('ignores the header and anything else that is not a server', () => {
     expect(parseAgyMcp('No MCP servers configured.\n')).toEqual([])
