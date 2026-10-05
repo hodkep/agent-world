@@ -1,6 +1,8 @@
 # Providers: Claude Code and agy side by side
 
-Status: draft for review. Nothing here is built yet.
+Status: built on branch `aw/charlie`, not merged. Claude Code and agy both run behind the provider interface (`src/main/providers/`), with first-run setup, provider colour on agents, limits in the Usage tab, an approved MCP bridge for agy mail, and hand-offs. Spike results below are from agy 1.2.17.
+
+Known gaps: agy token counts (the conversation file's token fields are undocumented, so only the model and effort from agy's footer are shown), context percentage for agy, subagents/rewind/compact for agy, and Claude Code's own screen parsers still read menus from anywhere on screen (agy's were hardened against forged text).
 
 ## Why
 
@@ -165,12 +167,12 @@ Because worktrees are plain git, a Claude agent and an agy agent can work on or 
 
 Opens on first launch and whenever no provider is ready. It is skippable except where a choice is truly required: you cannot hire until at least one provider is **ready**, so step 2 cannot be skipped when none is. Steps 3 to 5 (project folder, defaults, first agent) are skippable with sane defaults. There is no "how it stays safe" step for now, since later features will touch provider and system files and that promise would not hold. It can be re-run from Settings. Setup never handles credentials: "needs sign-in" opens the terminals drawer with the provider's own login command.
 
-## Spikes before the agy implementation is sized
+## Spike results (agy 1.2.17)
 
-1. **Interactive events.** Find what an interactive agy session exposes for working, idle and permission-asked: the `steps.permissions` blob and `status` column, the CLI log, or the Remote Control daemon. Fallback is a screen adapter like Claude's.
-2. **Per-agent MCP and rules.** A way to give each agent its own MCP server (mail) and house rules without touching `~/.gemini`. Candidates: environment overrides, `.agents/` manifests in a per-agent directory, `--add-dir`.
-3. **Transcript decoding.** How stable the `steps` protobuf is; fall back to the headless NDJSON schema, which is documented.
-4. **Interrupt, mode and queue keys** in the agy TUI.
+1. **Interactive events: there are none to subscribe to.** No hooks; `cli.log` is noise; the conversation database fills in batches, after a step finishes. So agy gets a **screen adapter**, as Claude has. Verified screens: idle (`>` prompt, footer `? for shortcuts`), working (spinner `Generating…` / `Running…`, footer `esc to cancel`), permission asked (`Requesting permission for:`, `Run this command?`, a numbered menu with a `>` cursor), and a trust menu for a new folder.
+2. **Rules and MCP.** Rules: agy reads global rules and the workspace's `.agents/rules`, `AGENTS.md`, `GEMINI.md`; adding a folder did not reliably inject rules, so per-launch house rules are sent as the first message (`agy -i`). MCP is global only; the plan is one global `agent-world` bridge entry that reads the agent's token from the environment the app sets on its terminal. Adding it changes `~/.gemini`, so it is an explicit, approved action; whether child servers inherit that environment is not yet verified.
+3. **Transcript.** The protobuf in `steps` decodes with a small parser and stable-looking field numbers (user text, model text and tool calls, tool output, allow/deny). Read it with `sqlite3 -readonly`; it is undocumented, so a fixture test pins what was seen.
+4. **Keys.** Esc interrupts a turn and cancels a permission; Ctrl+C twice exits; Shift+Tab cycles request-review, accept-edits, plan (the footer names the mode), so the mode can change live.
 
 ## Phases
 
