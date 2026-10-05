@@ -46,6 +46,9 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
 
     await header.getByRole('button', { name: 'Usage', exact: true }).click()
     const usage = page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    // It opens on the summary across providers; Claude Code's dollars are one click away.
+    await expect(usage.locator('.st-card', { hasText: 'Spent, last 7 days' })).toContainText('$1.50')
+    await usage.getByRole('button', { name: 'Open Claude Code' }).click()
     await expect(usage.locator('.st-card', { hasText: 'Today' })).toContainText('$1.50')
     await expect(usage.locator('.st-card', { hasText: 'Last 7 days' })).toContainText('$1.50')
     await usage.getByRole('button', { name: '90d' }).click()
