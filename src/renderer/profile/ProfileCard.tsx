@@ -222,7 +222,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           </button>
         </div>
         <div className="pc-tags">
-          <span className="pc-role" title={ROLE_HINT[data.roleLabel] ?? `The job it was hired for: ${data.roleLabel}`}>{data.roleLabel}</span>
+          <span className="pc-role" title={Object.hasOwn(ROLE_HINT, data.roleLabel) ? ROLE_HINT[data.roleLabel] : `The job it was hired for: ${data.roleLabel}`}>{data.roleLabel}</span>
           <span className="pc-prov" title={`Runs on ${data.provider.label}`}>
             <Swatch id={data.provider.id} label={data.provider.label} />
             {data.provider.label.split(' (')[0]}

@@ -18,6 +18,9 @@ describe.each(providers().map((p) => [p.id, p] as const))('%s tool calls', (_id,
       }
     }
   })
+  it('never treats a name from the transcript as a lookup into Object', () => {
+    for (const name of ['constructor', 'toString', '__proto__']) expect(p.calls.translate({ id: 'z', name, args: { name: 'Bash' } }), name).toEqual([{ id: 'z', name, input: { name: 'Bash' } }])
+  })
   it('passes a tool it has never heard of on as it is, so a new tool never breaks the chat', () => {
     expect(p.calls.translate({ id: 'z', name: 'not_a_real_tool', args: { a: 1 } })).toEqual([{ id: 'z', name: 'not_a_real_tool', input: { a: 1 } }])
   })

@@ -21,6 +21,11 @@ describe("agy's tools in the chat's vocabulary", () => {
     expect(t('multi_replace_file_content', { TargetFile: 'a', ReplacementChunks: 'nope' })[0]).toMatchObject({ name: 'MultiEdit', input: { edits: [] } })
     expect(t('invoke_subagent', {})).toEqual([])
   })
+  it('a tool name that is also an Object method is an unknown tool, never a lookup into Object', () => {
+    for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf']) {
+      expect(t(name, { name: 'Bash', input: { command: 'rm -rf /' } }), name).toEqual([{ id: 'c1', name, input: { name: 'Bash', input: { command: 'rm -rf /' } } }])
+    }
+  })
   it('the answer to starting subagents is silent: each subagent answers for itself', () => {
     expect(agyCalls.silentResult('invoke_subagent')).toBe(true)
     expect(agyCalls.silentResult('run_command')).toBe(false)

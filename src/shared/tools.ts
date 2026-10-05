@@ -58,10 +58,13 @@ export type Mapper = (args: Record<string, unknown>, id: string) => ToolCall | T
 export function tableTranslator(table: Record<string, Mapper>, silent: string[] = []): ToolTranslator {
   return {
     translate({ id, name, args }) {
-      const mapper = table[name]
-      if (!mapper) return [{ id, name, input: args }]
+      // The name comes from a transcript, so only the table's own entries count: "constructor" or "toString" must not reach Object's methods.
+      const mapper = Object.hasOwn(table, name) ? table[name] : undefined
+      if (typeof mapper !== 'function') return [{ id, name, input: args }]
       const out = mapper(args, id)
-      return Array.isArray(out) ? out : [{ id, ...out }]
+      // A mapper answers in the vocabulary: its name must be one the chat draws, whatever the arguments said.
+      const calls = (Array.isArray(out) ? out : [{ id, ...out }]).filter((c) => isCanonicalTool(c.name))
+      return calls.length || Array.isArray(out) ? calls : [{ id, name, input: args }]
     },
     silentResult: (name) => silent.includes(name)
   }
