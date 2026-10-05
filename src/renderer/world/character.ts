@@ -64,6 +64,13 @@ export class Character {
   tagDy = 0
   bubbleDy = 0
   leaving = false
+  /** How much faster than a walk it moves (a subagent rushing to or from its car). */
+  speedMul = 1
+  /** Out of sight and still: a subagent whose car has not parked yet. */
+  waiting = false
+  // Free walking outside the office's tiles, in the cell's own pixels: before the path (from a car to the door) and after it (back to the car).
+  private pre: Pt[] = []
+  private post: Pt[] = []
   activity: Activity = 'idle'
   detail?: string
   contextPct: number | null = null
@@ -105,7 +112,20 @@ export class Character {
   }
 
   get arrived() {
-    return this.path.length === 0 && this.tile.x === this.goal.x && this.tile.y === this.goal.y
+    return this.path.length === 0 && this.pre.length === 0 && this.post.length === 0 && this.tile.x === this.goal.x && this.tile.y === this.goal.y
+  }
+
+  /** Steps out at this spot (centre x, feet y) and walks to each point in turn before heading for its place. */
+  appearAt(cx: number, feetY: number, via: Pt[]) {
+    this.px = cx - TILE / 2
+    this.py = feetY - TILE
+    this.pre = via.map((p) => ({ x: p.x - TILE / 2, y: p.y - TILE }))
+    this.waiting = false
+  }
+
+  /** After reaching the door, walks on to each point in turn (centre x, feet y). */
+  walkOutVia(via: Pt[]) {
+    this.post = via.map((p) => ({ x: p.x - TILE / 2, y: p.y - TILE }))
   }
 
   isAt(spot: Pt) {
@@ -138,8 +158,12 @@ export class Character {
   }
 
   update(dtMs: number, t: number) {
-    const moving = this.path.length > 0
-    if (moving) this.step(dtMs)
+    this.view.visible = this.overlay.visible = !this.waiting
+    if (this.waiting) return
+    const free = this.pre.length > 0 || (this.path.length === 0 && this.post.length > 0)
+    const moving = this.path.length > 0 || free
+    if (free) this.freeStep(dtMs, this.pre.length > 0 ? this.pre : this.post)
+    else if (moving) this.step(dtMs)
     const settled = !moving && this.arrived
     const seated = settled && this.goal.seated && !this.leaving
     const asleep = this.activity === 'asleep'
@@ -209,8 +233,8 @@ export class Character {
     const dx = tx - this.px
     const dy = ty - this.py
     const dist = Math.hypot(dx, dy)
-    const move = (WALK_TILES_PER_SEC * TILE * dtMs) / 1000
-    this.walkClock += dtMs
+    const move = (WALK_TILES_PER_SEC * TILE * dtMs * this.speedMul) / 1000
+    this.walkClock += dtMs * this.speedMul
     if (Math.abs(dy) > Math.abs(dx)) this.heading = dy < 0 ? 'back' : 'front'
     else if (Math.abs(dx) > 0.5) {
       this.heading = 'side'
@@ -221,6 +245,29 @@ export class Character {
       this.py = ty
       this.tile = next
       this.path.shift()
+    } else {
+      this.px += (dx / dist) * move
+      this.py += (dy / dist) * move
+    }
+  }
+
+  /** Walks straight towards the next free point (outside the office's tiles). */
+  private freeStep(dtMs: number, list: Pt[]) {
+    const next = list[0]!
+    const dx = next.x - this.px
+    const dy = next.y - this.py
+    const dist = Math.hypot(dx, dy)
+    const move = (WALK_TILES_PER_SEC * TILE * dtMs * this.speedMul) / 1000
+    this.walkClock += dtMs * this.speedMul
+    if (Math.abs(dy) > Math.abs(dx)) this.heading = dy < 0 ? 'back' : 'front'
+    else if (Math.abs(dx) > 0.5) {
+      this.heading = 'side'
+      this.flip = dx < 0
+    }
+    if (dist <= move) {
+      this.px = next.x
+      this.py = next.y
+      list.shift()
     } else {
       this.px += (dx / dist) * move
       this.py += (dy / dist) * move

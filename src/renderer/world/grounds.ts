@@ -146,6 +146,8 @@ interface Vehicle {
   lane: 0 | 1
   speed: number
   color: number
+  /** Time left before it is gone, for a car asked to make way: it flickers out. */
+  fadeMs?: number
 }
 interface Walker {
   x: number
@@ -203,6 +205,8 @@ export class Street {
   private readonly right: number
   private readonly roadY: number
   private wanted = carsFor(0)
+  /** Stretches of the upper lane kept clear for a car racing through. */
+  private ways: { from: number; to: number }[] = []
 
   constructor(private readonly map: OfficeMap) {
     this.left = -GROUNDS.west - 40
@@ -214,6 +218,15 @@ export class Street {
   /** Busy agents drive the traffic; cars are added at the edge and leave when their road is clear of the excess. */
   setBusy(busy: number) {
     this.wanted = carsFor(busy)
+  }
+
+  /**
+   * A car is racing through these stretches of the upper lane: ordinary cars in them flicker out, and no ordinary car is
+   * put in that lane while they are asked for. Call it with an empty list when the lane is free again.
+   */
+  makeWay(ways: { from: number; to: number }[]) {
+    this.ways = ways
+    for (const c of this.cars) if (c.lane === 0 && c.fadeMs === undefined && ways.some((w) => c.x + 26 > w.from && c.x < w.to)) c.fadeMs = 300
   }
 
   private newCar(x: number): Vehicle {
@@ -232,6 +245,10 @@ export class Street {
     // Add a car at a road end when there are too few; retire one that has left the screen when there are too many.
     // A car only enters where there is room, and cars in a lane never drive through the one ahead.
     const enter = (c: Vehicle) => {
+      // A car coming on picks its lane again, so traffic spreads out once a held lane is free. While a car races through the
+      // upper lane, new traffic uses the other one.
+      c.lane = this.ways.length > 0 || this.rand() < 0.5 ? 1 : 0
+      c.speed = Math.abs(c.speed) * (c.lane ? -1 : 1)
       const dir = c.speed > 0 ? 1 : -1
       c.x = clearStart(this.cars.filter((o) => o !== c && o.lane === c.lane), dir > 0 ? this.left - 30 : this.right, dir)
     }
@@ -239,6 +256,12 @@ export class Street {
       const c = this.newCar(0)
       enter(c)
       this.cars.push(c)
+    }
+    for (let i = this.cars.length - 1; i >= 0; i--) {
+      const c = this.cars[i]!
+      if (c.fadeMs === undefined) continue
+      c.fadeMs -= dt
+      if (c.fadeMs <= 0) this.cars.splice(i, 1)
     }
     for (const lane of [0, 1] as const) driveLane(this.cars.filter((c) => c.lane === lane), dt)
     for (let i = this.cars.length - 1; i >= 0; i--) {
@@ -248,7 +271,7 @@ export class Street {
       if (this.cars.length > this.wanted) this.cars.splice(i, 1)
       else enter(c)
     }
-    for (const c of this.cars) car(g, Math.round(c.x), this.roadY + (c.lane ? 22 : 4), c.color, { dir: c.lane ? -1 : 1, lights: true })
+    for (const c of this.cars) if (c.fadeMs === undefined || Math.floor(c.fadeMs / 60) % 2 === 0) car(g, Math.round(c.x), this.roadY + (c.lane ? 22 : 4), c.color, { dir: c.lane ? -1 : 1, lights: true })
     const walkY = this.map.h * TILE + 8
     for (const w of this.walkers) {
       w.x += w.speed * w.dir * dt
