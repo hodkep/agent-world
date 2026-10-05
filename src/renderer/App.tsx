@@ -447,6 +447,8 @@ export function App() {
   const panes = grid && !!paneLayout && agents.length > 0
   useEffect(() => setPeek(false), [panes])
   const showPanel = panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen
+  // The agent the side panel is showing is left out of the grid while it does, so it is not on screen twice.
+  const inPanel = grid && showPanel && agents.some((a) => a.id === selected) ? selected : null
   const folderName = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
   // A shell in the project folder, added to the grid beside a tile, or wherever it fits.
   const newTerminal = (drop?: TerminalDrop) =>
@@ -917,6 +919,7 @@ export function App() {
                   modeOf={(id) => world[id]?.mode}
                   onChange={changeLayout}
                   onOpen={(id) => (setPeek(true), select(id))}
+                  hidden={inPanel}
                   folderName={folderName}
                   onNewTerminal={(drop) => void newTerminal(drop)}
                   renderChat={(a) => chatFor(a, true, `pane-${a.id}`)}
@@ -925,7 +928,8 @@ export function App() {
                 <GridView
                   selected={selected}
                   onOpen={(id) => select(id)}
-                  tiles={agents.map((a) => ({
+                  inPanel={agents.find((a) => a.id === inPanel)?.name ?? null}
+                  tiles={agents.filter((a) => a.id !== inPanel).map((a) => ({
                     agent: a,
                     activity: world[a.id]?.activity ?? 'asleep',
                     detail: world[a.id]?.detail,
