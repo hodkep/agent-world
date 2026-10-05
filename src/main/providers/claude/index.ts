@@ -21,7 +21,7 @@ export const claude: Provider = {
       const version = /\d+\.\d+\.\d+/.exec(out)?.[0]
       return { state: 'ready', version, path: bin }
     } catch {
-      return { state: 'not-installed', hint: 'Install Claude Code, or set where it is in Settings.' }
+      return { state: 'not-installed', hint: 'Not found on your PATH or the usual places. Install it, or set where it is in Settings.', install: 'curl -fsSL https://claude.ai/install.sh | bash' }
     }
   },
   transcript: claudeTranscript,

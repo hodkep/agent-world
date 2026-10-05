@@ -12,7 +12,7 @@ const PERMISSIONS = [
 ]
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [path, setPath] = useState(prefs.providers.claude?.path ?? '')
   const [rules, setRules] = useState(prefs.houseRules)
@@ -112,6 +112,10 @@ export function Settings({ prefs, roles, onChange, onClose }: { prefs: Prefs; ro
           <button onClick={() => void window.aw.checkUpdates().then((s) => setUpdate(s.detail ?? ({ checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.', off: '' }[s.state])))}>Check now</button>
           <span className="hint" role="status">{update}</span>
         </div>
+      </fieldset>
+      <fieldset>
+        <legend>Setup</legend>
+        <button onClick={onSetup} title="Walk through the first-run setup again: agent tools found here, project folder, defaults">Set up again</button>
       </fieldset>
       <fieldset>
         <legend>Claude program</legend>

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, TerminalMenu } from '../shared/types'
+import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -32,6 +32,7 @@ import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/til
 import { TracesView } from './panel/TracesView'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
+import { Setup } from './panel/Setup'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
 import { TerminalView } from './panel/TerminalView'
@@ -130,6 +131,12 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
+  // What is installed here; first-run setup opens from it, and Settings can open it again.
+  const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
+  const [agentsLoaded, setAgentsLoaded] = useState(false)
+  const [setupAgain, setSetupAgain] = useState(false)
+  const scanProviders = useCallback(() => window.aw.listProviders().then(setProviders, () => setProviders([])), [])
+  useEffect(() => void scanProviders(), [scanProviders])
   const [finishing, setFinishing] = useState<string | null>(null)
   const [grid, setGrid] = useState(() => store('aw.grid') === '1')
   // null shows the overview tiles; otherwise conversations side by side in this layout.
@@ -313,6 +320,7 @@ export function App() {
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
       setAgents(list)
+      setAgentsLoaded(true)
       // Back where you were after a reload or a restart: the agent you had open is open again (asleep ones offer to wake).
       const last = store('aw.selected')
       if (last && list.some((a) => a.id === last)) setSelected(last)
@@ -827,7 +835,32 @@ export function App() {
       )}
       {report === 'usage' && <UsageModal onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
-      {settings && prefs && <Settings prefs={prefs} roles={roles} onChange={(patch) => {
+      {prefs && providers && agentsLoaded && (setupAgain || (allAgents.length === 0 && (!prefs.setup.done || !providers.some((p) => p.detection.state === 'ready')))) && (
+        <Setup
+          providers={providers}
+          prefs={prefs}
+          onPrefs={(patch) => {
+            const next = { ...prefsNow.current!, ...patch }
+            prefsNow.current = next
+            setPrefs(next)
+            void window.aw.setPrefs(next)
+          }}
+          workspaces={workspaces}
+          folder={folder}
+          onPick={pick}
+          onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
+          onRescan={() => void scanProviders()}
+          onHire={async (options, name, crew) => {
+            // Closed before the hire lands: the crew list changes under it as agents arrive, and a late close must not undo a reopening.
+            setSetupAgain(false)
+            await hire(options, name)
+            if (crew) await hireCrew()
+          }}
+          onClose={() => setSetupAgain(false)}
+          reopened={setupAgain}
+        />
+      )}
+      {settings && prefs && <Settings onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next

@@ -96,6 +96,8 @@ export interface Detection {
   state: 'ready' | 'needs-sign-in' | 'not-installed' | 'unsupported'
   version?: string
   path?: string
+  /** A command that installs it, shown when it is not found. */
+  install?: string
   /** What to tell the user, e.g. "Run `agy` once to sign in". */
   hint?: string
 }

@@ -817,7 +817,8 @@ async function main() {
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
   })
   ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
-  ipcMain.handle('prefs:get', () => prefs)
+  // Automated runs have no one to walk through setup, so they start as if it was done.
+  ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))
   ipcMain.handle('prefs:set', (_, next: unknown) => {
     prefs = cleanPrefs(next, prefs)
     savePrefs(join(HOME, 'preferences.json'), prefs)

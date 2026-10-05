@@ -11,6 +11,10 @@ for (let i = 0; i < Number(process.env.FAKE_CHILD ?? 0); i++) spawn('sh', ['-c',
 // Read-only subcommands the app runs to inspect the setup.
 // FAKE_CALLS=<file>: log management calls so a test can check what the app asked for.
 if (process.env.FAKE_CALLS && ['add', 'remove', 'enable', 'disable', 'uninstall'].includes(args[1])) (await import('node:fs')).appendFileSync(process.env.FAKE_CALLS, args.join(' ') + '\n')
+if (args[0] === '--version') {
+  console.log('2.1.289 (Claude Code)')
+  process.exit(0)
+}
 if (args[0] === 'mcp') {
   console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect\nplugin:productivity:asana: https://mcp.asana.com/v2/mcp (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration')
   process.exit(0)
