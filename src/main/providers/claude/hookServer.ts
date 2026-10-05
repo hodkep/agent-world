@@ -2,24 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { appendFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { AgentEvent, AgentStats, Decision, PermissionRequest } from '../shared/types'
+import type { AgentEvent, Decision, PermissionRequest } from '../../../shared/types'
+import type { EventHandle, EventSourceOptions } from '../ports'
 import { activityFor, describeTool, normalize } from './events'
 import { parseStatus, statusText } from './status'
 
 // Write tool payloads carry whole files; anything past this is not a legit hook call.
 const MAX_BODY = 10 * 1024 * 1024
-
-interface Options {
-  /** Each agent's hooks and statusline carry its own token; the token says which agent is talking. */
-  agentForToken: (token: string) => string | null
-  permissionTimeoutMs: number
-  onEvent: (e: AgentEvent) => void
-  onPermission: (r: PermissionRequest) => void
-  onPermissionSettled: (id: string) => void
-  onStatus: (s: AgentStats, agentId: string) => void
-  /** What each tool call was given, as JSON: the addresses an agent works with turn up here (a browser tool's URL, a curl). */
-  onToolInput?: (agentId: string, json: string) => void
-}
 
 function readBody(req: IncomingMessage): Promise<string | null> {
   return new Promise((resolve, reject) => {
@@ -38,7 +27,7 @@ function readBody(req: IncomingMessage): Promise<string | null> {
 }
 
 
-export async function startHookServer(o: Options) {
+export async function startHookServer(o: EventSourceOptions): Promise<EventHandle> {
   interface Held {
     settle: (d: Decision | null) => void
     agentId: string

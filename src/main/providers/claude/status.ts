@@ -1,5 +1,5 @@
-import type { AgentStats } from '../shared/types'
-import type { Limit } from '../shared/usage'
+import type { AgentStats } from '../../../shared/types'
+import type { Limit } from '../../../shared/usage'
 
 type Obj = Record<string, unknown>
 const obj = (v: unknown): Obj => (v && typeof v === 'object' ? (v as Obj) : {})

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { AgentEvent, PermissionRequest } from '../shared/types'
+import type { AgentEvent, PermissionRequest } from '../../../shared/types'
 import { startHookServer } from './hookServer'
 
 type Server = Awaited<ReturnType<typeof startHookServer>>

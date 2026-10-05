@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Provider } from '../ports'
+import { startHookServer } from './hookServer'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
 export const claude: Provider = {
@@ -18,6 +19,7 @@ export const claude: Provider = {
       return { state: 'not-installed', hint: 'Install Claude Code, or set where it is in Settings.' }
     }
   },
+  events: { start: startHookServer },
   env: agentEnv,
   prepare(i) {
     mkdirSync(i.dir, { recursive: true })

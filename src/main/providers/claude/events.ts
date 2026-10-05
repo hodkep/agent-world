@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import type { Activity, Question, RawEvent, TaskStatus } from '../shared/types'
+import type { Activity, Question, RawEvent, TaskStatus } from '../../../shared/types'
 
 const RESEARCH = new Set(['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LSP', 'ToolSearch'])
 const IMPLEMENT = new Set(['Edit', 'Write', 'NotebookEdit'])

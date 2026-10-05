@@ -19,8 +19,8 @@ import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
-import { providerOf } from './providers/registry'
-import type { Provider } from './providers/ports'
+import { providerOf, providers } from './providers/registry'
+import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { listSessions, projectSlug } from './history'
@@ -50,7 +50,6 @@ import { startMcpServer } from './mcpServer'
 import { driveAnswers, parseAsk } from './askMenu'
 import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
 import { Screen } from './screen'
-import { startHookServer } from './hookServer'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
@@ -299,9 +298,10 @@ const freshPrompt = new Set<string>()
 // Last size the panel gave each terminal, so a relaunch comes back at the size the user sees.
 const sizes = new Map<string, { cols: number; rows: number }>()
 let awakeBlocker: number | null = null
-let hooksRef: Awaited<ReturnType<typeof startHookServer>> | null = null
-// Set once the local servers are up; every spawned agent gets its own MCP identity file.
-let office: { mcpUrl: string; hookUrl: string } | null = null
+// One listener per provider, started with the local servers; every spawned agent gets its own MCP identity file.
+const eventHandles = new Map<string, EventHandle>()
+const eventsOf = (agentId: string) => { const a = agents.find((x) => x.id === agentId); return a ? eventHandles.get(providerOf(a).id) : undefined }
+let office: { mcpUrl: string } | null = null
 // Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
 const agentTokens = new Map<string, string>()
 // Claude needs a moment after SessionStart/Stop before its input box accepts a paste.
@@ -358,7 +358,7 @@ function agentFiles(a: AgentRecord) {
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  return providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: office.hookUrl, mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
+  return providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
 }
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
@@ -474,7 +474,7 @@ function trackTurns(e: AgentEvent) {
  */
 function surfaceTerminalMenu(id: string, text: string) {
   const menu = genericMenu(text)
-  const covered = trustOpen.has(id) || planOpen.has(id) || questionOpen.has(id) || !!hooksRef?.hasPending(id)
+  const covered = trustOpen.has(id) || planOpen.has(id) || questionOpen.has(id) || !!eventsOf(id)?.hasPending(id)
   const sig = menu && !covered ? JSON.stringify([menu.title, menu.context, menu.options]) : ''
   if (!sig) {
     termMenuSeen.delete(id)
@@ -553,9 +553,9 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     void screen.write(d).then(() => {
       const text = screen.text()
       // A permission answered in the terminal: its menu was up while our card was open, and now it is gone.
-      if (hooksRef?.hasPending(a.id)) {
+      if (eventsOf(a.id)?.hasPending(a.id)) {
         if (anyMenu(text)) menuSeen.add(a.id)
-        else if (menuSeen.delete(a.id)) hooksRef.dismiss(a.id)
+        else if (menuSeen.delete(a.id)) eventsOf(a.id)?.dismiss(a.id)
       } else menuSeen.delete(a.id)
       const mode = readMode(text)
       if (mode && mode !== seenMode.get(a.id)) {
@@ -688,7 +688,7 @@ async function main() {
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }
 
-  const hooks = await startHookServer({
+  const eventOptions: EventSourceOptions = {
     agentForToken: (t) => agentTokens.get(t) ?? null,
     // The page an agent opens in a browser tool or curls is the one to preview, even when it did not start that server itself.
     onToolInput: (id, json) => noteServers(id, json, false),
@@ -716,8 +716,8 @@ async function main() {
       send('permission-settled', id)
     },
     onStatus: onStats
-  })
-  hooksRef = hooks
+  }
+  for (const p of providers()) eventHandles.set(p.id, await p.events.start(eventOptions))
   // An agent that looks idle (input box showing, no menu, screen quiet for a few seconds) but never sent a Stop hook,
   // as after Esc: Claude does not report an interrupted turn. Call it idle, so the office, the chat and any waiting mail move on.
   const BUSY = new Set<Activity>(['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'])
@@ -763,8 +763,8 @@ async function main() {
     }
   })
   const pages = await startFileServer()
-  office = { mcpUrl: mcp.url, hookUrl: hooks.url }
-  for (const u of [mcp.url, hooks.url]) if (u) ownPorts.push(Number(new URL(u).port))
+  office = { mcpUrl: mcp.url }
+  for (const u of [mcp.url, ...[...eventHandles.values()].map((h) => h.url)]) if (u) ownPorts.push(Number(new URL(u).port))
 
   ipcMain.handle('pick-folder', async (e) => {
     const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender) ?? frontWindow()!, { properties: ['openDirectory'] })
@@ -1336,7 +1336,7 @@ async function main() {
   ipcMain.handle('shell:list', () => [...shells.keys()])
   ipcMain.handle('probe-port', (_, port: number) => (Number.isInteger(port) && port > 0 && port < 65536 ? isListening(port) : false))
   ipcMain.handle('shell:processes', () => Object.fromEntries([...shells].map(([id, p]) => [id, { front: p.process, idle: shellIdle.get(id) ?? p.process }])))
-  ipcMain.on('decide', (_, requestId: string, d: Decision) => hooks.decide(requestId, d))
+  ipcMain.on('decide', (_, requestId: string, d: Decision) => eventHandles.forEach((h) => h.decide(requestId, d)))
   ipcMain.handle('list-commands', (_, id: string) => {
     const a = byId(id)
     return a ? listCommands(a.cwd, homedir()) : []
@@ -1430,7 +1430,7 @@ async function main() {
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
     clearTimeout(idleCheck)
-    hooks.close()
+    eventHandles.forEach((h) => h.close())
     mcp.close()
     pages.close()
   })
