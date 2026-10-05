@@ -54,7 +54,7 @@ To see first-run again: quit the app and delete `~/.agent-world-2` (all of this 
 - In **Code → Changes**, the box above the file list searches the changed files by path.
 
 ### Chat, model, context and usage ring
-- **Thinking levels follow the model.** For agy they are part of the model: Gemini Flash has low, medium and high; Gemini Pro has low and high; the Claude and GPT models have none, so no effort choice is shown for them. The hire form, the model chip and the profile card all show only what the chosen model offers.
+- **Thinking levels follow the program and its model.** agy has no thinking setting: its levels are different models ("Gemini 3.8 Flash (High)", "(Low)"…), so you pick one in the model list and no effort choice is shown for it. Claude Code has its effort levels, shown in the hire form, the model chip and the profile card. A role made for Claude, hired onto agy, keeps only what agy can take.
 - The **model chip** shows the model (for agy it is read from agy's footer, e.g. "Gemini 3.8 Flash · high") and switches model and effort by relaunching the same conversation.
 - The **ring** shows context used. For Claude it is Claude's own percentage. For agy it is a percentage for Gemini models (window 1M, measured from agy's own `/context`), and "about N tokens" always; other agy models show tokens only. It also shows tokens read and written instead of dollars (agy reports no price). Claude keeps its 5-hour and weekly rows; agy has no Compact button.
 - **Rewind** (button on one of your messages) works for both: the conversation goes back, and the message returns to your message box. agy saves its file in batches, so the chat may update a few seconds late.
@@ -78,10 +78,12 @@ To see first-run again: quit the app and delete `~/.agent-world-2` (all of this 
 - **Handbook** opens the tool's own notes file (`CLAUDE.md` for Claude, `AGENTS.md` for agy).
 
 ### Usage tab
+- The tanks on the lawn, the header chips and the Usage button pool every program's limits: the tanks and chips show the tightest five-hour and weekly allowance across them ("% left"), and hovering the tanks lists each program's own. Claude's limits are read from `claude -p "/usage"` when no agent has reported them yet.
 - Top bar **Usage** opens one summary across tools: the busiest limit (least left, any tool), dollars spent (where a price exists, with "+ N tokens" for agy), and how many tools are ready. Below, one row per tool; click one for its own view: Claude's daily costs and models; agy's two limit groups (Gemini; Claude and GPT) with five-hour and weekly bars and reset times, and its tokens for the last 7 days.
 - The Usage button shows a count when any limit is under 15% left.
 
 ### Settings
+- The model for new agents is one list grouped by program (each program's models under its name), and Permissions follow the program chosen; "Model by job" is grouped the same way.
 - Notifications, keep awake, wrap-up on quit, house rules, per-job models, the **program location for each tool** (only needed if the app cannot find it), **Message box**, and **Set up again**.
 
 ## 4. Claude Code and agy side by side

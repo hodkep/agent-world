@@ -166,6 +166,29 @@ const STATUS: Record<string, string> = { thinking: 'Thinking', researching: 'Rea
  */
 export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }: { data: CardData; variant: 'full' | 'compact' | 'docked'; now: number; edit: CardEdit | null; onClose: () => void; onToggleSize?: () => void }) {
   const reduced = useReducedMotion()
+  // A model or thinking change restarts the agent on the same conversation, and a mode change presses its keys: both take a few
+  // seconds, so the card says what it is waiting for until the new setting shows.
+  const [pending, setPending] = useState<string | null>(null)
+  const sawBusy = useRef(false)
+  useEffect(() => {
+    setPending(null)
+    sawBusy.current = false
+  }, [data.id, data.model, data.effort, data.modeId])
+  useEffect(() => {
+    if (!pending) return
+    if (!data.canSwitch) sawBusy.current = true
+    else if (sawBusy.current) (setPending(null), (sawBusy.current = false))
+  }, [pending, data.canSwitch])
+  const canSwitchNow = useRef(data.canSwitch)
+  canSwitchNow.current = data.canSwitch
+  useEffect(() => {
+    if (!pending) return
+    // The agent never looked busy and is free again (a change that shows nothing new): it is done. Otherwise give up after a while.
+    const soon = setTimeout(() => !sawBusy.current && canSwitchNow.current && setPending(null), 2500)
+    const late = setTimeout(() => setPending(null), 30_000)
+    return () => (clearTimeout(soon), clearTimeout(late))
+  }, [pending])
+  const change = (what: string, go: () => void) => (setPending(what), go())
   const compact = variant === 'compact'
   const ctx = contextGauge(data.ctx)
   const cost = costGauge(data.costUsd, data.budgetUsd)
@@ -174,7 +197,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
   const p = data.profile
   const pips = effortPips(data.effortId)
   const mode = modeInfo(data.modeId)
-  const off = !edit || !data.canSwitch
+  const off = !edit || !data.canSwitch || !!pending
   const wait = 'Wait until it finishes its turn'
   return (
     <section className={`pc pc-${variant}`} data-agent={data.id} aria-label={`Profile of ${data.name}`}>
@@ -237,6 +260,12 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
       </div>
       <div>
       <h3 className="pc-h">Settings</h3>
+      {pending && (
+        <p className="pc-pending" role="status">
+          <span className="su-spin" aria-hidden="true" />
+          {pending}
+        </p>
+      )}
       <div className="pc-set">
         <span className="pc-k">Model</span>
         <Pick
@@ -244,7 +273,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           label="Model"
           options={data.models.map((m) => ({ id: m.value, label: m.label }))}
           current={data.modelId}
-          onPick={(id) => edit?.onModel(id)}
+          onPick={(id) => change('Switching model: the agent restarts on the same conversation, a few seconds…', () => edit?.onModel(id))}
           disabled={off}
           title="Change the model: the agent restarts on the same conversation"
           wait={wait}
@@ -254,7 +283,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
         <span className="pc-k">Thinking</span>
         <span className="pc-steps" role="group" aria-label={`Thinking level: ${data.effortId || 'default'}`}>
           {EFFORT_STEPS.filter((st) => data.efforts.includes(st)).map((st) => (
-            <button key={st} className={`pc-step ${pips[EFFORT_STEPS.indexOf(st)] ? 'on' : ''} ${data.effortId === st ? 'now' : ''}`} disabled={off} aria-label={`Thinking ${st}`} aria-pressed={data.effortId === st} title={off ? wait : `Thinking: ${st}`} onClick={() => edit?.onEffort(st)}>
+            <button key={st} className={`pc-step ${pips[EFFORT_STEPS.indexOf(st)] ? 'on' : ''} ${data.effortId === st ? 'now' : ''}`} disabled={off} aria-label={`Thinking ${st}`} aria-pressed={data.effortId === st} title={off ? wait : `Thinking: ${st}`} onClick={() => change('Changing the thinking level: the agent restarts on the same conversation, a few seconds…', () => edit?.onEffort(st))}>
               {STEP_LABEL[st]}
             </button>
           ))}
@@ -268,8 +297,8 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           swatch={cssColor(mode.color)}
           options={data.modes.map((m) => ({ id: m.id, label: m.label, hint: m.blurb }))}
           current={data.modeId}
-          onPick={(id) => edit?.onMode(id)}
-          disabled={!edit}
+          onPick={(id) => change('Changing the mode…', () => edit?.onMode(id))}
+          disabled={!edit || !!pending}
           title={mode.blurb}
           wait={wait}
         />

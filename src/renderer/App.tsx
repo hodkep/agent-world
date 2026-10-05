@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
+import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -10,9 +10,9 @@ import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
-import { type LimitView, type UsageLimits, limitView, noLimits } from '../shared/usage'
+import { type LimitView, type UsageLimits, limitView, noLimits, untilReset } from '../shared/usage'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../shared/modes'
-import { effortsFor } from './panel/efforts'
+import { effortsFor } from '../shared/efforts'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
 import { mentionText } from '../shared/mention'
 import { Welcome } from './panel/Welcome'
@@ -37,7 +37,7 @@ import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
 import { HandoffDialog } from './panel/HandoffDialog'
-import { lowCount } from '../shared/limits'
+import { lowCount, pooled, tightest } from '../shared/limits'
 import { Swatch } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
@@ -144,10 +144,14 @@ export function App() {
   const [handoffFrom, setHandoffFrom] = useState<string | null>(null)
   // How many allowances (of any provider) are nearly used up: the Usage button says so.
   const [lowLimits, setLowLimits] = useState(0)
+  // Every provider's allowances, as the main process pools them: the tanks, the header chips and the Usage button all read from this.
+  const [pool, setPool] = useState<LimitWindow[]>([])
   useEffect(() => {
-    const look = () => void window.aw.getLimits().then((w) => setLowLimits(lowCount(w)), () => undefined)
+    // A window whose reset has passed is full again, whatever it last reported.
+    const fresh = (ws: LimitWindow[]) => ws.map((w) => (Date.parse(w.resetsAt) <= Date.now() ? { ...w, remainingPct: 100 } : w))
+    const look = () => void window.aw.getLimits().then((w) => (setPool(fresh(w)), setLowLimits(lowCount(fresh(w)))), () => undefined)
     look()
-    const t = setInterval(look, 120_000)
+    const t = setInterval(look, 30_000)
     return () => clearInterval(t)
   }, [])
   const scanProviders = useCallback(() => {
@@ -510,7 +514,7 @@ export function App() {
         canSwitch: ['idle', 'waiting'].includes(world[current.id]?.activity ?? 'asleep'),
         provider: { id: current.provider ?? 'claude', label: curProv?.label ?? 'Claude Code' },
         models: (curProv?.models ?? MODELS).filter((m) => m.value),
-        efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model),
+        efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
         canCompact: curProv?.capabilities.compact ?? true
       }
@@ -650,7 +654,9 @@ export function App() {
     window.aw.ptyWrite(id, text)
     select(id)
   }
-  useEffect(() => office.current?.setLimits(limits), [limits, officeReady])
+  // The tightest allowance of each kind across providers; before any provider has answered, what Claude's agents report.
+  const shownLimits = pool.length ? pooled(pool) : limits
+  useEffect(() => office.current?.setLimits(shownLimits), [shownLimits.fiveHour?.pct, shownLimits.fiveHour?.resetsAt, shownLimits.sevenDay?.pct, shownLimits.sevenDay?.resetsAt, officeReady])
   useEffect(() => {
     void window.aw.listRoles(folder ?? '').then(setRoles, () => setRoles([]))
   }, [folder, hiring])
@@ -987,9 +993,9 @@ export function App() {
         )}
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
-        <LimitChips limits={limits} />
+        <LimitChips limits={shownLimits} pool={pool} />
         {error && <span className="error">{error}</span>}
-        <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where Claude is" />
+        <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
       <main>
@@ -1084,7 +1090,7 @@ export function App() {
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
-              <PlantTip five={tip.five} week={tip.week} />
+              <PlantTip five={tip.five} week={tip.week} pool={pool} />
             </div>
           )}
         </div>
@@ -1123,7 +1129,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.setup.defaultProvider ?? ''} roles={roles} defaults={prefs?.defaults ?? { model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (
@@ -1336,29 +1342,50 @@ function useNarrow() {
 const window_ = (label: string, v: LimitView) =>
   v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
 
-function PlantTip({ five, week }: { five: LimitView; week: LimitView }) {
+function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool: LimitWindow[] }) {
+  if (pool.length === 0)
+    return (
+      <>
+        <b>Your usage limits</b>
+        <span>{window_('5-hour', five)}</span>
+        <span>{window_('Weekly', week)}</span>
+        <span className="tip-note">Shared by every agent signed in to your account.</span>
+      </>
+    )
+  // The tanks show the tightest allowance of each kind; here is every one it was picked from.
+  const groups = [...new Set(pool.map((w) => `${w.provider}|${w.group}`))]
+  const now = Date.now()
   return (
     <>
-      <b>Your Claude limits</b>
-      <span>{window_('5-hour', five)}</span>
-      <span>{window_('Weekly', week)}</span>
-      <span className="tip-note">Shared by every agent signed in to your account.</span>
+      <b>Your usage limits</b>
+      <span className="tip-note">The tanks show the tightest of each kind.</span>
+      {groups.map((g) => {
+        const ws = pool.filter((w) => `${w.provider}|${w.group}` === g)
+        return (
+          <div key={g} className="tip-group">
+            <b>{ws[0]!.group}</b>
+            {(['five_hour', 'weekly'] as const).flatMap((k) => ws.filter((w) => w.kind === k).map((w) => (
+              <div key={k} className="tip-row">{k === 'five_hour' ? '5-hour' : 'Weekly'}: {Math.round(w.remainingPct)}% left · resets in {untilReset(Date.parse(w.resetsAt), now)}</div>
+            )))}
+          </div>
+        )
+      })}
     </>
   )
 }
 
 /** The same two windows as the tanks, as text in the header: readable by keyboard and screen reader, and always on screen. */
-function LimitChips({ limits }: { limits: UsageLimits }) {
+function LimitChips({ limits, pool }: { limits: UsageLimits; pool: LimitWindow[] }) {
   const now = Date.now()
   const chips = [
-    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now) },
-    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now) }
+    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: tightest(pool, 'five_hour')?.group },
+    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: tightest(pool, 'weekly')?.group }
   ].filter((c) => c.v.pct !== null)
   if (chips.length === 0) return null
   return (
-    <span className="limit-chips" role="group" aria-label="Claude usage limits">
+    <span className="limit-chips" role="group" aria-label="Usage limits, the tightest across your agent programs">
       {chips.map((c) => (
-        <span key={c.key} className={`chip level-${c.v.level}`} role="status" aria-label={`${c.name} limit: ${Math.round(100 - c.v.pct!)}% left, resets in ${c.v.reset}`} title={`${c.name} limit · resets in ${c.v.reset}`}>
+        <span key={c.key} className={`chip level-${c.v.level}`} role="status" aria-label={`${c.name} limit: ${Math.round(100 - c.v.pct!)}% left, resets in ${c.v.reset}`} title={`${c.name} limit${c.who ? ` · ${c.who}` : ''} · resets in ${c.v.reset}`}>
           <span className="chip-dot" aria-hidden="true" />
           {c.key} {Math.round(100 - c.v.pct!)}% left
         </span>

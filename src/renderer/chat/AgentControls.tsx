@@ -1,4 +1,4 @@
-import { effortsFor, modelOf } from '../panel/efforts'
+import { effortsFor, modelOf } from '../../shared/efforts'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ModeInfo } from '../../shared/modes'
 import { type Role, isCurrentRole } from '../../shared/roles'
@@ -99,41 +99,58 @@ export function ModelChip({ info, actions }: { info: AgentInfo; actions: AgentAc
   const wrap = useDismiss(open, () => setOpen(false))
   const current = (info.model ?? '').toLowerCase()
   const models = (info.models ?? MODELS).filter((m) => m.value)
-  const efforts = effortsFor(info.models ?? MODELS, undefined, info.model)
-  // A program that builds the level into the model's name needs the model with it.
-  const running = modelOf(info.models ?? MODELS, undefined, info.model)
+  const efforts = effortsFor(info.models ?? MODELS, undefined, info.model, info.effort)
+  const running = modelOf(info.models ?? MODELS, undefined, info.model, info.effort)
+  // Changing the model or level restarts the agent on its conversation: the chip says so until the new one shows.
+  const [pending, setPending] = useState(false)
+  const sawBusy = useRef(false)
+  useEffect(() => {
+    setPending(false)
+    sawBusy.current = false
+  }, [info.model, info.effort])
+  useEffect(() => {
+    if (!pending) return
+    if (!info.canSwitch) sawBusy.current = true
+    else if (sawBusy.current) (setPending(false), (sawBusy.current = false))
+  }, [pending, info.canSwitch])
+  const canSwitchNow = useRef(info.canSwitch)
+  canSwitchNow.current = info.canSwitch
+  useEffect(() => {
+    if (!pending) return
+    const soon = setTimeout(() => !sawBusy.current && canSwitchNow.current && setPending(false), 2500)
+    const late = setTimeout(() => setPending(false), 30_000)
+    return () => (clearTimeout(soon), clearTimeout(late))
+  }, [pending])
+  const pick = (change: { model?: string; effort?: Effort }) => (setOpen(false), setPending(true), actions.switchTo(change))
   return (
     <span className="cb-anchor" ref={wrap}>
-      <button className="cb-chip" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Model and effort" title={`${info.model ?? 'Model'}${info.effort ? ` · effort ${info.effort}` : ''}`}>
-        {info.model ?? 'model ?'}
-        {info.effort ? ` · ${info.effort}` : ''}
+      <button className="cb-chip" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Model and effort" aria-busy={pending} title={`${info.model ?? 'Model'}${info.effort ? ` · effort ${info.effort}` : ''}`}>
+        {pending ? <><span className="su-spin" aria-hidden="true" />Restarting…</> : <>{info.model ?? 'model ?'}{info.effort ? ` · ${info.effort}` : ''}</>}
         <PixelIcon name="chevron" />
       </button>
       {open && (
         <Pop label="Model and effort">
           <h6>Model</h6>
           {models.map((m) => {
-            const on = current.includes(m.value) || current === m.label.toLowerCase()
+            const on = running ? running.value === m.value : current.includes(m.value) || current === m.label.toLowerCase()
             return (
-            <button key={m.value} className="cb-row" role="menuitemradio" aria-checked={on} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ model: m.value }))}>
+            <button key={m.value} className="cb-row" role="menuitemradio" aria-checked={on} disabled={!info.canSwitch} onClick={() => pick({ model: m.value })}>
               <span className="tick">{on ? '▪' : ''}</span>
               {m.label}
             </button>
             )
           })}
-          {efforts.length > 0 ? (
+          {efforts.length > 0 && (
             <>
               <h6>Effort</h6>
               <div className="cb-steps">
                 {EFFORTS.filter((e) => e.value && efforts.includes(e.value)).map((e) => (
-                  <button key={e.value} className={info.effort === e.value ? 'on' : ''} disabled={!info.canSwitch} onClick={() => (setOpen(false), actions.switchTo({ effort: e.value as Effort, ...(running?.efforts && { model: running.value }) }))}>
+                  <button key={e.value} className={info.effort === e.value ? 'on' : ''} disabled={!info.canSwitch} onClick={() => pick({ effort: e.value as Effort })}>
                     {e.value === 'medium' ? 'med' : e.value}
                   </button>
                 ))}
               </div>
             </>
-          ) : (
-            <p className="cb-note">This model has no thinking levels.</p>
           )}
           {!info.canSwitch && <p className="cb-note">Available between turns.</p>}
         </Pop>

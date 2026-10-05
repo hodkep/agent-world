@@ -164,9 +164,11 @@ test('an agy agent\'s controls show its own model and modes, and switching mode 
     await expect(chip).toContainText('high')
     await chip.click()
     const models = page.getByRole('menu', { name: 'Model and effort' })
-    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.1 Pro/ })).toBeVisible()
+    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.1 Pro \(High\)/ })).toBeVisible()
     await expect(models.getByRole('menuitemradio', { name: /Fable|Haiku/ })).toHaveCount(0)
-    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.8 Flash/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(models.getByRole('menuitemradio', { name: /Gemini 3.8 Flash \(High\)/ })).toHaveAttribute('aria-checked', 'true')
+    // agy has no thinking setting of its own: its levels are different models, so no effort choice is offered.
+    await expect(models.getByText('Effort', { exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
 
     // Its modes are its own levels, skip permissions among them (as in the hire form), and a live switch goes through its Shift+Tab.

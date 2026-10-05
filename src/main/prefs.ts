@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import type { Prefs } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { model: '', permissionMode: '', inPlace: false } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -21,6 +21,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     houseRules: str(r.houseRules, 4000) ?? base.houseRules,
     roleModels: cleanRoleModels(r.roleModels, base.roleModels),
     defaults: {
+      provider: d.provider === 'claude' || d.provider === 'agy' ? d.provider : base.defaults.provider,
       model: str(d.model, 60) ?? base.defaults.model,
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
       inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace

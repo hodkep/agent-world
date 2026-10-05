@@ -1,4 +1,4 @@
-import type { UsageLimits } from './usage'
+import type { Limit, UsageLimits } from './usage'
 import type { LimitWindow } from './types'
 
 /** Claude Code reports the share used and the reset in ms; every provider's windows are shown as share left and an ISO time. */
@@ -14,3 +14,15 @@ export const busiest = (ws: LimitWindow[]): LimitWindow | null => ws.reduce<Limi
 export const LOW_PCT = 15
 /** How many windows are nearly used up. */
 export const lowCount = (ws: LimitWindow[]) => ws.filter((w) => w.remainingPct < LOW_PCT).length
+
+/** The window of one kind with the least left, across every provider: what the tanks and chips draw, and which allowance it is. */
+export const tightest = (ws: LimitWindow[], kind: LimitWindow['kind']) => busiest(ws.filter((w) => w.kind === kind))
+
+/** The tightest five-hour and weekly allowance across providers, in the form the tanks and chips draw (share used, reset in ms). */
+export function pooled(ws: LimitWindow[]): UsageLimits {
+  const one = (kind: LimitWindow['kind']): Limit | null => {
+    const w = tightest(ws, kind)
+    return w ? { pct: 100 - w.remainingPct, resetsAt: Date.parse(w.resetsAt) } : null
+  }
+  return { fiveHour: one('five_hour'), sevenDay: one('weekly') }
+}

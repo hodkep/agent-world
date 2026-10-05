@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
-import { effortsFor } from './efforts'
+import { effortsFor } from '../../shared/efforts'
+import { parsePick } from '../../shared/modelPick'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -49,7 +50,7 @@ export function HireForm({
   const modes = chosen?.hireModes ?? [{ value: '', label: 'Default', hint: '' }]
   const [saving, setSaving] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [model, setModel] = useState(defaults.model)
+  const [model, setModel] = useState(models.some((m) => m.value === defaults.model) ? defaults.model : '')
   const [effort, setEffort] = useState<Effort | ''>('')
   const efforts = effortsFor(models, model)
   const [mode, setMode] = useState<string>(defaults.permissionMode)
@@ -65,8 +66,14 @@ export function HireForm({
     const r = roles.find((x) => x.id === id)
     if (!r) return
     const o = r.options
-    setModel(o.model ?? roleModels[r.title] ?? '')
-    setEffort(o.effort ?? '')
+    // A job's model may name a program (set in Settings); a role's own model is a Claude alias, kept only where the program lists it.
+    const job = roleModels[r.title] ? parsePick(roleModels[r.title]!) : null
+    const target = job && providers.some((p) => p.id === job.provider) ? job.provider : chosen?.id
+    const listed = providers.find((p) => p.id === target)?.models ?? []
+    if (job && target === job.provider) setProvider(job.provider)
+    const wanted = o.model ?? job?.model ?? ''
+    setModel(listed.some((m) => m.value === wanted) ? wanted : '')
+    setEffort(o.effort && effortsFor(listed, wanted).includes(o.effort) ? o.effort : '')
     setMode(o.permissionMode ?? '')
     setInstructions(o.instructions ?? '')
     setChrome(!!o.chrome)

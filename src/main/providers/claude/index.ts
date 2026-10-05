@@ -9,6 +9,7 @@ import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { startHookServer } from './hookServer'
+import { parseClaudeUsage } from './usage'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
 export const claude: Provider = {
@@ -25,6 +26,8 @@ export const claude: Provider = {
       return { state: 'not-installed', hint: 'Not found on your PATH or the usual places. Install it, or set where it is in Settings.', install: 'curl -fsSL https://claude.ai/install.sh | bash' }
     }
   },
+  // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
+  limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },
   transcript: claudeTranscript,
   screen: claudeScreen,
   keys: claudeKeys,
@@ -70,3 +73,6 @@ export const claude: Provider = {
 
 const defaultRun = (file: string, args: string[]) =>
   new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 10_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+
+const usageRun = (file: string, args: string[]) =>
+  new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))

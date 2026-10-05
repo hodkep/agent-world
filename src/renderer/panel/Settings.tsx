@@ -2,15 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import type { Role } from '../../shared/roles'
 import type { Prefs, ProviderInfo } from '../../shared/types'
 import { MailConnect } from './MailConnect'
-import { MODELS } from './HireForm'
+import { parsePick, pickValue, storePick } from '../../shared/modelPick'
 import { closeOnBackdrop } from './Modal'
 
-const PERMISSIONS = [
-  { value: '', label: "Claude's default" },
-  { value: 'manual', label: 'Ask for everything' },
-  { value: 'acceptEdits', label: 'Accept edits' },
-  { value: 'plan', label: 'Plan first' }
-]
+/** Models of every program that is ready, each program's under its own heading. */
+function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
+  return (
+    <>
+      {own !== undefined && <option value="">{own}</option>}
+      {providers.map((p) => (
+        <optgroup key={p.id} label={p.label}>
+          {p.models.map((m) => (
+            <option key={m.value} value={pickValue(p.id, m.value)}>
+              {m.value ? m.label : `${p.label} default`}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  )
+}
 
 /** Where one program is, when the app cannot find it on its own. */
 function ProgramPath({ provider, saved, onSave }: { provider: ProviderInfo; saved: string; onSave: (path: string) => void }) {
@@ -41,6 +52,9 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
     set({ roleModels: model ? { ...rest, [title]: model } : rest })
   }
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
+  const ready = providers.filter((p) => p.detection.state === 'ready')
+  // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
+  const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   return (
     <dialog ref={dialog} className="settings" aria-label="Settings" onClose={onClose} onCancel={onClose} {...closeOnBackdrop(onClose)}>
       <header className="settings-head">
@@ -70,19 +84,24 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
         <legend>New agents start with</legend>
         <label>
           Model
-          <select aria-label="Model for new agents" value={prefs.defaults.model} onChange={(e) => setDefaults({ model: e.target.value })}>
-            {MODELS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
+          <select
+            aria-label="Model for new agents"
+            value={pickValue(startWith?.id ?? '', prefs.defaults.model)}
+            onChange={(e) => {
+              const { provider, model } = parsePick(e.target.value)
+              const modes = providers.find((p) => p.id === provider)?.hireModes ?? []
+              // How much it may do alone is a program's own list: a choice the new program does not have goes back to its default.
+              setDefaults({ provider, model, permissionMode: modes.some((m) => m.value === prefs.defaults.permissionMode) ? prefs.defaults.permissionMode : '' })
+            }}
+          >
+            <ModelOptions providers={ready} />
           </select>
         </label>
         <label>
           Permissions
-          <select value={prefs.defaults.permissionMode} onChange={(e) => setDefaults({ permissionMode: e.target.value })}>
-            {PERMISSIONS.map((m) => (
-              <option key={m.value} value={m.value}>
+          <select value={startWith?.hireModes.some((m) => m.value === prefs.defaults.permissionMode) ? prefs.defaults.permissionMode : ''} onChange={(e) => setDefaults({ permissionMode: e.target.value })}>
+            {(startWith?.hireModes ?? []).map((m) => (
+              <option key={m.value} value={m.value} title={m.hint}>
                 {m.label}
               </option>
             ))}
@@ -105,12 +124,8 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
         {[...new Map(roles.map((r) => [r.title, r])).values()].map((r) => (
           <label key={r.title} className="row-label">
             {r.title}
-            <select aria-label={`Model for ${r.title}`} value={prefs.roleModels[r.title] ?? ''} onChange={(e) => setRoleModel(r.title, e.target.value)}>
-              {MODELS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.value ? m.label : r.options.model ? `${r.options.model} (role's own)` : 'Default model'}
-                </option>
-              ))}
+            <select aria-label={`Model for ${r.title}`} value={(() => { const v = prefs.roleModels[r.title]; if (!v) return ''; const k = parsePick(v); return pickValue(k.provider, k.model) })()} onChange={(e) => { const k = parsePick(e.target.value); setRoleModel(r.title, e.target.value ? storePick(k.provider, k.model) : '') }}>
+              <ModelOptions providers={ready} own={r.options.model ? `${r.options.model} (role's own)` : 'Default model'} />
             </select>
           </label>
         ))}

@@ -10,7 +10,7 @@ describe('preferences', () => {
   })
   it('round-trip through the file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'p.json')
-    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { model: 'haiku', permissionMode: 'plan', inPlace: true } }
+    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { provider: 'agy' as const, model: 'haiku', permissionMode: 'plan', inPlace: true } }
     savePrefs(file, p)
     expect(loadPrefs(file)).toEqual(p)
   })

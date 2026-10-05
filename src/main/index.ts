@@ -40,6 +40,7 @@ import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspace
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
+import { fitOptions } from '../shared/efforts'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
 import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
@@ -820,7 +821,11 @@ async function main() {
   ipcMain.handle('get-usage', () => usage)
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
     if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
-    return [...claudeWindows(usage), ...polled.flat()]
+    // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
+    const live = claudeWindows(usage)
+    const asked = polled.flat().filter((w) => w.provider === 'claude')
+    const claude = live.length ? [...live, ...asked.filter((w) => w.group !== 'Claude Code')] : asked
+    return [...claude, ...polled.flat().filter((w) => w.provider !== 'claude')]
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
@@ -1023,7 +1028,7 @@ async function main() {
     const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], options) }
     agents.push(a)
     persist()
     spawn(a, env)
@@ -1284,7 +1289,7 @@ async function main() {
     const p = sessions.get(id)
     if (!a || !p) throw new Error('That agent is not running.')
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
-    a.options = { ...a.options, ...(change.model && { model: change.model }), ...(change.effort && { effort: change.effort }) }
+    a.options = fitOptions(providerOf(a).models, { ...a.options, ...(change.model && { model: change.model }), ...(change.effort && { effort: change.effort }) })
     persist()
     restarting.add(id)
     mailbox.restarting(id)

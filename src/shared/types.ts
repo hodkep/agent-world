@@ -257,5 +257,5 @@ export interface Prefs {
   /** Which model a job (a role's title) uses when the role does not set one. */
   roleModels: Record<string, string>
   /** What the hire form starts with. */
-  defaults: { model: string; permissionMode: string; inPlace: boolean }
+  defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean }
 }
