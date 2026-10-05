@@ -1,5 +1,6 @@
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
-import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, Capabilities, Decision, Detection, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
+import type { ModeInfo } from '../../shared/modes'
+import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, Capabilities, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
 
 export interface TrustPrompt {
   path: string
@@ -77,6 +78,50 @@ export interface ScreenAdapter {
   driveRewind(io: TerminalIO, target: string): Promise<boolean>
   /** The side-question overlay, if it is showing. */
   btwOverlay(screen: string): Btw | null
+}
+
+/** The keys that drive a provider's terminal. */
+export interface Keys {
+  /** Wraps a message so several lines go in as one prompt. */
+  paste(text: string): string
+  submit: string
+  /** Wait between the pasted text and `submit`, so the input has taken it. */
+  submitDelayMs: number
+  /** Empties what is typed in the input box. */
+  clearInput: string
+  /** Closes an open menu or overlay. */
+  cancel: string
+  /** Moves to the next autonomy level. */
+  nextMode: string
+  /** Stops a turn: `first` at once, then the escalations as `[delayMs, keys]` while it still looks busy. */
+  interrupt: { first: string; then: readonly (readonly [number, string])[] }
+}
+
+export interface ModelOption {
+  /** What the program is given; empty means its own default. */
+  value: string
+  label: string
+}
+
+/** Looks at and changes what an agent can reach: tool servers and plugins, through the provider's own commands. */
+export interface ToolsManager {
+  /** Arguments that list servers and plugins; the output is read by `parse`. */
+  list: { servers: string[]; plugins: string[] }
+  parse(servers: string, plugins: string): { mcp: ToolServer[]; plugins: ToolPlugin[] }
+  /** Arguments for a management action; anything that could be mistaken for an option is refused. */
+  manage(a: ManageAction): string[]
+}
+export interface ToolServer {
+  name: string
+  target: string
+  health: 'ok' | 'attention' | 'failed'
+  status: string
+}
+export interface ToolPlugin {
+  id: string
+  version: string
+  scope: string
+  enabled: boolean
 }
 
 export interface LaunchInput {
@@ -157,6 +202,12 @@ export interface Provider {
   detect(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<Detection>
   readonly transcript: TranscriptSource
   readonly screen: ScreenAdapter
+  readonly keys: Keys
+  readonly models: ModelOption[]
+  /** The autonomy levels it offers, in its own words, with how the app shows each. */
+  readonly modes: ModeInfo[]
+  /** Present when `capabilities.tools`. */
+  readonly tools?: ToolsManager
   /** Tells the office what the agents are doing and asking. */
   readonly events: { start(o: EventSourceOptions): Promise<EventHandle> }
   /** Environment for its sessions, without whatever a parent session of the same program left behind. */

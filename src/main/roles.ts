@@ -2,8 +2,10 @@ import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 
 import { basename, dirname, join } from 'node:path'
 import type { Role } from '../shared/roles'
 import type { AgentOptions } from '../shared/types'
+import { providerOf } from './providers/registry'
 
-const MODELS = new Set(['opus', 'sonnet', 'haiku'])
+// An agent file's model is one of the names the agent program knows.
+const MODELS = new Set(providerOf({}).models.map((m) => m.value).filter(Boolean))
 const MAX_INSTRUCTIONS = 6000
 
 /** A Claude subagent definition: YAML-ish front matter (name, description, model, tools) then the system prompt. */

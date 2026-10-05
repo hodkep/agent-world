@@ -15,12 +15,11 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, parseLedger, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine, listCommands } from './commands'
-import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
 import { saveAttachment } from './attachments'
 import { okfHint } from './okf'
@@ -293,8 +292,8 @@ const mailbox = new Mailbox({
       // Never type into an open menu: the message's Enter would answer it.
       if (ui(id).anyMenu(screens.get(id)?.text() ?? '') && left > 0) return void setTimeout(() => attempt(left - 1), MENU_RETRY_MS)
       // Bracketed paste keeps multi-line messages as one prompt instead of submitting at the first newline.
-      p.write(`\x1b[200~${text}\x1b[201~`)
-      setTimeout(() => p.write('\r'), 150)
+      p.write(keysOf(id).paste(text))
+      setTimeout(() => p.write(keysOf(id).submit), keysOf(id).submitDelayMs)
     }
     setTimeout(() => attempt(MENU_RETRIES), DELIVERY_DELAY_MS)
   },
@@ -308,6 +307,7 @@ const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
 /** How to read an agent's terminal screen: that agent's provider knows its own screens. */
 const ui = (id: string) => providerOf(byId(id) ?? {}).screen
+const keysOf = (id: string) => providerOf(byId(id) ?? {}).keys
 
 // Names handed out but not yet on an agent (creating a worktree takes a moment), so two hires at once never share one.
 const reservedNames = new Set<string>()
@@ -493,7 +493,7 @@ function finishRewind(id: string) {
   const text = screens.get(id)?.text() ?? ''
   const head = r.text.slice(0, 30)
   if (text.split('\n').some((l) => /^❯[ \u00a0]/.test(l) && l.slice(2).trim().startsWith(head))) {
-    sessions.get(id)?.write('\x15')
+    sessions.get(id)?.write(keysOf(id).clearInput)
     send('composer-prefill', id, r.text)
   }
   const fork = providerOf(a).transcript.forkedSession(a, r.at - 1000)
@@ -765,9 +765,9 @@ async function main() {
     if (ui(id).anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
     // Only an agent that is free takes /clear at once; a busy one queues it, and its conversation is still there.
     const clearing = /^\/clear$/i.test(text) && ['idle', 'waiting', undefined].includes(lastActivity.get(id))
-    p.write(`\x1b[200~${text}\x1b[201~`)
-    await new Promise((r) => setTimeout(r, 150))
-    p.write('\r')
+    p.write(keysOf(id).paste(text))
+    await new Promise((r) => setTimeout(r, keysOf(id).submitDelayMs))
+    p.write(keysOf(id).submit)
     if (clearing) clearChatNow(id)
   })
   // Pictures and files attached in the chat are saved here and mentioned by path; the agent is allowed to read this folder.
@@ -791,7 +791,7 @@ async function main() {
   // Shift+Tab is how Claude's terminal cycles its permission mode; the new mode arrives with the next event.
   ipcMain.handle('chat:cycle-mode', (_, id: string) => {
     if (ui(id).anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Answer the open menu first.')
-    sessions.get(id)?.write('\x1b[Z')
+    sessions.get(id)?.write(keysOf(id).nextMode)
   })
   // Esc is how Claude's own terminal interrupts a running turn.
   // If Claude is still visibly working a moment later (it can swallow a first Esc, for one, while hooks run), press Esc
@@ -886,15 +886,16 @@ async function main() {
     return shell.openPath(info.path)
   })
   ipcMain.handle('btw:close', (_, id: string) => {
-    if (ui(id).btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write('\x1b')
+    if (ui(id).btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write(keysOf(id).cancel)
   })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
   ipcMain.handle('chat:interrupt', (_, id: string) => {
     const p = sessions.get(id)
     if (!p) return
-    p.write('\x1b')
-    for (const [delay, keys] of [[1200, '\x1b'], [2400, '\x1b'], [3600, '\x03']] as const)
+    const { first, then } = keysOf(id).interrupt
+    p.write(first)
+    for (const [delay, keys] of then)
       setTimeout(() => {
         if (sessions.get(id) === p && ui(id).looksWorking(screens.get(id)?.text() ?? '')) p.write(keys)
       }, delay)
@@ -955,7 +956,9 @@ async function main() {
   ipcMain.handle('manage-tools', (_, id: string, action: import('../shared/types').ManageAction) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
-    const args = manageArgs(action)
+    const tools = providerOf(a).tools
+    if (!tools) throw new Error('This agent cannot manage tools from here.')
+    const args = tools.manage(action)
     return new Promise<string>((resolve, reject) =>
       execFile(providerCmd(providerOf(a), args).file, providerCmd(providerOf(a), args).args, { cwd: a.cwd, env, timeout: 60_000 }, (err, stdout, stderr) => (err ? reject(new Error((stderr || stdout || err.message).trim().split('\n')[0])) : resolve(stdout.trim())))
     )
@@ -963,10 +966,12 @@ async function main() {
   ipcMain.handle('list-tools', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
+    const tools = providerOf(a).tools
+    if (!tools) return { mcp: [], plugins: [] }
     const claude = (...args: string[]) =>
       new Promise<string>((resolve) => execFile(providerCmd(providerOf(a), args).file, providerCmd(providerOf(a), args).args, { cwd: a.cwd, env, timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }, (_err, stdout) => resolve(stdout)))
-    const [mcp, plugins] = await Promise.all([claude('mcp', 'list'), claude('plugin', 'list', '--json')])
-    return { mcp: parseMcpList(mcp), plugins: parsePlugins(plugins) }
+    const [servers, plugins] = await Promise.all([claude(...tools.list.servers), claude(...tools.list.plugins)])
+    return tools.parse(servers, plugins)
   })
   // Ask another agent to review this one's branch. The request travels as a normal agent message (author to reviewer),
   // so it shows as an envelope in the office and follows the same delivery and rate-limit rules.
@@ -996,6 +1001,9 @@ async function main() {
     return created
   })
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
+  ipcMain.handle('list-providers', () =>
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes })))
+  )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
     return sessions.map((s) => {
@@ -1192,7 +1200,7 @@ async function main() {
     if (!ui(id).genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
     if (!(await ui(id).answerMenu(ioFor(id), detect, index))) throw new Error('Could not pick that option. Finish it in the Terminal tab.')
   })
-  ipcMain.handle('menu:cancel', (_, id: string) => void sessions.get(id)?.write('\x1b'))
+  ipcMain.handle('menu:cancel', (_, id: string) => void sessions.get(id)?.write(keysOf(id).cancel))
   // /rewind lists your earlier prompts; go to the one asked for. Claude's own "restore what?" menu then shows in the chat.
   ipcMain.handle('rewind-to', async (_, id: string, promptText: string) => {
     const p = sessions.get(id)
@@ -1203,7 +1211,7 @@ async function main() {
     const failed = await ui(id).openRewindList(io)
     if (failed) throw new Error(failed)
     if (!(await ui(id).driveRewind(io, promptText))) {
-      p.write('\x1b')
+      p.write(keysOf(id).cancel)
       throw new Error('Could not find that message in the rewind list (older ones may be out of range).')
     }
     rewinding.set(id, { text: promptText, at: Date.now() })
@@ -1312,9 +1320,9 @@ async function main() {
     const text = feedback?.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
     if (choice === 2 && text) {
       await io.sleep(400)
-      io.write(`\x1b[200~${text}\x1b[201~`)
-      await io.sleep(150)
-      io.write('\r')
+      io.write(keysOf(id).paste(text))
+      await io.sleep(keysOf(id).submitDelayMs)
+      io.write(keysOf(id).submit)
     }
   })
   ipcMain.handle('answer-question', async (_, id: string, answers: QuestionAnswer[]) => {

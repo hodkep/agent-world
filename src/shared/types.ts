@@ -95,6 +95,16 @@ export interface Detection {
   hint?: string
 }
 
+/** A provider as the screens see it: what it is called, whether it works here, and what it offers. */
+export interface ProviderInfo {
+  id: ProviderId
+  label: string
+  capabilities: Capabilities
+  detection: Detection
+  models: { value: string; label: string }[]
+  modes: import('./modes').ModeInfo[]
+}
+
 export interface AgentRecord {
   id: string
   /** Which program runs this agent. Agents saved before providers existed are Claude Code. */

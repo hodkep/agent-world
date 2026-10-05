@@ -30,6 +30,7 @@ const api: AwApi = {
   requestReview: (authorId, reviewer) => ipcRenderer.invoke('handoff-review', authorId, reviewer),
   cloneAgent: (id, model) => ipcRenderer.invoke('clone-agent', id, model),
   listHistory: (folder) => ipcRenderer.invoke('list-history', folder),
+  listProviders: () => ipcRenderer.invoke('list-providers'),
   resumeSession: (folder, id) => ipcRenderer.invoke('resume-session', folder, id),
   manageTools: (id, action) => ipcRenderer.invoke('manage-tools', id, action),
   listTools: (id) => ipcRenderer.invoke('list-tools', id),

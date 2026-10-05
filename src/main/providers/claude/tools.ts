@@ -1,4 +1,4 @@
-import type { ManageAction } from '../shared/types'
+import type { ManageAction } from '../../../shared/types'
 
 export interface McpServer {
   name: string

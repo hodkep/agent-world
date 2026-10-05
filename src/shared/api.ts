@@ -2,7 +2,7 @@ import type { UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionRequest, QuestionAnswer } from './types'
+import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionRequest, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -107,6 +107,8 @@ export interface AwApi {
   cloneAgent(id: string, model?: string): Promise<AgentRecord>
   /** Earlier Claude conversations in this folder (and worktrees of it), newest first. */
   listHistory(folder: string): Promise<PastSession[]>
+  /** Every provider the app knows, with whether it is ready on this machine. */
+  listProviders(): Promise<ProviderInfo[]>
   /** Continue that conversation as a new agent. */
   resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
   /** MCP servers and plugins available to this agent (runs `claude mcp list`, which health-checks each server: slow). */

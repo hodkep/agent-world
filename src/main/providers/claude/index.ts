@@ -2,8 +2,11 @@ import { execFile } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Provider } from '../ports'
+import { MODES } from '../../../shared/modes'
+import { claudeKeys } from './keys'
 import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
+import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { startHookServer } from './hookServer'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
@@ -23,6 +26,20 @@ export const claude: Provider = {
   },
   transcript: claudeTranscript,
   screen: claudeScreen,
+  keys: claudeKeys,
+  models: [
+    { value: '', label: 'Default model' },
+    { value: 'opus', label: 'Opus' },
+    { value: 'sonnet', label: 'Sonnet' },
+    { value: 'haiku', label: 'Haiku' },
+    { value: 'fable', label: 'Fable' }
+  ],
+  modes: MODES,
+  tools: {
+    list: { servers: ['mcp', 'list'], plugins: ['plugin', 'list', '--json'] },
+    parse: (servers, plugins) => ({ mcp: parseMcpList(servers), plugins: parsePlugins(plugins) }),
+    manage: manageArgs
+  },
   events: { start: startHookServer },
   env: agentEnv,
   prepare(i) {
