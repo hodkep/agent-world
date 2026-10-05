@@ -147,7 +147,13 @@ export function ChatView({
   }, [busy])
   const lastUserAt = items.findLast((i) => i.kind === 'user')?.at ?? 0
   const turnStart = lastUserAt >= idleAt.current ? lastUserAt : busySince.current
-  const turnSec = busy && turnStart ? Math.max(0, Math.floor((now - turnStart) / 1000)) : 0
+  // Like Claude's terminal: a tool that is running shows its own time; thinking and the rest show the time since the message.
+  const stepClock = useRef({ key: '', at: 0 })
+  const stepKey = `${activity}|${detail ?? ''}`
+  if (stepClock.current.key !== stepKey) stepClock.current = { key: stepKey, at: Date.now() }
+  const onStep = busy && ['running', 'implementing', 'researching', 'delegating'].includes(activity)
+  const timeFrom = onStep ? Math.max(stepClock.current.at, turnStart) : turnStart
+  const turnSec = busy && timeFrom ? Math.max(0, Math.floor((now - timeFrom) / 1000)) : 0
   useEffect(() => {
     if (!busy) setStopping(false)
   }, [busy])
