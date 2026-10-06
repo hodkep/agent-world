@@ -55,3 +55,37 @@ test('house rules are saved, and a job\'s model choice fills the hire form', asy
     await shutdown()
   }
 })
+
+test('on every Settings page the heading has room above it and sits close to the line of text under it', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-settings-gap-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    const tabs = await dialog.getByRole('tab').all()
+    expect(tabs.length).toBeGreaterThan(5)
+    for (const tab of tabs) {
+      await tab.click()
+      const name = (await tab.textContent())?.trim()
+      const m = await page.evaluate(() => {
+        const pane = document.querySelector('.set-pane') as HTMLElement
+        const head = (document.querySelector('.set-main > header, .settings-head') as HTMLElement).getBoundingClientRect()
+        const lg = pane.querySelector('legend') as HTMLElement
+        // The heading's own words, not the room around them.
+        const r = document.createRange()
+        r.selectNodeContents(lg)
+        const words = r.getBoundingClientRect()
+        const lead = (pane.querySelector('.set-lead') ?? [...pane.children].find((c) => c !== lg)) as HTMLElement
+        return { above: Math.round(words.top - head.bottom), below: Math.round(lead.getBoundingClientRect().top - words.bottom) }
+      })
+      // Room above the heading (it used to touch the line under the title), and no wider a gap below than that.
+      expect(m.above, `${name}: room above the heading`).toBeGreaterThanOrEqual(18)
+      expect(m.below, `${name}: gap under the heading`).toBeLessThanOrEqual(16)
+      expect(m.below, `${name}: gap under the heading`).toBeGreaterThanOrEqual(6)
+    }
+  } finally {
+    await shutdown()
+  }
+})
