@@ -1180,6 +1180,14 @@ async function main() {
   // Sessions Claude saved for this folder, including the ones our agents ran in worktrees of it.
   // Reaching the message box can take a change in a provider's own settings: it is shown first, and made only when asked.
   ipcMain.handle('provider:mail-plan', (_, id: string) => providers().find((p) => p.id === id)?.mail?.plan() ?? null)
+  // Entries of ours that agy still lists for a build that was removed; each makes agy fail when it tries the office, so they can be taken out here.
+  ipcMain.handle('provider:mail-stale', (_, id: string) => providers().find((p) => p.id === id)?.mail?.stale?.() ?? [])
+  ipcMain.handle('provider:mail-forget', async (_, id: string, name: string) => {
+    const p = providers().find((x) => x.id === id)
+    if (!p?.mail?.removeStale) throw new Error('That provider has nothing to clean up.')
+    await p.mail.removeStale(binFor(p), String(name))
+    return p.mail.stale?.() ?? []
+  })
   ipcMain.handle('provider:mail-set', async (_, id: string, on: boolean) => {
     const p = providers().find((x) => x.id === id)
     if (!p?.mail) throw new Error('That provider has nothing to connect.')

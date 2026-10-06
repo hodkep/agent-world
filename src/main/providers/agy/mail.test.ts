@@ -56,3 +56,27 @@ describe('one entry per build', () => {
     expect(entryFor('/tmp/aw-test-1234')).toBe('agent-world')
   })
 })
+
+describe('entries left behind by a build that is gone', () => {
+  const entry = (command: string, extra: object = {}) => ({ command, args: ['/x/aw-mcp-bridge.cjs'], ...extra })
+  it('finds Agent World entries whose program is not there any more, and nothing else', () => {
+    const alive = join(dir, 'alive')
+    writeFileSync(alive, '')
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world-2': entry('/Applications/Agent World 2.app/Contents/MacOS/Agent World 2'), 'agent-world-3': entry(alive), StitchMCP: entry('/no/such/thing'), 'agent-world-old': entry('/gone', { disabled: true }) } }))
+    expect(make().stale()).toEqual([{ name: 'agent-world-2', program: '/Applications/Agent World 2.app/Contents/MacOS/Agent World 2' }])
+  })
+  it('says there is none without a list, or with a damaged one', () => {
+    expect(make().stale()).toEqual([])
+    writeFileSync(config, '{oops')
+    expect(make().stale()).toEqual([])
+  })
+  it('takes one out through agy, only if it is one of those, so nothing else can be removed this way', async () => {
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world-2': entry('/gone/app'), StitchMCP: entry('/no/such/thing') } }))
+    const calls: string[][] = []
+    const mail = make(calls)
+    await mail.removeStale('agy', 'agent-world-2')
+    expect(calls).toEqual([['mcp', 'remove', 'agent-world-2']])
+    await expect(mail.removeStale('agy', 'StitchMCP')).rejects.toThrow('not one left behind')
+    expect(calls).toHaveLength(1)
+  })
+})

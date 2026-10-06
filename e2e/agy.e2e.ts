@@ -398,3 +398,35 @@ test('a clone of an agy agent branches its conversation and has the history, and
     await shutdown()
   }
 })
+
+test('an entry agy still lists for a removed build can be taken out from Settings, and nothing else of agy\'s list is touched', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-agy-stale-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const folder = join(home, 'project')
+  mkdirSync(folder)
+  const config = join(home, 'mcp_config.json')
+  writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world-2': { command: '/Applications/Agent World 2.app/Contents/MacOS/Agent World 2', args: ['/x/aw-mcp-bridge.cjs'] }, StitchMCP: { command: '/no/such/thing', args: [] } } }))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, AW_AGY_CONFIG: config, FAKE_DELAY_MS: '50' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
+    await page.reload()
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Message box' }).click()
+    const box = settings.getByRole('tabpanel')
+    // It says which entry, and why agy fails on it.
+    const stale = box.getByRole('alert').filter({ hasText: 'agent-world-2' })
+    await expect(stale).toContainText('not installed')
+    await expect(stale).toContainText('Agent World 2.app')
+    // Only the one that is ours and left behind is offered; agy's other servers are not.
+    await expect(box.getByRole('alert')).toHaveCount(1)
+    await stale.getByRole('button', { name: 'Remove agent-world-2' }).click()
+    await expect(box.getByRole('alert')).toHaveCount(0)
+    await expect(box.getByRole('status').filter({ hasText: 'Removed agent-world-2' })).toBeVisible()
+    expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['StitchMCP'])
+  } finally {
+    await shutdown()
+  }
+})

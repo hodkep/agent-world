@@ -108,6 +108,8 @@ const api: AwApi = {
   getLimits: (refresh) => ipcRenderer.invoke('limits:get', refresh),
   mailPlan: (id) => ipcRenderer.invoke('provider:mail-plan', id),
   setMail: (id, on) => ipcRenderer.invoke('provider:mail-set', id, on),
+  mailStale: (id) => ipcRenderer.invoke('provider:mail-stale', id),
+  forgetMail: (id, name) => ipcRenderer.invoke('provider:mail-forget', id, name),
   onUsage: on('usage'),
   onBudgetAlert: on('budget-alert'),
   onPlanMenu: on('plan-menu'),

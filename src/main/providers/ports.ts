@@ -223,6 +223,10 @@ export interface MailSetup {
   plan(): { files: string[]; commands: string[]; note: string }
   connect(bin: string): Promise<void>
   disconnect(bin: string): Promise<void>
+  /** Entries of ours the program still lists that start something no longer installed (a build that was removed), each of which makes it fail. */
+  stale?(): { name: string; program: string }[]
+  /** Takes one of those out, and only one of those. */
+  removeStale?(bin: string, name: string): Promise<void>
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */

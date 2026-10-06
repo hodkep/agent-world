@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { execFile } from 'node:child_process'
@@ -22,11 +22,27 @@ interface Deps {
 }
 
 /** agy has one global list of MCP servers, so reaching the office takes one entry in it: this is that, shown before it is made. */
-export function createAgyMail(d: Deps): MailSetup {
+export function createAgyMail(d: Deps): Required<MailSetup> {
   const home = () => (typeof d.home === 'function' ? d.home() : d.home)
   const bridgeOf = () => join(home(), 'bin', 'aw-mcp-bridge.cjs')
   const add = () => ['mcp', 'add', '--env', 'ELECTRON_RUN_AS_NODE=1', entryFor(home()), '--', d.node, bridgeOf()]
+  const stale = () => {
+    try {
+      const list = (JSON.parse(readFileSync(d.config, 'utf8')) as { mcpServers?: Record<string, { command?: string; disabled?: boolean }> }).mcpServers ?? {}
+      // Ours by name; "left behind" is when the program it starts is not there, so agy cannot start the entry and fails at every use.
+      return Object.entries(list)
+        .filter(([name, e]) => /^agent-world(-[\w-]+)?$/.test(name) && !e.disabled && !!e.command && !existsSync(e.command))
+        .map(([name, e]) => ({ name, program: e.command! }))
+    } catch {
+      return []
+    }
+  }
   return {
+    stale,
+    async removeStale(bin, name) {
+      if (!stale().some((s) => s.name === name)) throw new Error(`${name} is not one left behind by a removed build.`)
+      await d.run(bin, ['mcp', 'remove', name])
+    },
     status() {
       const bridge = bridgeOf()
       const ENTRY = entryFor(home())

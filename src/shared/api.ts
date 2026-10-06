@@ -237,6 +237,10 @@ export interface AwApi {
   mailPlan(provider: ProviderId): Promise<{ files: string[]; commands: string[]; note: string } | null>
   /** Connects or disconnects it, after the user approved the plan; says the new state. */
   setMail(provider: ProviderId, on: boolean): Promise<ProviderInfo['mail']>
+  /** Entries of ours the program still lists for a build that was removed (each makes the program fail when it tries the office). */
+  mailStale(provider: ProviderId): Promise<{ name: string; program: string }[]>
+  /** Takes one of those out through the program's own command; what is left behind is returned. */
+  forgetMail(provider: ProviderId, name: string): Promise<{ name: string; program: string }[]>
   /** Dev servers each agent has started, by agent id. */
   listProcs(agentId: string): Promise<import('./types').ProcInfo[]>
   stopProc(agentId: string, pid: number): Promise<boolean>
