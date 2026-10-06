@@ -120,7 +120,7 @@ export interface AwApi {
   /** Claude accounts: this computer's own login first (id ''), then the ones added. */
   listAccounts(): Promise<AccountInfo[]>
   /** Makes the account's folder; returns its id. Sign-in follows with openSignIn. */
-  addAccount(name: string): Promise<string>
+  addAccount(provider: ProviderId, name: string): Promise<string>
   removeAccount(id: string): Promise<Prefs>
   /** Moves an agent to another account ('' for this computer's own login); a running one restarts on it and keeps its conversation. */
   setAccount(agentId: string, account: string): Promise<void>

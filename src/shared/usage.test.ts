@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { limitView, mergeLimits, tokenLabel, untilReset } from './usage'
+import { LimitsBook, limitView, mergeLimits, tokenLabel, untilReset } from './usage'
 
 const H = 3_600_000
 const now = 1_000_000_000_000
@@ -36,5 +36,32 @@ describe('usage limits', () => {
 describe('tokenLabel', () => {
   it('keeps a few characters, the way agy draws its own counts', () => {
     expect([409, 3487, 21034, 1_900_000, 1_000, 999_999].map(tokenLabel)).toEqual(['409', '3.5k', '21k', '1.9M', '1k', '1M'])
+  })
+})
+
+describe('LimitsBook', () => {
+  const l = (pct: number) => ({ fiveHour: { pct, resetsAt: 1 }, sevenDay: null })
+  it('keeps each account\'s reading apart and shows the tightest', () => {
+    const b = new LimitsBook()
+    b.record('', l(20))
+    b.record('work', l(70))
+    expect(b.of('').fiveHour?.pct).toBe(20)
+    expect(b.of('work').fiveHour?.pct).toBe(70)
+    expect(b.tightest().fiveHour?.pct).toBe(70)
+    expect(b.accounts()).toEqual(['', 'work'])
+  })
+  it('keeps a window a newer reading leaves out', () => {
+    const b = new LimitsBook()
+    b.record('', { fiveHour: { pct: 10, resetsAt: 1 }, sevenDay: { pct: 5, resetsAt: 2 } })
+    b.record('', l(30))
+    expect(b.of('').sevenDay?.pct).toBe(5)
+    expect(b.of('').fiveHour?.pct).toBe(30)
+  })
+  it('round-trips, and reads the single reading saved before accounts as the own login', () => {
+    const b = new LimitsBook()
+    b.record('work', l(40))
+    expect(LimitsBook.from(JSON.parse(JSON.stringify(b))).of('work').fiveHour?.pct).toBe(40)
+    expect(LimitsBook.from({ fiveHour: { pct: 12, resetsAt: 1 }, sevenDay: null }).of('').fiveHour?.pct).toBe(12)
+    expect(LimitsBook.from('junk').accounts()).toEqual([])
   })
 })

@@ -226,6 +226,26 @@ export interface MailSetup {
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
+/**
+ * How a program keeps one login apart from another, so an agent can run on a personal or a work subscription and move between
+ * them without signing in again. A program offers it when it can be pointed at a folder that holds its sign-in, settings and
+ * conversations (`capabilities.accounts`); the rest of the app only talks to this interface.
+ */
+export interface AccountSupport {
+  /** The program's own folder: added accounts link your instructions and skills from it (read only; it is never written). */
+  ownHome(): string
+  /** Names inside it that every account shares. */
+  readonly shared: readonly string[]
+  /** The environment that points the program at an account's folder. */
+  env(configDir: string): Record<string, string>
+  /** The arguments of the program's own sign-in, run in a terminal the user sees (the app never handles credentials). */
+  readonly signInArgs: readonly string[]
+  /** Who is signed in under `env`, asked of the program itself; read only. */
+  status(bin: string, env: NodeJS.ProcessEnv, run?: (file: string, args: string[], env: NodeJS.ProcessEnv) => Promise<string>): Promise<{ loggedIn: boolean; email: string }>
+  /** Makes an agent's saved conversation reachable from another account's folder (undefined is the program's own), so the same session resumes there. */
+  shareConversation(a: AgentRecord, from: string | undefined, to: string | undefined): void
+}
+
 export interface Provider {
   readonly id: ProviderId
   readonly label: string
@@ -257,6 +277,8 @@ export interface Provider {
   readonly hireModes: { value: string; label: string; hint: string }[]
   /** The mode each neutral level means here (null when it has none). */
   readonly autonomy: Record<AutonomyLevel, string | null>
+  /** Present when `capabilities.accounts`. */
+  readonly accounts?: AccountSupport
   /** For a provider whose limits have to be asked for (the others report them as they go, through the event source). */
   readonly limits?: { read(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<LimitWindow[]> }
   /** What the composer offers after a slash: the program's own commands and the skills it would find for an agent working in `cwd`. */

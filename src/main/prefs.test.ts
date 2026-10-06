@@ -10,7 +10,7 @@ describe('preferences', () => {
   })
   it('round-trip through the file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'p.json')
-    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { provider: 'agy' as const, model: 'haiku', permissionMode: 'plan', inPlace: true, account: 'work' }, accounts: [{ id: 'work', name: 'Work' }] }
+    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { provider: 'agy' as const, model: 'haiku', permissionMode: 'plan', inPlace: true, accounts: { claude: 'work' } }, accounts: [{ id: 'work', name: 'Work', provider: 'claude' as const }] }
     savePrefs(file, p)
     expect(loadPrefs(file)).toEqual(p)
   })
@@ -18,7 +18,7 @@ describe('preferences', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
   it('keep only accounts with a plain id and a name, once each', () => {
-    expect(cleanPrefs({ accounts: [{ id: 'work', name: ' Work ' }, { id: 'work', name: 'Dup' }, { id: '../x', name: 'Bad' }, { id: 'ok', name: '' }, 4] }).accounts).toEqual([{ id: 'work', name: 'Work' }])
+    expect(cleanPrefs({ accounts: [{ id: 'work', name: ' Work ' }, { id: 'work', name: 'Dup' }, { id: '../x', name: 'Bad' }, { id: 'ok', name: '' }, { id: 'x', name: 'X', provider: 'nope' }, 4] }).accounts).toEqual([{ id: 'work', name: 'Work', provider: 'claude' }])
   })
   it('keep house rules and the model chosen for each job, dropping empty entries', () => {
     const p = cleanPrefs({ houseRules: 'Small commits.', roleModels: { Reviewer: ' haiku ', Explorer: '', Bad: 4 } })

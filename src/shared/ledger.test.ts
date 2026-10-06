@@ -127,3 +127,18 @@ describe('overview', () => {
     expect(o.providers.map((p) => [p.provider, p.today.usd, p.today.tokens])).toEqual([['claude', 2, 0], ['agy', 0, 1500]])
   })
 })
+
+describe('overview by account', () => {
+  const day = new Date(2026, 9, 5, 12).getTime()
+  it('splits the same spend by login, counting an agent on no account as this computer', () => {
+    const evs: LedgerEvent[] = [
+      { k: 'cost', t: day, agent: 'a', project: 'p', model: 'm', usd: 1 },
+      { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 3, account: 'work' },
+      { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 2, account: 'work' }
+    ]
+    const o = overview(evs, 3, day)
+    expect(o.accounts.map((a) => [a.account, a.usd])).toEqual([['work', 5], ['', 1]])
+    expect(o.total.usd).toBe(6)
+    expect(o.accounts.find((a) => a.account === 'work')!.today.usd).toBe(5)
+  })
+})

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, account: '' }, accounts: [] }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [] }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -25,7 +25,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
       model: str(d.model, 60) ?? base.defaults.model,
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
       inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace,
-      account: str(d.account, 40) ?? base.defaults.account
+      accounts: cleanDefaultAccounts(d.accounts, base.defaults.accounts)
     },
     accounts: cleanAccounts(r.accounts, base.accounts)
   }
@@ -59,7 +59,19 @@ function cleanAccounts(raw: unknown, base: Prefs['accounts']): Prefs['accounts']
   for (const o of raw) {
     const id = str(o?.id, 40)
     const name = str(o?.name, 40)?.trim()
-    if (id && name && /^[a-z0-9][a-z0-9-]*$/.test(id) && !out.some((x) => x.id === id)) out.push({ id, name })
+    // An account saved before programs had their own belongs to Claude.
+    const provider = o?.provider === undefined ? DEFAULT_PROVIDER : isProviderId(o.provider) ? o.provider : null
+    if (id && name && provider && /^[a-z0-9][a-z0-9-]*$/.test(id) && !out.some((x) => x.id === id)) out.push({ id, name, provider })
+  }
+  return out
+}
+
+function cleanDefaultAccounts(raw: unknown, base: Prefs['defaults']['accounts']): Prefs['defaults']['accounts'] {
+  if (!raw || typeof raw !== 'object') return base
+  const out: Prefs['defaults']['accounts'] = {}
+  for (const id of PROVIDER_IDS) {
+    const v = str((raw as Record<string, unknown>)[id], 40)
+    if (v) out[id] = v
   }
   return out
 }

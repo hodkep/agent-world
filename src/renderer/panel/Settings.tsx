@@ -185,7 +185,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </div>
             </>
           )}
-          {pane === 'accounts' && <Accounts prefs={prefs} onChange={set} />}
+          {pane === 'accounts' && <Accounts prefs={prefs} providers={providers} onChange={set} />}
           {pane === 'jobs' && (
             <>
               <legend>Model by job</legend>

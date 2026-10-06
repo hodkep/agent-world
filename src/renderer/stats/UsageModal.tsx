@@ -3,7 +3,8 @@ import type { Overview, Spend } from '../../shared/ledger'
 import { LOW_PCT, busiest } from '../../shared/limits'
 import { tokenLabel, untilReset } from '../../shared/usage'
 import { cssColor } from '../../shared/brand'
-import { isProviderId, type LimitWindow, type ProviderId, type ProviderInfo } from '../../shared/types'
+import { isProviderId, type LimitWindow, type Prefs, type ProviderId, type ProviderInfo } from '../../shared/types'
+import { accountColor, accountName } from '../accounts'
 import { ProviderTag } from '../panel/ProviderTag'
 import { Modal } from '../panel/Modal'
 
@@ -34,7 +35,7 @@ function Allowance({ w, now, name }: { w: LimitWindow; now: number; name: string
 }
 
 /** Every allowance the programs report, grouped under the program's tag. Read from what the tanks already hold. */
-function Limits({ windows, providers, now }: { windows: LimitWindow[]; providers: ProviderInfo[]; now: number }) {
+function Limits({ windows, providers, accounts, now }: { windows: LimitWindow[]; providers: ProviderInfo[]; accounts: Prefs['accounts']; now: number }) {
   const ids = [...new Set(windows.map((w) => w.provider))]
   if (ids.length === 0) return <p className="st-note">No limits reported yet.</p>
   return (
@@ -42,13 +43,20 @@ function Limits({ windows, providers, now }: { windows: LimitWindow[]; providers
       {ids.map((id) => {
         const mine = windows.filter((w) => w.provider === id)
         const groups = [...new Set(mine.map((w) => w.group))]
+        // A program with several logins has allowances for each, side by side; the header shows the tightest of them.
+        const logins = [...new Set(mine.map((w) => w.account ?? ''))]
         return (
           <div key={id} className="lm-prov">
             <ProviderTag id={id} label={providers.find((p) => p.id === id)?.label} />
-            {groups.map((g) => (
-              <div key={g} className="lm-group">
-                {groups.length > 1 && <small>{g}</small>}
-                {mine.filter((w) => w.group === g).map((w) => <Allowance key={w.kind} w={w} now={now} name={KIND[w.kind]} />)}
+            {logins.map((ac) => (
+              <div key={ac} className="lm-login">
+                {logins.length > 1 && <small className="lm-acct"><i className="acct-dot" style={{ background: accountColor(accounts, ac) }} />{accountName(accounts, ac)}</small>}
+                {groups.map((g) => (
+                  <div key={g} className="lm-group">
+                    {groups.length > 1 && <small>{g}</small>}
+                    {mine.filter((w) => w.group === g && (w.account ?? '') === ac).map((w) => <Allowance key={w.kind} w={w} now={now} name={KIND[w.kind]} />)}
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -97,6 +105,7 @@ export function UsageModal({
   providers,
   limits,
   limitsAt,
+  accounts,
   office,
   onRefreshLimits,
   onClose
@@ -105,6 +114,8 @@ export function UsageModal({
   /** The allowances the tanks already hold; nothing is asked again when this opens. */
   limits: LimitWindow[]
   limitsAt: number
+  /** The extra accounts from Settings, to name the logins behind each allowance and each share of the spend. */
+  accounts: Prefs['accounts']
   office: { agents: number; projects: number }
   onRefreshLimits: () => Promise<void>
   onClose: () => void
@@ -169,7 +180,7 @@ export function UsageModal({
                 <div className="st-card" data-level={tight ? level(tight.remainingPct) : undefined}>
                   <span>Tightest limit</span>
                   <b>{tight ? `${Math.round(tight.remainingPct)}% left` : '—'}</b>
-                  <small>{tight ? `${tight.group}, ${KIND[tight.kind]}, resets in ${untilReset(Date.parse(tight.resetsAt), now)}` : 'No limits reported yet'}</small>
+                  <small>{tight ? `${tight.group}${accounts.length ? ` on ${accountName(accounts, tight.account)}` : ''}, ${KIND[tight.kind]}, resets in ${untilReset(Date.parse(tight.resetsAt), now)}` : 'No limits reported yet'}</small>
                 </div>
                 <div className="st-card"><span>In the office</span><b>{office.agents} {office.agents === 1 ? 'agent' : 'agents'}</b><small>{office.projects} {office.projects === 1 ? 'project' : 'projects'} · {providers.filter((p) => p.detection.state === 'ready').length} of {providers.length} programs ready</small></div>
               </div>
@@ -189,9 +200,20 @@ export function UsageModal({
                 </section>
                 <section>
                   <h3>Limits <span className="lm-hint">live from the tanks</span></h3>
-                  <Limits windows={limits} providers={providers} now={now} />
+                  <Limits windows={limits} providers={providers} accounts={accounts} now={now} />
                 </section>
               </div>
+              {accounts.length > 0 && (
+                <section>
+                  <h3>By account <span className="lm-hint">the same spend, split by login</span></h3>
+                  {o.accounts.length === 0 ? <p className="st-note">Nothing recorded in this time.</p> : o.accounts.map((a) => (
+                    <div key={a.account} className="st-rank two">
+                      <div><b><i className="acct-dot" style={{ background: accountColor(accounts, a.account) }} />{accountName(accounts, a.account)}</b><small>{a.today.usd > 0 || a.today.tokens > 0 ? `${spendText(a.today)} today` : 'nothing today'}</small></div>
+                      <span className="amt">{spendText(a)}</span>
+                    </div>
+                  ))}
+                </section>
+              )}
               <div className="st-two wide">
                 <section>
                   <div className="st-row"><h3>Top projects</h3><button className="st-link" onClick={() => setTab('projects')}>All projects ›</button></div>
@@ -269,7 +291,7 @@ export function UsageModal({
               </div>
               <section>
                 <h3>Limits</h3>
-                <Limits windows={limits.filter((w) => w.provider === open)} providers={providers} now={now} />
+                <Limits windows={limits.filter((w) => w.provider === open)} providers={providers} accounts={accounts} now={now} />
               </section>
               <section>
                 <h3>By model</h3>

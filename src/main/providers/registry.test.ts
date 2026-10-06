@@ -54,3 +54,9 @@ describe('claude provider detection', () => {
     expect(d.hint).toMatch(/Settings/)
   })
 })
+
+describe('accounts', () => {
+  it('a program offers them exactly when its capabilities say so', () => {
+    for (const p of providers()) expect(!!p.accounts, p.id).toBe(p.capabilities.accounts)
+  })
+})

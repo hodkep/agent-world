@@ -3,7 +3,7 @@ import { forget, loadMemory, recall, remember } from './memory'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
-import { accountDir, accountId, configDirFor, parseAuthStatus, prepareAccount, shareSession, slugOf } from './accounts'
+import { AccountService } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
@@ -22,7 +22,7 @@ import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine } from './commands'
 import { homeDirName } from './home'
-import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
+import { LimitsBook } from '../shared/usage'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
@@ -115,11 +115,21 @@ async function pollLimits() {
   await Promise.all(
     providers().map(async (p) => {
       if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await p.detect(binFor(p))).state !== 'ready') return
-      try {
-        polled.push(await p.limits.read(binFor(p)))
-      } catch {
-        /* not signed in or offline: its windows are simply missing */
-      }
+      // Each login of a program that keeps accounts has allowances of its own, so each is asked under its own folder.
+      const logins = p.accounts ? ['', ...prefs.accounts.filter((x) => x.provider === p.id).map((x) => x.id)] : [undefined]
+      await Promise.all(
+        logins.map(async (account) => {
+          const extra = accountsSvc.envFor(p.id, accountsSvc.dirOf(p.id, account))
+          const run = (file: string, args: string[]) =>
+            new Promise<string>((resolve, reject) => execFile(file, args, { env: { ...providerOf({}).env(process.env), ...extra }, timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+          try {
+            const ws = await p.limits!.read(binFor(p), Object.keys(extra).length ? run : undefined)
+            polled.push(account === undefined ? ws : ws.map((w) => ({ ...w, account })))
+          } catch {
+            /* not signed in or offline: its windows are simply missing */
+          }
+        })
+      )
     })
   )
 }
@@ -150,10 +160,10 @@ const lastCost = new Map<string, number>()
 // The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
 // reading is still there after a restart, until the next reply refreshes it.
 const USAGE_FILE = join(HOME, 'usage.json')
-let usage: UsageLimits = noLimits()
+const limitsBook = new LimitsBook()
 const loadUsage = () => {
   try {
-    usage = mergeLimits(noLimits(), JSON.parse(readFileSync(USAGE_FILE, 'utf8')) as UsageLimits)
+    Object.assign(limitsBook, LimitsBook.from(JSON.parse(readFileSync(USAGE_FILE, 'utf8'))))
   } catch {
     /* first run, or unreadable: start empty */
   }
@@ -416,11 +426,11 @@ function onStats(s: AgentStats, agentId: string) {
   lastStats.set(a.id, s)
   send('agent-stats', a.id, s)
   if (s.limits.fiveHour || s.limits.sevenDay) {
-    usage = mergeLimits(usage, s.limits)
-    send('usage', usage)
+    limitsBook.record(a.account ?? '', s.limits)
+    send('usage', limitsBook.tightest())
     try {
       mkdirSync(HOME, { recursive: true })
-      writeFileSync(USAGE_FILE, JSON.stringify(usage), { mode: 0o600 })
+      writeFileSync(USAGE_FILE, JSON.stringify(limitsBook), { mode: 0o600 })
     } catch {
       /* the reading is only a convenience; losing it is fine */
     }
@@ -431,7 +441,7 @@ function onStats(s: AgentStats, agentId: string) {
   if (spent !== 0 || a.costSeen === undefined) {
     a.costSeen = s.costUsd
     persist()
-    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name })
+    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
   }
   // A program that counts tokens instead of dollars: record how many it used since the last report.
   if (s.tokens) {
@@ -440,7 +450,7 @@ function onStats(s: AgentStats, agentId: string) {
     if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
       a.tokensSeen = { input: s.tokens.input, output: s.tokens.output }
       persist()
-      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew, provider: providerOf(a).id, name: a.name })
+      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
     }
   }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
@@ -551,12 +561,8 @@ function finishRewind(id: string) {
   }
 }
 
-/** Puts an agent on a Claude account (an id from Settings), or on this computer's own login when the id is empty or unknown. */
-function useAccount(a: AgentRecord, id: string) {
-  const dir = configDirFor(HOME, prefs.accounts, id)
-  if (dir) Object.assign(a, { account: id, configDir: dir })
-  else delete a.account, delete a.configDir
-}
+// Keeps each program's logins apart (Settings > Accounts) and moves agents between them.
+const accountsSvc = new AccountService({ home: HOME, providers: () => providers(), accounts: () => prefs.accounts })
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
@@ -568,7 +574,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...(a.configDir && { CLAUDE_CONFIG_DIR: a.configDir }) } })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...accountsSvc.envFor(a.provider, a.configDir) } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -828,15 +834,18 @@ async function main() {
   ])
   ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
-  ipcMain.handle('get-usage', () => usage)
+  ipcMain.handle('get-usage', () => limitsBook.tightest())
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
     if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
     const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
-    const live = claudeWindows(usage)
-    const askedLive = polled.flat().filter((w) => w.provider === liveId)
-    const own = live.length ? [...live, ...askedLive.filter((w) => w.group !== live[0]!.group)] : askedLive
+    const logins = ['', ...prefs.accounts.filter((x) => x.provider === liveId).map((x) => x.id)]
+    const own = logins.flatMap((account) => {
+      const live = claudeWindows(limitsBook.of(account)).map((w) => ({ ...w, account }))
+      const asked = polled.flat().filter((w) => w.provider === liveId && (w.account ?? '') === account)
+      return live.length ? [...live, ...asked.filter((w) => w.group !== live[0]!.group)] : asked
+    })
     return [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
@@ -1041,7 +1050,7 @@ async function main() {
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
-    useAccount(a, provider === 'claude' ? (options.account ?? prefs.defaults.account) : '')
+    accountsSvc.assign(a, options.account ?? prefs.defaults.accounts[provider])
     agents.push(a)
     persist()
     spawn(a, env)
@@ -1145,37 +1154,20 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
-  // Who is signed in on each account, asked of Claude itself (`claude auth status` reads the folder's sign-in and changes nothing).
-  const whoIs = (dir?: string) =>
-    new Promise<{ loggedIn: boolean; email: string }>((resolve) => {
-      const c = providerCmd(providerOf({}), ['auth', 'status'])
-      execFile(c.file, c.args, { env: { ...env, ...(dir && { CLAUDE_CONFIG_DIR: dir }) }, timeout: 15_000 }, (_err, stdout) => resolve(parseAuthStatus(stdout)))
-    })
-  ipcMain.handle('accounts:list', async (): Promise<AccountInfo[]> => {
-    const all = [{ id: '', name: 'This computer' }, ...prefs.accounts]
-    return Promise.all(
-      all.map(async (x) => {
-        const dir = configDirFor(HOME, prefs.accounts, x.id)
-        return { ...x, dir: (dir ?? join(homedir(), '.claude')).replace(homedir(), '~'), ...(await whoIs(dir)), agents: agents.filter((a) => (a.account ?? '') === x.id).length }
-      })
-    )
-  })
+  // The program under each login says who is signed in (read only); the service does the rest, whichever program it is.
+  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => accountsSvc.list(agents, binFor, env))
   // Adding makes the folder and links your own instructions and skills into it; the sign-in comes next, in a terminal the user sees.
-  ipcMain.handle('accounts:add', async (_, name: string) => {
-    const label = String(name ?? '').trim().slice(0, 40)
-    if (!label) throw new Error('Give the account a name.')
-    if (prefs.accounts.some((x) => x.name.toLowerCase() === label.toLowerCase())) throw new Error('An account with that name exists.')
-    const id = accountId(label, prefs.accounts.map((x) => x.id))
-    await prepareAccount(accountDir(HOME, id), join(homedir(), '.claude'))
-    prefs = cleanPrefs({ ...prefs, accounts: [...prefs.accounts, { id, name: label }] }, prefs)
+  ipcMain.handle('accounts:add', async (_, provider: ProviderId, name: string) => {
+    const made = await accountsSvc.create(provider, String(name ?? ''))
+    prefs = cleanPrefs({ ...prefs, accounts: [...prefs.accounts, made] }, prefs)
     savePrefs(join(HOME, 'preferences.json'), prefs)
-    return id
+    return made.id
   })
   // Removing forgets the account in the app only: its folder, and the sign-in in it, stay on disk.
   ipcMain.handle('accounts:remove', (_, id: string) => {
-    const busy = agents.filter((a) => a.account === id)
-    if (busy.length) throw new Error(`${busy.map((a) => a.name).join(', ')} still ${busy.length === 1 ? 'runs' : 'run'} on it. Move ${busy.length === 1 ? 'it' : 'them'} to another account first.`)
-    prefs = cleanPrefs({ ...prefs, accounts: prefs.accounts.filter((x) => x.id !== id), defaults: { ...prefs.defaults, account: prefs.defaults.account === id ? '' : prefs.defaults.account } }, { ...prefs, accounts: [] })
+    const left = accountsSvc.without(id, agents)
+    const defaults = Object.fromEntries(Object.entries(prefs.defaults.accounts).filter(([, v]) => v !== id))
+    prefs = cleanPrefs({ ...prefs, accounts: left, defaults: { ...prefs.defaults, accounts: defaults } }, { ...prefs, accounts: [], defaults: { ...prefs.defaults, accounts: {} } })
     savePrefs(join(HOME, 'preferences.json'), prefs)
     return prefs
   })
@@ -1185,8 +1177,8 @@ async function main() {
     if (!p) throw new Error('Unknown provider.')
     const shell = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
     const sid = `term:${randomUUID()}`
-    const dir = configDirFor(HOME, prefs.accounts, account)
-    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: { ...env, ...(dir && { CLAUDE_CONFIG_DIR: dir }) } as Record<string, string> })
+    const login = account ? accountsSvc.signIn(p.id, account) : { env: {}, args: [] as readonly string[] }
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: { ...env, ...login.env } as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
@@ -1196,7 +1188,7 @@ async function main() {
     })
     pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
     // The shell draws its prompt first; the program is typed after it, quoted so a path with spaces still runs.
-    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"${dir ? ' auth login' : ''}\r`), 900)
+    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"${login.args.map((x) => ` ${x}`).join('')}\r`), 900)
     return sid
   })
   ipcMain.handle('list-providers', () =>
@@ -1363,23 +1355,12 @@ async function main() {
   ipcMain.handle('agent-set-account', (_, id: string, account: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
-    if (a.provider && a.provider !== 'claude') throw new Error('Only Claude agents use these accounts.')
-    if (account && !prefs.accounts.some((x) => x.id === account)) throw new Error('That account was removed.')
+    if (!accountsSvc.support(a.provider)) throw new Error(`${providerOf(a).label} does not keep separate accounts.`)
+    if (account && !accountsSvc.dirOf(a.provider, account)) throw new Error('That account was removed.')
     if ((a.account ?? '') === account) return
     const p = sessions.get(id)
     if (p && !['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
-    const from = join(a.configDir ?? join(homedir(), '.claude'), 'projects')
-    useAccount(a, account)
-    const to = join(a.configDir ?? join(homedir(), '.claude'), 'projects')
-    if (a.started) {
-      let real = a.cwd
-      try {
-        real = realpathSync(a.cwd)
-      } catch {
-        /* the folder is gone; there is nothing to share */
-      }
-      shareSession(from, to, slugOf(real), a.sessionId)
-    }
+    accountsSvc.moveConversation(a, account)
     persist()
     if (p) {
       restarting.add(id)

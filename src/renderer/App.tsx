@@ -523,7 +523,7 @@ export function App() {
         efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
         canCompact: curProv?.capabilities.compact ?? true,
-        accounts: (current.provider ?? DEFAULT_PROVIDER) === 'claude' && prefs?.accounts.length ? ['', ...prefs.accounts.map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id), color: accountColor(prefs.accounts, id) })) : [],
+        accounts: curProv?.capabilities.accounts && prefs?.accounts.some((a) => a.provider === curProv.id) ? ['', ...prefs.accounts.filter((a) => a.provider === curProv.id).map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id), color: accountColor(prefs.accounts, id) })) : [],
         accountId: current.account ?? ''
       }
     : null
@@ -756,7 +756,7 @@ export function App() {
                     <span className="name">
                       {a.name}
                       {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.label ?? BRAND[DEFAULT_PROVIDER].short} />}
-                      {!!prefs?.accounts.length && (a.provider ?? DEFAULT_PROVIDER) === 'claude' && (
+                      {!!prefs?.accounts.length && !!prefs.accounts.some((x) => x.provider === (a.provider ?? DEFAULT_PROVIDER)) && (
                         <i className="acct-dot" style={{ background: accountColor(prefs.accounts, a.account) }} title={`Runs on ${accountName(prefs.accounts, a.account)}`} />
                       )}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
@@ -919,7 +919,7 @@ export function App() {
           }}
         />
       )}
-      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
+      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1013,7 +1013,7 @@ export function App() {
         )}
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
-        <LimitChips limits={shownLimits} pool={pool} />
+        <LimitChips limits={shownLimits} pool={pool} accounts={prefs?.accounts ?? []} />
         {error && <span className="error">{error}</span>}
         <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
@@ -1110,7 +1110,7 @@ export function App() {
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
-              <PlantTip five={tip.five} week={tip.week} pool={pool} />
+              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} />
             </div>
           )}
         </div>
@@ -1149,7 +1149,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, account: '' }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (
@@ -1362,7 +1362,7 @@ function useNarrow() {
 const window_ = (label: string, v: LimitView) =>
   v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
 
-function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool: LimitWindow[] }) {
+function PlantTip({ five, week, pool, accounts }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts'] }) {
   if (pool.length === 0)
     return (
       <>
@@ -1373,17 +1373,17 @@ function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool
       </>
     )
   // The tanks show the tightest allowance of each kind; here is every one it was picked from.
-  const groups = [...new Set(pool.map((w) => `${w.provider}|${w.group}`))]
+  const groups = [...new Set(pool.map((w) => `${w.provider}|${w.group}|${w.account ?? ''}`))]
   const now = Date.now()
   return (
     <>
       <b>Your usage limits</b>
       <span className="tip-note">The tanks show the tightest of each kind.</span>
       {groups.map((g) => {
-        const ws = pool.filter((w) => `${w.provider}|${w.group}` === g)
+        const ws = pool.filter((w) => `${w.provider}|${w.group}|${w.account ?? ''}` === g)
         return (
           <div key={g} className="tip-group">
-            <b>{ws[0]!.group}</b>
+            <b>{ws[0]!.group}{accounts.length > 0 && ws[0]!.account !== undefined && ` · ${accountName(accounts, ws[0]!.account)}`}</b>
             {(['five_hour', 'weekly'] as const).flatMap((k) => ws.filter((w) => w.kind === k).map((w) => (
               <div key={k} className="tip-row">{k === 'five_hour' ? '5-hour' : 'Weekly'}: {Math.round(w.remainingPct)}% left · resets in {untilReset(Date.parse(w.resetsAt), now)}</div>
             )))}
@@ -1395,11 +1395,12 @@ function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool
 }
 
 /** The same two windows as the tanks, as text in the header: readable by keyboard and screen reader, and always on screen. */
-function LimitChips({ limits, pool }: { limits: UsageLimits; pool: LimitWindow[] }) {
+function LimitChips({ limits, pool, accounts }: { limits: UsageLimits; pool: LimitWindow[]; accounts: Prefs['accounts'] }) {
+  const named = (w: LimitWindow | null) => (w ? `${w.group}${accounts.length > 0 && w.account !== undefined ? ` · ${accountName(accounts, w.account)}` : ''}` : undefined)
   const now = Date.now()
   const chips = [
-    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: tightest(pool, 'five_hour')?.group },
-    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: tightest(pool, 'weekly')?.group }
+    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: named(tightest(pool, 'five_hour')) },
+    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: named(tightest(pool, 'weekly')) }
   ].filter((c) => c.v.pct !== null)
   if (chips.length === 0) return null
   return (

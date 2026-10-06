@@ -1662,3 +1662,6 @@ dialog.handoff { width: min(640px, 94vw); }
 .acct-error { margin: 0; color: #ff8a8a; font-size: 12px; }
 .acct-add { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-raised, #221e33); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); }
 @media (max-width: 560px) { .acct { grid-template-columns: auto 1fr; } .acct .acts { grid-column: 1 / -1; justify-content: flex-start; } }
+.acct-group { display: flex; flex-direction: column; gap: 8px; }
+.st-rank b > .acct-dot, .lm-acct > .acct-dot { margin: 0 6px 0 0; }
+.lm-acct { display: flex; align-items: center; color: var(--muted); margin-top: 6px; }

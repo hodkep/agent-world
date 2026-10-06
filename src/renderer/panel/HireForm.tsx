@@ -64,7 +64,10 @@ export function HireForm({
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
   const [inPlace, setInPlace] = useState(defaults.inPlace)
-  const [account, setAccount] = useState(accounts.some((a) => a.id === defaults.account) ? defaults.account : '')
+  // The accounts of the program that will run it; the one chosen in Settings for that program starts selected.
+  const mine = accounts.filter((a) => a.provider === chosen?.id)
+  const [picked, setAccount] = useState<string | null>(null)
+  const account = picked !== null && mine.some((a) => a.id === picked) ? picked : (mine.find((a) => a.id === defaults.accounts[chosen?.id as ProviderId])?.id ?? '')
   const [busy, setBusy] = useState(false)
 
   // Picking a role fills in the launch settings for that job; everything stays editable.
@@ -97,7 +100,7 @@ export function HireForm({
       ...(instructions.trim() && { instructions: instructions.trim() }),
       ...(chrome && chosen?.capabilities.chrome !== false && { chrome }),
       ...(inPlace && { inPlace }),
-      ...(accounts.length > 0 && chosen?.id === 'claude' && { account }),
+      ...(mine.length > 0 && { account }),
       ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
     }
   }
@@ -148,11 +151,11 @@ export function HireForm({
           </div>
         </fieldset>
       )}
-      {accounts.length > 0 && chosen?.id === 'claude' && (
+      {mine.length > 0 && (
         <fieldset className="hire-pick">
           <legend>Account <em>which login it runs on</em></legend>
           <div className="hire-opts">
-            {['', ...accounts.map((a) => a.id)].map((id) => (
+            {['', ...mine.map((a) => a.id)].map((id) => (
               <label key={id} className="hire-opt" data-on={account === id} style={{ ['--c' as string]: accountColor(accounts, id) }}>
                 <input type="radio" name="account" value={id} checked={account === id} onChange={() => setAccount(id)} />
                 <b><i className="dot" />{accountName(accounts, id)}</b>

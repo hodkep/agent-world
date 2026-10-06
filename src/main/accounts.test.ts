@@ -1,22 +1,29 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { accountDir, accountId, configDirFor, parseAuthStatus, prepareAccount, shareSession } from './accounts'
+import { describe, expect, it, vi } from 'vitest'
+import type { Account, AgentRecord } from '../shared/types'
+import { AccountService, accountDir, accountId, prepareAccount } from './accounts'
+import type { AccountSupport, Provider } from './providers/ports'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'aw-acct-'))
+
+/** A made-up program: the service must work with whatever offers `accounts`, not just Claude. */
+const fake = (own: string, over: Partial<AccountSupport> = {}): AccountSupport => ({
+  ownHome: () => own,
+  shared: ['NOTES.md', 'skills'],
+  env: (dir) => ({ FAKE_HOME: dir }),
+  signInArgs: ['login'],
+  status: async () => ({ loggedIn: true, email: 'a@b.c' }),
+  shareConversation: () => undefined,
+  ...over
+})
+const provider = (id: string, accounts?: AccountSupport) => ({ id, accounts }) as unknown as Provider
+const agent = (over: Partial<AgentRecord> = {}) => ({ id: 'a', provider: 'claude', cwd: '/x', sessionId: 's', started: true, ...over }) as AgentRecord
 
 describe('accounts', () => {
   it('keeps each account in a folder of its own under the app home', () => {
     expect(accountDir('/h', 'work')).toBe('/h/accounts/work')
-  })
-
-  it('names no folder for this computer\'s own login, or for an account that is gone', () => {
-    const list = [{ id: 'work', name: 'Work' }]
-    expect(configDirFor('/h', list, undefined)).toBeUndefined()
-    expect(configDirFor('/h', list, '')).toBeUndefined()
-    expect(configDirFor('/h', list, 'gone')).toBeUndefined()
-    expect(configDirFor('/h', list, 'work')).toBe('/h/accounts/work')
   })
 
   it('makes a folder-safe id and never reuses one', () => {
@@ -25,35 +32,87 @@ describe('accounts', () => {
     expect(accountId('???', [])).toBe('account')
   })
 
-  it('reads who is signed in, and treats junk as signed out', () => {
-    expect(parseAuthStatus('{"loggedIn":true,"email":"a@b.c"}')).toEqual({ loggedIn: true, email: 'a@b.c' })
-    expect(parseAuthStatus('{"loggedIn":false}')).toEqual({ loggedIn: false, email: '' })
-    expect(parseAuthStatus('not json')).toEqual({ loggedIn: false, email: '' })
-  })
-
-  it('links the shared files into a new account and never touches the sign-in', async () => {
-    const claude = tmp()
-    writeFileSync(join(claude, 'CLAUDE.md'), 'rules')
-    mkdirSync(join(claude, 'skills'))
-    writeFileSync(join(claude, '.credentials.json'), 'secret')
+  it('links what the program shares into a new account and never touches the sign-in', async () => {
+    const own = tmp()
+    writeFileSync(join(own, 'NOTES.md'), 'rules')
+    mkdirSync(join(own, 'skills'))
+    writeFileSync(join(own, '.credentials.json'), 'secret')
     const dir = join(tmp(), 'work')
-    await prepareAccount(dir, claude)
-    expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe('rules')
+    await prepareAccount(dir, fake(own))
+    expect(readFileSync(join(dir, 'NOTES.md'), 'utf8')).toBe('rules')
     expect(lstatSync(join(dir, 'skills')).isSymbolicLink()).toBe(true)
-    expect(existsSync(join(dir, 'commands'))).toBe(false)
     expect(existsSync(join(dir, '.credentials.json'))).toBe(false)
-    await prepareAccount(dir, claude)
+    await prepareAccount(dir, fake(own))
+  })
+})
+
+describe('AccountService', () => {
+  const work: Account = { id: 'work', name: 'Work', provider: 'claude' }
+  const svc = (accounts: Account[] = [work], support: AccountSupport | undefined = fake('/own')) =>
+    new AccountService({ home: '/h', providers: () => [provider('claude', support), provider('agy')], accounts: () => accounts })
+
+  it('names no folder for the program\'s own login, an account that is gone, one of another program, or a program without accounts', () => {
+    expect(svc().dirOf('claude', undefined)).toBeUndefined()
+    expect(svc().dirOf('claude', '')).toBeUndefined()
+    expect(svc().dirOf('claude', 'gone')).toBeUndefined()
+    expect(svc([{ ...work, provider: 'agy' }]).dirOf('claude', 'work')).toBeUndefined()
+    expect(svc([{ ...work, provider: 'agy' }]).dirOf('agy', 'work')).toBeUndefined()
+    expect(svc().dirOf('claude', 'work')).toBe('/h/accounts/work')
   })
 
-  it('makes a conversation appear in the other account as a link, once', () => {
-    const a = tmp()
-    const b = tmp()
-    mkdirSync(join(a, 'slug'))
-    writeFileSync(join(a, 'slug', 's1.jsonl'), 'chat')
-    shareSession(a, b, 'slug', 's1')
-    expect(readlinkSync(join(b, 'slug', 's1.jsonl'))).toBe(join(a, 'slug', 's1.jsonl'))
-    shareSession(a, b, 'slug', 's1')
-    shareSession(a, b, 'slug', 'missing')
-    expect(existsSync(join(b, 'slug', 'missing.jsonl'))).toBe(false)
+  it('points the program at a folder the way the program says, and adds nothing for its own login', () => {
+    expect(svc().envFor('claude', '/h/accounts/work')).toEqual({ FAKE_HOME: '/h/accounts/work' })
+    expect(svc().envFor('claude', undefined)).toEqual({})
+    expect(svc().envFor('agy', '/h/accounts/work')).toEqual({})
+  })
+
+  it('puts an agent on an account and back on its own login', () => {
+    const a = agent()
+    svc().assign(a, 'work')
+    expect(a).toMatchObject({ account: 'work', configDir: '/h/accounts/work' })
+    svc().assign(a, '')
+    expect(a.account).toBeUndefined()
+    expect(a.configDir).toBeUndefined()
+  })
+
+  it('moves a conversation through the program, only once it has started', () => {
+    const share = vi.fn()
+    const s = svc([work], fake('/own', { shareConversation: share }))
+    const a = agent({ started: false })
+    s.moveConversation(a, 'work')
+    expect(share).not.toHaveBeenCalled()
+    a.started = true
+    s.moveConversation(a, '')
+    expect(share).toHaveBeenCalledWith(a, '/h/accounts/work', undefined)
+  })
+
+  it('refuses a program without accounts, an empty name and a repeated one', async () => {
+    const own = tmp()
+    const s = new AccountService({ home: tmp(), providers: () => [provider('claude', fake(own)), provider('agy')], accounts: () => [work] })
+    await expect(s.create('agy', 'X')).rejects.toThrow('does not keep')
+    await expect(s.create('claude', '  ')).rejects.toThrow('name')
+    await expect(s.create('claude', 'work')).rejects.toThrow('exists')
+    expect(await s.create('claude', 'Client')).toEqual({ id: 'client', name: 'Client', provider: 'claude' })
+  })
+})
+
+describe('AccountService lists and removes', () => {
+  const work: Account = { id: 'work', name: 'Work', provider: 'claude' }
+  const svc = () => new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => [work] })
+
+  it('lists each login of each program that keeps accounts, with who is signed in and its agents', async () => {
+    const rows = await svc().list([agent({ account: 'work' }), agent({ id: 'b' })], () => 'bin', {})
+    expect(rows.map((r) => [r.provider, r.id, r.agents, r.email])).toEqual([['claude', '', 1, 'a@b.c'], ['claude', 'work', 1, 'a@b.c']])
+  })
+
+  it('refuses to remove an account an agent still runs on, and says who', () => {
+    expect(() => svc().without('work', [agent({ name: 'ada', account: 'work' })])).toThrow('ada still runs on it')
+    expect(svc().without('work', [agent()])).toEqual([])
+  })
+
+  it('signs the program\'s own login in the usual way and an account in its own folder', () => {
+    expect(svc().signIn('claude', '')).toEqual({ env: {}, args: [] })
+    expect(svc().signIn('claude', 'work')).toEqual({ env: { FAKE_HOME: '/h/accounts/work' }, args: ['login'] })
+    expect(() => svc().signIn('agy', '')).toThrow('does not keep')
   })
 })

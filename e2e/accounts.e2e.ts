@@ -13,7 +13,7 @@ test('a second account is signed in once, hired on, and an agent moves between a
   execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
   const envLog = join(tmp, 'env.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_ENV: envLog, HOME: tmp },
+    { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_COST: '1.5', FAKE_USED_5H: '20', FAKE_USED_5H_WORK: '70', FAKE_ENV: envLog, HOME: tmp },
     tmp
   )
   try {
@@ -42,7 +42,7 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect(row).toContainText('Signed in')
     await settings.getByRole('button', { name: 'Make default' }).last().click()
     await expect(row).toContainText('Default for new agents')
-    await expect.poll(() => JSON.parse(readFileSync(join(tmp, 'home', 'preferences.json'), 'utf8'))).toMatchObject({ accounts: [{ id: 'work', name: 'Work' }], defaults: { account: 'work' } })
+    await expect.poll(() => JSON.parse(readFileSync(join(tmp, 'home', 'preferences.json'), 'utf8'))).toMatchObject({ accounts: [{ id: 'work', name: 'Work', provider: 'claude' }], defaults: { accounts: { claude: 'work' } } })
     await settings.getByRole('button', { name: 'Close settings' }).click()
 
     // A new agent starts on the default, in that account's folder.
@@ -55,15 +55,31 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect.poll(() => (existsSync(envLog) ? readFileSync(envLog, 'utf8').trim().split('\n') : []), { timeout: 15_000 }).toEqual([work])
     await expect(page.locator('.agent-row .acct-dot')).toHaveAttribute('title', 'Runs on Work')
 
+    // The spend it made is counted under Work as well as in the total.
+    await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
+    const usage = page.getByRole('dialog', { name: /usage/i })
+    const byAccount = usage.locator('section', { hasText: 'By account' })
+    await expect(byAccount.locator('.st-rank', { hasText: 'Work' })).toContainText('$1.50', { timeout: 20_000 })
+    await usage.getByRole('button', { name: /close/i }).first().click()
+
     // From its profile card, move it to this computer's login: it restarts, with no sign-in step.
     await page.locator('.hc-name').click()
     const card = page.locator('.profile-overlay')
     await expect(card.getByText('Account', { exact: true })).toBeVisible()
-    await expect(card.getByRole('button', { name: 'Account: Work' })).toBeEnabled({ timeout: 20_000 })
+    await expect(card.getByRole('button', { name: 'Account: Work' })).toBeEnabled({ timeout: 45_000 })
     await card.getByRole('button', { name: 'Account: Work' }).click()
     await card.getByRole('menuitemradio', { name: 'This computer' }).click()
     await expect.poll(() => readFileSync(envLog, 'utf8').trim().split('\n'), { timeout: 20_000 }).toEqual([work, '-'])
     await expect(page.locator('.agent-row .acct-dot')).toHaveAttribute('title', 'Runs on This computer')
+
+    // Allowances are kept per login: each shows apart in the Usage tab, while the header shows the tightest of them.
+    await expect(page.getByRole('status', { name: /5-hour limit: 30% left/ })).toBeVisible({ timeout: 20_000 })
+    await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
+    const modal = page.getByRole('dialog', { name: /usage/i })
+    await modal.getByRole('button', { name: 'Refresh' }).click()
+    const limits = modal.locator('section', { hasText: 'live from the tanks' })
+    await expect(limits.locator('.lm-login', { hasText: 'Work' })).toContainText('30% left', { timeout: 20_000 })
+    await expect(limits.locator('.lm-login', { hasText: 'This computer' })).toContainText('80% left')
   } finally {
     await shutdown()
   }

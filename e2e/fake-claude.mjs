@@ -169,7 +169,7 @@ if (process.env.FAKE_COST) {
   const res = await fetch(status, {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42 }, rate_limits: { five_hour: { used_percentage: Number(process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
+    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42 }, rate_limits: { five_hour: { used_percentage: Number(process.env[`FAKE_USED_5H_${(process.env.CLAUDE_CONFIG_DIR ?? '').split('/').pop().toUpperCase()}`] ?? process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
   })
   console.log(`status bar: ${await res.text()}`)
 }

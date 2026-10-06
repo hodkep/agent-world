@@ -4,10 +4,10 @@
  * the model that was in use, and each finished stretch of work with when it began and how long it ran.
  */
 export type LedgerEvent =
-  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string }
+  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string; account?: string }
   | { k: 'work'; t: number; agent: string; project: string; ms: number }
   /** For a program that reports tokens, not a price: how many it used since the last record. */
-  | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string }
+  | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string; account?: string }
 
 /** How much a running total grew; a lower total means a new conversation started from zero. */
 export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
@@ -194,6 +194,8 @@ export interface Overview {
   providers: ({ provider: string; today: Spend } & Spend)[]
   projects: ({ project: string; lastAt: number; by: Record<string, Spend>; agents: AgentUse[] } & Spend)[]
   models: ({ model: string; provider: string } & Spend)[]
+  /** Spend by Claude account ('' is this computer's own login), the same totals split; an agent on no account counts as ''. */
+  accounts: ({ account: string; today: Spend } & Spend)[]
 }
 
 const none = (): Spend => ({ usd: 0, tokens: 0 })
@@ -218,6 +220,7 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
   const byProvider = new Map<string, { all: Spend; today: Spend }>()
   const byProject = new Map<string, { all: Spend; lastAt: number; by: Record<string, Spend>; agents: Map<string, AgentUse> }>()
   const byModel = new Map<string, { provider: string; all: Spend }>()
+  const byAccount = new Map<string, { all: Spend; today: Spend }>()
   const turns = new Map<string, number>()
   const open = (e: { project: string; agent: string }, provider: string, model: string, name?: string) => {
     const p = byProject.get(e.project) ?? { all: none(), lastAt: 0, by: {} as Record<string, Spend>, agents: new Map<string, AgentUse>() }
@@ -242,6 +245,10 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
     byProvider.set(provider, pr)
     add(pr.all, spend)
     if (i === days - 1) add(pr.today, spend)
+    const ac = byAccount.get(e.account ?? '') ?? { all: none(), today: none() }
+    byAccount.set(e.account ?? '', ac)
+    add(ac.all, spend)
+    if (i === days - 1) add(ac.today, spend)
     const { p, a } = open(e, provider, e.model, e.name)
     add(p.all, spend)
     add((p.by[provider] ??= none()), spend)
@@ -262,6 +269,7 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
     projects: [...byProject]
       .map(([project, v]) => ({ project, lastAt: v.lastAt, by: v.by, ...v.all, agents: [...v.agents.values()].map((a) => ({ ...a, turns: turns.get(a.agent) ?? 0 })).sort((a, b) => weight(b) - weight(a)) }))
       .sort((a, b) => weight(b) - weight(a)),
+    accounts: [...byAccount].map(([account, v]) => ({ account, today: v.today, ...v.all })).sort((a, b) => weight(b) - weight(a)),
     models: [...byModel].map(([k, v]) => ({ model: k.slice(k.indexOf('\n') + 1), provider: v.provider, ...v.all })).sort((a, b) => weight(b) - weight(a))
   }
 }
