@@ -22,8 +22,8 @@ test('a question from the agent opens an 8-bit box, and the answers reach its me
     await dialog.getByRole('checkbox', { name: /Cat/ }).click()
     await dialog.getByRole('checkbox', { name: /Fish/ }).click()
     await dialog.getByRole('button', { name: 'Review' }).click()
-    await expect(dialog).toContainText('Blue')
-    await expect(dialog).toContainText('Cat, Fish')
+    // Each answer is a tag of its own on the review page.
+    await expect(dialog.locator('.qd-review .tag')).toHaveText(['Blue', 'Cat', 'Fish'])
     await page.waitForTimeout(800)
     console.log('OPACITY', await dialog.evaluate((el) => getComputedStyle(el).opacity + ' ' + getComputedStyle(el).animationName))
     await page.screenshot({ path: 'test-results/ask-dialog.png' })

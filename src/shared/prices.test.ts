@@ -10,13 +10,23 @@ describe('price estimates', () => {
   it('prices tokens read and written per million', () => {
     expect(estimateUsd('claude-sonnet-4-6', 1_000_000, 100_000)).toBeCloseTo(4.5)
   })
+  it('prices the Gemini models agy offers, at every level, at Google\'s published rates', () => {
+    const before = new Date('2026-10-06')
+    for (const m of ['gemini-3.8-flash-high', 'Gemini 3.7 Flash (Low)', 'gemini-3.6-flash-medium']) expect(rateFor(m, {}, before)).toEqual({ in: 0.75, out: 3.75 })
+    expect(rateFor('gemini-3.1-pro-low', {}, before)).toEqual({ in: 2, out: 12 })
+  })
+  it('doubles the Flash rates when the launch price ends on 1 January 2027', () => {
+    expect(rateFor('gemini-3.8-flash-high', {}, new Date('2026-12-31T23:00:00Z'))).toEqual({ in: 0.75, out: 3.75 })
+    expect(rateFor('gemini-3.8-flash-high', {}, new Date('2027-01-01T00:00:00Z'))).toEqual({ in: 1.5, out: 7.5 })
+    expect(rateFor('gemini-3.1-pro-high', {}, new Date('2027-06-01'))).toEqual({ in: 2, out: 12 })
+  })
   it('leaves a model without a rate unpriced, and lets the user add one', () => {
-    expect(estimateUsd('Gemini 3.8 Flash (High)', 1000, 1000)).toBeNull()
-    expect(estimateUsd('Gemini 3.8 Flash (High)', 1_000_000, 1_000_000, { 'gemini-3.8-flash': { in: 0.5, out: 2 } })).toBeCloseTo(2.5)
+    expect(estimateUsd('GPT-OSS 120B (Medium)', 1000, 1000)).toBeNull()
+    expect(estimateUsd('GPT-OSS 120B (Medium)', 1_000_000, 1_000_000, { 'gpt-oss-120b': { in: 0.15, out: 0.75 } })).toBeCloseTo(0.9)
   })
   it('the user\'s own rate beats the built-in one, and the most specific name wins', () => {
     expect(rateFor('claude-sonnet-4-6', { 'claude-sonnet-4-6': { in: 1, out: 2 } })).toEqual({ in: 1, out: 2 })
-    expect(rateFor('gemini-3.1-pro-high', { 'gemini-3.1': { in: 1, out: 1 }, 'gemini-3.1-pro': { in: 2, out: 2 } })).toEqual({ in: 2, out: 2 })
+    expect(rateFor('gemini-3.1-pro-high', { 'gemini-3.1': { in: 1, out: 1 }, 'gemini-3.1-pro': { in: 5, out: 5 } })).toEqual({ in: 5, out: 5 })
   })
   it('keeps only well-formed rates from a hand-edited file', () => {
     expect(cleanRates({ a: { in: 1, out: 2 }, b: { in: 'x', out: 2 }, c: { in: -1, out: 1 }, d: 4 })).toEqual({ a: { in: 1, out: 2 } })

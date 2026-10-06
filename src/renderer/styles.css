@@ -288,26 +288,74 @@ aside:not(.wide) .change-list { width: 190px; }
 .dialog-foot { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 2px solid var(--ink); background: var(--panel-2); }
 .dialog-foot .hint { color: var(--muted); font-size: 11px; }
 
-.qa { display: flex; flex-direction: column; gap: 10px; }
-.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; flex-wrap: wrap; }
-.steps button { font-size: 12px; padding: 3px 8px; background: var(--panel-3); color: var(--muted); }
-.steps li.on button { background: var(--panel-2); color: var(--text); box-shadow: inset 0 -3px 0 var(--tone); }
-.steps li.done button { color: var(--ok-text); }
-.choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.choice { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 7px 10px 7px 22px; position: relative; background: var(--panel-3); border: 2px solid var(--ink); font: inherit; color: var(--text); }
+/* The question box: steps along the top, one question per page, a footer with the buttons. */
+.dialog.kind-question { width: min(640px, 100%); }
+.dialog-count { margin-left: auto; padding: 2px 8px; background: var(--ink); color: var(--tone); font: 700 11px Menlo, Consolas, monospace; letter-spacing: 0.08em; }
+.dialog-count + .dialog-more, .dialog-count + .dialog-x { margin-left: 8px; }
+.qd { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.qd .steps { list-style: none; margin: 0; padding: 0; display: flex; background: var(--panel-3); border-bottom: 2px solid var(--ink); flex: none; }
+.qd .steps li { flex: 1 1 0; min-width: 0; display: flex; }
+.qd .steps li + li { border-left: 2px solid var(--ink); }
+.qd .step { flex: 1; display: flex; align-items: center; gap: 9px; padding: 10px 14px; background: transparent; border: 0; box-shadow: none; text-align: left; color: var(--muted); position: relative; min-width: 0; }
+.qd .step .n { flex: none; width: 20px; height: 20px; display: grid; place-items: center; font: 700 11px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--line); color: var(--muted); }
+.qd .step .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.qd .step:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+.qd .step.on { background: var(--panel); color: var(--text); }
+.qd .step.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 4px; background: var(--tone); }
+.qd .step.on .n { background: var(--tone); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.qd .step.done .n { background: var(--ok); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.qd .step.done .n::before { content: ''; width: 9px; height: 5px; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: translateY(-1px) rotate(-45deg); }
+.qd .step.done .n span { display: none; }
+.qd .step.done:not(.on) { color: var(--ok-text); }
+.qd .step.send .n { background: var(--panel-2); }
+.qd-body { padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; }
+.qd-q { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 650; letter-spacing: -0.005em; text-wrap: balance; }
+.qd-kind { display: flex; align-items: center; gap: 8px; margin-top: -6px; color: var(--muted); font: 11px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+.qd-kind .chip { padding: 1px 7px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--line); color: var(--think); }
+.choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.choice { --rim: var(--ink); position: relative; width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; text-align: left; padding: 12px 14px; background: var(--panel-3); border: 0; color: var(--text); font: inherit; box-shadow: 0 0 0 2px var(--rim), 0 4px 0 2px var(--ink); transition: transform 90ms steps(2), background 90ms steps(2); }
 button.choice { cursor: pointer; }
-.choice .box { font-family: Menlo, Consolas, monospace; color: var(--muted); flex: none; }
-.choice .label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.choice .desc { color: var(--muted); font-size: 12px; }
-.choice.cursor::before { content: '▶'; position: absolute; left: 5px; top: 7px; color: var(--accent); font-size: 11px; }
-.choice.cursor { background: var(--panel-2); }
-.choice.on { box-shadow: inset 0 0 0 2px var(--accent); }
-.choice.on .box { color: var(--accent); }
-.choice.other { align-items: center; }
-.review { margin: 0; display: flex; flex-direction: column; gap: 8px; }
-.review dt { color: var(--muted); font-size: 12px; }
-.review dd { margin: 2px 0 0; font-weight: 600; }
-.review dd.missing { color: var(--danger-text); font-weight: 400; }
+button.choice:hover { background: var(--panel-hover); transform: translateY(-1px); }
+button.choice:active { transform: translateY(2px); box-shadow: 0 0 0 2px var(--rim), 0 1px 0 2px var(--ink); }
+.choice.cursor { --rim: var(--think); }
+.choice.on { --rim: var(--accent); background: var(--selected); }
+button.choice.on:hover { background: #38331c; }
+/* A pixel keycap: the number is also the key to press. */
+.choice .cap { width: 30px; height: 30px; display: grid; place-items: center; margin-bottom: 3px; background: var(--well); color: var(--muted); font: 700 13px Menlo, Consolas, monospace; box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--line), 0 3px 0 2px var(--ink); }
+.choice.on .cap { background: var(--accent); color: var(--ink); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--accent-hot), 0 3px 0 2px var(--ink); }
+.choice.on .cap.tick { color: transparent; position: relative; }
+.choice.on .cap.tick::after { content: ''; position: absolute; width: 12px; height: 6px; left: 50%; top: 50%; margin: -6px 0 0 -6px; border-left: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: rotate(-45deg) translate(1px, -1px); }
+.choice .label { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.choice .label b { font-size: 14px; line-height: 1.3; }
+.choice .desc { color: var(--muted); font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
+.choice.on .desc { color: #cfc9b0; }
+.choice .badge { align-self: start; font: 800 9.5px Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 7px; color: var(--ink); background: var(--think); box-shadow: 0 0 0 2px var(--ink); white-space: nowrap; }
+.choice.on .badge { background: var(--accent); }
+.choice.other { cursor: text; }
+.choice.other .label { flex-direction: row; align-items: center; }
+.choice.other input { width: 100%; font: inherit; font-size: 13.5px; color: var(--text); background: var(--well); border: 0; padding: 8px 10px; box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3px var(--line); }
+.choice.other input::placeholder { color: #6f6d86; }
+.choice.other.on input { box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3px var(--accent-dim); }
+.qd-foot { display: flex; align-items: center; gap: 10px; padding: 14px 18px 16px; flex: none; }
+.qd-foot .term { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; background: transparent; box-shadow: inset 0 0 0 2px var(--line); border: 0; color: var(--muted); }
+.qd-foot .term:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
+.qd-foot .term .gl { font: 700 11px Menlo, Consolas, monospace; color: var(--think); }
+.qd-foot .hints { margin-left: auto; display: flex; gap: 12px; color: #7d7b94; font: 11px Menlo, Consolas, monospace; }
+.qd-foot .hints kbd { font: inherit; padding: 0 5px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--line); color: var(--muted); }
+.qd-foot .hints + button, .qd-foot .term + button { margin-left: auto; }
+.qd .dialog-error { margin: 0 18px 0; }
+.qd-review { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.qd-review .row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; padding: 12px 14px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink); }
+.qd-review dt { grid-column: 1; color: var(--muted); font-size: 12px; }
+.qd-review dd { grid-column: 1; margin: 0; font-weight: 700; font-size: 14px; line-height: 1.4; }
+.qd-review dd.missing { color: var(--danger-text); font-weight: 400; }
+.qd-review .edit { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.qd-review .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.qd-review .tag { padding: 1px 8px; font-weight: 600; font-size: 12.5px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--accent-dim); color: var(--accent); }
+.inline-need .qd-body { flex: none; overflow: visible; padding: 12px; }
+.inline-need .qd-foot { padding: 8px 12px 10px; }
+@media (max-width: 560px) { .qd-foot .hints { display: none; } .qd-foot { flex-wrap: wrap; } .choice { grid-template-columns: auto 1fr; } .choice .badge { grid-column: 2; } }
+@media (prefers-reduced-motion: reduce) { .choice { transition: none; } }
 
 /* ---- Polish pass ---------------------------------------------------------------------------------- */
 /* Agent header: title, facts, then one action row. */
@@ -335,10 +383,6 @@ button.choice { cursor: pointer; }
 .px.on { box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 0 4px var(--panel), inset 0 0 0 10px var(--accent); }
 .px.round.on { background: var(--accent); }
 .px.tick { box-shadow: inset 0 0 0 2px var(--ok), inset 0 0 0 10px var(--ok); }
-.choice .px { margin-top: 4px; }
-.choice.cursor::before { content: ''; position: absolute; left: 6px; top: 12px; width: 6px; height: 8px; background: var(--accent); clip-path: polygon(0 0, 100% 50%, 0 100%); font-size: 0; }
-.steps button { display: inline-flex; align-items: center; gap: 6px; }
-.steps .px { margin-top: 0; width: 8px; height: 8px; }
 .dialog-x { font-size: 0; width: 26px; height: 26px; padding: 0; position: relative; }
 .dialog-x::before, .dialog-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
 .dialog-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
