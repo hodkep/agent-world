@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { BasePicker } from './BasePicker'
 
 type Status = Awaited<ReturnType<typeof window.aw.finishStatus>>
 
@@ -11,13 +12,18 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
   const [message, setMessage] = useState('')
   const [cleanup, setCleanup] = useState(true)
   const [busy, setBusy] = useState(false)
+  const load = useCallback(
+    () =>
+      window.aw.finishStatus(agentId).then(
+        (s) => (setStatus(s), setError(''), setMessage((m) => (m && !m.startsWith('Merge ') ? m : `Merge ${s.branch}`))),
+        (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      ),
+    [agentId]
+  )
   useEffect(() => {
     dialog.current?.showModal()
-    void window.aw.finishStatus(agentId).then(
-      (s) => (setStatus(s), setMessage(`Merge ${s.branch}`)),
-      (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
-    )
-  }, [agentId])
+    void load()
+  }, [load])
   const checks = status && [
     { ok: status.ahead > 0, text: status.ahead > 0 ? `${status.ahead} commit${status.ahead === 1 ? '' : 's'} on ${status.branch} to land` : `Nothing to land: ${status.base} already has everything on ${status.branch}` },
     { ok: status.uncommitted === 0, text: status.uncommitted === 0 ? 'Everything is committed' : `${status.uncommitted} file${status.uncommitted === 1 ? '' : 's'} not committed yet (commit in the Code tab)` },
@@ -56,6 +62,10 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
       {status && (
         <fieldset>
           <legend>Land it</legend>
+          <div className="finish-into">
+            <span>Into</span>
+            <BasePicker value={status.base} label="Branch to land on" load={() => window.aw.code.branches(agentId)} onPick={async (b) => (await window.aw.code.setBase(agentId, b), setStatus(null), await load())} note="Changes where this lands, and what it is compared with. Nothing else." />
+          </div>
           <label className="check">
             <input type="radio" name="how" checked={!squash} onChange={() => (setSquash(false), setMessage(`Merge ${status.branch}`))} /> Merge, keeping each commit
           </label>

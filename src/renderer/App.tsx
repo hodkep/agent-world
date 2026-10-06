@@ -166,6 +166,12 @@ export function App() {
   }, [])
   useEffect(() => void scanProviders(), [scanProviders])
   const [finishing, setFinishing] = useState<string | null>(null)
+  // The Changes panel's land menu can open the finish dialog too.
+  useEffect(() => {
+    const on = (e: Event) => setFinishing(String((e as CustomEvent).detail))
+    window.addEventListener('aw-finish', on)
+    return () => window.removeEventListener('aw-finish', on)
+  }, [])
   const [grid, setGrid] = useState(() => store('aw.grid') === '1')
   // null shows the overview tiles; otherwise conversations side by side in this layout.
   const [paneLayout, setPaneLayout] = useState<GridLayout | null>(() => {
@@ -633,10 +639,10 @@ export function App() {
       if (f) setWorkspaces(await window.aw.activateWorkspace(f))
     })
 
-  const hire = (options: AgentOptions, name: string) =>
+  const hire = (options: AgentOptions, name: string, base?: string) =>
     run(async () => {
       if (!folder) return
-      const a = await window.aw.addAgent(folder, options, name)
+      const a = await window.aw.addAgent(folder, options, name, base)
       setHiring(false)
       void refreshWorkspaces()
       setAgents((xs) => [...xs, a])
@@ -1171,7 +1177,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (

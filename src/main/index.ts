@@ -46,7 +46,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { changes, commitAll, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitAll, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -1074,11 +1074,11 @@ async function main() {
   })
   ipcMain.handle('window:new', () => void createWindow())
   ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
-  ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string) => {
+  ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
-    const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), ...(base && (await assertBranch(folder, base), { base })) }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
@@ -1318,8 +1318,21 @@ async function main() {
   }
   ipcMain.handle('code:changes', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
-    return { base, branch: a.branch, files: await changes(a.cwd, base) }
+    const files = await changes(a.cwd, base)
+    return { base, branch: a.branch, files, hint: await staleHint(a.repoPath, a.cwd, base, files.length) }
   })
+  // The base is only what the work is compared with and lands on: changing it never touches git or the worktree.
+  ipcMain.handle('code:branches', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    return { current: base, branches: await branches(a.repoPath) }
+  })
+  ipcMain.handle('code:set-base', async (_, id: string, base: string) => {
+    const { a } = await worktreeOf(id)
+    await assertBranch(a.repoPath, base)
+    a.base = base
+    persist()
+  })
+  ipcMain.handle('repo:branches', async (_, folder: string) => ((await isGitRepo(folder)) ? { current: await git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), branches: await branches(folder) } : { current: '', branches: [] }))
   ipcMain.handle('code:diff', async (_, id: string, path: string) => {
     const { a, base } = await worktreeOf(id)
     const current = await readWorktreeFile(a.cwd, path).catch(() => '')

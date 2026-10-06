@@ -1781,3 +1781,66 @@ dialog.handoff { width: min(640px, 94vw); }
 .change-view button { padding: 0 8px; font-size: 11px; margin-left: 0; }
 .change-view button.on { background: var(--accent); color: var(--ink); }
 .change-view + button { margin-left: 4px; }
+
+/* The base branch picker: a button naming the branch, and a list of the repo's branches under it. */
+.bp { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
+.bp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; font: 12px Menlo, Consolas, monospace; background: var(--well); color: var(--text); min-width: 0; max-width: 100%; }
+.bp-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-btn::after { content: '▾'; color: var(--muted); font-size: 10px; flex: none; }
+.bp-btn.open { box-shadow: 0 0 0 1px var(--accent); }
+.bp-pop { position: absolute; left: 0; top: calc(100% + 4px); width: 300px; max-width: 80vw; z-index: 30; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent), 0 10px 30px rgb(0 0 0 / 0.65); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.bp-pop > [role='listbox'] { max-height: 240px; overflow: auto; }
+.bp-pop input { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 8px; }
+.bp-pop h4 { margin: 6px 0 2px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.bp-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 8px; background: none; border: 0; box-shadow: none; text-align: left; font: 12px Menlo, Consolas, monospace; }
+.bp-opt:hover:not(:disabled) { background: var(--selected); }
+.bp-opt.cur { color: var(--accent); }
+.bp-opt small { margin-left: auto; font: 10px ui-sans-serif, system-ui, sans-serif; color: var(--muted); }
+.bp-none, .bp-fine, .bp-err { margin: 0; font-size: 11px; color: var(--muted); }
+.bp-err { color: var(--danger-text); }
+.bp-fine { border-top: 1px solid var(--line); padding-top: 6px; }
+.hire-base { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hire-base > span:first-child { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.hire-base small { color: var(--muted); font-size: 12px; }
+.finish-into { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+/* The Changes column: a header with the branch and what it is compared with, status filters, a note when the base looks wrong, and a footer of one commit line and one land button. */
+.change-list.ch { gap: 0; padding: 0; }
+.ch-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
+.ch-top .br { font: 12px Menlo, Consolas, monospace; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.ch-top button { padding: 0 8px; }
+.ch-cmp { display: flex; align-items: center; gap: 8px; padding: 0 12px 8px; font-size: 12px; color: var(--muted); min-width: 0; }
+.ch-sum { display: flex; align-items: center; gap: 6px; padding: 0 12px 8px; flex-wrap: wrap; }
+.chipf { display: inline-flex; gap: 5px; align-items: center; padding: 1px 8px; font: 11px Menlo, Consolas, monospace; background: none; border: 1px solid var(--line); box-shadow: none; color: var(--muted); }
+.chipf.on { background: var(--selected); color: var(--text); border-color: var(--accent); }
+.chipf b { font-weight: 700; }
+.chipf.is-added b { color: var(--ok-text); }
+.chipf.is-modified b { color: var(--accent); }
+.chipf.is-deleted b { color: var(--danger-text); }
+.ch-note { margin: 0 12px 8px; background: var(--well); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; color: var(--muted); }
+.ch-note::before { content: ''; float: left; width: 8px; height: 8px; margin: 5px 10px 0 0; background: var(--accent); }
+.ch-note b { color: var(--text); }
+.ch-note .acts { display: flex; gap: 6px; margin-top: 6px; }
+.ch-note .acts button { padding: 1px 10px; font-size: 12px; }
+.ch-note .acts .primary { background: var(--accent); color: var(--ink); }
+.ch-find { display: flex; gap: 6px; padding: 0 12px 8px; }
+.ch-find input { flex: 1; min-width: 0; }
+.ch-find .change-view { margin-left: 0; }
+.change-list.ch > ul { padding: 0 6px; }
+.change-list.ch .discard { visibility: hidden; }
+.change-list.ch li:hover .discard, .change-list.ch li:focus-within .discard { visibility: visible; }
+.change-list.ch li:hover { background: var(--selected); }
+.change-list.ch li.empty:hover { background: none; }
+.change-list.ch li.more { font-size: 11px; color: var(--muted); }
+.ch-foot { position: relative; border-top: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ch-commit { display: flex; gap: 6px; }
+.ch-commit input { flex: 1; min-width: 0; }
+.ch-commit button:disabled { opacity: 0.45; }
+.ch-land { position: relative; display: flex; }
+.ch-land .main { flex: 1; text-align: left; background: var(--accent); color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-land .caret { padding: 4px 9px; background: var(--accent); color: var(--ink); }
+.ch-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 20; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgb(0 0 0 / 0.6); padding: 4px; display: flex; flex-direction: column; }
+.ch-menu button { background: none; border: 0; box-shadow: none; text-align: left; padding: 6px 10px; }
+.ch-menu button:hover:not(:disabled) { background: var(--selected); }
+.ch-menu small { display: block; color: var(--muted); font-size: 11px; }
+.ch-foot .notice, .ch-foot .error { margin: 0; font-size: 12px; }

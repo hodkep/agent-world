@@ -6,6 +6,7 @@ import { Markdown } from '../chat/markdown'
 import { editorOptions, languageFor, monaco } from './monaco'
 import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
+import { BasePicker } from '../panel/BasePicker'
 import { ancestors, changeRows, visibleRows } from './tree'
 
 type Tab = 'changes' | 'files'
@@ -56,6 +57,11 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat }
   )
 }
 
+/** A very long list is cut here, so a branch of hundreds of files does not make the panel slow; search and the status chips reach the rest. */
+const ROW_CAP = 400
+/** Base-branch notes the user answered "Keep it" to, kept while the app runs so the note does not come back on every refresh. */
+const hintOff = new Set<string>()
+
 function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { agentId: string; agentName: string; workDone: number; onJump: (j: CodeJump) => void; onOpenChat: () => void }) {
   const side = useSideWidth()
   const [data, setData] = useState<Changes | null>(null)
@@ -79,6 +85,22 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
     }
   }
   const [closed, setClosed] = useState<Set<string>>(new Set())
+  const [status, setStatus] = useState<'all' | Changes['files'][number]['status']>('all')
+  const [menu, setMenu] = useState(false)
+  const [, bump] = useState(0)
+  const menuWrap = useRef<HTMLDivElement>(null)
+  // The land menu closes on Esc or a click anywhere else.
+  useEffect(() => {
+    if (!menu) return
+    const away = (e: MouseEvent) => !menuWrap.current?.contains(e.target as Node) && setMenu(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setMenu(false))
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [menu])
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
@@ -150,6 +172,8 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
     refresh()
   }
 
+  // What the status chips and the search leave of the changed files.
+  const shownFiles = (data?.files ?? []).filter((f) => (status === 'all' || f.status === status) && (!find.trim() || f.path.toLowerCase().includes(find.trim().toLowerCase())))
   // One changed file: its status, the file's name first (and, in the list, the folder it is in after it), and a way to discard it.
   const changed = (f: Changes['files'][number], depth: number) => {
     const name = baseName(f.path)
@@ -174,27 +198,60 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
 
   return (
     <div className="changes">
-      <div className="change-list" style={side.style}>
-        <div className="change-head">
-          {data ? (
-            <>
-              <code>{data.branch}</code> vs <code>{data.base}</code> · {data.files.length} file{data.files.length === 1 ? '' : 's'}
-            </>
-          ) : (
-            'Loading…'
-          )}
-          <span className="change-view" role="group" aria-label="Show changed files as">
-            <button aria-pressed={view === 'tree'} className={view === 'tree' ? 'on' : ''} onClick={() => pickView('tree')} title="Show the changed files in their folders">Tree</button>
-            <button aria-pressed={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')} title="Show the changed files as one list, file names first">List</button>
-          </span>
-          <button onClick={refresh} title="Refresh">
+      <div className="change-list ch" style={side.style}>
+        <div className="ch-top">
+          {data ? <code className="br" title={data.branch ?? ''}>{data.branch}</code> : <span>Loading…</span>}
+          <button onClick={refresh} title="Refresh" aria-label="Refresh">
             ↻
           </button>
         </div>
-        {data && data.files.length > 0 && <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search changed files…" aria-label="Search changed files" />}
+        {data && (
+          <div className="ch-cmp">
+            <span>compared with</span>
+            <BasePicker
+              value={data.base}
+              label="Compared with"
+              load={() => window.aw.code.branches(agentId)}
+              onPick={async (b) => (await window.aw.code.setBase(agentId, b), refresh())}
+              note={`Changes only what ${data.branch} is compared with, and where Merge and PR go. Git itself is not touched.`}
+            />
+          </div>
+        )}
+        {data && data.files.length > 0 && (
+          <div className="ch-sum" role="group" aria-label="Show">
+            <button className={`chipf ${status === 'all' ? 'on' : ''}`} aria-pressed={status === 'all'} onClick={() => setStatus('all')}><b>{data.files.length}</b> file{data.files.length === 1 ? '' : 's'}</button>
+            {(['added', 'modified', 'deleted'] as const).map((k) => {
+              const n = data.files.filter((f) => f.status === k).length
+              return n > 0 && <button key={k} className={`chipf is-${k} ${status === k ? 'on' : ''}`} aria-pressed={status === k} onClick={() => setStatus(status === k ? 'all' : k)} title={{ added: 'New files', modified: 'Changed files', deleted: 'Deleted files' }[k]}><b className="mark">{STATUS_MARK[k]}</b> {n}</button>
+            })}
+          </div>
+        )}
+        {data?.hint && !hintOff.has(`${data.base}>${data.hint.branch}`) && (
+          <div className="ch-note" role="status">
+            <div>
+              <b>{data.hint.files === 0 ? `No changes against ${data.hint.branch}.` : `Only ${data.hint.files} file${data.hint.files === 1 ? '' : 's'} differ from ${data.hint.branch}.`}</b> This branch is being compared with <code>{data.base}</code>, which shows {data.files.length} changed.
+              <div className="acts">
+                <button className="primary" onClick={() => void act(`Now compared with ${data.hint!.branch}`, () => window.aw.code.setBase(agentId, data.hint!.branch))}>Compare with {data.hint.branch}</button>
+                <button onClick={() => { hintOff.add(`${data.base}>${data.hint!.branch}`); bump((n) => n + 1) }}>Keep it</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {data && data.files.length > 0 && (
+          <div className="ch-find">
+            <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search changed files…" aria-label="Search changed files" />
+            <span className="change-view" role="group" aria-label="Show changed files as">
+              <button aria-pressed={view === 'tree'} className={view === 'tree' ? 'on' : ''} onClick={() => pickView('tree')} title="Show the changed files in their folders">Tree</button>
+              <button aria-pressed={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')} title="Show the changed files as one list, file names first">List</button>
+            </span>
+          </div>
+        )}
         <ul className={view === 'tree' ? 'tree' : undefined} role={view === 'tree' ? 'tree' : undefined}>
-          {view === 'tree' && data && changeRows(data.files.map((f) => f.path), closed, find).map((r, _i, _all, byPath = new Map(data.files.map((x) => [x.path, x]))) => {
-            if (r.dir) {
+          {view === 'tree' && data && (() => {
+            const byPath = new Map(shownFiles.map((x) => [x.path, x]))
+            const rows = changeRows(shownFiles.map((f) => f.path), closed, find)
+            return rows.slice(0, ROW_CAP).map((r) => {
+              if (!r.dir) return changed(byPath.get(r.path)!, r.depth)
               const shut = closed.has(r.path)
               return (
                 <li key={`d:${r.path}`} role="treeitem" aria-expanded={!shut} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
@@ -205,42 +262,59 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
                   </button>
                 </li>
               )
-            }
-            return changed(byPath.get(r.path)!, r.depth)
-          })}
-          {view === 'list' && data?.files.filter((f) => !find.trim() || f.path.toLowerCase().includes(find.trim().toLowerCase())).sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), undefined, { sensitivity: 'base', numeric: true })).map((f) => changed(f, 0))}
-          {data && data.files.length === 0 && <li className="empty">No changes yet.</li>}
-          {data && data.files.length > 0 && find.trim() && !data.files.some((f) => f.path.toLowerCase().includes(find.trim().toLowerCase())) && <li className="empty">No changed file matches.</li>}
-        </ul>
-        <form
-          className="land"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void act('Committed', async () => {
-              await window.aw.code.commit(agentId, message)
-              setMessage('')
             })
-          }}
-        >
-          <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Commit message" aria-label="Commit message" />
-          <button type="submit" disabled={!message.trim()}>
-            Commit all
-          </button>
-        </form>
-        <div className="land">
-          <button
-            onClick={() => data && window.confirm(`Merge ${data.branch} into ${data.base} in your checkout?`) && act('Merged into', () => window.aw.code.merge(agentId))}
+          })()}
+          {view === 'list' && [...shownFiles].sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), undefined, { sensitivity: 'base', numeric: true })).slice(0, ROW_CAP).map((f) => changed(f, 0))}
+          {data && data.files.length === 0 && <li className="empty">No changes yet.</li>}
+          {data && data.files.length > 0 && shownFiles.length === 0 && <li className="empty">No changed file matches.</li>}
+          {data && shownFiles.length > ROW_CAP && <li className="empty more">…{shownFiles.length - ROW_CAP} more files · refine with search or the A / M / D filters</li>}
+        </ul>
+        <div className="ch-foot">
+          <form
+            className="ch-commit"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void act('Committed', async () => {
+                await window.aw.code.commit(agentId, message)
+                setMessage('')
+              })
+            }}
           >
-            Merge into {data?.base ?? 'base'}
-          </button>
-          <button
-            onClick={() => data && window.confirm(`Push ${data.branch} to origin and open a pull request against ${data.base}?`) && act('Pull request', () => window.aw.code.pr(agentId))}
-          >
-            Push &amp; open PR
-          </button>
+            <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message…" aria-label="Commit message" />
+            <button type="submit" disabled={!message.trim()}>
+              Commit all
+            </button>
+          </form>
+          <div className="ch-land" ref={menuWrap}>
+            <button
+              className="main"
+              onClick={() => data && window.confirm(`Merge ${data.branch} into ${data.base} in your checkout?`) && act('Merged into', () => window.aw.code.merge(agentId))}
+            >
+              Merge into {data?.base ?? 'base'}
+            </button>
+            <button className="caret" aria-haspopup="menu" aria-expanded={menu} aria-label="More ways to finish" title="More ways to finish" onClick={() => setMenu((m) => !m)}>
+              ▾
+            </button>
+            {menu && data && (
+              <div className="ch-menu" role="menu">
+                <button role="menuitem" onClick={() => (setMenu(false), window.confirm(`Merge ${data.branch} into ${data.base} in your checkout?`) && void act('Merged into', () => window.aw.code.merge(agentId)))}>
+                  Merge into {data.base}
+                  <small>in your checkout, keeping each commit</small>
+                </button>
+                <button role="menuitem" onClick={() => (setMenu(false), window.confirm(`Push ${data.branch} to origin and open a pull request against ${data.base}?`) && void act('Pull request', () => window.aw.code.pr(agentId)))}>
+                  Push &amp; open PR
+                  <small>against {data.base}</small>
+                </button>
+                <button role="menuitem" onClick={() => (setMenu(false), window.dispatchEvent(new CustomEvent('aw-finish', { detail: agentId })))}>
+                  Finish {agentName}…
+                  <small>checks, merge or squash, and clean up</small>
+                </button>
+              </div>
+            )}
+          </div>
+          {notice && <p className="notice">{notice}</p>}
+          {error && <p className="error">{error}</p>}
         </div>
-        {notice && <p className="notice">{notice}</p>}
-        {error && <p className="error">{error}</p>}
       </div>
       <SideSizer {...side.sizer} />
       <div className="files-ed">

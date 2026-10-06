@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { changes, commitAll, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitAll, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -176,5 +176,46 @@ describe('landing the work', () => {
     const paths = (await changes(wt.path, 'main')).map((c) => c.path)
     expect(paths).toContain('c.ts')
     expect(paths.some((p) => p.startsWith('.okf'))).toBe(false)
+  })
+})
+
+describe('the base branch', () => {
+  it('lists local and remote branches, leaves out agents\' own, and marks the one the checkout is on', async () => {
+    git(repo, 'branch', 'develop')
+    const remote = join(tmp, 'remote.git')
+    git(tmp, 'init', '-q', '--bare', remote)
+    git(repo, 'remote', 'add', 'origin', remote)
+    git(repo, 'push', '-q', 'origin', 'develop')
+    git(repo, 'fetch', '-q', 'origin')
+    const list = await branches(repo)
+    expect(list.filter((b) => b.kind === 'local').map((b) => b.name).sort()).toEqual(['develop', 'main'])
+    expect(list.filter((b) => b.kind === 'remote').map((b) => b.name)).toEqual(['origin/develop'])
+    expect(list.find((b) => b.checkedOut)?.name).toBe('main')
+  })
+  it('refuses a name that is not a branch', async () => {
+    await expect(assertBranch(repo, 'main')).resolves.toBeUndefined()
+    await expect(assertBranch(repo, 'nope')).rejects.toThrow('There is no branch called nope')
+  })
+  it('says when the work is almost the same as what the checkout is on but not as its stored base', async () => {
+    git(repo, 'branch', 'old')
+    for (let i = 0; i < 12; i++) writeFileSync(join(repo, `n${i}.ts`), 'x\n')
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'more')
+    const bob = await createWorktree({ repoPath: repo, name: 'bob', rootDir: join(tmp, 'wt') })
+    expect(await changes(bob.path, 'old')).toHaveLength(12)
+    expect(await staleHint(repo, bob.path, 'old', 12)).toEqual({ branch: 'main', files: 0 })
+    // Compared with the branch the checkout is on, nothing is out of place.
+    expect(await staleHint(repo, bob.path, 'main', 0)).toBeNull()
+    // A small gap is not worth a note.
+    expect(await staleHint(repo, bob.path, 'old', 1)).toBeNull()
+  })
+  it('starts a new agent from a chosen branch, and that is its base', async () => {
+    git(repo, 'branch', 'release')
+    writeFileSync(join(repo, 'later.ts'), 'x\n')
+    git(repo, 'add', '.')
+    git(repo, 'commit', '-qm', 'later')
+    const cy = await createWorktree({ repoPath: repo, name: 'cy', rootDir: join(tmp, 'wt'), base: 'release' })
+    expect(cy.base).toBe('release')
+    expect(existsSync(join(cy.path, 'later.ts'))).toBe(false)
   })
 })

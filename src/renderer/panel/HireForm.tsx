@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { BranchList } from '../../shared/api'
 import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { effortsFor } from '../../shared/efforts'
 import { parsePick } from '../../shared/modelPick'
 import { cssColor } from '../../shared/brand'
+import { BasePicker } from './BasePicker'
 import { PixelSprite } from './PixelSprite'
 import { accountColor, accountName } from '../accounts'
 
@@ -31,6 +33,7 @@ export function HireForm({
   defaults,
   roleModels,
   accounts,
+  folder,
   onHire,
   onCancel,
   onSaveRole
@@ -45,7 +48,10 @@ export function HireForm({
   roleModels: Prefs['roleModels']
   /** The extra Claude accounts from Settings; the choice shows only when there is one. */
   accounts: Prefs['accounts']
-  onHire: (options: AgentOptions, name: string) => Promise<void>
+  /** The project the agent is hired into, to offer its branches. */
+  folder: string
+  /** `base` is set only when another branch than the folder's own was chosen. */
+  onHire: (options: AgentOptions, name: string, base?: string) => Promise<void>
   onCancel: () => void
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
 }) {
@@ -64,6 +70,12 @@ export function HireForm({
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
   const [inPlace, setInPlace] = useState(defaults.inPlace)
+  // The branch the agent starts from and lands on: the folder's own unless another is chosen. Nothing is offered outside a git repo.
+  const [repo, setRepo] = useState({ current: '', branches: [] as BranchList['branches'] })
+  const [base, setBase] = useState('')
+  useEffect(() => {
+    void window.aw.repoBranches(folder).then(setRepo, () => undefined)
+  }, [folder])
   // The accounts of the program that will run it; the one chosen in Settings for that program starts selected.
   const mine = accounts.filter((a) => a.provider === chosen?.id)
   const [picked, setAccount] = useState<string | null>(null)
@@ -108,7 +120,7 @@ export function HireForm({
   const submit = async () => {
     setBusy(true)
     try {
-      await onHire(current(), name)
+      await onHire(current(), name, !inPlace && base && base !== repo.current ? base : undefined)
     } finally {
       setBusy(false)
     }
@@ -246,6 +258,13 @@ export function HireForm({
           <input type="checkbox" checked={inPlace} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>
       </div>
+      {!inPlace && repo.branches.length > 0 && (
+        <div className="hire-row hire-base">
+          <span>Branch from</span>
+          <BasePicker value={base || repo.current} label="Branch from" load={() => Promise.resolve(repo)} onPick={setBase} note="The agent works on its own branch, started from this one, and lands back on it." />
+          {(base || repo.current) === repo.current && <small>this folder's branch</small>}
+        </div>
+      )}
       <div className="hire-foot">
         <span className="hire-sum">Hiring <b>{who}</b> on <b>{chosen?.label}</b> with <b>{modelLabel}</b></span>
         {saving === null ? (

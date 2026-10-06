@@ -137,3 +137,45 @@ export async function createPr(cwd: string, branch: string, base: string) {
   const { stdout } = await promisify(execFile)('gh', ['pr', 'create', '--head', branch, '--base', base, '--fill'], { cwd })
   return lines(stdout).at(-1) ?? ''
 }
+
+export interface Branch {
+  name: string
+  kind: 'local' | 'remote'
+  /** The one the repo's own checkout is on. */
+  checkedOut: boolean
+}
+
+/** The repo's branches to pick a base from: local first, then remote. Agents' own branches (`aw/…`) are never offered. */
+export async function branches(repo: string): Promise<Branch[]> {
+  const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').catch(() => '')
+  const of = async (ref: string, kind: Branch['kind']) =>
+    lines(await git(repo, 'for-each-ref', '--format=%(refname:short)', ref))
+      .filter((n) => !n.startsWith('aw/') && !/^[^/]+\/(HEAD|aw\/)/.test(n) && n !== 'origin')
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ name, kind, checkedOut: kind === 'local' && name === current }))
+  return [...(await of('refs/heads', 'local')), ...(await of('refs/remotes', 'remote'))]
+}
+
+/** A base must be something git can resolve to a commit. */
+export async function assertBranch(repo: string, name: string): Promise<void> {
+  try {
+    await git(repo, 'rev-parse', '--verify', '--quiet', `${name}^{commit}`)
+  } catch {
+    throw new Error(`There is no branch called ${name}.`)
+  }
+}
+
+/**
+ * When the stored base leaves many more files changed than the branch the checkout is on would, that is likely a base left over from when
+ * the agent was hired: the branch to suggest, and how many files differ from it. Null when the base is that branch or the gap is small.
+ */
+export async function staleHint(repo: string, cwd: string, base: string, files: number): Promise<{ branch: string; files: number } | null> {
+  try {
+    const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
+    if (current === base || current === 'HEAD') return null
+    const n = (await changes(cwd, current)).length
+    return files - n >= 5 && n * 2 <= files ? { branch: current, files: n } : null
+  } catch {
+    return null
+  }
+}

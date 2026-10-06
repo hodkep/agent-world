@@ -11,6 +11,18 @@ export interface Changes {
   base: string
   branch: string | null
   files: { path: string; status: ChangeStatus }[]
+  /** Set when the stored base leaves far more files changed than the branch the repo's checkout is on would: that branch, and how many files differ from it. */
+  hint?: { branch: string; files: number } | null
+}
+export interface Branch {
+  name: string
+  kind: 'local' | 'remote'
+  checkedOut: boolean
+}
+/** A repo's branches to pick a base from, and the one in use (the checkout's own, for a repo not yet hired into). */
+export interface BranchList {
+  current: string
+  branches: Branch[]
 }
 
 export interface PaletteCommand {
@@ -61,6 +73,10 @@ export interface DevServer {
 
 export interface CodeApi {
   changes(agentId: string): Promise<Changes>
+  /** The repo's branches, and the base this agent has now. */
+  branches(agentId: string): Promise<BranchList>
+  /** Compare this agent's work with, and land it on, another branch. Git and the worktree are not touched. */
+  setBase(agentId: string, base: string): Promise<void>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
   files(agentId: string): Promise<string[]>
   read(agentId: string, path: string): Promise<string>
@@ -83,7 +99,9 @@ export interface AwApi {
   /** Another window onto the same agents; it starts on the project picker. */
   newWindow(): Promise<void>
   listAgents(): Promise<AgentRecord[]>
-  addAgent(folder: string, options?: AgentOptions, name?: string): Promise<AgentRecord>
+  /** `base` starts the agent's branch from, and lands it on, another branch than the one the folder is on. */
+  addAgent(folder: string, options?: AgentOptions, name?: string, base?: string): Promise<AgentRecord>
+  repoBranches(folder: string): Promise<BranchList>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
   /** What the profile card shows for an agent: counted from its conversation, its branch and its work clock. */

@@ -17,7 +17,8 @@ const api: AwApi = {
   forgetWorkspace: (path) => ipcRenderer.invoke('workspaces:forget', path),
   newWindow: () => ipcRenderer.invoke('window:new'),
   listAgents: () => ipcRenderer.invoke('list-agents'),
-  addAgent: (folder, options, name) => ipcRenderer.invoke('add-agent', folder, options, name),
+  addAgent: (folder, options, name, base) => ipcRenderer.invoke('add-agent', folder, options, name, base),
+  repoBranches: (folder) => ipcRenderer.invoke('repo:branches', folder),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   subagents: (id) => ipcRenderer.invoke('subagents:list', id),
   profile: (id) => ipcRenderer.invoke('agent:profile', id),
@@ -118,6 +119,8 @@ const api: AwApi = {
   onSelectAgent: on('select-agent'),
   code: {
     changes: (id) => ipcRenderer.invoke('code:changes', id),
+    branches: (id) => ipcRenderer.invoke('code:branches', id),
+    setBase: (id, base) => ipcRenderer.invoke('code:set-base', id, base),
     diff: (id, path) => ipcRenderer.invoke('code:diff', id, path),
     files: (id) => ipcRenderer.invoke('code:files', id),
     read: (id, path) => ipcRenderer.invoke('code:read', id, path),
