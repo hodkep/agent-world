@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
-import { anyMenu, inputReady } from './prompts'
+import { anyMenu, inputReady, promptDialog } from './prompts'
 import type { GenericMenu, RewindList, TerminalIO } from '../ports'
 import { inputBoxAfter } from './box'
 
@@ -33,7 +33,9 @@ export function genericMenu(screen: string): GenericMenu | null {
     const hint = lines.slice(end + 1, end + 4).map((l) => l.trim()).find((l) => /esc|enter/i.test(l)) ?? ''
     return { title: block[0] ?? '', context: block.slice(1).join('\n'), options: run.map((m) => m[3]!), highlighted: run.findIndex((m) => m[1]), hint }
   }
-  return null
+  // No numbered options: a dialog that only waits for Enter or Esc is offered as one choice, so it is never silent in the chat.
+  const d = promptDialog(screen)
+  return d ? { title: d.title, context: d.context, options: ['Confirm (Enter)'], highlighted: 0, hint: d.hint } : null
 }
 
 /** The /rewind list: prompts to go back to, each with a line under it, and a `❯` on the one selected. */

@@ -136,8 +136,9 @@ describe('overview by account', () => {
       { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 3, account: 'work' },
       { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 2, account: 'work' }
     ]
+    evs.push({ k: 'tokens', t: day, agent: 'c', project: 'p', model: 'g', input: 10, output: 5, provider: 'agy' })
     const o = overview(evs, 3, day)
-    expect(o.accounts.map((a) => [a.account, a.usd])).toEqual([['work', 5], ['', 1]])
+    expect(o.accounts.map((a) => [a.provider, a.account, a.usd, a.tokens])).toEqual([['claude', 'work', 5, 0], ['claude', '', 1, 0], ['agy', '', 0, 15]])
     expect(o.total.usd).toBe(6)
     expect(o.accounts.find((a) => a.account === 'work')!.today.usd).toBe(5)
   })

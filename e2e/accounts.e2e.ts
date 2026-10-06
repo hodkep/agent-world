@@ -62,6 +62,14 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect(byAccount.locator('.st-rank', { hasText: 'Work' })).toContainText('$1.50', { timeout: 20_000 })
     await usage.getByRole('button', { name: /close/i }).first().click()
 
+    // Its own controls show the allowance of the account it runs on.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const ring = page.getByRole('button', { name: 'Context and usage' })
+    const five = page.getByRole('dialog', { name: 'Usage' }).locator('.cb-meter', { hasText: '5-hour' })
+    await ring.click()
+    await expect(five).toContainText('30% left', { timeout: 20_000 })
+    await ring.click()
+
     // From its profile card, move it to this computer's login: it restarts, with no sign-in step.
     await page.locator('.hc-name').click()
     const card = page.locator('.profile-overlay')
@@ -71,6 +79,10 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await card.getByRole('menuitemradio', { name: 'This computer' }).click()
     await expect.poll(() => readFileSync(envLog, 'utf8').trim().split('\n'), { timeout: 20_000 }).toEqual([work, '-'])
     await expect(page.locator('.agent-row .acct-dot')).toHaveAttribute('title', 'Runs on This computer')
+    // ...and follows the switch at once.
+    await ring.click()
+    await expect(five).toContainText('80% left', { timeout: 20_000 })
+    await ring.click()
 
     // Allowances are kept per login: each shows apart in the Usage tab, while the header shows the tightest of them.
     await expect(page.getByRole('status', { name: /5-hour limit: 30% left/ })).toBeVisible({ timeout: 20_000 })

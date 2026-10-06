@@ -237,8 +237,14 @@ if (process.env.FAKE_CHAT) {
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
   const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
-  drawFoot()
   let inMenu = false
+  if (process.env.FAKE_DIALOG) {
+    // FAKE_DIALOG=1: a first-run notice with no numbered options, like the Chrome one a new account shows; Enter confirms it, Esc cancels it.
+    inMenu = true
+    process.stdout.write(`\x1b[2J\x1b[H${'─'.repeat(40)}\r\n  Claude in Chrome\r\n\r\n  Works with the Chrome extension to control your browser.\r\n\r\n  Enter to confirm · Esc to cancel\r\n`)
+    const onKey = (d) => ['\r', '\x1b'].includes(String(d)) && (process.stdin.off('data', onKey), (inMenu = false), drawFoot())
+    process.stdin.on('data', onKey)
+  } else drawFoot()
   process.stdin.on('data', async (d) => {
     const raw = String(d)
     if (inMenu) return

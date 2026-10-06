@@ -1665,3 +1665,14 @@ dialog.handoff { width: min(640px, 94vw); }
 .acct-group { display: flex; flex-direction: column; gap: 8px; }
 .st-rank b > .acct-dot, .lm-acct > .acct-dot { margin: 0 6px 0 0; }
 .lm-acct { display: flex; align-items: center; color: var(--muted); margin-top: 6px; }
+
+/* Accounts pane: a fieldset sizes to its widest content by default, which pushed the rows and the sign-in terminal past the dialog. */
+.set-pane { min-inline-size: 0; }
+.set-pane .acct-list, .set-pane .acct-group, .set-pane .acct-add { min-width: 0; max-width: 100%; }
+.acct { grid-template-columns: auto minmax(0, 1fr) auto; }
+.acct .who span { overflow-wrap: anywhere; }
+.acct-add .su-term { max-width: 100%; overflow: hidden; }
+/* Stats: boxes keep their own height instead of stretching to the tallest neighbour, and the last day's label stays inside the chart. */
+.st-two { align-items: start; }
+.st-col:last-child small { left: auto; right: 0; transform: none; }
+@media (max-width: 560px) { .acct { grid-template-columns: auto minmax(0, 1fr); } }

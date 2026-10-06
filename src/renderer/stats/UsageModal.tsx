@@ -203,15 +203,19 @@ export function UsageModal({
                   <Limits windows={limits} providers={providers} accounts={accounts} now={now} />
                 </section>
               </div>
-              {accounts.length > 0 && (
+              {(accounts.length > 0 || o.accounts.length > 1) && (
                 <section>
-                  <h3>By account <span className="lm-hint">the same spend, split by login</span></h3>
-                  {o.accounts.length === 0 ? <p className="st-note">Nothing recorded in this time.</p> : o.accounts.map((a) => (
-                    <div key={a.account} className="st-rank two">
-                      <div><b><i className="acct-dot" style={{ background: accountColor(accounts, a.account) }} />{accountName(accounts, a.account)}</b><small>{a.today.usd > 0 || a.today.tokens > 0 ? `${spendText(a.today)} today` : 'nothing today'}</small></div>
+                  <h3>By account <span className="lm-hint">the same spend, split by program and login</span></h3>
+                  {o.accounts.length === 0 ? <p className="st-note">Nothing recorded in this time.</p> : o.accounts.map((a) => {
+                    // A program that keeps logins apart is named with its login; one that does not is just named.
+                    const keeps = providers.find((p) => p.id === a.provider)?.capabilities.accounts
+                    return (
+                    <div key={`${a.provider}|${a.account}`} className="st-rank two">
+                      <div><b><i className="acct-dot" style={{ background: keeps ? accountColor(accounts, a.account) : colorOf(a.provider) }} />{keeps ? `${label(a.provider)} · ${accountName(accounts, a.account)}` : label(a.provider)}</b><small>{a.today.usd > 0 || a.today.tokens > 0 ? `${spendText(a.today)} today` : 'nothing today'}</small></div>
                       <span className="amt">{spendText(a)}</span>
                     </div>
-                  ))}
+                    )
+                  })}
                 </section>
               )}
               <div className="st-two wide">

@@ -471,7 +471,7 @@ export function App() {
       needActions={needActions(a.id)}
       visible={visible}
       focusTick={focusTick}
-      limits={limits}
+      limits={limitsOf(a)}
       info={infoOf(a)}
       actions={actionsOf(a)}
       waitingSubagents={waitingOf(a.id)}
@@ -553,6 +553,8 @@ export function App() {
           void run(async () => {
             await window.aw.setAccount(current.id, account)
             setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, account: account || undefined } : a)))
+            // The new account's allowances are asked for at once, so the tanks, chips and this agent's controls follow the switch.
+            void lookLimits(true)
           })
       }
     : null
@@ -669,6 +671,13 @@ export function App() {
   }
   // The tightest allowance of each kind across programs, for the chips; before any program has answered, what Claude's agents report.
   const shownLimits = pool.length ? pooled(pool) : limits
+  // An agent's own controls show the allowance of the account it runs on, not the tightest of all of them. A program with accounts and no reading yet for this one shows none, never another's.
+  const limitsOf = (a: AgentRecord): UsageLimits => {
+    const prog = a.provider ?? DEFAULT_PROVIDER
+    const mine = pool.filter((w) => w.provider === prog && (w.account ?? '') === (a.account ?? ''))
+    if (mine.length) return pooled(mine)
+    return prefs?.accounts.some((x) => x.provider === prog) ? noLimits() : limits
+  }
   // The tanks on the lawn: a bank of two for each connected program, so each program's allowance can be read apart.
   const readyIds = (providers ?? []).filter((p) => p.detection.state === 'ready').map((p) => p.id)
   const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER])
@@ -683,7 +692,8 @@ export function App() {
   }, [])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
-    return window.aw.onUsage(setLimits)
+    // Each report from an agent also refreshes what the tanks, the chips and every agent's controls show.
+    return window.aw.onUsage((u) => (setLimits(u), void lookLimits()))
   }, [])
 
   const askReview = (author: AgentRecord, reviewer: string) =>
