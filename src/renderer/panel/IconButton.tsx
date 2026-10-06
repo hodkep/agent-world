@@ -27,7 +27,16 @@ const ICONS = {
   terminal: <path d="M4 5h16v14H4zM7 10l3 2-3 2M12 15h5" />,
   plug: <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
-  file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />
+  file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
+  // The Preview's browser bar.
+  back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  forward: <path d="M5 12h14M13 6l6 6-6 6" />,
+  reload: <path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5" />,
+  pointer: <path d="M5 3l14 7-6 2-2 6z" />,
+  external: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
+  desktop: <path d="M3 4h18v12H3zM8 20h8M12 16v4" />,
+  tablet: <><rect x="4" y="2" width="16" height="20" /><path d="M11 18h2" /></>,
+  phone: <><rect x="7" y="2" width="10" height="20" /><path d="M11 18h2" /></>
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS

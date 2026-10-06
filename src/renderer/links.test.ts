@@ -4,6 +4,7 @@ import { localAddress } from './links'
 describe('an address typed into the Preview bar', () => {
   it('takes a bare port, host and port, or a full address', () => {
     expect(localAddress('5287')).toBe('http://localhost:5287/')
+    expect(localAddress('5287/shop?x=1')).toBe('http://localhost:5287/shop?x=1')
     expect(localAddress('localhost:5287')).toBe('http://localhost:5287/')
     expect(localAddress('127.0.0.1:3000/app?x=1')).toBe('http://127.0.0.1:3000/app?x=1')
     expect(localAddress(' http://localhost:8080/docs ')).toBe('http://localhost:8080/docs')

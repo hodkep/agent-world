@@ -45,4 +45,14 @@ describe('an element picked on the Preview, as it reads in a sent message', () =
       expect(splitPicked(t)).toEqual({ picks: [], rest: t })
     }
   })
+
+  it('reads the view line before it, once for all or one each, and leaves a view line that heads nothing alone', () => {
+    const one = splitPicked(`View: Mobile 390×844\n${block}\n\n${block.replace('files-tabs.html', 'b.html')}\n\nlook`)
+    expect(one.picks.map((p) => p.view)).toEqual([{ label: 'Mobile', w: 390, h: 844 }, { label: 'Mobile', w: 390, h: 844 }])
+    expect(one.rest).toBe('look')
+    const two = splitPicked(`View: Mobile 390×844\n${block}\n\nView: Desktop 1280×800\n${block.replace('files-tabs.html', 'b.html')}`)
+    expect(two.picks.map((p) => p.view?.label)).toEqual(['Mobile', 'Desktop'])
+    expect(splitPicked('View: Mobile 390×844\njust words').rest).toBe('View: Mobile 390×844\njust words')
+    expect(splitPicked(block).picks[0]!.view).toBeUndefined()
+  })
 })

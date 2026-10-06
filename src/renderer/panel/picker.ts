@@ -86,11 +86,32 @@ export const PICKER_SOURCE = `(() => {
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim()
 
+/** The screen size the page was shown at when something on it was picked. */
+export interface ViewInfo {
+  label: string
+  w: number
+  h: number
+}
+const viewLine = (v: ViewInfo) => `View: ${v.label} ${v.w}×${v.h}`
+
+/** The browser's own answer for a style tells the agent nothing, so it is not sent. */
+const PLAIN: Record<string, string[]> = { position: ['static'], fontWeight: ['400', 'normal'], display: ['inline'] }
+const HTML_CAP = 240
+
 /** The words that go into the message: where the element is, what it is, how it looks. The picture travels as an attachment. */
 export function contextText(p: PickedElement): string {
   const look = Object.entries(p.styles)
-    .filter(([, v]) => v && v !== 'none' && v !== '0px' && v !== 'rgba(0, 0, 0, 0)')
+    .filter(([k, v]) => v && v !== 'none' && v !== '0px' && v !== 'rgba(0, 0, 0, 0)' && !PLAIN[k]?.includes(v))
     .map(([k, v]) => `${k}: ${oneLine(v)}`)
     .join('; ')
-  return [`Element picked from ${p.url}`, `Selector: ${p.selector}`, p.text && `Text: "${p.text}"`, `HTML: ${p.html}`, look && `Computed style: ${look}`].filter(Boolean).join('\n')
+  const html = p.html.length > HTML_CAP ? `${p.html.slice(0, HTML_CAP)}…` : p.html
+  return [`Element picked from ${p.url}`, `Selector: ${p.selector}`, p.text && `Text: "${p.text}"`, `HTML: ${html}`, look && `Computed style: ${look}`].filter(Boolean).join('\n')
+}
+
+/** What was picked, as it goes into the message: the view is named once when every element was seen in the same one. */
+export function pickedMessage(items: { text: string; view?: ViewInfo }[]): string {
+  const views = items.map((i) => (i.view ? viewLine(i.view) : ''))
+  const once = views[0] && views.every((v) => v === views[0])
+  const head = once ? `${views[0]}\n` : ''
+  return head + items.map((i, n) => (!once && views[n] ? `${views[n]}\n${i.text}` : i.text)).join('\n\n')
 }

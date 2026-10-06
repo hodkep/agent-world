@@ -11,6 +11,9 @@ import { type Row, type Sent, highlight, markdownSpans, rowText, spanLabel, toMa
 import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
+import { fromView, lastJump, neighbour, place, show } from './userJump'
+import { back, fresh, newer, older, onFirstLine, onLastLine, type Recall } from './historyNav'
+import { pickedMessage, type ViewInfo } from '../panel/picker'
 import { Lightbox, Picture } from './Images'
 import { AttachmentViewer } from './ImageEditor'
 import { Markdown } from './markdown'
@@ -385,6 +388,14 @@ export function ChatView({
       tabIndex={-1}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
+        // Alt+↑ / Alt+↓ jump between the messages you sent, from the one last jumped to or else from what is on screen.
+        else if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && log.current) {
+          e.preventDefault()
+          const dir = e.key === 'ArrowUp' ? -1 : 1
+          const here = lastJump(log.current)
+          const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir)
+          if (to) show(to)
+        }
         // Esc interrupts the agent from anywhere in the conversation, unless a menu or dialog is open: that takes the Esc to close itself.
         else if (e.key === 'Escape' && busy && !stopping && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (setStopping(true), void window.aw.chatInterrupt(agentId))
       }}
@@ -636,13 +647,51 @@ function ProcBar({ agentId }: { agentId: string }) {
   )
 }
 
+/** Two small arrows beside one of your messages: to the message you sent before it, and the one after. Shown on hover or focus. */
+function JumpButtons() {
+  const [at, setAt] = useState({ at: 0, of: 0 })
+  const root = useRef<HTMLSpanElement>(null)
+  // Where this message is among yours is read when the pointer or focus reaches the message, so it is right whatever came since.
+  useEffect(() => {
+    const msg = root.current?.closest<HTMLElement>('[data-user-msg]')
+    if (!msg) return
+    const look = () => {
+      const log = msg.closest('.chat-log')
+      if (log) setAt(place(log, msg))
+    }
+    msg.addEventListener('mouseenter', look)
+    msg.addEventListener('focusin', look)
+    return () => {
+      msg.removeEventListener('mouseenter', look)
+      msg.removeEventListener('focusin', look)
+    }
+  }, [])
+  const go = (dir: 1 | -1) => {
+    const msg = root.current?.closest<HTMLElement>('[data-user-msg]')
+    const log = msg?.closest('.chat-log')
+    const to = msg && log ? neighbour(log, msg, dir) : null
+    if (to) show(to)
+  }
+  return (
+    <span className="jump" ref={root}>
+      <button onClick={() => go(-1)} disabled={at.at <= 1} aria-label="Previous message you sent" title={`Previous message you sent${at.of ? ` (${at.at} of ${at.of})` : ''} · Alt+↑`}>
+        ▲
+      </button>
+      <button onClick={() => go(1)} disabled={at.at === 0 || at.at >= at.of} aria-label="Next message you sent" title={`Next message you sent${at.of ? ` (${at.at} of ${at.of})` : ''} · Alt+↓`}>
+        ▼
+      </button>
+    </span>
+  )
+}
+
 function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
       if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
       return (
-        <div className={`msg user ${r.pending ? 'pending' : ''}`}>
+        <div className={`msg user ${r.pending ? 'pending' : ''}`} data-user-msg>
+          <JumpButtons />
           <Clamped>
             <UserText agentId={agentId} text={r.text} onImage={onImage} />
           </Clamped>
@@ -885,7 +934,7 @@ interface Attachment {
   /** A local preview for pictures. */
   preview?: string
   /** Set when it is a thing picked on the Preview page: the words that go with it, sent with the message but not shown in the box. */
-  context?: { text: string; label: string; /** Where it came from, as the chip says: Preview, Code. */ source?: string; /** Where to bring the code back to. */ jump?: { path: string; from: number; to: number } }
+  context?: { text: string; label: string; /** The screen size the page was seen at, for something picked in the Preview. */ view?: ViewInfo; /** Where it came from, as the chip says: Preview, Code. */ source?: string; /** Where to bring the code back to. */ jump?: { path: string; from: number; to: number } }
 }
 
 function Composer({
@@ -948,7 +997,13 @@ function Composer({
   const mirror = useRef<HTMLDivElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
-  const recall = useRef(-1)
+  // Walking back through the messages sent from this box with ↑ ↓; the draft being typed is kept and comes back.
+  const walk = useRef<Recall>(fresh)
+  const [walkAt, setWalkAt] = useState(-1)
+  const setWalk = (r: Recall) => {
+    walk.current = r
+    setWalkAt(r.index)
+  }
   // Ctrl+R: the words being searched for, kept while pressing it again to reach older matches.
   const search = useRef<string | null>(null)
   const shell = text.startsWith('!')
@@ -1049,11 +1104,11 @@ function Composer({
   // Something picked on the Preview page arrives as one chip (its picture, and the words that describe it) to send with a question about it.
   useEffect(() => {
     const on = (e: Event) => {
-      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; label?: string; source?: string; jump?: { path: string; from: number; to: number }; handled?: boolean }>).detail
+      const d = (e as CustomEvent<{ agentId: string; text: string; file: File | null; label?: string; view?: ViewInfo; source?: string; jump?: { path: string; from: number; to: number }; handled?: boolean }>).detail
       // The same agent can be open in the side panel and in a grid cell; only the first box takes it.
       if (d.agentId !== agentId || d.handled) return
       d.handled = true
-      const context = { text: d.text, label: d.label ?? 'an element', source: d.source, jump: d.jump }
+      const context = { text: d.text, label: d.label ?? 'an element', source: d.source, jump: d.jump, view: d.view }
       if (d.file) void attach([d.file], context)
       // The same words twice would only say it twice.
       else setAttached((cur) => (cur.some((a) => a.context?.text === d.text) ? cur : [...cur, { id: `${Date.now()}-${cur.length}`, name: context.label, path: '', context }]))
@@ -1134,7 +1189,7 @@ function Composer({
     if (!value && attached.length === 0 && quotes.length === 0) return
     const mentions = attached.filter((a) => !a.context).map((a) => `@"${a.path}"`).join(' ')
     // What was picked on the Preview page goes ahead of the question, words first and then its picture.
-    const picked = attached.filter((a) => a.context).map((a) => `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`).join('\n\n')
+    const picked = pickedMessage(attached.filter((a) => a.context).map((a) => ({ text: `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`, view: a.context!.view })))
     // Attached files come first so the message reads "look at these: …".
     // Each quote is followed by what was written about it.
     const asked = quotes.map((q) => [q.text.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n'), q.note.trim()].filter(Boolean).join('\n\n')).join('\n\n')
@@ -1142,7 +1197,8 @@ function Composer({
     const full = asked ? [asked, body].filter(Boolean).join('\n\n') : body
     try {
       await onSend(full)
-      if (value) (sent.current.unshift(value), (recall.current = -1))
+      if (value) sent.current.unshift(value)
+      setWalk(fresh)
       setText('')
       undo.current.reset({ text: '', caret: 0 })
       setQuotes([])
@@ -1209,6 +1265,7 @@ function Composer({
           {attached.map((a) => (
             <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text}>
               {a.context && <span className="chip-from">{a.context.source ?? 'Preview'}</span>}
+              {a.context?.view && <span className="chip-view" title={`Seen at ${a.context.view.label} ${a.context.view.w}×${a.context.view.h}`}>{a.context.view.label}</span>}
               {a.preview ? (
                 <button className="chip-img" onClick={() => setViewing(a.id)} aria-label={`Preview ${a.name}`}>
                   <img src={a.preview} alt="" />
@@ -1260,6 +1317,13 @@ function Composer({
               )
             })}
           </ul>
+        )}
+        {walkAt >= 0 && (
+          <div className="hist-hint" role="status">
+            <b>↑ history {walkAt + 1} of {sent.current.length}</b>
+            <span>your draft is kept</span>
+            <span>↓ newer · Esc back to my draft</span>
+          </div>
         )}
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
         <div className="composer-input">
@@ -1318,16 +1382,25 @@ function Composer({
             else if (e.key === 'r' && e.ctrlKey && sent.current.length) {
               e.preventDefault()
               search.current ??= text.trim().toLowerCase()
-              const at = sent.current.findIndex((m, i) => i > recall.current && m.toLowerCase().includes(search.current!))
-              if (at >= 0) (edit(sent.current[at]!), (recall.current = at))
-            } else if (e.key === 'ArrowUp' && !text && sent.current.length) {
+              const at = sent.current.findIndex((m, i) => i > walk.current.index && m.toLowerCase().includes(search.current!))
+              if (at >= 0) (setWalk({ index: at, draft: walk.current.index < 0 ? text : walk.current.draft }), edit(sent.current[at]!))
+            } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+              const el = e.currentTarget
+              const step = e.key === 'ArrowUp' ? (onFirstLine(text, el.selectionStart) ? older(walk.current, sent.current, text) : null) : onLastLine(text, el.selectionEnd) ? newer(walk.current, sent.current) : null
+              if (!step) return
               e.preventDefault()
-              recall.current = Math.min(sent.current.length - 1, recall.current + 1)
-              edit(sent.current[recall.current]!)
-            } else if (e.key === 'ArrowDown' && recall.current >= 0 && text === sent.current[recall.current]) {
+              setWalk(step.recall)
+              // Going back puts the caret at the start so ↑ goes on; coming forward puts it at the end so ↓ does.
+              const caret = e.key === 'ArrowUp' ? 0 : step.text.length
+              edit(step.text, 'edit', caret)
+              requestAnimationFrame(() => box.current?.setSelectionRange(caret, caret))
+            } else if (e.key === 'Escape' && walk.current.index >= 0) {
+              // Esc while looking at an older message brings the draft back, before it is taken to mean "stop the agent".
+              const r = back(walk.current)!
               e.preventDefault()
-              recall.current -= 1
-              edit(recall.current >= 0 ? sent.current[recall.current]! : '')
+              e.stopPropagation()
+              setWalk(r.recall)
+              edit(r.text)
             }
           }}
         />

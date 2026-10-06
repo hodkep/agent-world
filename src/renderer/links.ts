@@ -12,7 +12,7 @@ export function isPreviewable(url: string): boolean {
 export function localAddress(text: string): string | null {
   const t = text.trim()
   if (!t) return null
-  const full = /^https?:\/\//i.test(t) ? t : /^\d{1,5}$/.test(t) ? `http://localhost:${t}` : `http://${t}`
+  const full = /^https?:\/\//i.test(t) ? t : /^\d{1,5}([/?#].*)?$/.test(t) ? `http://localhost:${t}` : `http://${t}`
   return isPreviewable(full) ? new URL(full).href : null
 }
 

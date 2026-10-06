@@ -19,7 +19,7 @@ test('a dev server an agent starts shows up in the Preview tab', async () => {
     await hire(page)
     await expect(page.getByRole('tab', { name: /Preview ●/ })).toBeVisible({ timeout: 15_000 })
     await page.getByRole('tab', { name: /Preview/ }).click()
-    await expect(page.locator('.preview-url')).toHaveText(`http://localhost:${port}/`)
+    await expect(page.getByRole('combobox', { name: 'Local address to preview' })).toHaveValue(`http://localhost:${port}/`)
     await expect(page.locator('.preview-state')).toHaveText('running')
     const text = () => page.evaluate(() => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<string> }).executeJavaScript('document.body.innerText'))
     await expect.poll(text, { timeout: 10_000 }).toContain('hello from the dev server')
@@ -94,7 +94,7 @@ test('an address typed into the Preview bar opens even though the agent never pr
     await page.reload()
     await hire(page)
     await page.getByRole('tab', { name: /Preview/ }).click()
-    const bar = page.getByRole('textbox', { name: 'Local address to preview' })
+    const bar = page.getByRole('combobox', { name: 'Local address to preview' })
     // Nothing but a local address is accepted.
     await bar.fill('example.com')
     await bar.press('Enter')
@@ -102,7 +102,7 @@ test('an address typed into the Preview bar opens even though the agent never pr
     // A bare port is enough.
     await bar.fill(String(port))
     await bar.press('Enter')
-    await expect(page.locator('.preview-url')).toHaveText(`http://localhost:${port}/`)
+    await expect(page.getByRole('combobox', { name: 'Local address to preview' })).toHaveValue(`http://localhost:${port}/`)
     const text = () => page.evaluate(() => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<string> }).executeJavaScript('document.body.innerText'))
     await expect.poll(text, { timeout: 10_000 }).toContain('started by someone else')
   } finally {
@@ -165,7 +165,7 @@ test('an address nothing answers on says so, not a blank page, and the page appe
     await page.reload()
     await hire(page)
     await page.getByRole('tab', { name: /Preview/ }).click()
-    const bar = page.getByRole('textbox', { name: 'Local address to preview' })
+    const bar = page.getByRole('combobox', { name: 'Local address to preview' })
     await bar.fill(String(port))
     await bar.press('Enter')
     // Nothing is listening: the panel says so and the state says it too.

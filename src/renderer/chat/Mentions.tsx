@@ -74,12 +74,13 @@ function CodeCard({ block }: { block: CodeBlock }) {
 
 /** An element picked on the Preview: one small card, with its picture; what it is made of opens on a click. */
 function PickCard({ pick, thumb, onImage }: { pick: Picked; thumb?: string; onImage: (src: string) => void }) {
-  const rows = [['Page', pick.from], ['Selector', pick.selector], ['Text', pick.text], ['HTML', pick.html], ['Style', pick.style]].filter((r): r is [string, string] => !!r[1])
+  const rows = [['Page', pick.from], ['View', pick.view ? `${pick.view.label} ${pick.view.w}×${pick.view.h}` : ''], ['Selector', pick.selector], ['Text', pick.text], ['HTML', pick.html], ['Style', pick.style]].filter((r): r is [string, string] => !!r[1])
   return (
     <details className="pick-card">
       <summary title="Show what was picked">
         {thumb && <img className="pick-thumb" src={thumb} alt="" />}
         <span className="chip-from">Preview</span>
+        {pick.view && <span className="chip-view" title={`Seen at ${pick.view.label} ${pick.view.w}×${pick.view.h}`}>{pick.view.label}</span>}
         <span className="pick-label">{pick.label}</span>
       </summary>
       <div className="pick-body">

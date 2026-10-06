@@ -9,6 +9,8 @@ export interface Picked {
   style?: string
   /** The picture of it that went with it (a path). */
   picture?: string
+  /** The screen size the page was seen at, when the message said. */
+  view?: { label: string; w: number; h: number }
 }
 
 const FIELDS = [
@@ -38,9 +40,18 @@ export function splitPicked(text: string): { picks: Picked[]; rest: string } {
   const lines = text.split('\n')
   const picks: Picked[] = []
   const rest: string[] = []
+  // A "View: Mobile 390×844" line ahead of picked elements says which screen size they were seen at, for that one and those after it.
+  let view: Picked['view']
   for (let i = 0; i < lines.length; ) {
+    const seen = /^View: (\w+) (\d+)×(\d+)$/.exec(lines[i]!)
+    if (seen && lines.slice(i + 1, i + 3).some((l) => l.startsWith('Element picked from '))) {
+      view = { label: seen[1]!, w: Number(seen[2]), h: Number(seen[3]) }
+      i++
+      continue
+    }
     const head = /^Element picked from (.+)$/.exec(lines[i]!)
     if (!head) {
+      if (lines[i]!.trim()) view = undefined
       rest.push(lines[i++]!)
       continue
     }
@@ -60,7 +71,7 @@ export function splitPicked(text: string): { picks: Picked[]; rest: string } {
     }
     // Without a selector it is only words that start the same way.
     if (!pick.selector) rest.push(...lines.slice(start, i))
-    else picks.push({ ...pick, label: labelOf(pick.from, pick.selector) })
+    else picks.push({ ...pick, label: labelOf(pick.from, pick.selector), ...(view && { view }) })
   }
   return { picks, rest: rest.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '') }
 }
