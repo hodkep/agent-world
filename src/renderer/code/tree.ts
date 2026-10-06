@@ -39,3 +39,46 @@ export function visibleRows(paths: string[], open: Set<string>, filter: string):
   walk('', 0)
   return rows
 }
+
+export interface ChangeRow extends Row {
+  /** How many changed files a folder holds, below it at any depth. */
+  count: number
+}
+
+/**
+ * The rows of a folder tree of changed files: every folder open unless it is in `closed`, a chain of folders that hold nothing else
+ * joined into one row (`backend/src/main/java`), and only files matching the filter kept. A joined row is closed by its last folder.
+ */
+export function changeRows(paths: string[], closed: Set<string>, filter: string): ChangeRow[] {
+  const q = filter.trim().toLowerCase()
+  const kept = q ? paths.filter((p) => p.toLowerCase().includes(q)) : paths
+  const kids = new Map<string, { dirs: Set<string>; files: string[] }>()
+  const count = new Map<string, number>()
+  const of = (dir: string) => kids.get(dir) ?? kids.set(dir, { dirs: new Set(), files: [] }).get(dir)!
+  for (const p of kept) {
+    const up = ancestors(p)
+    of(up.at(-1) ?? '').files.push(p)
+    up.forEach((d, i) => {
+      of(up[i - 1] ?? '').dirs.add(d)
+      count.set(d, (count.get(d) ?? 0) + 1)
+    })
+  }
+  const rows: ChangeRow[] = []
+  const walk = (dir: string, depth: number) => {
+    const here = kids.get(dir)
+    if (!here) return
+    for (const first of [...here.dirs].sort(byName)) {
+      let d = first
+      let name = base(first)
+      for (let k = kids.get(d)!; k.files.length === 0 && k.dirs.size === 1; k = kids.get(d)!) {
+        d = [...k.dirs][0]!
+        name += `/${base(d)}`
+      }
+      rows.push({ path: d, name, depth, dir: true, count: count.get(d) ?? 0 })
+      if (!closed.has(d)) walk(d, depth + 1)
+    }
+    for (const f of [...here.files].sort(byName)) rows.push({ path: f, name: base(f), depth, dir: false, count: 1 })
+  }
+  walk('', 0)
+  return rows
+}

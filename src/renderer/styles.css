@@ -1768,3 +1768,16 @@ dialog.handoff { width: min(640px, 94vw); }
 @media (max-width: 760px) { .st-highlights { grid-template-columns: 1fr 1fr; } .st-hero { grid-template-columns: 1fr; } }
 .acct-name .acct-dot, .st-scope .acct-dot, .st-legend .acct-dot { margin: 0; }
 .plogo { display: inline-block; flex: none; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
+
+/* Changed files: the file's name first, the folder after it dimmed; or a tree of folders. */
+.change-list .file { display: flex; align-items: baseline; gap: 6px; }
+.change-list .file .nm { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.change-list .file .dir { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.change-list .file .dirname { flex: 1 1 auto; min-width: 0; color: var(--muted); }
+.change-list .file .chev { width: 10px; flex: none; color: var(--muted); }
+.change-list .file .n { margin-left: auto; flex: none; font-size: 10px; color: var(--muted); background: var(--well); padding: 0 6px; }
+.change-list .dir-row .file { padding-right: 6px; }
+.change-view { display: inline-flex; gap: 2px; margin-left: auto; }
+.change-view button { padding: 0 8px; font-size: 11px; margin-left: 0; }
+.change-view button.on { background: var(--accent); color: var(--ink); }
+.change-view + button { margin-left: 4px; }

@@ -6,7 +6,7 @@ import { Markdown } from '../chat/markdown'
 import { editorOptions, languageFor, monaco } from './monaco'
 import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
-import { ancestors, visibleRows } from './tree'
+import { ancestors, changeRows, visibleRows } from './tree'
 
 type Tab = 'changes' | 'files'
 /** Ask the Code view to open a file in the Files tab, or just a tab; a new object each time so asking twice works. */
@@ -62,6 +62,23 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
   const [path, setPath] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [find, setFind] = useState('')
+  // The list is a tree of folders unless asked for flat; the choice is kept.
+  const [view, setView] = useState<'tree' | 'list'>(() => {
+    try {
+      return localStorage.getItem('aw.changes.view') === 'list' ? 'list' : 'tree'
+    } catch {
+      return 'tree'
+    }
+  })
+  const pickView = (v: 'tree' | 'list') => {
+    setView(v)
+    try {
+      localStorage.setItem('aw.changes.view', v)
+    } catch {
+      /* the choice just is not kept */
+    }
+  }
+  const [closed, setClosed] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
@@ -133,6 +150,28 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
     refresh()
   }
 
+  // One changed file: its status, the file's name first (and, in the list, the folder it is in after it), and a way to discard it.
+  const changed = (f: Changes['files'][number], depth: number) => {
+    const name = baseName(f.path)
+    const dir = f.path.slice(0, Math.max(0, f.path.length - name.length - 1))
+    return (
+      <li key={f.path} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
+        <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path}>
+          <span className="mark">{STATUS_MARK[f.status]}</span>
+          <span className="nm">{name}</span>
+          {view === 'list' && dir && <span className="dir">{dir}</span>}
+        </button>
+        <button
+          className="discard"
+          title={`Discard uncommitted changes to ${f.path}`}
+          onClick={() => window.confirm(`Discard uncommitted changes to ${f.path}? This cannot be undone.`) && act('Discarded', () => window.aw.code.discard(agentId, f.path))}
+        >
+          ✕
+        </button>
+      </li>
+    )
+  }
+
   return (
     <div className="changes">
       <div className="change-list" style={side.style}>
@@ -144,27 +183,32 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
           ) : (
             'Loading…'
           )}
+          <span className="change-view" role="group" aria-label="Show changed files as">
+            <button aria-pressed={view === 'tree'} className={view === 'tree' ? 'on' : ''} onClick={() => pickView('tree')} title="Show the changed files in their folders">Tree</button>
+            <button aria-pressed={view === 'list'} className={view === 'list' ? 'on' : ''} onClick={() => pickView('list')} title="Show the changed files as one list, file names first">List</button>
+          </span>
           <button onClick={refresh} title="Refresh">
             ↻
           </button>
         </div>
         {data && data.files.length > 0 && <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search changed files…" aria-label="Search changed files" />}
-        <ul>
-          {data?.files.filter((f) => !find.trim() || f.path.toLowerCase().includes(find.trim().toLowerCase())).map((f) => (
-            <li key={f.path} className={f.path === path ? 'on' : ''}>
-              <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path}>
-                <span className="mark">{STATUS_MARK[f.status]}</span>
-                {f.path}
-              </button>
-              <button
-                className="discard"
-                title={`Discard uncommitted changes to ${f.path}`}
-                onClick={() => window.confirm(`Discard uncommitted changes to ${f.path}? This cannot be undone.`) && act('Discarded', () => window.aw.code.discard(agentId, f.path))}
-              >
-                ✕
-              </button>
-            </li>
-          ))}
+        <ul className={view === 'tree' ? 'tree' : undefined} role={view === 'tree' ? 'tree' : undefined}>
+          {view === 'tree' && data && changeRows(data.files.map((f) => f.path), closed, find).map((r, _i, _all, byPath = new Map(data.files.map((x) => [x.path, x]))) => {
+            if (r.dir) {
+              const shut = closed.has(r.path)
+              return (
+                <li key={`d:${r.path}`} role="treeitem" aria-expanded={!shut} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
+                  <button className="file" title={r.path} onClick={() => setClosed((c) => { const n = new Set(c); if (!n.delete(r.path)) n.add(r.path); return n })}>
+                    <span className="chev">{shut ? '▸' : '▾'}</span>
+                    <span className="nm dirname">{r.name}</span>
+                    <span className="n">{r.count}</span>
+                  </button>
+                </li>
+              )
+            }
+            return changed(byPath.get(r.path)!, r.depth)
+          })}
+          {view === 'list' && data?.files.filter((f) => !find.trim() || f.path.toLowerCase().includes(find.trim().toLowerCase())).sort((a, b) => baseName(a.path).localeCompare(baseName(b.path), undefined, { sensitivity: 'base', numeric: true })).map((f) => changed(f, 0))}
           {data && data.files.length === 0 && <li className="empty">No changes yet.</li>}
           {data && data.files.length > 0 && find.trim() && !data.files.some((f) => f.path.toLowerCase().includes(find.trim().toLowerCase())) && <li className="empty">No changed file matches.</li>}
         </ul>
