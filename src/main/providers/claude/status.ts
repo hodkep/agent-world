@@ -13,6 +13,13 @@ const limit = (v: unknown): Limit | null => {
   return pct === null || at === null ? null : { pct, resetsAt: at * 1000 }
 }
 
+/** The session's running totals, when Claude says them; both must be there to be believed. */
+const tokenTotals = (w: Obj) => {
+  const input = num(w.total_input_tokens)
+  const output = num(w.total_output_tokens)
+  return input === null || output === null ? {} : { tokenTotals: { input, output } }
+}
+
 export function parseStatus(payload: unknown): AgentStats | null {
   const p = obj(payload)
   const sessionId = str(p.session_id)
@@ -27,7 +34,8 @@ export function parseStatus(payload: unknown): AgentStats | null {
     linesRemoved: num(cost.total_lines_removed) ?? 0,
     effort: str(obj(p.effort).level),
     fast: p.fast_mode === true,
-    limits: { fiveHour: limit(obj(p.rate_limits).five_hour), sevenDay: limit(obj(p.rate_limits).seven_day) }
+    limits: { fiveHour: limit(obj(p.rate_limits).five_hour), sevenDay: limit(obj(p.rate_limits).seven_day) },
+    ...tokenTotals(obj(p.context_window))
   }
 }
 

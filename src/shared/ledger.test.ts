@@ -127,3 +127,36 @@ describe('overview', () => {
     expect(o.providers.map((p) => [p.provider, p.today.usd, p.today.tokens])).toEqual([['claude', 2, 0], ['agy', 0, 1500]])
   })
 })
+
+describe('overview by account', () => {
+  const day = new Date(2026, 9, 5, 12).getTime()
+  it('splits the same spend by login, counting an agent on no account as this computer', () => {
+    const evs: LedgerEvent[] = [
+      { k: 'cost', t: day, agent: 'a', project: 'p', model: 'm', usd: 1 },
+      { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 3, account: 'work' },
+      { k: 'cost', t: day, agent: 'b', project: 'p', model: 'm', usd: 2, account: 'work' }
+    ]
+    evs.push({ k: 'tokens', t: day, agent: 'c', project: 'p', model: 'g', input: 10, output: 5, provider: 'agy' })
+    const o = overview(evs, 3, day)
+    expect(o.accounts.map((a) => [a.provider, a.account, a.usd, a.tokens])).toEqual([['claude', 'work', 5, 0], ['claude', '', 1, 0], ['agy', '', 0, 15]])
+    expect(o.total.usd).toBe(6)
+    expect(o.accounts.find((a) => a.account === 'work')!.today.usd).toBe(5)
+  })
+})
+
+describe('estimated dollars', () => {
+  const day = new Date(2026, 9, 5, 12).getTime()
+  it('keeps a program\'s reported dollars and an estimate apart, and marks what is estimated', () => {
+    const evs: LedgerEvent[] = [
+      { k: 'cost', t: day, agent: 'a', project: 'p', model: 'm', usd: 2, provider: 'claude' },
+      { k: 'tokens', t: day, agent: 'a', project: 'p', model: 'm', input: 1000, output: 500, provider: 'claude' },
+      { k: 'tokens', t: day, agent: 'b', project: 'p', model: 'sonnet', input: 2000, output: 1000, provider: 'agy' },
+      { k: 'cost', t: day, agent: 'b', project: 'p', model: 'sonnet', usd: 0.5, provider: 'agy', est: true }
+    ]
+    const o = overview(evs, 3, day)
+    const by = Object.fromEntries(o.providers.map((p) => [p.provider, p]))
+    expect([by.claude!.usd, by.claude!.tokens, by.claude!.est ?? 0]).toEqual([2, 1500, 0])
+    expect([by.agy!.usd, by.agy!.tokens, by.agy!.est]).toEqual([0.5, 3000, 0.5])
+    expect(o.total.est).toBe(0.5)
+  })
+})

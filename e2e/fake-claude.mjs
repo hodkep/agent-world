@@ -28,6 +28,21 @@ if (args[0] === '-p') {
   console.log(process.env.FAKE_USAGE ?? '')
   process.exit(0)
 }
+// `claude auth status|login`: who is signed in is a file in the config folder, so each account keeps its own sign-in.
+if (args[0] === 'auth') {
+  const { existsSync, readFileSync: read, writeFileSync, mkdirSync } = await import('node:fs')
+  const { join, basename } = await import('node:path')
+  const dir = process.env.CLAUDE_CONFIG_DIR ?? join(process.env.HOME ?? '', '.claude')
+  const file = join(dir, '.fake-login')
+  if (args[1] === 'login') {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(file, `${basename(dir)}@example.com`)
+    console.log(`Logged in as ${basename(dir)}@example.com`)
+  } else console.log(JSON.stringify(existsSync(file) ? { loggedIn: true, email: read(file, 'utf8') } : { loggedIn: false }))
+  process.exit(0)
+}
+// FAKE_ENV=<file>: log the config folder each launch was given.
+if (process.env.FAKE_ENV) (await import('node:fs')).appendFileSync(process.env.FAKE_ENV, `${process.env.CLAUDE_CONFIG_DIR ?? '-'}\n`)
 // FAKE_ARGS=<file>: log every launch's arguments, so a test can check what the app started it with.
 if (process.env.FAKE_ARGS) (await import('node:fs')).appendFileSync(process.env.FAKE_ARGS, JSON.stringify(args) + '\n')
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
@@ -154,7 +169,7 @@ if (process.env.FAKE_COST) {
   const res = await fetch(status, {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42 }, rate_limits: { five_hour: { used_percentage: Number(process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
+    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42, total_input_tokens: Number(process.env.FAKE_TOKENS_IN ?? 0), total_output_tokens: Number(process.env.FAKE_TOKENS_OUT ?? 0) }, rate_limits: { five_hour: { used_percentage: Number(process.env[`FAKE_USED_5H_${(process.env.CLAUDE_CONFIG_DIR ?? '').split('/').pop().toUpperCase()}`] ?? process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
   })
   console.log(`status bar: ${await res.text()}`)
 }
@@ -222,8 +237,14 @@ if (process.env.FAKE_CHAT) {
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
   const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
-  drawFoot()
   let inMenu = false
+  if (process.env.FAKE_DIALOG) {
+    // FAKE_DIALOG=1: a first-run notice with no numbered options, like the Chrome one a new account shows; Enter confirms it, Esc cancels it.
+    inMenu = true
+    process.stdout.write(`\x1b[2J\x1b[H${'─'.repeat(40)}\r\n  Claude in Chrome\r\n\r\n  Works with the Chrome extension to control your browser.\r\n\r\n  Enter to confirm · Esc to cancel\r\n`)
+    const onKey = (d) => ['\r', '\x1b'].includes(String(d)) && (process.stdin.off('data', onKey), (inMenu = false), drawFoot())
+    process.stdin.on('data', onKey)
+  } else drawFoot()
   process.stdin.on('data', async (d) => {
     const raw = String(d)
     if (inMenu) return

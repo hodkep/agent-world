@@ -1,6 +1,6 @@
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { BRAND } from '../shared/brand'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
@@ -48,6 +48,8 @@ import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout } from './profile/layout'
 import { type CardEdit, ProfileCard } from './profile/ProfileCard'
+import { accountColor, accountName } from './accounts'
+import { LimitBoard } from './panel/LimitBoard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -470,7 +472,7 @@ export function App() {
       needActions={needActions(a.id)}
       visible={visible}
       focusTick={focusTick}
-      limits={limits}
+      limits={limitsOf(a)}
       info={infoOf(a)}
       actions={actionsOf(a)}
       waitingSubagents={waitingOf(a.id)}
@@ -521,7 +523,9 @@ export function App() {
         models: (curProv?.models ?? MODELS).filter((m) => m.value),
         efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
-        canCompact: curProv?.capabilities.compact ?? true
+        canCompact: curProv?.capabilities.compact ?? true,
+        accounts: curProv?.capabilities.accounts && prefs?.accounts.some((a) => a.provider === curProv.id) ? ['', ...prefs.accounts.filter((a) => a.provider === curProv.id).map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id), color: accountColor(prefs.accounts, id) })) : [],
+        accountId: current.account ?? ''
       }
     : null
   const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX, prefer: cardSize ?? undefined }) : null
@@ -545,7 +549,14 @@ export function App() {
             setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, options: { ...a.options, effort } } : a)))
           }),
         onMode: (mode) => void run(() => window.aw.setMode(current.id, mode)),
-        onCompact: () => void run(() => window.aw.chatSend(current.id, '/compact'))
+        onCompact: () => void run(() => window.aw.chatSend(current.id, '/compact')),
+        onAccount: (account) =>
+          void run(async () => {
+            await window.aw.setAccount(current.id, account)
+            setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, account: account || undefined } : a)))
+            // The new account's allowances are asked for at once, so the tanks, chips and this agent's controls follow the switch.
+            void lookLimits(true)
+          })
       }
     : null
   // Clicking the agent's name brings up its card (opening the dock when the card has no room over the office).
@@ -661,9 +672,16 @@ export function App() {
   }
   // The tightest allowance of each kind across programs, for the chips; before any program has answered, what Claude's agents report.
   const shownLimits = pool.length ? pooled(pool) : limits
+  // An agent's own controls show the allowance of the account it runs on, not the tightest of all of them. A program with accounts and no reading yet for this one shows none, never another's.
+  const limitsOf = (a: AgentRecord): UsageLimits => {
+    const prog = a.provider ?? DEFAULT_PROVIDER
+    const mine = pool.filter((w) => w.provider === prog && (w.account ?? '') === (a.account ?? ''))
+    if (mine.length) return pooled(mine)
+    return prefs?.accounts.some((x) => x.provider === prog) ? noLimits() : limits
+  }
   // The tanks on the lawn: a bank of two for each connected program, so each program's allowance can be read apart.
   const readyIds = (providers ?? []).filter((p) => p.detection.state === 'ready').map((p) => p.id)
-  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER])
+  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER]).map((b) => ({ ...b, logins: b.logins.map((l) => ({ ...l, color: accountColor(prefs?.accounts ?? [], l.id) })) }))
   const plantKey = JSON.stringify(plantBanks)
   useEffect(() => office.current?.setBanks(plantBanks), [plantKey, officeReady])
   useEffect(() => {
@@ -675,7 +693,8 @@ export function App() {
   }, [])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
-    return window.aw.onUsage(setLimits)
+    // Each report from an agent also refreshes what the tanks, the chips and every agent's controls show.
+    return window.aw.onUsage((u) => (setLimits(u), void lookLimits()))
   }, [])
 
   const askReview = (author: AgentRecord, reviewer: string) =>
@@ -748,6 +767,9 @@ export function App() {
                     <span className="name">
                       {a.name}
                       {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.label ?? BRAND[DEFAULT_PROVIDER].short} />}
+                      {!!prefs?.accounts.length && !!prefs.accounts.some((x) => x.provider === (a.provider ?? DEFAULT_PROVIDER)) && (
+                        <i className="acct-dot" style={{ background: accountColor(prefs.accounts, a.account) }} title={`Runs on ${accountName(prefs.accounts, a.account)}`} />
+                      )}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
                           {a.repoPath.split(/[\\/]/).pop()}
@@ -908,7 +930,7 @@ export function App() {
           }}
         />
       )}
-      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
+      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1002,7 +1024,7 @@ export function App() {
         )}
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
-        <LimitChips limits={shownLimits} pool={pool} />
+        <LimitChips limits={shownLimits} pool={pool} accounts={prefs?.accounts ?? []} />
         {error && <span className="error">{error}</span>}
         <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
@@ -1098,9 +1120,9 @@ export function App() {
           </div>
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
-            <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
-              <PlantTip five={tip.five} week={tip.week} pool={pool} />
-            </div>
+            <FloatingTip x={tip.x} y={tip.y}>
+              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} providers={providers ?? []} />
+            </FloatingTip>
           )}
         </div>
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`} style={!wide && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
@@ -1138,7 +1160,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (
@@ -1351,7 +1373,28 @@ function useNarrow() {
 const window_ = (label: string, v: LimitView) =>
   v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
 
-function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool: LimitWindow[] }) {
+/** A tooltip beside the pointer that never leaves the area it floats in: it flips to the pointer's other side, or slides up, when it would spill out. */
+function FloatingTip({ x, y, children }: { x: number; y: number; children: ReactNode }) {
+  const el = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState({ left: x + 14, top: y + 14 })
+  useLayoutEffect(() => {
+    const box = el.current
+    const area = box?.offsetParent as HTMLElement | null
+    if (!box || !area) return
+    const w = box.offsetWidth
+    const h = box.offsetHeight
+    const left = x + 14 + w > area.clientWidth - 4 ? Math.max(4, x - w - 14) : x + 14
+    const top = y + 14 + h > area.clientHeight - 4 ? Math.max(4, area.clientHeight - h - 4) : y + 14
+    setAt((p) => (p.left === left && p.top === top ? p : { left, top }))
+  })
+  return (
+    <div ref={el} className="tip" style={at} role="tooltip">
+      {children}
+    </div>
+  )
+}
+
+function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts']; providers: ProviderInfo[] }) {
   if (pool.length === 0)
     return (
       <>
@@ -1362,33 +1405,22 @@ function PlantTip({ five, week, pool }: { five: LimitView; week: LimitView; pool
       </>
     )
   // The tanks show the tightest allowance of each kind; here is every one it was picked from.
-  const groups = [...new Set(pool.map((w) => `${w.provider}|${w.group}`))]
-  const now = Date.now()
   return (
     <>
       <b>Your usage limits</b>
-      <span className="tip-note">The tanks show the tightest of each kind.</span>
-      {groups.map((g) => {
-        const ws = pool.filter((w) => `${w.provider}|${w.group}` === g)
-        return (
-          <div key={g} className="tip-group">
-            <b>{ws[0]!.group}</b>
-            {(['five_hour', 'weekly'] as const).flatMap((k) => ws.filter((w) => w.kind === k).map((w) => (
-              <div key={k} className="tip-row">{k === 'five_hour' ? '5-hour' : 'Weekly'}: {Math.round(w.remainingPct)}% left · resets in {untilReset(Date.parse(w.resetsAt), now)}</div>
-            )))}
-          </div>
-        )
-      })}
+      <span className="tip-note">The tanks show the tightest of each kind; the moons above one are its logins.</span>
+      <LimitBoard pool={pool} accounts={accounts} providers={providers} />
     </>
   )
 }
 
 /** The same two windows as the tanks, as text in the header: readable by keyboard and screen reader, and always on screen. */
-function LimitChips({ limits, pool }: { limits: UsageLimits; pool: LimitWindow[] }) {
+function LimitChips({ limits, pool, accounts }: { limits: UsageLimits; pool: LimitWindow[]; accounts: Prefs['accounts'] }) {
+  const named = (w: LimitWindow | null) => (w ? `${w.group}${accounts.length > 0 && w.account !== undefined ? ` · ${accountName(accounts, w.account)}` : ''}` : undefined)
   const now = Date.now()
   const chips = [
-    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: tightest(pool, 'five_hour')?.group },
-    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: tightest(pool, 'weekly')?.group }
+    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: named(tightest(pool, 'five_hour')) },
+    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: named(tightest(pool, 'weekly')) }
   ].filter((c) => c.v.pct !== null)
   if (chips.length === 0) return null
   return (

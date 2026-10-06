@@ -6,6 +6,7 @@ import { parsePick, pickValue, storePick } from '../../shared/modelPick'
 import { closeOnBackdrop } from './Modal'
 import { ProviderTag } from './ProviderTag'
 import { cssColor } from '../../shared/brand'
+import { Accounts } from './Accounts'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -60,6 +61,7 @@ const PANES = [
   { id: 'agents', group: 'Office', label: 'New agents', icon: '☺' },
   { id: 'rules', group: 'Office', label: 'House rules', icon: '☰' },
   { id: 'programs', group: 'Programs', label: 'Providers', icon: '▣' },
+  { id: 'accounts', group: 'Programs', label: 'Accounts', icon: '◉' },
   { id: 'jobs', group: 'Programs', label: 'Model by job', icon: '⚒' },
   { id: 'mail', group: 'App', label: 'Message box', icon: '✉' },
   { id: 'updates', group: 'App', label: 'Updates', icon: '↻' },
@@ -183,6 +185,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </div>
             </>
           )}
+          {pane === 'accounts' && <Accounts prefs={prefs} providers={providers} onChange={set} />}
           {pane === 'jobs' && (
             <>
               <legend>Model by job</legend>

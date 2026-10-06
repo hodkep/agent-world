@@ -17,7 +17,7 @@ export const agy: Provider = {
   id: 'agy',
   label: 'agy (Antigravity)',
   bin: 'agy',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, liveLimits: false, tools: true, mail: false, clone: true, changeRole: false, chrome: false, budget: false, sideQuestion: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: false, limits: true, accounts: false, liveLimits: false, tools: true, mail: false, clone: true, changeRole: false, chrome: false, budget: false, sideQuestion: true },
   async detect(bin, ask = run) {
     let version: string | undefined
     try {

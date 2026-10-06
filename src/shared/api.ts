@@ -3,7 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
+import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -116,7 +116,14 @@ export interface AwApi {
   /** Every provider the app knows, with whether it is ready on this machine. */
   listProviders(): Promise<ProviderInfo[]>
   /** A shell in the home folder with the provider's own program started, so the user can sign in; gives its terminal id. */
-  openSignIn(provider: ProviderId): Promise<string>
+  openSignIn(provider: ProviderId, account?: string): Promise<string>
+  /** Claude accounts: this computer's own login first (id ''), then the ones added. */
+  listAccounts(): Promise<AccountInfo[]>
+  /** Makes the account's folder; returns its id. Sign-in follows with openSignIn. */
+  addAccount(provider: ProviderId, name: string): Promise<string>
+  removeAccount(id: string): Promise<Prefs>
+  /** Moves an agent to another account ('' for this computer's own login); a running one restarts on it and keeps its conversation. */
+  setAccount(agentId: string, account: string): Promise<void>
   /** Continue that conversation as a new agent. */
   resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
   /** MCP servers and plugins available to this agent (runs `claude mcp list`, which health-checks each server: slow). */

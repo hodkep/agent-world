@@ -11,13 +11,14 @@ import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { startHookServer } from './hookServer'
 import { identityTranslator } from '../../../shared/tools'
 import { parseClaudeUsage } from './usage'
+import { claudeAccounts } from './accounts'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
 
 export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true },
   async detect(bin, run) {
     try {
       const out = await (run ?? defaultRun)(bin, ['--version'])
@@ -28,6 +29,7 @@ export const claude: Provider = {
     }
   },
   // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
+  accounts: claudeAccounts,
   limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },
   // Claude Code's tools already carry the chat's names.
   calls: identityTranslator,

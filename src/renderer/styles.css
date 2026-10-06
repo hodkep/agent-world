@@ -1645,3 +1645,72 @@ dialog.handoff { width: min(640px, 94vw); }
 
 .settings.stats .st-body { min-height: 440px; }
 .hire-foot { position: sticky; bottom: 0; z-index: 1; }
+
+/* Accounts: each Claude login is a row with its own colour, kept apart from the rest of the office's greens and golds by being a small square. */
+.acct-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; vertical-align: 1px; box-shadow: 0 0 0 1px var(--ink); flex: none; }
+.set-note { margin: 0; padding: 8px 10px; max-width: 62ch; color: var(--muted); font-size: 12px; background: var(--well); box-shadow: inset 3px 0 0 var(--accent-dim, #5a4c1e); }
+.acct-list { display: flex; flex-direction: column; gap: 8px; }
+.acct { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; background: var(--well); box-shadow: inset 0 0 0 1px var(--line); }
+.acct[data-default="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.acct > .dot { width: 10px; height: 10px; background: var(--c); box-shadow: 0 0 0 1px var(--ink); }
+.acct .who { display: flex; flex-direction: column; min-width: 0; }
+.acct .who b { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct .who span, .acct .who small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.acct .who small { font: 11px var(--mono, Menlo, Consolas, monospace); }
+.acct .acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.acct .acts button { padding: 2px 8px; font-size: 12px; }
+.acct-tag, .acct-state { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--line); font-weight: 400; }
+.acct-tag { color: var(--accent); }
+.acct-state[data-ok="true"] { color: #9fdc9f; }
+.acct-state[data-ok="false"] { color: var(--accent); }
+.acct-error { margin: 0; color: #ff8a8a; font-size: 12px; }
+.acct-add { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-raised, #221e33); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); }
+@media (max-width: 560px) { .acct { grid-template-columns: auto 1fr; } .acct .acts { grid-column: 1 / -1; justify-content: flex-start; } }
+.acct-group { display: flex; flex-direction: column; gap: 8px; }
+.st-rank b > .acct-dot, .lm-acct > .acct-dot { margin: 0 6px 0 0; }
+.lm-acct { display: flex; align-items: center; color: var(--muted); margin-top: 6px; }
+
+/* Accounts pane: a fieldset sizes to its widest content by default, which pushed the rows and the sign-in terminal past the dialog. */
+.set-pane { min-inline-size: 0; }
+.set-pane .acct-list, .set-pane .acct-group, .set-pane .acct-add { min-width: 0; max-width: 100%; }
+.acct { grid-template-columns: auto minmax(0, 1fr) auto; }
+.acct .who span { overflow-wrap: anywhere; }
+.acct-add .su-term { max-width: 100%; overflow: hidden; }
+/* Stats: boxes keep their own height instead of stretching to the tallest neighbour, and the last day's label stays inside the chart. */
+.st-two { align-items: start; }
+.st-col:last-child small { left: auto; right: 0; transform: none; }
+@media (max-width: 560px) { .acct { grid-template-columns: auto minmax(0, 1fr); } }
+
+/* The limits board on the plant's tooltip: strips of ten lights, like the server room's rack. */
+.lbd { display: flex; flex-direction: column; gap: 10px; min-width: 300px; margin-top: 4px; padding: 8px; background: #0e1118; box-shadow: inset 0 0 0 2px #3a4254; }
+.lbd-prov h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 6px; font: 700 10px var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.lbd-logo { width: 10px; height: 10px; box-shadow: 0 0 0 1px var(--ink); }
+.lbd-grid { display: grid; grid-template-columns: minmax(84px, auto) 1fr 1fr; gap: 6px 10px; align-items: start; }
+.lbd-h { font: 700 9px var(--mono, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--dim, #4a4860); }
+.lbd-name { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text); white-space: nowrap; min-height: 20px; }
+.lbd-name.sub { color: var(--muted); padding-left: 10px; font-size: 10px; }
+.lbd-name .acct-dot { margin: 0; }
+.lbd-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lbd-leds { display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; }
+.lbd-leds i { height: 9px; background: #1b2230; }
+.lbd-leds i.on { background: #2fc4d8; box-shadow: 0 0 4px #2fc4d899; }
+.lbd-leds[data-l="warn"] i.on { background: #f2c230; box-shadow: 0 0 4px #f2c23099; }
+.lbd-leds[data-l="hot"] i.on { background: #e65050; box-shadow: 0 0 4px #e6505099; }
+.lbd-note { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.lbd-note b { color: var(--text); font-weight: 600; }
+
+/* The plant's tooltip holds the limits board, which needs more room than a one-line tip; the board shrinks to it instead of spilling out. */
+.tip:has(.lbd) { width: min(430px, 92vw); max-width: none; }
+.lbd { min-width: 0; box-sizing: border-box; }
+.lbd-grid { grid-template-columns: minmax(80px, auto) minmax(0, 1fr) minmax(0, 1fr); }
+.lbd-note { overflow: hidden; text-overflow: ellipsis; }
+
+/* Usage overview: two stacks side by side whose last box grows to meet the other's bottom, so no corner is left empty. */
+.st-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; }
+.st-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.st-stack > section { padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; }
+.st-stack > section:last-child { flex: 1 0 auto; }
+.st-body > * { flex-shrink: 0; }
+
+.st-masonry { columns: 2 300px; column-gap: 12px; }
+.st-masonry > section { break-inside: avoid; margin: 0 0 12px; padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; display: block; }

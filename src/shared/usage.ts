@@ -17,6 +17,49 @@ export const mergeLimits = (prev: UsageLimits, next: UsageLimits): UsageLimits =
   sevenDay: next.sevenDay ?? prev.sevenDay
 })
 
+/** Across accounts, each window shows the one with the most used: that is the allowance that runs out first. */
+export const tightestLimits = (list: UsageLimits[]): UsageLimits => {
+  const worst = (pick: (u: UsageLimits) => Limit | null) => list.map(pick).reduce<Limit | null>((a, b) => (b && (!a || b.pct > a.pct) ? b : a), null)
+  return { fiveHour: worst((u) => u.fiveHour), sevenDay: worst((u) => u.sevenDay) }
+}
+
+/**
+ * The allowances of every account, kept apart: each account's windows come from its own agents, and what the header and the
+ * tanks show is the tightest of them. It also reads and writes the file they are kept in.
+ */
+export class LimitsBook {
+  private by = new Map<string, UsageLimits>()
+
+  /** A newer reading of one account; a window it leaves out keeps its last. */
+  record(account: string, next: UsageLimits) {
+    this.by.set(account, mergeLimits(this.by.get(account) ?? noLimits(), next))
+  }
+  /** What one account last reported. */
+  of(account: string): UsageLimits {
+    return this.by.get(account) ?? noLimits()
+  }
+  /** Every account that has reported, in the order it first did. */
+  accounts(): string[] {
+    return [...this.by.keys()]
+  }
+  /** The allowance that runs out first, across accounts. */
+  tightest(): UsageLimits {
+    return tightestLimits([...this.by.values()])
+  }
+  toJSON() {
+    return { by: Object.fromEntries(this.by) }
+  }
+  /** The file holds `{ by: { account: limits } }`; one written before accounts held a single reading, which was this computer's own login. */
+  static from(raw: unknown): LimitsBook {
+    const book = new LimitsBook()
+    const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+    const read = (v: unknown): UsageLimits => mergeLimits(noLimits(), (v && typeof v === 'object' ? v : {}) as UsageLimits)
+    if (r.by && typeof r.by === 'object') for (const [id, v] of Object.entries(r.by)) book.by.set(id, read(v))
+    else if ('fiveHour' in r || 'sevenDay' in r) book.by.set('', read(r))
+    return book
+  }
+}
+
 export function untilReset(resetsAt: number, now: number): string {
   const min = Math.floor((resetsAt - now) / 60_000)
   if (resetsAt <= now) return 'now'

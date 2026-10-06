@@ -42,9 +42,29 @@ export function planMenu(screen: string): { highlighted: number } | null {
   return options.length >= 2 && highlighted >= 0 ? { highlighted } : null
 }
 
+const DIALOG_HINT = /Enter to (confirm|continue|select)\b.*Esc to (cancel|go back|exit)/i
+
+/**
+ * A dialog Claude draws with no numbered options, only a hint like "Enter to confirm · Esc to cancel" (a first-run notice such as the
+ * Chrome one, shown the first time an account is used). It takes the keys the input box would, so the app must say it is there.
+ * Only the last thing on the screen counts: the same words in the conversation sit above the input box Claude draws under them.
+ */
+export function promptDialog(screen: string): { title: string; context: string; hint: string } | null {
+  const lines = stripVTControlCharacters(screen).split('\n')
+  const at = lines.findLastIndex((l) => DIALOG_HINT.test(l))
+  if (at < 0 || lines.slice(at + 1).filter((l) => l.trim()).length > 2) return null
+  let top = at
+  while (top > 0 && !/^\s*[─▔━═]{8,}/.test(lines[top - 1]!)) top--
+  if (inputBoxAfter(lines, top - 1)) return null
+  const block = lines.slice(top, at).map((l) => l.trim()).filter(Boolean)
+  // The rewind list has its own card, and a numbered menu is the other detector's.
+  if (!block.length || block[0] === 'Rewind' || block.some((l) => /^❯?\s*\d+\.\s/.test(l))) return null
+  return { title: block[0]!, context: block.slice(1).join('\n'), hint: lines[at]!.trim() }
+}
+
 /** Any of Claude's terminal menus is open (trust, plan, permission...): typing now would answer it. */
 export function anyMenu(screen: string): boolean {
-  if (trustPrompt(screen)) return true
+  if (trustPrompt(screen) || promptDialog(screen)) return true
   const lines = stripVTControlCharacters(screen).split('\n')
   const at = lines.findLastIndex((l) => /^\s*❯\s*\d+\.\s/.test(l))
   return at >= 0 && !inputBoxAfter(lines, at)

@@ -41,3 +41,13 @@ describe('statusline feed', () => {
     expect(statusText(parseStatus({ session_id: 's1' })!)).toBe('Agent World')
   })
 })
+
+describe('token totals', () => {
+  it('reads what Claude says it has read and written so far', () => {
+    expect(parseStatus({ session_id: 's', context_window: { total_input_tokens: 1200, total_output_tokens: 340 } })!.tokenTotals).toEqual({ input: 1200, output: 340 })
+  })
+  it('says nothing when Claude gives only one of them', () => {
+    expect(parseStatus({ session_id: 's', context_window: { total_input_tokens: 1200 } })!.tokenTotals).toBeUndefined()
+    expect(parseStatus({ session_id: 's' })!.tokenTotals).toBeUndefined()
+  })
+})

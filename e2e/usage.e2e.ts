@@ -21,8 +21,8 @@ test('the bottom strip shows the subscription limits once an agent reports them'
     const box = (await stage.boundingBox())!
     const at = JSON.parse((await stage.getAttribute('data-power'))!) as { x: number; y: number }
     await page.mouse.move(box.x + at.x, box.y + at.y)
-    await expect(page.getByRole('tooltip')).toContainText('5-hour: 62% left')
-    await expect(page.getByRole('tooltip')).toContainText('Weekly: 79% left')
+    await expect(page.getByRole('tooltip').getByRole('img', { name: /62% left, resets in 2h/ })).toBeVisible()
+    await expect(page.getByRole('tooltip').getByRole('img', { name: /79% left, resets in 3d/ })).toBeVisible()
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'usage.png') })
   } finally {
     await shutdown()

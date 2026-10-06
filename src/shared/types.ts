@@ -75,6 +75,8 @@ export interface AgentOptions {
   role?: string
   /** Work in the folder itself instead of a worktree on its own branch. */
   inPlace?: boolean
+  /** Which signed-in account runs it (an id from Prefs.accounts); empty or unset is the program's own login on this computer. */
+  account?: string
 }
 
 /** The agent programs the office can run. */
@@ -107,6 +109,8 @@ export interface Capabilities {
   liveLimits: boolean
   /** It can use the office's message box and notes: agents can write to each other and share what they learn. */
   mail: boolean
+  /** Several logins of this program can be kept apart and an agent moved between them (the provider offers `accounts`). */
+  accounts: boolean
 }
 
 /** One usage allowance of a provider, as it reports it: how much is left and when it refills. */
@@ -117,6 +121,8 @@ export interface LimitWindow {
   kind: 'five_hour' | 'weekly'
   remainingPct: number
   resetsAt: string
+  /** Which account it belongs to (an id from Prefs.accounts; '' is the program's own login on this computer); unset for a program with no accounts. */
+  account?: string
 }
 
 /** What the machine says about a provider: whether it can be used now, and what to do if not. */
@@ -181,6 +187,9 @@ export interface AgentRecord {
   online?: boolean
   activity?: Activity
   options?: AgentOptions
+  /** The account it runs on (an id from Prefs.accounts), and that account's config folder; unset means the program's own login on this computer. */
+  account?: string
+  configDir?: string
 }
 
 /** What the profile card shows beyond the live numbers: counted or looked up on demand. */
@@ -219,6 +228,8 @@ export interface AgentStats {
   limits: UsageLimits
   /** For a program that reports tokens rather than a price: everything read and written so far, and roughly how much its context holds now. */
   tokens?: { input: number; output: number; context: number }
+  /** What a program that also reports a price says it has read and written so far (the price is `costUsd`): counted in the history, nothing more. */
+  tokenTotals?: { input: number; output: number }
 }
 
 /** A choice menu Claude is showing in its own terminal (a permission dialog it insists on, the rewind confirmation…). */
@@ -261,5 +272,24 @@ export interface Prefs {
   /** Which model a job (a role's title) uses when the role does not set one. */
   roleModels: Record<string, string>
   /** What the hire form starts with. */
-  defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean }
+  defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean; /** The account new agents of each program use; unset or empty means that program's own login on this computer. */ accounts: Partial<Record<ProviderId, string>> }
+  /** Extra accounts, each signed in once in a config folder of its own. Each program's own login on this computer is always there and is not listed. */
+  accounts: Account[]
+}
+
+/** A login of one program kept apart from the others: its folder holds its sign-in, settings and conversations. */
+export interface Account {
+  id: string
+  name: string
+  provider: ProviderId
+}
+
+/** What the Accounts screen shows for one account; `id` is '' for the program's own login on this computer. */
+export interface AccountInfo extends Account {
+  /** Where its config folder is, as shown to the user. */
+  dir: string
+  loggedIn: boolean
+  email: string
+  /** How many agents run on it. */
+  agents: number
 }

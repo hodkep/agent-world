@@ -3,11 +3,12 @@ import { forget, loadMemory, recall, remember } from './memory'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
+import { AccountService } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
@@ -15,13 +16,14 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine } from './commands'
 import { homeDirName } from './home'
-import { mergeLimits, noLimits, type UsageLimits } from '../shared/usage'
+import { LimitsBook } from '../shared/usage'
+import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
@@ -114,11 +116,21 @@ async function pollLimits() {
   await Promise.all(
     providers().map(async (p) => {
       if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await p.detect(binFor(p))).state !== 'ready') return
-      try {
-        polled.push(await p.limits.read(binFor(p)))
-      } catch {
-        /* not signed in or offline: its windows are simply missing */
-      }
+      // Each login of a program that keeps accounts has allowances of its own, so each is asked under its own folder.
+      const logins = p.accounts ? ['', ...prefs.accounts.filter((x) => x.provider === p.id).map((x) => x.id)] : [undefined]
+      await Promise.all(
+        logins.map(async (account) => {
+          const extra = accountsSvc.envFor(p.id, accountsSvc.dirOf(p.id, account))
+          const run = (file: string, args: string[]) =>
+            new Promise<string>((resolve, reject) => execFile(file, args, { env: { ...providerOf({}).env(process.env), ...extra }, timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+          try {
+            const ws = await p.limits!.read(binFor(p), Object.keys(extra).length ? run : undefined)
+            polled.push(account === undefined ? ws : ws.map((w) => ({ ...w, account })))
+          } catch {
+            /* not signed in or offline: its windows are simply missing */
+          }
+        })
+      )
     })
   )
 }
@@ -149,10 +161,19 @@ const lastCost = new Map<string, number>()
 // The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
 // reading is still there after a restart, until the next reply refreshes it.
 const USAGE_FILE = join(HOME, 'usage.json')
-let usage: UsageLimits = noLimits()
+const limitsBook = new LimitsBook()
+// Rates for programs that report tokens but no price, as the user has added to prices.json.
+let priceBook: Record<string, Rate> = {}
+const loadPrices = () => {
+  try {
+    priceBook = cleanRates(JSON.parse(readFileSync(join(HOME, 'prices.json'), 'utf8')))
+  } catch {
+    /* none added */
+  }
+}
 const loadUsage = () => {
   try {
-    usage = mergeLimits(noLimits(), JSON.parse(readFileSync(USAGE_FILE, 'utf8')) as UsageLimits)
+    Object.assign(limitsBook, LimitsBook.from(JSON.parse(readFileSync(USAGE_FILE, 'utf8'))))
   } catch {
     /* first run, or unreadable: start empty */
   }
@@ -415,11 +436,11 @@ function onStats(s: AgentStats, agentId: string) {
   lastStats.set(a.id, s)
   send('agent-stats', a.id, s)
   if (s.limits.fiveHour || s.limits.sevenDay) {
-    usage = mergeLimits(usage, s.limits)
-    send('usage', usage)
+    limitsBook.record(a.account ?? '', s.limits)
+    send('usage', limitsBook.tightest())
     try {
       mkdirSync(HOME, { recursive: true })
-      writeFileSync(USAGE_FILE, JSON.stringify(usage), { mode: 0o600 })
+      writeFileSync(USAGE_FILE, JSON.stringify(limitsBook), { mode: 0o600 })
     } catch {
       /* the reading is only a convenience; losing it is fine */
     }
@@ -430,16 +451,23 @@ function onStats(s: AgentStats, agentId: string) {
   if (spent !== 0 || a.costSeen === undefined) {
     a.costSeen = s.costUsd
     persist()
-    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name })
+    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
   }
   // A program that counts tokens instead of dollars: record how many it used since the last report.
-  if (s.tokens) {
-    const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : s.tokens)
-    const grew = { input: costDelta(prev.input, s.tokens.input), output: costDelta(prev.output, s.tokens.output) }
+  // Every program's tokens are counted, and a program that reports no price is given an estimate from them.
+  const used = s.tokens ?? s.tokenTotals
+  if (used) {
+    const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : used)
+    const grew = { input: costDelta(prev.input, used.input), output: costDelta(prev.output, used.output) }
     if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
-      a.tokensSeen = { input: s.tokens.input, output: s.tokens.output }
+      a.tokensSeen = { input: used.input, output: used.output }
       persist()
-      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew, provider: providerOf(a).id, name: a.name })
+      if (grew.input > 0 || grew.output > 0) {
+        const who = { agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) }
+        record({ k: 'tokens', t: Date.now(), ...who, ...grew })
+        const usd = providerOf(a).capabilities.budget ? null : estimateUsd(who.model, grew.input, grew.output, priceBook)
+        if (usd) record({ k: 'cost', t: Date.now(), ...who, usd, est: true })
+      }
     }
   }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
@@ -550,6 +578,9 @@ function finishRewind(id: string) {
   }
 }
 
+// Keeps each program's logins apart (Settings > Accounts) and moves agents between them.
+const accountsSvc = new AccountService({ home: HOME, providers: () => providers(), accounts: () => prefs.accounts })
+
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
@@ -560,7 +591,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env } })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...accountsSvc.envFor(a.provider, a.configDir) } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -710,6 +741,7 @@ async function main() {
   agents = loadAgents(AGENTS_FILE)
   for (const a of agents) followChat(a)
   loadUsage()
+  loadPrices()
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }
@@ -820,15 +852,18 @@ async function main() {
   ])
   ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
-  ipcMain.handle('get-usage', () => usage)
+  ipcMain.handle('get-usage', () => limitsBook.tightest())
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
     if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
     const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
-    const live = claudeWindows(usage)
-    const askedLive = polled.flat().filter((w) => w.provider === liveId)
-    const own = live.length ? [...live, ...askedLive.filter((w) => w.group !== live[0]!.group)] : askedLive
+    const logins = ['', ...prefs.accounts.filter((x) => x.provider === liveId).map((x) => x.id)]
+    const own = logins.flatMap((account) => {
+      const live = claudeWindows(limitsBook.of(account)).map((w) => ({ ...w, account }))
+      const asked = polled.flat().filter((w) => w.provider === liveId && (w.account ?? '') === account)
+      return live.length ? [...live, ...asked.filter((w) => w.group !== live[0]!.group)] : asked
+    })
     return [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
@@ -1032,7 +1067,8 @@ async function main() {
     const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], options) }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
+    accountsSvc.assign(a, options.account ?? prefs.defaults.accounts[provider])
     agents.push(a)
     persist()
     spawn(a, env)
@@ -1136,13 +1172,31 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
+  // The program under each login says who is signed in (read only); the service does the rest, whichever program it is.
+  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => accountsSvc.list(agents, binFor, env))
+  // Adding makes the folder and links your own instructions and skills into it; the sign-in comes next, in a terminal the user sees.
+  ipcMain.handle('accounts:add', async (_, provider: ProviderId, name: string) => {
+    const made = await accountsSvc.create(provider, String(name ?? ''))
+    prefs = cleanPrefs({ ...prefs, accounts: [...prefs.accounts, made] }, prefs)
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    return made.id
+  })
+  // Removing forgets the account in the app only: its folder, and the sign-in in it, stay on disk.
+  ipcMain.handle('accounts:remove', (_, id: string) => {
+    const left = accountsSvc.without(id, agents)
+    const defaults = Object.fromEntries(Object.entries(prefs.defaults.accounts).filter(([, v]) => v !== id))
+    prefs = cleanPrefs({ ...prefs, accounts: left, defaults: { ...prefs.defaults, accounts: defaults } }, { ...prefs, accounts: [], defaults: { ...prefs.defaults, accounts: {} } })
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    return prefs
+  })
   // Signing in is the provider's own business: a shell is opened where the user can see it, and its program started. The app never sees credentials.
-  ipcMain.handle('provider:sign-in', (_, id: string) => {
+  ipcMain.handle('provider:sign-in', async (_, id: string, account?: string) => {
     const p = providers().find((x) => x.id === id)
     if (!p) throw new Error('Unknown provider.')
     const shell = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
     const sid = `term:${randomUUID()}`
-    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: env as Record<string, string> })
+    const login = account ? accountsSvc.signIn(p.id, account) : { env: {}, args: [] as readonly string[] }
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: { ...env, ...login.env } as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
@@ -1152,7 +1206,7 @@ async function main() {
     })
     pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
     // The shell draws its prompt first; the program is typed after it, quoted so a path with spaces still runs.
-    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"\r`), 900)
+    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"${login.args.map((x) => ` ${x}`).join('')}\r`), 900)
     return sid
   })
   ipcMain.handle('list-providers', () =>
@@ -1187,7 +1241,7 @@ async function main() {
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
-      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, provider: src.provider, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, provider: src.provider, account: src.account, configDir: src.configDir, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
     }
     agents.push(a)
     persist()
@@ -1313,6 +1367,24 @@ async function main() {
     mailbox.restarting(id)
     p.kill()
     return a.options
+  })
+  // Move an agent to another signed-in account. Its conversation file is shared into that account's folder and the
+  // same session resumes there, so nothing is lost and no sign-in is asked: each account signed in once, when it was added.
+  ipcMain.handle('agent-set-account', (_, id: string, account: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    if (!accountsSvc.support(a.provider)) throw new Error(`${providerOf(a).label} does not keep separate accounts.`)
+    if (account && !accountsSvc.dirOf(a.provider, account)) throw new Error('That account was removed.')
+    if ((a.account ?? '') === account) return
+    const p = sessions.get(id)
+    if (p && !['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
+    accountsSvc.moveConversation(a, account)
+    persist()
+    if (p) {
+      restarting.add(id)
+      mailbox.restarting(id)
+      p.kill()
+    }
   })
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
   // which keeps the conversation (it resumes the same session).

@@ -35,4 +35,7 @@ export interface CardData {
   efforts: string[]
   modes: import('../../shared/modes').ModeInfo[]
   canCompact: boolean
+  /** The Claude accounts it could run on (this computer's own login first) and the one it runs on; empty when there is nothing to choose. */
+  accounts: { id: string; name: string; color: string }[]
+  accountId: string
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { anyMenu } from './prompts'
 import { driveRewind, genericMenu, nothingToRewind, openRewindList, rewindList } from './menus'
 
 const fixture = (n: string) => readFileSync(join(__dirname, 'fixtures', n), 'utf8')
@@ -151,5 +152,36 @@ describe('rewinding when there is nothing to go back to', () => {
     expect(sent.at(-1)).toBe('\x1b')
     // It did not press Enter a second time or wait out the full time limit.
     expect(sent.filter((k) => k === '\r')).toHaveLength(1)
+  })
+})
+
+describe('a dialog with only an Enter / Esc hint', () => {
+  const chrome = [
+    '────────────────────────────────────────',
+    '  Claude in Chrome',
+    '',
+    '  Claude in Chrome works with the Chrome extension to let you control your browser directly from Claude Code.',
+    '',
+    '  For more info, use /chrome or visit https://code.claude.com/docs/en/chrome',
+    '',
+    '  Enter to confirm · Esc to cancel'
+  ].join('\n')
+
+  it('is offered as a menu, so the chat says it is waiting', () => {
+    const m = genericMenu(chrome)!
+    expect(m.title).toBe('Claude in Chrome')
+    expect(m.options).toEqual(['Confirm (Enter)'])
+    expect(m.context).toContain('control your browser')
+    expect(anyMenu(chrome)).toBe(true)
+  })
+
+  it('is not offered when the words are in the conversation above the input box', () => {
+    const talk = [chrome, '', '● done', '────────────────────────────────────────', '❯ ', '────────────────────────────────────────'].join('\n')
+    expect(genericMenu(talk)).toBeNull()
+    expect(anyMenu(talk)).toBe(false)
+  })
+
+  it('leaves the rewind list to its own card', () => {
+    expect(genericMenu(['────────', '  Rewind', '  ❯ hello', '  Enter to continue · Esc to exit'].join('\n'))).toBeNull()
   })
 })
