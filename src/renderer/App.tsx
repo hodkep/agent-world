@@ -166,6 +166,10 @@ export function App() {
   }, [])
   useEffect(() => void scanProviders(), [scanProviders])
   const [finishing, setFinishing] = useState<string | null>(null)
+  // In a narrow panel the tab strip scrolls sideways, so the tab chosen is brought into view.
+  useEffect(() => {
+    document.querySelector('.tabs [role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [view])
   // The Changes panel's land menu can open the finish dialog too.
   useEffect(() => {
     const on = (e: Event) => setFinishing(String((e as CustomEvent).detail))

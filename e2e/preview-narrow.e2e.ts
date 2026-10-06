@@ -36,6 +36,20 @@ test('the Preview stays whole when its panel is dragged narrow: every control in
       expect(await page.locator('.preview').evaluate((el) => el.scrollWidth <= el.clientWidth), `${label}: no sideways scroll`).toBe(true)
     }
     expect((await aside.boundingBox())!.width).toBeLessThanOrEqual(345)
+    // The tabs are one row, and the one chosen is fully in view.
+    const tabs = await page.locator('.tabs [role="tab"]').all()
+    const tops = await Promise.all(tabs.map(async (t) => Math.round((await t.boundingBox())!.y)))
+    expect(new Set(tops).size, 'the tabs share one row').toBe(1)
+    const pv = (await page.getByRole('tab', { name: /Preview/ }).boundingBox())!
+    const ab = (await aside.boundingBox())!
+    expect(pv.x).toBeGreaterThanOrEqual(ab.x - 1)
+    expect(pv.x + pv.width).toBeLessThanOrEqual(ab.x + ab.width + 1)
+    // At the narrowest the usual six tabs all fit without scrolling.
+    expect(await page.locator('.tabs').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the tabs fit at 340px').toBe(true)
+    // ...and not under the expand button that stays at the end of the row.
+    const more = (await page.locator('.tabs .push').boundingBox())!
+    expect(pv.x + pv.width, 'Preview is not covered by the expand button').toBeLessThanOrEqual(more.x + 1)
+    expect((await page.getByRole('tab', { name: /Preview/ }).evaluate((el) => el.getBoundingClientRect().height))).toBeLessThan(40)
     await inside('narrow')
     // The address has a row to itself, so it can still be read and typed in.
     const bar = page.getByRole('combobox', { name: 'Local address to preview' })
