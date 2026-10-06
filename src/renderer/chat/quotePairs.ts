@@ -15,14 +15,25 @@ export function quoted(text: string): { quote: boolean; text: string }[] {
 
 export type QuotePiece = { kind: 'free'; text: string } | { kind: 'qa'; quote: string; note: string }
 
-/** Each quote with the words written under it as its note; only words before the first quote stand on their own. */
+/**
+ * Each quote with the words written under it as its note; only words before the first quote stand on their own. A note is one
+ * paragraph: what follows a blank line after it is the message typed beside the quote (the composer writes the quote, its note
+ * and the message with blank lines between), so it is not folded into the note.
+ */
 export function pairQuotes(text: string): QuotePiece[] {
   const out: QuotePiece[] = []
   for (const b of quoted(text)) {
     const last = out[out.length - 1]
     if (b.quote) out.push({ kind: 'qa', quote: b.text, note: '' })
-    else if (last?.kind === 'qa' && !last.note) last.note = b.text
-    else out.push({ kind: 'free', text: b.text })
+    else if (last?.kind === 'qa' && !last.note) {
+      const gap = b.text.search(/\n[ \t]*\n/)
+      if (gap < 0) last.note = b.text
+      else {
+        last.note = b.text.slice(0, gap)
+        const rest = b.text.slice(gap).replace(/^\s+/, '')
+        if (rest) out.push({ kind: 'free', text: rest })
+      }
+    } else out.push({ kind: 'free', text: b.text })
   }
   return out
 }

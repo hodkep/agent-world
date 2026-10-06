@@ -32,4 +32,23 @@ describe('a message with quotes, as pairs of a quote and the words written under
       { kind: 'qa', quote: 'a', note: 'why?' }
     ])
   })
+
+  it('keeps the note and the message typed after it apart: the note is the first paragraph, the rest is the message', () => {
+    expect(pairQuotes("> Charlie's Stop bug: not fixed.\n\nignore\n\ncommit and merge to main")).toEqual([
+      { kind: 'qa', quote: "Charlie's Stop bug: not fixed.", note: 'ignore' },
+      { kind: 'free', text: 'commit and merge to main' }
+    ])
+    expect(pairQuotes('> a\n\nnote\n\nline one\nline two\n\nline three')).toEqual([
+      { kind: 'qa', quote: 'a', note: 'note' },
+      { kind: 'free', text: 'line one\nline two\n\nline three' }
+    ])
+  })
+
+  it('still gives the words straight under a quote to that quote when a later quote follows', () => {
+    expect(pairQuotes('> a\n\nabout a\n\n> b\n\nabout b\n\nand then this')).toEqual([
+      { kind: 'qa', quote: 'a', note: 'about a' },
+      { kind: 'qa', quote: 'b', note: 'about b' },
+      { kind: 'free', text: 'and then this' }
+    ])
+  })
 })
