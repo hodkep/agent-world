@@ -10,7 +10,7 @@ import { VisitorsView } from './visitors'
 import { Character } from './character'
 import { paletteFor } from './sprites'
 import { type Ambient, type Screen, drawFloors, drawFurniture } from './furniture'
-import { CAR_COLORS, GRASS, GROUNDS, Street, drawGrounds, drawHiringSign, paintBillboard, paintScoreboard } from './grounds'
+import { CAR_COLORS, GRASS, GROUNDS, Street, drawGrounds, drawHiringSign, drawLampPosts, paintBillboard, paintScoreboard } from './grounds'
 import { scoreboardRows } from './scoreboard'
 import { PLANT, PowerPlant } from './power'
 import type { LimitView, UsageLimits } from '../../shared/usage'
@@ -147,7 +147,7 @@ export class OfficeWorld {
     this.street = new Street(OFFICE.map)
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
-    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, this.visitors.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.mail, this.visitors.bubbles)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)

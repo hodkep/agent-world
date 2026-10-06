@@ -38,10 +38,34 @@ function tree(g: G, x: number, y: number, big = 1) {
   g.circle(x - 1 * big, y - 6 * big, 3 * big).fill(0x3a8450)
 }
 
-function lamp(g: G, x: number, y: number) {
+/** The pool of light on the ground; the post stands apart so it can be drawn over the cars (see `lampsAcross`). */
+function lampGlow(g: G, x: number, y: number) {
   for (let k = 4; k >= 1; k--) ellipse(g, x + 1, y + 8, k * 8, k * 4, 0xf6d27a, 0.04)
+}
+function lampPost(g: G, x: number, y: number) {
   r(g, x, y - 12, 2, 20, 0x2a2c33)
   r(g, x - 2, y - 14, 6, 3, 0xf6e2a0)
+}
+function lamp(g: G, x: number, y: number) {
+  lampGlow(g, x, y)
+  lampPost(g, x, y)
+}
+
+/** Where the lamps on the far pavement, across the road, stand. They are nearer to us than the cars, and their posts reach up into the road. */
+export function lampsAcross(map: OfficeMap): { x: number; y: number }[] {
+  const x0 = -GROUNDS.west
+  const x1 = map.w * TILE + GROUNDS.east
+  const far = map.h * TILE + 8 + 62
+  const out: { x: number; y: number }[] = []
+  for (let x = x0 + 60; x < x1; x += 120) out.push({ x, y: far + 2 })
+  return out
+}
+
+/** The posts of those lamps, on a layer of their own that is drawn after the cars, so a car passes behind a post and never over it. Static, like the ground. */
+export function drawLampPosts(map: OfficeMap): G {
+  const g = new Graphics()
+  for (const l of lampsAcross(map)) lampPost(g, l.x, l.y)
+  return g
 }
 
 const FLOWERS = [0xe0507a, 0xf2c230, 0xf5f0e6, 0xb070e0, 0xff8a50]
@@ -135,7 +159,7 @@ export function drawGrounds(map: OfficeMap): G {
   for (let x = x0 + 16; x < x1; x += 34) tree(g, x + Math.floor(rand() * 10), -42 + Math.floor(rand() * 8), 1 + rand() * 0.4)
   for (const [x, y] of [[x0 + 10, 40], [x0 + 24, 150], [x0 + 12, 230], [x1 - 14, 60], [x1 - 22, 170], [x1 - 12, 240]] as const) tree(g, x, y, 1.1)
   for (let x = 20; x < W; x += 136) lamp(g, x, walkY - 4)
-  for (let x = x0 + 60; x < x1; x += 120) lamp(g, x, far + 2)
+  for (const l of lampsAcross(map)) lampGlow(g, l.x, l.y)
   return g
 }
 

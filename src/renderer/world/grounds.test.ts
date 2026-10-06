@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { CAR_SPACING, clearStart, driveLane } from './grounds'
+import { CAR_SPACING, GROUNDS, clearStart, driveLane, lampsAcross } from './grounds'
+import { OFFICE, TILE } from './office'
 
 const drive = (cars: { x: number; speed: number }[], seconds: number, onStep?: () => void) => {
   for (let t = 0; t < seconds * 1000; t += 16) {
@@ -119,5 +120,22 @@ describe('making way for a car that is racing through', () => {
     street.makeWay([far])
     for (let k = 0; k < 600; k += 16, t += 16) street.update(16, t)
     expect(cars().filter((c) => c.lane === 0).length).toBeGreaterThan(0)
+  })
+})
+
+describe('the lamps across the road', () => {
+  const lamps = lampsAcross(OFFICE.map)
+  const H = OFFICE.map.h * TILE
+  it('stand on the far pavement and spread along the whole street, 120 apart', () => {
+    expect(lamps.length).toBeGreaterThan(3)
+    expect(new Set(lamps.map((l) => l.y)).size).toBe(1)
+    expect(lamps[0]!.x).toBe(-GROUNDS.west + 60)
+    expect(lamps[1]!.x - lamps[0]!.x).toBe(120)
+    expect(lamps.at(-1)!.x).toBeLessThan(OFFICE.map.w * TILE + GROUNDS.east)
+  })
+  it('reach up into the road, which is why a car must pass behind them and not over them', () => {
+    const farPavement = H + 8 + 62
+    expect(lamps[0]!.y - 14).toBeLessThan(farPavement)
+    expect(lamps[0]!.y).toBeGreaterThan(farPavement)
   })
 })
