@@ -1013,12 +1013,16 @@ svg.pxi { display: block; flex: none; }
 .msg.user .bubble a { color: var(--think); }
 
 /* Words selected in an agent's reply offer to be asked about: a small button above the selection. */
-.ask-selection { position: absolute; z-index: 8; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px; background: var(--panel-3); color: var(--text); font-weight: 600; border: 1px solid var(--accent); box-shadow: 0 3px 0 var(--ink), 0 6px 14px rgb(0 0 0 / 0.55); white-space: nowrap; }
+.ask-selection { position: absolute; z-index: 8; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 0; background: var(--panel-3); color: var(--text); font-weight: 600; border: 1px solid var(--accent); box-shadow: 0 3px 0 var(--ink), 0 6px 14px rgb(0 0 0 / 0.55); white-space: nowrap; }
+.ask-selection > button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: none; border: 0; box-shadow: none; color: inherit; font: inherit; }
+.ask-selection form { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; }
+.ask-selection input { width: min(260px, 60vw); background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 8px; font: 13px ui-sans-serif, system-ui, sans-serif; }
+.ask-selection form button { padding: 4px 10px; font-size: 12px; }
 .ask-selection svg { color: var(--accent); flex: none; }
 /* A small notch pointing down at the selection. */
 .ask-selection::after { content: ''; position: absolute; top: 100%; left: clamp(12px, var(--nx, 50%), calc(100% - 12px)); width: 8px; height: 8px; background: var(--panel-3); border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); transform: translate(-50%, -4px) rotate(45deg); }
-.ask-selection:hover:not(:disabled) { background: var(--panel-hover); }
-.ask-selection:hover:not(:disabled)::after { background: var(--panel-hover); }
+.ask-selection:not(.open):hover { background: var(--panel-hover); }
+.ask-selection:not(.open):hover::after { background: var(--panel-hover); }
 .msg.user .bubble > span { white-space: pre-wrap; }
 
 /* The message box shows what its markdown will look like, above the box; sent messages use the same small subset. */

@@ -45,6 +45,7 @@ test('words selected in a tool card (a command and what it printed) can be asked
     const ask = page.getByRole('button', { name: 'Ask ada' })
     await expect(ask).toBeVisible()
     await ask.click()
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveCount(1)
   } finally {
     await shutdown()

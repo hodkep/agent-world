@@ -324,8 +324,14 @@ export function ChatView({
   // Words selected in one of the agent's replies, or in what its tools and commands printed, offer "Ask": they go into the message box as a quote.
   const chatEl = useRef<HTMLDivElement>(null)
   const [pick, setPick] = useState<{ text: string; x: number; y: number; nx: number } | null>(null)
+  // "Ask" opens a small box where the button was: what is typed there becomes the words under the quote.
+  const [asking, setAsking] = useState<string | null>(null)
+  const askingRef = useRef(false)
+  askingRef.current = asking !== null
   useEffect(() => {
     const look = () => {
+      // Focusing the little box would otherwise read as the selection going away.
+      if (askingRef.current) return
       const sel = window.getSelection()
       const el = log.current
       const root = chatEl.current
@@ -352,12 +358,21 @@ export function ChatView({
     document.addEventListener('selectionchange', look)
     return () => document.removeEventListener('selectionchange', look)
   }, [])
-  const quote = () => {
+  const quote = (note = '') => {
     if (!pick) return
-    chatEl.current?.dispatchEvent(new CustomEvent('aw-quote', { detail: pick.text }))
+    chatEl.current?.dispatchEvent(new CustomEvent('aw-quote', { detail: { text: pick.text, note: note.trim() } }))
     window.getSelection()?.removeAllRanges()
+    setAsking(null)
     setPick(null)
   }
+  const cancelAsk = () => (setAsking(null), setPick(null))
+  // A click anywhere else puts the box away.
+  useEffect(() => {
+    if (asking === null) return
+    const away = (e: MouseEvent) => !(e.target as Element | null)?.closest?.('.ask-selection') && cancelAsk()
+    window.addEventListener('mousedown', away)
+    return () => window.removeEventListener('mousedown', away)
+  }, [asking === null])
 
   return (
     <AgentIdContext.Provider value={agentId}>
@@ -375,12 +390,28 @@ export function ChatView({
       }}
     >
       {pick && (
-        <button className="ask-selection" style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }} onMouseDown={(e) => e.preventDefault()} onClick={quote} title="Add the selected words to your message as a quote">
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-          Ask {agentName}
-        </button>
+        <div className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
+          {asking === null ? (
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title="Ask about the selected words">
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              </svg>
+              Ask {agentName}
+            </button>
+          ) : (
+            <form onSubmit={(e) => (e.preventDefault(), quote(asking))}>
+              <input
+                autoFocus
+                aria-label={`Ask ${agentName} about the selection`}
+                placeholder={`Ask ${agentName}…`}
+                value={asking}
+                onChange={(e) => setAsking(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), cancelAsk())}
+              />
+              <button type="submit" title="Add the quote and your words to the message box, to edit before sending">Add</button>
+            </form>
+          )}
+        </div>
       )}
       {query !== null && (
         <div className="chat-tools">
@@ -1004,9 +1035,10 @@ function Composer({
     const chat = root.current?.closest('.chat')
     if (!chat) return
     const on = (e: Event) => {
-      const words = String((e as CustomEvent<string>).detail ?? '').trim()
+      const d = (e as CustomEvent<string | { text: string; note?: string }>).detail
+      const words = String(typeof d === 'object' && d ? d.text : d ?? '').trim()
       if (!words) return
-      setQuotes((q) => [...q, { text: words, note: '' }])
+      setQuotes((q) => [...q, { text: words, note: (typeof d === 'object' && d?.note) || '' }])
       box.current?.focus()
     }
     chat.addEventListener('aw-quote', on)

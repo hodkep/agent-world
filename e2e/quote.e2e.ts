@@ -56,13 +56,21 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     const ask = page.getByRole('button', { name: 'Ask ada' })
     await expect(ask).toBeVisible()
     await ask.click()
+    // Ask opens a small box where the button was; what is typed there lands under the quote, still editable.
+    const here = page.getByRole('textbox', { name: 'Ask ada about the selection' })
+    await expect(here).toBeFocused()
+    await here.fill('is this right?')
+    await here.press('Enter')
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite'])
+    await expect(page.getByRole('textbox', { name: 'What to do about this quote' })).toHaveValue('is this right?')
     await expect(box).toHaveValue('')
     await expect(ask).toHaveCount(0)
+    await expect(here).toHaveCount(0)
 
     // A longer selection works too, and a second one adds a second quote, below the first.
     await select(page, 'rollback')
     await page.getByRole('button', { name: 'Ask ada' }).click()
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
     await expect(box).toHaveValue('')
 
@@ -77,7 +85,7 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     // A long instruction folds onto more lines instead of scrolling sideways.
     await note.fill('word '.repeat(80))
     expect((await note.boundingBox())!.height).toBeGreaterThan(one * 1.5)
-    await note.fill('is this the right word?')
+    await note.fill("is this the right word?")
 
     // The question goes after them, and the sent message shows both as quotes.
     await box.fill('why these?')
