@@ -895,6 +895,9 @@ svg.pxi { display: block; flex: none; }
 /* The tint sits behind a see-through textarea; the mirror must match its font, padding, border and wrapping exactly. */
 .composer-input { position: relative; flex: 1; min-width: 0; display: flex; background: var(--well); }
 .composer-input textarea { background: transparent; position: relative; color: transparent; caret-color: var(--text); }
+/* The styled copy behind the box has no scrollbar, so the box must not either: a scrollbar makes the textarea's lines narrower than the copy's, and the two stop wrapping alike (the caret drifts off the text, and the line being typed hides). It still scrolls, and the copy follows. */
+.composer-input textarea { scrollbar-width: none; }
+.composer-input textarea::-webkit-scrollbar { display: none; }
 .composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: var(--text); }
 .composer-mirror mark, .msg.user .bubble mark { color: inherit }
 .composer-mirror .tok-command, .msg.user .bubble .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
