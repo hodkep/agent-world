@@ -137,6 +137,7 @@ export function ChatView({
     return () => clearTimeout(t)
   }, [busy, sent.length])
   const [stopping, setStopping] = useState(false)
+  const [needProgress, setNeedProgress] = useState('')
   // How long this turn has been going, counted live: from your last message, or from when this view saw the agent start
   // if it started by itself (a subagent report, a queued message).
   const [now, setNow] = useState(() => Date.now())
@@ -483,9 +484,10 @@ export function ChatView({
             <span className="blip" aria-hidden="true" />
             <b className="inline-who">{agentName}</b>
             <span className="dialog-kind">{needTitle(need)}</span>
+            {need.kind === 'question' && needProgress && <span className="dialog-count">{needProgress}</span>}
             {moreNeeds > 0 && <span className="dialog-more">+{moreNeeds} waiting</span>}
           </header>
-          <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} />
+          <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} onProgress={setNeedProgress} />
         </section>
       )}
       {error && (
