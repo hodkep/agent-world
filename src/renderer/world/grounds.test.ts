@@ -77,3 +77,47 @@ describe('the street over a long run', () => {
     expect(worst).toBeGreaterThanOrEqual(CAR_SPACING - 1e-6)
   })
 })
+
+describe('making way for a car that is racing through', () => {
+  it('clears the upper lane where asked, adds no car to it meanwhile, and lets traffic back afterwards', async () => {
+    const { Street } = await import('./grounds')
+    const { OFFICE } = await import('./office')
+    const street = new Street(OFFICE.map)
+    const cars = () => (street as unknown as { cars: { x: number; lane: number; fadeMs?: number }[] }).cars
+    const upper = () => cars().filter((c) => c.lane === 0)
+    street.setBusy(4)
+    let t = 0
+    for (; t < 60_000; t += 16) street.update(16, t)
+    expect(upper().length).toBeGreaterThan(0)
+
+    const whole = [{ from: -10_000, to: 10_000 }]
+    for (let k = 0; k < 40_000; k += 16, t += 16) {
+      street.makeWay(whole)
+      street.update(16, t)
+      // After the moment it takes them to go, nothing is in the upper lane at all.
+      if (k > 600) expect(upper()).toHaveLength(0)
+    }
+    // The other lane carries on as before.
+    expect(cars().filter((c) => c.lane === 1).length).toBeGreaterThan(0)
+
+    street.makeWay([])
+    for (let k = 0; k < 80_000; k += 16, t += 16) street.update(16, t)
+    expect(upper().length).toBeGreaterThan(0)
+  })
+
+  it('only clears the stretch it is asked about', async () => {
+    const { Street } = await import('./grounds')
+    const { OFFICE } = await import('./office')
+    const street = new Street(OFFICE.map)
+    const cars = () => (street as unknown as { cars: { x: number; lane: number }[] }).cars
+    street.setBusy(4)
+    let t = 0
+    for (; t < 90_000; t += 16) street.update(16, t)
+    const before = cars().filter((c) => c.lane === 0)
+    expect(before.length).toBeGreaterThan(0)
+    const far = { from: 9000, to: 9999 }
+    street.makeWay([far])
+    for (let k = 0; k < 600; k += 16, t += 16) street.update(16, t)
+    expect(cars().filter((c) => c.lane === 0).length).toBeGreaterThan(0)
+  })
+})
