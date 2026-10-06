@@ -98,14 +98,14 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect(five).toContainText('80% left', { timeout: 20_000 })
     await ring.click()
 
-    // Allowances are kept per login: each shows apart in the Usage tab, while the header shows the tightest of them.
+    // Allowances are kept per account: each shows apart in the Usage tab, while the header shows the tightest of them.
     await expect(page.getByRole('status', { name: /5-hour limit: 30% left/ })).toBeVisible({ timeout: 20_000 })
     await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
     const modal = page.getByRole('dialog', { name: /usage/i })
     await modal.getByRole('button', { name: 'Refresh' }).click()
-    const limits = modal.locator('section', { hasText: 'live from the tanks' })
-    await expect(limits.locator('.lm-login', { hasText: 'Work' })).toContainText('30% left', { timeout: 20_000 })
-    await expect(limits.locator('.lm-login', { hasText: 'This computer' })).toContainText('80% left')
+    const limits = modal.locator('section', { hasText: 'Limits by account' })
+    await expect(limits.locator('.st-acct', { hasText: 'Work' })).toContainText('30% left', { timeout: 20_000 })
+    await expect(limits.locator('.st-acct', { hasText: 'This computer' })).toContainText('80% left')
   } finally {
     await shutdown()
   }

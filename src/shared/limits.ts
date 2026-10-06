@@ -93,3 +93,17 @@ export function limitBoard(ws: LimitWindow[], names: { provider: (id: LimitWindo
     return { provider, label, rows }
   })
 }
+
+const WEEK_MS = 7 * 86_400_000
+/** How far through its week an allowance is (0 to 1), from when it resets. */
+export const weekElapsed = (w: LimitWindow, now: number) => Math.min(1, Math.max(0, 1 - (Date.parse(w.resetsAt) - now) / WEEK_MS))
+/** How long until a weekly allowance runs out at the pace so far, when that is before it resets; otherwise null. */
+export function runsOutIn(w: LimitWindow, now: number): number | null {
+  if (w.kind !== 'weekly') return null
+  const used = 100 - w.remainingPct
+  const gone = weekElapsed(w, now) * WEEK_MS
+  // Too little to tell: a window that has barely begun or barely been used says nothing about its pace.
+  if (used < 5 || gone < 3_600_000) return null
+  const left = (w.remainingPct / used) * gone
+  return left < Date.parse(w.resetsAt) - now ? left : null
+}

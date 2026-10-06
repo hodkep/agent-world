@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { banks, busiest, claudeWindows, limitBoard, lowCount } from './limits'
+import { banks, busiest, claudeWindows, limitBoard, lowCount, runsOutIn, weekElapsed } from './limits'
 import type { LimitWindow } from './types'
 
 const w = (provider: LimitWindow['provider'], group: string, kind: LimitWindow['kind'], remainingPct: number): LimitWindow => ({ provider, group, kind, remainingPct, resetsAt: '2026-10-05T16:00:00Z' })
@@ -58,5 +58,21 @@ describe('the limits board', () => {
     const rows = limitBoard([win('agy', 'Gemini Models', 'five_hour', 100), win('agy', 'Claude and GPT models', 'weekly', 100)], names)[0]!.rows
     expect(rows.map((r) => [r.label, r.account])).toEqual([['Gemini Models', undefined], ['Claude and GPT models', undefined]])
     expect(limitBoard([win('claude', 'Claude Code', 'five_hour', 50, '')], names)[0]!.rows[0]!.label).toBe('Claude Code')
+  })
+})
+
+describe('pace', () => {
+  const now = Date.parse('2026-09-10T12:00:00Z')
+  const week = (remainingPct: number, hoursToReset: number): LimitWindow => ({ provider: 'claude', group: 'Claude Code', kind: 'weekly', remainingPct, resetsAt: new Date(now + hoursToReset * 3_600_000).toISOString() })
+  it('says how far through its week an allowance is', () => {
+    expect(weekElapsed(week(50, 84), now)).toBeCloseTo(0.5)
+    expect(weekElapsed(week(50, 500), now)).toBe(0)
+  })
+  it('says when an allowance runs out, only if that comes before it resets', () => {
+    // Half the week gone and 80% used: the last 20% lasts 1/4 of what has passed, 21 hours.
+    expect(runsOutIn(week(20, 84), now)! / 3_600_000).toBeCloseTo(21)
+    expect(runsOutIn(week(60, 84), now)).toBeNull()
+    expect(runsOutIn({ ...week(20, 84), kind: 'five_hour' }, now)).toBeNull()
+    expect(runsOutIn(week(99, 160), now)).toBeNull()
   })
 })

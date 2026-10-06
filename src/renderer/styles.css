@@ -1714,3 +1714,51 @@ dialog.handoff { width: min(640px, 94vw); }
 
 .st-masonry { columns: 2 300px; column-gap: 12px; }
 .st-masonry > section { break-inside: avoid; margin: 0 0 12px; padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; display: block; }
+
+/* Usage and Weekly Rewind through accounts: a scope bar, account names with their program's logo, and a card of allowances for each account. */
+.st-scope { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 14px; background: var(--well); border-bottom: 1px solid var(--line); }
+.st-scope > button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; }
+.st-scope > button:not(.on) { opacity: 0.6; }
+.st-scope > button.on { background: var(--panel-2); box-shadow: 0 0 0 1px var(--accent); }
+.st-scope .st-seg { margin-left: auto; }
+.st-lbl { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.acct-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.acct-name img { flex: none; object-fit: contain; }
+.acct-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-accts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.st-acct { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--well); border: 1px solid var(--line); border-top: 2px solid var(--c, var(--line)); min-width: 0; }
+.st-acct > header { display: flex; align-items: center; gap: 8px; }
+.st-acct > header small { margin-left: auto; color: var(--muted); font-size: 11px; }
+.st-acct > header .st-link { margin-left: 6px; }
+.lm-bar { position: relative; }
+.lm-pace { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.7; }
+.st-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.st-insight { margin: 0; padding: 10px 14px; background: var(--well); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.st-insight b { color: var(--text); }
+.st-insight::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; background: var(--accent); }
+.st-insight[data-tone='hot']::before { background: var(--danger); }
+.st-insight[data-tone='ok']::before { background: var(--ok); }
+.st-trend { display: block; margin-left: auto; }
+.st-three { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+.st-three h4 { margin: 0 0 4px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.st-acct-table td, .st-acct-table th { text-align: right; }
+.st-acct-table td:first-child, .st-acct-table th:first-child { text-align: left; }
+.st-acct-table tbody tr { cursor: pointer; }
+.st-acct-table tbody tr:hover, .st-acct-table tbody tr.on { background: var(--panel-hover); }
+.st-acct-table tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.st-acct-table td[data-level='hot'] { color: var(--danger-text); }
+.st-acct-table td[data-level='warn'] { color: var(--accent); }
+.st-delta { font-style: normal; font-family: Menlo, Consolas, monospace; color: var(--ok-text); }
+.st-delta[data-up='true'] { color: var(--danger-text); }
+.st-hero { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 16px 18px; background: var(--panel-2); border: 2px solid var(--ink); }
+.st-hero h2 { margin: 0 0 4px; font-size: 18px; line-height: 1.3; }
+.st-hero h2 em { font-style: normal; color: var(--accent); }
+.st-hero p { margin: 0; color: var(--muted); }
+.st-hero .st-card { min-width: 150px; }
+.st-highlights { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.st-highlights .st-card b { font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.st-limit-line { width: 100%; height: 56px; display: block; background: var(--ink); }
+.st-days { display: flex; justify-content: space-between; font: 10px Menlo, Consolas, monospace; color: var(--muted); }
+@media (max-width: 760px) { .st-highlights { grid-template-columns: 1fr 1fr; } .st-hero { grid-template-columns: 1fr; } }
+.acct-name .acct-dot, .st-scope .acct-dot, .st-legend .acct-dot { margin: 0; }
+.plogo { display: inline-block; flex: none; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }

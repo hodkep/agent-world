@@ -55,7 +55,7 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
     await expect(usage.getByText('Nothing recorded in this time.')).toHaveCount(0)
     await usage.getByRole('tab', { name: 'Projects' }).click()
     await expect(usage.locator('.st-proj')).toHaveCount(1)
-    await usage.getByRole('tab', { name: 'All' }).click()
+    await usage.getByRole('tab', { name: 'Overview' }).click()
     // Cycling the range never makes the page wider than the window.
     for (const n of ['7d', '30d', '90d', '7d']) {
       await usage.getByRole('button', { name: n, exact: true }).click()
@@ -72,10 +72,10 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
 
     await header.getByRole('button', { name: 'Weekly Rewind', exact: true }).click()
     const week = page.getByRole('dialog', { name: 'Weekly Rewind' })
-    await expect(week.locator('.st-card', { hasText: 'Cost' })).toContainText('$1.50')
+    await expect(week.locator('.st-cards .st-card', { hasText: 'Cost' })).toContainText('$1.50')
     await expect(week.getByRole('button', { name: 'Next week' })).toBeDisabled()
     await week.getByRole('button', { name: 'Previous week' }).click()
-    await expect(week.locator('.st-card', { hasText: 'Cost' })).toContainText('$0.00')
+    await expect(week.locator('.st-cards .st-card', { hasText: 'Cost' })).toContainText('$0.00')
     await expect(week.getByText('Nothing recorded this week')).toBeVisible()
     await expect(week.getByRole('button', { name: 'Next week' })).toBeEnabled()
     await page.mouse.click(5, 5)

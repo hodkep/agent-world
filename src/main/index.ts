@@ -15,7 +15,7 @@ import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, pow
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
+import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
@@ -198,6 +198,18 @@ function record(e: LedgerEvent) {
   }
 }
 const projectOf = (a: AgentRecord) => basename(a.repoPath)
+/** Each allowance, as it was last looked at, saved now and then so the Weekly Rewind can say how hard each account was pushed. */
+const limitSeen = new Map<string, { t: number; pct: number }>()
+function snapshotLimits(windows: LimitWindow[]) {
+  const t = Date.now()
+  for (const w of windows) {
+    const usedPct = Math.round(100 - w.remainingPct)
+    const key = [w.provider, w.account ?? '', w.group, w.kind].join('\n')
+    if (!limitDue(limitSeen.get(key), t, usedPct)) continue
+    limitSeen.set(key, { t, pct: usedPct })
+    record({ k: 'limit', t, provider: w.provider, group: w.group, kind: w.kind, usedPct, ...(w.account && { account: w.account }) })
+  }
+}
 
 // Folders worked in, saved once an agent has been hired there so the next launch opens where you left off.
 const WORKSPACES_FILE = join(HOME, 'workspaces.json')
@@ -490,7 +502,7 @@ function runClock(a: AgentRecord, activity: string) {
   if (before.since !== null && after.since === null) {
     a.workedMs = after.total
     persist()
-    record({ k: 'work', t: before.since, agent: a.id, project: projectOf(a), ms: Date.now() - before.since })
+    record({ k: 'work', t: before.since, agent: a.id, project: projectOf(a), ms: Date.now() - before.since, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
   }
 }
 
@@ -864,7 +876,9 @@ async function main() {
       const asked = polled.flat().filter((w) => w.provider === liveId && (w.account ?? '') === account)
       return live.length ? [...live, ...asked.filter((w) => w.group !== live[0]!.group)] : asked
     })
-    return [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
+    const all = [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
+    snapshotLimits(all)
+    return all
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
@@ -1463,7 +1477,7 @@ async function main() {
       Menu.buildFromTemplate(items).popup({ callback: () => resolve(null) })
     })
   })
-  ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start)))
+  ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
   ipcMain.handle('ledger:overview', (_, days: number) =>
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))

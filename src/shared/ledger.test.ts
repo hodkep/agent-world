@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
+import { acctKey, costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
 
 // Local-time dates, so the tests hold in any timezone. 2026-09-07 is a Monday.
 const at = (d: number, h = 0, m = 0) => new Date(2026, 8, d, h, m).getTime()
@@ -158,5 +158,96 @@ describe('estimated dollars', () => {
     expect([by.claude!.usd, by.claude!.tokens, by.claude!.est ?? 0]).toEqual([2, 1500, 0])
     expect([by.agy!.usd, by.agy!.tokens, by.agy!.est]).toEqual([0.5, 3000, 0.5])
     expect(o.total.est).toBe(0.5)
+  })
+})
+
+const W = acctKey('claude', 'work')
+const ME = acctKey('claude', '')
+const used = (t: number, pct: number, account = 'work', kind: 'five_hour' | 'weekly' = 'weekly'): LedgerEvent => ({ k: 'limit', t, provider: 'claude', account, group: 'Claude', kind, usedPct: pct })
+
+describe('limit snapshots', () => {
+  it('are kept by the ledger and never counted as spend or work', () => {
+    expect(parseLedger(JSON.stringify(used(1, 50))).map((e) => e.k)).toEqual(['limit'])
+    expect(overview([used(at(7, 9), 50)], 3, at(7, 20)).total).toEqual({ usd: 0, tokens: 0 })
+    expect(weekReport([used(at(7, 9), 50)], at(7)).turns).toBe(0)
+  })
+  it('are saved when a window moved or half an hour passed, not on every look', () => {
+    expect(limitDue(undefined, at(7, 9), 40)).toBe(true)
+    expect(limitDue({ t: at(7, 9), pct: 40 }, at(7, 9, 10), 40)).toBe(false)
+    expect(limitDue({ t: at(7, 9), pct: 40 }, at(7, 9, 10), 43)).toBe(true)
+    expect(limitDue({ t: at(7, 9), pct: 40 }, at(7, 9, 31), 40)).toBe(true)
+  })
+})
+
+describe('overview by account', () => {
+  const evs: LedgerEvent[] = [
+    { k: 'cost', t: at(7, 9), agent: 'a', project: 'web', model: 'Opus', usd: 3, provider: 'claude', name: 'Charlie', account: 'work' },
+    { k: 'cost', t: at(7, 10), agent: 'b', project: 'web', model: 'Sonnet', usd: 1, provider: 'claude', name: 'Maya' },
+    { k: 'tokens', t: at(6, 10), agent: 'c', project: 'api', model: 'Gemini', input: 100, output: 50, provider: 'agy', name: 'Scout' },
+    { k: 'work', t: at(7, 9), agent: 'a', project: 'web', ms: 60_000 },
+    { k: 'work', t: at(7, 11), agent: 'a', project: 'web', ms: 60_000 },
+    { k: 'work', t: at(7, 12), agent: 'b', project: 'web', ms: 60_000 }
+  ]
+  const o = overview(evs, 3, at(7, 20))
+  it('splits each day by account as well as by program', () => {
+    expect(o.days[2]!.byAccount[W]).toEqual({ usd: 3, tokens: 0 })
+    expect(o.days[2]!.byAccount[ME]).toEqual({ usd: 1, tokens: 0 })
+    expect(o.days[1]!.byAccount[acctKey('agy', '')]).toEqual({ usd: 0, tokens: 150 })
+  })
+  it('gives each account its turns, agents, models, projects and a daily series', () => {
+    const w = o.accounts.find((a) => a.account === 'work')!
+    expect(w).toMatchObject({ key: W, usd: 3, turns: 2, agents: 1 })
+    expect(w.models.map((m) => m.model)).toEqual(['Opus'])
+    expect(w.projects.map((p) => p.project)).toEqual(['web'])
+    expect(w.agentUse.map((a) => a.name)).toEqual(['Charlie'])
+    expect(w.series).toEqual([0, 0, 3e6])
+  })
+  it('projects the month from the days so far', () => {
+    const m = overview([{ k: 'cost', t: at(5, 9), agent: 'a', project: 'p', model: 'm', usd: 10 }], 3, at(7, 20)).month
+    expect(m.spent.usd).toBe(10)
+    expect(m.day).toBe(7)
+    expect(m.of).toBe(30)
+    expect(m.projected.usd).toBeCloseTo((10 / 7) * 30)
+  })
+})
+
+describe('weekReport by account', () => {
+  const evs: LedgerEvent[] = [
+    { k: 'cost', t: at(7, 9), agent: 'a', project: 'web', model: 'Opus', usd: 4, provider: 'claude', name: 'Charlie', account: 'work' },
+    { k: 'cost', t: at(8, 9), agent: 'a', project: 'web', model: 'Opus', usd: 1, provider: 'claude', name: 'Charlie', account: 'work' },
+    { k: 'cost', t: at(8, 10), agent: 'b', project: 'api', model: 'Sonnet', usd: 2, provider: 'claude', name: 'Maya' },
+    { k: 'work', t: at(7, 9), agent: 'a', project: 'web', ms: 150 * 60_000 },
+    { k: 'work', t: at(8, 9), agent: 'a', project: 'web', ms: 30 * 60_000 },
+    { k: 'work', t: at(8, 10), agent: 'b', project: 'api', ms: 60 * 60_000 },
+    cost(at(1, 9), 3),
+    work(at(1, 9), 60),
+    used(at(7, 9), 20), used(at(8, 9), 88), used(at(9, 9), 90),
+    used(at(7, 9), 10, 'work', 'five_hour'), used(at(7, 12), 97, 'work', 'five_hour'), used(at(7, 20), 5, 'work', 'five_hour'), used(at(8, 12), 99, 'work', 'five_hour')
+  ]
+  const r = weekReport(evs, at(7), { b: 'Maya' })
+  it('splits the cost of each day and the week by account', () => {
+    expect(r.perDay[0]!.by).toEqual({ [W]: 4 })
+    expect(r.perDay[1]!.by).toEqual({ [W]: 1, [ME]: 2 })
+    expect(r.accounts.map((a) => [a.key, a.usd, a.turns, a.agents])).toEqual([[W, 5, 2, 1], [ME, 2, 1, 1]])
+    expect(r.perDay[0]!.ms).toBe(150 * 60_000)
+  })
+  it('compares with the week before', () => {
+    expect(r.before).toMatchObject({ usd: 3, turns: 1, ms: 60 * 60_000 })
+  })
+  it('finds the longest stretch, the priciest turn and the busiest agent', () => {
+    expect(r.longest).toMatchObject({ ms: 150 * 60_000, name: 'Charlie', project: 'web' })
+    expect(r.priciest).toMatchObject({ usd: 4, name: 'Charlie', key: W })
+    expect(r.topAgent).toMatchObject({ name: 'Charlie', key: W, ms: 180 * 60_000 })
+  })
+  it('ranks projects and agents', () => {
+    expect(r.projects.map((p) => [p.name, p.usd])).toEqual([['web', 5], ['api', 2]])
+    expect(r.agentList.map((a) => [a.name, a.turns])).toEqual([['Charlie', 2], ['Maya', 1]])
+  })
+  it('reads how hard an account was pushed from its snapshots', () => {
+    const w = r.accounts[0]!
+    expect(w.weeklyPeak).toBe(90)
+    expect(w.weeklyDays).toEqual([20, 88, 90, null, null, null, null])
+    expect(w.hits5h).toBe(2)
+    expect(r.accounts[1]!.weeklyPeak).toBeNull()
   })
 })
