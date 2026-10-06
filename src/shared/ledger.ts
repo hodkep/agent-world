@@ -4,10 +4,10 @@
  * the model that was in use, and each finished stretch of work with when it began and how long it ran.
  */
 export type LedgerEvent =
-  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number }
+  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string }
   | { k: 'work'; t: number; agent: string; project: string; ms: number }
   /** For a program that reports tokens, not a price: how many it used since the last record. */
-  | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number }
+  | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string }
 
 /** How much a running total grew; a lower total means a new conversation started from zero. */
 export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
@@ -169,4 +169,99 @@ export function usageReport(events: LedgerEvent[], days: number, now: number): U
   }
   const sum = (n: number) => list.slice(-n).reduce((s, d) => s + d.usd, 0)
   return { today: sum(1), last7: sum(7), total: sum(days), days: list, byModel: sorted(models) }
+}
+
+/** Before entries named their program, only Claude reported a price and only agy reported tokens. */
+const LEGACY_PROGRAM = { cost: 'claude', tokens: 'agy' } as const
+
+export interface Spend {
+  usd: number
+  tokens: number
+}
+export interface AgentUse extends Spend {
+  agent: string
+  name: string
+  provider: string
+  model: string
+  turns: number
+}
+export interface Overview {
+  /** One entry per day, oldest first, split by program. */
+  days: { date: string; by: Record<string, Spend> }[]
+  total: Spend
+  /** The same length of time just before this window, for the change shown beside the total. */
+  before: Spend
+  providers: ({ provider: string; today: Spend } & Spend)[]
+  projects: ({ project: string; lastAt: number; by: Record<string, Spend>; agents: AgentUse[] } & Spend)[]
+  models: ({ model: string; provider: string } & Spend)[]
+}
+
+const none = (): Spend => ({ usd: 0, tokens: 0 })
+const add = (to: Spend, e: Spend) => {
+  to.usd += e.usd
+  to.tokens += e.tokens
+}
+
+/**
+ * Everything spent over `days` days, whichever program ran it: by day, program, project and model.
+ * `names` gives the current name of an agent whose entries predate names being recorded.
+ */
+export function overview(events: LedgerEvent[], days: number, now: number, names: Record<string, string> = {}): Overview {
+  const today = new Date(dayStart(now))
+  const dayAt = (back: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - back).getTime()
+  const first = dayAt(days - 1)
+  const prior = dayAt(2 * days - 1)
+  const list = Array.from({ length: days }, (_, i) => ({ date: dateKey(dayAt(days - 1 - i)), by: {} as Record<string, Spend> }))
+  const index = new Map(list.map((d, i) => [d.date, i]))
+  const total = none()
+  const before = none()
+  const byProvider = new Map<string, { all: Spend; today: Spend }>()
+  const byProject = new Map<string, { all: Spend; lastAt: number; by: Record<string, Spend>; agents: Map<string, AgentUse> }>()
+  const byModel = new Map<string, { provider: string; all: Spend }>()
+  const turns = new Map<string, number>()
+  const open = (e: { project: string; agent: string }, provider: string, model: string, name?: string) => {
+    const p = byProject.get(e.project) ?? { all: none(), lastAt: 0, by: {} as Record<string, Spend>, agents: new Map<string, AgentUse>() }
+    byProject.set(e.project, p)
+    const a = p.agents.get(e.agent) ?? { agent: e.agent, name: name ?? names[e.agent] ?? 'removed agent', provider, model, usd: 0, tokens: 0, turns: 0 }
+    p.agents.set(e.agent, a)
+    return { p, a }
+  }
+  for (const e of events) {
+    if (e.k === 'work') {
+      if (e.t >= first) turns.set(e.agent, (turns.get(e.agent) ?? 0) + 1)
+      continue
+    }
+    const spend: Spend = e.k === 'cost' ? { usd: e.usd, tokens: 0 } : { usd: 0, tokens: e.input + e.output }
+    if (e.t >= prior && e.t < first) add(before, spend)
+    const i = index.get(dateKey(e.t))
+    if (i === undefined) continue
+    const provider = e.provider ?? LEGACY_PROGRAM[e.k]
+    add(total, spend)
+    add((list[i]!.by[provider] ??= none()), spend)
+    const pr = byProvider.get(provider) ?? { all: none(), today: none() }
+    byProvider.set(provider, pr)
+    add(pr.all, spend)
+    if (i === days - 1) add(pr.today, spend)
+    const { p, a } = open(e, provider, e.model, e.name)
+    add(p.all, spend)
+    add((p.by[provider] ??= none()), spend)
+    p.lastAt = Math.max(p.lastAt, e.t)
+    add(a, spend)
+    a.model = e.model
+    if (e.name) a.name = e.name
+    const m = byModel.get(`${provider}\n${e.model}`) ?? { provider, all: none() }
+    byModel.set(`${provider}\n${e.model}`, m)
+    add(m.all, spend)
+  }
+  const weight = (s: Spend) => s.usd * 1e6 + s.tokens
+  return {
+    days: list,
+    total,
+    before,
+    providers: [...byProvider].map(([provider, v]) => ({ provider, today: v.today, ...v.all })).sort((a, b) => weight(b) - weight(a)),
+    projects: [...byProject]
+      .map(([project, v]) => ({ project, lastAt: v.lastAt, by: v.by, ...v.all, agents: [...v.agents.values()].map((a) => ({ ...a, turns: turns.get(a.agent) ?? 0 })).sort((a, b) => weight(b) - weight(a)) }))
+      .sort((a, b) => weight(b) - weight(a)),
+    models: [...byModel].map(([k, v]) => ({ model: k.slice(k.indexOf('\n') + 1), provider: v.provider, ...v.all })).sort((a, b) => weight(b) - weight(a))
+  }
 }

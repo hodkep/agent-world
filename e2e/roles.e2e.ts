@@ -19,7 +19,7 @@ test('hire from a ready-made role, from a project agent file, save your own, or 
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
     const form = page.getByRole('form', { name: 'Hire an agent' })
     await form.getByLabel('Role').selectOption({ label: 'Reviewer' })
-    await expect(form.getByLabel('Permissions')).toHaveValue('plan')
+    await expect(form.getByRole('radio', { name: /Plan/ })).toBeChecked()
     await expect(form.getByLabel('Name')).toHaveValue('rex')
     await expect(form.getByLabel('Extra instructions')).toHaveValue(/code reviewer/)
     // The project's own Claude agent file is on offer too.

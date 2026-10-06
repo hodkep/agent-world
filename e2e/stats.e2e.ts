@@ -46,14 +46,16 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
 
     await header.getByRole('button', { name: 'Usage', exact: true }).click()
     const usage = page.getByRole('dialog', { name: 'Usage and estimated costs' })
-    // It opens on the summary across providers; Claude Code's dollars are one click away.
-    await expect(usage.locator('.st-card', { hasText: 'Spent, last 7 days' })).toContainText('$1.50')
-    await usage.getByRole('button', { name: 'Open Claude Code' }).click()
-    await expect(usage.locator('.st-card', { hasText: 'Today' })).toContainText('$1.50')
-    await expect(usage.locator('.st-card', { hasText: 'Last 7 days' })).toContainText('$1.50')
+    // It opens on the whole picture across providers; each provider and project is a tab away.
+    await expect(usage.locator('.st-card', { hasText: 'Spent, 30 days' })).toContainText('$1.50')
     await usage.getByRole('button', { name: '90d' }).click()
-    await expect(usage.locator('.st-card', { hasText: 'Last 90 days' })).toContainText('$1.50')
-    await expect(usage.locator('.st-list li')).toHaveCount(1)
+    await expect(usage.locator('.st-card', { hasText: 'Spent, 90 days' })).toContainText('$1.50')
+    await usage.getByRole('tab', { name: 'Providers' }).click()
+    await usage.getByRole('button', { name: 'Open Claude Code' }).click()
+    await expect(usage.getByText('Nothing recorded in this time.')).toHaveCount(0)
+    await usage.getByRole('tab', { name: 'Projects' }).click()
+    await expect(usage.locator('.st-proj')).toHaveCount(1)
+    await usage.getByRole('tab', { name: 'All' }).click()
     // Cycling the range never makes the page wider than the window.
     for (const n of ['7d', '30d', '90d', '7d']) {
       await usage.getByRole('button', { name: n, exact: true }).click()

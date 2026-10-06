@@ -3,6 +3,8 @@ import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { effortsFor } from '../../shared/efforts'
 import { parsePick } from '../../shared/modelPick'
+import { cssColor } from '../../shared/brand'
+import { PixelSprite } from './PixelSprite'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -103,9 +105,14 @@ export function HireForm({
     }
   }
 
+  const modelLabel = models.find((m) => m.value === model)?.label ?? 'Default model'
+  const modeChosen = modes.find((m) => m.value === mode) ?? modes[0]!
+  const who = name.trim() || 'a new hire'
+  // The look follows the name, as it does in the office.
+  const look = name.trim() || 'New hire'
   return (
     <form
-      className="hire"
+      className="hire hire-v2"
       aria-label="Hire an agent"
       onSubmit={(e) => {
         e.preventDefault()
@@ -113,19 +120,27 @@ export function HireForm({
       }}
       onKeyDown={(e) => e.key === 'Escape' && onCancel()}
     >
+      <div className="hire-hero">
+        <span className="hire-avatar"><PixelSprite name={look} role="senior" scale={3} /></span>
+        <label className="grow">
+          Name
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="auto" autoFocus maxLength={20} />
+          <span className="hint">{chosen?.label} · {modelLabel} · {modeChosen.label}</span>
+        </label>
+      </div>
       {providers.length > 1 && (
-        <div className="hire-row">
-          <label className="grow">
-            Provider
-            <select value={chosen?.id} onChange={(e) => (setProvider(e.target.value as ProviderId), setModel(''), setMode(''))}>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <fieldset className="hire-pick">
+          <legend>Provider <em>what runs the agent</em></legend>
+          <div className="hire-opts">
+            {providers.map((p) => (
+              <label key={p.id} className="hire-opt" data-on={chosen?.id === p.id} style={{ ['--c' as string]: cssColor(p.id) }}>
+                <input type="radio" name="provider" value={p.id} checked={chosen?.id === p.id} onChange={() => (setProvider(p.id), setModel(''), setMode(''))} />
+                <b><i className="dot" />{p.label}</b>
+                <span className="hint">{p.detection.version ? `ready · ${p.detection.version}` : 'ready'}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       )}
       <div className="hire-row">
         <label className="grow">
@@ -149,11 +164,7 @@ export function HireForm({
         </label>
       </div>
       <div className="hire-row">
-        <label>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="auto" autoFocus maxLength={20} />
-        </label>
-        <label>
+        <label className="grow">
           Model
           <select value={model} onChange={(e) => setModel(e.target.value)}>
             {models.map((m) => (
@@ -163,46 +174,47 @@ export function HireForm({
             ))}
           </select>
         </label>
-        {efforts.length > 0 && (
-        <label>
-          Effort
-          <select value={efforts.includes(effort) ? effort : ''} onChange={(e) => setEffort(e.target.value as Effort | '')}>
-            {EFFORTS.filter((m) => !m.value || efforts.includes(m.value)).map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {efforts.length > 0 ? (
+          <label>
+            Effort
+            <select value={efforts.includes(effort) ? effort : ''} onChange={(e) => setEffort(e.target.value as Effort | '')}>
+              {EFFORTS.filter((m) => !m.value || efforts.includes(m.value)).map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="hire-note">{chosen?.label} sets thinking inside the model's name, so there is no separate effort.</p>
         )}
-      </div>
-      <div className="hire-row">
-        <label className="grow">
-          Permissions
-          <select value={modes.some((m) => m.value === mode) ? mode : ''} onChange={(e) => setMode(e.target.value)}>
-            {modes.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <span className="hint">{(modes.find((m) => m.value === mode) ?? modes[0]!).hint}</span>
-        </label>
         {chosen?.capabilities.budget !== false && (
-        <label>
-          Budget (USD)
-          <input value={budget} onChange={(e) => setBudget(e.target.value)} inputMode="decimal" placeholder="none" aria-describedby="budget-hint" />
-          <span className="hint" id="budget-hint">
-            Warns at 80% and 100%
-          </span>
-        </label>
+          <label>
+            Budget (USD)
+            <input value={budget} onChange={(e) => setBudget(e.target.value)} inputMode="decimal" placeholder="none" aria-describedby="budget-hint" />
+            <span className="hint" id="budget-hint">
+              Warns at 80% and 100%
+            </span>
+          </label>
         )}
       </div>
+      <fieldset className="hire-pick">
+        <legend>Permissions <em>what it may do without asking</em></legend>
+        <div className="hire-opts">
+          {modes.map((m) => (
+            <label key={m.value} className="hire-opt" data-on={modeChosen.value === m.value} data-risk={m.value === 'skip-permissions' || m.value === 'bypassPermissions'}>
+              <input type="radio" name="permissions" value={m.value} checked={modeChosen.value === m.value} onChange={() => setMode(m.value)} />
+              <b>{m.label}</b>
+              <span className="hint">{m.hint}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label>
         Extra instructions
         <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} placeholder="Added to the agent's instructions, e.g. prefer small commits" />
       </label>
-      <div className="hire-row">
+      <div className="hire-row hire-checks">
         {chosen?.capabilities.chrome !== false && (
           <label className="check">
             <input type="checkbox" checked={chrome} onChange={(e) => setChrome(e.target.checked)} /> Let it use Chrome
@@ -211,6 +223,9 @@ export function HireForm({
         <label className="check" title="No worktree and no aw/ branch: the agent edits your folder directly, so other agents on it can overwrite each other">
           <input type="checkbox" checked={inPlace} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>
+      </div>
+      <div className="hire-foot">
+        <span className="hire-sum">Hiring <b>{who}</b> on <b>{chosen?.label}</b> with <b>{modelLabel}</b></span>
         {saving === null ? (
           <button type="button" onClick={() => setSaving('')} title="Keep these settings as a role you can pick again">
             Save as role…
@@ -218,16 +233,12 @@ export function HireForm({
         ) : (
           <span className="save-role">
             <input value={saving} onChange={(e) => setSaving(e.target.value)} placeholder="Role name" aria-label="Role name" maxLength={40} autoFocus />
-            <button
-              type="button"
-              disabled={!saving.trim()}
-              onClick={() => void onSaveRole(saving, current()).then(() => setSaving(null))}
-            >
+            <button type="button" disabled={!saving.trim()} onClick={() => void onSaveRole(saving, current()).then(() => setSaving(null))}>
               Save
             </button>
           </span>
         )}
-        <button type="button" className="push" onClick={onCancel}>
+        <button type="button" onClick={onCancel}>
           Cancel
         </button>
         <button type="submit" className="primary" disabled={busy}>

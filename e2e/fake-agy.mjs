@@ -14,7 +14,9 @@ if (args[0] === '--version') (console.log('1.2.17'), process.exit(0))
 // FAKE_SIGNED_OUT_FILE=<path>: agy counts as signed out until that file exists.
 if (args[0] === '-p' && args[1] === '/usage' && process.env.FAKE_SIGNED_OUT_FILE && !existsSync(process.env.FAKE_SIGNED_OUT_FILE)) process.exit(1)
 if (args[0] === '-p' && args[1] === '/usage') {
-  console.log('Gemini Models\tWeekly Limit Remaining\t100%\t2026-10-12T06:23:31Z\nGemini Models\tFive Hour Limit Remaining\t73%\t2026-10-05T16:23:31Z\nClaude and GPT models\tFive Hour Limit Remaining\t100%\t2026-10-05T16:30:41Z')
+  // Resets are ahead of now, whenever this runs: a window whose reset has passed counts as full.
+  const at = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString().replace(/\.\d+Z$/, 'Z')
+  console.log(`Gemini Models\tWeekly Limit Remaining\t100%\t${at(144)}\nGemini Models\tFive Hour Limit Remaining\t73%\t${at(3)}\nClaude and GPT models\tFive Hour Limit Remaining\t100%\t${at(3.1)}`)
   process.exit(0)
 }
 

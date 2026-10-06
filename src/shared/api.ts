@@ -1,4 +1,4 @@
-import type { TokensReport, UsageReport, WeekReport } from './ledger'
+import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
@@ -96,6 +96,7 @@ export interface AwApi {
   /** Tokens used per day, for the programs that report tokens instead of a price. */
   tokensReport(days: number): Promise<TokensReport>
   usageReport(days: number): Promise<UsageReport>
+  overview(days: number): Promise<Overview>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */

@@ -14,7 +14,7 @@ import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, pow
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import { costDelta, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
+import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
@@ -430,7 +430,7 @@ function onStats(s: AgentStats, agentId: string) {
   if (spent !== 0 || a.costSeen === undefined) {
     a.costSeen = s.costUsd
     persist()
-    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent })
+    if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name })
   }
   // A program that counts tokens instead of dollars: record how many it used since the last report.
   if (s.tokens) {
@@ -439,7 +439,7 @@ function onStats(s: AgentStats, agentId: string) {
     if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
       a.tokensSeen = { input: s.tokens.input, output: s.tokens.output }
       persist()
-      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew })
+      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew, provider: providerOf(a).id, name: a.name })
     }
   }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
@@ -1393,6 +1393,8 @@ async function main() {
   })
   ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start)))
   ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
+  ipcMain.handle('ledger:overview', (_, days: number) =>
+    overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { costDelta, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
+import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from './ledger'
 
 // Local-time dates, so the tests hold in any timezone. 2026-09-07 is a Monday.
 const at = (d: number, h = 0, m = 0) => new Date(2026, 8, d, h, m).getTime()
@@ -92,5 +92,38 @@ describe('usageReport', () => {
   })
   it('totals by model', () => {
     expect(r.byModel[0]).toEqual({ model: 'Sonnet', usd: 107 })
+  })
+})
+
+describe('overview', () => {
+  const evs: LedgerEvent[] = [
+    { k: 'cost', t: at(7, 9), agent: 'a', project: 'web', model: 'Sonnet', usd: 2, provider: 'claude', name: 'Charlie' },
+    { k: 'tokens', t: at(7, 10), agent: 'b', project: 'web', model: 'Gemini', input: 1000, output: 500, provider: 'agy', name: 'Maya' },
+    cost(at(6, 9), 1, 'a', 'api', 'Opus'),
+    tokens(at(1, 9), 40, 10, 'b'),
+    cost(at(1, 12), 4, 'a', 'web', 'Sonnet'),
+    work(at(7, 9), 5, 'a', 'web'),
+    work(at(7, 9), 5, 'a', 'web')
+  ]
+  const o = overview(evs, 3, at(7, 20), { a: 'Old name' })
+  it('splits each day by program, and a program is named by the entry or, for old entries, by what it reported', () => {
+    expect(o.days.map((d) => d.date)).toEqual(['2026-09-05', '2026-09-06', '2026-09-07'])
+    expect(o.days[2]!.by).toEqual({ claude: { usd: 2, tokens: 0 }, agy: { usd: 0, tokens: 1500 } })
+    expect(o.days[1]!.by.claude).toEqual({ usd: 1, tokens: 0 })
+  })
+  it('totals the window and the window before it, ignoring anything older', () => {
+    expect(o.total).toEqual({ usd: 3, tokens: 1500 })
+    expect(overview(evs, 3, at(9, 20)).before.usd).toBe(1)
+  })
+  it('ranks projects, with who worked there, their turns and the name entries carried', () => {
+    expect(o.projects.map((p) => p.project)).toEqual(['web', 'api'])
+    const web = o.projects[0]!
+    expect(web.by).toEqual({ claude: { usd: 2, tokens: 0 }, agy: { usd: 0, tokens: 1500 } })
+    expect(web.agents.map((a) => [a.name, a.turns])).toEqual([['Charlie', 2], ['Maya', 0]])
+    expect(o.projects[1]!.agents[0]!.name).toBe('Old name')
+  })
+  it('lists each model with its program and what the program spent today', () => {
+    expect(o.models.find((m) => m.model === 'Opus')).toMatchObject({ provider: 'claude', usd: 1 })
+    expect(o.providers.map((p) => [p.provider, p.today.usd, p.today.tokens])).toEqual([['claude', 2, 0], ['agy', 0, 1500]])
   })
 })

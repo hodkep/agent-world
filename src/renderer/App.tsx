@@ -148,14 +148,17 @@ export function App() {
   const [lowLimits, setLowLimits] = useState(0)
   // Every provider's allowances, as the main process pools them: the tanks, the header chips and the Usage button all read from this.
   const [pool, setPool] = useState<LimitWindow[]>([])
-  useEffect(() => {
-    // A window whose reset has passed is full again, whatever it last reported.
+  const [poolAt, setPoolAt] = useState(Date.now())
+  // A window whose reset has passed is full again, whatever it last reported.
+  const lookLimits = useCallback((refresh?: boolean) => {
     const fresh = (ws: LimitWindow[]) => ws.map((w) => (Date.parse(w.resetsAt) <= Date.now() ? { ...w, remainingPct: 100 } : w))
-    const look = () => void window.aw.getLimits().then((w) => (setPool(fresh(w)), setLowLimits(lowCount(fresh(w)))), () => undefined)
-    look()
-    const t = setInterval(look, 30_000)
-    return () => clearInterval(t)
+    return window.aw.getLimits(refresh).then((w) => (setPool(fresh(w)), setLowLimits(lowCount(fresh(w))), setPoolAt(Date.now())), () => undefined)
   }, [])
+  useEffect(() => {
+    void lookLimits()
+    const t = setInterval(() => void lookLimits(), 30_000)
+    return () => clearInterval(t)
+  }, [lookLimits])
   const scanProviders = useCallback(() => {
     return window.aw.listProviders().then(setProviders, () => setProviders([]))
   }, [])
@@ -905,7 +908,7 @@ export function App() {
           }}
         />
       )}
-      {report === 'usage' && <UsageModal onClose={() => setReport(null)} />}
+      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
