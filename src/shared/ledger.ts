@@ -4,7 +4,7 @@
  * the model that was in use, and each finished stretch of work with when it began and how long it ran.
  */
 export type LedgerEvent =
-  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string; account?: string }
+  | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string; account?: string; /** Worked out from tokens at public rates, because the program reports no price. */ est?: boolean }
   | { k: 'work'; t: number; agent: string; project: string; ms: number }
   /** For a program that reports tokens, not a price: how many it used since the last record. */
   | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string; account?: string }
@@ -177,6 +177,8 @@ const LEGACY_PROGRAM = { cost: 'claude', tokens: 'agy' } as const
 export interface Spend {
   usd: number
   tokens: number
+  /** The part of `usd` that is an estimate from tokens, not a price the program reported. */
+  est?: number
 }
 export interface AgentUse extends Spend {
   agent: string
@@ -202,6 +204,7 @@ const none = (): Spend => ({ usd: 0, tokens: 0 })
 const add = (to: Spend, e: Spend) => {
   to.usd += e.usd
   to.tokens += e.tokens
+  if (e.est) to.est = (to.est ?? 0) + e.est
 }
 
 /**
@@ -234,7 +237,7 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
       if (e.t >= first) turns.set(e.agent, (turns.get(e.agent) ?? 0) + 1)
       continue
     }
-    const spend: Spend = e.k === 'cost' ? { usd: e.usd, tokens: 0 } : { usd: 0, tokens: e.input + e.output }
+    const spend: Spend = e.k === 'cost' ? { usd: e.usd, tokens: 0, ...(e.est && { est: e.usd }) } : { usd: 0, tokens: e.input + e.output }
     if (e.t >= prior && e.t < first) add(before, spend)
     const i = index.get(dateKey(e.t))
     if (i === undefined) continue

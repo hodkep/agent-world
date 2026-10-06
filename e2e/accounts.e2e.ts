@@ -13,7 +13,7 @@ test('a second account is signed in once, hired on, and an agent moves between a
   execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
   const envLog = join(tmp, 'env.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_COST: '1.5', FAKE_USED_5H: '20', FAKE_USED_5H_WORK: '70', FAKE_ENV: envLog, HOME: tmp },
+    { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_COST: '1.5', FAKE_TOKENS_IN: '1200', FAKE_TOKENS_OUT: '300', FAKE_USED_5H: '20', FAKE_USED_5H_WORK: '70', FAKE_ENV: envLog, HOME: tmp },
     tmp
   )
   try {
@@ -59,7 +59,7 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
     const usage = page.getByRole('dialog', { name: /usage/i })
     const byAccount = usage.locator('section', { hasText: 'By account' })
-    await expect(byAccount.locator('.st-rank', { hasText: 'Work' })).toContainText('$1.50', { timeout: 20_000 })
+    await expect(byAccount.locator('.st-rank', { hasText: 'Work' })).toContainText('$1.50 · 1.5k', { timeout: 20_000 })
     await usage.getByRole('button', { name: /close/i }).first().click()
 
     // Its own controls show the allowance of the account it runs on.

@@ -1,6 +1,6 @@
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { BRAND } from '../shared/brand'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
@@ -1120,9 +1120,9 @@ export function App() {
           </div>
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
-            <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
+            <FloatingTip x={tip.x} y={tip.y}>
               <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} providers={providers ?? []} />
-            </div>
+            </FloatingTip>
           )}
         </div>
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`} style={!wide && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
@@ -1372,6 +1372,27 @@ function useNarrow() {
 
 const window_ = (label: string, v: LimitView) =>
   v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
+
+/** A tooltip beside the pointer that never leaves the area it floats in: it flips to the pointer's other side, or slides up, when it would spill out. */
+function FloatingTip({ x, y, children }: { x: number; y: number; children: ReactNode }) {
+  const el = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState({ left: x + 14, top: y + 14 })
+  useLayoutEffect(() => {
+    const box = el.current
+    const area = box?.offsetParent as HTMLElement | null
+    if (!box || !area) return
+    const w = box.offsetWidth
+    const h = box.offsetHeight
+    const left = x + 14 + w > area.clientWidth - 4 ? Math.max(4, x - w - 14) : x + 14
+    const top = y + 14 + h > area.clientHeight - 4 ? Math.max(4, area.clientHeight - h - 4) : y + 14
+    setAt((p) => (p.left === left && p.top === top ? p : { left, top }))
+  })
+  return (
+    <div ref={el} className="tip" style={at} role="tooltip">
+      {children}
+    </div>
+  )
+}
 
 function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts']; providers: ProviderInfo[] }) {
   if (pool.length === 0)

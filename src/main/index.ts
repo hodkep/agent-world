@@ -23,6 +23,7 @@ import type { EventHandle, EventSourceOptions, Provider } from './providers/port
 import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { LimitsBook } from '../shared/usage'
+import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
@@ -161,6 +162,15 @@ const lastCost = new Map<string, number>()
 // reading is still there after a restart, until the next reply refreshes it.
 const USAGE_FILE = join(HOME, 'usage.json')
 const limitsBook = new LimitsBook()
+// Rates for programs that report tokens but no price, as the user has added to prices.json.
+let priceBook: Record<string, Rate> = {}
+const loadPrices = () => {
+  try {
+    priceBook = cleanRates(JSON.parse(readFileSync(join(HOME, 'prices.json'), 'utf8')))
+  } catch {
+    /* none added */
+  }
+}
 const loadUsage = () => {
   try {
     Object.assign(limitsBook, LimitsBook.from(JSON.parse(readFileSync(USAGE_FILE, 'utf8'))))
@@ -444,13 +454,20 @@ function onStats(s: AgentStats, agentId: string) {
     if (spent > 0) record({ k: 'cost', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', usd: spent, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
   }
   // A program that counts tokens instead of dollars: record how many it used since the last report.
-  if (s.tokens) {
-    const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : s.tokens)
-    const grew = { input: costDelta(prev.input, s.tokens.input), output: costDelta(prev.output, s.tokens.output) }
+  // Every program's tokens are counted, and a program that reports no price is given an estimate from them.
+  const used = s.tokens ?? s.tokenTotals
+  if (used) {
+    const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : used)
+    const grew = { input: costDelta(prev.input, used.input), output: costDelta(prev.output, used.output) }
     if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
-      a.tokensSeen = { input: s.tokens.input, output: s.tokens.output }
+      a.tokensSeen = { input: used.input, output: used.output }
       persist()
-      if (grew.input > 0 || grew.output > 0) record({ k: 'tokens', t: Date.now(), agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', ...grew, provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) })
+      if (grew.input > 0 || grew.output > 0) {
+        const who = { agent: a.id, project: projectOf(a), model: s.model ?? 'unknown', provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) }
+        record({ k: 'tokens', t: Date.now(), ...who, ...grew })
+        const usd = providerOf(a).capabilities.budget ? null : estimateUsd(who.model, grew.input, grew.output, priceBook)
+        if (usd) record({ k: 'cost', t: Date.now(), ...who, usd, est: true })
+      }
     }
   }
   const alert = budgetAlert(lastCost.get(a.id) ?? 0, s.costUsd, a.options?.budgetUsd)
@@ -724,6 +741,7 @@ async function main() {
   agents = loadAgents(AGENTS_FILE)
   for (const a of agents) followChat(a)
   loadUsage()
+  loadPrices()
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }

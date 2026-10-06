@@ -228,6 +228,8 @@ export interface AgentStats {
   limits: UsageLimits
   /** For a program that reports tokens rather than a price: everything read and written so far, and roughly how much its context holds now. */
   tokens?: { input: number; output: number; context: number }
+  /** What a program that also reports a price says it has read and written so far (the price is `costUsd`): counted in the history, nothing more. */
+  tokenTotals?: { input: number; output: number }
 }
 
 /** A choice menu Claude is showing in its own terminal (a permission dialog it insists on, the rewind confirmation…). */

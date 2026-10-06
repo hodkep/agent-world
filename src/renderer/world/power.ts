@@ -16,7 +16,7 @@ const STEEL_DARK = 0x5a6070
 const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) => g.rect(x, y, w, h).fill(a === 1 ? c : { color: c, alpha: a })
 
 /** Room above the tanks for the moons: one small round gauge per login of a program that has several. */
-const MOONS = 9
+const MOONS = 13
 export const PLANT = { w: 156, h: 54 + MOONS }
 const LIQUID = { ok: 0x46c8e6, warn: 0xf2b830, hot: 0xe05050 }
 
@@ -26,29 +26,26 @@ function text(g: G, s: string, x: number, y: number, color: number) {
 const textW = (s: string) => textPixels(s)[0]!.length
 
 /**
- * A moon: a 7-pixel round gauge in a login's colour. Its left half fills from the bottom with the 5-hour level and its right half
- * with the weekly one, each in the colour that level has on the tanks, so both windows of a login read in one small shape.
+ * A moon: a 9-pixel round gauge ringed in a login's colour. Its left half fills from the bottom with the 5-hour level and its right
+ * half with the weekly one, each in the colour that level has on the tanks, so both windows of a login read in one small shape.
  */
+export const MOON = 9
 export function moon(g: G, x: number, y: number, color: number, five: Bank['five'], week: Bank['week'], now: number) {
   const level = (l: Bank['five']) => (l ? Math.max(0, Math.min(100, 100 - limitView(l, now).pct!)) : null)
-  const halves = [{ left: level(five), v: limitView(five, now), from: 1, to: 3 }, { left: level(week), v: limitView(week, now), from: 4, to: 6 }]
-  for (let dy = 0; dy < 7; dy++)
-    for (let dx = 0; dx < 7; dx++) {
-      const d = (dx - 3) ** 2 + (dy - 3) ** 2
-      if (d > 11.5) continue
-      if (d > 7.5) r(g, x + dx, y + dy, 1, 1, color)
-      else r(g, x + dx, y + dy, 1, 1, 0x0e1620)
+  const d = (dx: number, dy: number) => (dx - 4) ** 2 + (dy - 4) ** 2
+  for (let dy = 0; dy < MOON; dy++)
+    for (let dx = 0; dx < MOON; dx++) {
+      if (d(dx, dy) > 20) continue
+      r(g, x + dx, y + dy, 1, 1, d(dx, dy) > 12.5 ? color : 0x0e1620)
     }
-  for (const h of halves) {
-    if (h.left === null) continue
-    const rows = Math.round((5 * h.left) / 100)
-    for (let k = 0; k < rows; k++)
-      for (let dx = h.from; dx <= h.to - (h.from === 1 ? 1 : 0); dx++) {
-        const dy = 5 - k
-        if ((dx - 3) ** 2 + (dy - 3) ** 2 <= 7.5) r(g, x + dx, y + dy, 1, 1, LIQUID[h.v.level])
-      }
+  for (const [l, cols] of [[five, [1, 2, 3]], [week, [5, 6, 7]]] as const) {
+    const left = level(l)
+    if (left === null) continue
+    const rows = Math.round((7 * left) / 100)
+    const c = LIQUID[limitView(l, now).level]
+    for (let k = 0; k < rows; k++) for (const dx of cols) if (d(dx, 7 - k) <= 12.5) r(g, x + dx, y + 7 - k, 1, 1, c)
   }
-  r(g, x + 3, y + 1, 1, 5, 0x0e1620)
+  r(g, x + 4, y + 1, 1, 7, 0x0e1620)
 }
 
 /** What the tank shows for one window: the level left, its colour, and whether it needs attention. */
@@ -169,11 +166,13 @@ export class PowerPlant {
         }
       // Moons above the bank: one per login, when the program has several. More than fit are counted instead.
       if (b.logins.length > 1) {
-        const room = Math.max(1, Math.floor((wide ? 96 : bw + 4) / 8))
+        const room = Math.max(1, Math.floor((wide ? 96 : bw + 4) / (MOON + 1)))
         const shown = b.logins.length > room ? room - 1 : b.logins.length
-        const x0 = bx + Math.floor(((wide ? 96 : bw) - shown * 8 + 1) / 2)
-        b.logins.slice(0, shown).forEach((l, k) => moon(g, x0 + k * 8, -MOONS + 1, l.color ? parseInt(l.color.slice(1), 16) : plate, l.five, l.week, now))
-        if (shown < b.logins.length) text(g, `+${b.logins.length - shown}`, x0 + shown * 8, -MOONS + 3, 0xa4a2b8)
+        const x0 = bx + Math.floor(((wide ? 96 : bw) - shown * (MOON + 1) + 1) / 2)
+        // A dark plate under the row, so the moons stand out from the lawn.
+        r(g, x0 - 2, -MOONS, shown * (MOON + 1) + 3 + (shown < b.logins.length ? 14 : 0), MOON + 4, INK, 0.85)
+        b.logins.slice(0, shown).forEach((l, k) => moon(g, x0 + k * (MOON + 1), -MOONS + 2, l.color ? parseInt(l.color.slice(1), 16) : plate, l.five, l.week, now))
+        if (shown < b.logins.length) text(g, `+${b.logins.length - shown}`, x0 + shown * (MOON + 1), -MOONS + 4, 0xa4a2b8)
       }
       // Level read-outs on the pad.
       for (const [s, x] of [[wk, bx + 3], [fh, fx + 3]] as const) {

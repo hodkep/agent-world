@@ -1694,3 +1694,19 @@ dialog.handoff { width: min(640px, 94vw); }
 .lbd-leds[data-l="hot"] i.on { background: #e65050; box-shadow: 0 0 4px #e6505099; }
 .lbd-note { font-size: 10px; color: var(--muted); white-space: nowrap; }
 .lbd-note b { color: var(--text); font-weight: 600; }
+
+/* The plant's tooltip holds the limits board, which needs more room than a one-line tip; the board shrinks to it instead of spilling out. */
+.tip:has(.lbd) { width: min(430px, 92vw); max-width: none; }
+.lbd { min-width: 0; box-sizing: border-box; }
+.lbd-grid { grid-template-columns: minmax(80px, auto) minmax(0, 1fr) minmax(0, 1fr); }
+.lbd-note { overflow: hidden; text-overflow: ellipsis; }
+
+/* Usage overview: two stacks side by side whose last box grows to meet the other's bottom, so no corner is left empty. */
+.st-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; }
+.st-stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.st-stack > section { padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; }
+.st-stack > section:last-child { flex: 1 0 auto; }
+.st-body > * { flex-shrink: 0; }
+
+.st-masonry { columns: 2 300px; column-gap: 12px; }
+.st-masonry > section { break-inside: avoid; margin: 0 0 12px; padding: 10px; background: var(--panel-2); border: 2px solid var(--ink); min-width: 0; display: block; }

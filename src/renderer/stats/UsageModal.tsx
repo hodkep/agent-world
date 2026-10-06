@@ -17,7 +17,10 @@ const left = (w: LimitWindow, now: number) => `${Math.round(w.remainingPct)}% le
 const ago = (ms: number) => (ms < 90_000 ? `${Math.max(1, Math.round(ms / 1000))}s ago` : `${Math.round(ms / 60_000)} min ago`)
 const colorOf = (id: string) => (isProviderId(id) ? cssColor(id) : 'var(--muted)')
 /** A program reports dollars, tokens or neither; say whichever it reports. */
-const spendText = (s: Spend) => (s.usd > 0 && s.tokens > 0 ? `${money(s.usd)} · ${tokenLabel(s.tokens)}` : s.usd > 0 ? money(s.usd) : s.tokens > 0 ? tokenLabel(s.tokens) : '—')
+/** Dollars, with a ~ when some of it is an estimate from tokens rather than a price the program reported. */
+const dollars = (s: Spend) => `${(s.est ?? 0) > 0 ? '~' : ''}${money(s.usd)}`
+/** Both measures every program has: dollars and tokens. */
+const spendText = (s: Spend) => (s.usd > 0 && s.tokens > 0 ? `${dollars(s)} · ${tokenLabel(s.tokens)}` : s.usd > 0 ? dollars(s) : s.tokens > 0 ? tokenLabel(s.tokens) : '—')
 const weight = (s: Spend) => s.usd * 1e6 + s.tokens
 
 type Tab = 'all' | 'providers' | 'projects'
@@ -54,7 +57,7 @@ function Limits({ windows, providers, accounts, now }: { windows: LimitWindow[];
                 {groups.map((g) => (
                   <div key={g} className="lm-group">
                     {groups.length > 1 && <small>{g}</small>}
-                    {mine.filter((w) => w.group === g && (w.account ?? '') === ac).map((w) => <Allowance key={w.kind} w={w} now={now} name={KIND[w.kind]} />)}
+                    {mine.filter((w) => w.group === g && (w.account ?? '') === ac).sort((x, y) => (x.kind === y.kind ? 0 : x.kind === 'five_hour' ? -1 : 1)).map((w) => <Allowance key={w.kind} w={w} now={now} name={KIND[w.kind]} />)}
                   </div>
                 ))}
               </div>
@@ -175,8 +178,8 @@ export function UsageModal({
           {tab === 'all' && (
             <>
               <div className="st-cards four">
-                <div className="st-card"><span>Spent, {days} days</span><b>{money(o.total.usd)}</b><small>{change ?? 'Dollars, where a program reports a price'}</small></div>
-                <div className="st-card"><span>Tokens, {days} days</span><b>{tokenLabel(o.total.tokens)}</b><small>from programs that count tokens, not dollars</small></div>
+                <div className="st-card"><span>Spent, {days} days</span><b>{dollars(o.total)}</b><small>{change ?? '~ marks dollars worked out from tokens'}</small></div>
+                <div className="st-card"><span>Tokens, {days} days</span><b>{tokenLabel(o.total.tokens)}</b><small>read and written, by every program</small></div>
                 <div className="st-card" data-level={tight ? level(tight.remainingPct) : undefined}>
                   <span>Tightest limit</span>
                   <b>{tight ? `${Math.round(tight.remainingPct)}% left` : '—'}</b>
@@ -184,26 +187,22 @@ export function UsageModal({
                 </div>
                 <div className="st-card"><span>In the office</span><b>{office.agents} {office.agents === 1 ? 'agent' : 'agents'}</b><small>{office.projects} {office.projects === 1 ? 'project' : 'projects'} · {providers.filter((p) => p.detection.state === 'ready').length} of {providers.length} programs ready</small></div>
               </div>
-              <div className="st-two wide">
+              {/* Boxes flow down two balanced columns, so no corner is left empty. */}
+              <div className="st-masonry">
                 <section>
-                  <div className="st-row">
-                    <h3>Daily {metric === 'usd' ? 'spend' : 'tokens'} <span className="lm-hint">by program</span></h3>
-                    <span className="st-seg" role="group" aria-label="Measure">
-                      <button aria-pressed={metric === 'usd'} className={metric === 'usd' ? 'on' : ''} onClick={() => setMetric('usd')}>$</button>
-                      <button aria-pressed={metric === 'tokens'} className={metric === 'tokens' ? 'on' : ''} onClick={() => setMetric('tokens')}>Tokens</button>
-                    </span>
-                  </div>
-                  <Stacked o={o} metric={metric} days={days} />
-                  <div className="st-legend">
-                    {o.providers.map((p) => <span key={p.provider}><i style={{ background: colorOf(p.provider) }} />{label(p.provider)} {spendText(p)}</span>)}
-                  </div>
-                </section>
-                <section>
-                  <h3>Limits <span className="lm-hint">live from the tanks</span></h3>
-                  <Limits windows={limits} providers={providers} accounts={accounts} now={now} />
-                </section>
-              </div>
-              {(accounts.length > 0 || o.accounts.length > 1) && (
+                    <div className="st-row">
+                      <h3>Daily {metric === 'usd' ? 'spend' : 'tokens'} <span className="lm-hint">by program</span></h3>
+                      <span className="st-seg" role="group" aria-label="Measure">
+                        <button aria-pressed={metric === 'usd'} className={metric === 'usd' ? 'on' : ''} onClick={() => setMetric('usd')}>$</button>
+                        <button aria-pressed={metric === 'tokens'} className={metric === 'tokens' ? 'on' : ''} onClick={() => setMetric('tokens')}>Tokens</button>
+                      </span>
+                    </div>
+                    <Stacked o={o} metric={metric} days={days} />
+                    <div className="st-legend">
+                      {o.providers.map((p) => <span key={p.provider}><i style={{ background: colorOf(p.provider) }} />{label(p.provider)} {spendText(p)}</span>)}
+                    </div>
+                  </section>
+                {(accounts.length > 0 || o.accounts.length > 1) && (
                 <section>
                   <h3>By account <span className="lm-hint">the same spend, split by program and login</span></h3>
                   {o.accounts.length === 0 ? <p className="st-note">Nothing recorded in this time.</p> : o.accounts.map((a) => {
@@ -218,7 +217,10 @@ export function UsageModal({
                   })}
                 </section>
               )}
-              <div className="st-two wide">
+                <section>
+                    <h3>Limits <span className="lm-hint">live from the tanks</span></h3>
+                    <Limits windows={limits} providers={providers} accounts={accounts} now={now} />
+                  </section>
                 <section>
                   <div className="st-row"><h3>Top projects</h3><button className="st-link" onClick={() => setTab('projects')}>All projects ›</button></div>
                   {o.projects.length === 0 ? <p className="st-note">Nothing recorded in this time.</p> : o.projects.slice(0, 4).map((p, i) => (
@@ -276,7 +278,7 @@ export function UsageModal({
                   <table className="st-table">
                     <thead><tr><th>Measure</th>{o.providers.map((p) => <th key={p.provider} style={{ color: colorOf(p.provider) }}>{label(p.provider)}</th>)}<th>Total</th></tr></thead>
                     <tbody>
-                      <tr><td>Spent</td>{o.providers.map((p) => <td key={p.provider}>{p.usd > 0 ? money(p.usd) : '—'}</td>)}<td><b>{money(o.total.usd)}</b></td></tr>
+                      <tr><td>Spent</td>{o.providers.map((p) => <td key={p.provider}>{p.usd > 0 ? dollars(p) : '—'}</td>)}<td><b>{dollars(o.total)}</b></td></tr>
                       <tr><td>Tokens</td>{o.providers.map((p) => <td key={p.provider}>{p.tokens > 0 ? tokenLabel(p.tokens) : '—'}</td>)}<td><b>{tokenLabel(o.total.tokens)}</b></td></tr>
                       <tr><td>Tightest limit</td>{o.providers.map((p) => { const t = busiest(limits.filter((w) => w.provider === p.provider)); return <td key={p.provider}>{t ? `${Math.round(t.remainingPct)}% left` : '—'}</td> })}<td><b>{tight ? `${Math.round(tight.remainingPct)}% left` : '—'}</b></td></tr>
                     </tbody>
