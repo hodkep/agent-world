@@ -49,6 +49,7 @@ import type { CardData } from './profile/facts'
 import { cardLayout } from './profile/layout'
 import { type CardEdit, ProfileCard } from './profile/ProfileCard'
 import { accountColor, accountName } from './accounts'
+import { LimitBoard } from './panel/LimitBoard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -680,7 +681,7 @@ export function App() {
   }
   // The tanks on the lawn: a bank of two for each connected program, so each program's allowance can be read apart.
   const readyIds = (providers ?? []).filter((p) => p.detection.state === 'ready').map((p) => p.id)
-  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER])
+  const plantBanks = banks(pool.length ? pool : claudeWindows(limits), readyIds.length ? readyIds : [DEFAULT_PROVIDER]).map((b) => ({ ...b, logins: b.logins.map((l) => ({ ...l, color: accountColor(prefs?.accounts ?? [], l.id) })) }))
   const plantKey = JSON.stringify(plantBanks)
   useEffect(() => office.current?.setBanks(plantBanks), [plantKey, officeReady])
   useEffect(() => {
@@ -1120,7 +1121,7 @@ export function App() {
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
           {tip && (
             <div className="tip" style={{ left: Math.min(tip.x + 14, 9999), top: tip.y + 14 }} role="tooltip">
-              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} />
+              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} providers={providers ?? []} />
             </div>
           )}
         </div>
@@ -1372,7 +1373,7 @@ function useNarrow() {
 const window_ = (label: string, v: LimitView) =>
   v.pct === null ? `${label}: no reading yet` : v.reset === 'reset' ? `${label}: just reset, full again` : `${label}: ${Math.round(100 - v.pct)}% left · resets in ${v.reset}`
 
-function PlantTip({ five, week, pool, accounts }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts'] }) {
+function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts']; providers: ProviderInfo[] }) {
   if (pool.length === 0)
     return (
       <>
@@ -1383,23 +1384,11 @@ function PlantTip({ five, week, pool, accounts }: { five: LimitView; week: Limit
       </>
     )
   // The tanks show the tightest allowance of each kind; here is every one it was picked from.
-  const groups = [...new Set(pool.map((w) => `${w.provider}|${w.group}|${w.account ?? ''}`))]
-  const now = Date.now()
   return (
     <>
       <b>Your usage limits</b>
-      <span className="tip-note">The tanks show the tightest of each kind.</span>
-      {groups.map((g) => {
-        const ws = pool.filter((w) => `${w.provider}|${w.group}|${w.account ?? ''}` === g)
-        return (
-          <div key={g} className="tip-group">
-            <b>{ws[0]!.group}{accounts.length > 0 && ws[0]!.account !== undefined && ` · ${accountName(accounts, ws[0]!.account)}`}</b>
-            {(['five_hour', 'weekly'] as const).flatMap((k) => ws.filter((w) => w.kind === k).map((w) => (
-              <div key={k} className="tip-row">{k === 'five_hour' ? '5-hour' : 'Weekly'}: {Math.round(w.remainingPct)}% left · resets in {untilReset(Date.parse(w.resetsAt), now)}</div>
-            )))}
-          </div>
-        )
-      })}
+      <span className="tip-note">The tanks show the tightest of each kind; the moons above one are its logins.</span>
+      <LimitBoard pool={pool} accounts={accounts} providers={providers} />
     </>
   )
 }

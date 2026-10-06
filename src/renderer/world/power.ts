@@ -15,13 +15,41 @@ const STEEL = 0x8c93a6
 const STEEL_DARK = 0x5a6070
 const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) => g.rect(x, y, w, h).fill(a === 1 ? c : { color: c, alpha: a })
 
-export const PLANT = { w: 156, h: 54 }
+/** Room above the tanks for the moons: one small round gauge per login of a program that has several. */
+const MOONS = 9
+export const PLANT = { w: 156, h: 54 + MOONS }
 const LIQUID = { ok: 0x46c8e6, warn: 0xf2b830, hot: 0xe05050 }
 
 function text(g: G, s: string, x: number, y: number, color: number) {
   textPixels(s).forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, x + rx, y + ry, 1, 1, color)))
 }
 const textW = (s: string) => textPixels(s)[0]!.length
+
+/**
+ * A moon: a 7-pixel round gauge in a login's colour. Its left half fills from the bottom with the 5-hour level and its right half
+ * with the weekly one, each in the colour that level has on the tanks, so both windows of a login read in one small shape.
+ */
+export function moon(g: G, x: number, y: number, color: number, five: Bank['five'], week: Bank['week'], now: number) {
+  const level = (l: Bank['five']) => (l ? Math.max(0, Math.min(100, 100 - limitView(l, now).pct!)) : null)
+  const halves = [{ left: level(five), v: limitView(five, now), from: 1, to: 3 }, { left: level(week), v: limitView(week, now), from: 4, to: 6 }]
+  for (let dy = 0; dy < 7; dy++)
+    for (let dx = 0; dx < 7; dx++) {
+      const d = (dx - 3) ** 2 + (dy - 3) ** 2
+      if (d > 11.5) continue
+      if (d > 7.5) r(g, x + dx, y + dy, 1, 1, color)
+      else r(g, x + dx, y + dy, 1, 1, 0x0e1620)
+    }
+  for (const h of halves) {
+    if (h.left === null) continue
+    const rows = Math.round((5 * h.left) / 100)
+    for (let k = 0; k < rows; k++)
+      for (let dx = h.from; dx <= h.to - (h.from === 1 ? 1 : 0); dx++) {
+        const dy = 5 - k
+        if ((dx - 3) ** 2 + (dy - 3) ** 2 <= 7.5) r(g, x + dx, y + dy, 1, 1, LIQUID[h.v.level])
+      }
+  }
+  r(g, x + 3, y + 1, 1, 5, 0x0e1620)
+}
 
 /** What the tank shows for one window: the level left, its colour, and whether it needs attention. */
 export function tankState(v: LimitView) {
@@ -113,12 +141,14 @@ export class PowerPlant {
     this.views = { five: limitView(tight((b) => b.five), now), week: limitView(tight((b) => b.week), now) }
     const g = this.g
     g.clear()
+    // Everything below is drawn as before; the moons sit in the room left above it.
+    g.position.y = MOONS
     // Concrete pad with a lip.
     r(g, 0, 46, PLANT.w, 8, INK)
     r(g, 1, 47, PLANT.w - 2, 6, 0x4a4e5a)
     r(g, 1, 47, PLANT.w - 2, 1, 0x6a6f7c)
     // A bank of two tanks for each program: one program as before, several side by side, each labelled in its own colour.
-    const banks: Bank[] = this.banks.length ? this.banks : [{ provider: DEFAULT_PROVIDER, five: null, week: null }]
+    const banks: Bank[] = this.banks.length ? this.banks : [{ provider: DEFAULT_PROVIDER, five: null, week: null, logins: [] }]
     const n = banks.length
     const lows: number[] = []
     banks.forEach((b, i) => {
@@ -137,6 +167,14 @@ export class PowerPlant {
           r(g, x0, 40, x1 - x0, 2, STEEL)
           r(g, x0 + Math.floor((x1 - x0) / 2) - 1, 37, 3, 3, 0xd83a3a)
         }
+      // Moons above the bank: one per login, when the program has several. More than fit are counted instead.
+      if (b.logins.length > 1) {
+        const room = Math.max(1, Math.floor((wide ? 96 : bw + 4) / 8))
+        const shown = b.logins.length > room ? room - 1 : b.logins.length
+        const x0 = bx + Math.floor(((wide ? 96 : bw) - shown * 8 + 1) / 2)
+        b.logins.slice(0, shown).forEach((l, k) => moon(g, x0 + k * 8, -MOONS + 1, l.color ? parseInt(l.color.slice(1), 16) : plate, l.five, l.week, now))
+        if (shown < b.logins.length) text(g, `+${b.logins.length - shown}`, x0 + shown * 8, -MOONS + 3, 0xa4a2b8)
+      }
       // Level read-outs on the pad.
       for (const [s, x] of [[wk, bx + 3], [fh, fx + 3]] as const) {
         if (s.left === null) continue

@@ -65,7 +65,7 @@ const POOLS: Record<Purpose, Spot[]> = {
 }
 const MAX_PILE = 14
 // Art pixels kept in view above the building (the power plant) and below it (the pavement and street).
-const BAND = { north: 56, south: 44 }
+const BAND = { north: 66, south: 44 }
 const MIN_ZOOM = 1
 const MAX_ZOOM = 10
 const DRAG_THRESHOLD = 4

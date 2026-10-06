@@ -70,6 +70,20 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect(five).toContainText('30% left', { timeout: 20_000 })
     await ring.click()
 
+    // The plant's tooltip is a board: this program's logins are rows with a strip of lights per window.
+    const stage = page.locator('.stage')
+    const box = (await stage.boundingBox())!
+    const at = JSON.parse((await stage.getAttribute('data-power'))!) as { x: number; y: number }
+    const board = page.getByRole('tooltip')
+    // The tooltip reads the readings as they are when the pointer moves over the plant, so keep moving it until they are in.
+    await expect(async () => {
+      await page.mouse.move(box.x + at.x, box.y + at.y)
+      await page.mouse.move(box.x + at.x + 2, box.y + at.y + 1)
+      await expect(board.locator('.lbd-name', { hasText: 'Work' })).toBeVisible({ timeout: 1500 })
+      await expect(board.getByRole('img', { name: /30% left, resets in 2h/ })).toBeVisible({ timeout: 1500 })
+    }).toPass({ timeout: 30_000 })
+    await page.mouse.move(0, 0)
+
     // From its profile card, move it to this computer's login: it restarts, with no sign-in step.
     await page.locator('.hc-name').click()
     const card = page.locator('.profile-overlay')

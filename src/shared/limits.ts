@@ -32,11 +32,64 @@ export interface Bank {
   provider: LimitWindow['provider']
   five: Limit | null
   week: Limit | null
+  /** Each login's own pair of allowances, when the program has more than one; the tanks show the tightest, the moons above them one login each. */
+  logins: { id: string; five: Limit | null; week: Limit | null; /** The login's colour, as #rrggbb, filled in by the screen that knows the accounts. */ color?: string }[]
 }
 
 /** A bank for each of the given programs, from the windows every program reports (a program with none yet has empty tanks). */
 export const banks = (ws: LimitWindow[], providers: LimitWindow['provider'][]): Bank[] =>
   providers.map((provider) => {
-    const p = pooled(ws.filter((w) => w.provider === provider))
-    return { provider, five: p.fiveHour, week: p.sevenDay }
+    const mine = ws.filter((w) => w.provider === provider)
+    const p = pooled(mine)
+    const ids = [...new Set(mine.map((w) => w.account ?? ''))]
+    const logins = ids.length > 1 ? ids.map((id) => ({ id, ...(({ fiveHour, sevenDay }) => ({ five: fiveHour, week: sevenDay }))(pooled(mine.filter((w) => (w.account ?? '') === id))) })) : []
+    return { provider, five: p.fiveHour, week: p.sevenDay, logins }
   })
+
+/** One line of the limits board: a login (or a model group of it) with its 5-hour and weekly windows. */
+export interface BoardRow {
+  key: string
+  label: string
+  /** The login's id ('' is the program's own), for its colour; undefined where the program has no logins. */
+  account: string | undefined
+  /** A model group of a login whose first row is above it ("Fable"), drawn under it. */
+  sub: boolean
+  five: LimitWindow | null
+  week: LimitWindow | null
+}
+export interface BoardProvider {
+  provider: LimitWindow['provider']
+  label: string
+  rows: BoardRow[]
+}
+
+/**
+ * The windows as a board: one block per program, a row per login, and under a login a row for each model group the program limits
+ * on its own ("Claude Code (Fable)"). A program with one login names its rows by group instead, as the program does.
+ */
+export function limitBoard(ws: LimitWindow[], names: { provider: (id: LimitWindow['provider']) => string; account: (id: string) => string; /** The program has extra logins, so its rows are named by login even while only one has reported. */ keeps?: (id: LimitWindow['provider']) => boolean }): BoardProvider[] {
+  const ids = [...new Set(ws.map((w) => w.provider))]
+  return ids.map((provider) => {
+    const mine = ws.filter((w) => w.provider === provider)
+    const label = names.provider(provider)
+    const logins = [...new Set(mine.map((w) => w.account ?? ''))].sort((a, b) => (a === '' ? -1 : b === '' ? 1 : 0))
+    const several = logins.length > 1 || !!names.keeps?.(provider)
+    const rows = logins.flatMap((login) => {
+      const own = mine.filter((w) => (w.account ?? '') === login)
+      const groups = [...new Set(own.map((w) => w.group))]
+      return groups.map((group, i): BoardRow => {
+        const in_ = own.filter((w) => w.group === group)
+        const short = group.startsWith(label) ? group.slice(label.length).replace(/^\s*\((.*)\)\s*$/, '$1').trim() || label : group
+        return {
+          key: `${login}|${group}`,
+          label: several ? (i === 0 ? names.account(login) : short) : groups.length > 1 ? short : label,
+          account: several || mine.some((w) => w.account !== undefined) ? login : undefined,
+          sub: several && i > 0,
+          five: in_.find((w) => w.kind === 'five_hour') ?? null,
+          week: in_.find((w) => w.kind === 'weekly') ?? null
+        }
+      })
+    })
+    return { provider, label, rows }
+  })
+}
