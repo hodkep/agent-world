@@ -35,11 +35,11 @@ test('what a hook told the agent is shown in the chat: who said it, with the ful
     await strip.getByRole('button', { name: 'Hide details' }).click()
     await expect(log.getByText('L962')).toHaveCount(0)
 
-    // A hook note with no reply after it is a note of its own, with its text behind a button.
-    const note = log.locator('.msg.note', { hasText: 'lint · PostToolUse:Edit hook' })
+    // A hook note with no reply after it is a chip of its own, with its text opening under it.
+    const note = log.locator('.ev-chip', { hasText: 'lint · PostToolUse:Edit hook' })
     await expect(note).toContainText('2 problems found in a.css')
-    await note.getByRole('button', { name: 'Show details' }).click()
-    await expect(note.locator('.summary-body')).toContainText('[lint] 2 problems found in a.css')
+    await note.click()
+    await expect(log.locator('.ev-drawer .ev-text')).toContainText('[lint] 2 problems found in a.css')
     // What a session starts with is not news.
     await expect(log).not.toContainText('CAVEMAN')
 

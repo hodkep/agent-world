@@ -354,3 +354,29 @@ describe('a hook note belongs to the reply it caused', () => {
     expect(kinds([summary, say('a', t0 + 1, 'ok')])).toEqual(['note', 'assistant'])
   })
 })
+
+describe('system events drawn as chips', () => {
+  const ev = (id: string, at: number, extra: object): ChatItem => ({ kind: 'note', id, at, text: 'Wait for backend 8081', event: 'monitor', key: 'm1', ...extra }) as ChatItem
+  it('folds a monitor that fires again into its first chip, keeping every line in order, even with a reply between', () => {
+    const rows = toRows([say('a', t0, 'waiting'), ev('e1', t0 + 1, { detail: 'refused' }), say('b', t0 + 2, 'still waiting'), ev('e2', t0 + 3, { detail: 'up on :8081' })], [])
+    expect(rows.map((r) => r.kind)).toEqual(['assistant', 'events', 'assistant'])
+    const chip = (rows[1] as Extract<(typeof rows)[number], { kind: 'events' }>).chips[0]!
+    expect(chip.lines).toEqual([{ at: t0 + 1, text: 'refused' }, { at: t0 + 3, text: 'up on :8081' }])
+  })
+  it('puts events that follow one another into one row of chips, and a message of yours starts a new one', () => {
+    const stop = { kind: 'note', id: 's', at: t0 + 5, text: 'Interrupted', event: 'interrupted' } as ChatItem
+    const cmd = { kind: 'note', id: 'c', at: t0 + 6, text: 'Set model to opus', event: 'command' } as ChatItem
+    const rows = toRows([say('a', t0, 'x'), ev('e1', t0 + 1, {}), stop, cmd, user('u', t0 + 9, 'go on'), stop && { ...stop, id: 's2', at: t0 + 10 } as ChatItem], [])
+    expect(rows.map((r) => r.kind)).toEqual(['assistant', 'events', 'user', 'events'])
+    expect((rows[1] as { chips: unknown[] }).chips).toHaveLength(3)
+  })
+  it('can be searched for by what a chip says and what a monitor printed', () => {
+    const rows = toRows([ev('e1', t0 + 1, { detail: 'refused on 8081' }), ev('e2', t0 + 3, { detail: 'up on :8081' })], [])
+    expect(rowText(rows[0]!)).toContain('Wait for backend 8081')
+    expect(rowText(rows[0]!)).toContain('refused on 8081')
+    expect(rowText(rows[0]!)).toContain('up on :8081')
+  })
+  it('leaves a note with no event kind as it was', () => {
+    expect(toRows([{ kind: 'note', id: 'n', at: t0, text: 'plain' }], []).map((r) => r.kind)).toEqual(['note'])
+  })
+})

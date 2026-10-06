@@ -40,6 +40,8 @@ describe('reading Claude\'s transcript for the chat view', () => {
         text: 'impeccable@1 · Stop hook: Design hook findings requiring review in src/renderer/styles.css (1 issue(s))',
         detail: findings,
         detailLabel: 'details',
+        event: 'hook',
+        tone: 'bad',
         hook: { source: 'impeccable@1', event: 'Stop', title: 'Design hook findings requiring review in src/renderer/styles.css', issues: 1, findings: [{ ref: 'L962', rule: 'side-tab', text: 'Side-tab accent border.' }] }
       }
     ])
@@ -168,6 +170,22 @@ describe('messages the harness adds about subagents', () => {
   it('hides the notice that a task completed, and says so briefly when it ended some other way', () => {
     expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('completed') } }))).toEqual([])
     expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('failed') } }))).toMatchObject([{ kind: 'note', text: 'Agent "Map" failed' }])
+  })
+
+  it('keeps what a Monitor printed, under the monitor\'s name, and not the instruction the harness adds for the agent', () => {
+    const monitor = (event: string) => `<task-notification>\n<task-id>bq1</task-id>\n<summary>Monitor event: "Wait for backend 8081"</summary>\n<event>${event}</event>\nIf this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.\n</task-notification>`
+    const [one] = parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: monitor('curl: (7) Failed to connect\nretrying') } }))
+    expect(one).toMatchObject({ kind: 'note', event: 'monitor', key: 'bq1', text: 'Wait for backend 8081', detail: 'curl: (7) Failed to connect\nretrying' })
+    expect(JSON.stringify(one)).not.toContain('PushNotification')
+    // A monitor that ends is not news, like any task that completed.
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>bq1</task-id>\n<status>completed</status>\n<summary>Monitor "Wait for backend 8081" stream ended</summary>\n</task-notification>' } }))).toEqual([])
+  })
+
+  it('marks a task that ended badly, an interrupt and a command\'s output, so the chat can draw each as an event', () => {
+    const bad = '<task-notification>\n<task-id>b9</task-id>\n<status>failed</status>\n<summary>Background command "npm run e2e" failed with exit code 1</summary>\n</task-notification>'
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: bad } }))).toMatchObject([{ kind: 'note', event: 'failed', tone: 'bad', text: 'Background command "npm run e2e" failed with exit code 1' }])
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } }))).toMatchObject([{ kind: 'note', event: 'interrupted', text: 'Interrupted' }])
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: '<local-command-stdout>Set model to opus\nmore</local-command-stdout>' } }))).toMatchObject([{ kind: 'note', event: 'command', text: 'Set model to opus', detail: 'more' }])
   })
 
   it('still drops other lines marked as not typed by the user', () => {

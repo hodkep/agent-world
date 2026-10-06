@@ -28,7 +28,7 @@ describe('the notice that a background task ended', () => {
   const notice = (status: string) => `<task-notification>\n<task-id>abc123</task-id>\n<tool-use-id>toolu_1</tool-use-id>\n<output-file>/tmp/x.output</output-file>\n<status>${status}</status>\n<summary>Agent "Map project layout" ${status === 'completed' ? 'finished' : 'failed'}</summary>\n</task-notification>`
 
   it('gives the task, its status and what it says', () => {
-    expect(parseTaskNotification(notice('completed'))).toEqual({ taskId: 'abc123', status: 'completed', summary: 'Agent "Map project layout" finished' })
+    expect(parseTaskNotification(notice('completed'))).toEqual({ taskId: 'abc123', status: 'completed', summary: 'Agent "Map project layout" finished', event: '' })
   })
 
   it('is null for anything else', () => {

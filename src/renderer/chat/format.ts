@@ -1,4 +1,4 @@
-import type { ChatItem, HookInfo, SubagentInfo } from '../../shared/chat'
+import type { ChatItem, HookInfo, NoteEvent, SubagentInfo } from '../../shared/chat'
 import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
 
@@ -14,9 +14,28 @@ export type Row =
   | { kind: 'delegation'; id: string; calls: { toolUseId: string; description: string; subagentType: string }[] }
   /** The report a subagent handed back when it finished. */
   | { kind: 'report'; id: string; agentId: string; body: string }
-  | { kind: 'note'; id: string; text: string; detail?: string; detailLabel?: string; hook?: HookInfo }
+  | NoteRow
+  /** System events that came one after another, drawn as a row of chips. */
+  | { kind: 'events'; id: string; chips: NoteRow[] }
   /** Work this agent handed to another. */
   | { kind: 'handoff-out'; id: string; to: string; status: 'queued' | 'delivered' | 'dropped'; handoff: ParsedHandoff; text: string }
+
+/** A note: a plain line, or (with an event kind) one chip of a system event. */
+export interface NoteRow {
+  kind: 'note'
+  id: string
+  text: string
+  detail?: string
+  detailLabel?: string
+  hook?: HookInfo
+  event?: NoteEvent
+  tone?: 'bad'
+  /** What makes events of one source one chip: a monitor's task id. */
+  key?: string
+  at?: number
+  /** For a monitor: each time it fired and what it printed, oldest first. */
+  lines?: { at: number; text: string }[]
+}
 
 export interface Sent {
   id: string
@@ -101,7 +120,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
       case 'shell-out': {
         const prev = rows.at(-1)
         if (prev?.kind === 'shell' && !prev.out) prev.out = { stdout: i.stdout, stderr: i.stderr }
-        else rows.push({ kind: 'note', id: i.id, text: [i.stdout, i.stderr].filter(Boolean).join('\n') })
+        else rows.push({ kind: 'note', id: i.id, at: i.at, event: 'command', text: [i.stdout, i.stderr].filter(Boolean).join('\n') })
         break
       }
       case 'command': {
@@ -129,10 +148,10 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         }
         if (isBoundary) {
           const written = prev?.kind === 'note' && prev.text === 'Conversation summary' ? (rows.pop() as Extract<Row, { kind: 'note' }>) : undefined
-          rows.push({ kind: 'note', id: i.id, text: i.text, ...(written?.detail && { detail: written.detail }) })
+          rows.push({ kind: 'note', id: i.id, at: i.at, text: i.text, ...(i.event && { event: i.event }), ...(written?.detail && { detail: written.detail }) })
           break
         }
-        rows.push({ kind: 'note', id: i.id, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }), ...(i.hook && { hook: i.hook }) })
+        rows.push({ kind: 'note', id: i.id, at: i.at, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }), ...(i.hook && { hook: i.hook }), ...(i.event && { event: i.event }), ...(i.tone && { tone: i.tone }), ...(i.key && { key: i.key }) })
       }
     }
   }
@@ -158,7 +177,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     }
   })
   const joined = rows.flatMap((r, i): Row[] => (moved.has(i) ? [] : onReply.has(i) ? [{ ...(r as Extract<Row, { kind: 'assistant' }>), hooks: onReply.get(i)! }] : [r]))
-  rows.splice(0, rows.length, ...joined)
+  rows.splice(0, rows.length, ...gather(joined))
   // Messages sent from the composer show at once, until the transcript has them.
   // Claude may record it without the attached-file mentions, as a shell command, or as a slash command.
   const norm = (t: string) => t.replace(/@"[^"]*"/g, '').replace(/\s+/g, ' ').trim()
@@ -175,6 +194,36 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     if (!done) rows.push({ kind: 'user', id: p.id, text: p.text, pending: true, queued: p.queued })
   }
   return rows
+}
+
+/**
+ * System events (a Monitor firing, an interrupt, a failed task, a command's output, a compaction, a hook) become chips: a monitor
+ * that fires again joins its first chip, wherever that is, and events that follow one another share one row of chips.
+ */
+function gather(rows: Row[]): Row[] {
+  const monitors = new Map<string, NoteRow>()
+  const out: Row[] = []
+  for (const r of rows) {
+    if (r.kind !== 'note' || !r.event) {
+      out.push(r)
+      continue
+    }
+    const key = r.event === 'monitor' ? r.key : undefined
+    if (key) {
+      const line = { at: r.at ?? 0, text: r.detail ?? '' }
+      const first = monitors.get(key)
+      if (first) {
+        first.lines!.push(line)
+        continue
+      }
+      r.lines = [line]
+      monitors.set(key, r)
+    }
+    const last = out.at(-1)
+    if (last?.kind === 'events') last.chips.push(r)
+    else out.push({ kind: 'events', id: r.id, chips: [r] })
+  }
+  return out
 }
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -194,6 +243,8 @@ export function rowText(r: Row): string {
       return r.body
     case 'handoff-out':
       return `Hand-off to ${r.to} ${r.text}`
+    case 'events':
+      return r.chips.map((c) => [c.text, c.detail, ...(c.lines?.map((l) => l.text) ?? [])].filter(Boolean).join(' ')).join(' ')
     case 'delegation':
       return `Delegated ${r.calls.map((c) => `${c.subagentType} ${c.description}`).join(' ')}`
     case 'tool': {
@@ -238,6 +289,9 @@ export function toMarkdown(rows: Row[], agentName: string): string {
       }
       case 'note':
         out.push(`_${r.text}_`)
+        break
+      case 'events':
+        for (const c of r.chips) out.push(`_${c.text}${c.lines && c.lines.length > 1 ? ` (${c.lines.length}×)` : ''}_`)
         break
     }
   }

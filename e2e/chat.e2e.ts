@@ -180,7 +180,7 @@ test('after Esc interrupts a turn (Claude sends no Stop hook) the chat stops say
     // The screen goes quiet with the input box showing: the turn is over.
     await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 15_000 })
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('log').locator('.msg.note')).toContainText('Interrupted')
+    await expect(page.getByRole('log').locator('.ev-chip')).toContainText('Interrupted')
 
     // A new message now goes straight in, not into a queue.
     await box.fill('try again')

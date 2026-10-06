@@ -49,7 +49,7 @@ function hookNote(id: string, at: number, a: Obj): ChatItem[] {
   })
   const title = lines[0]!.replace(/\s*\(\d+ issue\(s\)\):?\s*$/, '').trim().replace(/[:.]$/, '')
   const hook = { ...(from && { source: from[1]! }), event, title, ...(count && { issues: Number(count[1]) }), findings }
-  return [{ kind: 'note', id, at, text: `${from ? `${from[1]} · ` : ''}${event} hook: ${gist}`, detail, detailLabel: 'details', hook }]
+  return [{ kind: 'note', id, at, text: `${from ? `${from[1]} · ` : ''}${event} hook: ${gist}`, detail, detailLabel: 'details', hook, event: 'hook', ...((count ? Number(count[1]) : 0) > 0 && { tone: 'bad' as const }) }]
 }
 
 /** One saved transcript line as chat items (none for the many kinds of bookkeeping lines Claude also writes). */
@@ -78,13 +78,13 @@ export function parseTranscriptLine(raw: string): ChatItem[] {
   const queued = obj(o.attachment)
   if (type === 'attachment' && queued.type === 'queued_command') return obj(queued.origin).kind === 'human' ? userText(uuid, at, str(queued.prompt)) : []
 
-  if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: compactNote(str(o.content) || 'Conversation compacted', obj(o.compactMetadata)) }] : []
+  if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: compactNote(str(o.content) || 'Conversation compacted', obj(o.compactMetadata)), event: 'compact' }] : []
 
   // The summary Claude writes after /compact is model context, not something the user said.
   if (type === 'user' && o.isCompactSummary === true) {
     const c = message.content
     const body = (typeof c === 'string' ? c : resultText(c)).trim()
-    return body ? [{ kind: 'note', id: uuid, at, text: 'Conversation summary', detail: body }] : []
+    return body ? [{ kind: 'note', id: uuid, at, text: 'Conversation summary', detail: body, event: 'compact' }] : []
   }
 
   if (type === 'user') {
@@ -135,7 +135,7 @@ const ANSI = /\x1b?\[\d+(;\d+)*m/g
 function userText(id: string, at: number, text: string): ChatItem[] {
   const trimmed = unwrapPasted(text).trim()
   if (!trimmed) return []
-  if (trimmed === '[Request interrupted by user]' || trimmed.startsWith('[Request interrupted by user')) return [{ kind: 'note', id, at, text: 'Interrupted' }]
+  if (trimmed === '[Request interrupted by user]' || trimmed.startsWith('[Request interrupted by user')) return [{ kind: 'note', id, at, text: 'Interrupted', event: 'interrupted' }]
   const name = tag(trimmed, 'command-name')
   if (name) return [{ kind: 'command', id, at, name, args: tag(trimmed, 'command-args') ?? '' }]
   const shell = tag(trimmed, 'bash-input')
@@ -147,11 +147,20 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   if (out !== undefined) {
     const clean = out.replace(ANSI, '').split('\n').filter((l) => !/^(Pre|Post)Compact .*completed successfully/.test(l.trim())).join('\n').trim()
     // The compaction card already says so; "ctrl+o" does nothing here.
-    return clean && !/^Compacted\b/.test(clean) ? [{ kind: 'note', id, at, text: clean }] : []
+    if (!clean || /^Compacted\b/.test(clean)) return []
+    // The first line is what it says; any more is for opening.
+    const [first, ...more] = clean.split('\n')
+    return [{ kind: 'note', id, at, text: first!, event: 'command', ...(more.length > 0 && { detail: more.join('\n').trim() }) }]
   }
   // A background task ending: the report and the card already say so, unless it did not complete.
   const notice = parseTaskNotification(trimmed)
-  if (notice) return notice.status === 'completed' || !notice.summary ? [] : [{ kind: 'note', id, at, text: notice.summary }]
+  if (notice) {
+    if (notice.status === 'completed' || !notice.summary) return []
+    // A Monitor firing says which monitor in its summary and what it printed in its body.
+    const monitor = /^Monitor event:\s*"?(.*?)"?\s*$/.exec(notice.summary)
+    if (monitor) return [{ kind: 'note', id, at, text: monitor[1]!, event: 'monitor', key: notice.taskId || monitor[1]!, ...(notice.event && { detail: notice.event }) }]
+    return [{ kind: 'note', id, at, text: notice.summary, event: 'failed', tone: 'bad' }]
+  }
   // Caveats and reminders Claude inserts around the conversation are not the user's words.
   if (/^<(local-command-caveat|system-reminder|command-message)/.test(trimmed)) return []
   return [{ kind: 'user', id, at, text: trimmed }]

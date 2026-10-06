@@ -18,6 +18,8 @@ export interface TaskNotice {
   taskId: string
   status: string
   summary: string
+  /** What a Monitor printed (the lines between <event> tags); empty for other notices. */
+  event: string
 }
 
 const field = (text: string, name: string) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(text)?.[1]?.trim() ?? ''
@@ -25,5 +27,5 @@ const field = (text: string, name: string) => new RegExp(`<${name}>([\\s\\S]*?)<
 /** The notice that a background task ended (completed, failed, stopped), or null for any other text. */
 export function parseTaskNotification(text: string): TaskNotice | null {
   if (!text.trimStart().startsWith('<task-notification>')) return null
-  return { taskId: field(text, 'task-id'), status: field(text, 'status'), summary: field(text, 'summary') }
+  return { taskId: field(text, 'task-id'), status: field(text, 'status'), summary: field(text, 'summary'), event: field(text, 'event') }
 }

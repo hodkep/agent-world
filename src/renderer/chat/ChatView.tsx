@@ -11,6 +11,7 @@ import { type Row, type Sent, highlight, markdownSpans, rowText, spanLabel, toMa
 import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
+import { EventChips } from './EventChips'
 import { fromView, lastJump, neighbour, place, show } from './userJump'
 import { back, fresh, newer, older, onFirstLine, onLastLine, type Recall } from './historyNav'
 import { pickedMessage, type ViewInfo } from '../panel/picker'
@@ -758,6 +759,8 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
       return <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'handoff-out':
       return <HandoffCard who={r.to} body={r.text} out status={r.status} />
+    case 'events':
+      return <EventChips chips={r.chips} />
     case 'note':
       return r.detail ? <SummaryNote text={r.text} detail={r.detail} label={r.detailLabel} /> : <div className="msg note">{r.text}</div>
   }

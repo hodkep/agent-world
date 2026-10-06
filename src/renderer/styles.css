@@ -1987,3 +1987,30 @@ aside { container: panel / inline-size; }
   .tabs > button { border-width: 1px; }
   .tabs > [role='tab'] { font-size: 11.5px; }
 }
+
+/* System events (a Monitor firing, an interrupt, a failed task, a command's output, a compaction, a hook) as quiet chips under the
+   message they followed: the words wrap in full, colour is for trouble only, and what a chip carries opens beneath it. */
+.msg.events { align-self: stretch; display: flex; flex-direction: column; gap: 4px; margin-top: -4px; }
+.ev-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.ev-chip { display: inline-flex; align-items: flex-start; gap: 6px; max-width: 100%; padding: 2px 8px 2px 4px; font: 12px/1.45 ui-sans-serif, system-ui, sans-serif; text-align: left; color: var(--muted); background: var(--well); border: 1px solid var(--line); box-shadow: none; }
+button.ev-chip { cursor: pointer; }
+button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent); color: var(--text); background: var(--well); }
+.ev-chip.bad { border-color: var(--danger); }
+.ev-g { flex: none; width: 16px; text-align: center; font: 700 10px Menlo, Consolas, monospace; color: var(--muted); line-height: 1.7; }
+.ev-chip.bad .ev-g { color: var(--danger-text); }
+.ev-w { overflow-wrap: anywhere; }
+.ev-sep { color: var(--dim); }
+.ev-last { font-family: Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+.ev-last.ok { color: var(--ok-text); }
+.ev-last.bad { color: var(--danger-text); }
+.ev-n { flex: none; font: 11px Menlo, Consolas, monospace; color: var(--muted); background: var(--ink); padding: 0 6px; }
+.ev-drawer { display: flex; flex-direction: column; gap: 4px; }
+.ev-head { font-size: 11px; color: var(--muted); }
+.ev-lbl { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.ev-drawer.bad .ev-lbl { color: var(--danger-text); }
+.ev-body { font: 12px/1.55 Menlo, Consolas, monospace; color: var(--text); background: var(--well); border: 1px solid var(--line); padding: 8px 10px; max-height: 220px; overflow: auto; }
+.ev-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-line time { color: var(--dim); }
+.ev-line.bad { color: var(--danger-text); }
+.ev-line.ok { color: var(--ok-text); }

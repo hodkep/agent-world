@@ -125,6 +125,21 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
 if (process.env.FAKE_SAY_FILE) say((await import('node:fs')).readFileSync(process.env.FAKE_SAY_FILE, 'utf8'))
 // FAKE_USER_FILE=<path>: the file's text is already in the conversation as something the user said.
 if (process.env.FAKE_USER_FILE) transcript({ type: 'user', message: { role: 'user', content: (await import('node:fs')).readFileSync(process.env.FAKE_USER_FILE, 'utf8') } })
+// FAKE_EVENTS=1: the system events Claude saves in a conversation: a Monitor firing three times (with the agent speaking in
+// between), a background command that failed, an interrupt and a slash command's output.
+if (process.env.FAKE_EVENTS) {
+  const notice = (body) => transcript({ type: 'user', message: { role: 'user', content: `<task-notification>\n${body}\n</task-notification>` } })
+  const monitor = (event) => notice(`<task-id>bm1</task-id>\n<summary>Monitor event: "Wait for backend 8081"</summary>\n<event>${event}</event>\nIf this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.`)
+  say('The backend is still starting up, so I am waiting on it.')
+  monitor('curl: (7) Failed to connect to localhost port 8081')
+  say('Still waiting.')
+  monitor('waiting… (3 tries)')
+  monitor('HTTP/1.1 200 OK — backend up on :8081')
+  notice('<task-id>bf1</task-id>\n<status>failed</status>\n<summary>Background command "npm run e2e" failed with exit code 1</summary>')
+  transcript({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+  transcript({ type: 'user', message: { role: 'user', content: '<local-command-stdout>Set model to claude-sonnet-5-5</local-command-stdout>' } })
+  say('Back to it.')
+}
 // FAKE_HOOK_NOTE=1: what hooks told the agent, as Claude saves it: a session-start brief, then a Stop hook's findings.
 if (process.env.FAKE_HOOK_NOTE) {
   const hook = (hookName, content) => transcript({ type: 'attachment', attachment: { type: 'hook_additional_context', hookName, hookEvent: hookName.split(':')[0], content: [content] } })
