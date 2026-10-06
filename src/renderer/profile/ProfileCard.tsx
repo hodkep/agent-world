@@ -17,6 +17,7 @@ export interface CardEdit {
   onEffort: (effort: Effort) => void
   onMode: (mode: string) => void
   onCompact: () => void
+  onAccount: (account: string) => void
 }
 
 /** Reduced motion, as the person set it for their system. */
@@ -180,7 +181,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
   useEffect(() => {
     setPending(null)
     sawBusy.current = false
-  }, [data.id, data.model, data.effort, data.modeId])
+  }, [data.id, data.model, data.effort, data.modeId, data.accountId])
   useEffect(() => {
     if (!pending) return
     if (!data.canSwitch) sawBusy.current = true
@@ -289,6 +290,22 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
           title="Change the model: the agent restarts on the same conversation"
           wait={wait}
         />
+        {data.accounts.length > 1 && (
+          <>
+            <span className="pc-k">Account</span>
+            <Pick
+              value={data.accounts.find((x) => x.id === data.accountId)?.name ?? 'Removed account'}
+              label="Account"
+              swatch={data.accounts.find((x) => x.id === data.accountId)?.color}
+              options={data.accounts.map((x) => ({ id: x.id, label: x.name }))}
+              current={data.accountId}
+              onPick={(id) => change('Switching account: the agent restarts on the same conversation, no sign-in needed, a few seconds…', () => edit?.onAccount(id))}
+              disabled={off}
+              title="Run this agent on another Claude account: it restarts on the same conversation"
+              wait={wait}
+            />
+          </>
+        )}
         {data.efforts.length > 0 && (
           <>
         <span className="pc-k">Thinking</span>

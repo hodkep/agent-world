@@ -11,7 +11,7 @@ import { dropPromptSnapshots } from './promptSnapshot'
 import { listSessions, projectSlug } from './history'
 import { listSubagents } from './subagents'
 
-const projectsDir = () => process.env.AW_CLAUDE_PROJECTS ?? join(homedir(), '.claude', 'projects')
+const projectsDir = (a?: AgentRecord) => process.env.AW_CLAUDE_PROJECTS ?? join(a?.configDir ?? join(homedir(), '.claude'), 'projects')
 
 // Claude names the project folder after the real path of its working directory (symlinks resolved).
 function file(a: AgentRecord) {
@@ -21,7 +21,7 @@ function file(a: AgentRecord) {
   } catch {
     /* the folder is gone; the transcript will not appear */
   }
-  return transcriptPath(projectsDir(), real, a.sessionId)
+  return transcriptPath(projectsDir(a), real, a.sessionId)
 }
 
 // Counting a long conversation twice for the same file size is wasted work.

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, account: '' }, accounts: [] }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -24,8 +24,10 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
       provider: isProviderId(d.provider) ? d.provider : base.defaults.provider,
       model: str(d.model, 60) ?? base.defaults.model,
       permissionMode: str(d.permissionMode, 30) ?? base.defaults.permissionMode,
-      inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace
-    }
+      inPlace: typeof d.inPlace === 'boolean' ? d.inPlace : base.defaults.inPlace,
+      account: str(d.account, 40) ?? base.defaults.account
+    },
+    accounts: cleanAccounts(r.accounts, base.accounts)
   }
 }
 
@@ -46,6 +48,18 @@ function cleanProviders(r: Record<string, unknown>, base: Prefs['providers']): P
     const path = str(o && typeof o === 'object' ? (o as Record<string, unknown>).path : undefined, 500) ?? (id === DEFAULT_PROVIDER ? str(r.claudePath, 500) : undefined)
     const clean = path?.trim() ?? base[id]?.path
     if (clean) out[id] = { path: clean }
+  }
+  return out
+}
+
+/** Ids become folder names, so only plain ones survive; a repeated id keeps its first. */
+function cleanAccounts(raw: unknown, base: Prefs['accounts']): Prefs['accounts'] {
+  if (!Array.isArray(raw)) return base
+  const out: Prefs['accounts'] = []
+  for (const o of raw) {
+    const id = str(o?.id, 40)
+    const name = str(o?.name, 40)?.trim()
+    if (id && name && /^[a-z0-9][a-z0-9-]*$/.test(id) && !out.some((x) => x.id === id)) out.push({ id, name })
   }
   return out
 }

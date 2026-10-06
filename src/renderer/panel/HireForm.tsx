@@ -5,6 +5,7 @@ import { effortsFor } from '../../shared/efforts'
 import { parsePick } from '../../shared/modelPick'
 import { cssColor } from '../../shared/brand'
 import { PixelSprite } from './PixelSprite'
+import { accountColor, accountName } from '../accounts'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -29,6 +30,7 @@ export function HireForm({
   roles,
   defaults,
   roleModels,
+  accounts,
   onHire,
   onCancel,
   onSaveRole
@@ -41,6 +43,8 @@ export function HireForm({
   defaults: Prefs['defaults']
   /** From Settings: the model a job uses when its role does not name one. */
   roleModels: Prefs['roleModels']
+  /** The extra Claude accounts from Settings; the choice shows only when there is one. */
+  accounts: Prefs['accounts']
   onHire: (options: AgentOptions, name: string) => Promise<void>
   onCancel: () => void
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
@@ -60,6 +64,7 @@ export function HireForm({
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
   const [inPlace, setInPlace] = useState(defaults.inPlace)
+  const [account, setAccount] = useState(accounts.some((a) => a.id === defaults.account) ? defaults.account : '')
   const [busy, setBusy] = useState(false)
 
   // Picking a role fills in the launch settings for that job; everything stays editable.
@@ -92,6 +97,7 @@ export function HireForm({
       ...(instructions.trim() && { instructions: instructions.trim() }),
       ...(chrome && chosen?.capabilities.chrome !== false && { chrome }),
       ...(inPlace && { inPlace }),
+      ...(accounts.length > 0 && chosen?.id === 'claude' && { account }),
       ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
     }
   }
@@ -137,6 +143,19 @@ export function HireForm({
                 <input type="radio" name="provider" value={p.id} checked={chosen?.id === p.id} onChange={() => (setProvider(p.id), setModel(''), setMode(''))} />
                 <b><i className="dot" />{p.label}</b>
                 <span className="hint">{p.detection.version ? `ready · ${p.detection.version}` : 'ready'}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {accounts.length > 0 && chosen?.id === 'claude' && (
+        <fieldset className="hire-pick">
+          <legend>Account <em>which login it runs on</em></legend>
+          <div className="hire-opts">
+            {['', ...accounts.map((a) => a.id)].map((id) => (
+              <label key={id} className="hire-opt" data-on={account === id} style={{ ['--c' as string]: accountColor(accounts, id) }}>
+                <input type="radio" name="account" value={id} checked={account === id} onChange={() => setAccount(id)} />
+                <b><i className="dot" />{accountName(accounts, id)}</b>
               </label>
             ))}
           </div>

@@ -75,6 +75,8 @@ export interface AgentOptions {
   role?: string
   /** Work in the folder itself instead of a worktree on its own branch. */
   inPlace?: boolean
+  /** Which signed-in Claude account runs it (an id from Prefs.accounts); empty or unset is this computer's own login. */
+  account?: string
 }
 
 /** The agent programs the office can run. */
@@ -181,6 +183,9 @@ export interface AgentRecord {
   online?: boolean
   activity?: Activity
   options?: AgentOptions
+  /** The Claude account it runs on (an id from Prefs.accounts), and that account's config folder; unset means this computer's own login. */
+  account?: string
+  configDir?: string
 }
 
 /** What the profile card shows beyond the live numbers: counted or looked up on demand. */
@@ -261,5 +266,23 @@ export interface Prefs {
   /** Which model a job (a role's title) uses when the role does not set one. */
   roleModels: Record<string, string>
   /** What the hire form starts with. */
-  defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean }
+  defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean; /** The account new agents use; empty means this computer's own login. */ account: string }
+  /** Extra Claude accounts, each signed in once in a config folder of its own. This computer's own login is always there and is not listed. */
+  accounts: Account[]
+}
+
+/** A Claude login kept apart from the others: its folder holds its sign-in, settings and conversations. */
+export interface Account {
+  id: string
+  name: string
+}
+
+/** What the Accounts screen shows for one account; `id` is '' for this computer's own login. */
+export interface AccountInfo extends Account {
+  /** Where its config folder is, as shown to the user. */
+  dir: string
+  loggedIn: boolean
+  email: string
+  /** How many agents run on it. */
+  agents: number
 }

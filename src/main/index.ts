@@ -3,11 +3,12 @@ import { forget, loadMemory, recall, remember } from './memory'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
+import { accountDir, accountId, configDirFor, parseAuthStatus, prepareAccount, shareSession, slugOf } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, extname, isAbsolute, join } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
@@ -15,7 +16,7 @@ import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
@@ -550,6 +551,13 @@ function finishRewind(id: string) {
   }
 }
 
+/** Puts an agent on a Claude account (an id from Settings), or on this computer's own login when the id is empty or unknown. */
+function useAccount(a: AgentRecord, id: string) {
+  const dir = configDirFor(HOME, prefs.accounts, id)
+  if (dir) Object.assign(a, { account: id, configDir: dir })
+  else delete a.account, delete a.configDir
+}
+
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   followChat(a)
@@ -560,7 +568,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env } })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...(a.configDir && { CLAUDE_CONFIG_DIR: a.configDir }) } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -1032,7 +1040,8 @@ async function main() {
     const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
-    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], options) }
+    const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
+    useAccount(a, provider === 'claude' ? (options.account ?? prefs.defaults.account) : '')
     agents.push(a)
     persist()
     spawn(a, env)
@@ -1136,13 +1145,48 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
+  // Who is signed in on each account, asked of Claude itself (`claude auth status` reads the folder's sign-in and changes nothing).
+  const whoIs = (dir?: string) =>
+    new Promise<{ loggedIn: boolean; email: string }>((resolve) => {
+      const c = providerCmd(providerOf({}), ['auth', 'status'])
+      execFile(c.file, c.args, { env: { ...env, ...(dir && { CLAUDE_CONFIG_DIR: dir }) }, timeout: 15_000 }, (_err, stdout) => resolve(parseAuthStatus(stdout)))
+    })
+  ipcMain.handle('accounts:list', async (): Promise<AccountInfo[]> => {
+    const all = [{ id: '', name: 'This computer' }, ...prefs.accounts]
+    return Promise.all(
+      all.map(async (x) => {
+        const dir = configDirFor(HOME, prefs.accounts, x.id)
+        return { ...x, dir: (dir ?? join(homedir(), '.claude')).replace(homedir(), '~'), ...(await whoIs(dir)), agents: agents.filter((a) => (a.account ?? '') === x.id).length }
+      })
+    )
+  })
+  // Adding makes the folder and links your own instructions and skills into it; the sign-in comes next, in a terminal the user sees.
+  ipcMain.handle('accounts:add', async (_, name: string) => {
+    const label = String(name ?? '').trim().slice(0, 40)
+    if (!label) throw new Error('Give the account a name.')
+    if (prefs.accounts.some((x) => x.name.toLowerCase() === label.toLowerCase())) throw new Error('An account with that name exists.')
+    const id = accountId(label, prefs.accounts.map((x) => x.id))
+    await prepareAccount(accountDir(HOME, id), join(homedir(), '.claude'))
+    prefs = cleanPrefs({ ...prefs, accounts: [...prefs.accounts, { id, name: label }] }, prefs)
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    return id
+  })
+  // Removing forgets the account in the app only: its folder, and the sign-in in it, stay on disk.
+  ipcMain.handle('accounts:remove', (_, id: string) => {
+    const busy = agents.filter((a) => a.account === id)
+    if (busy.length) throw new Error(`${busy.map((a) => a.name).join(', ')} still ${busy.length === 1 ? 'runs' : 'run'} on it. Move ${busy.length === 1 ? 'it' : 'them'} to another account first.`)
+    prefs = cleanPrefs({ ...prefs, accounts: prefs.accounts.filter((x) => x.id !== id), defaults: { ...prefs.defaults, account: prefs.defaults.account === id ? '' : prefs.defaults.account } }, { ...prefs, accounts: [] })
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    return prefs
+  })
   // Signing in is the provider's own business: a shell is opened where the user can see it, and its program started. The app never sees credentials.
-  ipcMain.handle('provider:sign-in', (_, id: string) => {
+  ipcMain.handle('provider:sign-in', async (_, id: string, account?: string) => {
     const p = providers().find((x) => x.id === id)
     if (!p) throw new Error('Unknown provider.')
     const shell = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
     const sid = `term:${randomUUID()}`
-    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: env as Record<string, string> })
+    const dir = configDirFor(HOME, prefs.accounts, account)
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: { ...env, ...(dir && { CLAUDE_CONFIG_DIR: dir }) } as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
@@ -1152,7 +1196,7 @@ async function main() {
     })
     pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
     // The shell draws its prompt first; the program is typed after it, quoted so a path with spaces still runs.
-    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"\r`), 900)
+    setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"${dir ? ' auth login' : ''}\r`), 900)
     return sid
   })
   ipcMain.handle('list-providers', () =>
@@ -1187,7 +1231,7 @@ async function main() {
     const wt = src.branch ? await createWorktree({ repoPath: src.repoPath, name, rootDir: join(HOME, 'worktrees'), from: src.branch }) : null
     const a: AgentRecord = {
       id: randomUUID(), name, sessionId: randomUUID(), forkOf: src.sessionId, cloneOf: src.id, repoPath: src.repoPath,
-      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, provider: src.provider, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
+      cwd: wt?.path ?? src.cwd, branch: wt?.branch ?? null, base: wt ? (src.base ?? wt.base) : null, provider: src.provider, account: src.account, configDir: src.configDir, started: false, hiredAt: Date.now(), options: model ? { ...src.options, model } : src.options
     }
     agents.push(a)
     persist()
@@ -1313,6 +1357,35 @@ async function main() {
     mailbox.restarting(id)
     p.kill()
     return a.options
+  })
+  // Move an agent to another signed-in account. Its conversation file is shared into that account's folder and the
+  // same session resumes there, so nothing is lost and no sign-in is asked: each account signed in once, when it was added.
+  ipcMain.handle('agent-set-account', (_, id: string, account: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    if (a.provider && a.provider !== 'claude') throw new Error('Only Claude agents use these accounts.')
+    if (account && !prefs.accounts.some((x) => x.id === account)) throw new Error('That account was removed.')
+    if ((a.account ?? '') === account) return
+    const p = sessions.get(id)
+    if (p && !['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
+    const from = join(a.configDir ?? join(homedir(), '.claude'), 'projects')
+    useAccount(a, account)
+    const to = join(a.configDir ?? join(homedir(), '.claude'), 'projects')
+    if (a.started) {
+      let real = a.cwd
+      try {
+        real = realpathSync(a.cwd)
+      } catch {
+        /* the folder is gone; there is nothing to share */
+      }
+      shareSession(from, to, slugOf(real), a.sessionId)
+    }
+    persist()
+    if (p) {
+      restarting.add(id)
+      mailbox.restarting(id)
+      p.kill()
+    }
   })
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
   // which keeps the conversation (it resumes the same session).

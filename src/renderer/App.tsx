@@ -48,6 +48,7 @@ import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout } from './profile/layout'
 import { type CardEdit, ProfileCard } from './profile/ProfileCard'
+import { accountColor, accountName } from './accounts'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
 
 const store = (key: string) => {
@@ -521,7 +522,9 @@ export function App() {
         models: (curProv?.models ?? MODELS).filter((m) => m.value),
         efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
-        canCompact: curProv?.capabilities.compact ?? true
+        canCompact: curProv?.capabilities.compact ?? true,
+        accounts: (current.provider ?? DEFAULT_PROVIDER) === 'claude' && prefs?.accounts.length ? ['', ...prefs.accounts.map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id), color: accountColor(prefs.accounts, id) })) : [],
+        accountId: current.account ?? ''
       }
     : null
   const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX, prefer: cardSize ?? undefined }) : null
@@ -545,7 +548,12 @@ export function App() {
             setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, options: { ...a.options, effort } } : a)))
           }),
         onMode: (mode) => void run(() => window.aw.setMode(current.id, mode)),
-        onCompact: () => void run(() => window.aw.chatSend(current.id, '/compact'))
+        onCompact: () => void run(() => window.aw.chatSend(current.id, '/compact')),
+        onAccount: (account) =>
+          void run(async () => {
+            await window.aw.setAccount(current.id, account)
+            setAgents((xs) => xs.map((a) => (a.id === current.id ? { ...a, account: account || undefined } : a)))
+          })
       }
     : null
   // Clicking the agent's name brings up its card (opening the dock when the card has no room over the office).
@@ -748,6 +756,9 @@ export function App() {
                     <span className="name">
                       {a.name}
                       {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.label ?? BRAND[DEFAULT_PROVIDER].short} />}
+                      {!!prefs?.accounts.length && (a.provider ?? DEFAULT_PROVIDER) === 'claude' && (
+                        <i className="acct-dot" style={{ background: accountColor(prefs.accounts, a.account) }} title={`Runs on ${accountName(prefs.accounts, a.account)}`} />
+                      )}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
                           {a.repoPath.split(/[\\/]/).pop()}
@@ -1138,7 +1149,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false }} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, account: '' }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (

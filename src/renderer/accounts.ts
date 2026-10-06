@@ -1,0 +1,8 @@
+import type { Prefs } from '../shared/types'
+
+/** Colours that tell accounts apart at a glance, from the office palette: cyan, brass, raspberry sofa, leaf. */
+const COLORS = ['#6ad0e0', '#f2c230', '#b03f5e', '#3f8f4f']
+
+/** The first entry is always this computer's own login (id ''), so each account keeps its colour as others come and go. */
+export const accountColor = (accounts: Prefs['accounts'], id: string | undefined) => COLORS[(id ? accounts.findIndex((a) => a.id === id) + 1 : 0) % COLORS.length]!
+export const accountName = (accounts: Prefs['accounts'], id: string | undefined) => (id ? (accounts.find((a) => a.id === id)?.name ?? 'Removed account') : 'This computer')

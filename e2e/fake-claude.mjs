@@ -28,6 +28,21 @@ if (args[0] === '-p') {
   console.log(process.env.FAKE_USAGE ?? '')
   process.exit(0)
 }
+// `claude auth status|login`: who is signed in is a file in the config folder, so each account keeps its own sign-in.
+if (args[0] === 'auth') {
+  const { existsSync, readFileSync: read, writeFileSync, mkdirSync } = await import('node:fs')
+  const { join, basename } = await import('node:path')
+  const dir = process.env.CLAUDE_CONFIG_DIR ?? join(process.env.HOME ?? '', '.claude')
+  const file = join(dir, '.fake-login')
+  if (args[1] === 'login') {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(file, `${basename(dir)}@example.com`)
+    console.log(`Logged in as ${basename(dir)}@example.com`)
+  } else console.log(JSON.stringify(existsSync(file) ? { loggedIn: true, email: read(file, 'utf8') } : { loggedIn: false }))
+  process.exit(0)
+}
+// FAKE_ENV=<file>: log the config folder each launch was given.
+if (process.env.FAKE_ENV) (await import('node:fs')).appendFileSync(process.env.FAKE_ENV, `${process.env.CLAUDE_CONFIG_DIR ?? '-'}\n`)
 // FAKE_ARGS=<file>: log every launch's arguments, so a test can check what the app started it with.
 if (process.env.FAKE_ARGS) (await import('node:fs')).appendFileSync(process.env.FAKE_ARGS, JSON.stringify(args) + '\n')
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
