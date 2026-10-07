@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the agy CLI: draws the screens a real agy 1.2.17 draws (idle, working, asking permission), and keeps
 // its conversation the way agy does (a SQLite file of protobuf steps, plus a line per prompt in history.jsonl).
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -21,8 +21,18 @@ if (args[0] === '-p' && args[1] === '/usage') {
 }
 
 // agy keeps its MCP servers in one global list that its own `mcp add` and `mcp remove` edit.
+// Plugins are folders in one global place; `plugin install <dir>` copies the idea (a folder named by its plugin.json) and `uninstall` removes it.
 if (args[0] === 'plugin') {
-  console.log('No imported plugins.')
+  const dir = process.env.AW_AGY_PLUGINS
+  if (args[1] === 'install' && dir) {
+    const name = JSON.parse(readFileSync(join(args[2], 'plugin.json'), 'utf8')).name
+    mkdirSync(join(dir, name), { recursive: true })
+    for (const f of ['plugin.json', 'hooks.json', 'hook.sh']) writeFileSync(join(dir, name, f), readFileSync(join(args[2], f)))
+    console.log(`[ok]    ${name}`)
+  } else if (args[1] === 'uninstall' && dir) {
+    if (!existsSync(join(dir, args[2]))) { console.error(`Error: plugin ${args[2]} is not installed`); process.exit(1) }
+    rmSync(join(dir, args[2]), { recursive: true, force: true })
+  } else console.log('No imported plugins.')
   process.exit(0)
 }
 if (args[0] === 'mcp') {

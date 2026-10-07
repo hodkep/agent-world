@@ -3,6 +3,7 @@ import type { Provider } from '../ports'
 import { agyCommands } from './commands'
 import { agyEvents } from './events'
 import { agyKeys } from './keys'
+import { agyLibraryHook } from './libraryHook'
 import { agyMail } from './mail'
 import { agyArgs, agyContextWindow, agyModels, agyModes, parseUsage } from './launch'
 import { agyScreen } from './screen'
@@ -37,6 +38,7 @@ export const agy: Provider = {
   // agy starts the office bridge itself (see mail.ts); the bridge learns who it speaks for from the environment of this terminal.
   prepare: (i) => ({ env: { AW_MCP_URL: i.mcpUrl, AW_AGENT_TOKEN: i.agentToken } }),
   mail: agyMail,
+  libraryHook: agyLibraryHook,
   tools: agyTools,
   commands: agyCommands,
   args: agyArgs,

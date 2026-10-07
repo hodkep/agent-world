@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFile } from 'node:child_process'
 import type { MailSetup } from '../ports'
 import { BRIDGE_SOURCE } from './bridge'
+import { PLUGIN_NAME, writeAgyPlugin } from './plugin'
 
 /** agy has one list of servers for every Agent World on this machine, so each build's data folder names its own entry: ~/.agent-world is `agent-world`, ~/.agent-world-2 is `agent-world-2`. */
 export const entryFor = (home: string) => {
@@ -16,6 +17,8 @@ interface Deps {
   home: string | (() => string)
   /** agy's list of MCP servers. */
   config: string
+  /** The folder agy keeps its installed plugins in. */
+  plugins: string
   /** What runs the bridge: the app's own program, started as plain Node. */
   node: string
   run: (bin: string, args: string[]) => Promise<unknown>
@@ -25,6 +28,7 @@ interface Deps {
 export function createAgyMail(d: Deps): Required<MailSetup> {
   const home = () => (typeof d.home === 'function' ? d.home() : d.home)
   const bridgeOf = () => join(home(), 'bin', 'aw-mcp-bridge.cjs')
+  const pluginSrc = () => join(home(), 'agy-plugin')
   const add = () => ['mcp', 'add', '--env', 'ELECTRON_RUN_AS_NODE=1', entryFor(home()), '--', d.node, bridgeOf()]
   const stale = () => {
     try {
@@ -48,23 +52,28 @@ export function createAgyMail(d: Deps): Required<MailSetup> {
       const ENTRY = entryFor(home())
       try {
         const e = (JSON.parse(readFileSync(d.config, 'utf8')) as { mcpServers?: Record<string, { args?: string[]; disabled?: boolean }> }).mcpServers?.[ENTRY]
-        return e && !e.disabled && e.args?.includes(bridge) ? 'connected' : 'missing'
+        return e && !e.disabled && e.args?.includes(bridge) && existsSync(join(d.plugins, PLUGIN_NAME)) ? 'connected' : 'missing'
       } catch {
         return 'missing'
       }
     },
     plan: () => ({
-      files: [bridgeOf()],
-      commands: [`agy ${add().join(' ')}`],
-      note: `Adds one entry named ${entryFor(home())} to agy\'s own list of MCP servers (agy writes it, and may tidy that file as it does). Each agent reaches the office with a token of its own. Nothing else of agy is touched, and it can be removed again from here.`
+      files: [bridgeOf(), join(pluginSrc(), 'hooks.json'), join(pluginSrc(), 'hook.sh')],
+      commands: [`agy ${add().join(' ')}`, `agy plugin install ${pluginSrc()}`],
+      note: `Adds one entry named ${entryFor(home())} to agy\'s own list of MCP servers (agy writes it, and may tidy that file as it does), and installs one small plugin, ${PLUGIN_NAME}, whose two hooks let the office point an agent at the library and count what it uses. The hooks do nothing for an agy that the office did not start. Each agent reaches the office with a token of its own. Nothing else of agy is touched, and both can be removed again from here.`
     }),
     async connect(bin) {
       mkdirSync(dirname(bridgeOf()), { recursive: true })
       writeFileSync(bridgeOf(), BRIDGE_SOURCE, { mode: 0o700 })
       await d.run(bin, add())
+      writeAgyPlugin(pluginSrc())
+      // Installing over an installed copy would fail, and the hook script may have changed since.
+      await d.run(bin, ['plugin', 'uninstall', PLUGIN_NAME]).catch(() => undefined)
+      await d.run(bin, ['plugin', 'install', pluginSrc()])
     },
     async disconnect(bin) {
       await d.run(bin, ['mcp', 'remove', entryFor(home())])
+      await d.run(bin, ['plugin', 'uninstall', PLUGIN_NAME]).catch(() => undefined)
     }
   }
 }
@@ -75,6 +84,7 @@ export const agyMail = createAgyMail({
   // The app publishes its data folder (AW_APP_HOME) once it has settled it, so a second build never writes into the first one's.
   home: () => process.env.AW_APP_HOME ?? process.env.AW_HOME ?? join(homedir(), '.agent-world'),
   config: process.env.AW_AGY_CONFIG ?? join(homedir(), '.gemini', 'config', 'mcp_config.json'),
+  plugins: process.env.AW_AGY_PLUGINS ?? join(homedir(), '.gemini', 'config', 'plugins'),
   node: process.execPath,
   run
 })

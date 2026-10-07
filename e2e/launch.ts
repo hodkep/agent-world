@@ -1,6 +1,6 @@
 import { type Page, _electron as electron } from '@playwright/test'
 import { rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 
 // Tests run with no visible window, dock icon or notifications (AW_HIDDEN), so they never steal focus from what you are doing.
 // Set AW_SHOW=1 to watch one: AW_SHOW=1 npx playwright test e2e/chat.e2e.ts
@@ -9,7 +9,7 @@ const hidden: Record<string, string> = process.env.AW_SHOW ? {} : { AW_HIDDEN: '
 // Every launch gets a guaranteed teardown: a main-process error dialog blocks a normal close,
 // so we kill the process ourselves and always remove the test's temp dir.
 export async function launchApp(env: Record<string, string>, tmp: string) {
-  const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...(process.env as Record<string, string>), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', ...hidden, ...env } })
+  const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...(process.env as Record<string, string>), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...hidden, ...env } })
   // The agent list starts folded away for real users; tests that are not about that keep it open, as most of them click rows in it.
   if (!env.AW_DEFAULT_LAYOUT) await app.context().addInitScript(() => localStorage.getItem('aw.compact') === null && localStorage.setItem('aw.compact', '0'))
   const proc = app.process()

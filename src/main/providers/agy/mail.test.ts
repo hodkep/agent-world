@@ -13,7 +13,7 @@ beforeEach(() => {
 })
 afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
-const make = (calls: string[][] = []) => createAgyMail({ home: dir, config, node: '/app/electron', run: async (_bin, args) => void calls.push(args) })
+const make = (calls: string[][] = []) => createAgyMail({ home: dir, config, plugins: join(dir, 'plugins'), node: '/app/electron', run: async (_bin, args) => void calls.push(args) })
 
 describe('connecting agy to the office message box', () => {
   it('is missing until agy has an agent-world entry that starts our bridge', () => {
@@ -21,6 +21,9 @@ describe('connecting agy to the office message box', () => {
     writeFileSync(config, JSON.stringify({ mcpServers: { other: { command: 'x', args: [] } } }))
     expect(make().status()).toBe('missing')
     writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: '/app/electron', args: [join(dir, 'bin', 'aw-mcp-bridge.cjs')] } } }))
+    // the entry alone is not enough: the library plugin has to be installed too
+    expect(make().status()).toBe('missing')
+    mkdirSync(join(dir, 'plugins', 'aw-library'), { recursive: true })
     expect(make().status()).toBe('connected')
   })
   it('is missing, not connected, when the entry is switched off or points at something else', () => {
@@ -31,21 +34,32 @@ describe('connecting agy to the office message box', () => {
   })
   it('says exactly what it will change before anything is changed', () => {
     const plan = make().plan()
-    expect(plan.files).toEqual([join(dir, 'bin', 'aw-mcp-bridge.cjs')])
-    expect(plan.commands).toEqual([`agy mcp add --env ELECTRON_RUN_AS_NODE=1 agent-world -- /app/electron ${join(dir, 'bin', 'aw-mcp-bridge.cjs')}`])
+    expect(plan.files).toEqual([join(dir, 'bin', 'aw-mcp-bridge.cjs'), join(dir, 'agy-plugin', 'hooks.json'), join(dir, 'agy-plugin', 'hook.sh')])
+    expect(plan.commands).toEqual([`agy mcp add --env ELECTRON_RUN_AS_NODE=1 agent-world -- /app/electron ${join(dir, 'bin', 'aw-mcp-bridge.cjs')}`, `agy plugin install ${join(dir, 'agy-plugin')}`])
+    expect(plan.note).toContain('aw-library')
     expect(existsSync(join(dir, 'bin'))).toBe(false)
+    expect(existsSync(join(dir, 'agy-plugin'))).toBe(false)
   })
   it('writes the bridge into its own folder and has agy add the one entry, through agy\'s own command', async () => {
     const calls: string[][] = []
     await make(calls).connect('agy')
     expect(readFileSync(join(dir, 'bin', 'aw-mcp-bridge.cjs'), 'utf8')).toBe(BRIDGE_SOURCE)
-    expect(calls).toEqual([['mcp', 'add', '--env', 'ELECTRON_RUN_AS_NODE=1', 'agent-world', '--', '/app/electron', join(dir, 'bin', 'aw-mcp-bridge.cjs')]])
+    expect(calls).toEqual([
+      ['mcp', 'add', '--env', 'ELECTRON_RUN_AS_NODE=1', 'agent-world', '--', '/app/electron', join(dir, 'bin', 'aw-mcp-bridge.cjs')],
+      ['plugin', 'uninstall', 'aw-library'],
+      ['plugin', 'install', join(dir, 'agy-plugin')]
+    ])
+    // the plugin it installs from: a manifest, the hooks, and the script they run
+    expect(JSON.parse(readFileSync(join(dir, 'agy-plugin', 'plugin.json'), 'utf8')).name).toBe('aw-library')
+    const hooks = JSON.parse(readFileSync(join(dir, 'agy-plugin', 'hooks.json'), 'utf8'))['aw-library']
+    expect(Object.keys(hooks).sort()).toEqual(['PostToolUse', 'PreInvocation'])
+    expect(readFileSync(join(dir, 'agy-plugin', 'hook.sh'), 'utf8')).toContain('/hook/$1')
   })
   it('takes the entry out again through agy, leaving the bridge file for a later reconnect', async () => {
     const calls: string[][] = []
     mkdirSync(join(dir, 'bin'))
     await make(calls).disconnect('agy')
-    expect(calls).toEqual([['mcp', 'remove', 'agent-world']])
+    expect(calls).toEqual([['mcp', 'remove', 'agent-world'], ['plugin', 'uninstall', 'aw-library']])
   })
 })
 
