@@ -2122,3 +2122,24 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .lib-step .mk.point { color: var(--think); }
 .lib-step .mk.mute { color: var(--muted); }
 @media (max-width: 700px) { .al-cols { grid-template-columns: 1fr; } }
+
+/* Reached for: each item agents were pointed at, two bars and a verdict in words, worst first. */
+.reach { display: flex; flex-direction: column; gap: 12px; }
+.reach-sum { margin: 0; font-size: 14px; line-height: 1.5; }
+.reach-rows { display: flex; flex-direction: column; border: 2px solid var(--ink); background: var(--panel); }
+.reach-item { border-bottom: 1px solid var(--line); }
+.reach-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1.4fr); gap: 12px; align-items: center; width: 100%; padding: 8px 12px; text-align: left; background: none; border: 0; box-shadow: none; }
+.reach-row:hover:not(:disabled) { background: var(--panel-hover); }
+.reach-n { font-weight: 600; overflow-wrap: anywhere; }
+.reach-bars { display: flex; flex-direction: column; gap: 4px; }
+.reach-bar { display: grid; grid-template-columns: 44px minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
+.reach-bar small { color: var(--muted); font-size: 11px; }
+.reach-bar .tr { height: 8px; background: var(--track); box-shadow: 0 0 0 1px var(--ink); display: block; }
+.reach-bar i { display: block; height: 100%; background: var(--ok); }
+.reach-bar i.think { background: var(--think); }
+.reach-bar i.bad { background: var(--danger); }
+.reach-bar i.mid { background: var(--accent); }
+.reach-bar i.few { background: var(--dim); }
+.reach-v { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.reach-fix { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px 10px; }
+@media (max-width: 700px) { .reach-row { grid-template-columns: 1fr; } }

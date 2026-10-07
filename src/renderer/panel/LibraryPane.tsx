@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode, RuleStrength } from '../../shared/library'
 import type { ProviderId, ProviderInfo } from '../../shared/types'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
+import { LibraryReach, type Fix } from './LibraryReach'
 import { highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
 
 const KINDS: { value: LibraryKind | 'all'; label: string }[] = [
@@ -79,6 +80,26 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
     }
   }
   const change = (n: number, patch: Partial<PlaybookRule>) => void saveRules(rules.map((r, i) => (i === n ? { ...r, ...patch } : r)))
+
+  // A fix from the stats edits the rule where it lives: this workspace's playbook when it has the item, else the global one.
+  const fixRule = async (id: string, fix: Fix) => {
+    const where: 'workspace' | 'global' = folder && books.workspace.some((r) => r.id === id) ? 'workspace' : 'global'
+    const list = books[where]
+    if (!list.some((r) => r.id === id)) return
+    if (fix === 'when') {
+      setScope(where)
+      requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`[aria-label="When to use ${id}"]`)?.focus())
+      return
+    }
+    const next = list.map((r) => (r.id === id ? (fix === 'firm' ? { ...r, strength: 'hard' as const } : { ...r, mode: 'step' as const }) : r))
+    setBooks((b) => ({ ...b, [where]: next }))
+    try {
+      await window.aw.library.setPlaybook(where === 'global' ? null : folder, next)
+    } catch (e) {
+      setError(clean(e))
+    }
+  }
+  const whenOf = useCallback((id: string) => [...books.workspace, ...books.global].find((r) => r.id === id)?.when ?? '', [books])
 
   const startImport = async () => {
     setError('')
@@ -266,6 +287,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           </div>
         </div>
       </div>
+
+      <legend className="lib-sub">Reached for</legend>
+      <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
     </>
   )
 }

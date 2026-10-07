@@ -55,6 +55,14 @@ test('chat: margin notes under a message say what the library did for it, and op
     await expect(tab.getByLabel('What it was told')).toContainText('working with PDFs: pdf')
     await expect(tab.getByLabel('What it did')).toContainText('Pointed at pdf')
     await expect(tab.getByLabel('What it did')).toContainText('Read pdf')
+
+    // Settings, Library: the item shows under "Reached for", with a verdict in words (too few pointings to judge yet).
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Settings' })
+    await dialog.getByRole('tab', { name: 'Library' }).click()
+    const rows = dialog.getByLabel('Items agents were pointed at')
+    await expect(rows).toContainText('pdf')
+    await expect(rows).toContainText('Too few to judge yet')
   } finally {
     await shutdown()
   }
