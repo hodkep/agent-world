@@ -727,7 +727,7 @@ function JumpButtons() {
   )
 }
 
-function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
+export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)

@@ -3,6 +3,7 @@ import type { SubagentInfo } from '../../shared/chat'
 import { SubagentRowView, useSubagents } from './Delegation'
 import { type CrewRow, crewCounts, crewRows, followUpText, splitCrew, stopRequestText } from './crewRows'
 import { subagentState } from './format'
+import { openSubagent } from './subagentEvents'
 
 interface PanelProps {
   /** The main agent these belong to. */
@@ -42,7 +43,11 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
         level={r.level}
         needsYou={waiting?.has(r.info.agentId)}
         actions={
-          st === 'working' ? (
+          <>
+            <button title="Read this subagent's own conversation in a panel beside the chat" onClick={() => openSubagent(agentId, r.info.agentId)}>
+              Open conversation
+            </button>
+          {st === 'working' ? (
             <StopAsk managerName={managerName} onSend={() => send(stopRequestText(r.info), `stop “${r.info.description}”`)} />
           ) : (
             <button
@@ -55,7 +60,8 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
             >
               Follow up
             </button>
-          )
+          )}
+          </>
         }
       />
     )

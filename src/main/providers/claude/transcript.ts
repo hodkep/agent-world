@@ -9,7 +9,7 @@ import { newestSession, transcriptPath } from './chat'
 import { TranscriptTail } from './chatTail'
 import { dropPromptSnapshots } from './promptSnapshot'
 import { listSessions, projectSlug } from './history'
-import { listSubagents } from './subagents'
+import { listSubagents, readSubagentConversation } from './subagents'
 
 const projectsDir = (a?: AgentRecord) => process.env.AW_CLAUDE_PROJECTS ?? join(a?.configDir ?? join(homedir(), '.claude'), 'projects')
 
@@ -44,6 +44,7 @@ export const claudeTranscript: TranscriptSource = {
     return items
   },
   subagents: (a) => listSubagents(file(a).replace(/\.jsonl$/, '')),
+  subagentConversation: (a, id) => readSubagentConversation(file(a).replace(/\.jsonl$/, ''), id),
   async history(folder, worktreeRoot) {
     const dir = projectsDir()
     let all: string[] = []

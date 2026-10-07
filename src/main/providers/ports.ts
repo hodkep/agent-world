@@ -216,6 +216,8 @@ export interface TranscriptSource {
   /** The whole saved conversation, read once. */
   readAll(agent: AgentRecord): ChatItem[]
   subagents(agent: AgentRecord): SubagentInfo[]
+  /** One subagent's own conversation, for a program that keeps one per subagent. */
+  subagentConversation?(agent: AgentRecord, subagentId: string): ChatItem[]
   /** Tokens used so far, for a program whose conversation file records them. */
   usage?(agent: AgentRecord): { input: number; output: number; context: number } | null
   /** Sessions saved for this folder, including ones its agents ran in worktrees under `worktreeRoot`. */

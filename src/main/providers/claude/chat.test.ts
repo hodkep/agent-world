@@ -7,6 +7,14 @@ import { newestSession, parseTranscriptLine, transcriptPath } from './chat'
 const line = (o: object) => JSON.stringify(o)
 const base = { uuid: 'u1', timestamp: '2026-09-30T07:33:23.872Z', isSidechain: false }
 
+describe('a subagent\'s own lines', () => {
+  it('are left out of the main conversation and kept when asked for', () => {
+    const side = line({ ...base, isSidechain: true, type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'from the subagent' }] } })
+    expect(parseTranscriptLine(side)).toEqual([])
+    expect(parseTranscriptLine(side, { subagent: true })).toMatchObject([{ kind: 'assistant', text: 'from the subagent' }])
+  })
+})
+
 describe('reading Claude\'s transcript for the chat view', () => {
   it('turns a typed prompt into a user message', () => {
     expect(parseTranscriptLine(line({ ...base, type: 'user', message: { role: 'user', content: 'add a health check' } }))).toEqual([

@@ -21,6 +21,7 @@ const api: AwApi = {
   repoBranches: (folder) => ipcRenderer.invoke('repo:branches', folder),
   reconfigure: (id, change) => ipcRenderer.invoke('agent-reconfigure', id, change),
   subagents: (id) => ipcRenderer.invoke('subagents:list', id),
+  subagentChat: (id, subagentId) => ipcRenderer.invoke('subagents:chat', id, subagentId),
   profile: (id) => ipcRenderer.invoke('agent:profile', id),
   terminalMenu: (selected) => ipcRenderer.invoke('terminal:menu', selected),
   weekReport: (start) => ipcRenderer.invoke('ledger:week', start),

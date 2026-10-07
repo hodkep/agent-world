@@ -53,14 +53,15 @@ function hookNote(id: string, at: number, a: Obj): ChatItem[] {
 }
 
 /** One saved transcript line as chat items (none for the many kinds of bookkeeping lines Claude also writes). */
-export function parseTranscriptLine(raw: string): ChatItem[] {
+/** `subagent`: the lines are a subagent's own file, whose lines Claude marks as a side chain; they are the conversation there. */
+export function parseTranscriptLine(raw: string, opts: { subagent?: boolean } = {}): ChatItem[] {
   let o: Obj
   try {
     o = JSON.parse(raw) as Obj
   } catch {
     return []
   }
-  if (o.isSidechain === true) return []
+  if (o.isSidechain === true && !opts.subagent) return []
   const at = Date.parse(str(o.timestamp)) || 0
   const uuid = str(o.uuid) || `${at}`
   const type = str(o.type)
@@ -192,7 +193,7 @@ export interface LineNode {
   results: string[]
 }
 
-export function lineNode(raw: string): LineNode | null {
+export function lineNode(raw: string, opts: { subagent?: boolean } = {}): LineNode | null {
   try {
     const o = JSON.parse(raw) as Obj
     const uuid = str(o.uuid)
@@ -201,7 +202,7 @@ export function lineNode(raw: string): LineNode | null {
     return {
       uuid,
       parent: str(o.parentUuid) || str(o.logicalParentUuid) || null,
-      message: (o.type === 'user' || o.type === 'assistant') && o.isSidechain !== true,
+      message: (o.type === 'user' || o.type === 'assistant') && (opts.subagent === true || o.isSidechain !== true),
       reply: o.type === 'assistant' ? str(o.requestId) || str(obj(o.message).id) : '',
       uses: blocks.filter((b) => b.type === 'tool_use').map((b) => str(b.id)),
       results: blocks.filter((b) => b.type === 'tool_result').map((b) => str(b.tool_use_id))

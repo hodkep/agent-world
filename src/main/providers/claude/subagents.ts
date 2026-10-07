@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import type { SubagentCall, SubagentInfo } from '../../../shared/chat'
+import type { ChatItem, SubagentCall, SubagentInfo } from '../../../shared/chat'
+import { TranscriptTail } from './chatTail'
 
 const FIELDS = ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'description', 'prompt']
 
@@ -94,4 +95,24 @@ export function listSubagents(sessionDir: string): SubagentInfo[] {
     }
   }
   return out.sort((a, b) => a.startedAt - b.startedAt)
+}
+
+const conversations = new Map<string, { size: number; items: ChatItem[] }>()
+
+/** One subagent's own conversation, as the chat shows an agent's: what it thought and said, each call and what it returned. */
+export function readSubagentConversation(sessionDir: string, subagentId: string): ChatItem[] {
+  // The id names a file; nothing that could point somewhere else is taken.
+  if (!/^[\w-]+$/.test(subagentId)) return []
+  const file = join(sessionDir, 'subagents', `agent-${subagentId}.jsonl`)
+  try {
+    const size = statSync(file).size
+    const hit = conversations.get(file)
+    if (hit && hit.size === size) return hit.items
+    let items: ChatItem[] = []
+    new TranscriptTail(file, (got, replace) => (items = replace ? got : [...items, ...got]), { subagent: true }).poll()
+    conversations.set(file, { size, items })
+    return items
+  } catch {
+    return []
+  }
 }

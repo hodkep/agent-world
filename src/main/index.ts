@@ -1591,6 +1591,11 @@ async function main() {
     const a = byId(id)
     return a ? providerOf(a).transcript.subagents(a) : []
   })
+  // One subagent's own conversation, to be read like an agent's.
+  ipcMain.handle('subagents:chat', (_, id: string, subagentId: string) => {
+    const a = byId(id)
+    return a ? (providerOf(a).transcript.subagentConversation?.(a, subagentId) ?? []) : []
+  })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
   // A terminal draws its own text, so the page cannot tell the system what is selected: the terminal asks for the menu itself.
   ipcMain.handle('terminal:menu', async (_, selected: string) => {

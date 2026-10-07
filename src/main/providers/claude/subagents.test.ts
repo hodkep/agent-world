@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { callDetail, listSubagents } from './subagents'
+import { callDetail, listSubagents, readSubagentConversation } from './subagents'
 
 const line = (o: object) => JSON.stringify(o)
 const use = (at: string, name: string, input: object) => line({ type: 'assistant', timestamp: at, message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t-${at}`, name, input }] } })
@@ -99,5 +99,43 @@ describe('a one-line summary of a tool call', () => {
     expect(callDetail('WebSearch', { query: 'electron notarize' })).toBe('electron notarize')
     expect(callDetail('Mystery', {})).toBe('')
     expect(callDetail('Bash', { command: 'x'.repeat(200) }).length).toBeLessThanOrEqual(60)
+  })
+})
+
+
+describe('reading one subagent as a conversation', () => {
+  const side = (o: object) => line({ isSidechain: true, agentId: 'a1', ...o })
+  const dir = session({
+    a1: {
+      meta: { agentType: 'Explore', description: 'Map the auth module', toolUseId: 'toolu_A' },
+      lines: [
+        side({ type: 'user', uuid: 'u1', timestamp: '2026-10-01T08:00:00.000Z', message: { role: 'user', content: 'go' } }),
+        side({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', timestamp: '2026-10-01T08:00:02.000Z', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'text', text: 'Looking at the retry code.' }, { type: 'tool_use', id: 't1', name: 'Grep', input: { pattern: 'retry' } }] } }),
+        side({ type: 'user', uuid: 'u2', parentUuid: 'a1', timestamp: '2026-10-01T08:00:03.000Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'src/http/retry.ts:12', is_error: false }] } }),
+        side({ type: 'assistant', uuid: 'a2', parentUuid: 'u2', timestamp: '2026-10-01T08:00:09.000Z', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Three call sites.' }] } })
+      ]
+    }
+  })
+
+  it('keeps what the main conversation leaves out: the subagent\'s own words, calls and what they returned', () => {
+    const items = readSubagentConversation(dir, 'a1')
+    expect(items.map((i) => i.kind)).toEqual(['user', 'assistant', 'tool', 'tool-result', 'assistant'])
+    expect(items[1]).toMatchObject({ kind: 'assistant', text: 'Looking at the retry code.' })
+    expect(items[2]).toMatchObject({ kind: 'tool', name: 'Grep', input: { pattern: 'retry' } })
+    expect(items[3]).toMatchObject({ kind: 'tool-result', text: 'src/http/retry.ts:12' })
+    expect(items[4]).toMatchObject({ kind: 'assistant', text: 'Three call sites.' })
+  })
+
+  it('is empty for a subagent with no file, and refuses an id that is a path', () => {
+    expect(readSubagentConversation(dir, 'nope')).toEqual([])
+    expect(readSubagentConversation(dir, '../../etc/passwd')).toEqual([])
+    expect(readSubagentConversation(dir, '')).toEqual([])
+  })
+
+  it('reads the new lines when the file grows', () => {
+    const d = session({ g1: { meta: { agentType: 'Explore' }, lines: [side({ type: 'user', uuid: 'u1', timestamp: '2026-10-01T08:00:00.000Z', message: { role: 'user', content: 'go' } })] } })
+    expect(readSubagentConversation(d, 'g1')).toHaveLength(1)
+    writeFileSync(join(d, 'subagents', 'agent-g1.jsonl'), [side({ type: 'user', uuid: 'u1', timestamp: '2026-10-01T08:00:00.000Z', message: { role: 'user', content: 'go' } }), side({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', timestamp: '2026-10-01T08:00:02.000Z', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.' }] } })].join('\n') + '\n')
+    expect(readSubagentConversation(d, 'g1').map((i) => i.kind)).toEqual(['user', 'assistant'])
   })
 })

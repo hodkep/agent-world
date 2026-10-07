@@ -163,6 +163,8 @@ export interface AwApi {
   overview(days: number): Promise<Overview>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
+  /** One subagent's own conversation: what it thought and said, each call and what it returned. */
+  subagentChat(agentId: string, subagentId: string): Promise<ChatItem[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */
   setRole(agentId: string, role: Role | null): Promise<AgentOptions>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */

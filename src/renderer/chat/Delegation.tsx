@@ -51,7 +51,7 @@ export function Trail({ info, now }: { info: SubagentInfo | undefined; now: numb
   )
 }
 
-function Timeline({ info, now }: { info: SubagentInfo | undefined; now: number }) {
+export function Timeline({ info, now }: { info: SubagentInfo | undefined; now: number }) {
   if (!info) return <span className="dg-track" aria-hidden="true" />
   const end = info.done ? info.updatedAt : Math.max(now, info.updatedAt)
   const span = Math.max(1, end - info.startedAt)

@@ -27,6 +27,8 @@ import { ToolsView } from './panel/ToolsView'
 import { CrewView } from './chat/CrewView'
 import { staleInterns } from './chat/crewRows'
 import { reactTo, resumedUnseen } from './chat/subagentMessage'
+import { SubagentPanel } from './chat/SubagentPanel'
+import { OPEN_SUBAGENT } from './chat/subagentEvents'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
@@ -330,6 +332,28 @@ export function App() {
   const sentAway = useRef(new Map<string, number>())
   const broughtBack = useRef(new Map<string, number>())
   const GRACE_MS = 30_000
+  // Subagents opened as conversations beside the chat, for each main agent: their tabs and the one shown.
+  const [subs, setSubs] = useState<Record<string, { ids: string[]; active: string }>>({})
+  const openSub = useCallback((agentId: string, id: string) => setSubs((m) => ({ ...m, [agentId]: { ids: m[agentId]?.ids.includes(id) ? m[agentId]!.ids : [...(m[agentId]?.ids ?? []), id], active: id } })), [])
+  const closeSub = useCallback(
+    (agentId: string, id: string) =>
+      setSubs((m) => {
+        const cur = m[agentId]
+        if (!cur) return m
+        const ids = cur.ids.filter((x) => x !== id)
+        const { [agentId]: _, ...rest } = m
+        return ids.length ? { ...rest, [agentId]: { ids, active: cur.active === id ? ids.at(-1)! : cur.active } } : rest
+      }),
+    []
+  )
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; subagentId: string }>).detail
+      openSub(d.agentId, d.subagentId)
+    }
+    window.addEventListener(OPEN_SUBAGENT, on)
+    return () => window.removeEventListener(OPEN_SUBAGENT, on)
+  }, [openSub])
   const bringBack = (agentId: string, sessionId: string, id: string, type: string) => {
     broughtBack.current.set(id, Date.now())
     setWorld((w) => applyEvent(w, { type: 'subagent-start', agentId, sessionId, subagentId: id, subagentType: type }))
@@ -1437,6 +1461,19 @@ export function App() {
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>
+        {current && subs[current.id] && (
+          <SubagentPanel
+            key={current.id}
+            agentId={current.id}
+            agentName={current.name}
+            ids={subs[current.id]!.ids}
+            active={subs[current.id]!.active}
+            onActive={(id) => openSub(current.id, id)}
+            onClose={(id) => closeSub(current.id, id)}
+            onCloseAll={() => setSubs(({ [current.id]: _, ...rest }) => rest)}
+            onOpen={(id) => openSub(current.id, id)}
+          />
+        )}
       </main>
     </div>
   )

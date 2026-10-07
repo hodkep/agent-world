@@ -2242,3 +2242,38 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
   .turn > .slips:first-child { grid-row: 1; }
   .turn > .slips:last-child { grid-row: 2; }
 }
+
+
+/* The subagents panel: a column to the right of the chat. The chat keeps its width; the office gives up the room. */
+.subpanel { position: relative; flex: none; width: clamp(340px, 30vw, 520px); display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 2px solid var(--ink); container: subpanel / inline-size; }
+aside:not(.drawer) { flex: none; }
+.sp-tabs { display: flex; align-items: flex-end; gap: 4px; padding: 6px 8px 0; border-bottom: 2px solid var(--ink); overflow: hidden; flex: none; }
+.sp-tab { display: flex; min-width: 0; max-width: 190px; background: var(--panel-2); border: 2px solid var(--ink); border-bottom: 0; }
+.sp-tab.on { background: var(--well); }
+.sp-tab > button { background: none; border: 0; box-shadow: none; padding: 5px 8px; display: flex; gap: 6px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.sp-tab.on > button:first-child { color: var(--accent); }
+.sp-tab .sq { flex: none; width: 9px; height: 9px; background: var(--think); }
+.sp-tab .sq.done { background: var(--ok); }
+.sp-tab .sq.stopped { background: var(--danger); }
+.sp-tab .x { position: relative; width: 18px; padding: 0; flex: none; }
+.sp-tab .x::before, .sp-tab .x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 2px; background: var(--muted); transform: translate(-50%, -50%) rotate(45deg); }
+.sp-tab .x::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.sp-tab .x:hover::before, .sp-tab .x:hover::after { background: var(--text); }
+.sp-follow { margin-left: auto; align-self: center; display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); padding-bottom: 4px; white-space: nowrap; }
+.sp-follow input { accent-color: var(--accent); }
+.sp-close { position: relative; width: 24px; height: 24px; padding: 0; align-self: center; margin-bottom: 4px; flex: none; }
+.sp-close::before, .sp-close::after { content: ''; position: absolute; left: 50%; top: 50%; width: 11px; height: 2px; background: var(--text); transform: translate(-50%, -50%) rotate(45deg); }
+.sp-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.sp-strip { padding: 10px 12px; display: grid; gap: 8px; border-bottom: 2px solid var(--ink); background: var(--panel-3); flex: none; }
+.sp-strip h2 { margin: 0; font-size: 14px; line-height: 1.35; }
+.sp-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.sp-time { margin-left: auto; font: 12px Menlo, Consolas, monospace; }
+.sp-pill { font: 800 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; padding: 2px 7px; color: var(--ink); background: var(--think); }
+.sp-pill.done { background: var(--ok); }
+.sp-pill.stopped { background: var(--danger-text); }
+.sp-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.sp-acts button { padding: 1px 10px; font-size: 12px; }
+.sp-told { margin: 0; font-size: 12px; color: var(--ok-text); }
+.sp-log { padding-top: 12px; background: var(--well); }
+.sp-empty { color: var(--muted); margin: 8px 0; }
+@media (max-width: 900px) { .subpanel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 22; width: min(94vw, 520px); box-shadow: -12px 0 32px rgb(0 0 0 / 0.5); } }

@@ -29,7 +29,9 @@ export class TranscriptTail {
   constructor(
     readonly file: string,
     /** `replace` means these items are the whole conversation now, not an addition to what was sent before. */
-    private readonly onItems: (items: ChatItem[], replace: boolean) => void
+    private readonly onItems: (items: ChatItem[], replace: boolean) => void,
+    /** `subagent`: the file is a subagent's own, whose lines are marked as a side chain and are the whole conversation. */
+    private readonly opts: { subagent?: boolean } = {}
   ) {}
 
   /**
@@ -108,10 +110,10 @@ export class TranscriptTail {
         // The last piece may be a line still being written.
         this.rest = lines.pop() ?? ''
         for (const raw of lines) {
-          const info = lineNode(raw)
+          const info = lineNode(raw, this.opts)
           if (!info) continue
           if (info.parent) this.linked = true
-          const node: Node = { ...info, items: parseTranscriptLine(raw) }
+          const node: Node = { ...info, items: parseTranscriptLine(raw, this.opts) }
           this.nodes.push(node)
           this.byId.set(node.uuid, node)
           changed = true
