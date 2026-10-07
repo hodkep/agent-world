@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -52,5 +52,40 @@ describe("agy's library plugin script", () => {
   it('lets the office\'s hook fail without breaking agy', async () => {
     mcp = await startMcpServer({ ...base, agentForToken: () => 'a1', hook: () => { throw new Error('boom') } })
     expect(await run('pre-inv', {}, { AW_MCP_URL: mcp.url, AW_AGENT_TOKEN: 'tok' })).toBe('{}')
+  })
+})
+
+describe('the agent\'s token', () => {
+  // A stand-in curl that records what it was started with, so the test can see what another user's `ps` would show.
+  const spy = () => {
+    const bin = mkdtempSync(join(tmpdir(), 'aw-spycurl-'))
+    const seen = join(bin, 'argv.txt')
+    writeFileSync(join(bin, 'curl'), `#!/bin/sh\nprintf '%s\\n' "$@" > ${seen}\ncat > ${seen}.stdin\necho '{}'\n`)
+    chmodSync(join(bin, 'curl'), 0o755)
+    return { bin, argv: () => { try { return readFileSync(seen, 'utf8') } catch { return '' } }, stdin: () => { try { return readFileSync(seen + '.stdin', 'utf8') } catch { return '' } } }
+  }
+  const runWith = (path: string, env: Record<string, string>) =>
+    new Promise<string>((resolve) => {
+      const p = execFile('sh', [join(dir, 'hook.sh'), 'pre-inv'], { env: { PATH: `${path}:${process.env.PATH}`, ...env }, timeout: 10_000 }, (_e, out) => resolve(out.trim()))
+      p.stdin!.end('{"a":1}')
+    })
+  it('never appears on the command line of the program that sends it (other users can read that with ps)', async () => {
+    const s = spy()
+    try {
+      await runWith(s.bin, { AW_MCP_URL: 'http://127.0.0.1:5555/mcp', AW_AGENT_TOKEN: 'sekret-token-123' })
+      expect(s.argv()).not.toContain('sekret-token-123')
+      expect(s.stdin()).toContain('sekret-token-123')
+    } finally {
+      rmSync(s.bin, { recursive: true, force: true })
+    }
+  })
+  it('is sent only to this computer: any other address in the environment gets {} and no call', async () => {
+    const s = spy()
+    try {
+      expect(await runWith(s.bin, { AW_MCP_URL: 'https://example.com/mcp', AW_AGENT_TOKEN: 'sekret-token-123' })).toBe('{}')
+      expect(s.argv()).toBe('')
+    } finally {
+      rmSync(s.bin, { recursive: true, force: true })
+    }
   })
 })
