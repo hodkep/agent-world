@@ -58,13 +58,14 @@ export function normalize(payload: unknown): RawEvent | null {
   if (!sessionId || !event) return null
   const subagentId = str(p.agent_id)
   const mode = str(p.permission_mode)
-  const activity = (a: Activity, tool?: string, detail?: string): RawEvent => ({
+  const activity = (a: Activity, tool?: string, detail?: string, target?: string): RawEvent => ({
     type: 'activity',
     sessionId,
     ...(subagentId && { subagentId }),
     activity: a,
     ...(tool && { tool }),
     ...(detail && { detail }),
+    ...(target && { target }),
     ...(mode && { mode })
   })
   const input = (p.tool_input && typeof p.tool_input === 'object' ? p.tool_input : {}) as Payload
@@ -78,7 +79,8 @@ export function normalize(payload: unknown): RawEvent | null {
         return { type: 'plan', sessionId, plan, steps: planSteps(plan) }
       }
       if (tool === 'AskUserQuestion') return { type: 'question', sessionId, questions: questionsOf(input.questions) }
-      return activity(activityFor(tool), tool, describeTool(p.tool_input))
+      // A message to another agent or a subagent says who it is for, so the office can send the envelope.
+      return activity(activityFor(tool), tool, describeTool(p.tool_input), tool === 'SendMessage' ? str(input.to) : undefined)
     }
     case 'PostToolUse': {
       const tool = str(p.tool_name)

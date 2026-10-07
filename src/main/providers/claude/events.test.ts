@@ -45,6 +45,13 @@ describe('normalize hook payload → AgentEvent', () => {
     ).toMatchObject({ sessionId: 's1', subagentId: 'sub1', activity: 'researching', detail: 'b.md' })
   })
 
+  it('a message to another agent or a subagent says who it is for', () => {
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'SendMessage', tool_input: { to: 'af7fd77650e06ccb2', message: 'Fix it' } })).toMatchObject({ activity: 'thinking', tool: 'SendMessage', target: 'af7fd77650e06ccb2' })
+    // Only SendMessage has a target; a tool that happens to carry a "to" does not.
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: { to: 'x' } })).not.toHaveProperty('target')
+    expect(normalize({ ...base, hook_event_name: 'PreToolUse', tool_name: 'SendMessage', tool_input: { message: 'no recipient' } })).not.toHaveProperty('target')
+  })
+
   it('prompt submit and post-tool mean thinking; Stop means idle', () => {
     expect(normalize({ ...base, hook_event_name: 'UserPromptSubmit', prompt: 'hi' })).toMatchObject({ activity: 'thinking' })
     expect(normalize({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Read' })).toMatchObject({ activity: 'thinking' })

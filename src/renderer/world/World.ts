@@ -747,6 +747,14 @@ export class OfficeWorld {
     this.flights.push({ from: head(a), to: head(b), start: performance.now() })
   }
 
+  /** An envelope flies to the door: for someone who is not in the office (yet) and will arrive by car. */
+  sendMailToDoor(fromId: string) {
+    const a = this.chars.get(fromId)
+    if (!a) return
+    const door = OFFICE.door
+    this.flights.push({ from: { x: a.view.x + TILE / 2, y: a.view.y - 4 }, to: { x: door.x * TILE + door.ox, y: door.y * TILE - 4 }, start: performance.now() })
+  }
+
   private drawMail(t: number) {
     const g = this.mail
     g.clear()

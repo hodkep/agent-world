@@ -511,7 +511,10 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .mail-from { font-weight: 600; }
 .mail-lbl { font-weight: 400; color: var(--muted); }
 .mail-tag { margin-left: auto; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 5px; color: var(--muted); box-shadow: 0 0 0 1px var(--mail-rim); }
-.mail-tag.ask { color: var(--ink); background: var(--think); box-shadow: 0 0 0 1px var(--ink); }
+.mail-tag.ask, .mail-tag.go { color: var(--ink); background: var(--think); box-shadow: 0 0 0 1px var(--ink); }
+.mail-tag.ok { color: var(--ink); background: var(--ok); box-shadow: 0 0 0 1px var(--ink); }
+.mail-tag.bad { color: var(--ink); background: var(--danger-text); box-shadow: 0 0 0 1px var(--ink); }
+.mail-sum { margin: 0 10px 2px; font-weight: 700; line-height: 1.35; }
 .mail-body { margin: 4px 10px 8px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
 .mail.folded .mail-body { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .mail-body code { font: 12px Menlo, Consolas, monospace; background: var(--well); padding: 0 4px; box-shadow: 0 0 0 1px var(--ink); }

@@ -21,7 +21,9 @@ import { Markdown } from './markdown'
 import { UserText } from './Mentions'
 import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
-import { ToolCard } from './ToolCard'
+import type { SubagentInfo } from '../../shared/chat'
+import { sendMessageCard } from './subagentMessage'
+import { type ToolRun, ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
@@ -794,7 +796,7 @@ function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }
     case 'report':
       return <SubagentReport agentId={agentId} subagentId={r.agentId} body={r.body} />
     case 'tool':
-      return <ToolCard run={r.run} working={busy} onImage={onImage} />
+      return r.run.name === 'SendMessage' ? <SendMessageCard agentId={agentId} run={r.run} /> : <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'handoff-out':
       return <HandoffCard who={r.to} body={r.text} out status={r.status} />
     case 'events':
@@ -816,6 +818,19 @@ function SubagentReport({ agentId, subagentId, body }: { agentId: string; subage
     return () => void (alive = false)
   }, [agentId, subagentId])
   return <AgentMailCard from={name} body={body} expectsReply={false} label="Report from" tag="Report" />
+}
+
+/** The agent's own SendMessage call, as the sending side of a mail card: who it went to, what it said and what became of it. */
+function SendMessageCard({ agentId, run }: { agentId: string; run: ToolRun }) {
+  const [infos, setInfos] = useState<SubagentInfo[]>([])
+  const answered = !!run.result
+  useEffect(() => {
+    let alive = true
+    void window.aw.subagents(agentId).then((l) => alive && setInfos(l), () => {})
+    return () => void (alive = false)
+  }, [agentId, answered])
+  const c = sendMessageCard(run.input, run.result, infos)
+  return <AgentMailCard from={c.name} body={c.body} expectsReply={false} label={c.label} tag={c.tag} tone={c.tone} summary={c.summary} route={c.route} />
 }
 
 const HANDOFF = { review: 'Review', continue: 'Continue', answer: 'Answer' } as const
@@ -847,7 +862,7 @@ function HandoffCard({ who, body, out, status }: { who: string; body: string; ou
 }
 
 /** What another agent sent: a card of its own, cut to two lines until asked for, so it is never mistaken for something you typed. */
-function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag }: { from: string; body: string; expectsReply: boolean; label?: string; tag?: string }) {
+function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag, summary, tone, route }: { from: string; body: string; expectsReply: boolean; label?: string; tag?: string; /** A title over the words. */ summary?: string; tone?: 'go' | 'ok' | 'bad' | 'wait'; /** A line under the words, always shown. */ route?: string }) {
   const box = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [long, setLong] = useState(false)
@@ -861,7 +876,7 @@ function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag }: 
     return () => watch.disconnect()
   }, [open])
   return (
-    <article className={`mail ${open ? 'open' : 'folded'}`} aria-label={`Message from agent ${from}`}>
+    <article className={`mail ${open ? 'open' : 'folded'}`} aria-label={label.startsWith('To ') ? `Message ${label.toLowerCase()} ${from}` : `Message from agent ${from}`}>
       <header className="mail-head">
         <svg className="mail-env" viewBox="0 0 14 10" aria-hidden="true">
           <rect width="14" height="10" fill="currentColor" />
@@ -870,20 +885,23 @@ function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag }: 
         <span className="mail-from">
           <span className="mail-lbl">{label}</span> “{from}”
         </span>
-        <span className={`mail-tag ${expectsReply ? 'ask' : ''}`}>{tag ?? (expectsReply ? 'Asks for a reply' : 'Reply')}</span>
+        <span className={`mail-tag ${expectsReply ? 'ask' : ''} ${tone ?? ''}`}>{tag ?? (expectsReply ? 'Asks for a reply' : 'Reply')}</span>
       </header>
+      {summary && <p className="mail-sum">{summary}</p>}
       <div ref={box} className="mail-body">
         {body.split(/(`[^`]+`)/).map((part, i) => (part.length > 2 && part.startsWith('`') && part.endsWith('`') ? <code key={i}>{part.slice(1, -1)}</code> : part))}
       </div>
-      {(long || open) && (
+      {(long || open || route) && (
         <footer className="mail-foot">
-          {open && expectsReply && <span className="mail-route">reply → send_message to “{from}”</span>}
-          <button aria-expanded={open} onClick={() => setOpen(!open)}>
-            <span>{open ? 'Show less' : 'Read more'}</span>
-            <svg viewBox="0 0 9 6" aria-hidden="true">
-              <path d="M0 0h2v1h1v1h1v1h1V2h1V1h1V0h2v1H8v1H7v1H6v1H5v1H4V5H3V4H2V3H1V2H0z" />
-            </svg>
-          </button>
+          {route ? <span className="mail-route" title={route}>{route}</span> : open && expectsReply && <span className="mail-route">reply → send_message to “{from}”</span>}
+          {(long || open) && (
+            <button aria-expanded={open} onClick={() => setOpen(!open)}>
+              <span>{open ? 'Show less' : 'Read more'}</span>
+              <svg viewBox="0 0 9 6" aria-hidden="true">
+                <path d="M0 0h2v1h1v1h1v1h1V2h1V1h1V0h2v1H8v1H7v1H6v1H5v1H4V5H3V4H2V3H1V2H0z" />
+              </svg>
+            </button>
+          )}
         </footer>
       )}
     </article>

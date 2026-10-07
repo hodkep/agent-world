@@ -118,6 +118,20 @@ if (process.env.FAKE_DELEGATE && process.env.AW_CLAUDE_PROJECTS && process.env.F
       }
       add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: `Part ${i} is fine.` }] } })
       await hook('SubagentStop', { agent_id: id })
+      // FAKE_DELEGATE_RESUME=ms: that long after it finished, the main agent sends the first subagent a message. Claude fires no
+      // "started" hook for the resume: the message only shows as a call in the main conversation and as new lines in the subagent's file.
+      if (process.env.FAKE_DELEGATE_RESUME && i === 1) {
+        await sleep(Number(process.env.FAKE_DELEGATE_RESUME))
+        const input = { to: id, summary: 'Fix the dialog', message: 'The user says the dialog is not well formatted. Fix the whole dialog and check it.' }
+        await hook('PreToolUse', { tool_name: 'SendMessage', tool_input: input })
+        const call = use('SendMessage', input)
+        done(call, JSON.stringify({ success: true, message: `Resuming agent ${id.slice(0, 7)}`, resumedAgentId: id }))
+        add({ type: 'user', message: { role: 'user', content: `The coordinator sent a message while you were working:\n${input.message}` } })
+        for (const k of [1, 2, 3, 4, 5, 6]) {
+          await sleep(1000)
+          add({ type: 'assistant', message: { role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `resume${k}`, name: 'Read', input: { file_path: `/repo/dialog${k}.tsx` } }] } })
+        }
+      }
     }))
   })()
 }

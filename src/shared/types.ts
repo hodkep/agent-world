@@ -28,7 +28,7 @@ export interface QuestionAnswer {
 
 /** What a hook payload says, in the app's terms. `sessionId` is Claude's, and changes on /clear. */
 export type RawEvent =
-  | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string; mode?: string }
+  | { type: 'activity'; sessionId: string; subagentId?: string; activity: Activity; tool?: string; detail?: string; /** Who a SendMessage call is for. */ target?: string; mode?: string }
   | { type: 'task'; sessionId: string; id: string; subject?: string; status?: TaskStatus }
   | { type: 'plan'; sessionId: string; plan: string; steps: string[] }
   | { type: 'question'; sessionId: string; questions: Question[] }

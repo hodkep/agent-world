@@ -26,6 +26,7 @@ import { pageLabels } from './files/context'
 import { ToolsView } from './panel/ToolsView'
 import { CrewView } from './chat/CrewView'
 import { staleInterns } from './chat/crewRows'
+import { reactTo, resumedUnseen } from './chat/subagentMessage'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { Finish } from './panel/Finish'
@@ -324,14 +325,30 @@ export function App() {
   }, [])
   const crewRef = useRef({ world, allAgents })
   crewRef.current = { world, allAgents }
+  // When each subagent was last sent away (by id), and when one was last brought back by a message: a fresh one gets a grace
+  // period before the files can say it is over, because its file has not caught up with the message yet.
+  const sentAway = useRef(new Map<string, number>())
+  const broughtBack = useRef(new Map<string, number>())
+  const GRACE_MS = 30_000
+  const bringBack = (agentId: string, sessionId: string, id: string, type: string) => {
+    broughtBack.current.set(id, Date.now())
+    setWorld((w) => applyEvent(w, { type: 'subagent-start', agentId, sessionId, subagentId: id, subagentType: type }))
+  }
   useEffect(() => {
     const t = setInterval(() => {
       for (const a of crewRef.current.allAgents) {
         const shown = Object.keys(crewRef.current.world[a.id]?.interns ?? {})
-        if (!shown.length) continue
+        if (!shown.length && sentAway.current.size === 0) continue
         void window.aw.subagents(a.id).then(
           (infos) => {
-            for (const id of staleInterns(shown, infos, Date.now())) setWorld((w) => applyEvent(w, { type: 'subagent-stop', agentId: a.id, sessionId: a.sessionId, subagentId: id }))
+            const now = Date.now()
+            for (const id of staleInterns(shown, infos, now)) {
+              if (now - (broughtBack.current.get(id) ?? 0) < GRACE_MS) continue
+              sentAway.current.set(id, now)
+              setWorld((w) => applyEvent(w, { type: 'subagent-stop', agentId: a.id, sessionId: a.sessionId, subagentId: id }))
+            }
+            // One that went on working after it left (a message woke it, and Claude said nothing) comes back.
+            for (const i of resumedUnseen(infos, shown, sentAway.current, now)) bringBack(a.id, a.sessionId, i.agentId, i.type)
           },
           () => {}
         )
@@ -339,6 +356,16 @@ export function App() {
     }, 3000)
     return () => clearInterval(t)
   }, [])
+  // A message to a subagent: an envelope flies to it if it is in the office, and one that had left is brought back.
+  const messageSubagent = async (agentId: string, sessionId: string, to: string) => {
+    const infos = await window.aw.subagents(agentId).catch(() => [])
+    const reaction = reactTo(to, Object.keys(crewRef.current.world[agentId]?.interns ?? {}), infos)
+    if (reaction.kind === 'present') office.current?.sendMail(agentId, `${agentId}/${reaction.id}`)
+    else if (reaction.kind === 'wake') {
+      bringBack(agentId, sessionId, reaction.id, reaction.type)
+      office.current?.sendMailToDoor(agentId)
+    }
+  }
   const talkRef = useRef<Talk>(readTalk())
   const stage = useRef<HTMLDivElement>(null)
   const office = useRef<OfficeWorld | null>(null)
@@ -381,6 +408,8 @@ export function App() {
     const offs = [
       window.aw.onAgentEvent((e) => {
         setWorld((w) => applyEvent(w, e))
+        if (e.type === 'subagent-stop') sentAway.current.set(e.subagentId, Date.now())
+        if (e.type === 'activity' && e.tool === 'SendMessage' && e.target && !e.subagentId) void messageSubagent(e.agentId, e.sessionId, e.target)
         // The main process marks an agent started on its first real activity; mirror it so Clone unlocks.
         if (e.type === 'activity' && !e.subagentId) setAgents((xs) => (xs.some((a) => a.id === e.agentId && !a.started) ? xs.map((a) => (a.id === e.agentId ? { ...a, started: true } : a)) : xs))
       }),
