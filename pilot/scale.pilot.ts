@@ -15,7 +15,7 @@ import { startHookServer } from '../src/main/providers/claude/hookServer'
  *   PILOT=1 npx vitest run -c vitest.pilot.config.ts pilot/scale.pilot.ts      (writes pilot-scale-report.txt)
  * Part 1 is free: does the matcher point a prompt at the right skill among all of them, and stay quiet for prompts about none?
  * Part 2 uses real Claude (PILOT_MODEL, default haiku; PILOT_REPORT names the report file): P agent left to itself (catalog file + tools) · Q P + the matched line each turn · R every skill loaded natively + the matched line.
- * "Used" is the log's own record (fetched through the tools, the Skill tool, or a Read of the skill's file). PILOT_RUNS = tasks per variant (default 8), PILOT_MAX_USD (default 2), PILOT_VARIANTS (default PQR).
+ * "Used" is the log's own record (fetched through the tools, the Skill tool, or a Read of the skill's file). PILOT_RUNS = tasks per variant (default 8), PILOT_MAX_USD (default 2), PILOT_VARIANTS (default PQR), PILOT_DECOYS=1 adds five keyword-bait questions to each pointed variant.
  */
 const ON = !!process.env.PILOT
 const RUNS = Number(process.env.PILOT_RUNS ?? 8)
@@ -45,6 +45,8 @@ const TASKS: [string, RegExp][] = [
   ['Teach me how closures work in JavaScript.', /^teach$/]
 ]
 const NEGATIVES = ['What is the capital of France?', 'Explain what a mutex is in one sentence.', 'Is 17 prime? Answer briefly.', 'Suggest a name for a TypeScript helper that debounces calls.', 'Translate "good morning" into Spanish.', 'What does git rebase do, in two sentences?', 'Why would a lamp post be drawn behind a car in a canvas game?']
+// Keyword bait: the matcher points at a skill, but the question needs none. Used only with PILOT_DECOYS=1.
+const DECOYS = ['What does git rebase do, in two sentences?', 'Why would a lamp post be drawn behind a car in a canvas game? One sentence.', 'What does TDD stand for? One line.', 'What is a PRD? One sentence.', 'What is a pull request review for? One sentence.']
 
 const sh = (bin: string, args: string[], o: { env?: NodeJS.ProcessEnv; cwd?: string } = {}) =>
   new Promise<string>((resolve, reject) => execFile(bin, args, { env: o.env, cwd: o.cwd, timeout: 300_000, maxBuffer: 16 * 1024 * 1024 }, (err, out) => (err && !out ? reject(err) : resolve(out))))
@@ -173,7 +175,7 @@ describe.skipIf(!ON)('library at scale', () => {
         if (spent > MAX_USD) throw new Error(`Spend cap of $${MAX_USD} reached; stopping.`)
         await claude(variant, prompt, want)
       }
-      if (variant !== 'P') for (const prompt of NEGATIVES.slice(0, 3)) await claude(variant, prompt, null)
+      if (variant !== 'P') for (const prompt of [...NEGATIVES.slice(0, 3), ...(process.env.PILOT_DECOYS ? DECOYS : [])]) await claude(variant, prompt, null)
     }
     out('\nRESULTS')
     for (const v of [...new Set(runs.map((r) => r.variant))]) {

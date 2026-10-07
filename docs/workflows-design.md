@@ -151,6 +151,7 @@ The pointing line used to say "this task matches X ... read it before you start"
 - **Bug found first.** agy's saved message carries the time and a settings note after the user's words (`</USER_REQUEST><ADDITIONAL_METADATA>...`). The hook only cut a trailing `</USER_REQUEST>`, so the matcher read that note and pointed at 3 skills on every message, even "capital of France". Fixed in `libraryHook.ts` (cut at the first `</USER_REQUEST>`), test first. Quiet prompts are now really quiet.
 - **Order wording:** real tasks read 5/6, decoys read 3/5 (it obeyed). **Permissive wording** ("may fit... otherwise ignore"): decoys 0/5 but real tasks only 3/6. **Kept:** "covers this kind of work. If you are doing that work, not just answering a question about it: read it first." Real tasks 5/6, decoys 0/5, prompts about none 0/3 (not pointed at all).
 - The one real task missed in every wording is the flaky-test one (the matcher's top 3 did not contain the right skill, same as before).
+- **Claude, same wording** (`PILOT_VARIANTS=Q PILOT_DECOYS=1`, 48 skills): Sonnet read the right skill 4/6 (was 5/6 with the old wording; the database-schema task was answered without it), Opus 5/6; both read nothing on all 5 decoys and all 3 questions about none (0/8 each). Spend about $1.65 (Sonnet) and $3.67 (Opus).
 - Small samples (6 + 8 runs per wording; model noise is visible: the permissive wording's 3/6 may be partly luck). Claude with the new wording: unit and e2e only, not re-piloted.
 
 ### agy: hooks (2026-10-07)
