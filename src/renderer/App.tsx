@@ -33,6 +33,7 @@ import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
+import { AgentLibrary } from './panel/AgentLibrary'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
@@ -106,7 +107,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'file'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'file'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -1338,6 +1339,9 @@ export function App() {
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
               </button>
+              <button role="tab" aria-selected={view === 'library'} onClick={() => setView('library')} title="What the library told this agent and what it did about it">
+                Library
+              </button>
               <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
                 Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
@@ -1371,6 +1375,7 @@ export function App() {
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
+          {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>

@@ -47,6 +47,14 @@ test('chat: margin notes under a message say what the library did for it, and op
     await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('this task matches pdf')
     await note.click()
     await expect(log.getByRole('group', { name: 'pdf, the words' })).toHaveCount(0)
+
+    // The agent's Library tab tells the same story: what it was told, and what it did about it.
+    await page.getByRole('tab', { name: 'Library' }).click()
+    const tab = page.getByRole('tabpanel', { name: 'Library' })
+    await expect(tab).toContainText('pointed at 1 item')
+    await expect(tab.getByLabel('What it was told')).toContainText('working with PDFs: pdf')
+    await expect(tab.getByLabel('What it did')).toContainText('Pointed at pdf')
+    await expect(tab.getByLabel('What it did')).toContainText('Read pdf')
   } finally {
     await shutdown()
   }
