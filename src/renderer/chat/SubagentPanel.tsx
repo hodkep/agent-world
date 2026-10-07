@@ -4,6 +4,7 @@ import { AgentIdContext } from '../files/context'
 import { stopRequestText } from './crewRows'
 import { Timeline } from './Delegation'
 import { elapsedLabel, subagentState, toRows } from './format'
+import type { PictureSet } from './gallery'
 import { Lightbox } from './Images'
 import { RowView } from './ChatView'
 import { liveLine, signature, tabLabel, trimFork } from './subagentView'
@@ -26,6 +27,7 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
   const [now, setNow] = useState(() => Date.now())
   const [told, setTold] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState<string | null>(null)
+  const [gallery, setGallery] = useState<PictureSet | null>(null)
   const [follow, setFollow] = useState(() => read('aw.subfollow') === '1')
   const opened = useRef(Date.now())
   const log = useRef<HTMLDivElement>(null)
@@ -144,7 +146,7 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
           }}
         >
           {rows.map((r) => (
-            <RowView key={r.id} row={r} agentId={agentId} agentName={info?.type ?? 'subagent'} busy={false} asleep onImage={setZoomed} onRewind={() => {}} />
+            <RowView key={r.id} row={r} agentId={agentId} agentName={info?.type ?? 'subagent'} busy={false} asleep onImage={(src, set) => (set ? setGallery(set) : setZoomed(src))} onRewind={() => {}} />
           ))}
           {rows.length === 0 && <p className="sp-empty">{info ? 'Nothing from it yet.' : 'Looking for it…'}</p>}
           {doing && (
@@ -160,6 +162,7 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
         </div>
       </AgentIdContext.Provider>
       {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
+      {gallery !== null && <Lightbox src={gallery.pictures[gallery.index]!.src} set={gallery} onClose={() => setGallery(null)} />}
     </div>
   )
 }

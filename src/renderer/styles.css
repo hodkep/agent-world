@@ -2279,3 +2279,24 @@ aside:not(.drawer) { flex: none; }
 .sp-log { padding-top: 12px; background: var(--well); }
 .sp-empty { color: var(--muted); margin: 8px 0; }
 @media (max-width: 900px) { .subpanel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 22; width: min(94vw, 520px); box-shadow: -12px 0 32px rgb(0 0 0 / 0.5); } }
+
+
+/* Pictures sent with a message: a row of tiles over the bubble, and the viewer's arrows, caption and strip. */
+.gallery { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.msg.user .tile { position: relative; width: 84px; height: 58px; padding: 0; line-height: 0; overflow: hidden; background: var(--panel-3); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.msg.user .tile:hover { box-shadow: 0 0 0 2px var(--accent); }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile-n { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 4px; background: rgb(8 7 12 / 0.75); font: 10px/1.4 Menlo, Consolas, monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.tile.more-t { display: grid; place-items: center; line-height: 1.2; font: 800 16px Menlo, Consolas, monospace; color: var(--accent); }
+.tile.more-t small { display: block; font: 600 10px ui-sans-serif, system-ui, sans-serif; color: var(--muted); text-align: center; }
+.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 56px; padding: 0; display: grid; place-items: center; font-size: 22px; background: var(--panel-2); z-index: 2; }
+.lb-nav.l { left: 14px; }
+.lb-nav.r { right: 14px; }
+.lb-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+.lb-cap { position: absolute; top: 16px; left: 16px; right: 64px; display: flex; gap: 12px; align-items: baseline; pointer-events: none; }
+.lb-cap b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-cap span { margin-left: auto; font: 700 12px Menlo, Consolas, monospace; color: var(--accent); pointer-events: auto; }
+.lb-strip { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; max-width: calc(100vw - 120px); overflow: hidden; }
+.lb-strip button { width: 46px; height: 30px; padding: 0; line-height: 0; overflow: hidden; opacity: 0.6; border: 2px solid var(--ink); }
+.lb-strip button[aria-current='true'] { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
+.lb-strip img { width: 100%; height: 100%; object-fit: cover; max-width: none; max-height: none; box-shadow: none; }

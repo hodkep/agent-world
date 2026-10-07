@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Picture } from './Images'
+import type { PictureSet, Shot } from './gallery'
+import { Gallery, Picture } from './Images'
 import { followLink, linkHint } from '../links'
 import { hasMarkdown, highlight, isImagePath, splitMentions } from './format'
 import { type Picked, splitPicked } from './pickedContext'
@@ -99,7 +100,7 @@ function PickCard({ pick, thumb, onImage }: { pick: Picked; thumb?: string; onIm
 }
 
 /** A message with its @file mentions shown as chips, mentioned pictures as thumbnails above it, and picked elements as cards. */
-export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string) => void }) {
+export function UserText({ agentId, text, onImage }: { agentId: string; text: string; onImage: (src: string, set?: PictureSet) => void }) {
   const code = splitCode(text)
   const { picks, rest } = splitPicked(code.rest)
   const parts = splitMentions(rest)
@@ -114,14 +115,18 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
       alive = false
     }
   }, [agentId, pictures.join('\n'), pickPictures.join('\n')])
+  // The pictures are the row above; the words are what the bubble is trimmed by.
+  const shots: Shot[] = pictures.flatMap((p) => (thumbs[p] ? [{ src: thumbs[p]!, label: base(p).replace(/^\d{10,}-/, '') }] : []))
   const words = parts.filter((p) => !p.file).map((p) => p.text).join('').trim()
   const pieces = pairQuotes(words)
   return (
     <>
       {pictures.length > 0 && (
-        <div className="tc-images">
-          {pictures.map((p) => (thumbs[p] === undefined ? null : <Picture key={p} src={thumbs[p]!} onOpen={onImage} label={base(p)} />))}
-        </div>
+        <>
+          {shots.length > 0 && <Gallery shots={shots} onOpen={(i) => onImage(shots[i]!.src, { pictures: shots, index: i })} />}
+          {/* One too big to carry says where it is kept. */}
+          {pictures.filter((p) => thumbs[p] === '').map((p) => <Picture key={p} src="" onOpen={onImage} label={base(p)} />)}
+        </>
       )}
       <div className={`bubble ${pieces.some((p) => p.kind === 'qa') ? 'has-qa' : ''}`}>
         {code.blocks.map((b, i) => (
@@ -130,9 +135,9 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
         {picks.map((p, i) => (
           <PickCard key={i} pick={p} thumb={p.picture ? thumbs[p.picture] : undefined} onImage={onImage} />
         ))}
-        {parts.filter((p) => p.file).length > 0 && (
+        {parts.filter((p) => p.file && !isImagePath(p.text)).length > 0 && (
           <span className="mention-row">
-            {parts.filter((p) => p.file).map((p, i) => (
+            {parts.filter((p) => p.file && !isImagePath(p.text)).map((p, i) => (
               <span key={i} className="mention" title={p.text}>
                 {base(p.text) || p.text}
               </span>

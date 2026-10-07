@@ -22,6 +22,7 @@ import { UserText } from './Mentions'
 import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
 import type { SubagentInfo } from '../../shared/chat'
+import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
 import { type ToolRun, ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
@@ -132,6 +133,9 @@ export function ChatView({
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState<string | null>(null)
   const [zoomed, setZoomed] = useState<string | null>(null)
+  // The pictures of one message, opened on one of them, to step through.
+  const [gallery, setGallery] = useState<PictureSet | null>(null)
+  const showPicture = (src: string, set?: PictureSet) => (set ? setGallery(set) : setZoomed(src))
   const log = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const [away, setAway] = useState(false)
@@ -490,7 +494,7 @@ export function ChatView({
         )}
         {rows.map((r) => {
           const lb = slipsByRow.get(r.id)
-          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
           if (!lb || (!lb.starts.length && !lb.slips.length)) return row
           // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
@@ -565,7 +569,7 @@ export function ChatView({
         stopping={stopping}
         onStopping={setStopping}
         onError={setError}
-        onImage={setZoomed}
+        onImage={showPicture}
         latest={
           away ? (
             <button className="jump" onClick={() => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))}>
@@ -575,6 +579,7 @@ export function ChatView({
         }
       />
       {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
+      {gallery !== null && <Lightbox src={gallery.pictures[gallery.index]!.src} set={gallery} onClose={() => setGallery(null)} />}
     </div>
     </AgentIdContext.Provider>
   )
@@ -729,7 +734,7 @@ function JumpButtons() {
   )
 }
 
-export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string) => void; onRewind: (text: string) => void }) {
+export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
