@@ -35,8 +35,8 @@ test('subagents gather around their main agent, facing it, each in a seat of its
         expect([0, 1]).toContain(dx)
         expect(s.facing).toBe('down')
       } else {
-        // Beside them or at the sides of the desk, turned towards them.
-        expect([0, -1]).toContain(dy)
+        // At the sides of the desk, a row above or below the chair so that no two sit on top of each other, turned towards them.
+        expect([-1, 1]).toContain(dy)
         expect([-1, 2]).toContain(dx)
         expect(s.facing).toBe(dx < 0 ? 'right' : 'left')
       }

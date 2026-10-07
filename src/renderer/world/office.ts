@@ -90,14 +90,16 @@ const BEANBAG_XS = [20, 22, 24]
 
 /** How many subagents fit around one main agent's desk; the rest use the shared table. */
 export const RETINUE_SEATS = 6
-// All of them face the main agent: first beside the chair, then at the sides of the desk, then across the desk.
-// [dx, dy, facing] from the chair tile, which is the left of the two tiles the agent sits across.
-const RETINUE: [number, number, Facing][] = [[2, 0, 'left'], [-1, 0, 'right'], [2, -1, 'left'], [-1, -1, 'right'], [0, -2, 'down'], [1, -2, 'down']]
+// All of them face the main agent: first at the sides of the desk, a row below the chair and then a row above it, then across the desk.
+// A sitter is taller than a tile, so no two share a column on neighbouring rows (that is why the chair's own row is left free).
+// [dx, dy, facing, ox] from the chair tile, which is the left of the two tiles the agent sits across. The two across the desk
+// are moved apart (ox) so the monitor in the middle of the desk does not hide them.
+const RETINUE: [number, number, Facing, number][] = [[2, 1, 'left', 0], [-1, 1, 'right', 0], [2, -1, 'left', 0], [-1, -1, 'right', 0], [0, -2, 'down', -3], [1, -2, 'down', 3]]
 
 /** The open floor where a main agent's nth subagent sits, next to the desk chair at `desk`; null when all are taken. */
 export function retinueSpot(desk: Pt, n: number): Spot | null {
   const s = RETINUE[n]
-  return s ? { x: desk.x + s[0], y: desk.y + s[1], facing: s[2], ox: 0, seated: true } : null
+  return s ? { x: desk.x + s[0], y: desk.y + s[1], facing: s[2], ox: s[3], seated: true } : null
 }
 
 function buildRows(furniture: Furniture[], seats: Pt[]) {

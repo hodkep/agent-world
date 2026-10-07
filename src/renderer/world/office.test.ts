@@ -68,13 +68,13 @@ describe('subagents gathered around their main agent', () => {
     for (const s of all) expect(chairs.has(tile(s)), tile(s)).toBe(false)
   })
 
-  it('puts every seat beside the main agent, at the sides of the desk, or across the desk from them', () => {
+  it('puts every seat at the sides of the desk, a row above or below the main agent, or across the desk from them', () => {
     for (const d of OFFICE.desks)
       for (let i = 0; i < RETINUE_SEATS; i++) {
         const s = retinueSpot(d, i)!
         expect(s.seated).toBe(true)
         // The agent sits across tiles d.x and d.x+1 at the chair row d.y; the desk is the row above it.
-        const beside = s.y === d.y || s.y === d.y - 1
+        const beside = s.y === d.y - 1 || s.y === d.y + 1
         const across = s.y === d.y - 2 && (s.x === d.x || s.x === d.x + 1)
         expect(beside || across, tile(s)).toBe(true)
         if (beside) expect(s.x === d.x - 1 || s.x === d.x + 2, tile(s)).toBe(true)
@@ -87,6 +87,22 @@ describe('subagents gathered around their main agent', () => {
         const s = retinueSpot(d, i)!
         if (s.y === d.y - 2) expect(s.facing).toBe('down')
         else expect(s.facing).toBe(s.x < d.x ? 'right' : 'left')
+      }
+  })
+
+  it('never seats two of them on top of each other: a sitter is taller than a tile, so no two share a column on neighbouring rows', () => {
+    for (const d of OFFICE.desks) {
+      const mine = Array.from({ length: RETINUE_SEATS }, (_, i) => retinueSpot(d, i)!)
+      for (const a of mine) for (const b of mine) if (a !== b && a.x === b.x) expect(Math.abs(a.y - b.y), `${tile(a)} ${tile(b)}`).toBeGreaterThan(1)
+    }
+  })
+
+  it('moves the two across the desk apart, out from behind its monitor, and leaves the others on their tile', () => {
+    for (const d of OFFICE.desks)
+      for (let i = 0; i < RETINUE_SEATS; i++) {
+        const s = retinueSpot(d, i)!
+        if (s.y !== d.y - 2) expect(s.ox).toBe(0)
+        else expect(s.x === d.x ? s.ox < 0 : s.ox > 0).toBe(true)
       }
   })
 })

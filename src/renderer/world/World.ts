@@ -593,7 +593,8 @@ export class OfficeWorld {
       const c = this.chars.get(key)
       if (!c || c.leaving || this.stools.has(key)) continue
       const g = new Graphics()
-      const px = c.home.x * TILE
+      // Under the sitter wherever the seat is nudged to (the two across the desk sit a little apart).
+      const px = c.home.x * TILE + c.home.ox
       const py = c.home.y * TILE
       g.rect(px + 4, py + 12, 2, 4).fill(0x8a9099)
       g.rect(px + 10, py + 12, 2, 4).fill(0x8a9099)
