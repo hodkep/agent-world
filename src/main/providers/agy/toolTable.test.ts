@@ -16,6 +16,10 @@ describe("agy's tools in the chat's vocabulary", () => {
     expect(t('find_by_name', { Pattern: '*.ts', SearchDirectory: '/p' })[0]).toMatchObject({ name: 'Glob', input: { pattern: '*.ts', path: '/p' } })
     expect(t('read_url_content', { Url: 'https://x.dev' })[0]).toMatchObject({ name: 'WebFetch', input: { url: 'https://x.dev' } })
   })
+  it('a timer is a schedule in seconds with what it will do', () => {
+    expect(t('schedule', { DurationSeconds: 10, Prompt: 'Wait for subagent to finish', TimerCondition: 'c-1' })).toEqual([{ id: 'c1', name: 'Schedule', input: { inSeconds: 10, reason: '', prompt: 'Wait for subagent to finish' } }])
+    expect(t('schedule', {})[0]).toMatchObject({ name: 'Schedule', input: { inSeconds: 0, prompt: '' } })
+  })
   it('missing or odd arguments never throw', () => {
     expect(t('write_to_file', {})[0]).toMatchObject({ name: 'Write', input: { file_path: '', content: '' } })
     expect(t('multi_replace_file_content', { TargetFile: 'a', ReplacementChunks: 'nope' })[0]).toMatchObject({ name: 'MultiEdit', input: { edits: [] } })

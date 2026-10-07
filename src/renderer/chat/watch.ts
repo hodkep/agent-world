@@ -158,6 +158,8 @@ export function scheduleView(run: ScheduleRun, now: number): { state: ScheduleSt
   }
   const words = cron ? cronWords(cron, repeat) : ''
   const base = { title, repeat: cron ? words : '', target }
+  // A timer that something it waited for cut short has done its work already.
+  if (!run.cancelled && /cancelled early|early-termination/i.test(run.result?.text ?? '')) return { ...base, state: 'ran', when: 'Woke early', left: '', fill: 1 }
   if (run.cancelled) return { ...base, state: 'cancelled', when: target ? `Was: ${nextLabel(target, now)}` : 'Cancelled', left: '', fill: 0 }
   if (cron && repeat) {
     const next = nextCron(cron, now) ?? target

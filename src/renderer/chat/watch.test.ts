@@ -70,6 +70,10 @@ describe('a scheduled task', () => {
   it('works out the time itself when the answer does not carry it', () => {
     expect(scheduleView({ input: { inSeconds: 600 }, at: T0 }, T0)).toMatchObject({ state: 'waiting', when: 'Today at 19:21' })
   })
+  it('a timer that was cut short by what it was waiting for says it woke early', () => {
+    const run = { input: { inSeconds: 10, prompt: 'Wait for subagent to finish' }, at: T0, result: { text: 'Timer cancelled early: its early-termination condition (0df393c6) was met by a message from 0df393c6.', isError: false } }
+    expect(scheduleView(run, T0 + 3000)).toMatchObject({ state: 'ran', when: 'Woke early', left: '' })
+  })
   it('a repeating cron job shows its next time, and a cancelled one says it was cancelled', () => {
     const run = { input: { cron: '0 9 * * 1-5', repeat: true, prompt: 'x' }, at: T0 }
     expect(scheduleView(run, T0)).toMatchObject({ state: 'repeats', repeat: 'every weekday at 09:00', when: 'Next: Thu 09:00' })

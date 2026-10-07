@@ -26,6 +26,8 @@ const table: Record<string, Mapper> = {
   read_url_content: (a) => call.webFetch(text(a.Url)),
   search_web: (a) => call.webSearch(text(a.query)),
   call_mcp_tool: (a) => call.mcp(text(a.ServerName), text(a.ToolName), a.Arguments && typeof a.Arguments === 'object' ? (a.Arguments as Record<string, unknown>) : {}),
+  // Seen in agy's conversations: a timer that wakes it after DurationSeconds with a prompt, or sooner when the conversation named in TimerCondition reports.
+  schedule: (a) => call.schedule({ inSeconds: typeof a.DurationSeconds === 'number' ? a.DurationSeconds : 0 }, '', text(a.Prompt)),
   invoke_subagent: (a, id) =>
     (Array.isArray(a.Subagents) ? (a.Subagents as Spawn[]) : []).map((s, i) => ({
       id: subagentCallId(id, i),
@@ -50,5 +52,6 @@ export const agyCallSamples = [
   { id: 'a', name: 'read_url_content', args: { Url: 'https://example.com' } },
   { id: 'a', name: 'search_web', args: { query: 'weather' } },
   { id: 'a', name: 'call_mcp_tool', args: { ServerName: 'agent-world', ToolName: 'list_agents', Arguments: {} } },
+  { id: 'a', name: 'schedule', args: { DurationSeconds: 10, Prompt: 'Wait for subagent to finish', TimerCondition: '0df393c6-f8e6-478a-9950-73f9d4117afa', toolAction: 'Scheduling check', toolSummary: 'Timer schedule' } },
   { id: 'a', name: 'invoke_subagent', args: { Subagents: [{ Prompt: 'Look around', TypeName: 'research' }] } }
 ]
