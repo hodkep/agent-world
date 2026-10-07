@@ -14,7 +14,7 @@ beforeEach(async () => {
     root: join(dir, 'library'),
     agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy' }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
-    onUse: (id) => void pushed.push(id)
+    onUse: (id, how) => void pushed.push(`${id}:${how}`)
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
   const s = join(dir, 'src', 'pdf')
@@ -143,7 +143,7 @@ describe('what an agent is given from the library', () => {
     it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
       await svc.prepare('a1', true)
       svc.remind('a1', 'split this pdf into pages')
-      expect(pushed).toContain('a1')
+      expect(pushed).toContain('a1:triggered')
       expect(svc.stats().items.terse).toMatchObject({ delivered: 1, used: 0 })
       expect(Object.keys(svc.stats().items)).not.toContain('')
     })

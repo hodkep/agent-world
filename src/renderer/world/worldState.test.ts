@@ -51,6 +51,11 @@ describe('place follows state', () => {
     expect(placeFor('idle', false)).toBe('lounge')
     expect(placeFor('waiting', false)).toBe('lounge')
     expect(placeFor('asleep', false)).toBe('gone')
+    // An agent reading a library item walks to the shelf; one at rest, or a subagent, does not.
+    expect(placeFor('implementing', false, undefined, true)).toBe('shelf')
+    expect(placeFor('thinking', false, 'plan', true)).toBe('shelf')
+    expect(placeFor('idle', false, undefined, true)).toBe('lounge')
+    expect(placeFor('implementing', true, undefined, true)).toBe('intern')
   })
 
   it('interns always work at the meeting table while they exist', () => {

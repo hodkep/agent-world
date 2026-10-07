@@ -32,7 +32,7 @@ interface Deps {
   /** A short file-name-safe key for a workspace. */
   workspaceKey: (repoPath: string) => string
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
-  onUse?: (agentId: string) => void
+  onUse?: (agentId: string, how: How) => void
 }
 
 const MAX_FILE = 100 * 1024
@@ -83,7 +83,7 @@ export function createLibraryService(d: Deps) {
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
     log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words })
-    d.onUse?.(a.id)
+    d.onUse?.(a.id, how)
   }
 
   return {

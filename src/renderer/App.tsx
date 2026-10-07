@@ -426,9 +426,21 @@ export function App() {
     }
   }, [])
 
+  // An agent that reads a library item walks to the bookshelf for a few seconds.
+  const [reading, setReading] = useState<Record<string, number>>({})
+  useEffect(
+    () =>
+      window.aw.onLibraryUse((id, how) => {
+        if (how !== 'fetched' && how !== 'skill' && how !== 'read') return
+        const until = Date.now() + 6000
+        setReading((r) => ({ ...r, [id]: until }))
+        setTimeout(() => setReading((r) => (r[id] === until ? Object.fromEntries(Object.entries(r).filter(([k]) => k !== id)) : r)), 6000)
+      }),
+    []
+  )
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0) }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id] ?? 0) > Date.now() }))
     )
   })
 

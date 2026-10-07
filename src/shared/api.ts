@@ -177,7 +177,7 @@ export interface AwApi {
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   /** An agent has a new entry in the library's log (read it again with library.uses). */
-  onLibraryUse(cb: (agentId: string) => void): () => void
+  onLibraryUse(cb: (agentId: string, how: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>

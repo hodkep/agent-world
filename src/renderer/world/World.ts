@@ -41,6 +41,8 @@ export interface AgentView {
   cloneOf?: string
   /** Lines added and removed this session, from Claude's statusline feed. */
   linesChanged: number
+  /** It has just read something from the library: it walks to the bookshelf and pulls the book out while it reads. */
+  reading?: boolean
 }
 
 export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void }
@@ -61,7 +63,8 @@ const POOLS: Record<Purpose, Spot[]> = {
   desk: [...OFFICE.desks, ...OFFICE.overflow.desk],
   intern: [...OFFICE.interns, ...OFFICE.overflow.intern],
   lounge: [...OFFICE.sofas, ...OFFICE.overflow.lounge],
-  whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk]
+  whiteboard: [...OFFICE.whiteboard, ...OFFICE.overflow.desk],
+  shelf: [...OFFICE.shelf, ...OFFICE.overflow.desk]
 }
 const MAX_PILE = 14
 // Art pixels kept in view above the building (the power plant) and below it (the pavement and street).
@@ -101,6 +104,9 @@ export class OfficeWorld {
   private publishedScore = ''
   private readonly mail = new Graphics()
   private readonly board = new Graphics()
+  // The book an agent has pulled out of the wall shelf while it reads.
+  private readonly pulledBook = new Graphics()
+  private pulledKey = ''
   private boardKey = ''
   private ambient!: Ambient
   private readonly root = new Container()
@@ -151,6 +157,8 @@ export class OfficeWorld {
     this.overlays.addChild(this.mail, this.visitors.bubbles)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
+    this.pulledBook.zIndex = TILE * 2
+    this.layer.addChild(this.pulledBook)
     const f = drawFurniture(OFFICE.furniture, OFFICE.decor, this.layer, shadows, COFFEE_SPOUT)
     this.screens = f.screens
     this.ambient = f.ambient
@@ -434,10 +442,10 @@ export class OfficeWorld {
     return retinueSpot(desk, n)
   }
 
-  private route(c: Character, activity: Activity, intern: boolean, detail?: string, mode?: string) {
+  private route(c: Character, activity: Activity, intern: boolean, detail?: string, mode?: string, reading = false) {
     c.activity = activity
     c.detail = detail
-    const place = placeFor(activity, intern, mode)
+    const place = placeFor(activity, intern, mode, reading)
     if (place === 'gone') return
     c.goTo(place === 'desk' || place === 'intern' ? c.home : this.claim(c.key, place))
   }
@@ -458,7 +466,7 @@ export class OfficeWorld {
       c.mode = a.state.mode
       c.contextPct = a.contextPct
       c.subagents = Object.keys(a.state.interns).length
-      this.route(c, a.state.activity, false, a.state.detail, a.state.mode)
+      this.route(c, a.state.activity, false, a.state.detail, a.state.mode, a.reading)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
 
@@ -490,6 +498,7 @@ export class OfficeWorld {
         } else c.goTo(OFFICE.door)
       }
     this.drawBoard(agents)
+    this.drawBooks(agents)
     // Who has changed the most lines, on the lawn (drawn only when there is something to show).
     const score = scoreboardRows(agents.map((a) => ({ name: a.name, lines: a.linesChanged })))
     const json = JSON.stringify(score)
@@ -534,6 +543,21 @@ export class OfficeWorld {
         else g.rect(x, y, 6, 1).fill({ color: 0xffffff, alpha: 0.35 })
       })
     )
+  }
+
+  /** A red spine sticks out of the shelf in front of each agent that is reading from the library. */
+  private drawBooks(agents: AgentView[]) {
+    const spots = agents.filter((a) => a.reading && placeFor(a.state.activity, false, a.state.mode, true) === 'shelf').map((a) => this.claims.get('shelf')?.get(a.id)).filter((x): x is Spot => !!x)
+    const key = JSON.stringify(spots.map((s) => s.x))
+    if (key === this.pulledKey) return
+    this.pulledKey = key
+    this.pulledBook.clear()
+    for (const s of spots) {
+      const x = s.x * TILE + 5
+      this.pulledBook.rect(x - 1, TILE + 2, 6, 11).fill(0x14111c)
+      this.pulledBook.rect(x, TILE + 3, 4, 9).fill(0xd83a3a)
+      this.pulledBook.rect(x, TILE + 3, 1, 9).fill({ color: 0xffffff, alpha: 0.3 })
+    }
   }
 
   private tick(dt: number) {

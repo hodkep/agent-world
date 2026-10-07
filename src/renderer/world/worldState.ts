@@ -33,15 +33,17 @@ export interface Task {
 /** Keyed by agent id: an agent's Claude session id changes on /clear, its identity does not. */
 export type World = Record<string, AgentState>
 export type Role = 'boss' | 'senior' | 'intern'
-export type Place = 'desk' | 'intern' | 'lounge' | 'whiteboard' | 'gone'
+export type Place = 'desk' | 'intern' | 'lounge' | 'whiteboard' | 'shelf' | 'gone'
 
 const FILE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit'])
 
 /** Active agents work at their desk, finished ones rest in the lounge, dead sessions leave the office. */
-export function placeFor(activity: Activity, intern: boolean, mode?: string): Place {
+export function placeFor(activity: Activity, intern: boolean, mode?: string, reading = false): Place {
   if (intern) return 'intern'
   if (activity === 'asleep') return 'gone'
   if (activity === 'idle' || activity === 'waiting' || activity === 'blocked') return 'lounge'
+  // Reading something from the library takes a working agent to the bookshelf for a moment.
+  if (reading) return 'shelf'
   // Planning happens at the whiteboard, including presenting the plan for review.
   if (mode === 'plan') return 'whiteboard'
   return 'desk'
