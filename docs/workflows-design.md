@@ -135,13 +135,20 @@ Claude Code on Haiku 4.5 (agy on Gemini 3.8 Flash low), 3 to 4 prompts per cell,
 Haiku 4.5 on the 48 real skills of this machine, all on demand, 8 tasks per variant (`pilot/scale.pilot.ts`). Small sample.
 - Left to itself (catalog file and tools in reach): right skill used **0/8**. With the matched line added to each prompt: **5/8** (6/8 counting a run that used the user's own copy of the skill). Every skill loaded natively plus the line: 4/8. No skill was used on prompts about none (0/3). A run that used a skill cost about 100k tokens against about 31k for one that did not.
 - Matcher over the 48 skills (free, prompts written by the author, so optimistic): right one first 15/18, in the top 3 17/18, pointed at something for 2 of 7 prompts about none.
-- The every-10-prompts and after-compaction catalog is built and unit-tested but has not been exercised with a real agent (the pilot used one-shot runs).
+- The every-10-prompts and after-compaction catalog was exercised with a real session in the next section.
+
+### Models, long sessions, agy cost (2026-10-07)
+Small samples (6 tasks per variant, 3 prompts about none), the same 48 skills; `pilot/scale.pilot.ts` with `PILOT_MODEL`, `pilot/session.pilot.ts`, `pilot/agy-cost.pilot.ts`.
+- **Whether pointing is needed depends on the model.** Left to itself (catalog file and tools in reach), the right skill was used: Haiku 0/8, **Sonnet 5/6**, Opus 1/6. With the matched line each prompt: Haiku 5/8, Sonnet 5/6, Opus 5/6. No model used a skill on a prompt about none (0/3 each). So the push is what makes the weak model and Opus use the library; Sonnet mostly does it alone, and there the line mainly saves tokens (about 89k per run against 135k, because it stops it searching). Spent about $2.26 (Sonnet) and $4.33 (Opus). The "test fails once in twenty runs" task was missed by every variant of every model: the matcher missed it too (its words overlap no skill's), so it is a wording problem in the skill's "when", not a model one.
+- **The catalog comes back as built.** One real Claude session (Haiku, 11 prompts then `/compact`): the catalog arrived on prompt 10 and not on 1-9 or 11, the PostCompact hook fired once, and the next prompt carried it. Both probes, worded so the matcher would not point at the right item, were answered correctly by reading the item (ZEPHYR-7, OSPREY-3). Caveat: the opening text (an appended system prompt for Claude) already lists every item's "when", so this does not show the catalog itself changed an answer; it matters where the opening text can be compacted away (agy sends it as a first message). The session cost about $0.17; the pilot's own total double-counted a resumed session's running cost and was fixed.
+- **agy: the injected line is cheap.** The same ten prompts in two fresh conversations, plugin silent against pointing every turn (the worst case): total tokens **+1%** over ten turns (378k against 375k), last turn +1%, and the prompt cache grew identically (cache_read 129,970 against 129,961). The earlier "about 40% more by turn 4" was one sample and does not reproduce. A message can point at up to three items (22 over 10 messages).
+- **Matcher:** one pilot probe ("go live with the new build") was pointed at an onboarding item by the word "new"; everyday words (new, make, get, need, just, like...) are now ignored. The at-scale matcher numbers did not change (right one first 15/18, top 3 17/18).
 
 ### agy: hooks (2026-10-07)
 Found in the agy binary's own docs and checked with a throwaway plugin, in print and in the interactive terminal.
 - A plugin's `hooks.json` (an object keyed by hook name) registers `PreInvocation`, `PostToolUse` and others; hooks are shell commands, run in both modes, and inherit the agent's environment (so the token the office puts there reaches them).
 - `PreInvocation` can return `injectSteps` with an `ephemeralMessage`. It reached the model: a fact it could not guess (ZEPHYR-7) was answered 2/2 against 0/1 without; a bare instruction ("end with PINEAPPLE") was ignored because agy's own global rules shape the reply. It is not given the prompt, only the path of the saved conversation (a JSONL file).
-- The injected message stays in the conversation (one step per injection) and, in one 4-turn run, the prompt cache stopped growing and total tokens were about 40% higher by turn 4. One sample: treat as a warning, so the hook sends a line only when the message matches an item, once per message.
+- The injected message stays in the conversation (one step per injection). A first 4-turn sample suggested about 40% more tokens by turn 4; a 10-turn re-run (see "Models, long sessions, agy cost") found +1% and an unchanged cache, so it was noise. The hook still sends a line only when the message matches an item, once per message.
 - `PostToolUse` gives the tool and its arguments (`view_file` with the absolute path): that is how a read of a skill file is counted. `PreToolUse` is not used: its answer decides what agy may do.
 - Reading a file outside the workspace asks for approval; `--add-dir <library>` (already passed) removes the prompt.
 - Built: `providers/agy/libraryHook.ts` (answers the hooks), `plugin.ts` (the plugin the Connect step installs: `aw-library`, two hooks and one script that posts to the office's `/hook/<event>` with the agent's token), and the Connect plan for agy now also installs the plugin. Without a token in the environment the script prints `{}`, so it is silent in agy sessions the office did not start.
@@ -170,6 +177,7 @@ Full report: `reports/Making coding agents follow instructions.md` (notes in `re
 
 ## Change log
 
+- 2026-10-07: the library UI is built from the picked mocks; added the model comparison (Haiku, Sonnet, Opus), the long-session catalog check and agy's cost over ten turns.
 - 2026-10-07: first version, from the brainstorm. Decisions D1–D9 recorded; the rest is proposed.
 - 2026-10-07: added the at-scale results and the agy hooks findings; the agy adapter is built (pilot/agy.pilot.ts measures it).
 - 2026-10-07: added D13 (usage tracking) and D14 (catalog and matched hints), and the at-scale pilot (`pilot/scale.pilot.ts`).
