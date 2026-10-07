@@ -6,7 +6,7 @@ export interface Matchable {
   when: string
 }
 
-const STOP = new Set('the and for with that this from into when then than are was were has have any all use using used can will should would could your you its not but out about over how what why who which where while also more some such only each per via'.split(' '))
+const STOP = new Set('the and for with that this from into when then than are was were has have any all use using used can will should would could your you its not but out about over how what why who which where while also more some such only each per via new old make get want need just like please help do does did our out one two now here there their them they these those been being into onto upon very much many'.split(' '))
 
 const words = (s: string): string[] =>
   (s.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length > 2 && !STOP.has(w)).map((w) => w.replace(/(ing|ed|es|s)$/, ''))

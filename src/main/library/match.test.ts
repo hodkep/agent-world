@@ -22,6 +22,11 @@ describe('which library items a prompt points at', () => {
   it('finds nothing for a prompt that is about none of them', () => {
     expect(matchItems('why is the lamp post drawn behind the car', catalog)).toEqual([])
   })
+  it('is not pointed at an item by a word that is in everything people say, like "new"', () => {
+    const items = [e('onboarding', 'A new teammate joining the team', 'a new teammate joining the team'), e('release-checklist', 'Shipping a release', 'shipping a release to production'), ...filler]
+    expect(matchItems('we are about to go live with the new build', items)).toEqual([])
+    expect(matchItems('a new teammate is joining on monday', items)[0]?.id).toBe('onboarding')
+  })
   it('returns at most k, best first', () => {
     const r = matchItems('write a migration, commit it and run a security review', catalog, 2)
     expect(r.length).toBeLessThanOrEqual(2)
