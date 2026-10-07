@@ -9,3 +9,5 @@ playwright-report
 .impeccable/config.local.json
 dist
 excalidraw.log
+
+pilot-*report.txt
