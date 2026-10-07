@@ -141,6 +141,10 @@ export interface LaunchInput {
   options?: AgentOptions
   houseRules?: string
   addDirs?: string[]
+  /** Folders of plugins to load for this session only (for a program that has such a flag). */
+  pluginDirs?: string[]
+  /** Tools that need no permission prompt (the office's read-only library tools), for a program that has such a flag. */
+  allowTools?: string[]
 }
 
 export interface PrepareInput {
@@ -176,6 +180,12 @@ export interface EventSourceOptions {
   onToolInput?: (agentId: string, json: string) => void
   /** The provider found the name of the agent's conversation (its first one, or after a restart): the app keeps it to resume. */
   onSession?: (agentId: string, sessionId: string) => void
+  /** Text to add to what an agent is told each time you send it a message (a rule it must not drift from, what its message points at), or null. */
+  reminderFor?: (agentId: string, prompt: string) => string | null
+  /** The agent is about to call a tool, with what it was given. */
+  onToolUse?: (agentId: string, tool: string, input: Record<string, unknown>) => void
+  /** The agent's earlier conversation was just replaced by a summary. */
+  onCompact?: (agentId: string) => void
   terminal?: TerminalAccess
 }
 
@@ -229,6 +239,12 @@ export interface MailSetup {
   removeStale?(bin: string, name: string): Promise<void>
 }
 
+/** What a provider's hooks may ask of the library: the line to add for a message, and a note that a file was read. */
+export interface LibraryHookIO {
+  remind(prompt: string): string
+  used(path: string): void
+}
+
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
 /**
  * How a program keeps one login apart from another, so an agent can run on a personal or a work subscription and move between
@@ -256,6 +272,8 @@ export interface Provider {
   /** The program's usual name on the PATH. */
   readonly bin: string
   readonly capabilities: Capabilities
+  /** Answers this program's own hooks (a plugin it was given calls the office, which asks here), for one that has them. */
+  readonly libraryHook?: (event: string, payload: Record<string, unknown>, io: LibraryHookIO) => Record<string, unknown>
   /** Is it here, and usable? `run` lets tests answer instead of starting a program. */
   detect(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<Detection>
   readonly transcript: TranscriptSource

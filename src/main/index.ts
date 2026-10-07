@@ -1,5 +1,8 @@
 import { readText, resolveFile, startFileServer } from './files'
 import { forget, loadMemory, recall, remember } from './memory'
+import { createLibraryService } from './library/service'
+import { importCandidates, scanSources } from './library/sources'
+import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { checkForUpdates } from './updates'
@@ -10,7 +13,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, extname, isAbsolute, join } from 'node:path'
+import { basename, extname, isAbsolute, join, relative, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
@@ -157,6 +160,8 @@ const MENU_RETRY_MS = 1000
 const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
+// When each agent was last working (not idle, waiting or asleep): the library uses it to tell a program whose hooks do not reach the office from one that is idle.
+const busyAt = new Map<string, number>()
 const lastCost = new Map<string, number>()
 // The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
 // reading is still there after a restart, until the next reply refreshes it.
@@ -374,6 +379,41 @@ const send = (channel: string, ...args: unknown[]) => {
 }
 const persist = () => saveAgents(AGENTS_FILE, agents)
 const byId = (id: string) => agents.find((a) => a.id === id)
+// The global library of skills and instructions, and the playbooks (global, and one per workspace) that say how agents use it.
+const LIBRARY_DIR = join(HOME, 'library')
+// Where skills are looked for to import: the user's own folders (a test points it elsewhere).
+const userHome = () => process.env.AW_USER_HOME ?? homedir()
+const libraryService = createLibraryService({
+  root: LIBRARY_DIR,
+  agent: (id) => {
+    const a = byId(id)
+    return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id, viaHook: !!providerOf(a).libraryHook } : undefined
+  },
+  workspaceKey: repoSlug,
+  onUse: (id, how) => send('library-use', id, how)
+})
+// The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
+const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)
+// What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
+const libraryRemind = (id: string, prompt: string) => {
+  try {
+    return libraryService.remind(id, prompt) || null
+  } catch {
+    return null
+  }
+}
+// A Claude agent used a library item through its own tools: the Skill tool (plain or plugin-prefixed name), or reading a file of the library.
+const noteLibraryUse = (id: string, tool: string, input: Record<string, unknown>) => {
+  try {
+    if (tool === 'Skill' && typeof input.skill === 'string') libraryService.record(id, input.skill.replace(/^[^:]+:/, ''), 'skill')
+    else if (tool === 'Read' && typeof input.file_path === 'string') {
+      const m = relative(join(LIBRARY_DIR, 'skills'), input.file_path).split(sep)
+      if (m[0] && m[0] !== '..' && !isAbsolute(m[0])) libraryService.record(id, m[0], 'read')
+    }
+  } catch {
+    /* counting is a convenience */
+  }
+}
 /** How to read an agent's terminal screen: that agent's provider knows its own screens. */
 const ui = (id: string) => providerOf(byId(id) ?? {}).screen
 const keysOf = (id: string) => providerOf(byId(id) ?? {}).keys
@@ -527,6 +567,7 @@ function trackTurns(e: AgentEvent) {
     }
     if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
     lastActivity.set(a.id, e.activity)
+    if (!['idle', 'waiting', 'asleep'].includes(e.activity)) busyAt.set(a.id, Date.now())
     runClock(a, e.activity)
     if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
     else mailbox.busy(a.id)
@@ -599,7 +640,15 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const provider = providerOf(a)
   const files = agentFiles(a)
   const mail = mailState(provider)
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [(mail === 'yes' || mail === 'connected') && MEMORY_HINT, (mail === 'yes' || mail === 'connected') && DESCRIBE_HINT, okfHint(a.cwd), prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR] })
+  // What the library gives this agent: the opening text for its playbook and, for Claude, a folder of just the skills allowed. It never stops an agent starting.
+  const canFetch = mail === 'yes' || mail === 'connected'
+  let lib: { core: string; reminder: string; pluginDir: string | null } = { core: '', reminder: '', pluginDir: null }
+  try {
+    lib = libraryService.prepare(a.id, canFetch, !!provider.capabilities.nativeSkills)
+  } catch {
+    /* the library is a convenience */
+  }
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: lib.core ? LIBRARY_TOOLS : [] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -786,6 +835,9 @@ async function main() {
       send('permission-settled', id)
     },
     onStatus: onStats,
+    reminderFor: libraryRemind,
+    onToolUse: noteLibraryUse,
+    onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
     onSession: (id, sessionId) => {
       const a = byId(id)
@@ -844,6 +896,18 @@ async function main() {
     recall: (caller, query) => {
       const a = byId(caller)
       return a ? recall(loadMemory(memoryFile(a.repoPath)), query) : []
+    },
+    // A program's own hooks (agy's plugin) calling the office: its provider says what to answer.
+    hook: (id, event, payload) => {
+      const a = byId(id)
+      if (!a) return {}
+      libraryService.hookCalled(id)
+      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
+    },
+    library: {
+      index: (caller) => libraryService.index(caller),
+      get: (caller, id, file) => libraryService.get(caller, id, file),
+      search: (caller, query) => libraryService.search(caller, query)
     }
   })
   const pages = await startFileServer()
@@ -1193,6 +1257,32 @@ async function main() {
     if (!p?.mail) throw new Error('That provider has nothing to connect.')
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
+  })
+  // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
+  ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
+  ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
+  ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
+  ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
+  ipcMain.handle('library:try', (_, folder: string, text: string) => libraryService.tryMessage(String(folder), String(text ?? '').slice(0, 2000)))
+  ipcMain.handle('library:stats', () => libraryService.stats())
+  ipcMain.handle('library:save', (_, i: { id?: string; kind: 'skill' | 'instruction' | 'prompt'; name: string; description: string; body: string }) => libraryService.library.save({ id: i.id, kind: i.kind, name: String(i.name ?? '').slice(0, 100), description: String(i.description ?? '').slice(0, 500), body: String(i.body ?? '').slice(0, 200_000) }))
+  ipcMain.handle('library:remove', (_, id: string) => libraryService.library.remove(String(id)))
+  ipcMain.handle('library:sources', (_, folder?: string) => scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined }))
+  // Only folders that a fresh scan finds can be copied in, so a window can never ask for any other folder.
+  ipcMain.handle('library:import', async (_, folder: string | undefined, dirs: string[]) => {
+    const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined })
+    return importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
+  })
+  ipcMain.handle('playbook:get', (_, folder?: string) => ({ global: libraryService.playbooks.read('global'), workspace: folder ? libraryService.playbooks.read({ workspace: repoSlug(folder) }) : [] }))
+  ipcMain.handle('playbook:set', (_, scope: string | null, rules: unknown[]) => {
+    const good = (Array.isArray(rules) ? rules : []).filter(isRule)
+    libraryService.playbooks.write(scope ? { workspace: repoSlug(scope) } : 'global', good)
+    return good
+  })
+  ipcMain.handle('library:preview', (_, folder: string, providerId: string) => {
+    const p = providers().find((x) => x.id === providerId) ?? providers()[0]
+    const m = p ? mailState(p) : 'no'
+    return libraryService.compileFor(folder, m === 'yes' || m === 'connected')
   })
   // The program under each login says who is signed in (read only); the service does the rest, whichever program it is.
   ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => accountsSvc.list(agents, binFor, env))

@@ -59,6 +59,10 @@ export function launchArgs(o: {
   houseRules?: string
   /** Extra folders the agent may read without asking (where attached pictures and files are saved). */
   addDirs?: string[]
+  /** Plugins to load for this session only. */
+  pluginDirs?: string[]
+  /** Tools allowed without asking. */
+  allowTools?: string[]
 }) {
   const args = o.started
     ? ['--resume', o.sessionId, '--settings', o.settingsFile]
@@ -76,6 +80,9 @@ export function launchArgs(o: {
   if (instructions) args.push('--append-system-prompt', instructions)
   if (opt.chrome) args.push('--chrome')
   for (const d of o.addDirs ?? []) args.push('--add-dir', d)
+  for (const d of o.pluginDirs ?? []) args.push('--plugin-dir', d)
+  // Last, because the flag takes every word after it as a tool name.
+  if (o.allowTools?.length) args.push('--allowedTools', ...o.allowTools)
   return args
 }
 

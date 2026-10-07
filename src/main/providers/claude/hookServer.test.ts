@@ -6,13 +6,18 @@ type Server = Awaited<ReturnType<typeof startHookServer>>
 let server: Server | undefined
 afterEach(() => server?.close())
 
-async function setup(permissionTimeoutMs = 5_000) {
+async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, prompt: string) => string | null) {
+  const tools: [string, string, unknown][] = []
+  const compacted: string[] = []
   const toolInputs: [string, string][] = []
   const events: AgentEvent[] = []
   const asks: PermissionRequest[] = []
   const settled: string[] = []
   const stats: unknown[] = []
   server = await startHookServer({
+    reminderFor,
+    onToolUse: (id, tool, input) => tools.push([id, tool, input]),
+    onCompact: (id) => compacted.push(id),
     onStatus: (s) => stats.push(s),
     onToolInput: (id, json) => toolInputs.push([id, json]),
     agentForToken: (t) => (t === 'secret' ? 'a1' : null),
@@ -21,7 +26,7 @@ async function setup(permissionTimeoutMs = 5_000) {
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled, stats, toolInputs }
+  return { server, events, asks, settled, stats, toolInputs, tools, compacted }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -167,5 +172,29 @@ describe('hook server', () => {
     server.dismiss('a1')
     await until(() => settled.length === 1)
     expect(events.at(-1)).toMatchObject({ activity: 'running', tool: 'Bash', detail: 'rm -rf build' })
+  })
+
+  it('adds a reminder to what Claude is told each time a message is sent, for the agent that has one, and only then', async () => {
+    const { server } = await setup(5_000, (id) => (id === 'a1' ? 'Reminder: terse (always).' : null))
+    const res = await post(server.url, { session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'hi' })
+    expect(await res.json()).toEqual({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'Reminder: terse (always).' } })
+    const stop = await post(server.url, { session_id: 's1', hook_event_name: 'Stop' })
+    expect(await stop.text()).toBe('')
+  })
+
+  it('answers a message with nothing when the agent has no reminder', async () => {
+    const { server } = await setup(5_000, () => null)
+    const res = await post(server.url, { session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'hi' })
+    expect(await res.text()).toBe('')
+  })
+  it('hands the prompt to the reminder, and reports tool calls and compactions', async () => {
+    const seen: string[] = []
+    const { server, tools, compacted } = await setup(5_000, (_, prompt) => (seen.push(prompt), 'hint'))
+    await post(server.url, { session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'split the pdf' })
+    await post(server.url, { session_id: 's1', hook_event_name: 'PreToolUse', tool_name: 'Skill', tool_input: { skill: 'pdf' } })
+    await post(server.url, { session_id: 's1', hook_event_name: 'PostCompact' })
+    expect(seen).toEqual(['split the pdf'])
+    expect(tools).toEqual([['a1', 'Skill', { skill: 'pdf' }]])
+    expect(compacted).toEqual(['a1'])
   })
 })

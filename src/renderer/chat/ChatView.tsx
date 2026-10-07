@@ -25,6 +25,8 @@ import { ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
+import { LibrarySlips, useLibraryUses } from './LibrarySlips'
+import { slipsFor, startsBefore } from './slips'
 import type { UsageLimits } from '../../shared/usage'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
@@ -221,6 +223,15 @@ export function ChatView({
     return out
   }, [items, outgoing])
   const allRows = useMemo(() => toRows(merged, sent), [merged, sent])
+  // What the library did for this agent, shown beside the message it answered: pointed at, read, and the text it started with.
+  const lib = useLibraryUses(agentId)
+  const slipsByRow = useMemo(() => {
+    const users = allRows.filter((r) => r.kind === 'user' && !r.pending && !parseAgentMail(r.text))
+    const ats = users.map((r) => (r.kind === 'user' ? (r.at ?? 0) : 0))
+    const starts = startsBefore(lib.uses, ats)
+    const told = (launch?: number) => lib.uses.filter((x) => x.how === 'delivered' && x.launch === launch).length
+    return new Map(users.map((r, k) => [r.id, { slips: slipsFor(lib.uses, ats[k]!, ats[k + 1] ?? Infinity), starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]))
+  }, [allRows, lib.uses])
   // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
   // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
   const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
@@ -475,9 +486,19 @@ export function ChatView({
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
-        {rows.map((r) => (
-          <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
-        ))}
+        {rows.map((r) => {
+          const lb = slipsByRow.get(r.id)
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
+          if (!lb || (!lb.starts.length && !lb.slips.length)) return row
+          // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
+          return (
+            <div key={r.id} className="turn">
+              {lb.starts.length > 0 && <LibrarySlips slips={[]} starts={lb.starts} told={lb.told} items={lib.items} />}
+              {row}
+              {lb.slips.length > 0 && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} />}
+            </div>
+          )
+        })}
         {busy && (
           <div className="live" role="status">
             <span className="dots" aria-hidden="true">

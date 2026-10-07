@@ -3,6 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -175,6 +176,8 @@ export interface AwApi {
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
+  /** An agent has a new entry in the library's log (read it again with library.uses). */
+  onLibraryUse(cb: (agentId: string, how: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>
@@ -237,6 +240,32 @@ export interface AwApi {
   mailPlan(provider: ProviderId): Promise<{ files: string[]; commands: string[]; note: string } | null>
   /** Connects or disconnects it, after the user approved the plan; says the new state. */
   setMail(provider: ProviderId, on: boolean): Promise<ProviderInfo['mail']>
+  /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
+  library: {
+    list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>
+    /** What the library did for one agent, oldest first: what it started with, what was pointed at, what it read. */
+    uses(agentId: string): Promise<LibraryUse[]>
+    /** Per item, program and agent: delivered, pointed at, answered and used. */
+    stats(): Promise<LibraryStats>
+    /** Which items a message would point an agent of this project at, best first. */
+    tryMessage(folder: string, text: string): Promise<{ id: string; name: string; score: number }[]>
+    /** Agents whose program reports by hooks, that have worked since starting and never got one through to the office. */
+    silent(folder: string): Promise<{ id: string; name: string }[]>
+    /** The agents of this project that were given an opening text, and whether it is older than the playbook now. */
+    holders(folder: string): Promise<{ id: string; name: string; provider: string; stale: boolean }[]>
+    save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>
+    remove(id: string): Promise<void>
+    /** Skills found on this computer that could be copied in. */
+    sources(folder?: string): Promise<LibraryCandidate[]>
+    /** Copies the skills in these folders (found by a fresh scan) into the library. */
+    import(folder: string | undefined, dirs: string[]): Promise<{ added: string[]; skipped: { name: string; reason: string }[] }>
+    /** The global playbook and the workspace's. */
+    playbook(folder?: string): Promise<{ global: PlaybookRule[]; workspace: PlaybookRule[] }>
+    /** Saves a playbook: the global one when the scope is null, else that workspace's. */
+    setPlaybook(scope: string | null, rules: PlaybookRule[]): Promise<PlaybookRule[]>
+    /** What an agent of that program would be told for this workspace. */
+    preview(folder: string, provider: ProviderId): Promise<LibraryPreview>
+  }
   /** Entries of ours the program still lists for a build that was removed (each makes the program fail when it tries the office). */
   mailStale(provider: ProviderId): Promise<{ name: string; program: string }[]>
   /** Takes one of those out through the program's own command; what is left behind is returned. */

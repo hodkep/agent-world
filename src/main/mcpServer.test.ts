@@ -14,9 +14,10 @@ afterEach(async () => {
 const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
-async function setup() {
+async function setup(library?: Parameters<typeof startMcpServer>[0]['library']) {
   sent.length = 0
   server = await startMcpServer({
+    library,
     agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
     send: (from, to, message, expectsReply) => {
@@ -101,5 +102,38 @@ describe('agent-world MCP server', () => {
   it('rejects callers without the token', async () => {
     const s = await setup()
     await expect(connect(s.url, 'a1', 'wrong')).rejects.toThrow()
+  })
+})
+
+describe('the library tools', () => {
+  const entry = { id: 'pdf', kind: 'skill', description: 'Work with PDFs.', tokens: 120, mode: 'on-demand', when: 'working with PDFs' }
+  const lib = {
+    index: async (c: string) => (c === 'a2' ? [] : [entry]),
+    get: async (_c: string, id: string, file?: string) => {
+      if (id !== 'pdf') throw new Error(`${id} is not in this workspace's playbook.`)
+      return file ? `file ${file}` : '# pdf\n\nUse the scripts.'
+    },
+    search: async (_c: string, q: string) => (q.includes('pdf') ? [entry] : [])
+  }
+  it('are listed for an agent, and each answers from the caller\'s own playbook', async () => {
+    const s = await setup(lib)
+    const c = await connect(s.url, 'a1')
+    expect((await c.listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['library_index', 'library_get', 'library_search']))
+    expect(text(await c.callTool({ name: 'library_index', arguments: {} }))).toContain('- pdf (skill, about 120 tokens to read, use working with PDFs): Work with PDFs.')
+    const other = await connect(s.url, 'a2')
+    expect(text(await other.callTool({ name: 'library_index', arguments: {} }))).toBe('This workspace has chosen no library items.')
+  })
+  it('read an item, a file of it, or say plainly that it is not allowed', async () => {
+    const c = await connect((await setup(lib)).url, 'a1')
+    expect(text(await c.callTool({ name: 'library_get', arguments: { id: 'pdf' } }))).toContain('Use the scripts.')
+    expect(text(await c.callTool({ name: 'library_get', arguments: { id: 'pdf', file: 'scripts/x.sh' } }))).toBe('file scripts/x.sh')
+    const refused = await c.callTool({ name: 'library_get', arguments: { id: 'secret' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
+    expect(text(refused)).toContain('not in this workspace')
+    expect(text(await c.callTool({ name: 'library_search', arguments: { query: 'pdf' } }))).toContain('- pdf')
+  })
+  it('are not offered when the app has no library', async () => {
+    const c = await connect((await setup()).url, 'a1')
+    expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('library_get')
   })
 })

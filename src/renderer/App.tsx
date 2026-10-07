@@ -33,6 +33,8 @@ import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
+import { AgentLibrary } from './panel/AgentLibrary'
+import { useLibraryUses } from './chat/LibrarySlips'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
@@ -106,7 +108,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'file'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'file'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -426,13 +428,27 @@ export function App() {
     }
   }, [])
 
+  // An agent that reads a library item walks to the bookshelf for a few seconds.
+  const [reading, setReading] = useState<Record<string, number>>({})
+  useEffect(
+    () =>
+      window.aw.onLibraryUse((id, how) => {
+        if (how !== 'fetched' && how !== 'skill' && how !== 'read') return
+        const until = Date.now() + 6000
+        setReading((r) => ({ ...r, [id]: until }))
+        setTimeout(() => setReading((r) => (r[id] === until ? Object.fromEntries(Object.entries(r).filter(([k]) => k !== id)) : r)), 6000)
+      }),
+    []
+  )
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0) }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id] ?? 0) > Date.now() }))
     )
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  // The Library tab appears once the library has done something for the agent, so an agent that never uses it keeps the usual six tabs.
+  const hasLibrary = useLibraryUses(current?.id ?? '').uses.some((u) => u.how !== 'started' || !!u.words)
   useEffect(() => {
     if (selected && !current && allAgents.length) setSelected(null)
   }, [selected, current, allAgents.length])
@@ -1014,7 +1030,7 @@ export function App() {
           }}
         />
       )}
-      {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {settings && prefs && <Settings folder={folder ?? ''} providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
@@ -1348,6 +1364,11 @@ export function App() {
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
               </button>
+              {(hasLibrary || view === 'library') && (
+                <button role="tab" aria-selected={view === 'library'} onClick={() => setView('library')} title="What the library told this agent and what it did about it">
+                  Library
+                </button>
+              )}
               <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
                 Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
@@ -1381,6 +1402,7 @@ export function App() {
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
+          {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>

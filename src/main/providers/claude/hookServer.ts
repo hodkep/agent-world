@@ -118,6 +118,11 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
     else if (hookEvent === 'Stop' || hookEvent === 'UserPromptSubmit' || hookEvent === 'StopFailure' || hookEvent === 'SessionEnd') release((h) => h.agentId === agentId)
     const event = normalize(payload)
     if (event) o.onEvent({ ...event, agentId })
+    // The text Claude adds to what it was just asked, so a rule the agent might drift from is in front of it again this turn.
+    if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && p.tool_input && typeof p.tool_input === 'object') o.onToolUse?.(agentId, p.tool_name, p.tool_input as Record<string, unknown>)
+    if (hookEvent === 'PostCompact') o.onCompact?.(agentId)
+    const reminder = hookEvent === 'UserPromptSubmit' ? o.reminderFor?.(agentId, typeof p.prompt === 'string' ? p.prompt : '') : null
+    if (reminder) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: reminder } }))
     res.writeHead(200).end()
   })
 

@@ -121,4 +121,16 @@ describe('house rules', () => {
     expect(prompt(launchArgs({ ...base, houseRules: 'Small commits.' }))).toBe('Small commits.')
     expect(launchArgs({ ...base, houseRules: '  ' })).not.toContain('--append-system-prompt')
   })
+
+  it('loads each plugin folder for this session only', () => {
+    const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', addDirs: ['/lib'], pluginDirs: ['/lib/run/a1'] })
+    expect(args.slice(-4)).toEqual(['--add-dir', '/lib', '--plugin-dir', '/lib/run/a1'])
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).not.toContain('--plugin-dir')
+  })
+
+  it('allows the tools it is told to without asking, as the last flag', () => {
+    const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', pluginDirs: ['/p'], allowTools: ['mcp__agent-world__library_get', 'mcp__agent-world__library_index'] })
+    expect(args.slice(-3)).toEqual(['--allowedTools', 'mcp__agent-world__library_get', 'mcp__agent-world__library_index'])
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).not.toContain('--allowedTools')
+  })
 })

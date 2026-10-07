@@ -181,6 +181,8 @@ function buildOffice() {
 
   // Standing in front of the kanban board, where planning agents work and present their plans.
   const whiteboard: Spot[] = [9, 11, 8, 12, 10].map((x) => ({ x, y: 2, facing: 'up' as const, ox: 0, seated: false }))
+  // Standing in front of the two wall bookshelves, where an agent reading a library item goes.
+  const shelf: Spot[] = [3, 15, 4, 14, 2, 16].map((x) => ({ x, y: 2, facing: 'up' as const, ox: 0, seated: false }))
   const seats = [...desks, ...interns, ...sofas]
   const rows = buildRows(furniture, seats)
   const walkway = (xs: number[], y: number): Spot[] => xs.map((x) => ({ x, y, facing: 'down', ox: 0, seated: false }))
@@ -194,6 +196,8 @@ function buildOffice() {
     interns,
     sofas,
     whiteboard,
+    shelf,
+    shelves: decor.filter((d) => d.kind === 'shelf'),
     kanban: decor.find((d) => d.kind === 'kanban')!,
     // ponytail: fixed overflow spots per room; a second floor per repo is the real fix when these fill up.
     overflow: {

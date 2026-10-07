@@ -20,8 +20,11 @@ async function project(connected: boolean, env: (tmp: string) => Record<string, 
   const agyHome = join(tmp, 'agy')
   mkdirSync(agyHome)
   const config = join(tmp, 'mcp_config.json')
-  // agy counts as connected to the message box once its list holds the entry that starts our bridge.
-  if (connected) writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: 'x', args: [join(home, 'bin', 'aw-mcp-bridge.cjs')] } } }))
+  // agy counts as connected to the message box once its list holds the entry that starts our bridge and its library plugin is installed.
+  if (connected) {
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: 'x', args: [join(home, 'bin', 'aw-mcp-bridge.cjs')] } } }))
+    mkdirSync(join(tmp, 'agy-plugins', 'aw-library'), { recursive: true })
+  }
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, AW_AGY_CONFIG: config, FAKE_DELAY_MS: '50', ...env(tmp) }, tmp)
   const page = await app.firstWindow()
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)

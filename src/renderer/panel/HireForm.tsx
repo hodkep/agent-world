@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { BranchList } from '../../shared/api'
+import type { LibraryPreview } from '../../shared/library'
 import type { Role } from '../../shared/roles'
 import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { effortsFor } from '../../shared/efforts'
@@ -81,6 +82,10 @@ export function HireForm({
   const [picked, setAccount] = useState<string | null>(null)
   const account = picked !== null && mine.some((a) => a.id === picked) ? picked : (mine.find((a) => a.id === defaults.accounts[chosen?.id as ProviderId])?.id ?? '')
   const [busy, setBusy] = useState(false)
+  // What the project's playbook would give this agent, so hiring shows what it will be told.
+  const [lib, setLib] = useState<LibraryPreview | null>(null)
+  const [libOpen, setLibOpen] = useState(false)
+  useEffect(() => void window.aw.library.preview(folder, chosen?.id ?? 'claude').then(setLib, () => setLib(null)), [folder, chosen?.id])
 
   // Picking a role fills in the launch settings for that job; everything stays editable.
   const applyRole = (id: string) => {
@@ -263,6 +268,16 @@ export function HireForm({
           <span>Branch from</span>
           <BasePicker value={base || repo.current} label="Branch from" load={() => Promise.resolve(repo)} onPick={setBase} note="The agent works on its own branch, started from this one, and lands back on it." />
           {(base || repo.current) === repo.current && <small>this folder's branch</small>}
+        </div>
+      )}
+      {lib && lib.rules.some((r) => r.mode !== 'off') && (
+        <div className="lib-notice" role="note" aria-label="The library for this agent">
+          <div>
+            <b>Uses the {folder.split('/').pop()} playbook.</b>
+            <span>{lib.rules.filter((r) => r.mode === 'always').length} told every time, {lib.rules.filter((r) => r.mode === 'on-demand').length} pointed at. About {lib.coreTokens} tokens at the start.</span>
+            <div className="actions"><button type="button" aria-expanded={libOpen} onClick={() => setLibOpen((o) => !o)}>{libOpen ? 'Hide what it is told' : 'See what it is told'}</button></div>
+            {libOpen && <pre className="lib-body">{lib.core || '(nothing: no rules apply here)'}</pre>}
+          </div>
         </div>
       )}
       <div className="hire-foot">

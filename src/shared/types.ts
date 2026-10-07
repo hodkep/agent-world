@@ -105,6 +105,8 @@ export interface Capabilities {
   budget: boolean
   /** It has a side-question overlay that answers without interrupting the task (/btw). */
   sideQuestion: boolean
+  /** The program loads skills from a folder it is given for the session (Claude's --plugin-dir), so a skill can be named, not just read. */
+  nativeSkills?: boolean
   /** Its limits arrive with each agent's own reports, so the agent's controls can show them (otherwise they are in the Usage tab). */
   liveLimits: boolean
   /** It can use the office's message box and notes: agents can write to each other and share what they learn. */

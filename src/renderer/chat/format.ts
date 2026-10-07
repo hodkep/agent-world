@@ -3,7 +3,7 @@ import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
-  | { kind: 'user'; id: string; text: string; pending?: boolean; queued?: boolean }
+  | { kind: 'user'; id: string; text: string; /** When it was sent (not set on one still sending). */ at?: number; pending?: boolean; queued?: boolean }
   | { kind: 'image'; id: string; src: string }
   | { kind: 'shell'; id: string; command: string; out?: { stdout: string; stderr: string } }
   | { kind: 'command'; id: string; name: string; args: string }
@@ -104,7 +104,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         }
         break
       case 'user':
-        rows.push({ kind: 'user', id: i.id, text: i.text })
+        rows.push({ kind: 'user', id: i.id, text: i.text, at: i.at })
         break
       case 'image':
         rows.push({ kind: 'image', id: i.id, src: i.src })

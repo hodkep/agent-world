@@ -27,6 +27,9 @@
   --track: #2a2640; /* the unfilled part of a ring */
   --mail-well: #0f1d26; /* another agent's message, tinted from the think cyan */
   --mail-rim: #2a5a68;
+  --paper: #f6f6fa; /* bubble-paper: the paper a speech bubble, a shelf label and a glossary are written on */
+  --plank-lit: #94613a;
+  --plank-seam: #6a4124;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -2023,3 +2026,152 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .ev-line.ok { color: var(--ok-text); }
 .mc-stale { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--well); border: 1px solid var(--danger); font-size: 12px; color: var(--muted); }
 .mc-stale code { overflow-wrap: anywhere; }
+
+/* The library pane: a plain list, an editor, the playbook rules and a preview. Working, not polished. */
+.lib-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lib-sp { flex: 1; }
+.lib-kinds { display: flex; gap: 2px; }
+.lib-kinds button { padding: 2px 10px; font-size: 12px; }
+.lib-kinds button.on { background: var(--accent); color: var(--ink); }
+.lib-kind { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.lib-tok { font: 11px Menlo, Consolas, monospace; color: var(--muted); }
+.lib-box { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--well); border: 1px solid var(--line); }
+.lib-head { display: flex; gap: 8px; align-items: center; }
+.lib-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 Menlo, Consolas, monospace; color: var(--text); max-height: 200px; overflow: auto; }
+.lib-src { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; }
+.lib-src small { display: block; color: var(--muted); }
+.lib-sub { margin-top: 14px; font-size: 13px; font-weight: 700; color: var(--text); padding: 0; float: none; width: auto; }
+.lib-inline { display: flex; align-items: center; justify-content: flex-start; gap: 8px; flex-direction: row; }
+.pb-r .lib-inline { align-self: flex-start; }
+/* The shelf: a spine per item, tall for what costs more to read; the one that is open lifts out and shows its name above everything. */
+.shelf { display: flex; flex-direction: column; gap: 18px; padding: 14px 16px 16px; background: var(--panel-3); border: 2px solid var(--ink); }
+.tier > h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.tier > h4 span { font-weight: 400; color: var(--dim); margin-left: 8px; }
+.spines { display: flex; gap: 2px; align-items: flex-end; flex-wrap: wrap; min-height: 140px; padding: 44px 12px 0; }
+.spine { width: 24px; padding: 6px 0 0; margin: 0 1px; border: 0; display: flex; justify-content: center; align-items: flex-start; position: relative; cursor: pointer; box-shadow: 0 0 0 2px var(--ink), inset 3px 0 0 rgb(255 255 255 / 0.22), inset -3px 0 0 rgb(0 0 0 / 0.22); color: var(--ink); }
+.spine:hover:not(:disabled) { transform: translateY(-3px); z-index: 6; }
+.spine.sel { z-index: 6; transform: translateY(-10px); box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--ink), inset 3px 0 0 rgb(255 255 255 / 0.22), inset -3px 0 0 rgb(0 0 0 / 0.22); }
+.spine:hover::after, .spine.sel::after { content: attr(data-name); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--paper); color: var(--ink); font-weight: 700; font-size: 11px; padding: 2px 8px; box-shadow: 0 0 0 2px var(--ink); white-space: nowrap; z-index: 5; pointer-events: none; }
+.plank { height: 10px; background: var(--wood); box-shadow: 0 0 0 2px var(--ink), inset 0 2px 0 var(--plank-lit), inset 0 -3px 0 var(--plank-seam); }
+
+/* The playbook: rules on the left, what an agent starts with on the right, both starting on one line. */
+.pb { display: flex; flex-direction: column; border: 2px solid var(--ink); background: var(--panel); }
+.pb-head { display: flex; gap: 12px; align-items: center; padding: 8px 12px; border-bottom: 2px solid var(--ink); }
+.lib-scopes { display: flex; gap: 2px; flex: 1; }
+.lib-scopes button { background: none; border-color: transparent; box-shadow: none; color: var(--muted); }
+.lib-scopes button[aria-pressed='true'] { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
+.help { width: 26px; height: 26px; padding: 0; display: grid; place-items: center; font-weight: 700; color: var(--accent); flex: none; }
+.help[aria-expanded='true'] { background: var(--accent); color: var(--ink); }
+.gloss { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0; padding: 14px 16px; background: var(--paper); color: var(--ink); border-bottom: 2px solid var(--ink); font-size: 12px; line-height: 1.5; }
+.gloss > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+.gloss dt { font-weight: 700; }
+.gloss dd { margin: 0; color: var(--panel-2); }
+.pb-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.pb-l, .pb-r { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pb-l { border-right: 2px solid var(--ink); }
+.pb-r { background: var(--panel-3); }
+.pb h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.rule-group { display: flex; flex-direction: column; margin-bottom: 14px; }
+.rule-group > h4 { padding-bottom: 6px; }
+.doc { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 Menlo, Consolas, monospace; color: var(--muted); }
+.doc .told { color: var(--accent-hot); background: var(--accent-dim); }
+.doc .when { color: var(--think); }
+.lib-rules { display: flex; flex-direction: column; }
+.lib-rule { display: grid; grid-template-columns: minmax(0, 1fr) 150px 96px auto; gap: 6px 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.lib-rule b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-rule .when { grid-column: 1 / -1; width: 100%; font-size: 12px; }
+.lib-rule select { width: 100%; min-width: 0; }
+.lib-rule .rm { padding: 4px; background: none; border-color: transparent; box-shadow: none; color: var(--muted); }
+@media (max-width: 900px) { .pb-grid { grid-template-columns: 1fr; } .pb-l { border-right: 0; border-bottom: 2px solid var(--ink); } .gloss > div { grid-template-columns: 1fr; gap: 0; } }
+/* In the settings pane everything is a flex item that may shrink; the library's lists scroll inside themselves, so none of its parts may be squeezed to nothing. */
+.shelf, .pb, .lib-box, .lib-rules, .lib-bar, .set-pane .error, .set-pane .mc-done { flex: none; }
+
+/* Margin notes: a slip under a message for each library item or opening text; one opens to the exact words as paper. */
+.slips { align-self: flex-end; width: min(300px, 88%); display: flex; flex-direction: column; gap: 4px; margin: -4px 0 8px; padding-left: 10px; border-left: 1px dashed var(--dim); }
+.slip-wrap { display: flex; flex-direction: column; gap: 4px; }
+.slip { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 4px 8px; text-align: left; background: var(--panel-2); border: 0; box-shadow: 0 0 0 1px var(--line); color: var(--text); }
+.slip:hover:not(:disabled) { background: var(--panel-hover); }
+.slip.open { box-shadow: 0 0 0 1px var(--accent); }
+.slip.mute { background: none; }
+.slip-h { display: flex; gap: 6px; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
+.slip.mute .slip-h { color: var(--muted); }
+.slip-ic { display: inline-flex; flex: none; }
+.slip-ic.told { color: var(--accent); }
+.slip-ic.read { color: var(--ok-text); }
+.slip-ic.point { color: var(--think); }
+.slip-ic.mute { color: var(--muted); }
+.slip-q { font-size: 11px; color: var(--muted); padding-left: 22px; }
+.paper { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.paper-w { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; }
+.paper-f { margin: 0; font-size: 11px; color: var(--panel-2); }
+
+/* The agent's Library tab: what it was told beside what it did. */
+.al { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.al-sum { margin: 0; font-size: 14px; line-height: 1.5; }
+.al-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.al-cols h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.al-cols section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.al-tok { color: var(--muted); font-size: 11px; }
+.al-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.al-items li { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.al-items small { color: var(--muted); }
+.lib-rail { list-style: none; margin: 0; padding: 0 0 0 12px; display: flex; flex-direction: column; gap: 10px; border-left: 1px dashed var(--dim); }
+.lib-step { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; align-items: start; }
+.lib-step time { color: var(--dim); font-size: 11px; padding-top: 2px; }
+.lib-step .tx { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.lib-step .tx small { color: var(--muted); }
+.lib-step .mk { display: inline-flex; }
+.lib-step .mk.told { color: var(--accent); }
+.lib-step .mk.read { color: var(--ok-text); }
+.lib-step .mk.point { color: var(--think); }
+.lib-step .mk.mute { color: var(--muted); }
+@media (max-width: 700px) { .al-cols { grid-template-columns: 1fr; } }
+
+/* Reached for: each item agents were pointed at, two bars and a verdict in words, worst first. */
+.reach { display: flex; flex-direction: column; gap: 12px; }
+.reach-sum { margin: 0; font-size: 14px; line-height: 1.5; }
+.reach-rows { display: flex; flex-direction: column; border: 2px solid var(--ink); background: var(--panel); }
+.reach-item { border-bottom: 1px solid var(--line); }
+.reach-row { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1.4fr); gap: 12px; align-items: center; width: 100%; padding: 8px 12px; text-align: left; background: none; border: 0; box-shadow: none; }
+.reach-row:hover:not(:disabled) { background: var(--panel-hover); }
+.reach-n { font-weight: 600; overflow-wrap: anywhere; }
+.reach-bars { display: flex; flex-direction: column; gap: 4px; }
+.reach-bar { display: grid; grid-template-columns: 44px minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
+.reach-bar small { color: var(--muted); font-size: 11px; }
+.reach-bar .tr { height: 8px; background: var(--track); box-shadow: 0 0 0 1px var(--ink); display: block; }
+.reach-bar i { display: block; height: 100%; background: var(--ok); }
+.reach-bar i.think { background: var(--think); }
+.reach-bar i.bad { background: var(--danger); }
+.reach-bar i.mid { background: var(--accent); }
+.reach-bar i.few { background: var(--dim); }
+.reach-v { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.reach-fix { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px 10px; }
+@media (max-width: 700px) { .reach-row { grid-template-columns: 1fr; } }
+
+/* Notices: a quiet panel with a plain sentence and what to do about it; the tone is a rim colour, not a stripe. */
+.lib-notices { display: flex; flex-direction: column; gap: 8px; }
+.lib-notices:empty { display: none; }
+.lib-notice { display: flex; padding: 10px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
+.lib-notice > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lib-notice span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.lib-notice .actions { display: flex; gap: 8px; margin-top: 4px; }
+.lib-notice.info { box-shadow: 0 0 0 1px var(--mail-rim); }
+.lib-notice.warn { box-shadow: 0 0 0 1px var(--accent-dim); }
+.lib-notice.warn b { color: var(--accent); }
+.lib-notice-note { margin: 0; padding: 8px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--mail-rim); font-size: 12px; color: var(--muted); }
+.lib-try { display: flex; gap: 8px; }
+.lib-try input { flex: 1; min-width: 0; }
+.al-items small.older { color: var(--accent); }
+.lib-notice.bad { box-shadow: 0 0 0 1px var(--danger); }
+.lib-notice.bad b { color: var(--danger-text); }
+
+/* A message with notes: in a narrow chat the wrapper vanishes and the notes sit under it; in a wide one they stand in a margin beside it. */
+.chat-log { container-type: inline-size; }
+.turn { display: contents; }
+@container (min-width: 720px) {
+  .turn { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto 1fr; column-gap: 16px; align-items: start; }
+  .turn > .msg { grid-column: 1; grid-row: 1 / 3; justify-self: end; }
+  .turn > .slips { grid-column: 2; width: auto; margin: 0; align-self: start; }
+  .turn > .slips:first-child { grid-row: 1; }
+  .turn > .slips:last-child { grid-row: 2; }
+}

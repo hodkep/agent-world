@@ -18,7 +18,7 @@ export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true, nativeSkills: true },
   async detect(bin, run) {
     try {
       const out = await (run ?? defaultRun)(bin, ['--version'])
@@ -74,7 +74,7 @@ export const claude: Provider = {
     writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: i.mcpUrl, agentToken: i.agentToken })), { mode: 0o600 })
     return { settingsFile, mcpFile }
   },
-  args: (i) => launchArgs({ ...i.agent, settingsFile: i.files.settingsFile ?? '', mcpFile: i.files.mcpFile, permissionMode: i.permissionMode, options: i.options, houseRules: i.houseRules, addDirs: i.addDirs })
+  args: (i) => launchArgs({ ...i.agent, settingsFile: i.files.settingsFile ?? '', mcpFile: i.files.mcpFile, permissionMode: i.permissionMode, options: i.options, houseRules: i.houseRules, addDirs: i.addDirs, pluginDirs: i.pluginDirs, allowTools: i.allowTools })
 }
 
 const defaultRun = (file: string, args: string[]) =>
