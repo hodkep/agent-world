@@ -38,6 +38,13 @@ describe("agy's hooks", () => {
     expect(agyLibraryHook('pre-inv', payload(), t.io)).toEqual({ injectSteps: [{ ephemeralMessage: 'LINE' }] })
     expect(t.asked).toEqual(['split this pdf', 'now the xlsx'])
   })
+  it("ask about the user's words only, not the time and setting notes agy appends after them", () => {
+    const notes = '\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-10-07T21:47:17+05:30.\n</ADDITIONAL_METADATA>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini.\n</USER_SETTINGS_CHANGE>'
+    writeFileSync(transcript, JSON.stringify({ step_index: '0', type: 'USER_INPUT', content: `<USER_REQUEST>\nWhat is the capital of France?${notes}` }) + '\n')
+    const t = io()
+    agyLibraryHook('pre-inv', payload(), t.io)
+    expect(t.asked).toEqual(['What is the capital of France?'])
+  })
   it('add nothing when the app has nothing to say', () => {
     expect(agyLibraryHook('pre-inv', payload(), io('').io)).toEqual({})
   })

@@ -131,7 +131,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const prompt = async (text: string) =>
       (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }) })).text()) || ''
     const nudged = JSON.parse(await prompt('please split this pdf into pages')).hookSpecificOutput.additionalContext as string
-    expect(nudged).toContain("Library: this task matches pdf")
+    expect(nudged).toContain("Library: pdf covers this kind of work")
     expect(nudged).toContain("library_get('pdf')")
     expect(nudged).toContain('Reminder: terse (always).')
     expect(JSON.parse(await prompt('rename the lamp post')).hookSpecificOutput.additionalContext).not.toContain('pdf')

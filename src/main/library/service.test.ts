@@ -137,8 +137,15 @@ describe('what an agent is given from the library', () => {
       const uses = svc.usesOf('a1')
       expect(uses.map((u) => u.how)).toEqual(['started', 'delivered', 'triggered', 'fetched'])
       expect(uses[0]!.words).toContain('Talk short.')
-      expect(uses.find((u) => u.how === 'triggered')!.words).toContain("this task matches pdf")
+      expect(uses.find((u) => u.how === 'triggered')!.words).toContain("pdf covers this kind of work")
       expect(uses.every((u) => u.agent === 'a1')).toBe(true)
+    })
+    it('leaves the choice to the agent: the line says it may not apply and what to do then', async () => {
+      await svc.prepare('a1', true, true)
+      const line = svc.remind('a1', 'split this pdf into pages')
+      expect(line).toContain('pdf covers this kind of work')
+      expect(line).toMatch(/not just answering a question/i)
+      expect(line).toMatch(/if you are doing that work/i)
     })
     it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
       await svc.prepare('a1', true)

@@ -132,7 +132,8 @@ export function createLibraryService(d: Deps) {
         const file = it?.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
         const tool = `Read it with library_get('${m.id}')`
         const way = st.native ? (st.canFetch ? tool : `Use the ${m.id} skill`) : file ? `Read ${file}` : st.canFetch ? tool : `Ask for ${m.id}`
-        const line = `Library: this task matches ${m.id} (${m.description.slice(0, 100)}). ${way} before you start.`
+        // A word in common is not a need: the agent decides, so a plain question about a topic does not load its skill, while doing the work does.
+        const line = `Library: ${m.id} covers this kind of work (${m.description.slice(0, 100)}). If you are doing that work, not just answering a question about it: ${way} first.`
         record(agentId, m.id, 'triggered', m.mode, line)
         parts.push(line)
       }

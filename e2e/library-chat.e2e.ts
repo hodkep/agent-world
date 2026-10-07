@@ -44,7 +44,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     const note = slips.getByRole('button', { name: /pdf/ })
     await expect(note).toContainText('pointed, then read')
     await note.click()
-    await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('this task matches pdf')
+    await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('pdf covers this kind of work')
     await note.click()
     await expect(log.getByRole('group', { name: 'pdf, the words' })).toHaveCount(0)
 

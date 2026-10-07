@@ -33,7 +33,7 @@ function lastMessage(path: unknown): { step: number; text: string } | null {
       try {
         const s = JSON.parse(lines[i]!) as { type?: string; step_index?: string; content?: string }
         if (s.type !== 'USER_INPUT' || typeof s.content !== 'string') continue
-        return { step: Number(s.step_index), text: s.content.replace(/^<USER_REQUEST>\s*/, '').replace(/\s*<\/USER_REQUEST>\s*$/, '') }
+        return { step: Number(s.step_index), text: s.content.replace(/^<USER_REQUEST>\s*/, '').replace(/\s*<\/USER_REQUEST>[\s\S]*$/, '') }
       } catch {
         /* the first line of the tail may be cut in half */
       }

@@ -144,6 +144,15 @@ Small samples (6 tasks per variant, 3 prompts about none), the same 48 skills; `
 - **agy: the injected line is cheap.** The same ten prompts in two fresh conversations, plugin silent against pointing every turn (the worst case): total tokens **+1%** over ten turns (378k against 375k), last turn +1%, and the prompt cache grew identically (cache_read 129,970 against 129,961). The earlier "about 40% more by turn 4" was one sample and does not reproduce. A message can point at up to three items (22 over 10 messages).
 - **Matcher:** one pilot probe ("go live with the new build") was pointed at an onboarding item by the word "new"; everyday words (new, make, get, need, just, like...) are now ignored. The at-scale matcher numbers did not change (right one first 15/18, top 3 17/18).
 
+### Does the agent decide? agy, real runs (2026-10-07)
+
+The pointing line used to say "this task matches X ... read it before you start", an order. Test: real agy (Gemini 3.8 Flash low) through the real plugin and office hook, 48 skills, `pilot/agy.pilot.ts` (`PILOT_SET=q`, `PILOT_SET=decoys`). "Decoy" = a question that shares a word with a skill but needs none ("What does git rebase do, in two sentences?").
+
+- **Bug found first.** agy's saved message carries the time and a settings note after the user's words (`</USER_REQUEST><ADDITIONAL_METADATA>...`). The hook only cut a trailing `</USER_REQUEST>`, so the matcher read that note and pointed at 3 skills on every message, even "capital of France". Fixed in `libraryHook.ts` (cut at the first `</USER_REQUEST>`), test first. Quiet prompts are now really quiet.
+- **Order wording:** real tasks read 5/6, decoys read 3/5 (it obeyed). **Permissive wording** ("may fit... otherwise ignore"): decoys 0/5 but real tasks only 3/6. **Kept:** "covers this kind of work. If you are doing that work, not just answering a question about it: read it first." Real tasks 5/6, decoys 0/5, prompts about none 0/3 (not pointed at all).
+- The one real task missed in every wording is the flaky-test one (the matcher's top 3 did not contain the right skill, same as before).
+- Small samples (6 + 8 runs per wording; model noise is visible: the permissive wording's 3/6 may be partly luck). Claude with the new wording: unit and e2e only, not re-piloted.
+
 ### agy: hooks (2026-10-07)
 Found in the agy binary's own docs and checked with a throwaway plugin, in print and in the interactive terminal.
 - A plugin's `hooks.json` (an object keyed by hook name) registers `PreInvocation`, `PostToolUse` and others; hooks are shell commands, run in both modes, and inherit the agent's environment (so the token the office puts there reaches them).
@@ -177,6 +186,7 @@ Full report: `reports/Making coding agents follow instructions.md` (notes in `re
 
 ## Change log
 
+- 2026-10-07: the pointing line leaves the choice to the agent (agy decoy test); fixed agy's hook reading the time/settings note as part of the user's message.
 - 2026-10-07: the library UI is built from the picked mocks; added the model comparison (Haiku, Sonnet, Opus), the long-session catalog check and agy's cost over ten turns.
 - 2026-10-07: first version, from the brainstorm. Decisions D1–D9 recorded; the rest is proposed.
 - 2026-10-07: added the at-scale results and the agy hooks findings; the agy adapter is built (pilot/agy.pilot.ts measures it).

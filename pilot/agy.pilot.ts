@@ -13,11 +13,11 @@ import { agyLibraryHook } from '../src/main/providers/agy/libraryHook'
  * The same question as scale.pilot.ts, for agy, through the real plugin (agy plugin aw-library must be installed: connect agy in Settings, or `agy plugin install <the plugin folder>`).
  *   PILOT=1 npx vitest run -c vitest.pilot.config.ts pilot/agy.pilot.ts      (writes pilot-agy-report.txt)
  * P: the plugin is silent (no token in the environment) · Q: the plugin points each message at the library. "Used" is the log's: agy read the skill's file.
- * PILOT_RUNS tasks per variant (default 8).
+ * PILOT_RUNS tasks per variant (default 8). PILOT_SET=q skips the silent run P; PILOT_SET=decoys runs only the keyword-bait questions through Q (does the agent decide, or read whatever is pointed at?).
  */
 const ON = !!process.env.PILOT
 const RUNS = Number(process.env.PILOT_RUNS ?? 8)
-const REPORT = 'pilot-agy-report.txt'
+const REPORT = process.env.PILOT_REPORT ?? 'pilot-agy-report.txt'
 const TASKS: [string, RegExp][] = [
   ['Design the database schema for an orders system with customers, products and invoices, including indexes.', /database-schema/],
   ['Write a software requirements specification for the new student portal.', /srs/],
@@ -29,6 +29,14 @@ const TASKS: [string, RegExp][] = [
   ['Break this spec into small tickets that say what blocks what.', /to-tickets/],
   ['Summarise this conversation so another agent can pick it up tomorrow.', /handoff/],
   ['Check our government portal against GIGW 3.0.', /gigw/]
+]
+// Keyword bait: the matcher points at a skill, but the question needs none. Reading it is the mistake.
+const DECOYS = [
+  'What does git rebase do, in two sentences?',
+  'Why would a lamp post be drawn behind a car in a canvas game? One sentence.',
+  'What does TDD stand for? One line.',
+  'What is a PRD? One sentence.',
+  'What is a pull request review for? One sentence.'
 ]
 const NEGATIVES = ['What is the capital of France?', 'Explain what a mutex is in one sentence.', 'Is 17 prime? Answer briefly.']
 const sh = (args: string[], env: NodeJS.ProcessEnv, cwd: string) =>
@@ -59,7 +67,10 @@ describe.skipIf(!ON)('agy at scale, through the plugin', () => {
       recall: () => [],
       hook: (id, event, payload) =>
         agyLibraryHook(event, payload, {
-          remind: (p) => svc.remind(id, p),
+          remind: (p) => {
+            if (process.env.PILOT_DEBUG) appendFileSync(`${REPORT}.seen`, JSON.stringify(p.slice(0, 600)) + '\n')
+            return svc.remind(id, p)
+          },
           used: (path) => {
             const m = relative(join(dir, 'library', 'skills'), path).split(sep)
             if (m[0] && m[0] !== '..' && !isAbsolute(m[0])) svc.record(id, m[0], 'read')
@@ -81,14 +92,15 @@ describe.skipIf(!ON)('agy at scale, through the plugin', () => {
     const all = new UseLog(join(dir, 'library', 'uses.jsonl')).all().filter((x) => x.t >= since)
     const usedIds = all.filter((x) => x.how === 'read' || x.how === 'fetched').map((x) => x.id)
     runs.push({ variant, target: !!want, used: !!(want && usedIds.some((id) => want.test(id))), usedAny: usedIds.length > 0, triggered: all.some((x) => x.how === 'triggered'), tokens: j.usage?.total_tokens ?? 0 })
-    out(`[${variant}] ${want ? (runs.at(-1)!.used ? 'used ' : 'MISS ') : 'neg  '} ${prompt.slice(0, 55).padEnd(55)} read: ${[...new Set(usedIds)].join(', ') || '-'}  tokens ${runs.at(-1)!.tokens}`)
+    out(`[${variant}] ${want ? (runs.at(-1)!.used ? 'used ' : 'MISS ') : runs.at(-1)!.triggered ? 'decoy' : 'neg  '} ${prompt.slice(0, 55).padEnd(55)} pointed: ${runs.at(-1)!.triggered ? 'yes' : 'no'}  read: ${[...new Set(usedIds)].join(', ') || '-'}  tokens ${runs.at(-1)!.tokens}`)
   }
 
   it('real agy among every skill', async () => {
     const positives = TASKS.filter(([, want]) => ids.some((id) => want.test(id))).slice(0, RUNS)
-    for (const variant of ['P', 'Q']) {
-      for (const [prompt, want] of positives) await agy(variant, prompt, want)
-      if (variant === 'Q') for (const prompt of NEGATIVES) await agy(variant, prompt, null)
+    const decoysOnly = process.env.PILOT_SET === 'decoys'
+    for (const variant of decoysOnly || process.env.PILOT_SET === 'q' ? ['Q'] : ['P', 'Q']) {
+      if (!decoysOnly) for (const [prompt, want] of positives) await agy(variant, prompt, want)
+      if (variant === 'Q') for (const prompt of [...(decoysOnly ? [] : NEGATIVES), ...DECOYS]) await agy(variant, prompt, null)
     }
     out('\nRESULTS')
     for (const v of ['P', 'Q']) {
