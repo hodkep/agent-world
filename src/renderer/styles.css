@@ -602,6 +602,8 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .dots i { width: 5px; height: 5px; background: var(--think); animation: blink 0.9s steps(2) infinite; }
 .dots i:nth-child(2) { animation-delay: 0.2s; } .dots i:nth-child(3) { animation-delay: 0.4s; }
 .jump { position: absolute; right: 14px; bottom: 84px; z-index: 3; }
+/* In the message box, it rides on the box's top edge, so a picture or a quote in the box moves it up with the box. */
+.composer > .jump { bottom: calc(100% + 8px); }
 .chat-banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--panel-2); border-top: 2px solid var(--ink); font-size: 12px; }
 .chat-banner > span:not(.blip) { flex: 1; }
 .chat-banner.alarm { background: var(--danger-well); }

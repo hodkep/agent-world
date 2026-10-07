@@ -44,6 +44,39 @@ test('the conversation stays pinned to its end, with room below the last message
   }
 })
 
+test('the Latest button rides on the top edge of the message box, however tall the box is, and takes you to the end', async () => {
+  const { page, shutdown } = await start({ FAKE_LONG: '120' })
+  try {
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await expect(log.getByText('old message 119')).toBeVisible({ timeout: 10_000 })
+    await log.evaluate((el) => (el.scrollTop = 0))
+    const latest = page.getByRole('button', { name: 'Latest' })
+    await expect(latest).toBeVisible()
+    const composer = page.locator('.composer')
+    const clear = async () => {
+      const l = (await latest.boundingBox())!
+      const c = (await composer.boundingBox())!
+      return c.y - (l.y + l.height)
+    }
+    // Just text: a little above the box. With a picture in the box, the box is taller and the button is still above it.
+    expect(await clear()).toBeGreaterThanOrEqual(4)
+    const text = (await composer.boundingBox())!.height
+    await page.locator('.composer input[type=file]').setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64') })
+    await expect(page.getByRole('list', { name: 'Attached files' })).toContainText('shot.png')
+    expect((await composer.boundingBox())!.height).toBeGreaterThan(text)
+    await expect(latest).toBeVisible()
+    expect(await clear()).toBeGreaterThanOrEqual(4)
+    // It is the button of this box: pressing it goes to the end and it goes away.
+    await latest.click()
+    await expect.poll(() => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(2)
+    await expect(latest).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
 test('hiring opens a dialog over the office and Esc closes it', async () => {
   const { page, shutdown } = await start()
   try {

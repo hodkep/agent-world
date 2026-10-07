@@ -514,11 +514,6 @@ export function ChatView({
           </div>
         )}
       </div>
-      {away && (
-        <button className="jump" onClick={() => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))}>
-          Latest
-        </button>
-      )}
       {need && (
         <section className={`inline-need dialog kind-${need.kind}`} aria-label={`${agentName} is waiting for you`}>
           <header className="dialog-bar">
@@ -571,6 +566,13 @@ export function ChatView({
         onStopping={setStopping}
         onError={setError}
         onImage={setZoomed}
+        latest={
+          away ? (
+            <button className="jump" onClick={() => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))}>
+              Latest
+            </button>
+          ) : null
+        }
       />
       {zoomed !== null && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
     </div>
@@ -1016,7 +1018,8 @@ function Composer({
   stopping,
   onStopping,
   onError,
-  onImage
+  onImage,
+  latest
 }: {
   agentId: string
   agentName: string
@@ -1036,6 +1039,8 @@ function Composer({
   onStopping: (v: boolean) => void
   onError: (msg: string) => void
   onImage: (src: string) => void
+  /** The button that jumps to the newest message: it rides on the top edge of the box, wherever the box grows to. */
+  latest?: React.ReactNode
 }) {
   const [text, setText] = useState(() => drafts.get(agentId) ?? '')
   const [commands, setCommands] = useState<PaletteCommand[]>([])
@@ -1273,6 +1278,7 @@ function Composer({
   if (asleep)
     return (
       <div className="composer asleep" ref={root}>
+        {latest}
         <span>
           {agentName} is asleep.
           {quotes.length > 0 && ` ${quotes.length} quote${quotes.length === 1 ? '' : 's'} waiting.`}
@@ -1298,6 +1304,7 @@ function Composer({
         void attach([...e.dataTransfer.files])
       }}
     >
+      {latest}
       {suggestions.length > 0 && (
         <ul className="suggest" role="listbox" aria-label="Suggestions">
           {suggestions.map((s, i) => (
