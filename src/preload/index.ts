@@ -108,6 +108,16 @@ const api: AwApi = {
   getLimits: (refresh) => ipcRenderer.invoke('limits:get', refresh),
   mailPlan: (id) => ipcRenderer.invoke('provider:mail-plan', id),
   setMail: (id, on) => ipcRenderer.invoke('provider:mail-set', id, on),
+  library: {
+    list: () => ipcRenderer.invoke('library:list'),
+    save: (i) => ipcRenderer.invoke('library:save', i),
+    remove: (id) => ipcRenderer.invoke('library:remove', id),
+    sources: (folder) => ipcRenderer.invoke('library:sources', folder),
+    import: (folder, dirs) => ipcRenderer.invoke('library:import', folder, dirs),
+    playbook: (folder) => ipcRenderer.invoke('playbook:get', folder),
+    setPlaybook: (scope, rules) => ipcRenderer.invoke('playbook:set', scope, rules),
+    preview: (folder, provider) => ipcRenderer.invoke('library:preview', folder, provider)
+  },
   mailStale: (id) => ipcRenderer.invoke('provider:mail-stale', id),
   forgetMail: (id, name) => ipcRenderer.invoke('provider:mail-forget', id, name),
   onUsage: on('usage'),

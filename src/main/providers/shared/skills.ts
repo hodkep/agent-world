@@ -19,7 +19,7 @@ async function skillAt(dir: string, source: PaletteCommand['source'], prefix: st
 }
 
 /** The skill folders at or below `dir`: `dir` itself if it is one, else every folder under it that is, a few levels deep (plugins group theirs). */
-async function skillDirs(dir: string, depth = 4): Promise<string[]> {
+export async function skillDirs(dir: string, depth = 4): Promise<string[]> {
   if (await readFile(join(dir, 'SKILL.md'), 'utf8').then(() => true, () => false)) return [dir]
   if (depth === 0) return []
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])

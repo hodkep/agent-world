@@ -3,6 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule } from './library'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -237,6 +238,22 @@ export interface AwApi {
   mailPlan(provider: ProviderId): Promise<{ files: string[]; commands: string[]; note: string } | null>
   /** Connects or disconnects it, after the user approved the plan; says the new state. */
   setMail(provider: ProviderId, on: boolean): Promise<ProviderInfo['mail']>
+  /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
+  library: {
+    list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>
+    save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>
+    remove(id: string): Promise<void>
+    /** Skills found on this computer that could be copied in. */
+    sources(folder?: string): Promise<LibraryCandidate[]>
+    /** Copies the skills in these folders (found by a fresh scan) into the library. */
+    import(folder: string | undefined, dirs: string[]): Promise<{ added: string[]; skipped: { name: string; reason: string }[] }>
+    /** The global playbook and the workspace's. */
+    playbook(folder?: string): Promise<{ global: PlaybookRule[]; workspace: PlaybookRule[] }>
+    /** Saves a playbook: the global one when the scope is null, else that workspace's. */
+    setPlaybook(scope: string | null, rules: PlaybookRule[]): Promise<PlaybookRule[]>
+    /** What an agent of that program would be told for this workspace. */
+    preview(folder: string, provider: ProviderId): Promise<LibraryPreview>
+  }
   /** Entries of ours the program still lists for a build that was removed (each makes the program fail when it tries the office). */
   mailStale(provider: ProviderId): Promise<{ name: string; program: string }[]>
   /** Takes one of those out through the program's own command; what is left behind is returned. */

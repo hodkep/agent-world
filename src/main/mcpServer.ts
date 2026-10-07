@@ -20,6 +20,14 @@ interface Options {
   remember: (callerId: string, text: string) => void
   /** Notes from the caller's project that match the words (the newest when empty). */
   recall: (callerId: string, query: string) => { text: string; by: string; at: number }[]
+  /** A program's own hook calling the office (not MCP): the answer is what the program's hook prints. */
+  hook?: (callerId: string, event: string, payload: Record<string, unknown>) => Record<string, unknown>
+  /** The shared library of skills and instructions, as far as the caller's playbook allows. */
+  library?: {
+    index: (callerId: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
+    get: (callerId: string, id: string, file?: string) => Promise<string>
+    search: (callerId: string, query: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
+  }
 }
 
 const MAX_BODY = 1024 * 1024
@@ -98,13 +106,60 @@ function toolsFor(callerId: string, o: Options) {
       return { content: [{ type: 'text', text: notes.length ? notes.map((n) => `- ${n.text} (${n.by}, ${new Date(n.at).toISOString().slice(0, 10)})`).join('\n') : 'Nothing saved about this yet.' }] }
     }
   )
+  if (o.library) addLibraryTools(server, callerId, o.library)
   return server
+}
+
+type LibraryApi = NonNullable<Options['library']>
+const lineOf = (e: Awaited<ReturnType<LibraryApi['index']>>[number]) => `- ${e.id} (${e.kind}, about ${e.tokens} tokens to read${e.mode === 'always' ? ', always follow' : e.when ? `, use ${e.when}` : ''}): ${e.description}`
+
+function addLibraryTools(server: McpServer, callerId: string, lib: LibraryApi) {
+  const fail = (err: unknown) => ({ isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] })
+  server.registerTool(
+    'library_index',
+    { description: 'List the skills, instructions and prompts this workspace has chosen for you, with what each is for and what it costs to read. Call it at the start of a task, then read what applies with library_get.', inputSchema: {} },
+    async () => {
+      try {
+        const list = await lib.index(callerId)
+        return { content: [{ type: 'text' as const, text: list.length ? list.map(lineOf).join('\n') : 'This workspace has chosen no library items.' }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'library_get',
+    {
+      description: 'Read one library item by its id (a skill\'s instructions, an instruction or a prompt). For a skill with extra files, pass file to read one of them.',
+      inputSchema: { id: z.string().min(1).max(80).describe('The id from library_index'), file: z.string().max(200).optional().describe('A file of the skill, relative to it') }
+    },
+    async ({ id, file }) => {
+      try {
+        return { content: [{ type: 'text' as const, text: await lib.get(callerId, id, file) }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'library_search',
+    { description: 'Search the library items this workspace has chosen for you by a few words.', inputSchema: { query: z.string().min(1).max(200).describe('A few words') } },
+    async ({ query }) => {
+      try {
+        const list = await lib.search(callerId, query)
+        return { content: [{ type: 'text' as const, text: list.length ? list.map(lineOf).join('\n') : 'Nothing matches.' }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
 }
 
 /** Local MCP endpoint every agent is given via --mcp-config, each with a token of its own. */
 export async function startMcpServer(o: Options) {
   const http = createServer(async (req, res) => {
-    if (req.url !== '/mcp') return void res.writeHead(404).end()
+    const hookEvent = /^\/hook\/([a-z-]{1,20})$/.exec(req.url ?? '')?.[1]
+    if (req.url !== '/mcp' && !hookEvent) return void res.writeHead(404).end()
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1]
     const caller = bearer ? o.agentForToken(bearer) : null
     if (!caller) return void res.writeHead(401).end()
@@ -115,6 +170,15 @@ export async function startMcpServer(o: Options) {
       body = await readJson(req)
     } catch {
       return void res.writeHead(400).end()
+    }
+    if (hookEvent) {
+      let answer: Record<string, unknown> = {}
+      try {
+        answer = o.hook?.(caller, hookEvent, (body && typeof body === 'object' ? body : {}) as Record<string, unknown>) ?? {}
+      } catch {
+        /* a hook must never break the program that called it */
+      }
+      return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(answer))
     }
     const server = toolsFor(caller, o)
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
