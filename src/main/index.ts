@@ -160,6 +160,8 @@ const MENU_RETRY_MS = 1000
 const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
+// When each agent was last working (not idle, waiting or asleep): the library uses it to tell a program whose hooks do not reach the office from one that is idle.
+const busyAt = new Map<string, number>()
 const lastCost = new Map<string, number>()
 // The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
 // reading is still there after a restart, until the next reply refreshes it.
@@ -385,7 +387,7 @@ const libraryService = createLibraryService({
   root: LIBRARY_DIR,
   agent: (id) => {
     const a = byId(id)
-    return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id } : undefined
+    return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id, viaHook: !!providerOf(a).libraryHook } : undefined
   },
   workspaceKey: repoSlug,
   onUse: (id, how) => send('library-use', id, how)
@@ -565,6 +567,7 @@ function trackTurns(e: AgentEvent) {
     }
     if (finishedTurn(lastActivity.get(a.id), e.activity)) notify('finished', a, e.activity === 'waiting' ? 'Waiting for you.' : 'Finished its turn.')
     lastActivity.set(a.id, e.activity)
+    if (!['idle', 'waiting', 'asleep'].includes(e.activity)) busyAt.set(a.id, Date.now())
     runClock(a, e.activity)
     if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
     else mailbox.busy(a.id)
@@ -898,6 +901,7 @@ async function main() {
     hook: (id, event, payload) => {
       const a = byId(id)
       if (!a) return {}
+      libraryService.hookCalled(id)
       return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
     },
     library: {
@@ -1257,6 +1261,7 @@ async function main() {
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
+  ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
   ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
   ipcMain.handle('library:try', (_, folder: string, text: string) => libraryService.tryMessage(String(folder), String(text ?? '').slice(0, 2000)))
   ipcMain.handle('library:stats', () => libraryService.stats())

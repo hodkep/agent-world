@@ -12,6 +12,8 @@ export interface AgentRef {
   name: string
   repoPath: string
   provider: string
+  /** Its program reports what it does by hooks that call the office (agy's plugin), so silence from them means they are not getting through. */
+  viaHook?: boolean
 }
 
 export interface IndexEntry {
@@ -44,6 +46,8 @@ export function createLibraryService(d: Deps) {
   const log = new UseLog(join(d.root, 'uses.jsonl'))
   // Per agent: how many prompts it has had, whether it can fetch, its per-turn rule reminder, and whether the full catalog is due again.
   const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; catalogDue: boolean }>()
+  // When each agent's hook last called the office.
+  const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
   const MATCHES = 3
 
@@ -196,6 +200,21 @@ export function createLibraryService(d: Deps) {
       const startedAt = new Map<string, number>()
       for (const u of log.all()) if (u.how === 'started' && u.workspace === d.workspaceKey(repoPath)) startedAt.set(u.agent, u.t)
       return [...startedAt].filter(([id]) => d.agent(id)).map(([id, t]) => ({ id, name: d.agent(id)!.name, provider: d.agent(id)!.provider, stale: t < changed }))
+    },
+
+    /** An agent's own hook called the office (the program's plugin reached it). */
+    hookCalled(agentId: string) {
+      hookSeen.set(agentId, Date.now())
+    },
+
+    /** Agents that report by hooks, have worked since they started (`busyAt` says when each last did), and never once got a hook through. */
+    silent(repoPath: string, busyAt: (agentId: string) => number): { id: string; name: string }[] {
+      const GRACE = 5000
+      const startedAt = new Map<string, number>()
+      for (const u of log.all()) if (u.how === 'started' && u.workspace === d.workspaceKey(repoPath)) startedAt.set(u.agent, u.t)
+      return [...startedAt]
+        .filter(([id, t]) => d.agent(id)?.viaHook && busyAt(id) > t + GRACE && (hookSeen.get(id) ?? 0) < t)
+        .map(([id]) => ({ id, name: d.agent(id)!.name }))
     },
 
     /** The agents of a workspace that started before its playbook last changed. */

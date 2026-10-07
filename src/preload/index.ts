@@ -114,6 +114,7 @@ const api: AwApi = {
     uses: (agentId) => ipcRenderer.invoke('library:uses', agentId),
     stats: () => ipcRenderer.invoke('library:stats'),
     tryMessage: (folder, text) => ipcRenderer.invoke('library:try', folder, text),
+    silent: (folder) => ipcRenderer.invoke('library:silent', folder),
     holders: (folder) => ipcRenderer.invoke('library:holders', folder),
     save: (i) => ipcRenderer.invoke('library:save', i),
     remove: (id) => ipcRenderer.invoke('library:remove', id),

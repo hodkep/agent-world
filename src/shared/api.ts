@@ -249,6 +249,8 @@ export interface AwApi {
     stats(): Promise<LibraryStats>
     /** Which items a message would point an agent of this project at, best first. */
     tryMessage(folder: string, text: string): Promise<{ id: string; name: string; score: number }[]>
+    /** Agents whose program reports by hooks, that have worked since starting and never got one through to the office. */
+    silent(folder: string): Promise<{ id: string; name: string }[]>
     /** The agents of this project that were given an opening text, and whether it is older than the playbook now. */
     holders(folder: string): Promise<{ id: string; name: string; provider: string; stale: boolean }[]>
     save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>

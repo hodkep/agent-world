@@ -12,7 +12,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
-    agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy' }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
+    agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
     onUse: (id, how) => void pushed.push(`${id}:${how}`)
   })
@@ -176,6 +176,23 @@ describe('what an agent is given from the library', () => {
       expect((await svc.tryMessage('/work/shop', 'please split this pdf into pages')).map((m) => m.id)).toEqual(['pdf'])
       expect(await svc.tryMessage('/work/shop', 'rename the lamp post')).toEqual([])
       expect(await svc.tryMessage('/work/other', 'please split this pdf into pages')).toEqual([])
+    })
+  })
+
+  describe('a program whose hooks never reach the office', () => {
+    it('names an agent that worked after it started and never called the office, and clears once it does', async () => {
+      await svc.prepare('a2', false)
+      const busyLater = () => Date.now() + 60_000
+      // Idle since it started: nothing to say yet.
+      expect(svc.silent('/work/shop', () => 0)).toEqual([])
+      // It worked, and the office heard nothing from its hooks.
+      expect(svc.silent('/work/shop', busyLater)).toEqual([{ id: 'a2', name: 'ada' }])
+      svc.hookCalled('a2')
+      expect(svc.silent('/work/shop', busyLater)).toEqual([])
+    })
+    it('does not expect hooks from a program that reports another way', async () => {
+      await svc.prepare('a1', true)
+      expect(svc.silent('/work/shop', () => Date.now() + 60_000)).toEqual([])
     })
   })
 })

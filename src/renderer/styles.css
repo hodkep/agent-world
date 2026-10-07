@@ -2158,3 +2158,16 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .lib-try { display: flex; gap: 8px; }
 .lib-try input { flex: 1; min-width: 0; }
 .al-items small.older { color: var(--accent); }
+.lib-notice.bad { box-shadow: 0 0 0 1px var(--danger); }
+.lib-notice.bad b { color: var(--danger-text); }
+
+/* A message with notes: in a narrow chat the wrapper vanishes and the notes sit under it; in a wide one they stand in a margin beside it. */
+.chat-log { container-type: inline-size; }
+.turn { display: contents; }
+@container (min-width: 720px) {
+  .turn { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto 1fr; column-gap: 16px; align-items: start; }
+  .turn > .msg { grid-column: 1; grid-row: 1 / 3; justify-self: end; }
+  .turn > .slips { grid-column: 2; width: auto; margin: 0; align-self: start; }
+  .turn > .slips:first-child { grid-row: 1; }
+  .turn > .slips:last-child { grid-row: 2; }
+}

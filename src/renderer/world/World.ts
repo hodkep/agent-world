@@ -14,6 +14,7 @@ import { CAR_COLORS, GRASS, GROUNDS, Street, drawGrounds, drawHiringSign, drawLa
 import { scoreboardRows } from './scoreboard'
 import { PLANT, PowerPlant } from './power'
 import type { LimitView, UsageLimits } from '../../shared/usage'
+import { textPixels } from './pixelfont'
 import { OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -552,6 +553,16 @@ export class OfficeWorld {
     if (key === this.pulledKey) return
     this.pulledKey = key
     this.pulledBook.clear()
+    // A brass plaque on the wall counts the books that are out.
+    if (spots.length) {
+      const rows = textPixels(String(spots.length))
+      const w = rows[0]!.length
+      const px = 6 * TILE + Math.floor((TILE - w - 4) / 2)
+      const py = TILE + 3
+      this.pulledBook.rect(px, py, w + 4, 9).fill(0x14111c)
+      this.pulledBook.rect(px + 1, py + 1, w + 2, 7).fill(0xf2c230)
+      rows.forEach((r, y) => [...r].forEach((c, x) => c === '#' && this.pulledBook.rect(px + 2 + x, py + 2 + y, 1, 1).fill(0x14111c)))
+    }
     for (const s of spots) {
       const x = s.x * TILE + 5
       this.pulledBook.rect(x - 1, TILE + 2, 6, 11).fill(0x14111c)

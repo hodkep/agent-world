@@ -60,6 +60,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
   const stale = holders.filter((h) => h.stale)
+  const [silent, setSilent] = useState<{ id: string; name: string }[]>([])
   const [restarting, setRestarting] = useState(false)
 
   const load = useCallback(async () => {
@@ -71,6 +72,14 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
   const refreshStale = useCallback(() => (folder ? window.aw.library.holders(folder).then(setHolders, () => setHolders([])) : Promise.resolve(setHolders([]))), [folder])
   useEffect(() => void refreshStale(), [refreshStale, books])
+  // The hooks of agy's plugin are quiet when they work, so ask now and then; an agent that has worked and never been heard from is shown.
+  useEffect(() => {
+    if (!folder) return setSilent([])
+    const ask = () => void window.aw.library.silent(folder).then(setSilent, () => setSilent([]))
+    ask()
+    const t = setInterval(ask, 15_000)
+    return () => clearInterval(t)
+  }, [folder])
   useEffect(() => window.aw.onLibraryUse(() => void refreshStale()), [refreshStale])
   const restartStale = async () => {
     setRestarting(true)
@@ -170,6 +179,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       <div className="lib-notices" aria-label="Things to know">
         {ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing' && (
           <div className="lib-notice info" role="note"><div><b>agy is not connected.</b><span>Its agents get the always-on rules and the catalog, but no line for the message they are sent. Connect it under Message box.</span></div></div>
+        )}
+        {silent.length > 0 && (
+          <div className="lib-notice bad" role="note"><div><b>The library plugin could not reach the office for {silent.map((a) => a.name).join(', ')}.</b><span>agy carried on without a library line, and what it reads is not counted. Check that the plugin is installed under Message box, and that Agent World was running when the agent started.</span></div></div>
         )}
         {stale.length > 0 && (
           <div className="lib-notice warn" role="note">

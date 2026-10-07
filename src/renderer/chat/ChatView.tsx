@@ -1,7 +1,7 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
@@ -471,12 +471,15 @@ export function ChatView({
         )}
         {rows.map((r) => {
           const lb = slipsByRow.get(r.id)
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
+          if (!lb || (!lb.starts.length && !lb.slips.length)) return row
+          // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
-            <Fragment key={r.id}>
-              {lb && lb.starts.length > 0 && <LibrarySlips slips={[]} starts={lb.starts} told={lb.told} items={lib.items} />}
-              <RowView row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
-              {lb && lb.slips.length > 0 && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} />}
-            </Fragment>
+            <div key={r.id} className="turn">
+              {lb.starts.length > 0 && <LibrarySlips slips={[]} starts={lb.starts} told={lb.told} items={lib.items} />}
+              {row}
+              {lb.slips.length > 0 && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} />}
+            </div>
           )
         })}
         {busy && (
