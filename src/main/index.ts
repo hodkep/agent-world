@@ -387,7 +387,8 @@ const libraryService = createLibraryService({
     const a = byId(id)
     return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id } : undefined
   },
-  workspaceKey: repoSlug
+  workspaceKey: repoSlug,
+  onUse: (id) => send('library-use', id)
 })
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)
@@ -1255,6 +1256,8 @@ async function main() {
   })
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
+  ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
+  ipcMain.handle('library:stats', () => libraryService.stats())
   ipcMain.handle('library:save', (_, i: { id?: string; kind: 'skill' | 'instruction' | 'prompt'; name: string; description: string; body: string }) => libraryService.library.save({ id: i.id, kind: i.kind, name: String(i.name ?? '').slice(0, 100), description: String(i.description ?? '').slice(0, 500), body: String(i.body ?? '').slice(0, 200_000) }))
   ipcMain.handle('library:remove', (_, id: string) => libraryService.library.remove(String(id)))
   ipcMain.handle('library:sources', (_, folder?: string) => scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined }))

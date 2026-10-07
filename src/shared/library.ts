@@ -46,3 +46,41 @@ export interface LibraryPreview {
   reminder: string
   rules: PlaybookRule[]
 }
+
+/** started: the opening text an agent was launched with (no item) · delivered: put in front of the agent at launch · triggered: the prompt matched the item's rule · fetched/skill/read: the agent used it. */
+export type How = 'started' | 'delivered' | 'triggered' | 'fetched' | 'skill' | 'read'
+
+export interface Use {
+  t: number
+  agent: string
+  name: string
+  provider: string
+  workspace: string
+  id: string
+  how: How
+  mode?: string
+  /** The agent's own prompt count when it happened, to tell whether a trigger was answered in the same turn. */
+  turn?: number
+  /** When the agent was launched: turn counts start again at each launch, so a turn is told apart by (launch, turn). */
+  launch?: number
+  /** The exact words the agent was given (for started and triggered), so they can be shown as they were. */
+  words?: string
+}
+
+export interface Tally {
+  delivered: number
+  triggered: number
+  answered: number
+  used: number
+}
+export interface ItemStats extends Tally {
+  id: string
+  byProvider: Record<string, Tally>
+}
+export interface Summary {
+  items: Record<string, ItemStats>
+  agents: Record<string, Tally & { name: string; provider: string }>
+  /** Items that were used, most used first. */
+  top: ItemStats[]
+}
+

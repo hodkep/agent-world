@@ -70,6 +70,7 @@ const api: AwApi = {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
+  onLibraryUse: on('library-use'),
   finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
   memoryList: (id) => ipcRenderer.invoke('memory:list', id),
@@ -110,6 +111,8 @@ const api: AwApi = {
   setMail: (id, on) => ipcRenderer.invoke('provider:mail-set', id, on),
   library: {
     list: () => ipcRenderer.invoke('library:list'),
+    uses: (agentId) => ipcRenderer.invoke('library:uses', agentId),
+    stats: () => ipcRenderer.invoke('library:stats'),
     save: (i) => ipcRenderer.invoke('library:save', i),
     remove: (id) => ipcRenderer.invoke('library:remove', id),
     sources: (folder) => ipcRenderer.invoke('library:sources', folder),

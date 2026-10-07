@@ -6,12 +6,15 @@ import { createLibraryService } from './service'
 
 let dir: string
 let svc: ReturnType<typeof createLibraryService>
+let pushed: string[]
 beforeEach(async () => {
+  pushed = []
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
     agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy' }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
-    workspaceKey: (p) => p.split('/').pop()!
+    workspaceKey: (p) => p.split('/').pop()!,
+    onUse: (id) => void pushed.push(id)
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
   const s = join(dir, 'src', 'pdf')
@@ -122,6 +125,27 @@ describe('what an agent is given from the library', () => {
       expect(svc.stats().items.pdf).toMatchObject({ used: 1 })
       svc.record('a1', 'not-in-library', 'skill')
       expect(svc.stats().items['not-in-library']).toBeUndefined()
+    })
+  })
+
+  describe('what the screen is shown', () => {
+    it('keeps the exact words pointed at an agent and the opening text it started with, for that agent only', async () => {
+      await svc.prepare('a1', true, true)
+      svc.remind('a1', 'split this pdf into pages')
+      await svc.get('a1', 'pdf')
+      await svc.prepare('a3', true, true)
+      const uses = svc.usesOf('a1')
+      expect(uses.map((u) => u.how)).toEqual(['started', 'delivered', 'triggered', 'fetched'])
+      expect(uses[0]!.words).toContain('Talk short.')
+      expect(uses.find((u) => u.how === 'triggered')!.words).toContain("this task matches pdf")
+      expect(uses.every((u) => u.agent === 'a1')).toBe(true)
+    })
+    it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
+      await svc.prepare('a1', true)
+      svc.remind('a1', 'split this pdf into pages')
+      expect(pushed).toContain('a1')
+      expect(svc.stats().items.terse).toMatchObject({ delivered: 1, used: 0 })
+      expect(Object.keys(svc.stats().items)).not.toContain('')
     })
   })
 })

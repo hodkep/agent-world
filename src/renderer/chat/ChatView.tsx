@@ -1,7 +1,7 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
@@ -25,6 +25,8 @@ import { ToolCard } from './ToolCard'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
+import { LibrarySlips, useLibraryUses } from './LibrarySlips'
+import { slipsFor, startsBefore } from './slips'
 import type { UsageLimits } from '../../shared/usage'
 
 const BUSY: Activity[] = ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting']
@@ -206,6 +208,15 @@ export function ChatView({
     return out
   }, [items, outgoing])
   const allRows = useMemo(() => toRows(merged, sent), [merged, sent])
+  // What the library did for this agent, shown beside the message it answered: pointed at, read, and the text it started with.
+  const lib = useLibraryUses(agentId)
+  const slipsByRow = useMemo(() => {
+    const users = allRows.filter((r) => r.kind === 'user' && !r.pending && !parseAgentMail(r.text))
+    const ats = users.map((r) => (r.kind === 'user' ? (r.at ?? 0) : 0))
+    const starts = startsBefore(lib.uses, ats)
+    const told = (launch?: number) => lib.uses.filter((x) => x.how === 'delivered' && x.launch === launch).length
+    return new Map(users.map((r, k) => [r.id, { slips: slipsFor(lib.uses, ats[k]!, ats[k + 1] ?? Infinity), starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]))
+  }, [allRows, lib.uses])
   // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
   // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
   const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
@@ -458,9 +469,16 @@ export function ChatView({
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
-        {rows.map((r) => (
-          <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
-        ))}
+        {rows.map((r) => {
+          const lb = slipsByRow.get(r.id)
+          return (
+            <Fragment key={r.id}>
+              {lb && lb.starts.length > 0 && <LibrarySlips slips={[]} starts={lb.starts} told={lb.told} items={lib.items} />}
+              <RowView row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={setZoomed} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
+              {lb && lb.slips.length > 0 && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} />}
+            </Fragment>
+          )
+        })}
         {busy && (
           <div className="live" role="status">
             <span className="dots" aria-hidden="true">

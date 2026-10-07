@@ -1,23 +1,8 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-/** delivered: put in front of the agent at launch · triggered: the prompt matched the item's rule · fetched/skill/read: the agent used it. */
-export type How = 'delivered' | 'triggered' | 'fetched' | 'skill' | 'read'
-
-export interface Use {
-  t: number
-  agent: string
-  name: string
-  provider: string
-  workspace: string
-  id: string
-  how: How
-  mode?: string
-  /** The agent's own prompt count when it happened, to tell whether a trigger was answered in the same turn. */
-  turn?: number
-  /** When the agent was launched: turn counts start again at each launch, so a turn is told apart by (launch, turn). */
-  launch?: number
-}
+import type { ItemStats, Summary, Tally, Use } from '../../shared/library'
+export type { How, ItemStats, Summary, Tally, Use } from '../../shared/library'
 
 export class UseLog {
   constructor(private file: string) {}
@@ -46,23 +31,6 @@ export class UseLog {
   }
 }
 
-export interface Tally {
-  delivered: number
-  triggered: number
-  answered: number
-  used: number
-}
-export interface ItemStats extends Tally {
-  id: string
-  byProvider: Record<string, Tally>
-}
-export interface Summary {
-  items: Record<string, ItemStats>
-  agents: Record<string, Tally & { name: string; provider: string }>
-  /** Items that were used, most used first. */
-  top: ItemStats[]
-}
-
 const zero = (): Tally => ({ delivered: 0, triggered: 0, answered: 0, used: 0 })
 
 export function summarize(uses: Use[]): Summary {
@@ -78,7 +46,7 @@ export function summarize(uses: Use[]): Summary {
   for (const u of uses) {
     if (u.how === 'delivered') bump(u, (t) => t.delivered++)
     else if (u.how === 'triggered') bump(u, (t) => (t.triggered++, usedAt.has(`${u.agent}|${u.launch}|${u.id}|${u.turn}`) && t.answered++))
-    else bump(u, (t) => t.used++)
+    else if (u.how === 'fetched' || u.how === 'skill' || u.how === 'read') bump(u, (t) => t.used++)
   }
   const top = Object.values(items).filter((i) => i.used > 0).sort((a, b) => b.used - a.used || a.id.localeCompare(b.id))
   return { items, agents, top }

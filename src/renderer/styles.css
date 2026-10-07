@@ -2081,3 +2081,22 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 @media (max-width: 900px) { .pb-grid { grid-template-columns: 1fr; } .pb-l { border-right: 0; border-bottom: 2px solid var(--ink); } .gloss > div { grid-template-columns: 1fr; gap: 0; } }
 /* In the settings pane everything is a flex item that may shrink; the library's lists scroll inside themselves, so none of its parts may be squeezed to nothing. */
 .shelf, .pb, .lib-box, .lib-rules, .lib-bar, .set-pane .error, .set-pane .mc-done { flex: none; }
+
+/* Margin notes: a slip under a message for each library item or opening text; one opens to the exact words as paper. */
+.slips { align-self: flex-end; width: min(300px, 88%); display: flex; flex-direction: column; gap: 4px; margin: -4px 0 8px; padding-left: 10px; border-left: 1px dashed var(--dim); }
+.slip-wrap { display: flex; flex-direction: column; gap: 4px; }
+.slip { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 4px 8px; text-align: left; background: var(--panel-2); border: 0; box-shadow: 0 0 0 1px var(--line); color: var(--text); }
+.slip:hover:not(:disabled) { background: var(--panel-hover); }
+.slip.open { box-shadow: 0 0 0 1px var(--accent); }
+.slip.mute { background: none; }
+.slip-h { display: flex; gap: 6px; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
+.slip.mute .slip-h { color: var(--muted); }
+.slip-ic { display: inline-flex; flex: none; }
+.slip-ic.told { color: var(--accent); }
+.slip-ic.read { color: var(--ok-text); }
+.slip-ic.point { color: var(--think); }
+.slip-ic.mute { color: var(--muted); }
+.slip-q { font-size: 11px; color: var(--muted); padding-left: 22px; }
+.paper { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 2px var(--ink); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.paper-w { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; }
+.paper-f { margin: 0; font-size: 11px; color: var(--panel-2); }

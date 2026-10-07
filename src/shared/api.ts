@@ -3,7 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule } from './library'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -176,6 +176,8 @@ export interface AwApi {
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
+  /** An agent has a new entry in the library's log (read it again with library.uses). */
+  onLibraryUse(cb: (agentId: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>
@@ -241,6 +243,10 @@ export interface AwApi {
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
   library: {
     list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>
+    /** What the library did for one agent, oldest first: what it started with, what was pointed at, what it read. */
+    uses(agentId: string): Promise<LibraryUse[]>
+    /** Per item, program and agent: delivered, pointed at, answered and used. */
+    stats(): Promise<LibraryStats>
     save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>
     remove(id: string): Promise<void>
     /** Skills found on this computer that could be copied in. */

@@ -5,7 +5,7 @@ import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
 import { matchItems } from './match'
 import { buildCatalog } from './catalog'
-import { UseLog, summarize, type How, type Summary } from './uses'
+import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
   id: string
@@ -31,6 +31,8 @@ interface Deps {
   agent: (id: string) => AgentRef | undefined
   /** A short file-name-safe key for a workspace. */
   workspaceKey: (repoPath: string) => string
+  /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
+  onUse?: (agentId: string) => void
 }
 
 const MAX_FILE = 100 * 1024
@@ -75,12 +77,13 @@ export function createLibraryService(d: Deps) {
 
   const index = async (agentId: string) => indexSync(agentId)
 
-  function record(agentId: string, id: string, how: How, mode?: string) {
+  function record(agentId: string, id: string, how: How, mode?: string, words?: string) {
     const a = d.agent(agentId)
     if (!a) return
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
-    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch })
+    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words })
+    d.onUse?.(a.id)
   }
 
   return {
@@ -96,7 +99,6 @@ export function createLibraryService(d: Deps) {
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
       state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, catalogDue: false })
       const entries = indexSync(a.id)
-      for (const e of entries) if (e.mode === 'always') record(a.id, e.id, 'delivered', e.mode)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
       let core = compiled.core
@@ -106,6 +108,8 @@ export function createLibraryService(d: Deps) {
         writeFileSync(file, buildCatalog(entries) + '\n')
         core += `${core ? '\n\n' : ''}If you cannot recall what the library holds, read ${file}. Items that match your task are pointed out as you go; use them.`
       }
+      record(a.id, '', 'started', undefined, core)
+      for (const e of entries) if (e.mode === 'always') record(a.id, e.id, 'delivered', e.mode)
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
@@ -119,13 +123,14 @@ export function createLibraryService(d: Deps) {
       const onDemand = entries.filter((e) => e.mode === 'on-demand')
       const items = itemsMap()
       for (const m of matchItems(prompt, onDemand, MATCHES)) {
-        record(agentId, m.id, 'triggered', m.mode)
         // How to get it. Claude: the office's tool (allowed without a prompt), else the skill by name. Others: the skill's file by its path, which the library folder being in their workspace allows without a prompt (a tool of the office would ask each time).
         const it = items.get(m.id)
         const file = it?.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
         const tool = `Read it with library_get('${m.id}')`
         const way = st.native ? (st.canFetch ? tool : `Use the ${m.id} skill`) : file ? `Read ${file}` : st.canFetch ? tool : `Ask for ${m.id}`
-        parts.push(`Library: this task matches ${m.id} (${m.description.slice(0, 100)}). ${way} before you start.`)
+        const line = `Library: this task matches ${m.id} (${m.description.slice(0, 100)}). ${way} before you start.`
+        record(agentId, m.id, 'triggered', m.mode, line)
+        parts.push(line)
       }
       if (onDemand.length && (st.catalogDue || st.turn % CATALOG_EVERY === 0)) {
         st.catalogDue = false
@@ -177,6 +182,11 @@ export function createLibraryService(d: Deps) {
     async search(agentId: string, query: string): Promise<IndexEntry[]> {
       const words = query.toLowerCase().split(/\s+/).filter(Boolean)
       return (await index(agentId)).filter((e) => words.every((w) => `${e.id} ${e.name} ${e.description} ${e.when}`.toLowerCase().includes(w)))
+    },
+
+    /** What the log holds for one agent, oldest first (the chat and the agent's tab show it). */
+    usesOf(agentId: string): Use[] {
+      return log.all().filter((u) => u.agent === agentId)
     },
 
     /** How often each item was used, by program (what the Library pane shows beside an item). */
