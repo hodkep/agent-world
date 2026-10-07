@@ -34,6 +34,7 @@ import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } 
 import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
+import { useLibraryUses } from './chat/LibrarySlips'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { Setup } from './panel/Setup'
@@ -445,6 +446,8 @@ export function App() {
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  // The Library tab appears once the library has done something for the agent, so an agent that never uses it keeps the usual six tabs.
+  const hasLibrary = useLibraryUses(current?.id ?? '').uses.some((u) => u.how !== 'started' || !!u.words)
   useEffect(() => {
     if (selected && !current && allAgents.length) setSelected(null)
   }, [selected, current, allAgents.length])
@@ -1351,9 +1354,11 @@ export function App() {
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
                 Tools
               </button>
-              <button role="tab" aria-selected={view === 'library'} onClick={() => setView('library')} title="What the library told this agent and what it did about it">
-                Library
-              </button>
+              {(hasLibrary || view === 'library') && (
+                <button role="tab" aria-selected={view === 'library'} onClick={() => setView('library')} title="What the library told this agent and what it did about it">
+                  Library
+                </button>
+              )}
               <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
                 Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
