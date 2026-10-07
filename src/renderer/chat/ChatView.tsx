@@ -693,7 +693,7 @@ function JumpButtons() {
     if (to) show(to)
   }
   return (
-    <span className="jump" ref={root}>
+    <span className="msg-jump" ref={root}>
       <button onClick={() => go(-1)} disabled={at.at <= 1} aria-label="Previous message you sent" title={`Previous message you sent${at.of ? ` (${at.at} of ${at.of})` : ''} · Alt+↑`}>
         ▲
       </button>

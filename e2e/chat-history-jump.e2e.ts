@@ -58,6 +58,19 @@ test('↑ ↓ walk back through what was sent with the draft kept, and each mess
     const mine = log.locator('.msg.user')
     await mine.nth(1).hover()
     await expect(mine.nth(1).getByRole('button', { name: 'Previous message you sent' })).toBeEnabled()
+    // Short or long, the arrows are a small stack just outside the message's left edge (not the "Latest" button's box).
+    for (let i = 0; i < 3; i++) {
+      await mine.nth(i).hover()
+      const msg = (await mine.nth(i).boundingBox())!
+      const up = (await mine.nth(i).getByRole('button', { name: 'Previous message you sent' }).boundingBox())!
+      const down = (await mine.nth(i).getByRole('button', { name: 'Next message you sent' }).boundingBox())!
+      expect(up.x + up.width).toBeLessThanOrEqual(msg.x + 1)
+      expect(up.width).toBeLessThan(40)
+      expect(down.y).toBeGreaterThan(up.y)
+      expect(down.y + down.height).toBeLessThanOrEqual(msg.y + msg.height + 1)
+      // They fade in under the pointer, and are hidden otherwise.
+      await expect(mine.nth(i).locator('.msg-jump')).toHaveCSS('opacity', '1')
+    }
     await mine.nth(1).getByRole('button', { name: 'Previous message you sent' }).click()
     await expect(mine.nth(0)).toHaveClass(/jumped/)
     await mine.nth(0).hover()

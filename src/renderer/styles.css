@@ -1897,10 +1897,10 @@ dialog.handoff { width: min(640px, 94vw); }
 .hist-hint b { color: var(--accent); font-weight: 700; }
 /* Jumping between the messages you sent: two small arrows at a message's left edge, and a flash on the one arrived at. */
 .msg.user { position: relative; }
-.msg.user .jump { position: absolute; left: -28px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity 0.12s; }
-.msg.user:hover .jump, .msg.user .jump:focus-within { opacity: 1; }
-.msg.user .jump button { padding: 0; width: 22px; height: 18px; font-size: 10px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.msg.user .jump button:disabled { opacity: 0.35; }
+.msg.user .msg-jump { position: absolute; left: -28px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.msg.user:hover .msg-jump, .msg.user .msg-jump:focus-within { opacity: 1; }
+.msg.user .msg-jump button { padding: 0; width: 22px; height: 18px; font-size: 10px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.msg.user .msg-jump button:disabled { opacity: 0.35; }
 .msg.user.jumped { animation: jumped 1.2s; }
 @keyframes jumped { 0%, 40% { box-shadow: 0 0 0 2px var(--accent); } 100% { box-shadow: 0 0 0 2px transparent; } }
 .chip-view { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); background: var(--selected); padding: 0 5px; flex: none; }
