@@ -56,6 +56,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
+  const [trial, setTrial] = useState('')
+  const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
   const [stale, setStale] = useState<{ id: string; name: string }[]>([])
   const [restarting, setRestarting] = useState(false)
 
@@ -309,6 +311,12 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 <pre className="doc" aria-label="Opening text">{preview?.core
                   ? highlightOpening(preview.core, effective.filter((r) => r.mode === 'always').map((r) => byId.get(r.id)?.name ?? ''), effective.filter((r) => r.mode === 'on-demand').map((r) => r.when)).map((m, k) => m.kind ? <span key={k} className={m.kind}>{m.text}</span> : m.text)
                   : '(nothing: no rules apply here)'}</pre>
+                <h4>Try a message</h4>
+                <form className="lib-try" onSubmit={(e) => (e.preventDefault(), void window.aw.library.tryMessage(folder, trial).then(setTrialOut, () => setTrialOut(null)))}>
+                  <input aria-label="A message to try" value={trial} placeholder="split this pdf into pages" onChange={(e) => (setTrial(e.target.value), setTrialOut(null))} />
+                  <button type="submit" disabled={!trial.trim()}>Try it</button>
+                </form>
+                {trialOut && <p className="hint" role="status">{trialOut.length ? `It would point the agent at ${trialOut.map((m) => m.name).join(', ')}.` : 'It would point at nothing: no item\'s "when" sounds like it.'}</p>}
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
                 <h4>Reminder each turn</h4>

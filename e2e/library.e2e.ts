@@ -71,6 +71,13 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByLabel('When to use pdf').fill('working with PDFs')
     // What an agent sees, for each program: Claude is told how to fetch; agy is not connected to the message box yet, so it only gets what can be put in the text.
     const sees = pane.getByRole('group', { name: 'What an agent is told' })
+    // Trying a message says what it would point an agent at.
+    await sees.getByLabel('A message to try').fill('please split this pdf')
+    await sees.getByRole('button', { name: 'Try it' }).click()
+    await expect(sees.getByRole('status')).toContainText('point the agent at pdf')
+    await sees.getByLabel('A message to try').fill('rename the lamp post')
+    await sees.getByRole('button', { name: 'Try it' }).click()
+    await expect(sees.getByRole('status')).toContainText('point at nothing')
     await expect(sees.getByLabel('Opening text')).toContainText('Talk short and plain.')
     await expect(sees.getByLabel('Opening text')).toContainText('working with PDFs: pdf')
     await expect(sees).toContainText('Reminder: terse (always).')

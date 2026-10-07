@@ -247,6 +247,8 @@ export interface AwApi {
     uses(agentId: string): Promise<LibraryUse[]>
     /** Per item, program and agent: delivered, pointed at, answered and used. */
     stats(): Promise<LibraryStats>
+    /** Which items a message would point an agent of this project at, best first. */
+    tryMessage(folder: string, text: string): Promise<{ id: string; name: string; score: number }[]>
     /** The agents of this project that started before its playbook last changed. */
     stale(folder: string): Promise<{ id: string; name: string }[]>
     save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>

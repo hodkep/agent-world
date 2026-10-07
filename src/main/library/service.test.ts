@@ -167,4 +167,12 @@ describe('what an agent is given from the library', () => {
       expect(svc.staleAgents('/work/other')).toEqual([{ id: 'a3', name: 'bo' }])
     })
   })
+
+  describe('trying a message against a playbook', () => {
+    it('says which on-demand items a message would point at for a workspace, and none for one that matches nothing', async () => {
+      expect((await svc.tryMessage('/work/shop', 'please split this pdf into pages')).map((m) => m.id)).toEqual(['pdf'])
+      expect(await svc.tryMessage('/work/shop', 'rename the lamp post')).toEqual([])
+      expect(await svc.tryMessage('/work/other', 'please split this pdf into pages')).toEqual([])
+    })
+  })
 })

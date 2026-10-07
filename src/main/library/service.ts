@@ -62,11 +62,10 @@ export function createLibraryService(d: Deps) {
     return { ...compile(rules, itemsMap(), { canFetch }), rules }
   }
 
-  function indexSync(agentId: string): IndexEntry[] {
-    const a = agentOrThrow(agentId)
+  function entriesFor(repoPath: string): IndexEntry[] {
     const items = itemsMap()
     const order = { always: 0, 'on-demand': 1, step: 2, off: 3 }
-    return rulesFor(a.repoPath)
+    return rulesFor(repoPath)
       .filter((r) => r.mode !== 'off' && items.has(r.id))
       .sort((x, y) => order[x.mode] - order[y.mode])
       .map((r) => {
@@ -75,6 +74,7 @@ export function createLibraryService(d: Deps) {
       })
   }
 
+  const indexSync = (agentId: string) => entriesFor(agentOrThrow(agentId).repoPath)
   const index = async (agentId: string) => indexSync(agentId)
 
   function record(agentId: string, id: string, how: How, mode?: string, words?: string) {
@@ -184,9 +184,15 @@ export function createLibraryService(d: Deps) {
       return (await index(agentId)).filter((e) => words.every((w) => `${e.id} ${e.name} ${e.description} ${e.when}`.toLowerCase().includes(w)))
     },
 
+    /** Which on-demand items a message would point an agent of this workspace at, best first (the playbook's "Try a message"). */
+    async tryMessage(repoPath: string, text: string): Promise<{ id: string; name: string; score: number }[]> {
+      return matchItems(text, entriesFor(repoPath).filter((e) => e.mode === 'on-demand'), MATCHES).map((m) => ({ id: m.id, name: m.name, score: m.score }))
+    },
+
     /** The agents of a workspace that started before its playbook, or the global one, last changed: they keep what they were told until they restart. */
     staleAgents(repoPath: string): { id: string; name: string }[] {
-      const changed = Math.max(playbooks.changedAt('global'), playbooks.changedAt({ workspace: d.workspaceKey(repoPath) }))
+      // A file's time has fractions of a millisecond and the log's does not: compare whole milliseconds, or an agent started in the same one looks stale.
+      const changed = Math.floor(Math.max(playbooks.changedAt('global'), playbooks.changedAt({ workspace: d.workspaceKey(repoPath) })))
       const startedAt = new Map<string, number>()
       for (const u of log.all()) if (u.how === 'started' && u.workspace === d.workspaceKey(repoPath)) startedAt.set(u.agent, u.t)
       return [...startedAt].filter(([id, t]) => t < changed && d.agent(id)).map(([id]) => ({ id, name: d.agent(id)!.name }))
