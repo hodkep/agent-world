@@ -1004,7 +1004,7 @@ export function App() {
           }}
         />
       )}
-      {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {settings && prefs && <Settings folder={folder ?? ''} providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
