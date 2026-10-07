@@ -57,6 +57,46 @@ test('clicking an agent opens its card on the side of the office away from it', 
   }
 })
 
+test('the card stays clear of the terminal drawer and scrolls inside itself when there is less room', async () => {
+  const { page, shutdown } = await start()
+  try {
+    const card = page.locator('.profile-overlay')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('group', { name: 'Terminals' }).getByRole('button', { name: /Terminal/ }).click()
+    const drawer = page.getByRole('region', { name: 'Terminals' })
+    await expect(drawer).toBeVisible()
+    // The card may now be a smaller one, or in the panel, but it never goes under the drawer.
+    await expect
+      .poll(async () => {
+        if ((await card.count()) === 0) return true
+        const c = (await card.boundingBox())!
+        const d = (await drawer.boundingBox())!
+        return c.y + c.height <= d.y
+      })
+      .toBe(true)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('on the left of the office the card ends above the zoom and Terminal buttons, scrolling inside itself', async () => {
+  const { page, shutdown } = await start(undefined, {}, false)
+  try {
+    // The fourth desk is on the right of the office, so its agent's card opens on the left, where the buttons are.
+    for (const name of ['linus', 'grace', 'turing']) await hire(page, { name })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.locator('.hc-name').click()
+    const card = page.locator('.profile-overlay')
+    await expect(card).toBeVisible({ timeout: 15_000 })
+    await expect(card).toHaveAttribute('data-side', 'left')
+    const c = (await card.boundingBox())!
+    const ctl = (await page.locator('.stage-ctl').boundingBox())!
+    expect(c.y + c.height).toBeLessThanOrEqual(ctl.y)
+  } finally {
+    await shutdown()
+  }
+})
+
 test('the most used tools read in words, with an icon, and every bar starts in one column without touching a name', async () => {
   const { page, shutdown } = await start(undefined, { FAKE_MCP: '1' }, false)
   try {

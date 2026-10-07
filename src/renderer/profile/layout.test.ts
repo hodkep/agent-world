@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_COMPACT, CARD_FULL, cardLayout } from './layout'
+import { CARD_COMPACT, CARD_FULL, CONTROLS_ROOM, cardLayout, cardMaxHeight } from './layout'
 import { agoLabel, agoShort, durationLabel, levelOf } from './format'
 
 describe('where the profile card goes', () => {
@@ -65,5 +65,21 @@ describe('the words on the card', () => {
     expect(l.pct).toBeGreaterThanOrEqual(0)
     expect(l.pct).toBeLessThan(100)
     expect(levelOf(1_000_000).level).toBeLessThanOrEqual(99)
+  })
+})
+
+describe('how tall the card may be on the stage', () => {
+  it('keeps clear of the zoom and Terminal buttons when it is on the left, where they are, and not on the right', () => {
+    expect(cardMaxHeight({ stageH: 700, side: 'right', drawerH: 0 })).toBe(680)
+    expect(cardMaxHeight({ stageH: 700, side: 'left', drawerH: 0 })).toBe(680 - CONTROLS_ROOM)
+  })
+
+  it('also keeps clear of the terminal drawer, whichever side it is on', () => {
+    expect(cardMaxHeight({ stageH: 700, side: 'right', drawerH: 230 })).toBe(680 - 230)
+    expect(cardMaxHeight({ stageH: 700, side: 'left', drawerH: 230 })).toBe(680 - 230 - CONTROLS_ROOM)
+  })
+
+  it('is never less than nothing', () => {
+    expect(cardMaxHeight({ stageH: 100, side: 'left', drawerH: 230 })).toBe(0)
   })
 })

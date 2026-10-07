@@ -48,7 +48,7 @@ import { UsageModal } from './stats/UsageModal'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
-import { cardLayout } from './profile/layout'
+import { cardLayout, cardMaxHeight } from './profile/layout'
 import { type CardEdit, ProfileCard } from './profile/ProfileCard'
 import { accountColor, accountName } from './accounts'
 import { LimitBoard } from './panel/LimitBoard'
@@ -566,7 +566,9 @@ export function App() {
         accountId: current.account ?? ''
       }
     : null
-  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h, agentX, prefer: cardSize ?? undefined }) : null
+  // The terminal drawer covers the bottom of the stage, so the card has less room.
+  const drawerH = termOpen && folder ? termH : 0
+  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h - drawerH, agentX, prefer: cardSize ?? undefined }) : null
   const cardAt = cardOpen ? cardLay : null
   const renameTo = (id: string, value: string) =>
     window.aw.renameAgent(id, value).then((name) => {
@@ -1080,7 +1082,7 @@ export function App() {
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
-            <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w }}>
+            <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w, maxHeight: cardMaxHeight({ stageH: stageBox.h, side: cardAt.side, drawerH }) }}>
               <ProfileCard data={cardData} variant={cardAt.mode} now={clock} edit={cardEdit} onClose={() => setCardOpen(false)} onToggleSize={() => setCardSize(cardAt.mode === 'full' ? 'compact' : 'full')} />
             </div>
           )}

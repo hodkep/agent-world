@@ -19,3 +19,11 @@ export function cardLayout(o: { w: number; h: number; agentX: number; panel?: bo
   const full = o.prefer ? o.prefer === 'full' : o.w >= 860 && o.h >= CARD_FULL.h + MARGIN
   return full ? { mode: 'full', side, size: CARD_FULL } : { mode: 'compact', side, size: CARD_COMPACT }
 }
+
+/** The zoom and Terminal buttons sit at the bottom left of the stage: their height, the gap under them and a little air above. */
+export const CONTROLS_ROOM = 54
+
+/** The tallest the card may be on the stage: its 10px of margin above and below, and clear of the terminal drawer and, on the left, of the buttons. */
+export function cardMaxHeight(o: { stageH: number; side: 'left' | 'right'; drawerH: number }): number {
+  return Math.max(0, o.stageH - 20 - o.drawerH - (o.side === 'left' ? CONTROLS_ROOM : 0))
+}
