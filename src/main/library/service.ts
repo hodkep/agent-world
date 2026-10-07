@@ -189,13 +189,18 @@ export function createLibraryService(d: Deps) {
       return matchItems(text, entriesFor(repoPath).filter((e) => e.mode === 'on-demand'), MATCHES).map((m) => ({ id: m.id, name: m.name, score: m.score }))
     },
 
-    /** The agents of a workspace that started before its playbook, or the global one, last changed: they keep what they were told until they restart. */
-    staleAgents(repoPath: string): { id: string; name: string }[] {
+    /** Every agent of a workspace that was given an opening text, with its program and whether that text is older than the playbook now: those keep what they were told until they restart. */
+    holders(repoPath: string): { id: string; name: string; provider: string; stale: boolean }[] {
       // A file's time has fractions of a millisecond and the log's does not: compare whole milliseconds, or an agent started in the same one looks stale.
       const changed = Math.floor(Math.max(playbooks.changedAt('global'), playbooks.changedAt({ workspace: d.workspaceKey(repoPath) })))
       const startedAt = new Map<string, number>()
       for (const u of log.all()) if (u.how === 'started' && u.workspace === d.workspaceKey(repoPath)) startedAt.set(u.agent, u.t)
-      return [...startedAt].filter(([id, t]) => t < changed && d.agent(id)).map(([id]) => ({ id, name: d.agent(id)!.name }))
+      return [...startedAt].filter(([id]) => d.agent(id)).map(([id, t]) => ({ id, name: d.agent(id)!.name, provider: d.agent(id)!.provider, stale: t < changed }))
+    },
+
+    /** The agents of a workspace that started before its playbook last changed. */
+    staleAgents(repoPath: string): { id: string; name: string }[] {
+      return this.holders(repoPath).filter((h) => h.stale).map(({ id, name }) => ({ id, name }))
     },
 
     /** What the log holds for one agent, oldest first (the chat and the agent's tab show it). */

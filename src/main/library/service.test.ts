@@ -165,6 +165,9 @@ describe('what an agent is given from the library', () => {
       await later()
       svc.playbooks.write('global', [])
       expect(svc.staleAgents('/work/other')).toEqual([{ id: 'a3', name: 'bo' }])
+      // Everyone who got an opening text is listed, with the program and whether the text is the current one.
+      expect(svc.holders('/work/shop')).toEqual([{ id: 'a1', name: 'csr-1', provider: 'claude', stale: true }])
+      expect(svc.holders('/work/other')).toEqual([{ id: 'a3', name: 'bo', provider: 'claude', stale: true }])
     })
   })
 

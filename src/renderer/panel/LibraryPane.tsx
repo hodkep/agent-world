@@ -58,7 +58,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [help, setHelp] = useState(false)
   const [trial, setTrial] = useState('')
   const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
-  const [stale, setStale] = useState<{ id: string; name: string }[]>([])
+  const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
+  const stale = holders.filter((h) => h.stale)
   const [restarting, setRestarting] = useState(false)
 
   const load = useCallback(async () => {
@@ -68,7 +69,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   }, [])
   useEffect(() => void load().catch((e) => setError(clean(e))), [load])
   useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
-  const refreshStale = useCallback(() => (folder ? window.aw.library.stale(folder).then(setStale, () => setStale([])) : Promise.resolve(setStale([]))), [folder])
+  const refreshStale = useCallback(() => (folder ? window.aw.library.holders(folder).then(setHolders, () => setHolders([])) : Promise.resolve(setHolders([]))), [folder])
   useEffect(() => void refreshStale(), [refreshStale, books])
   useEffect(() => window.aw.onLibraryUse(() => void refreshStale()), [refreshStale])
   const restartStale = async () => {
@@ -321,6 +322,14 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
                 <h4>Reminder each turn</h4>
                 <p className="hint">{preview?.reminder || (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
+                {holders.length > 0 && (
+                  <>
+                    <h4>Who gets this</h4>
+                    <ul className="al-items" aria-label="Who has this text">
+                      {holders.map((h) => <li key={h.id}><b>{h.name}</b><small>{h.provider}</small><small className={h.stale ? 'older' : ''}>{h.stale ? 'started on an older text' : 'up to date'}</small></li>)}
+                    </ul>
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -249,8 +249,8 @@ export interface AwApi {
     stats(): Promise<LibraryStats>
     /** Which items a message would point an agent of this project at, best first. */
     tryMessage(folder: string, text: string): Promise<{ id: string; name: string; score: number }[]>
-    /** The agents of this project that started before its playbook last changed. */
-    stale(folder: string): Promise<{ id: string; name: string }[]>
+    /** The agents of this project that were given an opening text, and whether it is older than the playbook now. */
+    holders(folder: string): Promise<{ id: string; name: string; provider: string; stale: boolean }[]>
     save(i: { id?: string; kind: LibraryKind; name: string; description: string; body: string }): Promise<LibraryItem>
     remove(id: string): Promise<void>
     /** Skills found on this computer that could be copied in. */

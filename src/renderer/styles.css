@@ -2157,3 +2157,4 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .lib-notice-note { margin: 0; padding: 8px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--mail-rim); font-size: 12px; color: var(--muted); }
 .lib-try { display: flex; gap: 8px; }
 .lib-try input { flex: 1; min-width: 0; }
+.al-items small.older { color: var(--accent); }
