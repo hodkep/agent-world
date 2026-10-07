@@ -145,6 +145,14 @@ const api: AwApi = {
     write: (id, path, content) => ipcRenderer.invoke('code:write', id, path, content),
     commit: (id, message) => ipcRenderer.invoke('code:commit', id, message),
     discard: (id, path) => ipcRenderer.invoke('code:discard', id, path),
+    status: (id) => ipcRenderer.invoke('code:status', id),
+    stage: (id, paths) => ipcRenderer.invoke('code:stage', id, paths),
+    unstage: (id, paths) => ipcRenderer.invoke('code:unstage', id, paths),
+    commitStaged: (id, message) => ipcRenderer.invoke('code:commit-staged', id, message),
+    dirtyDiff: (id, path) => ipcRenderer.invoke('code:dirty-diff', id, path),
+    log: (id, o) => ipcRenderer.invoke('code:log', id, o),
+    commitDetail: (id, hash) => ipcRenderer.invoke('code:commit-detail', id, hash),
+    commitDiff: (id, hash, path) => ipcRenderer.invoke('code:commit-diff', id, hash, path),
     merge: (id) => ipcRenderer.invoke('code:merge', id),
     pr: (id) => ipcRenderer.invoke('code:pr', id)
   }

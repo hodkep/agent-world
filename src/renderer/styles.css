@@ -1886,6 +1886,70 @@ dialog.handoff { width: min(640px, 94vw); }
 .change-list.ch li:hover { background: var(--selected); }
 .change-list.ch li.empty:hover { background: none; }
 .change-list.ch li.more { font-size: 11px; color: var(--muted); }
+/* The switch under the branch name: the branch against its base, what is not committed, the commits. */
+.ch-switch { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 4px 12px 8px; border: 2px solid var(--ink); background: var(--well); }
+.ch-switch button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 4px; background: transparent; border: 0; box-shadow: none; color: var(--muted); font-weight: 600; white-space: nowrap; min-width: 0; }
+.ch-switch button + button { border-left: 2px solid var(--ink); }
+.ch-switch button:hover:not(.on) { background: var(--panel-2); color: var(--text); }
+.ch-switch button.on { background: var(--panel-2); color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+.ch-switch .n { font: 700 10px Menlo, Consolas, monospace; padding: 0 5px; background: var(--ink); color: var(--text); }
+.ch-switch .on .n { background: var(--accent); color: var(--ink); }
+.ch-switch button > span { overflow: hidden; text-overflow: ellipsis; }
+.ch-switch .short { display: none; }
+/* A narrow column (the side panel at its smallest) shortens the labels, drops the counts into the tooltips, and stacks the commit line. */
+.change-list.ch { container-type: inline-size; }
+@container (max-width: 260px) {
+  .ch-switch button { padding: 6px 2px; font-size: 11.5px; }
+  .ch-switch .full, .ch-switch .n { display: none; }
+  .ch-switch .short { display: inline; }
+  .ch-commit { flex-direction: column; }
+  .ch-scope .change-view button { padding: 3px 4px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+}
+/* Uncommitted: three groups with a button each, and a small + or − on every row. */
+.chipf.is-new b { color: var(--think); }
+.change-list.ch .ch-group { display: flex; align-items: center; gap: 8px; padding: 6px 6px 3px; margin-top: 4px; border-top: 1px solid var(--line); font: 700 11px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.change-list.ch .ch-group:first-child { border-top: 0; margin-top: 0; }
+.change-list.ch .ch-group:hover { background: none; }
+.ch-group > span:first-child { white-space: nowrap; letter-spacing: 0.04em; }
+.ch-group .n { padding: 0 6px; background: var(--ink); color: var(--text); }
+.ch-group button { margin-left: auto; white-space: nowrap; font: 600 11px ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; text-transform: none; padding: 0 7px; }
+.change-list.ch .rowact { visibility: hidden; padding: 0 6px; margin-right: 2px; box-shadow: none; background: var(--panel-2); border-color: var(--ink); }
+.change-list.ch li:hover .rowact, .change-list.ch li:focus-within .rowact { visibility: visible; }
+.change-list.ch li.clean { color: var(--muted); }
+.change-list.ch li.clean b { color: var(--ok-text); display: block; margin-bottom: 2px; }
+.ch-hint { margin: 0; font-size: 11.5px; color: var(--muted); }
+.ch-commit button.primary { background: var(--accent); color: var(--ink); font-weight: 700; }
+.ch-status { border-top: 0; padding-top: 0; }
+/* History: a rail of commits, and one commit's details. */
+.ch-scope .change-view { margin-left: 0; width: 100%; }
+.ch-scope .change-view button { flex: 1; padding: 3px 8px; }
+.change-list.ch ul.commits { padding: 0; }
+.change-list.ch ul.commits li { display: block; }
+.commit { position: relative; display: block; width: 100%; padding: 8px 8px 8px 26px; text-align: left; background: none; border: 0; box-shadow: none; }
+.commit::before { content: ''; position: absolute; left: 13px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.commits li:first-child .commit::before { top: 16px; }
+.commit .dot { position: absolute; left: 9px; top: 12px; width: 10px; height: 10px; background: var(--panel); border: 2px solid var(--think); z-index: 1; }
+.commit .dot.head { background: var(--accent); border-color: var(--accent); }
+.commit .subject { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; line-height: 1.35; white-space: normal; }
+.ch-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 3px; color: var(--muted); font-size: 11.5px; }
+.ch-meta .hash, .ch-detail .hash { font: 700 11px Menlo, Consolas, monospace; color: var(--think); background: none; padding: 0; box-shadow: none; }
+.ch-meta .stat { font: 11px Menlo, Consolas, monospace; }
+.plus { color: var(--ok-text); }
+.minus { color: var(--danger-text); }
+.tagc { font: 800 9.5px Menlo, Consolas, monospace; letter-spacing: 0.1em; padding: 1px 6px; color: var(--ink); background: var(--accent); }
+.tagc.local { background: var(--think); }
+.change-list.ch li.commit-base { padding: 6px 8px 6px 26px; font-size: 11.5px; color: var(--muted); position: relative; }
+.change-list.ch li.commit-base::before { content: ''; position: absolute; left: 9px; top: 9px; width: 10px; height: 10px; background: var(--dim); }
+.change-list.ch li.empty button { padding: 2px 10px; }
+.ch-back { display: block; width: 100%; text-align: left; padding: 6px 12px; background: var(--panel-3); border: 0; border-bottom: 2px solid var(--ink); box-shadow: none; color: var(--accent); font-weight: 700; }
+.ch-back:hover { background: var(--panel-2); }
+.ch-detail { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line); }
+.ch-detail h3 { margin: 0; font-size: 14px; line-height: 1.35; }
+.ch-detail p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 12.5px; white-space: pre-wrap; }
+.ch-detail .ch-meta { margin: 0; }
+.ch-detail .ch-acts { display: flex; gap: 6px; }
+.ch-detail .ch-acts button { padding: 1px 10px; font-size: 12px; }
+.ch-detail + .ch-sum { padding-top: 8px; }
 .ch-foot { position: relative; border-top: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .ch-commit { display: flex; gap: 6px; }
 .ch-commit input { flex: 1; min-width: 0; }

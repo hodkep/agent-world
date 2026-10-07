@@ -15,6 +15,39 @@ export interface Changes {
   /** Set when the stored base leaves far more files changed than the branch the repo's checkout is on would: that branch, and how many files differ from it. */
   hint?: { branch: string; files: number } | null
 }
+/** What is not committed in an agent's worktree: ready to commit, edited since (a file can be in both), and new. */
+export interface WorktreeStatus {
+  staged: { path: string; status: ChangeStatus }[]
+  changed: { path: string; status: ChangeStatus }[]
+  untracked: { path: string; status: ChangeStatus }[]
+}
+export interface CommitInfo {
+  hash: string
+  short: string
+  subject: string
+  author: string
+  /** Milliseconds. */
+  at: number
+  files: number
+  added: number
+  deleted: number
+  /** The commit the worktree is on. */
+  head: boolean
+  /** Not pushed to the branch's upstream yet (said only for a branch that has one). */
+  local: boolean
+}
+export interface CommitPage {
+  commits: CommitInfo[]
+  total: number
+  more: boolean
+}
+export interface CommitDetail {
+  subject: string
+  body: string
+  author: string
+  at: number
+  files: { path: string; status: ChangeStatus }[]
+}
 export interface Branch {
   name: string
   kind: 'local' | 'remote'
@@ -84,6 +117,18 @@ export interface CodeApi {
   write(agentId: string, path: string, content: string): Promise<void>
   commit(agentId: string, message: string): Promise<void>
   discard(agentId: string, path: string): Promise<void>
+  /** What is uncommitted: staged, edited and new files. */
+  status(agentId: string): Promise<WorktreeStatus>
+  stage(agentId: string, paths: string[]): Promise<void>
+  unstage(agentId: string, paths: string[]): Promise<void>
+  /** Commits what is staged and nothing else. */
+  commitStaged(agentId: string, message: string): Promise<void>
+  /** An uncommitted file: the last commit's version and the worktree's. */
+  dirtyDiff(agentId: string, path: string): Promise<{ original: string; current: string }>
+  /** The branch's commits, newest first: those since its base ("branch") or all of them. */
+  log(agentId: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }): Promise<CommitPage>
+  commitDetail(agentId: string, hash: string): Promise<CommitDetail>
+  commitDiff(agentId: string, hash: string, path: string): Promise<{ original: string; current: string }>
   /** Merges the agent's branch into its base branch in the user's checkout; returns the base branch name. */
   merge(agentId: string): Promise<string>
   /** Pushes the branch and opens a pull request; returns the PR URL. */

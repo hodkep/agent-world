@@ -78,6 +78,155 @@ export async function discardFile(cwd: string, path: string) {
   }
 }
 
+// ---- What is uncommitted, staging, and the history of the branch -----------------------------------------------
+
+const run = promisify(execFile)
+/** Git's output exactly as it came (the other helper trims it, which would eat the leading space of a ` M` status line). */
+const raw = async (cwd: string, ...args: string[]) => (await run('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 })).stdout
+
+export interface WorktreeStatus {
+  staged: Change[]
+  changed: Change[]
+  untracked: Change[]
+}
+
+/** The worktree's uncommitted files in three groups: ready to commit, edited since (a file can be in both), and new. */
+export async function worktreeStatus(cwd: string): Promise<WorktreeStatus> {
+  const out: WorktreeStatus = { staged: [], changed: [], untracked: [] }
+  for (const entry of (await raw(cwd, 'status', '--porcelain=v1', '-z', '--no-renames', '--untracked-files=all')).split('\0').filter(Boolean)) {
+    const x = entry[0]!
+    const y = entry[1]!
+    const path = entry.slice(3)
+    if (isOkfPath(path)) continue
+    if (x === '?' && y === '?') out.untracked.push({ path, status: 'added' })
+    else {
+      if ('MADRCT'.includes(x)) out.staged.push({ path, status: STATUS[x] ?? 'modified' })
+      if ('MDAT'.includes(y)) out.changed.push({ path, status: STATUS[y] === 'added' ? 'modified' : (STATUS[y] ?? 'modified') })
+    }
+  }
+  for (const list of [out.staged, out.changed, out.untracked]) list.sort((a, b) => a.path.localeCompare(b.path))
+  return out
+}
+
+/** Stages these files (new and deleted ones too), ready to commit. */
+export async function stage(cwd: string, paths: string[]) {
+  for (const p of paths) inside(cwd, p)
+  if (paths.length) await git(cwd, 'add', '-A', '--', ...paths)
+}
+
+/** Takes these files out of what will be committed; their edits stay in the worktree. */
+export async function unstage(cwd: string, paths: string[]) {
+  for (const p of paths) inside(cwd, p)
+  if (paths.length) await git(cwd, 'reset', '-q', 'HEAD', '--', ...paths)
+}
+
+/** Commits what is staged and nothing else. */
+export async function commitStaged(cwd: string, message: string) {
+  if (!message.trim()) throw new Error('A commit message is required.')
+  if (!(await git(cwd, 'diff', '--cached', '--name-only'))) throw new Error('Nothing is staged. Stage some files first, or use Commit all.')
+  await git(cwd, 'commit', '-m', message.trim())
+}
+
+/** An uncommitted file: as the last commit has it on the left, as it is in the worktree on the right; empty when it is new or deleted. */
+export async function dirtyDiff(cwd: string, path: string) {
+  inside(cwd, path)
+  const original = await run('git', ['show', `HEAD:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout, () => '')
+  const current = await readWorktreeFile(cwd, path).catch(() => '')
+  return { original, current }
+}
+
+export interface CommitInfo {
+  hash: string
+  short: string
+  subject: string
+  author: string
+  /** When it was committed, in milliseconds. */
+  at: number
+  files: number
+  added: number
+  deleted: number
+  /** The commit the worktree is on. */
+  head: boolean
+  /** Not on the branch's upstream yet; only said for a branch that has one. */
+  local: boolean
+}
+export interface CommitPage {
+  commits: CommitInfo[]
+  /** How many commits there are in this scope (before a search). */
+  total: number
+  more: boolean
+}
+
+const HEX = /^[0-9a-f]{7,40}$/i
+const commitOnly = (hash: string) => {
+  if (!HEX.test(hash)) throw new Error('That is not a commit.')
+  return hash
+}
+
+/** The branch's commits, newest first: those since it left `base` (scope "branch") or all that lead to it ("all"). A search matches message, author or hash. */
+export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }): Promise<CommitPage> {
+  const range = o.scope === 'branch' ? `${await mergeBase(cwd, base)}..HEAD` : 'HEAD'
+  const searching = !!o.search?.trim()
+  const limit = o.limit ?? 50
+  const skip = o.skip ?? 0
+  // A search reads the whole range and filters it here; a plain page asks git for just its part.
+  const window = searching ? [] : [`--max-count=${limit + 1}`, `--skip=${skip}`]
+  const text = await raw(cwd, 'log', '--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s', ...window, range)
+  const pushed = await git(cwd, 'rev-parse', '--abbrev-ref', '@{u}').then(
+    async () => new Set((await git(cwd, 'rev-list', '@{u}..HEAD')).split('\n').filter(Boolean)),
+    () => null
+  )
+  const head = await git(cwd, 'rev-parse', 'HEAD')
+  let commits: CommitInfo[] = text
+    .split('\x1e')
+    .filter(Boolean)
+    .map((rec) => {
+      const [h, author, ct, rest] = [...rec.split('\x1f').slice(0, 3), rec.split('\x1f').slice(3).join('\x1f')]
+      const [subject, ...tail] = rest!.split('\n')
+      const stat = tail.join('\n')
+      const num = (re: RegExp) => Number(re.exec(stat)?.[1] ?? 0)
+      return {
+        hash: h!,
+        short: h!.slice(0, 7),
+        subject: subject!,
+        author: author!,
+        at: Number(ct) * 1000,
+        files: num(/(\d+) files? changed/),
+        added: num(/(\d+) insertions?\(\+\)/),
+        deleted: num(/(\d+) deletions?\(-\)/),
+        head: h === head,
+        local: pushed ? pushed.has(h!) : false
+      }
+    })
+  const total = searching ? commits.length : Number((await git(cwd, 'rev-list', '--count', range)) || 0)
+  if (searching) {
+    const q = o.search!.trim().toLowerCase()
+    commits = commits.filter((c) => c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.hash.startsWith(q))
+    return { commits: commits.slice(skip, skip + limit), total: commits.length, more: commits.length > skip + limit }
+  }
+  return { commits: commits.slice(0, limit), total, more: commits.length > limit }
+}
+
+/** One commit: its message in full and the files it changed. */
+export async function commitDetail(cwd: string, hash: string): Promise<{ subject: string; body: string; author: string; at: number; files: Change[] }> {
+  commitOnly(hash)
+  const [head, ...rest] = (await raw(cwd, 'show', '-s', '--format=%an%x1f%ct%x1f%s%x1f%b', hash)).split('\x1f')
+  const body = rest.slice(2).join('\x1f').trim()
+  const files = lines(await raw(cwd, 'show', '--name-status', '--no-renames', '--format=', hash)).map((l) => {
+    const [code, ...p] = l.split('\t')
+    return { path: p.join('\t'), status: STATUS[code!] ?? ('modified' as const) }
+  })
+  return { author: head!, at: Number(rest[0]) * 1000, subject: rest[1]!, body, files: files.filter((f) => !isOkfPath(f.path)).sort((a, b) => a.path.localeCompare(b.path)) }
+}
+
+/** One file of a commit: before it on the left, after it on the right; empty on the side where the file did not exist. */
+export async function commitDiff(cwd: string, hash: string, path: string) {
+  commitOnly(hash)
+  inside(cwd, path)
+  const at = (rev: string) => run('git', ['show', `${rev}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout, () => '')
+  return { original: await at(`${hash}^`), current: await at(hash) }
+}
+
 /**
  * Merge the agent's branch into `base` in the user's own checkout. Refuses when that checkout is on another
  * branch or has uncommitted work, and backs out completely on conflict, so the user's tree is never left half-merged.

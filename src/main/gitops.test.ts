@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branches, changes, commitAll, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -217,5 +217,129 @@ describe('the base branch', () => {
     const cy = await createWorktree({ repoPath: repo, name: 'cy', rootDir: join(tmp, 'wt'), base: 'release' })
     expect(cy.base).toBe('release')
     expect(existsSync(join(cy.path, 'later.ts'))).toBe(false)
+  })
+})
+
+
+describe('what is uncommitted in the worktree, and staging it', () => {
+  it('splits staged, changed and new files, and a file edited after staging is in both', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'one changed\n')
+    writeFileSync(join(wt.path, 'new.ts'), 'n\n')
+    git(wt.path, 'rm', '-q', 'b.ts')
+    git(wt.path, 'add', 'a.ts')
+    writeFileSync(join(wt.path, 'a.ts'), 'one changed again\n')
+    writeFileSync(join(wt.path, 'loose.ts'), 'l\n')
+    const s = await worktreeStatus(wt.path)
+    expect(s.staged).toEqual([{ path: 'a.ts', status: 'modified' }, { path: 'b.ts', status: 'deleted' }])
+    expect(s.changed).toEqual([{ path: 'a.ts', status: 'modified' }])
+    expect(s.untracked).toEqual([{ path: 'loose.ts', status: 'added' }, { path: 'new.ts', status: 'added' }])
+  })
+
+  it('is empty when nothing is uncommitted', async () => {
+    expect(await worktreeStatus(wt.path)).toEqual({ staged: [], changed: [], untracked: [] })
+  })
+
+  it('stages and unstages files, new and deleted ones included', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'x\n')
+    writeFileSync(join(wt.path, 'new.ts'), 'n\n')
+    rmSync(join(wt.path, 'b.ts'))
+    await stage(wt.path, ['a.ts', 'new.ts', 'b.ts'])
+    expect((await worktreeStatus(wt.path)).staged.map((c) => c.path)).toEqual(['a.ts', 'b.ts', 'new.ts'])
+    await unstage(wt.path, ['new.ts', 'b.ts'])
+    const s = await worktreeStatus(wt.path)
+    expect(s.staged.map((c) => c.path)).toEqual(['a.ts'])
+    expect(s.untracked.map((c) => c.path)).toEqual(['new.ts'])
+    expect(s.changed.map((c) => c.path)).toEqual(['b.ts'])
+  })
+
+  it('refuses a path outside the worktree', async () => {
+    await expect(stage(wt.path, ['../outside.ts'])).rejects.toThrow(/outside/)
+    await expect(unstage(wt.path, ['/etc/passwd'])).rejects.toThrow(/outside/)
+  })
+
+  it('commits only what is staged, and says so when nothing is', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'staged edit\n')
+    writeFileSync(join(wt.path, 'b.ts'), 'left alone\n')
+    await expect(commitStaged(wt.path, 'nothing yet')).rejects.toThrow(/Nothing is staged/)
+    await stage(wt.path, ['a.ts'])
+    await expect(commitStaged(wt.path, '  ')).rejects.toThrow(/message/)
+    await commitStaged(wt.path, 'edit a')
+    expect(git(wt.path, 'log', '-1', '--format=%s')).toBe('edit a')
+    expect((await worktreeStatus(wt.path)).changed.map((c) => c.path)).toEqual(['b.ts'])
+  })
+
+  it('has the committed version on the left of an uncommitted diff and the file as it is now on the right', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'now\n')
+    expect(await dirtyDiff(wt.path, 'a.ts')).toEqual({ original: 'one\n', current: 'now\n' })
+    writeFileSync(join(wt.path, 'fresh.ts'), 'f\n')
+    expect(await dirtyDiff(wt.path, 'fresh.ts')).toEqual({ original: '', current: 'f\n' })
+    rmSync(join(wt.path, 'b.ts'))
+    expect(await dirtyDiff(wt.path, 'b.ts')).toEqual({ original: 'two\n', current: '' })
+  })
+})
+
+describe('the commits on the active branch', () => {
+  const commit = (file: string, body: string, msg: string) => {
+    writeFileSync(join(wt.path, file), body)
+    git(wt.path, 'add', '-A')
+    git(wt.path, 'commit', '-qm', msg)
+  }
+
+  it('lists the commits since the base, newest first, with their size, and everything with scope all', async () => {
+    commit('a.ts', 'one\nmore\n', 'feat: first')
+    commit('c.ts', 'c1\nc2\nc3\n', 'feat: second')
+    const own = await history(wt.path, 'main', { scope: 'branch' })
+    expect(own.commits.map((c) => c.subject)).toEqual(['feat: second', 'feat: first'])
+    expect(own.total).toBe(2)
+    expect(own.commits[0]).toMatchObject({ files: 1, added: 3, deleted: 0, head: true, author: 't' })
+    expect(own.commits[1]).toMatchObject({ files: 1, added: 1, deleted: 0, head: false })
+    expect(own.commits[0]!.hash).toMatch(/^[0-9a-f]{40}$/)
+    expect(own.commits[0]!.short).toBe(own.commits[0]!.hash.slice(0, 7))
+    expect(own.commits[0]!.at).toBeGreaterThan(Date.now() - 60_000)
+    const all = await history(wt.path, 'main', { scope: 'all' })
+    expect(all.commits.map((c) => c.subject)).toEqual(['feat: second', 'feat: first', 'init'])
+  })
+
+  it('pages through a long branch and searches it by message, author or hash', async () => {
+    for (let i = 1; i <= 5; i++) commit(`f${i}.ts`, `${i}\n`, `feat: step ${i}`)
+    const first = await history(wt.path, 'main', { scope: 'branch', limit: 2 })
+    expect(first.commits.map((c) => c.subject)).toEqual(['feat: step 5', 'feat: step 4'])
+    expect(first.more).toBe(true)
+    const next = await history(wt.path, 'main', { scope: 'branch', limit: 2, skip: 4 })
+    expect(next.commits.map((c) => c.subject)).toEqual(['feat: step 1'])
+    expect(next.more).toBe(false)
+    expect((await history(wt.path, 'main', { scope: 'branch', search: 'STEP 3' })).commits.map((c) => c.subject)).toEqual(['feat: step 3'])
+    expect((await history(wt.path, 'main', { scope: 'branch', search: 'nobody' })).commits).toEqual([])
+    const hash = first.commits[1]!.hash
+    expect((await history(wt.path, 'main', { scope: 'branch', search: hash.slice(0, 8) })).commits.map((c) => c.subject)).toEqual(['feat: step 4'])
+  })
+
+  it('marks the commits not yet pushed when the branch has an upstream, and none when it has not', async () => {
+    commit('a.ts', 'two\n', 'feat: one')
+    expect((await history(wt.path, 'main', { scope: 'branch' })).commits.map((c) => c.local)).toEqual([false])
+    git(wt.path, 'branch', 'origin-copy', 'HEAD')
+    git(wt.path, 'branch', '--set-upstream-to=origin-copy')
+    commit('b.ts', 'three\n', 'feat: two')
+    expect((await history(wt.path, 'main', { scope: 'branch' })).commits.map((c) => c.local)).toEqual([true, false])
+  })
+
+  it('tells what one commit changed, and shows each of its files before and after', async () => {
+    commit('a.ts', 'one\nmore\n', 'feat: edit\n\nThe body says why.')
+    writeFileSync(join(wt.path, 'new.ts'), 'n\n')
+    rmSync(join(wt.path, 'b.ts'))
+    git(wt.path, 'add', '-A')
+    git(wt.path, 'commit', '-qm', 'feat: add and remove')
+    const [latest, earlier] = (await history(wt.path, 'main', { scope: 'branch' })).commits
+    const d = await commitDetail(wt.path, earlier!.hash)
+    expect(d).toMatchObject({ subject: 'feat: edit', body: 'The body says why.', files: [{ path: 'a.ts', status: 'modified' }] })
+    expect((await commitDetail(wt.path, latest!.hash)).files).toEqual([{ path: 'b.ts', status: 'deleted' }, { path: 'new.ts', status: 'added' }])
+    expect(await commitDiff(wt.path, earlier!.hash, 'a.ts')).toEqual({ original: 'one\n', current: 'one\nmore\n' })
+    expect(await commitDiff(wt.path, latest!.hash, 'new.ts')).toEqual({ original: '', current: 'n\n' })
+    expect(await commitDiff(wt.path, latest!.hash, 'b.ts')).toEqual({ original: 'two\n', current: '' })
+  })
+
+  it('only takes a hash, never an option or a path, for a commit', async () => {
+    await expect(commitDetail(wt.path, '--output=/tmp/x')).rejects.toThrow(/commit/)
+    await expect(commitDiff(wt.path, 'HEAD; rm -rf', 'a.ts')).rejects.toThrow(/commit/)
   })
 })

@@ -49,7 +49,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branches, changes, commitAll, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -1441,6 +1441,18 @@ async function main() {
   ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await worktreeOf(id)).a.cwd, path, content))
   ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await worktreeOf(id)).a.cwd, message))
   ipcMain.handle('code:discard', async (_, id: string, path: string) => discardFile((await worktreeOf(id)).a.cwd, path))
+  // What is not committed yet, and staging it; and the branch's commits, one commit's files, and a file of a commit.
+  ipcMain.handle('code:status', async (_, id: string) => worktreeStatus((await worktreeOf(id)).a.cwd))
+  ipcMain.handle('code:stage', async (_, id: string, paths: string[]) => stage((await worktreeOf(id)).a.cwd, paths))
+  ipcMain.handle('code:unstage', async (_, id: string, paths: string[]) => unstage((await worktreeOf(id)).a.cwd, paths))
+  ipcMain.handle('code:commit-staged', async (_, id: string, message: string) => commitStaged((await worktreeOf(id)).a.cwd, message))
+  ipcMain.handle('code:dirty-diff', async (_, id: string, path: string) => dirtyDiff((await worktreeOf(id)).a.cwd, path))
+  ipcMain.handle('code:log', async (_, id: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }) => {
+    const { a, base } = await worktreeOf(id)
+    return history(a.cwd, base, o)
+  })
+  ipcMain.handle('code:commit-detail', async (_, id: string, hash: string) => commitDetail((await worktreeOf(id)).a.cwd, hash))
+  ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string) => commitDiff((await worktreeOf(id)).a.cwd, hash, path))
   ipcMain.handle('code:merge', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
     await mergeInto(a.repoPath, a.branch!, base)

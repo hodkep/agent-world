@@ -8,6 +8,7 @@ import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { BasePicker } from '../panel/BasePicker'
 import { ancestors, changeRows, visibleRows } from './tree'
+import { type ChangeMode, HistoryList, UncommittedList, ViewSwitch } from './ChangeViews'
 
 type Tab = 'changes' | 'files'
 /** Ask the Code view to open a file in the Files tab, or just a tab; a new object each time so asking twice works. */
@@ -103,6 +104,11 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
   }, [menu])
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrors()
+  // Besides the branch against its base, the column can show what is not committed yet and the branch's commits.
+  const [mode, setMode] = useState<ChangeMode>('branch')
+  const [commit, setCommit] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
+  const [counts, setCounts] = useState<{ dirty: number | null; history: number | null }>({ dirty: null, history: null })
   const host = useRef<HTMLDivElement>(null)
   const diff = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -135,7 +141,17 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
   })
   const attachAsk = ask.attach
 
-  const refresh = useCallback(() => void run(async () => setData(await window.aw.code.changes(agentId))), [agentId, run])
+  const refresh = useCallback(
+    () =>
+      void run(async () => {
+        setData(await window.aw.code.changes(agentId))
+        setTick((n) => n + 1)
+        // The two other views show their counts on the switch whichever one is open.
+        const [st, log] = await Promise.all([window.aw.code.status(agentId), window.aw.code.log(agentId, { scope: 'branch', limit: 1 })])
+        setCounts({ dirty: st.staged.length + st.changed.length + st.untracked.length, history: log.total })
+      }),
+    [agentId, run]
+  )
   // Re-read whenever the agent writes or edits another file.
   useEffect(refresh, [refresh, workDone])
 
@@ -152,17 +168,32 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
   }, [])
 
   useEffect(() => {
-    if (!path || !diff.current) return
+    if (!diff.current) return
+    // No file picked (after switching view): nothing is shown, not the last file's diff.
+    if (!path) {
+      const old = diff.current.getModel()
+      diff.current.setModel({ original: monaco.editor.createModel(''), modified: monaco.editor.createModel('') })
+      old?.original.dispose()
+      old?.modified.dispose()
+      return
+    }
     void run(async () => {
-      const { original, current } = await window.aw.code.diff(agentId, path)
+      const { original, current } = await (mode === 'dirty' ? window.aw.code.dirtyDiff(agentId, path) : mode === 'history' && commit ? window.aw.code.commitDiff(agentId, commit, path) : window.aw.code.diff(agentId, path))
       const lang = languageFor(path)
       const old = diff.current!.getModel()
       diff.current!.setModel({ original: monaco.editor.createModel(original, lang), modified: monaco.editor.createModel(current, lang) })
       old?.original.dispose()
       old?.modified.dispose()
     })
-  }, [agentId, path, run, data])
+  }, [agentId, path, run, data, mode, commit])
 
+  const pickMode = (m: ChangeMode) => {
+    if (m === mode) return
+    setMode(m)
+    setPath(null)
+    setCommit(null)
+    setNotice(null)
+  }
   // `run` yields undefined only on failure, so success always refreshes and says what happened.
   const act = async (label: string, f: () => Promise<string | void>) => {
     setNotice(null)
@@ -205,6 +236,21 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
             ↻
           </button>
         </div>
+        <ViewSwitch mode={mode} onMode={pickMode} counts={{ branch: data?.files.length ?? null, dirty: counts.dirty, history: counts.history }} />
+        {mode === 'dirty' && (
+          <UncommittedList agentId={agentId} tick={tick} path={path} onPick={setPath} onChanged={refresh} view={view} run={run} notice={(t) => setNotice(t)} />
+        )}
+        {mode === 'history' && data && (
+          <HistoryList agentId={agentId} base={data.base} tick={tick} commit={commit} onCommit={setCommit} path={path} onPick={setPath} view={view} run={run} notice={(t) => setNotice(t)} />
+        )}
+        {mode !== 'branch' && (notice || error) && (
+          <div className="ch-foot ch-status">
+            {notice && <p className="notice">{notice}</p>}
+            {error && <p className="error">{error}</p>}
+          </div>
+        )}
+        {mode === 'branch' && (
+          <>
         {data && (
           <div className="ch-cmp">
             <span>compared with</span>
@@ -315,6 +361,8 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
           {notice && <p className="notice">{notice}</p>}
           {error && <p className="error">{error}</p>}
         </div>
+          </>
+        )}
       </div>
       <SideSizer {...side.sizer} />
       <div className="files-ed">
@@ -322,7 +370,9 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat }: { age
           <div className="fcrumb">
             <span className="fpath" title={path}>{path}</span>
             <span aria-hidden="true">·</span>
-            <span className="flang">{{ added: 'new file', modified: 'changed', deleted: 'deleted' }[data?.files.find((f) => f.path === path)?.status ?? 'modified']} vs {data?.base ?? 'base'}</span>
+            <span className="flang">
+              {mode === 'dirty' ? 'uncommitted' : mode === 'history' ? `in commit ${commit?.slice(0, 7) ?? ''}` : `${{ added: 'new file', modified: 'changed', deleted: 'deleted' }[data?.files.find((f) => f.path === path)?.status ?? 'modified']} vs ${data?.base ?? 'base'}`}
+            </span>
           </div>
         )}
         <div className="files-edwrap" ref={wrap}>
