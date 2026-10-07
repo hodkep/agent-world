@@ -63,6 +63,13 @@ test('chat: margin notes under a message say what the library did for it, and op
     const rows = dialog.getByLabel('Items agents were pointed at')
     await expect(rows).toContainText('pdf')
     await expect(rows).toContainText('Too few to judge yet')
+
+    // Changing the playbook now leaves ada on the older text, which the pane says, and one click restarts her on the new one.
+    await dialog.getByLabel('Strength for pdf').selectOption('hard')
+    const stale = dialog.getByRole('note').filter({ hasText: 'before you changed this playbook' })
+    await expect(stale).toContainText('ada')
+    await stale.getByRole('button', { name: 'Restart 1 agent' }).click()
+    await expect(stale).toHaveCount(0, { timeout: 15_000 })
   } finally {
     await shutdown()
   }

@@ -148,4 +148,23 @@ describe('what an agent is given from the library', () => {
       expect(Object.keys(svc.stats().items)).not.toContain('')
     })
   })
+
+  describe('agents started on an older playbook', () => {
+    const later = () => new Promise((r) => setTimeout(r, 25))
+    it('names the agents of a workspace that started before its playbook (or the global one) last changed, and no one else', async () => {
+      await svc.prepare('a1', true)
+      await svc.prepare('a3', true)
+      await later()
+      expect(svc.staleAgents('/work/shop')).toEqual([])
+      svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'pdfs', strength: 'soft' }])
+      expect(svc.staleAgents('/work/shop')).toEqual([{ id: 'a1', name: 'csr-1' }])
+      expect(svc.staleAgents('/work/other')).toEqual([])
+      await later()
+      await svc.prepare('a1', true)
+      expect(svc.staleAgents('/work/shop')).toEqual([])
+      await later()
+      svc.playbooks.write('global', [])
+      expect(svc.staleAgents('/work/other')).toEqual([{ id: 'a3', name: 'bo' }])
+    })
+  })
 })

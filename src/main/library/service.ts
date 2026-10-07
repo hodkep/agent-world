@@ -184,6 +184,14 @@ export function createLibraryService(d: Deps) {
       return (await index(agentId)).filter((e) => words.every((w) => `${e.id} ${e.name} ${e.description} ${e.when}`.toLowerCase().includes(w)))
     },
 
+    /** The agents of a workspace that started before its playbook, or the global one, last changed: they keep what they were told until they restart. */
+    staleAgents(repoPath: string): { id: string; name: string }[] {
+      const changed = Math.max(playbooks.changedAt('global'), playbooks.changedAt({ workspace: d.workspaceKey(repoPath) }))
+      const startedAt = new Map<string, number>()
+      for (const u of log.all()) if (u.how === 'started' && u.workspace === d.workspaceKey(repoPath)) startedAt.set(u.agent, u.t)
+      return [...startedAt].filter(([id, t]) => t < changed && d.agent(id)).map(([id]) => ({ id, name: d.agent(id)!.name }))
+    },
+
     /** What the log holds for one agent, oldest first (the chat and the agent's tab show it). */
     usesOf(agentId: string): Use[] {
       return log.all().filter((u) => u.agent === agentId)

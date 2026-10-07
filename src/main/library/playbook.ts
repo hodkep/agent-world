@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { tokens } from './doc'
 import type { Item } from './store'
@@ -74,6 +74,14 @@ export class Playbooks {
       return Array.isArray(raw.rules) ? raw.rules.filter(isRule) : []
     } catch {
       return []
+    }
+  }
+  /** When a playbook last changed (0 if it never did). */
+  changedAt(scope: Scope): number {
+    try {
+      return statSync(this.file(scope)).mtimeMs
+    } catch {
+      return 0
     }
   }
   write(scope: Scope, rules: Rule[]) {

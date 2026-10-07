@@ -56,6 +56,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
+  const [stale, setStale] = useState<{ id: string; name: string }[]>([])
+  const [restarting, setRestarting] = useState(false)
 
   const load = useCallback(async () => {
     const r = await window.aw.library.list()
@@ -64,6 +66,18 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   }, [])
   useEffect(() => void load().catch((e) => setError(clean(e))), [load])
   useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
+  const refreshStale = useCallback(() => (folder ? window.aw.library.stale(folder).then(setStale, () => setStale([])) : Promise.resolve(setStale([]))), [folder])
+  useEffect(() => void refreshStale(), [refreshStale, books])
+  useEffect(() => window.aw.onLibraryUse(() => void refreshStale()), [refreshStale])
+  const restartStale = async () => {
+    setRestarting(true)
+    setError('')
+    const failed: string[] = []
+    for (const a of stale) await window.aw.reconfigure(a.id, {}).catch(() => void failed.push(a.name))
+    setRestarting(false)
+    if (failed.length) setError(`${failed.join(', ')} ${failed.length === 1 ? 'is' : 'are'} in the middle of a turn. Try again when ${failed.length === 1 ? 'it finishes' : 'they finish'}.`)
+    setTimeout(() => void refreshStale(), 1500)
+  }
   const refreshPreview = useCallback(() => (folder ? window.aw.library.preview(folder, who).then(setPreview, () => setPreview(null)) : Promise.resolve()), [folder, who])
   useEffect(() => void refreshPreview(), [refreshPreview, books, items])
 
@@ -150,6 +164,23 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       <legend>Library</legend>
       <p className="set-lead">Skills, instructions and prompts kept once, for every program. A playbook says which an agent uses and when; they are fetched on demand, so they cost nothing until used.</p>
       {error && <p className="error" role="alert">{error}</p>}
+      <div className="lib-notices" aria-label="Things to know">
+        {ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing' && (
+          <div className="lib-notice info" role="note"><div><b>agy is not connected.</b><span>Its agents get the always-on rules and the catalog, but no line for the message they are sent. Connect it under Message box.</span></div></div>
+        )}
+        {stale.length > 0 && (
+          <div className="lib-notice warn" role="note">
+            <div>
+              <b>{stale.length} {stale.length === 1 ? 'agent started' : 'agents started'} before you changed this playbook.</b>
+              <span>{stale.map((a) => a.name).join(', ')} keep{stale.length === 1 ? 's' : ''} what they were told until they restart.</span>
+              <div className="actions"><button className="primary" disabled={restarting} onClick={() => void restartStale()}>{restarting ? 'Restarting…' : `Restart ${stale.length} ${stale.length === 1 ? 'agent' : 'agents'}`}</button></div>
+            </div>
+          </div>
+        )}
+        {preview?.overBudget && (
+          <div className="lib-notice warn" role="note"><div><b>The opening text is over budget: {preview.coreTokens} of {CORE_BUDGET} tokens.</b><span>Every agent pays this on every message. Move something to "Pointed at", or shorten it.</span></div></div>
+        )}
+      </div>
       {notice && <p className="mc-done" role="status">{notice}</p>}
 
       <div className="lib-bar" role="group" aria-label="Library items">

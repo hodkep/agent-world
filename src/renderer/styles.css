@@ -2143,3 +2143,15 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .reach-v { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .reach-fix { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px 10px; }
 @media (max-width: 700px) { .reach-row { grid-template-columns: 1fr; } }
+
+/* Notices: a quiet panel with a plain sentence and what to do about it; the tone is a rim colour, not a stripe. */
+.lib-notices { display: flex; flex-direction: column; gap: 8px; }
+.lib-notices:empty { display: none; }
+.lib-notice { display: flex; padding: 10px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
+.lib-notice > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lib-notice span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.lib-notice .actions { display: flex; gap: 8px; margin-top: 4px; }
+.lib-notice.info { box-shadow: 0 0 0 1px var(--mail-rim); }
+.lib-notice.warn { box-shadow: 0 0 0 1px var(--accent-dim); }
+.lib-notice.warn b { color: var(--accent); }
+.lib-notice-note { margin: 0; padding: 8px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--mail-rim); font-size: 12px; color: var(--muted); }
