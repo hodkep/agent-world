@@ -27,6 +27,8 @@ import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import type { UsageLimits } from '../../shared/usage'
 
+/** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
+const EAGER_MS = 8000
 const BUSY: Activity[] = ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting']
 const VERB: Partial<Record<Activity, string>> = {
   thinking: 'is thinking',
@@ -130,7 +132,20 @@ export function ChatView({
   const stick = useRef(true)
   const [away, setAway] = useState(false)
   const session = useRef('')
-  const busy = BUSY.includes(activity)
+  // Claude reports that a turn began a moment after the message is sent, and sometimes late. Until it does, an agent that was free
+  // (idle, waiting, or one that has not yet reported anything) is shown working from the moment of sending, and not otherwise (a slash command may start no turn, so it does not count).
+  const [eagerAt, setEagerAt] = useState(0)
+  const realBusy = BUSY.includes(activity)
+  const busy = realBusy || (eagerAt > 0 && (activity === 'idle' || activity === 'waiting' || activity === 'asleep'))
+  useEffect(() => {
+    if (!eagerAt) return
+    if (realBusy) {
+      console.debug(`[aw] ${agentName} reported working ${Date.now() - eagerAt} ms after the message was sent`)
+      return setEagerAt(0)
+    }
+    const t = setTimeout(() => setEagerAt(0), EAGER_MS)
+    return () => clearTimeout(t)
+  }, [eagerAt, realBusy, agentName])
   // Once the agent is free, a queued message that the transcript still does not show was dropped.
   useEffect(() => {
     if (busy) return
@@ -304,16 +319,18 @@ export function ChatView({
   const send = useCallback(
     async (text: string) => {
       setError(null)
-      const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: BUSY.includes(activity) }
+      const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: busy }
       // /clear empties the conversation at once (the main process does the same on its side); a busy agent only queues it.
       if (/^\/clear$/i.test(p.text) && !p.queued) {
         setItems([])
         setSent([])
       } else setSent((cur) => [...cur, p])
       stick.current = true
+      if (!p.queued && !p.text.startsWith('/')) setEagerAt(Date.now())
       try {
         await window.aw.chatSend(agentId, text)
       } catch (err) {
+        setEagerAt(0)
         setSent((cur) => cur.filter((x) => x.id !== p.id))
         // A /clear that did not go through leaves the conversation as it was.
         void window.aw.chatGet(agentId).then((c) => setItems(c.items))
@@ -323,7 +340,7 @@ export function ChatView({
       // If the transcript never shows it (the agent dropped it), stop pretending after a while. A queued one waits for the step to end, which can take minutes: see the effect below.
       if (!p.queued) setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
     },
-    [agentId, activity]
+    [agentId, busy]
   )
 
   // Words selected in one of the agent's replies, or in what its tools and commands printed, offer "Ask": they go into the message box as a quote.
@@ -468,7 +485,7 @@ export function ChatView({
               <i />
               <i />
             </span>
-            {stopping ? `Stopping ${agentName}…` : `${agentName} ${VERB[activity]}`}
+            {stopping ? `Stopping ${agentName}…` : `${agentName} ${VERB[realBusy ? activity : 'thinking']}`}
             {!stopping && detail ? <span className="live-detail"> · {detail}</span> : null}
             {turnSec >= 1 && <span className="live-time" aria-hidden="true">{spanLabel(turnSec)}</span>}
           </div>

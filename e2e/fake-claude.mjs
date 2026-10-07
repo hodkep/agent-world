@@ -344,6 +344,8 @@ if (process.env.FAKE_CHAT) {
     const blocks = [{ type: 'text', text: prompt.replace(/@"[^"]+"\s*/g, '').trim() || 'see attached' }]
     for (const p of paths) if (/\.png$/i.test(p)) blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: readFileSync(p).toString('base64') } })
     transcript({ type: 'user', message: { role: 'user', content: paths.length ? blocks : prompt } })
+    // FAKE_SUBMIT_LAG_MS: the report that the turn began comes late, as it sometimes does.
+    if (process.env.FAKE_SUBMIT_LAG_MS) await sleep(Number(process.env.FAKE_SUBMIT_LAG_MS))
     await hook('UserPromptSubmit', { prompt })
     // A working Claude shows a spinner line; it is gone when the turn ends.
     if (!process.env.FAKE_HANG) process.stdout.write('\x1b[19;1H✽ Working… (2s · ↓ 40 tokens)')

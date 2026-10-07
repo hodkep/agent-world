@@ -274,6 +274,7 @@ test('tool lookups are one quiet line and MCP calls read as a sentence, with det
 })
 
 test('a message sent while the agent is busy is shown as queued, and stays in the chat after the agent picks it up', async () => {
+  test.setTimeout(120_000)
   const home = mkdtempSync(join(tmpdir(), 'aw-queue-'))
   // Each tool step takes ~22s here, longer than the 20s a sent message used to be kept on screen.
   const { app, shutdown } = await launchApp(
@@ -291,6 +292,8 @@ test('a message sent while the agent is busy is shown as queued, and stays in th
     await box.fill('first job')
     await box.press('Enter')
     await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: 10_000 })
+    // The chat shows it working as soon as it is sent; the second message waits until the agent has really taken the first (its first tool step shows).
+    await expect(page.locator('.live-detail')).toBeVisible({ timeout: 30_000 })
     await box.fill('second job')
     await box.press('Enter')
     const second = log.locator('.msg.user', { hasText: 'second job' })
