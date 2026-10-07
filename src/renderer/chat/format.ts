@@ -1,3 +1,4 @@
+import { jobId, monitorTask } from './watch'
 import type { ChatItem, HookInfo, NoteEvent, SubagentInfo } from '../../shared/chat'
 import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
@@ -33,6 +34,8 @@ export interface NoteRow {
   /** What makes events of one source one chip: a monitor's task id. */
   key?: string
   at?: number
+  /** A monitor's source ended by itself. */
+  ended?: boolean
   /** For a monitor: each time it fired and what it printed, oldest first. */
   lines?: { at: number; text: string }[]
 }
@@ -85,7 +88,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         }
         const r = results.get(i.toolUseId)
         const sec = r ? Math.round((r.at - i.at) / 1000) : 0
-        rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined, ...(sec >= 1 && { sec }) } as ToolRun })
+        rows.push({ kind: 'tool', id: i.id, run: { name: i.name, input: i.input, result: r && { text: r.text, isError: r.isError }, images: r?.images.some(Boolean) ? r.images : undefined, ...(sec >= 1 && { sec }), at: i.at, id: i.id } as ToolRun })
         break
       }
       case 'subagent-report':
@@ -151,7 +154,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
           rows.push({ kind: 'note', id: i.id, at: i.at, text: i.text, ...(i.event && { event: i.event }), ...(written?.detail && { detail: written.detail }) })
           break
         }
-        rows.push({ kind: 'note', id: i.id, at: i.at, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }), ...(i.hook && { hook: i.hook }), ...(i.event && { event: i.event }), ...(i.tone && { tone: i.tone }), ...(i.key && { key: i.key }) })
+        rows.push({ kind: 'note', id: i.id, at: i.at, text: i.text, ...(i.detail && { detail: i.detail }), ...(i.detailLabel && { detailLabel: i.detailLabel }), ...(i.hook && { hook: i.hook }), ...(i.event && { event: i.event }), ...(i.tone && { tone: i.tone }), ...(i.key && { key: i.key }), ...(i.ended && { ended: true }) })
       }
     }
   }
@@ -202,8 +205,32 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
  */
 function gather(rows: Row[]): Row[] {
   const monitors = new Map<string, NoteRow>()
+  // A monitor's call is where what it printed goes; a schedule's is where its cancelling is marked.
+  const watching = new Map<string, Extract<Row, { kind: 'tool' }>>()
+  const schedules: { row: Extract<Row, { kind: 'tool' }>; id: string }[] = []
   const out: Row[] = []
   for (const r of rows) {
+    if (r.kind === 'tool') {
+      if (r.run.name === 'Monitor') {
+        const id = monitorTask(r.run.result?.text ?? '').id
+        if (id) watching.set(id, r)
+      } else if (r.run.name === 'Schedule') schedules.push({ row: r, id: jobId(r.run.result?.text ?? '') })
+      else if (r.run.name === 'Unschedule') {
+        const id = typeof r.run.input.id === 'string' ? r.run.input.id : ''
+        // One named, or (a loop stopped) every wake-up still waiting.
+        for (const s of schedules) if (id ? s.id === id : s.row.run.input.inSeconds !== undefined) s.row.run.cancelled = true
+      }
+      out.push(r)
+      continue
+    }
+    if (r.kind === 'note' && r.event === 'monitor' && r.key && watching.has(r.key)) {
+      const call = watching.get(r.key)!
+      if (r.ended) call.run.ended = r.at ?? 0
+      else (call.run.firings ??= []).push({ at: r.at ?? 0, text: r.detail ?? '' })
+      continue
+    }
+    // The end of a source nobody here started is not worth a chip.
+    if (r.kind === 'note' && r.ended) continue
     if (r.kind !== 'note' || !r.event) {
       out.push(r)
       continue

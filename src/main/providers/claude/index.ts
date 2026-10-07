@@ -9,7 +9,7 @@ import { claudeScreen } from './screen'
 import { claudeTranscript } from './transcript'
 import { manageArgs, parseMcpList, parsePlugins } from './tools'
 import { startHookServer } from './hookServer'
-import { identityTranslator } from '../../../shared/tools'
+import { claudeCalls } from './toolTable'
 import { parseClaudeUsage } from './usage'
 import { claudeAccounts } from './accounts'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
@@ -32,7 +32,7 @@ export const claude: Provider = {
   accounts: claudeAccounts,
   limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },
   // Claude Code's tools already carry the chat's names.
-  calls: identityTranslator,
+  calls: claudeCalls,
   callSamples: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Agent', 'mcp__docs__search'].map((name) => ({ id: 'c', name, args: {} })),
   transcript: claudeTranscript,
   screen: claudeScreen,

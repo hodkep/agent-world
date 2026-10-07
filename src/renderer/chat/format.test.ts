@@ -380,3 +380,34 @@ describe('system events drawn as chips', () => {
     expect(toRows([{ kind: 'note', id: 'n', at: t0, text: 'plain' }], []).map((r) => r.kind)).toEqual(['note'])
   })
 })
+
+describe('a monitor, a schedule and what became of them', () => {
+  const call = (id: string, name: string, input: Record<string, unknown>, at = t0): ChatItem => ({ kind: 'tool', id, at, toolUseId: `use-${id}`, name, input })
+  const answer = (id: string, text: string, at = t0 + 100): ChatItem => ({ kind: 'tool-result', id: `r-${id}`, at, toolUseId: `use-${id}`, text, isError: false })
+  const fired = (id: string, at: number, line: string, key = 'bnfx5vv1z'): ChatItem => ({ kind: 'note', id, at, text: 'Wait for the backend', event: 'monitor', key, detail: line })
+  const ended = (id: string, at: number, key: string): ChatItem => ({ kind: 'note', id, at, text: '', event: 'monitor', key, ended: true })
+  const started = 'Monitor started (task bnfx5vv1z, expires in 4m).'
+  const tools = (rows: ReturnType<typeof toRows>) => rows.flatMap((r) => (r.kind === 'tool' ? [r] : []))
+
+  it('puts what a monitor printed on its own call, not on separate chips', () => {
+    const rows = toRows([call('m', 'Monitor', { command: 'x' }), answer('m', started), fired('f1', t0 + 9_000, 'waiting…'), fired('f2', t0 + 21_000, 'HTTP/1.1 200 OK')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['tool'])
+    expect(tools(rows)[0]!.run.firings).toEqual([{ at: t0 + 9_000, text: 'waiting…' }, { at: t0 + 21_000, text: 'HTTP/1.1 200 OK' }])
+    expect(tools(rows)[0]!.run.at).toBe(t0)
+  })
+  it('marks a monitor whose source ended, and leaves the end of anything else out of the chat', () => {
+    const rows = toRows([call('m', 'Monitor', { command: 'x' }), answer('m', started), ended('e1', t0 + 35_000, 'bnfx5vv1z'), ended('e2', t0 + 40_000, 'some-subagent')], [])
+    expect(rows.map((r) => r.kind)).toEqual(['tool'])
+    expect(tools(rows)[0]!.run.ended).toBe(t0 + 35_000)
+  })
+  it('a monitor it cannot place still reads as chips, as before', () => {
+    expect(toRows([fired('f1', t0, 'waiting…', 'unknown-task')], []).map((r) => r.kind)).toEqual(['events'])
+  })
+  it('a cancel marks the schedule it names, and a stopped loop marks the wake-ups', () => {
+    const sch = (id: string, input: Record<string, unknown>, reply: string): ChatItem[] => [call(id, 'Schedule', input), answer(id, reply)]
+    const rows = toRows([...sch('a', { cron: '0 9 * * 1-5', repeat: true, prompt: 'x' }, 'Job ID: ab12cd34'), ...sch('b', { inSeconds: 600, prompt: 'y' }, '{}'), call('d', 'Unschedule', { id: 'ab12cd34' }), answer('d', 'ok')], [])
+    expect(tools(rows).map((r) => [r.run.name, r.run.cancelled ?? false])).toEqual([['Schedule', true], ['Schedule', false], ['Unschedule', false]])
+    const loop = toRows([...sch('b', { inSeconds: 600, prompt: 'y' }, '{}'), call('d', 'Unschedule', {}), answer('d', 'Loop stopped')], [])
+    expect(tools(loop)[0]!.run.cancelled).toBe(true)
+  })
+})

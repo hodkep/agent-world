@@ -174,6 +174,25 @@ const use = (name, input) => {
   return id
 }
 const done = (id, text, isError = false) => transcript({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text, is_error: isError }] } })
+// FAKE_WATCH=1: a monitor that fired twice and then ended, a wake-up in 25 minutes, two cron jobs and the cancelling of one.
+if (process.env.FAKE_WATCH) {
+  const notice = (body) => transcript({ type: 'user', message: { role: 'user', content: `<task-notification>\n${body}\n</task-notification>` } })
+  const m = use('Monitor', { command: 'until curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8081/api/v1/public/tb-basket/quote | grep -q 200; do sleep 3; done; echo up', description: 'Wait for the restarted backend to come up', timeout_ms: 240000 })
+  done(m, 'Monitor started (task bnfx5vv1z, expires in 4m unless the source ends first; you get one notice at expiry). You will be notified on each event. Keep working — do not poll or sleep.')
+  notice('<task-id>bnfx5vv1z</task-id>\n<summary>Monitor event: "Wait for the restarted backend to come up"</summary>\n<event>curl: (7) Failed to connect to localhost port 8081</event>')
+  notice('<task-id>bnfx5vv1z</task-id>\n<summary>Monitor event: "Wait for the restarted backend to come up"</summary>\n<event>HTTP/1.1 200 OK — backend up on :8081</event>')
+  notice('<task-id>bnfx5vv1z</task-id>\n<status>completed</status>\n<summary>Monitor "Wait for the restarted backend to come up" ended</summary>')
+  // A second monitor that is still watching, and has fired once.
+  done(use('Monitor', { command: 'tail -f /tmp/build.log | grep --line-buffered ERROR', description: 'Watch the build log for errors', timeout_ms: 3600000 }), 'Monitor started (task wb77q1, timeout 3600000ms). You will be notified on each event.')
+  notice('<task-id>wb77q1</task-id>\n<summary>Monitor event: "Watch the build log for errors"</summary>\n<event>ERROR in src/App.tsx(12): missing semicolon</event>')
+  const w = use('ScheduleWakeup', { delaySeconds: 1500, reason: 'Check whether the CI run for the photo block has finished', prompt: '/loop check CI for aw/csr-1' })
+  done(w, JSON.stringify({ scheduledFor: Date.now() + 1_500_000, sentinel: false }))
+  const c = use('CronCreate', { cron: '0 9 * * 1-5', prompt: 'Summarise what changed on main overnight', recurring: true })
+  done(c, 'Scheduled recurring job. Job ID: ab12cd34')
+  const d = use('CronCreate', { cron: '7 * * * *', prompt: 'Hourly check of the build' })
+  done(d, 'Scheduled recurring job. Job ID: ee99ff00')
+  done(use('CronDelete', { id: 'ee99ff00' }), 'Deleted job ee99ff00')
+}
 const hook = async (event, extra = {}) => {
   const res = await fetch(url, {
     method: 'POST',

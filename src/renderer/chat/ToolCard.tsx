@@ -5,6 +5,7 @@ import { Picture } from './Images'
 import { Code, Markdown } from './markdown'
 import { argRows, mcpHeadline, parseMcpName, resultNote, resultSections, toolLookup } from './mcp'
 import { bashTitle } from './titles'
+import { MonitorCard, ScheduleCard, UnscheduleLine } from './WatchCards'
 
 export interface ToolRun {
   name: string
@@ -15,6 +16,16 @@ export interface ToolRun {
   images?: string[]
   /** Whole seconds between the call and its result, when that is worth saying. */
   sec?: number
+  /** The row it is on, so the list of what is still armed can scroll to it. */
+  id?: string
+  /** When it was called, in ms. */
+  at?: number
+  /** A monitor: each line it printed. */
+  firings?: { at: number; text: string }[]
+  /** A monitor whose source ended by itself, and when. */
+  ended?: number
+  /** A schedule that a later call cancelled. */
+  cancelled?: boolean
 }
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -185,6 +196,9 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
   // A command starts folded to its headline; a click on it opens the command and what it printed, and another folds it again.
   const [open, setOpen] = useState(false)
   if (name === 'ToolSearch') return <ToolLookupLine run={run} status={status} />
+  if (name === 'Monitor') return <MonitorCard run={run} />
+  if (name === 'Schedule') return <ScheduleCard run={run} />
+  if (name === 'Unschedule') return <UnscheduleLine run={run} />
   if (parseMcpName(name)) return <McpCard run={run} status={status} onImage={onImage} />
   let head: React.ReactNode = <b>{name}</b>
   let body: React.ReactNode = null

@@ -29,7 +29,7 @@ export type ChatItem =
   | { kind: 'tool-result'; id: string; at: number; toolUseId: string; text: string; isError: boolean; images?: string[] }
   /** What a subagent run in the background handed back when it finished. */
   | { kind: 'subagent-report'; id: string; at: number; agentId: string; body: string }
-  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary, what a hook said) the view keeps behind a button. */ detail?: string; /** What that button calls the body ("details"); the compact summary needs none. */ detailLabel?: string; /** Set when the note is what a hook told the agent. */ hook?: HookInfo; /** Set when the note is a system event (a Monitor firing, an interrupt, a failed task…). */ event?: NoteEvent; /** What makes events of one source one chip: a monitor's task id. */ key?: string; /** Set for trouble, which the chat draws in red. */ tone?: 'bad' }
+  | { kind: 'note'; id: string; at: number; text: string; /** A longer body (the compact summary, what a hook said) the view keeps behind a button. */ detail?: string; /** What that button calls the body ("details"); the compact summary needs none. */ detailLabel?: string; /** Set when the note is what a hook told the agent. */ hook?: HookInfo; /** Set when the note is a system event (a Monitor firing, an interrupt, a failed task…). */ event?: NoteEvent; /** What makes events of one source one chip: a monitor's task id. */ key?: string; /** Set for trouble, which the chat draws in red. */ tone?: 'bad'; /** A monitor's source ended by itself: no line, only the end. */ ended?: boolean }
 
 /** One call a subagent made, as a line of its trail. */
 export interface SubagentCall {

@@ -13,7 +13,7 @@ const KIND: Record<NoteEvent, { glyph: string; label: string }> = {
 const BAD = /error|fail|refused|timeout|exception/i
 const GOOD = /^(done|ok|ready|up|started|success)\b|\b200 OK\b|\b(is|are|now) up\b|\bup on\b/i
 /** How a line a monitor printed reads: trouble, good news, or routine. */
-const toneOf = (line: string) => (BAD.test(line) ? 'bad' : GOOD.test(line.trim()) ? 'ok' : '')
+export const toneOf = (line: string) => (BAD.test(line) ? 'bad' : GOOD.test(line.trim()) ? 'ok' : '')
 const clock = (at: number | undefined) => (at ? new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
 const firstLine = (t: string) => t.split('\n')[0] ?? ''
 

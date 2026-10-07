@@ -1,5 +1,5 @@
 import { unwrapPasted } from '../../../shared/pasted'
-import { identityTranslator } from '../../../shared/tools'
+import { claudeCalls } from './toolTable'
 import { parseHandback, parseTaskNotification } from '../../../shared/subagentMessages'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -112,7 +112,7 @@ export function parseTranscriptLine(raw: string, opts: { subagent?: boolean } = 
       const id = `${uuid}:${i}`
       if (block.type === 'text' && str(block.text).trim()) return [{ kind: 'assistant', id, at, text: str(block.text) }]
       if (block.type === 'thinking') return [{ kind: 'thinking', id, at }]
-      if (block.type === 'tool_use') return identityTranslator.translate({ id: str(block.id), name: str(block.name), args: obj(block.input) }).map((c) => ({ kind: 'tool' as const, id, at, toolUseId: c.id, name: c.name, input: c.input }))
+      if (block.type === 'tool_use') return claudeCalls.translate({ id: str(block.id), name: str(block.name), args: obj(block.input) }).map((c) => ({ kind: 'tool' as const, id, at, toolUseId: c.id, name: c.name, input: c.input }))
       return []
     })
   }
@@ -156,6 +156,8 @@ function userText(id: string, at: number, text: string): ChatItem[] {
   // A background task ending: the report and the card already say so, unless it did not complete.
   const notice = parseTaskNotification(trimmed)
   if (notice) {
+    // A monitor's source ending says so under its task: the chat puts that on the monitor's card, and drops it for any other task.
+    if (notice.status === 'completed' && notice.taskId) return [{ kind: 'note', id, at, text: '', event: 'monitor', key: notice.taskId, ended: true }]
     if (notice.status === 'completed' || !notice.summary) return []
     // A Monitor firing says which monitor in its summary and what it printed in its body.
     const monitor = /^Monitor event:\s*"?(.*?)"?\s*$/.exec(notice.summary)

@@ -2300,3 +2300,55 @@ aside:not(.drawer) { flex: none; }
 .lb-strip button { width: 46px; height: 30px; padding: 0; line-height: 0; overflow: hidden; opacity: 0.6; border: 2px solid var(--ink); }
 .lb-strip button[aria-current='true'] { opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
 .lb-strip img { width: 100%; height: 100%; object-fit: cover; max-width: none; max-height: none; box-shadow: none; }
+
+/* Monitor and scheduled-task cards: one family, a rail on the left in the colour of what it is (cyan watches, violet schedules). */
+.wc { --c: var(--think); align-self: stretch; max-width: 560px; display: flex; flex-direction: column; background: var(--panel-3); border: 2px solid var(--ink); box-shadow: inset 4px 0 0 var(--c), inset 0 0 0 1px var(--line); }
+.wc.sched { --c: #b38bff; }
+.wc.off { --c: var(--dim); }
+.wc.bad { --c: var(--danger-text); }
+.wc .wc-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px 16px; min-width: 0; }
+.wc .glyph { flex: none; width: 16px; height: 16px; color: var(--c); }
+.wc .kind { font: 800 10px Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c); }
+.wc .chipw { padding: 1px 7px; font: 700 11px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--line); color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc .state { margin-left: auto; flex: none; font: 800 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 6px; color: var(--ink); background: var(--c); }
+.wc .state.quiet { background: none; color: var(--muted); box-shadow: 0 0 0 1px var(--line); }
+.wc .state.pulse { animation: wc-pulse 1.4s steps(2) infinite; }
+@keyframes wc-pulse { 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { .wc .state.pulse { animation: none; } }
+.wc .wc-title { margin: 0; padding: 0 12px 6px 16px; font-weight: 700; font-size: 14px; line-height: 1.35; }
+.wc .cmd { margin: 0 12px 8px 16px; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); font: 12px/1.45 Menlo, Consolas, monospace; color: var(--muted); display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.wc .cmd .p { color: var(--ok-text); flex: none; }
+.wc .cmd .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.wc .cmd.open .t { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wc .cmd button, .wc .log-h button, .wc .wc-more { flex: none; background: none; border: 0; box-shadow: none; padding: 0 2px; color: var(--think); font-size: 11px; }
+.wc .meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 0 12px 8px 16px; color: var(--muted); font-size: 12px; }
+.wc .meta b { color: var(--text); font-weight: 600; }
+.wc .clock { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
+.wc .clock .bar { height: 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); }
+.wc .clock .bar i { display: block; height: 100%; background: var(--c); }
+.wc .clock span { font: 11.5px Menlo, Consolas, monospace; }
+.wc .wc-err { color: var(--danger-text); overflow-wrap: anywhere; }
+.wc .log-h { display: flex; align-items: center; gap: 8px; padding: 6px 12px 0 16px; color: var(--muted); font-size: 11.5px; }
+.wc .log-h button { margin-left: auto; }
+.wc .log { margin: 0 12px 10px 16px; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.wc .log li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 4px 0; font: 12px/1.45 Menlo, Consolas, monospace; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; white-space: pre-wrap; }
+.wc .log li time { color: #6f6d86; }
+.wc .log li.good { color: var(--ok-text); }
+.wc .log li.bad { color: var(--danger-text); }
+.wc .prompt { margin: 0 12px 8px 16px; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); line-height: 1.45; color: #cfd3e4; }
+.wc .prompt small { display: block; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.wc-line { align-self: flex-start; padding: 2px 8px; font-size: 12px; color: var(--muted); box-shadow: inset 3px 0 0 var(--dim); background: var(--panel-3); }
+
+/* The list of what is still armed, beside the subagents chip. */
+.sched-dot { background: #b38bff; }
+.watch-pop { display: grid; gap: 6px; min-width: min(420px, 90vw); }
+.watch-pop h4 { margin: 4px 2px 0; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.wl-i { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 6px 8px; background: var(--panel-3); box-shadow: inset 3px 0 0 var(--think), inset 0 0 0 1px var(--line); }
+.wl-i.schedule { box-shadow: inset 3px 0 0 #b38bff, inset 0 0 0 1px var(--line); }
+.wl-jump { text-align: left; background: none; border: 0; box-shadow: none; padding: 0; min-width: 0; }
+.wl-jump b { display: block; font-weight: 600; }
+.wl-jump small { display: block; color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-when { font: 12px Menlo, Consolas, monospace; color: var(--muted); text-align: right; }
+.wl-ask { grid-column: 1 / -1; justify-self: start; padding: 0 8px; font-size: 11px; color: var(--muted); }
+.wl-ask:hover { color: var(--danger-text); }
+.wl-told { margin: 2px 2px 0; font-size: 12px; color: var(--ok-text); }

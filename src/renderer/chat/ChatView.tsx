@@ -25,6 +25,7 @@ import type { SubagentInfo } from '../../shared/chat'
 import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
 import { type ToolRun, ToolCard } from './ToolCard'
+import { WatchLine } from './WatchCards'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
@@ -549,6 +550,12 @@ export function ChatView({
         <div className="statusrow">
           <ProcBar agentId={agentId} />
           <CrewLine agentId={agentId} managerName={agentName} waiting={waitingSubagents} />
+          <WatchLine
+            runs={rows.flatMap((r) => (r.kind === 'tool' ? [r.run] : []))}
+            agentId={agentId}
+            agentName={agentName}
+            jump={(key) => log.current?.querySelector<HTMLElement>(`[data-watch="${CSS.escape(key)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
+          />
         </div>
       )}
       <Composer

@@ -175,8 +175,9 @@ describe('messages the harness adds about subagents', () => {
     expect(parseTranscriptLine(line({ type: 'user', isMeta: true, message: { role: 'user', content: handback } }))).toEqual([{ kind: 'subagent-report', id: 'u1', at: Date.parse('2026-01-01T00:00:00Z'), agentId: 'a1', body: 'Found it.' }])
   })
 
-  it('hides the notice that a task completed, and says so briefly when it ended some other way', () => {
-    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('completed') } }))).toEqual([])
+  it('says a task completed only as its end (the chat shows it on a monitor\'s own card and nowhere else), and says so briefly when it ended some other way', () => {
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('completed') } }))).toMatchObject([{ kind: 'note', event: 'monitor', key: 'a1', ended: true, text: '' }])
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: '<task-notification>\n<status>completed</status>\n<summary>x</summary>\n</task-notification>' } }))).toEqual([])
     expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: notice('failed') } }))).toMatchObject([{ kind: 'note', text: 'Agent "Map" failed' }])
   })
 
@@ -185,8 +186,8 @@ describe('messages the harness adds about subagents', () => {
     const [one] = parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: monitor('curl: (7) Failed to connect\nretrying') } }))
     expect(one).toMatchObject({ kind: 'note', event: 'monitor', key: 'bq1', text: 'Wait for backend 8081', detail: 'curl: (7) Failed to connect\nretrying' })
     expect(JSON.stringify(one)).not.toContain('PushNotification')
-    // A monitor that ends is not news, like any task that completed.
-    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>bq1</task-id>\n<status>completed</status>\n<summary>Monitor "Wait for backend 8081" stream ended</summary>\n</task-notification>' } }))).toEqual([])
+    // A monitor that ends is not news: it is only marked, and the chat puts the mark on the monitor's card.
+    expect(parseTranscriptLine(line({ type: 'user', message: { role: 'user', content: '<task-notification>\n<task-id>bq1</task-id>\n<status>completed</status>\n<summary>Monitor "Wait for backend 8081" stream ended</summary>\n</task-notification>' } }))).toMatchObject([{ kind: 'note', key: 'bq1', ended: true }])
   })
 
   it('marks a task that ended badly, an interrupt and a command\'s output, so the chat can draw each as an event', () => {
