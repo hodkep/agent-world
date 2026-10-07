@@ -1,4 +1,4 @@
-import { pixelIconMarkup } from './PixelIcon'
+import { runIconMarkup } from '../panel/IconButton'
 import { RUN_EVENT, runnable } from './runnable'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
@@ -121,7 +121,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       if (command) {
         const run = document.createElement('button')
         run.className = 'copy run'
-        run.innerHTML = pixelIconMarkup('play')
+        run.innerHTML = runIconMarkup(16)
         run.setAttribute('aria-label', 'Run in terminal')
         run.title = 'Run in terminal: types this into a terminal in the project folder and presses Enter'
         run.onclick = () => window.dispatchEvent(new CustomEvent(RUN_EVENT, { detail: { text: command } }))

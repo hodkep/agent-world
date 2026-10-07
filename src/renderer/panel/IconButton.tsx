@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react'
 
+/** Run in terminal: a terminal window with a play triangle in it. */
+const RUN_PATH = 'M4 5h16v14H4zM10 9v6l5-3z'
+
+/** That icon as markup, for the button put on code blocks in a reply, which is made outside React. */
+export const runIconMarkup = (size = 16) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="${RUN_PATH}"/></svg>`
+
 // Plain outline icons (24 grid, 2px square-ended strokes): the 8-bit bitmaps read badly this small.
 const ICONS = {
   history: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
@@ -25,6 +32,7 @@ const ICONS = {
   chevron: <path d="M6 9l6 6 6-6" />,
   // The kinds of tool on the profile card.
   terminal: <path d="M4 5h16v14H4zM7 10l3 2-3 2M12 15h5" />,
+  run: <path d={RUN_PATH} />,
   plug: <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
   file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
