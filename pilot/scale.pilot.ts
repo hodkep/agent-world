@@ -14,13 +14,14 @@ import { startHookServer } from '../src/main/providers/claude/hookServer'
  * The library at the size it really is: every skill found on this machine, all on demand.
  *   PILOT=1 npx vitest run -c vitest.pilot.config.ts pilot/scale.pilot.ts      (writes pilot-scale-report.txt)
  * Part 1 is free: does the matcher point a prompt at the right skill among all of them, and stay quiet for prompts about none?
- * Part 2 uses real Claude (Haiku): P agent left to itself (catalog file + tools) · Q P + the matched line each turn · R every skill loaded natively + the matched line.
+ * Part 2 uses real Claude (PILOT_MODEL, default haiku; PILOT_REPORT names the report file): P agent left to itself (catalog file + tools) · Q P + the matched line each turn · R every skill loaded natively + the matched line.
  * "Used" is the log's own record (fetched through the tools, the Skill tool, or a Read of the skill's file). PILOT_RUNS = tasks per variant (default 8), PILOT_MAX_USD (default 2), PILOT_VARIANTS (default PQR).
  */
 const ON = !!process.env.PILOT
 const RUNS = Number(process.env.PILOT_RUNS ?? 8)
 const MAX_USD = Number(process.env.PILOT_MAX_USD ?? 2)
-const REPORT = 'pilot-scale-report.txt'
+const REPORT = process.env.PILOT_REPORT ?? 'pilot-scale-report.txt'
+const MODEL = process.env.PILOT_MODEL ?? 'haiku'
 
 // A task and which skills would be right for it (any one; matched against the library's ids).
 const TASKS: [string, RegExp][] = [
@@ -146,7 +147,7 @@ describe.skipIf(!ON)('library at scale', () => {
     svc.prepare('scale', true)
     const since = Date.now()
     nudge = variant !== 'P'
-    const base = ['-p', prompt, '--model', 'haiku', '--output-format', 'json', '--max-turns', '6', '--append-system-prompt', core, '--mcp-config', mcpFile, '--allowedTools', 'mcp__agent-world__library_index', 'mcp__agent-world__library_get', 'mcp__agent-world__library_search', '--add-dir', join(dir, 'library'), '--settings', settingsFile]
+    const base = ['-p', prompt, '--model', MODEL, '--output-format', 'json', '--max-turns', '6', '--append-system-prompt', core, '--mcp-config', mcpFile, '--allowedTools', 'mcp__agent-world__library_index', 'mcp__agent-world__library_get', 'mcp__agent-world__library_search', '--add-dir', join(dir, 'library'), '--settings', settingsFile]
     if (variant === 'R') base.push('--plugin-dir', pluginDir)
     const raw = await sh('claude', base, { env: agentEnv(process.env), cwd: join(dir, 'work') })
     const j = JSON.parse(raw) as { total_cost_usd?: number; usage?: Record<string, number> }
