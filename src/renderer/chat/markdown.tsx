@@ -1,3 +1,5 @@
+import { pixelIconMarkup } from './PixelIcon'
+import { RUN_EVENT, runnable } from './runnable'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import { type RendererThis, type Token, type TokenizerAndRendererExtension, type TokenizerThis, type Tokens, marked } from 'marked'
@@ -113,6 +115,18 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       b.textContent = 'Copy'
       b.onclick = () => void navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? pre.textContent ?? '').then(() => ((b.textContent = 'Copied'), setTimeout(() => (b.textContent = 'Copy'), 1200)))
       pre.appendChild(b)
+      // A shell command can also be run, in the project's terminal.
+      const code = pre.querySelector('code')
+      const command = runnable(/language-([\w+-]+)/.exec(code?.className ?? '')?.[1] ?? '', code?.textContent ?? '')
+      if (command) {
+        const run = document.createElement('button')
+        run.className = 'copy run'
+        run.innerHTML = pixelIconMarkup('play')
+        run.setAttribute('aria-label', 'Run in terminal')
+        run.title = 'Run in terminal: types this into a terminal in the project folder and presses Enter'
+        run.onclick = () => window.dispatchEvent(new CustomEvent(RUN_EVENT, { detail: { text: command } }))
+        pre.appendChild(run)
+      }
     }
     for (const code of el.querySelectorAll<HTMLElement>('pre > code')) {
       const lang = /language-([\w+-]+)/.exec(code.className)?.[1]

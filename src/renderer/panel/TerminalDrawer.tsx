@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isBusy } from '../../shared/shells'
+import { RUN_EVENT } from '../chat/runnable'
 import { TerminalView } from './TerminalView'
 
 const keyFor = (folder: string) => `aw.terms.${folder}`
@@ -17,7 +18,7 @@ const readIds = (folder: string): string[] => {
  * user's own shell starting in the project folder. Hiding the drawer only hides it: the shells keep running, and the ones this
  * project had are found again after the window reloads.
  */
-export function TerminalDrawer({ folder, folderName, open, height, onHeight, onHide, onCount }: { folder: string | null; folderName: string; open: boolean; height: number; onHeight: (h: number) => void; onHide: () => void; onCount: (n: number) => void }) {
+export function TerminalDrawer({ folder, folderName, open, height, onHeight, onHide, onShow, onCount, ask }: { folder: string | null; folderName: string; open: boolean; height: number; onHeight: (h: number) => void; onHide: () => void; onShow: () => void; onCount: (n: number) => void; ask?: { agentId: string; onAttached: () => void } }) {
   const [ids, setIds] = useState<string[]>([])
   const [loaded, setLoaded] = useState(false)
   const [active, setActive] = useState<string | null>(null)
@@ -72,8 +73,10 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
       setIds((l) => [...l, id])
       setActive(id)
       setFocusTick((n) => n + 1)
+      return id
     } catch (e) {
       setError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      return null
     }
   }, [folder])
 
@@ -85,6 +88,28 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
   }, [open, loaded, ids.length, add])
 
   const busy = (id: string) => !!procs[id] && isBusy(procs[id]!.idle, procs[id]!.front)
+
+  // "Run in terminal" on a command in the chat: shown here and typed into the open terminal, or into a new one when that is busy
+  // (keys would go to whatever is running there) or when there is none. Enter is pressed, because the click was the decision.
+  const latest = useRef({ ids, active, busy })
+  latest.current = { ids, active, busy }
+  useEffect(() => {
+    const run = async (e: Event) => {
+      const text = (e as CustomEvent<{ text: string }>).detail?.text
+      if (!text || !folder) return
+      const { ids: have, active: now, busy: isBusyNow } = latest.current
+      // The drawer opening with no terminal would start one of its own; this one starts its own.
+      wasOpen.current = true
+      onShow()
+      const id = now && have.includes(now) && !isBusyNow(now) ? now : await add()
+      if (!id) return
+      setActive(id)
+      setFocusTick((n) => n + 1)
+      window.aw.ptyWrite(id, `${text.replace(/\n/g, '\r')}\r`)
+    }
+    window.addEventListener(RUN_EVENT, run)
+    return () => window.removeEventListener(RUN_EVENT, run)
+  }, [folder, onShow, add])
   const close = (id: string, force = false) => {
     if (!force && busy(id)) {
       setActive(id)
@@ -150,7 +175,7 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
       {error && <p className="error tdrawer-error">{error}</p>}
       <div className="tbody">
         {ids.map((id) => (
-          <TerminalView key={id} ptyId={id} visible={open && id === active} focusTick={focusTick} />
+          <TerminalView key={id} ptyId={id} visible={open && id === active} focusTick={focusTick} ask={ask} />
         ))}
         {ids.length === 0 && loaded && (
           <div className="tnone">

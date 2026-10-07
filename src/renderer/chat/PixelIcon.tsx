@@ -2,6 +2,8 @@
 const ICONS = {
   plus: ['...##...', '...##...', '...##...', '########', '########', '...##...', '...##...', '...##...'],
   send: ['...##...', '..####..', '.######.', '########', '...##...', '...##...', '...##...', '...##...'],
+  // Run: the usual play triangle.
+  play: ['.#......', '.###....', '.#####..', '.#######', '.#####..', '.###....', '.#......', '........'],
   stop: ['........', '.######.', '.######.', '.######.', '.######.', '.######.', '.######.', '........'],
   dots: ['........', '........', '........', '##.##.##', '##.##.##', '........', '........', '........'],
   back: ['...#....', '..##....', '.#######', '..##....', '...#....', '........', '........', '........'],
@@ -22,6 +24,14 @@ const ICONS = {
 } as const
 
 export type IconName = keyof typeof ICONS
+
+/** The same icon as markup, for buttons that are made outside React (the ones put on code blocks in a reply). */
+export function pixelIconMarkup(name: IconName, scale = 2): string {
+  const rows: readonly string[] = ICONS[name]
+  const w = rows[0]!.length
+  const d = rows.flatMap((row, y) => [...row].map((c, x) => (c === '#' ? `M${x} ${y}h1v1h-1z` : ''))).join('')
+  return `<svg class="pxi" width="${w * scale}" height="${rows.length * scale}" viewBox="0 0 ${w} ${rows.length}" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="${d}"/></svg>`
+}
 
 /** `scale` is whole screen pixels per art pixel, so edges stay sharp. */
 export function PixelIcon({ name, scale = 2 }: { name: IconName; scale?: number }) {

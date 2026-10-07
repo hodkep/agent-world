@@ -119,6 +119,7 @@ export function App() {
   const [termOpen, setTermOpen] = useState(() => store('aw.term') === '1')
   const [termH, setTermH] = useState(() => Math.max(110, Number(store('aw.termH')) || 230))
   const [termCount, setTermCount] = useState(0)
+  const showTerm = useCallback(() => (keep('aw.term', '1'), setTermOpen(true)), [])
   const toggleTerm = useCallback(() => setTermOpen((o) => (keep('aw.term', o ? '' : '1'), !o)), [])
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -737,6 +738,15 @@ export function App() {
     }
   }
 
+  // What is added to an agent's message from the terminals is there to see: the panel opens on its chat.
+  const showChat = () => {
+    chooseTalk('chat')
+    if (panes) setPeek(true)
+    else if (narrow) setDrawer(true)
+    else setPanelOpen(true)
+    setFocusTick((n) => n + 1)
+  }
+
   // Hires the three roles that make a first team; a name that is already in use is skipped, not fatal.
   const hireCrew = () =>
     run(async () => {
@@ -1139,7 +1149,7 @@ export function App() {
               </div>
             )}
           </div>
-          <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onCount={setTermCount} />
+          <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
           {tip && (
             <FloatingTip x={tip.x} y={tip.y}>
               <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} providers={providers ?? []} />
@@ -1357,7 +1367,7 @@ export function App() {
           {agents.map((a) => chatFor(a, a.id === selected && view === 'chat'))}
           <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
-              <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} />
+              <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} ask={{ agentId: a.id, onAttached: showChat }} />
             ))}
           </div>
           {current && view === 'file' && fileTab[current.id] && (

@@ -628,6 +628,9 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .md pre { position: relative; }
 .md pre .copy { position: absolute; top: 4px; right: 4px; font-size: 10px; padding: 0 6px; opacity: 0; }
 .md pre:hover .copy, .md pre .copy:focus-visible { opacity: 1; }
+/* Beside Copy, to its left. */
+.md pre .copy.run { right: 54px; display: inline-flex; align-items: center; padding: 1px 6px; color: var(--ok-text); }
+.md pre .copy.run .pxi { display: block; }
 .pic { padding: 0; line-height: 0; background: var(--panel-3); max-width: 100%; }
 .pic img { max-width: min(320px, 100%); max-height: 240px; display: block; image-rendering: auto; }
 .pic:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--accent); background: var(--panel-3); }
@@ -1143,6 +1146,7 @@ code a.file-link { font: inherit; }
 .fileview-other { padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .fileview .hint { padding: 6px 12px; margin: 0; }
 .fileview-ask { position: absolute; z-index: 5; }
+.term-ask { position: fixed; z-index: 30; }
 
 /* A command folded to its headline */
 .tc-toggle { width: 100%; background: none; border: 0; box-shadow: none; padding: 0; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
