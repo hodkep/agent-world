@@ -2225,7 +2225,7 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .lip { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--panel-3); border: 2px solid var(--ink); }
 .lip-top { padding: 14px 16px 6px; display: flex; flex-direction: column; gap: 6px; flex: none; }
 .lip-title { display: flex; gap: 10px; align-items: center; }
-.lip-title h3 { margin: 0; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.lip-title h3 { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
 .lip-title .pxi { color: var(--think); flex: none; }
 .lip-desc { margin: 0; color: var(--muted); font-size: 13px; }
 .bad-text { background: none; border-color: transparent; box-shadow: none; color: var(--danger-text); }
