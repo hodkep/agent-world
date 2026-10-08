@@ -45,10 +45,12 @@ export function createLibraryService(d: Deps) {
   const playbooks = new Playbooks(d.root)
   const log = new UseLog(join(d.root, 'uses.jsonl'))
   // Per agent: how many prompts it has had, whether it can fetch, its per-turn rule reminder, and whether the full catalog is due again.
-  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean }>()
+  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean; /** The turn each item was last pointed at, and the items this agent has read since it last lost its context. */ pointed: Map<string, number>; read: Set<string> }>()
   // When each agent's hook last called the office.
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
+  // An item pointed at is not pointed at again for this many turns, nor at all once the agent has read it: it is in its context until it loses it.
+  const POINT_GAP = 10
   const MATCHES = 3
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
@@ -87,6 +89,7 @@ export function createLibraryService(d: Deps) {
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
     log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words })
+    if (how === 'fetched' || how === 'skill' || how === 'read') state.get(agentId)?.read.add(id)
     d.onUse?.(a.id, how, id)
   }
 
@@ -101,7 +104,7 @@ export function createLibraryService(d: Deps) {
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
-      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false })
+      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false, pointed: new Map(), read: new Set() })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
@@ -125,7 +128,7 @@ export function createLibraryService(d: Deps) {
       const entries = indexSync(agentId)
       const onDemand = entries.filter((e) => e.mode === 'on-demand')
       const items = itemsMap()
-      const matched = matchItems(prompt, onDemand, MATCHES)
+      const matched = matchItems(prompt, onDemand, MATCHES).filter((m) => !st.read.has(m.id) && st.turn - (st.pointed.get(m.id) ?? -Infinity) >= POINT_GAP)
       // A message that points at nothing gets the reminder only for a hard rule; a medium one is not worth its tokens on every message.
       const reminder = matched.length ? st.reminder : st.hardReminder
       const parts = reminder ? [reminder] : []
@@ -137,6 +140,7 @@ export function createLibraryService(d: Deps) {
         const way = st.native ? (st.canFetch ? tool : `Use the ${m.id} skill`) : file ? `Read ${file}` : st.canFetch ? tool : `Ask for ${m.id}`
         // A word in common is not a need: the agent decides, so a plain question about a topic does not load its skill, while doing the work does.
         const line = `Library: ${m.id} covers this kind of work (${m.description.slice(0, 100)}). If you are doing that work, not just answering a question about it: ${way} first.`
+        st.pointed.set(m.id, st.turn)
         record(agentId, m.id, 'triggered', m.mode, line)
         parts.push(line)
       }
@@ -150,7 +154,7 @@ export function createLibraryService(d: Deps) {
     /** The agent lost its earlier context (compaction): show it the catalog again at its next prompt. */
     refresh(agentId: string) {
       const st = state.get(agentId)
-      if (st) st.catalogDue = true
+      if (st) (st.catalogDue = true, st.pointed.clear(), st.read.clear())
     },
 
     /** An agent used a library item without going through the tools (Claude's own Skill tool, or reading its file). */

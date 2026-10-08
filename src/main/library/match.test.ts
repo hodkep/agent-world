@@ -17,7 +17,7 @@ const catalog = [
 describe('which library items a prompt points at', () => {
   it('finds the item whose words the prompt uses', () => {
     expect(matchItems('design the database schema for orders and write the migration', catalog)[0]?.id).toBe('database-schema-design')
-    expect(matchItems('turn these notes into a presentation', catalog)[0]?.id).toBe('pptx')
+    expect(matchItems('turn these notes into a pptx presentation', catalog)[0]?.id).toBe('pptx')
   })
   it('finds nothing for a prompt that is about none of them', () => {
     expect(matchItems('why is the lamp post drawn behind the car', catalog)).toEqual([])
@@ -26,6 +26,15 @@ describe('which library items a prompt points at', () => {
     const items = [e('onboarding', 'A new teammate joining the team', 'a new teammate joining the team'), e('release-checklist', 'Shipping a release', 'shipping a release to production'), ...filler]
     expect(matchItems('we are about to go live with the new build', items)).toEqual([])
     expect(matchItems('a new teammate is joining on monday', items)[0]?.id).toBe('onboarding')
+  })
+  it('is not pointed at an item by one word it shares, however well it fits', () => {
+    expect(matchItems('merge this into main', [e('resolving-merge-conflicts', 'Resolve conflicts', 'git stopped a merge with conflict markers'), ...filler])).toEqual([])
+    expect(matchItems('git stopped my merge and left conflict markers', [e('resolving-merge-conflicts', 'Resolve conflicts', 'git stopped a merge with conflict markers'), ...filler])[0]?.id).toBe('resolving-merge-conflicts')
+  })
+  it('matches an item\'s "when", not the everyday words of its description', () => {
+    const prds = e('writing-prds', 'Help users write effective documents; use when defining what to build for their team', 'asked to write a product requirements document')
+    expect(matchItems('write the feature and build it for the team', [prds, ...filler])).toEqual([])
+    expect(matchItems('write a product requirements document', [prds, ...filler])[0]?.id).toBe('writing-prds')
   })
   it('returns at most k, best first', () => {
     const r = matchItems('write a migration, commit it and run a security review', catalog, 2)

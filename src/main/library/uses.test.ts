@@ -7,6 +7,15 @@ import { UseLog, summarize, type Use } from './uses'
 const u = (over: Partial<Use>): Use => ({ t: 1, agent: 'a1', name: 'Ann', provider: 'claude', workspace: 'w', id: 'tdd', how: 'fetched', ...over })
 
 describe('what the library log says', () => {
+  it('counts a trigger as answered when the agent read the item in that turn or the next few, not before it', () => {
+    const s = summarize([
+      u({ how: 'triggered', turn: 4 }), u({ how: 'fetched', turn: 6 }),
+      u({ how: 'triggered', turn: 10 }), u({ how: 'fetched', turn: 14 }),
+      u({ how: 'triggered', turn: 20 }), u({ how: 'fetched', turn: 19 })
+    ])
+    expect(s.items.tdd).toMatchObject({ triggered: 3, answered: 1 })
+  })
+
   it('counts a trigger as answered only when the same agent used the item in the same turn', () => {
     const s = summarize([
       u({ how: 'triggered', turn: 1 }), u({ how: 'fetched', turn: 1 }),
