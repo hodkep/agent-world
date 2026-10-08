@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef, useState } from 'react'
 import { mentionText } from '../../shared/mention'
+import { macKeySequence } from './macKeys'
 
 // `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
 /** A terminal on one of the app's ptys: an agent's, or a shell in the grid (its id starts with `term:`). */
@@ -44,6 +45,13 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
       for (const c of early.splice(0)) write(c.data, c.end)
     })
     const input = term.onData((d) => window.aw.ptyWrite(ptyId, d))
+    // Cmd and Option with the arrows move by line and by word, as in the system terminal.
+    term.attachCustomKeyEventHandler((e) => {
+      const seq = macKeySequence(e)
+      if (seq === null) return true
+      window.aw.ptyWrite(ptyId, seq)
+      return false
+    })
     const resize = term.onResize(({ cols, rows }) => window.aw.ptyResize(ptyId, cols, rows))
     const menu = (e: MouseEvent) => {
       e.preventDefault()
