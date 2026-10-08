@@ -68,7 +68,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     // Changing the playbook now leaves ada on the older text, which the pane says, and one click restarts her on the new one.
     await expect(dialog.getByLabel('Who has this text')).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('up to date')
-    await dialog.getByLabel('Strength for pdf').selectOption('hard')
+    await dialog.getByRole('radiogroup', { name: 'Firmness of pdf' }).getByRole('radio', { name: 'hard' }).click()
     const stale = dialog.getByRole('note').filter({ hasText: 'before you changed this playbook' })
     await expect(stale).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('started on an older text')

@@ -53,6 +53,13 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await importing.getByRole('button', { name: 'Import 2 selected' }).click()
     await expect(pane.getByRole('status')).toContainText('Imported 2')
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
+    // What is in no playbook is in the box: a list that can be searched, with each item's cost beside its name.
+    const box = pane.getByRole('region', { name: 'In the box' })
+    await expect(box).toContainText('tokens')
+    await box.getByLabel('Find an item').fill('cave')
+    await expect(box.getByRole('button', { name: 'Open pdf' })).toHaveCount(0)
+    await expect(box.getByRole('button', { name: 'Open caveman' })).toBeVisible()
+    await box.getByLabel('Find an item').fill('')
     await pane.getByRole('button', { name: 'New instruction' }).click()
     await pane.getByLabel('Item name').fill('Terse')
     await pane.getByLabel('Item description').fill('Talk short.')
@@ -62,7 +69,13 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     // A skill opens to its text, and says it was copied in.
     await pane.getByRole('button', { name: 'Open pdf' }).click()
     await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('Use the helper script')
-    await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('scripts/split.sh')
+    // Its text is the first tab; its other files and where it is used are the next two.
+    const detail = pane.getByRole('group', { name: 'pdf in detail' })
+    await expect(detail.getByRole('tab', { name: 'What an agent reads' })).toHaveAttribute('aria-selected', 'true')
+    await detail.getByRole('tab', { name: 'Files' }).click()
+    await expect(detail).toContainText('scripts/split.sh')
+    await detail.getByRole('tab', { name: 'Used by' }).click()
+    await expect(detail).toContainText('Not fetched yet')
 
     // The window has three sections, one screen each: the shelf (open now), the playbook, and what was reached for.
     await expect(pane.getByRole('tab', { name: 'Shelf' })).toHaveAttribute('aria-selected', 'true')
@@ -71,8 +84,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()
     await pane.getByLabel('Item to add').selectOption({ label: 'Terse (instruction)' })
     await pane.getByRole('button', { name: 'Add to playbook' }).click()
-    await pane.getByLabel('Mode for terse').selectOption('always')
-    await pane.getByLabel('Strength for terse').selectOption('medium')
+    await pane.getByRole('button', { name: 'More for terse' }).click()
+    await pane.getByRole('menuitem', { name: 'Told every time' }).click()
+    await pane.getByRole('radiogroup', { name: 'Firmness of terse' }).getByRole('radio', { name: 'medium' }).click()
     await pane.getByLabel('Item to add').selectOption({ label: 'pdf (skill)' })
     await pane.getByRole('button', { name: 'Add to playbook' }).click()
     await pane.getByLabel('When to use pdf').fill('working with PDFs')
