@@ -7,7 +7,6 @@ import { closeOnBackdrop } from './Modal'
 import { ProviderTag } from './ProviderTag'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
-import { LibraryPane } from './LibraryPane'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -63,7 +62,6 @@ const PANES = [
   { id: 'rules', group: 'Office', label: 'House rules', icon: '☰' },
   { id: 'programs', group: 'Programs', label: 'Providers', icon: '▣' },
   { id: 'accounts', group: 'Programs', label: 'Accounts', icon: '◉' },
-  { id: 'library', group: 'Programs', label: 'Library', icon: '◈' },
   { id: 'jobs', group: 'Programs', label: 'Model by job', icon: '⚒' },
   { id: 'mail', group: 'App', label: 'Message box', icon: '✉' },
   { id: 'updates', group: 'App', label: 'Updates', icon: '↻' },
@@ -72,7 +70,7 @@ const PANES = [
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ folder, prefs, roles, onChange, onClose, onSetup, providers, onProviders }: { folder: string; prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
@@ -131,7 +129,6 @@ export function Settings({ folder, prefs, roles, onChange, onClose, onSetup, pro
               <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
             </>
           )}
-          {pane === 'library' && <LibraryPane folder={folder} providers={providers} />}
           {pane === 'agents' && (
             <>
               <legend>New agents start with</legend>

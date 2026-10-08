@@ -7,14 +7,16 @@ import { createLibraryService } from './service'
 let dir: string
 let svc: ReturnType<typeof createLibraryService>
 let pushed: string[]
+let pushedItems: string[]
 beforeEach(async () => {
   pushed = []
+  pushedItems = []
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
     agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
-    onUse: (id, how) => void pushed.push(`${id}:${how}`)
+    onUse: (id, how, item) => void (pushed.push(`${id}:${how}`), pushedItems.push(item))
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
   const s = join(dir, 'src', 'pdf')
@@ -96,6 +98,17 @@ describe('what an agent is given from the library', () => {
       expect(svc.remind('a1', 'rename the lamp post')).not.toContain('pdf')
       expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 0 })
     })
+    it('sends the rule reminder only when the message matched something, or for a hard rule', async () => {
+      await svc.prepare('a1', true, true)
+      // terse is medium: reminded on a message that points at something, not on one that matches nothing
+      expect(svc.remind('a1', 'rename the lamp post')).toBe('')
+      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always).')
+      svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
+      await svc.prepare('a1', true, true)
+      // a hard rule is reminded on every message, and only the hard one when nothing matched
+      expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always); pdf (working with PDFs).')
+    })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
       await svc.prepare('a1', true)
       svc.remind('a1', 'split this pdf into pages')
@@ -146,6 +159,12 @@ describe('what an agent is given from the library', () => {
       expect(line).toContain('pdf covers this kind of work')
       expect(line).toMatch(/not just answering a question/i)
       expect(line).toMatch(/if you are doing that work/i)
+    })
+    it('tells the app which item an agent used, so the office can say what it is reading', async () => {
+      await svc.prepare('a1', true)
+      await svc.get('a1', 'pdf')
+      expect(pushed).toContain('a1:fetched')
+      expect(pushedItems.at(-1)).toBe('pdf')
     })
     it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
       await svc.prepare('a1', true)

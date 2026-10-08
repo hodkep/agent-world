@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode, RuleStrength } from '../../shared/library'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode } from '../../shared/library'
 import type { ProviderId, ProviderInfo } from '../../shared/types'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
+import { LibraryItemPane } from './LibraryItemPane'
 import { LibraryReach, type Fix } from './LibraryReach'
-import { highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
+import { LibraryRule } from './LibraryRule'
+import { ProviderTag } from './ProviderTag'
+import { findItems, highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
 
 const KINDS: { value: LibraryKind | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -11,24 +14,23 @@ const KINDS: { value: LibraryKind | 'all'; label: string }[] = [
   { value: 'instruction', label: 'Instructions' },
   { value: 'prompt', label: 'Prompts' }
 ]
+const SECTIONS: ['shelf' | 'playbook' | 'reach', string][] = [['shelf', 'Shelf'], ['playbook', 'Playbook'], ['reach', 'Reached for']]
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
-const STRENGTHS: RuleStrength[] = ['soft', 'medium', 'hard']
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 const CORE_BUDGET = 300
-const MODE_LABEL: Record<RuleMode, string> = { always: 'Told every time', 'on-demand': 'Pointed at', step: 'By a step', off: 'Off' }
 const GROUP_LABEL: Record<RuleMode, string> = { always: 'Told every time', 'on-demand': 'Pointed at when a message matches', step: 'Put in by a workflow step', off: 'Off' }
 const KIND_ICON: Record<LibraryKind, IconName> = { skill: 'book', instruction: 'flag', prompt: 'pencil' }
+// The box is a drawer below the shelves, not a shelf: forty books in no playbook would not fit in one view.
 const TIERS: { id: Tier; label: string; sub: string }[] = [
   { id: 'desk', label: 'On the desk', sub: 'told every time' },
-  { id: 'shelf', label: 'On the shelf', sub: 'pointed at when a message matches' },
-  { id: 'box', label: 'In the box', sub: 'in no playbook' }
+  { id: 'shelf', label: 'On the shelf', sub: 'pointed at' }
 ]
 const GLOSSARY: [string, string][] = [
   ['Told every time', 'The words go into the opening text, so the agent knows them from its first message.'],
   ['Pointed at', 'Only a line that says when it applies is in the opening text. When a message matches, the agent is pointed at the item and reads it then.'],
   ['By a step', 'A workflow step puts the item in when that step starts. It is not in the opening text.'],
   ['Off', 'In the library, but in no opening text and never pointed at.'],
-  ['Strength', 'How firmly the agent is reminded each turn: soft is a hint, hard is an instruction.'],
+  ['Strength', 'How firmly the agent is reminded: soft is a hint. Medium is reminded on a message that points at something. Hard is reminded on every message.'],
   ['Opening text', 'What an agent is given when it starts: the told items, the list of when-lines and how to read an item.'],
   ['When it applies', 'One plain sentence. A message that sounds like it makes the agent point at the item.'],
   ['Tokens', 'Roughly three quarters of a word. Opening text is capped at 300 so it stays cheap.'],
@@ -56,6 +58,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
+  const [tab, setTab] = useState<'shelf' | 'playbook' | 'reach'>('shelf')
+  const [find, setFind] = useState('')
   const [trial, setTrial] = useState('')
   const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
@@ -173,8 +177,11 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
 
   return (
     <>
-      <legend>Library</legend>
-      <p className="set-lead">Skills, instructions and prompts kept once, for every program. A playbook says which an agent uses and when; they are fetched on demand, so they cost nothing until used.</p>
+      <div className="lib-tabs" role="tablist" aria-label="Library sections">
+        {SECTIONS.map(([id, label]) => (
+          <button key={id} role="tab" id={`lib-tab-${id}`} aria-selected={tab === id} aria-controls={`lib-panel-${id}`} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="lib-notices" aria-label="Things to know">
         {ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing' && (
@@ -196,8 +203,11 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           <div className="lib-notice warn" role="note"><div><b>The opening text is over budget: {preview.coreTokens} of {CORE_BUDGET} tokens.</b><span>Every agent pays this on every message. Move something to "Pointed at", or shorten it.</span></div></div>
         )}
       </div>
-      {notice && <p className="mc-done" role="status">{notice}</p>}
 
+      {tab === 'shelf' && (
+      <div role="tabpanel" id="lib-panel-shelf" aria-labelledby="lib-tab-shelf" className="lib-panel lib-panel-shelf">
+      <div className="lib-col">
+      {notice && <p className="mc-done" role="status">{notice}</p>}
       <div className="lib-bar" role="group" aria-label="Library items">
         <div className="lib-kinds" role="group" aria-label="Show">
           {KINDS.map((k) => (
@@ -205,7 +215,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           ))}
         </div>
         <span className="lib-sp" />
-        <button onClick={() => void startImport()}>Import from this computer…</button>
+        <button aria-label="Import from this computer…" title="Copy skills found on this computer into the library" onClick={() => void startImport()}>Import…</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'instruction', name: '', description: '', body: '' }))}>New instruction</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))}>New prompt</button>
       </div>
@@ -227,38 +237,55 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       )}
 
-      <div className="shelf" aria-label="Items">
-        {shown.length === 0 && <p className="hint">Nothing here yet. Import skills from this computer, or write an instruction.</p>}
-        {shown.length > 0 && TIERS.map((t) => {
-          const row = shown.filter((i) => tierOf(effective, i.id) === t.id)
-          return (
-            <div key={t.id} className="tier">
-              <h4>{t.label} <span>{t.sub}</span></h4>
-              <div className="spines">
-                {row.map((i) => {
-                  const look = spineLook(i)
-                  return (
-                    <button key={i.id} className={`spine${open === i.id ? ' sel' : ''}`} data-name={i.name} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} style={{ height: look.height, background: look.colour }} onClick={() => (setOpen(i.id), setDraft(null))}>
-                      <PixelIcon name={KIND_ICON[i.kind]} scale={1} />
-                    </button>
-                  )
-                })}
+      {shown.length === 0 && <p className="hint">Nothing here yet. Import skills from this computer, or write an instruction.</p>}
+      {shown.length > 0 && (
+        <div className="shelf low" aria-label="Items">
+          {TIERS.map((t) => {
+            const row = shown.filter((i) => tierOf(effective, i.id) === t.id)
+            return (
+              <div key={t.id} className="tier">
+                <div className="tier-lab"><b>{t.label}</b><span>{t.sub}</span></div>
+                <div>
+                  <div className={`spines small${row.length ? '' : ' none'}`}>
+                    {row.length === 0 && <small className="tier-none">nothing here</small>}
+                    {row.map((i) => {
+                      const look = spineLook(i, true)
+                      return (
+                        <button key={i.id} className={`spine${open === i.id ? ' sel' : ''}`} data-name={i.name} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} style={{ height: look.height, background: look.colour }} onClick={() => (setOpen(i.id), setDraft(null))}>
+                          <PixelIcon name={KIND_ICON[i.kind]} scale={1} />
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="plank" />
+                </div>
               </div>
-              <div className="plank" />
-            </div>
-          )
-        })}
-      </div>
-
-      {current && !draft && (
-        <div className="lib-box" role="group" aria-label={`${current.name} in detail`}>
-          <div className="lib-head"><b>{current.name}</b><small className="lib-kind">{current.kind}</small><span className="lib-sp" /><button onClick={() => edit(current)}>Edit</button><button onClick={() => void remove(current.id)}>Remove</button></div>
-          <p className="hint">{current.description}</p>
-          <p className="hint">From {current.source}. {usage[current.id] ? `Fetched ${usage[current.id]!.claude}× by Claude agents and ${usage[current.id]!.agy}× by agy agents.` : 'Not fetched yet.'}</p>
-          <pre className="lib-body">{current.body}</pre>
-          {current.files.length > 0 && <p className="hint">Also holds: {current.files.join(', ')}</p>}
+            )
+          })}
         </div>
       )}
+      {shown.length > 0 && (() => {
+        const inBox = shown.filter((i) => tierOf(effective, i.id) === 'box')
+        const hits = findItems(inBox, find)
+        return (
+          <section className="drawer" aria-label="In the box">
+            <h4>In the box <span>{inBox.length} in no playbook</span><span className="lib-sp" /><input aria-label="Find an item" placeholder="Find an item…" value={find} onChange={(e) => setFind(e.target.value)} /></h4>
+            <div className="drawer-list lib-scrollbar">
+              {hits.map((i) => (
+                <button key={i.id} className={`drawer-item${open === i.id ? ' sel' : ''}`} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} onClick={() => (setOpen(i.id), setDraft(null))}>
+                  <PixelIcon name={KIND_ICON[i.kind]} scale={1} /><span>{i.name}</span><small>{i.tokens.body} tokens</small>
+                </button>
+              ))}
+              {hits.length === 0 && <p className="hint">{inBox.length ? 'Nothing in the box matches.' : 'Everything is in a playbook.'}</p>}
+            </div>
+          </section>
+        )
+      })()}
+      </div>
+
+      <div className="lib-read">
+      {!current && !draft && <div className="lib-box lib-pick"><p className="hint">Pick a book or an item from the box to read it here, or write a new instruction.</p></div>}
+      {current && !draft && <LibraryItemPane item={current} usage={usage[current.id]} onEdit={() => edit(current)} onRemove={() => void remove(current.id)} />}
       {draft && (
         <div className="lib-box" role="group" aria-label="Edit item">
           <label>Name<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label="Item name" /></label>
@@ -267,8 +294,12 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           <div className="su-row"><button className="primary" disabled={!draft.name.trim() || !draft.body.trim()} onClick={() => void saveDraft()}>Save</button><button onClick={() => setDraft(null)}>Cancel</button></div>
         </div>
       )}
+      </div>
 
-      <legend className="lib-sub">Playbook</legend>
+      </div>
+      )}
+      {tab === 'playbook' && (
+      <div role="tabpanel" id="lib-panel-playbook" aria-labelledby="lib-tab-playbook" className="lib-panel">
       <div className="pb">
         <div className="pb-head">
           <div className="lib-scopes" role="group" aria-label="Playbook scope">
@@ -292,15 +323,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 if (!here.length) return null
                 return (
                   <div key={m} className="rule-group">
-                    <h4>{GROUP_LABEL[m]}</h4>
+                    <h4>{GROUP_LABEL[m]} <span>{here.length}</span></h4>
                     {here.map(({ r, n }) => (
-                      <div key={r.id} className="lib-rule">
-                        <b title={byId.get(r.id)?.description}>{byId.get(r.id)?.name ?? `${r.id} (missing)`}</b>
-                        <select aria-label={`Mode for ${r.id}`} value={r.mode} onChange={(e) => change(n, { mode: e.target.value as RuleMode })}>{MODES.map((x) => <option key={x} value={x}>{MODE_LABEL[x]}</option>)}</select>
-                        <select aria-label={`Strength for ${r.id}`} value={r.strength} onChange={(e) => change(n, { strength: e.target.value as RuleStrength })}>{STRENGTHS.map((x) => <option key={x}>{x}</option>)}</select>
-                        <button className="rm" aria-label={`Remove ${r.id} from the playbook`} title="Remove from this playbook" onClick={() => void saveRules(rules.filter((_, i) => i !== n))}><PixelIcon name="x" scale={1} /></button>
-                        {r.mode === 'on-demand' && <input className="when" aria-label={`When to use ${r.id}`} value={r.when} placeholder="when does it apply?" onChange={(e) => change(n, { when: e.target.value })} />}
-                      </div>
+                      <LibraryRule key={r.id} rule={r} item={byId.get(r.id)} onChange={(patch) => change(n, patch)} onRemove={() => void saveRules(rules.filter((_, i) => i !== n))} />
                     ))}
                   </div>
                 )
@@ -332,13 +357,13 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 {trialOut && <p className="hint" role="status">{trialOut.length ? `It would point the agent at ${trialOut.map((m) => m.name).join(', ')}.` : 'It would point at nothing: no item\'s "when" sounds like it.'}</p>}
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
-                <h4>Reminder each turn</h4>
-                <p className="hint">{preview?.reminder || (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
+                <h4>Reminder</h4>
+                <p className="hint">{preview?.reminder ? `${preview.reminder}${preview.hardReminder && preview.hardReminder !== preview.reminder ? ` On every message: ${preview.hardReminder}` : preview.hardReminder ? ' On every message.' : ' Only on a message that points at something.'}` : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
                 {holders.length > 0 && (
                   <>
                     <h4>Who gets this</h4>
-                    <ul className="al-items" aria-label="Who has this text">
-                      {holders.map((h) => <li key={h.id}><b>{h.name}</b><small>{h.provider}</small><small className={h.stale ? 'older' : ''}>{h.stale ? 'started on an older text' : 'up to date'}</small></li>)}
+                    <ul className="who-list" aria-label="Who has this text">
+                      {holders.map((h) => <li key={h.id}><i className={`who-dot${h.stale ? ' old' : ''}`} /><b>{h.name}</b><ProviderTag id={h.provider as ProviderId} /><span className={`who-st${h.stale ? ' old' : ''}`}>{h.stale ? 'started on an older text' : 'up to date'}</span></li>)}
                     </ul>
                   </>
                 )}
@@ -348,8 +373,13 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       </div>
 
-      <legend className="lib-sub">Reached for</legend>
+      </div>
+      )}
+      {tab === 'reach' && (
+      <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
+      </div>
+      )}
     </>
   )
 }

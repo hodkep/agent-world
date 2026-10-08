@@ -41,7 +41,8 @@ const P = {
   metalDark: 0x9aa0ae
 }
 const BOARD = 40
-const BOOKS = [0xc0392b, 0x2e86c1, 0xf1c40f, 0x27ae60, 0x8e44ad, 0xecf0f1, 0xe67e22, 0x16a085, 0xd35400]
+/** The bookcase's spines: red, blue, gold, green, teal, orange, white and rose, as in the library shelf. */
+const SPINES = [0xd9372c, 0x3f6fa8, 0xe0b030, 0x4c9a5a, 0x2fa0b0, 0xe8864a, 0xf4f4f0, 0xb8446a]
 
 function rng(seed: number) {
   return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32)
@@ -439,19 +440,22 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
   place(layer, z, (g) => {
     switch (d.kind) {
       case 'shelf': {
+        // A proper bookcase: a thick wood frame round a dark back, three tiers of spines in the library's colours.
         const w = d.w * TILE
-        box(g, px + 1, py + 6, w - 2, 24, 0x7a4a2a)
-        for (let shelf = 0; shelf < 2; shelf++) {
-          const sy = py + 8 + shelf * 11
-          r(g, px + 2, sy, w - 4, 9, 0x4a2c18)
-          let bx = px + 3
-          while (bx < px + w - 4) {
+        r(g, px + 1, py + 5, w - 2, 26, 0x3a2412)
+        r(g, px + 2, py + 6, w - 4, 24, 0x6b4426)
+        r(g, px + 2, py + 6, w - 4, 1, 0x8a5a34)
+        r(g, px + 4, py + 8, w - 8, 20, 0x25160c)
+        for (let tier = 0; tier < 3; tier++) {
+          const ty = py + 8 + tier * 7
+          let bx = px + 5
+          while (bx < px + w - 6) {
             const bw = 1 + Math.floor(rand() * 2)
-            const bh = 5 + Math.floor(rand() * 4)
-            r(g, bx, sy + 9 - bh, bw, bh, BOOKS[Math.floor(rand() * BOOKS.length)]!)
-            bx += bw + (rand() < 0.15 ? 2 : 0)
+            const bh = 3 + Math.floor(rand() * 3)
+            r(g, bx, ty + 6 - bh, bw, bh, SPINES[Math.floor(rand() * SPINES.length)]!)
+            bx += bw + (rand() < 0.12 ? 2 : 0)
           }
-          r(g, px + 2, sy + 9, w - 4, 1, 0x9a6a40)
+          r(g, px + 4, ty + 6, w - 8, 1, 0x6b4426)
         }
         break
       }

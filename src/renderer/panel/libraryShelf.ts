@@ -10,11 +10,18 @@ export function tierOf(rules: PlaybookRule[], id: string): Tier {
 
 const COLOURS = ['#d83a3a', '#3f8f9f', '#c9a21e', '#5f9e5f', '#b03f5e', '#4a6a96', '#e08a5a', '#c9c5d8']
 
-/** A spine's colour comes from its name, its height from what it costs to read, so a library has a shape. */
-export function spineLook(i: Pick<LibraryItem, 'name' | 'tokens'>): { height: number; colour: string } {
+/** A spine's colour comes from its name, its height from what it costs to read, so a library has a shape. `small` is the same book on a low shelf. */
+export function spineLook(i: Pick<LibraryItem, 'name' | 'tokens'>, small = false): { height: number; colour: string } {
   let h = 0
   for (const ch of i.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return { height: 52 + ((h >> 3) % 34) + Math.min(30, Math.round(i.tokens.body / 120)), colour: COLOURS[h % COLOURS.length]! }
+  const tall = 52 + ((h >> 3) % 34) + Math.min(30, Math.round(i.tokens.body / 120))
+  return { height: small ? Math.round(tall * 0.55) : tall, colour: COLOURS[h % COLOURS.length]! }
+}
+
+/** The items whose name or description holds what was typed (all of them for nothing typed). */
+export function findItems<T extends Pick<LibraryItem, 'name' | 'description'>>(items: T[], query: string): T[] {
+  const q = query.trim().toLowerCase()
+  return q ? items.filter((i) => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)) : items
 }
 
 export interface Mark { text: string; kind?: 'told' | 'when' }

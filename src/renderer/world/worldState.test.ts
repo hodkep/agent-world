@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEvent, emptyWorld, placeFor, roleOf } from './worldState'
+import { applyEvent, emptyWorld, placeFor, readingCaption, roleOf } from './worldState'
 
 const s = 's1'
 
@@ -128,5 +128,12 @@ describe('plans, tasks and modes', () => {
     let w = applyEvent(emptyWorld(), { type: 'activity', agentId: 'a', sessionId: 's', activity: 'implementing', tool: 'Edit' })
     w = applyEvent(w, { type: 'mode', agentId: 'a', sessionId: 's', mode: 'plan' })
     expect(w.a).toMatchObject({ mode: 'plan', activity: 'implementing' })
+  })
+})
+
+describe('the words over an agent reading from the library', () => {
+  it('say what it reads, and stay short enough to fit over one desk', () => {
+    expect(readingCaption('tdd')).toBe('read tdd')
+    expect(readingCaption('database-schema-design')).toBe('read database-schema')
   })
 })

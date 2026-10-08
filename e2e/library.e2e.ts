@@ -9,7 +9,8 @@ import { hire, launchApp } from './launch'
 const read = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8') : '')
 // The fake Claude logs each start as a JSON list; the fake agy logs plain words, and both also log the probes the app makes.
 const claudeStart = (f: string): string[] => read(f).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--session-id') || a.includes('--resume')).at(-1) ?? []
-const agyStart = (f: string): string => read(f).split('\n').filter((l) => l.includes('Talk short and plain.')).at(-1) ?? ''
+// A Claude launch carries the same text; only agy's line has no session id, so the poll cannot be satisfied by Claude's.
+const agyStart = (f: string): string => read(f).split('\n').filter((l) => l.includes('Talk short and plain.') && !l.includes('--session-id') && !l.includes('--resume')).at(-1) ?? ''
 const skill = (dir: string, name: string, desc: string, body: string) => {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${desc}\n---\n\n${body}`)
@@ -37,11 +38,15 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), project)
     await page.reload()
 
-    // Settings, Library: import the two skills found on this computer, and write one instruction.
+    // The top bar's Library button opens its own large dialog; Settings no longer holds it.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('tab', { name: 'Library' }).click()
-    const pane = dialog.getByRole('tabpanel')
+    await expect(page.getByRole('dialog', { name: 'Settings' }).getByRole('tab', { name: 'Library' })).toHaveCount(0)
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close settings' }).click()
+    await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Library' })
+    const pane = dialog
+    expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(1000)
+    // Import the two skills found on this computer, and write one instruction.
     await pane.getByRole('button', { name: 'Import from this computer…' }).click()
     const importing = pane.getByRole('group', { name: 'Import from this computer' })
     await expect(importing).toContainText('caveman')
@@ -49,6 +54,13 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await importing.getByRole('button', { name: 'Import 2 selected' }).click()
     await expect(pane.getByRole('status')).toContainText('Imported 2')
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
+    // What is in no playbook is in the box: a list that can be searched, with each item's cost beside its name.
+    const box = pane.getByRole('region', { name: 'In the box' })
+    await expect(box).toContainText('tokens')
+    await box.getByLabel('Find an item').fill('cave')
+    await expect(box.getByRole('button', { name: 'Open pdf' })).toHaveCount(0)
+    await expect(box.getByRole('button', { name: 'Open caveman' })).toBeVisible()
+    await box.getByLabel('Find an item').fill('')
     await pane.getByRole('button', { name: 'New instruction' }).click()
     await pane.getByLabel('Item name').fill('Terse')
     await pane.getByLabel('Item description').fill('Talk short.')
@@ -58,14 +70,24 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     // A skill opens to its text, and says it was copied in.
     await pane.getByRole('button', { name: 'Open pdf' }).click()
     await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('Use the helper script')
-    await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('scripts/split.sh')
+    // Its text is the first tab; its other files and where it is used are the next two.
+    const detail = pane.getByRole('group', { name: 'pdf in detail' })
+    await expect(detail.getByRole('tab', { name: 'What an agent reads' })).toHaveAttribute('aria-selected', 'true')
+    await detail.getByRole('tab', { name: 'Files' }).click()
+    await expect(detail).toContainText('scripts/split.sh')
+    await detail.getByRole('tab', { name: 'Used by' }).click()
+    await expect(detail).toContainText('Not fetched yet')
 
+    // The window has three sections, one screen each: the shelf (open now), the playbook, and what was reached for.
+    await expect(pane.getByRole('tab', { name: 'Shelf' })).toHaveAttribute('aria-selected', 'true')
+    await pane.getByRole('tab', { name: 'Playbook' }).click()
     // The workspace playbook: Terse always (reminded each turn), PDFs on demand.
     await pane.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()
     await pane.getByLabel('Item to add').selectOption({ label: 'Terse (instruction)' })
     await pane.getByRole('button', { name: 'Add to playbook' }).click()
-    await pane.getByLabel('Mode for terse').selectOption('always')
-    await pane.getByLabel('Strength for terse').selectOption('medium')
+    await pane.getByRole('button', { name: 'More for terse' }).click()
+    await pane.getByRole('menuitem', { name: 'Told every time' }).click()
+    await pane.getByRole('radiogroup', { name: 'Firmness of terse' }).getByRole('radio', { name: 'medium' }).click()
     await pane.getByLabel('Item to add').selectOption({ label: 'pdf (skill)' })
     await pane.getByRole('button', { name: 'Add to playbook' }).click()
     await pane.getByLabel('When to use pdf').fill('working with PDFs')
@@ -87,7 +109,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await sees.getByLabel('Program').selectOption({ label: 'Claude Code' })
     // It is saved as it is edited.
     await expect.poll(() => readdirJson(join(home, 'aw', 'library', 'playbooks', 'workspaces'))).toHaveLength(1)
-    await dialog.getByRole('button', { name: 'Close settings' }).click()
+    await dialog.getByRole('button', { name: 'Close library' }).click()
 
     // A Claude agent starts with the opening text, a session-only plugin folder of just the allowed skill, and the library folder readable.
     await hire(page)
@@ -134,7 +156,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(nudged).toContain("Library: pdf covers this kind of work")
     expect(nudged).toContain("library_get('pdf')")
     expect(nudged).toContain('Reminder: terse (always).')
-    expect(JSON.parse(await prompt('rename the lamp post')).hookSpecificOutput.additionalContext).not.toContain('pdf')
+    // terse is medium, so a message that points at nothing gets no reminder either
+    expect(await prompt('rename the lamp post')).toBe('')
     // Its own Skill tool is counted too (and only for items of the library), and the stats say triggered, answered and used.
     const tool = (name: string, input: object) => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: name, tool_input: input }) })
     await tool('Skill', { skill: 'agent-world-library:pdf' })

@@ -29,8 +29,10 @@ export interface Compiled {
   indexIds: string[]
   /** The skills Claude can load natively. */
   skills: Item[]
-  /** A line added each turn for medium and hard rules. */
+  /** The line added to a message that points at something: every medium and hard rule. */
   reminder: string
+  /** The line added to every message, even one that matches nothing: the hard rules only. */
+  hardReminder: string
 }
 
 /** What an agent is told for a playbook: the opening text, what it may fetch, and the reminder. `canFetch` is whether it can reach the library tools. */
@@ -54,10 +56,11 @@ export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: 
     parts.push(`Library: call library_index to see what is available for this workspace, and library_get(id) to read an item before doing the task it covers.${lines.length ? `\nWhen it applies:\n${lines.join('\n')}` : ''}`)
   }
   const core = parts.join('\n\n')
-  const strong = live.filter((r) => r.strength !== 'soft')
-  const reminder = strong.length ? `Reminder: ${strong.map((r) => (r.mode === 'always' ? `${r.id} (always)` : `${r.id} (${r.when || 'when it applies'})`)).join('; ')}.` : ''
+  const line = (rs: Rule[]) => (rs.length ? `Reminder: ${rs.map((r) => (r.mode === 'always' ? `${r.id} (always)` : `${r.id} (${r.when || 'when it applies'})`)).join('; ')}.` : '')
+  const reminder = line(live.filter((r) => r.strength !== 'soft'))
+  const hardReminder = line(live.filter((r) => r.strength === 'hard'))
   const coreTokens = tokens(core)
-  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder }
+  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder, hardReminder }
 }
 
 export type Scope = 'global' | { workspace: string }
