@@ -37,11 +37,15 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), project)
     await page.reload()
 
-    // Settings, Library: import the two skills found on this computer, and write one instruction.
+    // The top bar's Library button opens its own large dialog; Settings no longer holds it.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('tab', { name: 'Library' }).click()
-    const pane = dialog.getByRole('tabpanel')
+    await expect(page.getByRole('dialog', { name: 'Settings' }).getByRole('tab', { name: 'Library' })).toHaveCount(0)
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close settings' }).click()
+    await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Library' })
+    const pane = dialog
+    expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(1000)
+    // Import the two skills found on this computer, and write one instruction.
     await pane.getByRole('button', { name: 'Import from this computer…' }).click()
     const importing = pane.getByRole('group', { name: 'Import from this computer' })
     await expect(importing).toContainText('caveman')
@@ -60,6 +64,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('Use the helper script')
     await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('scripts/split.sh')
 
+    // The window has three sections, one screen each: the shelf (open now), the playbook, and what was reached for.
+    await expect(pane.getByRole('tab', { name: 'Shelf' })).toHaveAttribute('aria-selected', 'true')
+    await pane.getByRole('tab', { name: 'Playbook' }).click()
     // The workspace playbook: Terse always (reminded each turn), PDFs on demand.
     await pane.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()
     await pane.getByLabel('Item to add').selectOption({ label: 'Terse (instruction)' })
@@ -87,7 +94,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await sees.getByLabel('Program').selectOption({ label: 'Claude Code' })
     // It is saved as it is edited.
     await expect.poll(() => readdirJson(join(home, 'aw', 'library', 'playbooks', 'workspaces'))).toHaveLength(1)
-    await dialog.getByRole('button', { name: 'Close settings' }).click()
+    await dialog.getByRole('button', { name: 'Close library' }).click()
 
     // A Claude agent starts with the opening text, a session-only plugin folder of just the allowed skill, and the library folder readable.
     await hire(page)

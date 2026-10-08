@@ -11,6 +11,7 @@ const KINDS: { value: LibraryKind | 'all'; label: string }[] = [
   { value: 'instruction', label: 'Instructions' },
   { value: 'prompt', label: 'Prompts' }
 ]
+const SECTIONS: ['shelf' | 'playbook' | 'reach', string][] = [['shelf', 'Shelf'], ['playbook', 'Playbook'], ['reach', 'Reached for']]
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
 const STRENGTHS: RuleStrength[] = ['soft', 'medium', 'hard']
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
@@ -56,6 +57,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
+  const [tab, setTab] = useState<'shelf' | 'playbook' | 'reach'>('shelf')
   const [trial, setTrial] = useState('')
   const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
@@ -173,8 +175,11 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
 
   return (
     <>
-      <legend>Library</legend>
-      <p className="set-lead">Skills, instructions and prompts kept once, for every program. A playbook says which an agent uses and when; they are fetched on demand, so they cost nothing until used.</p>
+      <div className="lib-tabs" role="tablist" aria-label="Library sections">
+        {SECTIONS.map(([id, label]) => (
+          <button key={id} role="tab" id={`lib-tab-${id}`} aria-selected={tab === id} aria-controls={`lib-panel-${id}`} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+        ))}
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="lib-notices" aria-label="Things to know">
         {ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing' && (
@@ -196,8 +201,10 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           <div className="lib-notice warn" role="note"><div><b>The opening text is over budget: {preview.coreTokens} of {CORE_BUDGET} tokens.</b><span>Every agent pays this on every message. Move something to "Pointed at", or shorten it.</span></div></div>
         )}
       </div>
-      {notice && <p className="mc-done" role="status">{notice}</p>}
 
+      {tab === 'shelf' && (
+      <div role="tabpanel" id="lib-panel-shelf" aria-labelledby="lib-tab-shelf" className="lib-panel lib-panel-shelf">
+      {notice && <p className="mc-done" role="status">{notice}</p>}
       <div className="lib-bar" role="group" aria-label="Library items">
         <div className="lib-kinds" role="group" aria-label="Show">
           {KINDS.map((k) => (
@@ -234,7 +241,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           return (
             <div key={t.id} className="tier">
               <h4>{t.label} <span>{t.sub}</span></h4>
-              <div className="spines">
+              <div className={`spines${row.length ? '' : ' none'}`}>
+                {row.length === 0 && <small className="tier-none">nothing here</small>}
                 {row.map((i) => {
                   const look = spineLook(i)
                   return (
@@ -250,6 +258,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         })}
       </div>
 
+      {!current && !draft && <div className="lib-box lib-pick"><p className="hint">Pick a book to read it here, or write a new instruction.</p></div>}
       {current && !draft && (
         <div className="lib-box" role="group" aria-label={`${current.name} in detail`}>
           <div className="lib-head"><b>{current.name}</b><small className="lib-kind">{current.kind}</small><span className="lib-sp" /><button onClick={() => edit(current)}>Edit</button><button onClick={() => void remove(current.id)}>Remove</button></div>
@@ -268,7 +277,10 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       )}
 
-      <legend className="lib-sub">Playbook</legend>
+      </div>
+      )}
+      {tab === 'playbook' && (
+      <div role="tabpanel" id="lib-panel-playbook" aria-labelledby="lib-tab-playbook" className="lib-panel">
       <div className="pb">
         <div className="pb-head">
           <div className="lib-scopes" role="group" aria-label="Playbook scope">
@@ -348,8 +360,13 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       </div>
 
-      <legend className="lib-sub">Reached for</legend>
+      </div>
+      )}
+      {tab === 'reach' && (
+      <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
+      </div>
+      )}
     </>
   )
 }

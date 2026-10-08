@@ -37,6 +37,7 @@ import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
+import { LibraryModal } from './panel/LibraryModal'
 import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
@@ -143,6 +144,7 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   // What is installed here; first-run setup opens from it, and Settings can open it again.
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
@@ -1020,7 +1022,8 @@ export function App() {
           }}
         />
       )}
-      {settings && prefs && <Settings folder={folder ?? ''} providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} onClose={() => setLibraryOpen(false)} />}
+      {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
@@ -1059,6 +1062,7 @@ export function App() {
         {agents.length > 0 && (
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
+        <IconButton icon="library" label="Library" onClick={() => setLibraryOpen(true)} haspopup tip="Skills, instructions and the playbook that says what agents are told" />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         <LimitChips limits={shownLimits} pool={pool} accounts={prefs?.accounts ?? []} />

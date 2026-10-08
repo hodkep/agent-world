@@ -56,14 +56,15 @@ test('chat: margin notes under a message say what the library did for it, and op
     await expect(tab.getByLabel('What it did')).toContainText('Pointed at pdf')
     await expect(tab.getByLabel('What it did')).toContainText('Read pdf')
 
-    // Settings, Library: the item shows under "Reached for", with a verdict in words (too few pointings to judge yet).
-    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('tab', { name: 'Library' }).click()
+    // The top bar's Library: the item shows under "Reached for", with a verdict in words (too few pointings to judge yet).
+    await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Library' })
+    await dialog.getByRole('tab', { name: 'Reached for' }).click()
     const rows = dialog.getByLabel('Items agents were pointed at')
     await expect(rows).toContainText('pdf')
     await expect(rows).toContainText('Too few to judge yet')
 
+    await dialog.getByRole('tab', { name: 'Playbook' }).click()
     // Changing the playbook now leaves ada on the older text, which the pane says, and one click restarts her on the new one.
     await expect(dialog.getByLabel('Who has this text')).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('up to date')
