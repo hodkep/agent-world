@@ -4,7 +4,8 @@ import { createSubagents } from './subagentService'
 
 interface Rec { id: string; name: string; provider?: string; branch: string | null; parent?: string; task?: string }
 
-function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRunning: number } } = {}) {
+function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRunning: number }; waitMs?: number } = {}) {
+  let clock = 0
   const agents: Rec[] = [{ id: 'p', name: 'ada', provider: 'claude', branch: 'aw/ada' }]
   const convo = new Map<string, ChatItem[]>()
   const idle = new Set<string>()
@@ -28,7 +29,9 @@ function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRun
     stop: (id) => void stopped.push(id),
     limits: over.limits ? () => over.limits! : undefined,
     // Time passing: a real turn of the event loop, so the test can act while a call waits.
-    sleep: () => new Promise<void>((r) => setTimeout(r, 1))
+    sleep: (ms) => new Promise<void>((r) => setTimeout(() => ((clock += ms), r()), 1)),
+    now: () => clock,
+    waitMs: over.waitMs
   })
   const finish = (id: string, text: string) => (convo.set(id, [{ kind: 'user', id: 'u', at: 1, text: 'task' }, { kind: 'assistant', id: 'a', at: 5, text }]), idle.add(id))
   return { svc, agents, convo, finish, idle, dead, delivered, stopped }
@@ -88,6 +91,23 @@ describe('starting a subagent', () => {
     await new Promise((r) => setTimeout(r, 5))
     t.dead.add('c1')
     expect(await run).toMatchObject({ status: 'stopped', report: expect.stringMatching(/without answering/) })
+  })
+})
+
+describe('a wait that outlasts what the calling program allows', () => {
+  it('answers that it is still working, with the id to wait on, instead of holding the call open', async () => {
+    const t = setup({ waitMs: 5000 })
+    const r = await t.svc.spawn('p', { provider: 'agy', task: 'a long job' })
+    expect(r).toMatchObject({ id: 'c1', status: 'working', branch: 'aw/bo1' })
+    expect(r.note).toMatch(/still working.*await_subagents/i)
+    expect(r.report).toBeUndefined()
+  })
+  it('lets the next wait pick up where it left off, and answer once the child is done', async () => {
+    const t = setup({ waitMs: 5000 })
+    await t.svc.spawn('p', { provider: 'agy', task: 'a long job' })
+    expect(await t.svc.wait('p', ['c1'])).toMatchObject({ status: 'working' })
+    t.finish('c1', 'All done.')
+    expect(await t.svc.wait('p', ['c1'])).toMatchObject({ status: 'done', report: 'All done.' })
   })
 })
 

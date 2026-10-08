@@ -27,9 +27,14 @@ export interface SubagentDeps<A extends Rec> {
   sleep?: (ms: number) => Promise<void>
   /** How deep and how many at once, read at each call so a change in Settings counts at once. */
   limits?: () => Limits
+  /** How long one call holds on for the answer. A program gives up on a tool call after about a minute, so a longer job is waited for in turns. */
+  waitMs?: number
+  now?: () => number
 }
 
 const POLL_MS = 1500
+/** Held on to for less than the minute a program waits for a tool, with room for it to be told. */
+const WAIT_MS = 45_000
 
 /** Agents starting agents as their subagents: either program can start either, and the child shows in its parent's list of subagents. */
 export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
@@ -49,14 +54,18 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
     if (cut.has(c.id) || !d.alive(c.id)) return { id: c.id, name: c.name, status: 'stopped', branch: c.branch, report: cut.has(c.id) ? 'The subagent was stopped before it answered.' : 'The subagent ended without answering.' }
     return { id: c.id, name: c.name, status: 'working', branch: c.branch }
   }
-  // The first of these to finish, or the first already finished.
-  async function firstDone(ids: string[]): Promise<A> {
+  const now = d.now ?? Date.now
+  // The first of these to finish, or the first already finished; null when none has within the time one call may take.
+  async function firstDone(ids: string[]): Promise<A | null> {
+    const until = now() + (d.waitMs ?? WAIT_MS)
     for (;;) {
       const done = ids.map((id) => d.byId(id)).find((c) => c && finished(c.id))
       if (done) return done
+      if (now() >= until) return null
       await sleep(POLL_MS)
     }
   }
+  const later = (c: A): SubagentResult => ({ ...result(c), note: `Still working. Call await_subagents with the id ${c.id} to keep waiting for it; do not start it again.` })
 
   return {
     async spawn(callerId: string, i: SpawnInput): Promise<SubagentResult> {
@@ -67,12 +76,12 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
       const child = await d.create(parent, i)
       d.deliver(child, subagentPrompt(i.task, parent.name, { branch: child.branch, worktree: i.worktree !== false && child.branch !== null }))
       if (i.background) return result(child)
-      await firstDone([child.id])
-      return result(child)
+      return (await firstDone([child.id])) ? result(child) : later(child)
     },
     async wait(callerId: string, ids: string[]): Promise<SubagentResult> {
       for (const id of ids) mine(callerId, id)
-      return result(await firstDone(ids))
+      const done = await firstDone(ids)
+      return done ? result(done) : later(d.byId(ids[0]!)!)
     },
     stop(callerId: string, id: string): string {
       const c = mine(callerId, id)

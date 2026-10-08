@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -53,6 +53,31 @@ test('a permission a subagent asks for comes up on its parent\'s card, naming th
     await dialog.getByRole('button', { name: 'Allow' }).click()
     await dialog.waitFor({ state: 'hidden' })
     expect((await page.evaluate(() => window.aw.listAgents())).map((a) => a.name)).toEqual(['ada'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a Claude agent starts an agy subagent and gets its answer back', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-spawn-agy-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '300', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_SPAWN: 'ada:agy:say hello from agy' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.locator('.roster button', { hasText: 'ada' }).click()
+    await expect(page.locator('.term-host:visible')).toContainText(/spawn_subagent → /, { timeout: 60_000 })
+    await expect(page.locator('.term-host:visible')).toContainText('"status":"done"')
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    const subs = await page.evaluate((id) => window.aw.subagents(id), ada!.id)
+    expect(subs[0]).toMatchObject({ type: 'agy', done: true })
+    expect(subs[0]!.result.length).toBeGreaterThan(0)
   } finally {
     await shutdown()
   }

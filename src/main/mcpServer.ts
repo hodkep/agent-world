@@ -52,6 +52,8 @@ export interface SubagentResult {
   status: 'working' | 'done' | 'stopped'
   branch: string | null
   report?: string
+  /** Set when the answer is not final: what to do next. */
+  note?: string
 }
 
 const MAX_BODY = 1024 * 1024
@@ -116,7 +118,7 @@ function toolsFor(callerId: string, o: Options) {
       'spawn_subagent',
       {
         description:
-          'Start another agent, running on the program you choose (claude or agy), as your subagent. It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
+          'Start another agent, running on the program you choose (claude or agy), as your subagent. It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. If it takes longer than about 45 seconds the call returns with status working and its id: then call await_subagents with that id (as often as needed) instead of starting it again. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
         inputSchema: {
           provider: z.enum(['claude', 'agy']).describe('Which program runs the subagent'),
           task: z.string().min(1).max(8000).describe('What it should do, and how you will know it is done'),
@@ -130,7 +132,7 @@ function toolsFor(callerId: string, o: Options) {
     )
     server.registerTool(
       'await_subagents',
-      { description: 'Wait for the next of the subagents you started in the background to finish, and return its report. Pass the ids spawn_subagent gave you.', inputSchema: { ids: z.array(z.string()).min(1).max(10).describe('Subagent ids') } },
+      { description: 'Wait for the next of your subagents that is still working (started in the background, or reported as still working) to finish, and return its report. It holds on for up to about 45 seconds, then answers working with a note: call it again. Pass the ids spawn_subagent gave you.', inputSchema: { ids: z.array(z.string()).min(1).max(10).describe('Subagent ids') } },
       async ({ ids }) => ask(() => sub.wait(callerId, ids))()
     )
     server.registerTool(
