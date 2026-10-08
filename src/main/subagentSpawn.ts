@@ -1,9 +1,14 @@
 import type { ChatItem, SubagentInfo } from '../shared/chat'
 
-/** A child may start children of its own, a grandchild may not. */
+/** Standing limits, which Settings can change. A child may start children of its own, a grandchild may not. */
 export const MAX_DEPTH = 2
 /** Children one agent may have working at once. */
 export const MAX_RUNNING = 3
+export interface Limits {
+  maxDepth: number
+  maxRunning: number
+}
+export const DEFAULT_LIMITS: Limits = { maxDepth: MAX_DEPTH, maxRunning: MAX_RUNNING }
 
 interface Tree {
   id: string
@@ -13,16 +18,17 @@ interface Tree {
 /** How many parents are above an agent. A loop in the records counts as too deep rather than running for ever. */
 export function depthOf(agents: Tree[], id: string): number {
   let depth = 0
-  for (let at = agents.find((a) => a.id === id); at?.parent; at = agents.find((a) => a.id === at!.parent)) if (++depth > MAX_DEPTH + 1) break
+  // A longer chain than any limit can be is a loop.
+  for (let at = agents.find((a) => a.id === id); at?.parent; at = agents.find((a) => a.id === at!.parent)) if (++depth > 20) break
   return depth
 }
 
 /** Why this agent may not start another subagent now, or null when it may. */
-export function checkSpawn(agents: Tree[], parentId: string, running: Set<string>): string | null {
+export function checkSpawn(agents: Tree[], parentId: string, running: Set<string>, limits: Limits = DEFAULT_LIMITS): string | null {
   if (!agents.some((a) => a.id === parentId)) return 'Unknown agent.'
-  if (depthOf(agents, parentId) >= MAX_DEPTH) return `Subagents nest ${MAX_DEPTH} deep at most, so this one is too deep to start another. Do the work yourself, or hand it back.`
+  if (depthOf(agents, parentId) >= limits.maxDepth) return `Subagents nest ${limits.maxDepth} deep at most, so this one is too deep to start another. Do the work yourself, or hand it back.`
   const working = agents.filter((a) => a.parent === parentId && running.has(a.id)).length
-  if (working >= MAX_RUNNING) return `This agent already has ${working} subagents working, which is the most at once. Wait for one to finish (await_subagents), then start the next.`
+  if (working >= limits.maxRunning) return `This agent already has ${working} subagents working, which is the most at once. Wait for one to finish (await_subagents), then start the next.`
   return null
 }
 
@@ -47,7 +53,7 @@ const detailOf = (input: Record<string, unknown>) => {
 }
 
 /** A child agent as the parent's list of subagents shows it. Its provider is its type, so the chip says which program runs it. */
-export function childInfo(child: { id: string; provider?: string; task?: string }, items: ChatItem[], idle: boolean): SubagentInfo {
+export function childInfo(child: { id: string; provider?: string; task?: string }, items: ChatItem[], idle: boolean, alive: boolean): SubagentInfo {
   const report = finalReport(items, idle)
   const first = items.find((i) => i.kind === 'user')
   return {
@@ -63,6 +69,25 @@ export function childInfo(child: { id: string; provider?: string; task?: string 
     depth: 1,
     background: false,
     spawns: [],
-    stopped: false
+    // Not running and never answered: it was stopped, or the app closed on it.
+    stopped: report === null && !alive
   }
+}
+
+/**
+ * A subagent is not in the office, so a permission it asks for would have no card to be answered on. It is put on the card of the agent at
+ * the top of its chain, with the subagent named. The request keeps its id, so the answer finds it.
+ */
+export function shownTo<R extends { id: string; agentId: string; sessionId: string; detail: string }>(agents: { id: string; name: string; sessionId: string; parent?: string }[], r: R): R {
+  const asker = agents.find((a) => a.id === r.agentId)
+  if (!asker?.parent) return r
+  let top = asker
+  for (let hops = 0; top.parent && hops < 20; hops++) top = agents.find((a) => a.id === top.parent) ?? top
+  return top === asker ? r : { ...r, agentId: top.id, sessionId: top.sessionId, detail: `${asker.name} (subagent) wants: ${r.detail}` }
+}
+
+/** Subagents are saved with the agents; one whose parent is no longer there (removed, or lost) has nobody to answer to, so it goes too. */
+export function withoutOrphans<T extends Tree>(agents: T[]): T[] {
+  const keep = (a: T, hops = 0): boolean => !a.parent || (hops < 20 && agents.some((p) => p.id === a.parent && keep(p, hops + 1)))
+  return agents.filter((a) => keep(a))
 }

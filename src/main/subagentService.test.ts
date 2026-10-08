@@ -4,7 +4,7 @@ import { createSubagents } from './subagentService'
 
 interface Rec { id: string; name: string; provider?: string; branch: string | null; parent?: string; task?: string }
 
-function setup(over: { createFails?: string } = {}) {
+function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRunning: number } } = {}) {
   const agents: Rec[] = [{ id: 'p', name: 'ada', provider: 'claude', branch: 'aw/ada' }]
   const convo = new Map<string, ChatItem[]>()
   const idle = new Set<string>()
@@ -26,6 +26,7 @@ function setup(over: { createFails?: string } = {}) {
     idle: (id) => idle.has(id),
     alive: (id) => !dead.has(id),
     stop: (id) => void stopped.push(id),
+    limits: over.limits ? () => over.limits! : undefined,
     // Time passing: a real turn of the event loop, so the test can act while a call waits.
     sleep: () => new Promise<void>((r) => setTimeout(r, 1))
   })
@@ -62,6 +63,12 @@ describe('starting a subagent', () => {
     await deep.svc.spawn('p', { provider: 'agy', task: 'child', background: true })
     await deep.svc.spawn('c1', { provider: 'agy', task: 'grandchild', background: true })
     await expect(deep.svc.spawn('c2', { provider: 'agy', task: 'too far', background: true })).rejects.toThrow(/too deep/)
+  })
+
+  it('follows the limits it is given', async () => {
+    const t = setup({ limits: { maxDepth: 2, maxRunning: 1 } })
+    await t.svc.spawn('p', { provider: 'agy', task: 'a', background: true })
+    await expect(t.svc.spawn('p', { provider: 'agy', task: 'b', background: true })).rejects.toThrow(/already has 1/)
   })
 
   it('frees a place once a child has finished', async () => {

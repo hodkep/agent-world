@@ -27,6 +27,7 @@ import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
+import { shownTo, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -339,6 +340,8 @@ const termMenuSeen = new Map<string, { sig: string; since: number }>()
 const termMenuSent = new Map<string, string>()
 const MENU_STABLE_MS = 800
 const pendingPermissions = new Map<string, PermissionRequest>()
+// For a permission a subagent asked: the agent above it, whose card it is on.
+const childAsks = new Map<string, string>()
 // The last question and plan Claude showed each agent, kept so a reloaded window can show them again.
 const stickyEvents = new Map<string, RawEvent>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
@@ -801,7 +804,7 @@ async function main() {
   // The packaged app has its icon built in; a development run needs it set.
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   mkdirSync(HOME, { recursive: true })
-  agents = loadAgents(AGENTS_FILE)
+  agents = withoutOrphans(loadAgents(AGENTS_FILE))
   for (const a of agents) followChat(a)
   loadUsage()
   loadPrices()
@@ -828,13 +831,23 @@ async function main() {
       // The terminal menu may already be drawn (and static) by the time the hook arrives.
       if (ui(r.agentId).anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
       refreshAttention()
-      send('permission', r)
-      notify('permission', byId(r.agentId), `Wants to use ${r.tool}: ${r.detail}`)
+      // A subagent is not in the office: its question goes on the card of the agent above it, and that agent shows as waiting for you.
+      const shown = shownTo(agents, r)
+      send('permission', shown)
+      notify('permission', byId(shown.agentId), `Wants to use ${r.tool}: ${shown.detail}`)
+      if (shown.agentId !== r.agentId) {
+        childAsks.set(r.id, shown.agentId)
+        send('agent-event', { type: 'activity', agentId: shown.agentId, sessionId: shown.sessionId, activity: 'permission', detail: shown.detail })
+      }
     },
     onPermissionSettled: (id) => {
       pendingPermissions.delete(id)
       refreshAttention()
       send('permission-settled', id)
+      const top = childAsks.get(id)
+      childAsks.delete(id)
+      // Its subagent was answered: the agent goes back to what it was doing, unless another subagent of it is still asking.
+      if (top && ![...childAsks.values()].includes(top)) send('agent-event', { type: 'activity', agentId: top, sessionId: byId(top)?.sessionId ?? '', activity: lastActivity.get(top) ?? 'delegating' })
     },
     onStatus: onStats,
     reminderFor: libraryRemind,
@@ -899,7 +912,7 @@ async function main() {
       if (wanted && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
       const own = i.worktree !== false && (await isGitRepo(parent.repoPath))
       const wt = own ? await createWorktree({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), ...(parent.branch && { from: parent.branch }) }) : null
-      // It cannot be answered if it stops to ask (it is not in the office), so it works the way its parent does; one that only reads cannot change anything.
+      // It works the way its parent does (full autonomy only if the parent has it); one that only reads cannot change anything. When it stops to ask, the question comes up on its parent's card.
       const mode = !wt ? p.autonomy.plan : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
       const child: AgentRecord = {
         id: randomUUID(), name, sessionId: randomUUID(), repoPath: parent.repoPath, cwd: wt?.path ?? parent.cwd, branch: wt?.branch ?? null, base: wt?.base ?? null, provider: p.id, started: false, hiredAt: Date.now(), parent: parent.id, task: i.task,
@@ -918,7 +931,8 @@ async function main() {
     },
     idle: (id) => ['idle', 'waiting'].includes(lastActivity.get(id) ?? ''),
     alive: (id) => sessions.has(id),
-    stop: (id) => sessions.get(id)?.kill()
+    stop: (id) => sessions.get(id)?.kill(),
+    limits: () => prefs.subagents
   })
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
@@ -1024,7 +1038,7 @@ async function main() {
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
   // A reloaded window has forgotten everything it was showing. Say it all again: what is waiting on the user comes back.
   ipcMain.handle('resync', () => {
-    for (const r of pendingPermissions.values()) send('permission', r)
+    for (const r of pendingPermissions.values()) send('permission', shownTo(agents, r))
     for (const id of questionOpen) {
       const e = stickyEvents.get(`${id}:question`)
       if (e) send('agent-event', e)
@@ -1672,7 +1686,7 @@ async function main() {
       }
     }
     const clock = workClocks.get(id) ?? { total: a.workedMs ?? 0, since: null }
-    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length, commits }
+    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length + subagents.infos(a.id).length, commits }
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))
@@ -1779,7 +1793,8 @@ async function main() {
   // you had open goes to sleep. A restart after a longer gap starts asleep, as before.
   for (const id of recentlyRunning(RUNNING_FILE, Date.now(), 20_000)) {
     const a = byId(id)
-    if (a && !sessions.has(id)) spawn(a, env)
+    // A subagent's parent was waiting on its answer, and that wait ended with the app: it stays as it was, stopped, and is not started again.
+    if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
   const heartbeat = setInterval(noteRunning, 2000)
 

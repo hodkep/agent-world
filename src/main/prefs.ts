@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [] }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [] }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -15,6 +15,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     notifications: isMode(r.notifications) ? r.notifications : base.notifications,
     keepAwake: typeof r.keepAwake === 'boolean' ? r.keepAwake : base.keepAwake,
     wrapUp: typeof r.wrapUp === 'boolean' ? r.wrapUp : base.wrapUp,
+    subagents: cleanSubagents(r.subagents, base.subagents),
     setup: cleanSetup(r.setup, base.setup),
     providers: cleanProviders(r, base.providers),
     updateUrl: str(r.updateUrl, 500)?.trim() ?? base.updateUrl,
@@ -29,6 +30,13 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     },
     accounts: cleanAccounts(r.accounts, base.accounts)
   }
+}
+
+const whole = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === 'number' && Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : fallback)
+
+function cleanSubagents(raw: unknown, base: Prefs['subagents']): Prefs['subagents'] {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  return { maxDepth: whole(s.maxDepth, 1, 4, base.maxDepth), maxRunning: whole(s.maxRunning, 1, 10, base.maxRunning) }
 }
 
 function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {

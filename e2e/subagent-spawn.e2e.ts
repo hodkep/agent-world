@@ -32,3 +32,28 @@ test('an agent starts another as its subagent: it answers the call, is left out 
     await shutdown()
   }
 })
+
+test('a permission a subagent asks for comes up on its parent\'s card, naming the subagent, and can be answered there', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-spawn-ask-'))
+  // Not the chat fake: its script asks for a permission to run a command, as an agent does.
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '300', FAKE_SPAWN: 'ada:claude:run the tests' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    // ada's own permission first, then her subagent starts and asks for one of its own.
+    await approve(page)
+    const dialog = page.getByRole('dialog')
+    if (!(await dialog.isVisible())) await page.locator('.ask-pill').first().click({ timeout: 30_000 })
+    await expect(dialog).toContainText(/\(subagent\) wants: pnpm test/, { timeout: 30_000 })
+    await dialog.getByRole('button', { name: 'Allow' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    expect((await page.evaluate(() => window.aw.listAgents())).map((a) => a.name)).toEqual(['ada'])
+  } finally {
+    await shutdown()
+  }
+})

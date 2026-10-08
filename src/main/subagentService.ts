@@ -1,6 +1,6 @@
 import type { ChatItem, SubagentInfo } from '../shared/chat'
 import type { SpawnInput, SubagentResult } from './mcpServer'
-import { checkSpawn, childInfo, finalReport, subagentPrompt } from './subagentSpawn'
+import { type Limits, checkSpawn, childInfo, finalReport, subagentPrompt } from './subagentSpawn'
 
 interface Rec {
   id: string
@@ -25,6 +25,8 @@ export interface SubagentDeps<A extends Rec> {
   alive: (id: string) => boolean
   stop: (id: string) => void
   sleep?: (ms: number) => Promise<void>
+  /** How deep and how many at once, read at each call so a change in Settings counts at once. */
+  limits?: () => Limits
 }
 
 const POLL_MS = 1500
@@ -60,7 +62,7 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
     async spawn(callerId: string, i: SpawnInput): Promise<SubagentResult> {
       const parent = d.byId(callerId)
       const running = new Set(children(callerId).filter((c) => !finished(c.id)).map((c) => c.id))
-      const why = checkSpawn(d.agents(), callerId, running)
+      const why = checkSpawn(d.agents(), callerId, running, d.limits?.())
       if (why || !parent) throw new Error(why ?? 'Unknown agent.')
       const child = await d.create(parent, i)
       d.deliver(child, subagentPrompt(i.task, parent.name, { branch: child.branch, worktree: i.worktree !== false && child.branch !== null }))
@@ -79,7 +81,7 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
       return `Stopped ${c.name}.`
     },
     /** The children of an agent, as its list of subagents shows them. */
-    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id))),
+    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id), d.alive(c.id))),
     /** One child's conversation, for its parent only. */
     conversation: (parentId: string, id: string): ChatItem[] => (d.byId(id)?.parent === parentId ? d.items(id) : [])
   }
