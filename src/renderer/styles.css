@@ -2359,7 +2359,8 @@ aside:not(.drawer) { flex: none; }
 .sg-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; min-width: 0; }
 .sg-head:hover { background: var(--panel-2); }
 .sg-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.sg-caret { color: var(--muted); font-size: 11px; width: 10px; flex: none; }
+.sg-caret { color: var(--muted); font-size: 15px; line-height: 1; width: 16px; text-align: center; flex: none; }
+.sg-head:hover .sg-caret { color: var(--accent); }
 .sg-sum { font-size: 12px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-meta { font-size: 11px; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
 .sg-meta.is-bad { color: var(--danger-text); }
