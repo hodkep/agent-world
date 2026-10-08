@@ -24,6 +24,8 @@ import { Delegation } from './Delegation'
 import type { SubagentInfo } from '../../shared/chat'
 import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
+import { StepGroupView } from './StepGroupView'
+import { type StepGroup, groupSteps } from './stepGroups'
 import { type ToolRun, ToolCard } from './ToolCard'
 import { WatchLine } from './WatchCards'
 import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } from './AgentControls'
@@ -493,7 +495,8 @@ export function ChatView({
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
-        {rows.map((r) => {
+        {(searching ? rows : groupSteps(rows) as (Row | StepGroup)[]).map((r, at, list) => {
+          if (r.kind === 'group') return <StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />
           const lb = slipsByRow.get(r.id)
           const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
           if (!lb || (!lb.starts.length && !lb.slips.length)) return row

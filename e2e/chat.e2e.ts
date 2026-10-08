@@ -250,6 +250,10 @@ test('tool lookups are one quiet line and MCP calls read as a sentence, with det
     await box.fill('look at the site')
     await box.press('Enter')
 
+    // Steps that follow one another fold into a group once done; open it to see them.
+    const head = log.locator('.sg-head').first()
+    await expect(head).toBeVisible({ timeout: 15_000 })
+    if ((await head.getAttribute('aria-expanded')) === 'false') await head.click()
     // Tool lookup: a line with a chip per tool, no JSON.
     const line = log.locator('.tc-line')
     await expect(line).toContainText('Loaded 2 tools', { timeout: 15_000 })
