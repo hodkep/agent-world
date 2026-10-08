@@ -75,6 +75,17 @@ describe('chat rows', () => {
     expect(toRows(items, sent).some((r) => r.kind === 'user' && r.pending)).toBe(false)
   })
 
+  it('counts a send as arrived when Claude merged it into one prompt with the next', () => {
+    const merged = user('u', t0 + 5000, 'Summarise the doc.Summarise it again.')
+    const sent = [{ id: '1', text: 'Summarise the doc.', queued: false, at: t0 }, { id: '2', text: 'Summarise it again.', queued: true, at: t0 + 1000 }]
+    expect(toRows([merged], sent).some((r) => r.kind === 'user' && r.pending)).toBe(false)
+  })
+
+  it('does not count an older message that merely contains a short send', () => {
+    const sent = [{ id: '1', text: 'ok', queued: false, at: t0 + 10_000 }]
+    expect(toRows([user('u', t0, 'ok then, look at the book')], sent).some((r) => r.kind === 'user' && r.pending)).toBe(true)
+  })
+
   it('says how long a longer turn took, on its last reply', () => {
     const items = [user('u1', t0, 'do it'), say('a1', t0 + 2000, 'working'), say('a2', t0 + 45_000, 'done'), user('u2', t0 + 60_000, 'ok'), say('a3', t0 + 61_000, 'hi')]
     const rows = toRows(items, [])

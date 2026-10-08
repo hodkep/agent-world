@@ -193,7 +193,9 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
   for (const p of sent) {
     const n = norm(p.text)
     // A message that was only pictures is done once a newer picture shows up.
-    const done = n ? said.has(n) : items.some((i) => i.kind === 'image' && i.at >= (p.at ?? 0) - 2000)
+    // Claude folds sends made during one step into a single prompt, so a newer message may hold it.
+    const folded = (): boolean => p.at !== undefined && items.some((i) => i.kind === 'user' && i.at >= p.at! - 2000 && norm(i.text).includes(n))
+    const done = n ? said.has(n) || folded() : items.some((i) => i.kind === 'image' && i.at >= (p.at ?? 0) - 2000)
     if (!done) rows.push({ kind: 'user', id: p.id, text: p.text, pending: true, queued: p.queued })
   }
   return rows
