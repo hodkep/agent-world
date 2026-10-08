@@ -11,6 +11,7 @@ function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRun
   const idle = new Set<string>()
   const dead = new Set<string>()
   const delivered: { to: string; text: string }[] = []
+  const told: string[] = []
   const stopped: string[] = []
   let n = 0
   const svc = createSubagents({
@@ -28,13 +29,14 @@ function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRun
     alive: (id) => !dead.has(id),
     stop: (id) => void stopped.push(id),
     limits: over.limits ? () => over.limits! : undefined,
+    announce: (what, parent, child) => void told.push(`${what}:${parent.id}:${child.id}`),
     // Time passing: a real turn of the event loop, so the test can act while a call waits.
     sleep: (ms) => new Promise<void>((r) => setTimeout(() => ((clock += ms), r()), 1)),
     now: () => clock,
     waitMs: over.waitMs
   })
   const finish = (id: string, text: string) => (convo.set(id, [{ kind: 'user', id: 'u', at: 1, text: 'task' }, { kind: 'assistant', id: 'a', at: 5, text }]), idle.add(id))
-  return { svc, agents, convo, finish, idle, dead, delivered, stopped }
+  return { svc, agents, convo, finish, idle, dead, delivered, stopped, told }
 }
 
 describe('starting a subagent', () => {
@@ -108,6 +110,29 @@ describe('a wait that outlasts what the calling program allows', () => {
     expect(await t.svc.wait('p', ['c1'])).toMatchObject({ status: 'working' })
     t.finish('c1', 'All done.')
     expect(await t.svc.wait('p', ['c1'])).toMatchObject({ status: 'done', report: 'All done.' })
+  })
+})
+
+describe('telling the office a subagent came and went', () => {
+  it('says it started when it is made, and that it left once it has answered, however it is being waited for', async () => {
+    const t = setup()
+    await t.svc.spawn('p', { provider: 'agy', task: 'x', background: true })
+    expect(t.told).toEqual(['start:p:c1'])
+    t.svc.tick()
+    expect(t.told).toEqual(['start:p:c1'])
+    t.finish('c1', 'done')
+    t.svc.tick()
+    t.svc.tick()
+    expect(t.told).toEqual(['start:p:c1', 'stop:p:c1'])
+  })
+  it('says it left when it was stopped or ended without answering', async () => {
+    const t = setup()
+    await t.svc.spawn('p', { provider: 'agy', task: 'a', background: true })
+    await t.svc.spawn('p', { provider: 'agy', task: 'b', background: true })
+    t.svc.stop('p', 'c1')
+    t.dead.add('c2')
+    t.svc.tick()
+    expect(t.told.filter((x) => x.startsWith('stop')).sort()).toEqual(['stop:p:c1', 'stop:p:c2'])
   })
 })
 

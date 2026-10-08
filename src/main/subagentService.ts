@@ -30,6 +30,8 @@ export interface SubagentDeps<A extends Rec> {
   /** How long one call holds on for the answer. A program gives up on a tool call after about a minute, so a longer job is waited for in turns. */
   waitMs?: number
   now?: () => number
+  /** The office is told a subagent came or went, so it can be shown at work with the agent that asked for it. */
+  announce?: (what: 'start' | 'stop', parent: A, child: A) => void
 }
 
 const POLL_MS = 1500
@@ -40,6 +42,8 @@ const WAIT_MS = 45_000
 export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
   const sleep = d.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
   const cut = new Set<string>()
+  // Which have been announced as started, and which as gone.
+  const here = new Set<string>()
   const children = (parentId: string) => d.agents().filter((a) => a.parent === parentId)
   const report = (id: string) => finalReport(d.items(id), d.idle(id))
   const finished = (id: string) => report(id) !== null || cut.has(id) || !d.alive(id)
@@ -74,6 +78,8 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
       const why = checkSpawn(d.agents(), callerId, running, d.limits?.())
       if (why || !parent) throw new Error(why ?? 'Unknown agent.')
       const child = await d.create(parent, i)
+      here.add(child.id)
+      d.announce?.('start', parent, child)
       d.deliver(child, subagentPrompt(i.task, parent.name, { branch: child.branch, worktree: i.worktree !== false && child.branch !== null }))
       if (i.background) return result(child)
       return (await firstDone([child.id])) ? result(child) : later(child)
@@ -88,6 +94,16 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
       cut.add(c.id)
       d.stop(c.id)
       return `Stopped ${c.name}.`
+    },
+    /** Called every so often: a subagent that has answered, was stopped or ended is announced as gone, once. */
+    tick(): void {
+      for (const id of [...here]) {
+        const c = d.byId(id)
+        const parent = c?.parent ? d.byId(c.parent) : undefined
+        if (c && parent && !finished(id)) continue
+        here.delete(id)
+        if (c && parent) d.announce?.('stop', parent, c)
+      }
     },
     /** The children of an agent, as its list of subagents shows them. */
     infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id), d.alive(c.id))),

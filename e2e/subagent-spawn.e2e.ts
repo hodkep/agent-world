@@ -50,6 +50,8 @@ test('a permission a subagent asks for comes up on its parent\'s card, naming th
     const dialog = page.getByRole('dialog')
     if (!(await dialog.isVisible())) await page.locator('.ask-pill').first().click({ timeout: 30_000 })
     await expect(dialog).toContainText(/\(subagent\) wants: pnpm test/, { timeout: 30_000 })
+    // While it works it is at work in the office with the agent that asked, like one of Claude's own subagents.
+    await expect.poll(async () => JSON.parse((await page.locator('.stage').getAttribute('data-crew')) ?? '[]').length).toBe(1)
     await dialog.getByRole('button', { name: 'Allow' }).click()
     await dialog.waitFor({ state: 'hidden' })
     expect((await page.evaluate(() => window.aw.listAgents())).map((a) => a.name)).toEqual(['ada'])

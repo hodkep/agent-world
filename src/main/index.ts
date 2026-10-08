@@ -932,8 +932,11 @@ async function main() {
     idle: (id) => ['idle', 'waiting'].includes(lastActivity.get(id) ?? ''),
     alive: (id) => sessions.has(id),
     stop: (id) => sessions.get(id)?.kill(),
-    limits: () => prefs.subagents
+    limits: () => prefs.subagents,
+    // The agent that asked has it at work in the office, like one of Claude's own subagents.
+    announce: (what, parent, child) => send('agent-event', { type: what === 'start' ? 'subagent-start' : 'subagent-stop', agentId: parent.id, sessionId: parent.sessionId, subagentId: child.id, ...(what === 'start' && { subagentType: child.provider ?? 'claude' }) } as AgentEvent)
   })
+  setInterval(() => subagents.tick(), 2000)
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,

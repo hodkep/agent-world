@@ -86,6 +86,18 @@ describe('chat rows', () => {
     expect(toRows([user('u', t0, 'ok then, look at the book')], sent).some((r) => r.kind === 'user' && r.pending)).toBe(true)
   })
 
+  it('shows a call that starts a subagent through the office as a delegation, named by its task and program', () => {
+    const items: ChatItem[] = [
+      user('u', t0, 'go'),
+      { kind: 'tool', id: 'a', at: t0 + 1, toolUseId: 't1', name: 'mcp__agent-world__spawn_subagent', input: { provider: 'agy', task: 'Read  src/main/prefs.ts\nand say what it checks' } },
+      { kind: 'tool', id: 'b', at: t0 + 2, toolUseId: 't2', name: 'mcp__agent-world__spawn_subagent', input: { provider: 'claude', task: 'Count the files' } },
+      { kind: 'tool', id: 'c', at: t0 + 3, toolUseId: 't3', name: 'mcp__agent-world__await_subagents', input: { ids: ['x'] } }
+    ]
+    const rows = toRows(items, [])
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'delegation', 'tool'])
+    expect(rows[1]).toMatchObject({ kind: 'delegation', calls: [{ toolUseId: 't1', description: 'Read src/main/prefs.ts and say what it checks', subagentType: 'agy' }, { toolUseId: 't2', description: 'Count the files', subagentType: 'claude' }] })
+  })
+
   it('says how long a longer turn took, on its last reply', () => {
     const items = [user('u1', t0, 'do it'), say('a1', t0 + 2000, 'working'), say('a2', t0 + 45_000, 'done'), user('u2', t0 + 60_000, 'ok'), say('a3', t0 + 61_000, 'hi')]
     const rows = toRows(items, [])

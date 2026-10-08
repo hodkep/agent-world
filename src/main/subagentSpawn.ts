@@ -1,4 +1,5 @@
 import type { ChatItem, SubagentInfo } from '../shared/chat'
+import { spawnLabel } from '../shared/spawn'
 
 /** Standing limits, which Settings can change. A child may start children of its own, a grandchild may not. */
 export const MAX_DEPTH = 2
@@ -53,16 +54,17 @@ const detailOf = (input: Record<string, unknown>) => {
 }
 
 /** A child agent as the parent's list of subagents shows it. Its provider is its type, so the chip says which program runs it. */
-export function childInfo(child: { id: string; provider?: string; task?: string }, items: ChatItem[], idle: boolean, alive: boolean): SubagentInfo {
+export function childInfo(child: { id: string; provider?: string; task?: string }, items: ChatItem[], idle: boolean, alive: boolean, now = Date.now()): SubagentInfo {
   const report = finalReport(items, idle)
   const first = items.find((i) => i.kind === 'user')
   return {
     agentId: child.id,
     toolUseId: `spawn:${child.id}`,
     type: child.provider ?? 'claude',
-    description: (child.task ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+    description: spawnLabel(child.task ?? ''),
     startedAt: first?.at ?? 0,
-    updatedAt: items.at(-1)?.at ?? first?.at ?? 0,
+    // One that is still working is working now, however long its step takes; the chat would call it stopped after a quiet spell.
+    updatedAt: report === null && alive ? now : (items.at(-1)?.at ?? first?.at ?? 0),
     done: report !== null,
     calls: items.flatMap((i) => (i.kind === 'tool' ? [{ at: i.at, name: i.name, detail: detailOf(i.input) }] : [])),
     result: report ?? '',

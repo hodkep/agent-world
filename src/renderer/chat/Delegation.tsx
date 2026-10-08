@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { SubagentInfo } from '../../shared/chat'
 import { type Row, type SubagentState, elapsedLabel, subagentState } from './format'
+import { pairSubagents } from './delegationMatch'
 import { Markdown } from './markdown'
+import { openSubagent } from './subagentEvents'
 
 type Call = Extract<Row, { kind: 'delegation' }>['calls'][number]
 
@@ -12,7 +14,7 @@ export function useSubagents(agentId: string, calls: Call[] | null, keep = false
   const [infos, setInfos] = useState<SubagentInfo[]>([])
   const [now, setNow] = useState(Date.now())
   const key = calls ? calls.map((c) => c.toolUseId).join(',') : '*'
-  const mine = useMemo(() => new Map((calls ? infos.filter((i) => key.includes(i.toolUseId)) : infos).map((i) => [i.toolUseId, i])), [infos, key, calls])
+  const mine = useMemo(() => (calls ? pairSubagents(calls, infos) : new Map(infos.map((i) => [i.toolUseId, i]))), [infos, calls])
   // Nothing more will happen to a subagent that answered or was stopped.
   const settled = !keep && !!calls && calls.every((c) => ['done', 'stopped'].includes(subagentState(mine.get(c.toolUseId), now)))
   useEffect(() => {
@@ -114,7 +116,7 @@ export function Delegation({ agentId, calls }: { agentId: string; calls: Call[] 
       {shown && (
         <div className="dg-rows">
           {calls.map((c, i) => (
-            <SubagentRowView key={c.toolUseId} type={c.subagentType} description={c.description} info={mine.get(c.toolUseId)} state={states[i]!} now={now} />
+            <SubagentRowView key={c.toolUseId} type={c.subagentType} description={c.description} info={mine.get(c.toolUseId)} state={states[i]!} now={now} actions={mine.get(c.toolUseId) && <button onClick={() => openSubagent(agentId, mine.get(c.toolUseId)!.agentId)}>Open conversation</button>} />
           ))}
         </div>
       )}
