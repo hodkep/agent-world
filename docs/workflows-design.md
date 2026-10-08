@@ -4,7 +4,7 @@ A running record of what we decided about workflows (an AI development lifecycle
 Anything marked **Decided** was said by the product owner; anything marked **Proposed** is a suggestion still waiting for an answer.
 Update this file in the same change as the work it describes.
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
 ## The idea in one paragraph
 
@@ -31,6 +31,12 @@ a workflow and suggests a model and settings for each step.
 | D12 | The library is **one global store**. **Playbooks** (global default, per workspace, per role) decide which items an agent uses, when, and how strongly. Agents never get app-relative paths. |
 | D13 | **Library use is tracked**, per item, per program and per agent: delivered at launch, triggered (the prompt matched the item's rule), and used (fetched through the tools, Claude's Skill tool, or a Read of the skill's file). "Triggered but not used" is the measure of an agent not considering an item. Claude is fully observed through hooks; agy only through the office tools (shown as not measured otherwise). |
 | D14 | **A catalog keeps agents pointed at the library.** A short generated file per workspace (one line per on-demand item, 400 token cap, ids only past it) that the opening text names, so an agent that has lost track reads it again. The app does not rely on the agent doing so: each prompt gets one line for the items it matches, and the whole catalog is re-injected every 10 prompts and after a compaction (Claude, through hooks). agy gets the opening text and the file only. |
+| D15 | **An engine in the app walks the steps, with agents working inside each step**, on one condition: it must not cost tokens or hurt agent performance. So the engine is plain code outside the model (no LLM decides what step is next), steps hand each other files, and it adds no text to an agent's context beyond the step's brief. No orchestration framework for now (see "Framework or our own engine" below). |
+| D16 | **Three gates stop for the person by default: plan approval, before merge, before deploy.** They are settings, not rules: the person can change which gates apply (globally, per project, per workflow) at any time, including after a workflow exists. |
+| D17 | **One dial (economy, balanced, max quality) shifts the model and effort of every step at once.** A step can still override it. |
+| D18 | **A run is a task, not a session.** A session can hold many tasks, additions to a task and follow-ups; the agent identifies task boundaries (see "Tasks and follow-ups"). "Changes code" means **a commit**. |
+| D19 | **First version: a linear pipeline of about five steps.** The end goal is **user-defined workflows made by chatting with a dedicated, pre-created builder agent**, like one hired in the app but supplied ready-made. |
+| D20 | **Terms come from research on AI-DLC and what its main contributors published**, not from memory (first pass in "AI-DLC research" below). |
 | D9 | The concept is still settling: the product owner is "not at all sure how this works in reality". We brainstorm and settle before building, with mocks approved first. |
 
 ## What exists today (so we build on it, not around it)
@@ -172,21 +178,54 @@ Full report: `reports/Making coding agents follow instructions.md` (notes in `re
 - Both Gemini CLI and agy have hooks (Gemini CLI's `BeforeAgent` `additionalContext` is the per-turn analogue); agy's hook output format and rule precedence are undocumented in what was found.
 - Bundled scripts run by absolute path on both programs; only the permission to run them gates it (tested in print mode for agy).
 
+## Tasks and follow-ups (proposed, from the answers of 2026-10-08)
+
+A session is a conversation; a **task** is a piece of work with a purpose and an end, and it is the thing a workflow run records. A session holds many tasks, and a task can grow.
+
+- **Finding the boundaries.** Three signals, in order of strength: (1) the agent says so through an office tool it already has (`task_begin(title)`, `task_done`), which is cheap and needs one line in its opening text; (2) a commit or an approved plan marks the end of a round; (3) the app notices a user message that does not fit the open task and asks once ("Start a new task, or add this to *Fix login redirect*?"). The person can always move, merge or split tasks afterwards. No model call is made just to find boundaries.
+- **Follow-ups.** A request after a task finished (a change to its review, a missed case) re-opens it as a **round 2** of the same run, with its own steps drawn under the first. Only the steps that apply run again (usually implement, test, review), and the plan is redone only if the scope changed. This is the same idea as AI-DLC's *bolt*: a short cycle on a unit of work.
+- **Added tasks.** Work added alongside the original is a new **unit** inside the run when it is part of the same goal (AI-DLC's *unit of work*), or a new run when it is not. A unit has its own commits; review and test run per unit or once at the end, as the workflow says.
+- **Commits.** Every commit in a session's worktree belongs to the open task. A commit with no open task is attached to the nearest one and flagged, so nothing is untracked. Enforcement happens at the commit and at Finish, not at each edit, so an agent can still try things before it commits.
+- **Open:** whether to refuse a commit (needs a git hook in the worktree) or only flag it. A hook changes the repo's git settings, so the first version only flags.
+
+## Framework or our own engine (2026-10-08)
+
+Not a framework for now. Our agents are CLI sessions in terminals, so a model-calling framework's agents, memory and tools go unused, and its workflows are code where ours are data. The engine is a list of steps, their needs, their gates and an append-only run log. The step runner sits behind one small interface so a library (XState for the state chart, Mastra for pausing and resuming) can replace it later, and a framework would earn its place for steps that call a cheap model over the API and for the chat builder. Mastra's suspend and resume stores a snapshot and continues after a restart, which our log gives us too. The Claude Agent SDK runs Claude Code as a subprocess, covers Claude only, and would hide the terminal you watch.
+
+## AI-DLC research (2026-10-08, first pass)
+
+AI-DLC (AI-Driven Development Life Cycle) is AWS's method, introduced in 2025 by Raja SP; its [DevOps blog post](https://aws.amazon.com/blogs/devops/ai-driven-development-life-cycle) is the primary source, and the rules are open source at [awslabs/aidlc-workflows](https://awslabs.github.io/aidlc-workflows/guide/00-introduction/). Harness also sells a product it calls "AI DLC"; that is a different thing.
+
+| What the sources say | Use for us |
+|---|---|
+| The original method has **three phases**: Inception (intent to requirements, stories and units), Construction (architecture, domain models, code, tests), Operations (infrastructure and deployment, with oversight). | Our step names can follow these three groups. |
+| Ceremonies: **Mob Elaboration** (the team validates the AI's questions and proposals) and **Mob Construction** (the team clarifies technical choices as it builds). Both are human gates. | Our plan-approval gate is a mob-elaboration moment; a review gate is a mob-construction one. |
+| **Bolts** replace sprints: short cycles of hours or days. **Units of Work** replace epics. | Our "round" and "unit" in the task model. |
+| "AI implements only after human validation and defers critical decisions to humans." Plans and design artifacts live **in the repository** so context lasts across sessions. | Matches D16 and the files-between-steps idea. |
+| The **open-source rules (v2)** are larger than the paper: five phases (Initialization, Ideation, Inception, Construction, Operation) and 33 stages, approval after each stage, records under `aidlc/spaces/<space>/intents/<date>-<label>/`, an `aidlc-state.md` progress file, an audit trail of every decision, and adaptive **scope** (11 levels from enterprise to express) and **depth** (Minimal, Standard, Comprehensive) for work and for test strategy. Started with `/aidlc <intent>`; it runs in Claude Code, Kiro, Codex CLI, Cursor, opencode and Copilot. | A model for our own file layout, the audit log, and an "adaptive depth" setting that maps to the economy dial. |
+| Maturity is unclear: some sources say Operations is barely specified, while the repo index lists version 2.0 (GA). | Do not copy the Operations phase wholesale. |
+
+I found no independent critique of AI-DLC itself in this pass (Thoughtworks and InfoQ write about AI in development generally, and warn of "cognitive debt" as AI writes more code). Still to do: read the method-definition paper and the stage chapters of the repo, and look at other published process families (spec-driven development, for example) before we fix our terms.
+
 ## Open questions
 
 0. Library: is serving on demand through the MCP server, with only a tiny core pushed, the right default? Where should workspace items live by default (in the repo, or private in the app's data)? Should existing skills and instruction files be adopted automatically as read-only sources?
 
 
-1. Is an engine in the app that walks the steps, with agents working inside each step, acceptable (instead of a fully autonomous main agent)?
-2. Which gates always stop for a person: plan approval, before merge, before deploy?
-3. Is there one economy / balanced / max-quality dial that shifts every tier at once?
-4. One run per piece of work, or a standing pipeline like CI that triggers on events?
-5. What counts as "changes code" for enforcement: any edit in a git worktree, or only commits?
-6. First version: a linear pipeline of about five steps, with parallel steps later?
-7. Which AI-DLC terms do we adopt? The published AI-DLC has Inception, Construction and Operations with short iterations and a person validating at each gate; this was written from memory and should be checked against the current source before we copy any wording.
+1. ~~Engine in the app~~ Decided, D15.
+2. ~~Which gates stop for a person~~ Decided, D16.
+3. ~~One dial~~ Decided, D17.
+4. ~~One run per piece of work, or a standing pipeline~~ Decided in spirit, D18: a run is a task found inside a session. A standing pipeline that triggers on events (like CI) is not wanted yet.
+5. ~~What counts as changing code~~ A commit, D18. How follow-ups and added tasks attach is proposed below and needs an answer.
+6. ~~First version~~ Linear, about five steps, D19.
+7. ~~AI-DLC terms~~ Researched, D20; see below. Still to decide which terms we use in the app.
+8. How does the app find where one task ends and the next begins? (proposed below)
+9. A follow-up after a task was finished: a new round of the same run, or a new run? (proposed below)
+10. How do we enforce "a commit follows a workflow" without touching the repo's git settings?
 
 ## Change log
 
+- 2026-10-08: answers to the open questions recorded (D15-D20); task and follow-up model proposed; framework-or-own-engine and first AI-DLC research added.
 - 2026-10-08: the rule reminder is sent on a message that points at something (medium and hard rules) or, for hard rules only, on every message; a medium rule no longer costs tokens on a message that matches nothing. Checked on a real Claude agent: the catalog arrives on prompt 10 and on the first prompt after `/compact`.
 - 2026-10-07: the pointing line leaves the choice to the agent (agy decoy test); fixed agy's hook reading the time/settings note as part of the user's message.
 - 2026-10-07: the library UI is built from the picked mocks; added the model comparison (Haiku, Sonnet, Opus), the long-session catalog check and agy's cost over ten turns.
