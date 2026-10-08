@@ -25,6 +25,7 @@ import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
 import { commandLine } from './commands'
 import { homeDirName } from './home'
+import { shellIntegration } from './shellIntegration'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -1647,7 +1648,9 @@ async function main() {
     if (!isDir(folder)) throw new Error('That folder is not there any more.')
     const id = `term:${randomUUID()}`
     const file = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
-    const p = pty.spawn(file, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: env as Record<string, string> })
+    // On Mac and Linux zsh and bash are started so they mark each prompt, which the terminal uses to jump between commands.
+    const start = process.platform === 'win32' ? { args: [], env: {} } : shellIntegration(file, join(HOME, 'shell-integration'), process.env.ZDOTDIR ?? '')
+    const p = pty.spawn(file, start.args, { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: { ...env, ...start.env } as Record<string, string> })
     shells.set(id, p)
     p.onData((d) => {
       // When the first prompt is drawn the shell is what is in front: that is its name for "waiting for a command".
