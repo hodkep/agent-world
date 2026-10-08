@@ -2499,3 +2499,9 @@ aside:not(.drawer) { flex: none; }
 .who-list .ptag { justify-self: start; }
 .tier-none { color: var(--dim); font-size: 12px; align-self: center; }
 .set-sub { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+
+/* The copy button on a quoted block: an icon in the corner, faint until the block is hovered. */
+.md blockquote { position: relative; }
+.md blockquote .quote-copy { position: absolute; top: 4px; right: 4px; width: 24px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; opacity: 0.55; }
+.md blockquote:hover .quote-copy, .md blockquote .quote-copy:focus-visible, .md blockquote .quote-copy[data-copied] { opacity: 1; }
+.md blockquote:has(.quote-copy) { padding-right: 36px; }

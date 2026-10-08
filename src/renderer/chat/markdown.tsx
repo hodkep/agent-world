@@ -1,4 +1,4 @@
-import { runIconMarkup } from '../panel/IconButton'
+import { copyIconMarkup, runIconMarkup, tickIconMarkup } from '../panel/IconButton'
 import { RUN_EVENT, runnable } from './runnable'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
@@ -127,6 +127,24 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
         run.onclick = () => window.dispatchEvent(new CustomEvent(RUN_EVENT, { detail: { text: command } }))
         pre.appendChild(run)
       }
+    }
+    // A quoted block (a prompt to try, a line to say) is meant to be copied as much as code is: a button in its corner, shown without hovering.
+    for (const quote of el.querySelectorAll<HTMLElement>('blockquote')) {
+      if (quote.querySelector(':scope > .copy') || quote.parentElement?.closest('blockquote')) continue
+      const b = document.createElement('button')
+      b.className = 'copy quote-copy'
+      b.innerHTML = copyIconMarkup()
+      b.setAttribute('aria-label', 'Copy')
+      b.title = 'Copy'
+      b.onclick = () => {
+        const words = [...quote.children].filter((c) => c !== b).map((c) => (c as HTMLElement).innerText ?? c.textContent ?? '').join('\n\n').trim()
+        void navigator.clipboard.writeText(words).then(() => {
+          b.innerHTML = tickIconMarkup()
+          b.dataset.copied = 'true'
+          setTimeout(() => ((b.innerHTML = copyIconMarkup()), delete b.dataset.copied), 1200)
+        })
+      }
+      quote.appendChild(b)
     }
     for (const code of el.querySelectorAll<HTMLElement>('pre > code')) {
       const lang = /language-([\w+-]+)/.exec(code.className)?.[1]
