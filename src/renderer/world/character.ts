@@ -5,7 +5,7 @@ import type { Box } from './overlap'
 import { textPixels } from './pixelfont'
 import { modeInfo } from '../../shared/modes'
 import { type Pose, type View, characterTexture, iconTexture, paletteFor, pixelTexture } from './sprites'
-import type { Role } from './worldState'
+import { type Role, readingCaption } from './worldState'
 
 const WALK_TILES_PER_SEC = 5
 const SPRITE_H = 24
@@ -73,6 +73,8 @@ export class Character {
   private post: Pt[] = []
   activity: Activity = 'idle'
   detail?: string
+  /** The library item it is reading at the bookshelf: a pill over its head says so. */
+  reading?: string
   contextPct: number | null = null
   private seated = false
   private readonly gauge = new Graphics()
@@ -297,7 +299,8 @@ export class Character {
   }
 
   /** Big states get a scene instead of a bubble: a hologram for commands, a thought web, a page being written. */
-  private effect(): 'hologram' | 'thought' | 'writing' | null {
+  private effect(): 'hologram' | 'thought' | 'writing' | 'reading' | null {
+    if (this.reading) return 'reading'
     if (this.activity === 'thinking') return 'thought'
     if (!this.seated) return null
     if (this.activity === 'running') return 'hologram'
@@ -324,6 +327,7 @@ export class Character {
     if (kind === 'hologram') this.drawHologram(g, t)
     else if (kind === 'thought') this.drawThought(g, t)
     else if (kind === 'writing') this.drawWriting(g, t)
+    else if (kind === 'reading') this.drawReading(g)
   }
 
   // A sci-fi projection rising from the desk: cyan panel, scanlines, scrolling output, the live command on top.
@@ -401,6 +405,22 @@ export class Character {
     }
     const name = (this.detail ?? 'writing').slice(0, 10)
     this.caption(name, 0xf6e27a, x0, y0 - 7)
+  }
+
+  /** A white pill with a small book and what the agent is reading, like the speech bubbles but wide enough for words. */
+  private drawReading(g: Graphics) {
+    const text = readingCaption(this.reading ?? '')
+    const ink = 0x14111c
+    const w = (textPixels(text)[0]?.length ?? 0) + 10
+    const x0 = Math.round(TILE / 2 - w / 2)
+    const y0 = this.top - 14
+    g.rect(x0 - 1, y0 - 1, w + 2, 11).fill(ink)
+    g.rect(x0, y0, w, 9).fill(0xf6f6fa)
+    g.rect(Math.round(TILE / 2), y0 + 9, 1, 2).fill(ink)
+    g.rect(x0 + 2, y0 + 2, 4, 5).fill(ink)
+    g.rect(x0 + 3, y0 + 3, 2, 1).fill(0xf6f6fa)
+    g.rect(x0 + 3, y0 + 5, 2, 1).fill(0xf6f6fa)
+    this.caption(text, ink, x0 + 8, y0 + 2)
   }
 
   private drawBubble(t: number) {

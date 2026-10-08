@@ -390,7 +390,7 @@ const libraryService = createLibraryService({
     return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id, viaHook: !!providerOf(a).libraryHook } : undefined
   },
   workspaceKey: repoSlug,
-  onUse: (id, how) => send('library-use', id, how)
+  onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)

@@ -44,6 +44,8 @@ export interface AgentView {
   linesChanged: number
   /** It has just read something from the library: it walks to the bookshelf and pulls the book out while it reads. */
   reading?: boolean
+  /** The library item it is reading, for the pill over its head. */
+  readingName?: string
 }
 
 export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void }
@@ -467,6 +469,7 @@ export class OfficeWorld {
       c.mode = a.state.mode
       c.contextPct = a.contextPct
       c.subagents = Object.keys(a.state.interns).length
+      c.reading = a.reading ? a.readingName ?? 'library' : undefined
       this.route(c, a.state.activity, false, a.state.detail, a.state.mode, a.reading)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
