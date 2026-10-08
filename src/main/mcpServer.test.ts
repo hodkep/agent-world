@@ -137,3 +137,47 @@ describe('the library tools', () => {
     expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('library_get')
   })
 })
+
+describe('agent-world MCP server: subagents', () => {
+  const calls: string[] = []
+  const subagents = {
+    spawn: async (caller: string, i: { provider: string; task: string; background?: boolean }) => {
+      calls.push(`spawn:${caller}:${i.provider}:${i.task}:${i.background ?? false}`)
+      if (i.task === 'too many') throw new Error('This agent already has 3 subagents working.')
+      return { id: 'c1', name: 'bo', status: i.background ? ('working' as const) : ('done' as const), branch: 'aw/bo', ...(i.background ? {} : { report: 'Added it.' }) }
+    },
+    wait: async (caller: string, ids: string[]) => (calls.push(`wait:${caller}:${ids.join(',')}`), { id: ids[0]!, name: 'bo', status: 'done' as const, branch: 'aw/bo', report: 'Added it.' }),
+    stop: (caller: string, id: string) => (calls.push(`stop:${caller}:${id}`), 'Stopped bo.')
+  }
+
+  it('offers the subagent tools only when the office can start subagents', async () => {
+    const without = await connect((await setup()).url, 'a1')
+    expect((await without.listTools()).tools.map((t) => t.name)).not.toContain('spawn_subagent')
+    server?.close()
+    server = await startMcpServer({ agentForToken: (t) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued', remember: () => {}, recall: () => [], subagents })
+    const c = await connect(server.url, 'a1')
+    expect((await c.listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['spawn_subagent', 'await_subagents', 'stop_subagent']))
+  })
+
+  it('hands the call to the office as the caller, and answers with the child and its report', async () => {
+    calls.length = 0
+    server?.close()
+    server = await startMcpServer({ agentForToken: (t) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued', remember: () => {}, recall: () => [], subagents })
+    const c = await connect(server.url, 'a1')
+    const r = JSON.parse(text(await c.callTool({ name: 'spawn_subagent', arguments: { provider: 'agy', task: 'Add GET /export' } })))
+    expect(r).toMatchObject({ id: 'c1', status: 'done', branch: 'aw/bo', report: 'Added it.' })
+    await c.callTool({ name: 'await_subagents', arguments: { ids: ['c1'] } })
+    await c.callTool({ name: 'stop_subagent', arguments: { id: 'c1' } })
+    expect(calls).toEqual(['spawn:a1:agy:Add GET /export:false', 'wait:a1:c1', 'stop:a1:c1'])
+  })
+
+  it('says why it could not, as an error the agent can read, and refuses a program it does not know', async () => {
+    server?.close()
+    server = await startMcpServer({ agentForToken: (t) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued', remember: () => {}, recall: () => [], subagents })
+    const c = await connect(server.url, 'a1')
+    const r = await c.callTool({ name: 'spawn_subagent', arguments: { provider: 'claude', task: 'too many' } })
+    expect((r as { isError?: boolean }).isError).toBe(true)
+    expect(text(r)).toContain('already has 3 subagents')
+    await expect(c.callTool({ name: 'spawn_subagent', arguments: { provider: 'gpt', task: 'x' } })).resolves.toMatchObject({ isError: true })
+  })
+})

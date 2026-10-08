@@ -26,6 +26,7 @@ import type { EventHandle, EventSourceOptions, Provider } from './providers/port
 import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
+import { createSubagents } from './subagentService'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -885,7 +886,42 @@ async function main() {
     }
   }
   idleCheck = setTimeout(sweep, 300)
+  // Agents starting agents of either program as their subagents: the child is a real agent, left out of the office, that shows in its parent's subagents.
+  const subagents = createSubagents<AgentRecord>({
+    agents: () => agents,
+    byId,
+    create: async (parent, i) => {
+      const p = providers().find((x) => x.id === i.provider)
+      if (!p) throw new Error(`There is no program called ${i.provider}.`)
+      if ((await p.detect(binFor(p))).state !== 'ready') throw new Error(`${p.label} is not ready on this computer (is it installed and signed in?).`)
+      const wanted = i.branch ? cleanName(i.branch.replace(/^aw\//, '')) : ''
+      const name = wanted ? checkName(wanted, agents.map((a) => a.name)) : await nextName(parent.repoPath)
+      if (wanted && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
+      const own = i.worktree !== false && (await isGitRepo(parent.repoPath))
+      const wt = own ? await createWorktree({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), ...(parent.branch && { from: parent.branch }) }) : null
+      // It cannot be answered if it stops to ask (it is not in the office), so it works the way its parent does; one that only reads cannot change anything.
+      const mode = !wt ? p.autonomy.plan : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
+      const child: AgentRecord = {
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: parent.repoPath, cwd: wt?.path ?? parent.cwd, branch: wt?.branch ?? null, base: wt?.base ?? null, provider: p.id, started: false, hiredAt: Date.now(), parent: parent.id, task: i.task,
+        options: fitOptions(p.models, { provider: p.id, ...(mode && { permissionMode: mode as PermissionMode }), ...(i.model && p.models.some((m) => m.value === i.model) && { model: i.model }) })
+      }
+      accountsSvc.assign(child, prefs.defaults.accounts[p.id])
+      agents.push(child)
+      persist()
+      spawn(child, env)
+      return child
+    },
+    deliver: (child, text) => void mailbox.send(child.parent!, child.name, text, { expectsReply: false }),
+    items: (id) => {
+      const a = byId(id)
+      return a ? providerOf(a).transcript.readAll(a) : []
+    },
+    idle: (id) => ['idle', 'waiting'].includes(lastActivity.get(id) ?? ''),
+    alive: (id) => sessions.has(id),
+    stop: (id) => sessions.get(id)?.kill()
+  })
   const mcp = await startMcpServer({
+    subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
       agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
@@ -1138,7 +1174,7 @@ async function main() {
     return workspaceInfo(e.sender.id)
   })
   ipcMain.handle('window:new', () => void createWindow())
-  ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
+  ipcMain.handle('list-agents', () => agents.filter((a) => !a.parent).map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
@@ -1384,6 +1420,7 @@ async function main() {
   const removeAgent = async (id: string, mode?: 'discard' | 'keep-worktree', merged = false): Promise<RemoveResult> => {
     const a = byId(id)
     if (!a) return { ok: true }
+    for (const c of agents.filter((x) => x.parent === id)) await removeAgent(c.id, mode, merged)
     sessions.get(id)?.kill()
     // An agent that took over another's worktree leaves it in place while the other still uses it.
     const shared = agents.some((x) => x.id !== id && x.cwd === a.cwd)
@@ -1590,12 +1627,14 @@ async function main() {
   // What the agent's subagents have done so far, from the files Claude keeps for them next to the session.
   ipcMain.handle('subagents:list', (_, id: string) => {
     const a = byId(id)
-    return a ? providerOf(a).transcript.subagents(a) : []
+    return a ? [...providerOf(a).transcript.subagents(a), ...subagents.infos(a.id)] : []
   })
   // One subagent's own conversation, to be read like an agent's.
   ipcMain.handle('subagents:chat', (_, id: string, subagentId: string) => {
     const a = byId(id)
-    return a ? (providerOf(a).transcript.subagentConversation?.(a, subagentId) ?? []) : []
+    if (!a) return []
+    const child = subagents.conversation(a.id, subagentId)
+    return child.length ? child : (providerOf(a).transcript.subagentConversation?.(a, subagentId) ?? [])
   })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
   // A terminal draws its own text, so the page cannot tell the system what is selected: the terminal asks for the menu itself.

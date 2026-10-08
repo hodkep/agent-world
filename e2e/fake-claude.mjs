@@ -236,6 +236,18 @@ async function sendViaOffice(to, message) {
   console.log(`send_message → ${r.content[0].text}`)
   await client.close()
 }
+// FAKE_SPAWN=ada:claude:task makes the agent named ada start a subagent through the office and print what came back.
+async function spawnViaOffice(provider, task) {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
+  const server = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world']
+  const client = new Client({ name: 'fake-claude', version: '1' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }))
+  const r = await client.callTool({ name: 'spawn_subagent', arguments: { provider, task } }, undefined, { timeout: 120000 })
+  console.log(`spawn_subagent → ${r.content[0].text}`)
+  await client.close()
+}
+const [spawnFrom, spawnProvider, ...spawnTask] = (process.env.FAKE_SPAWN ?? '').split(':')
 const [sendFrom, sendTo, ...sendText] = (process.env.FAKE_SEND ?? '').split(':')
 const myName = args.includes('--name') ? flag('--name') : null
 
@@ -277,6 +289,8 @@ if (process.env.FAKE_LOOP) {
 // FAKE_CHAT=1: an idle agent that answers each prompt it is sent, keeping the saved conversation like real Claude does.
 if (process.env.FAKE_CHAT) {
   await hook('Stop')
+  // The chat agent has no script to reach the line further down, so it starts its subagent once its screen is up.
+  if (myName && myName === spawnFrom) setTimeout(() => void spawnViaOffice(spawnProvider, spawnTask.join(':')).catch((e) => console.log(`spawn failed: ${e.message}`)), 2500)
   let typed = ''
   const prompts = []
   const waiting = []
@@ -539,6 +553,7 @@ if (myName && myName === sendFrom) {
   await hook('PreToolUse', { tool_name: 'mcp__agent-world__send_message', tool_input: { to: sendTo, message: sendText.join(':') } })
   await sendViaOffice(sendTo, sendText.join(':'))
 }
+if (myName && myName === spawnFrom) await spawnViaOffice(spawnProvider, spawnTask.join(':'))
 // FAKE_PLAN=1: plan mode — tasks, a plan, then Claude's plan menu drawn in the terminal and driven by keys.
 if (process.env.FAKE_PLAN) {
   const pm = { permission_mode: 'plan' }
