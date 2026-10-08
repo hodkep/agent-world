@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { highlightOpening, spineLook, tierOf } from './libraryShelf'
+import { findItems, highlightOpening, spineLook, tierOf } from './libraryShelf'
 
 describe('tierOf', () => {
   const rules = [
@@ -37,5 +37,30 @@ describe('highlightOpening', () => {
   })
   it('returns the text whole when there is nothing to mark', () => {
     expect(highlightOpening('plain', [], [])).toEqual([{ text: 'plain' }])
+  })
+})
+
+describe('spineLook, small', () => {
+  const item = { name: 'tdd', tokens: { description: 20, body: 900 } }
+  it('keeps the colour and is shorter, so a whole shelf fits in one view', () => {
+    expect(spineLook(item, true).colour).toBe(spineLook(item).colour)
+    expect(spineLook(item, true).height).toBeLessThan(spineLook(item).height * 0.7)
+    expect(spineLook({ name: 'x', tokens: { description: 1, body: 1e6 } }, true).height).toBeLessThanOrEqual(64)
+  })
+})
+
+describe('findItems', () => {
+  const items = [
+    { name: 'tdd', description: 'Test-driven development.' },
+    { name: 'code-review', description: 'Review the changes since a fixed point.' },
+    { name: 'pdf', description: 'Work with PDFs.' }
+  ]
+  it('matches a name or a description, ignoring case and spaces at the ends', () => {
+    expect(findItems(items, ' REVIEW ').map((i) => i.name)).toEqual(['code-review'])
+    expect(findItems(items, 'driven').map((i) => i.name)).toEqual(['tdd'])
+  })
+  it('gives everything for an empty search and nothing for a miss', () => {
+    expect(findItems(items, '')).toHaveLength(3)
+    expect(findItems(items, 'zzz')).toEqual([])
   })
 })

@@ -49,6 +49,9 @@ export function placeFor(activity: Activity, intern: boolean, mode?: string, rea
   return 'desk'
 }
 
+/** What the pill over an agent at the bookshelf says: short, because it is drawn on the pixel grid above one desk. */
+export const readingCaption = (item: string) => `read ${item}`.slice(0, 20)
+
 export const emptyWorld = (): World => ({})
 
 export const roleOf = (a: AgentState): Role => (Object.keys(a.interns).length > 0 ? 'boss' : 'senior')

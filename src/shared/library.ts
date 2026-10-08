@@ -44,6 +44,7 @@ export interface LibraryPreview {
   overBudget: boolean
   indexIds: string[]
   reminder: string
+  hardReminder: string
   rules: PlaybookRule[]
 }
 

@@ -34,7 +34,7 @@ interface Deps {
   /** A short file-name-safe key for a workspace. */
   workspaceKey: (repoPath: string) => string
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
-  onUse?: (agentId: string, how: How) => void
+  onUse?: (agentId: string, how: How, item: string) => void
 }
 
 const MAX_FILE = 100 * 1024
@@ -45,7 +45,7 @@ export function createLibraryService(d: Deps) {
   const playbooks = new Playbooks(d.root)
   const log = new UseLog(join(d.root, 'uses.jsonl'))
   // Per agent: how many prompts it has had, whether it can fetch, its per-turn rule reminder, and whether the full catalog is due again.
-  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; catalogDue: boolean }>()
+  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean }>()
   // When each agent's hook last called the office.
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
@@ -87,7 +87,7 @@ export function createLibraryService(d: Deps) {
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
     log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words })
-    d.onUse?.(a.id, how)
+    d.onUse?.(a.id, how, id)
   }
 
   return {
@@ -101,7 +101,7 @@ export function createLibraryService(d: Deps) {
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
-      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, catalogDue: false })
+      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
@@ -117,16 +117,19 @@ export function createLibraryService(d: Deps) {
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
-    /** Called at each prompt (Claude's hook): the rule reminder, the library items the prompt points at, and now and then the whole catalog. */
+    /** Called at each prompt (Claude's hook): the rule reminder (all medium and hard rules when the prompt points at something, else the hard ones), the library items the prompt points at, and now and then the whole catalog. */
     remind(agentId: string, prompt: string): string {
       const st = state.get(agentId)
       if (!st) return ''
       st.turn++
-      const parts = st.reminder ? [st.reminder] : []
       const entries = indexSync(agentId)
       const onDemand = entries.filter((e) => e.mode === 'on-demand')
       const items = itemsMap()
-      for (const m of matchItems(prompt, onDemand, MATCHES)) {
+      const matched = matchItems(prompt, onDemand, MATCHES)
+      // A message that points at nothing gets the reminder only for a hard rule; a medium one is not worth its tokens on every message.
+      const reminder = matched.length ? st.reminder : st.hardReminder
+      const parts = reminder ? [reminder] : []
+      for (const m of matched) {
         // How to get it. Claude: the office's tool (allowed without a prompt), else the skill by name. Others: the skill's file by its path, which the library folder being in their workspace allows without a prompt (a tool of the office would ask each time).
         const it = items.get(m.id)
         const file = it?.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
