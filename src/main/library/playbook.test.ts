@@ -53,5 +53,8 @@ describe('what an agent is told when it starts', () => {
     const c = compile([rule('a', { mode: 'always', strength: 'medium', when: '' }), rule('b', { strength: 'hard', when: 'before a commit' }), rule('c', { strength: 'soft' })], items(item('a'), item('b'), item('c')), { canFetch: true })
     expect(c.reminder).toBe('Reminder: a (always); b (before a commit).')
     expect(compile([rule('c')], items(item('c')), { canFetch: true }).reminder).toBe('')
+    // the line sent on every message holds the hard rules only
+    expect(c.hardReminder).toBe('Reminder: b (before a commit).')
+    expect(compile([rule('a', { mode: 'always', strength: 'medium' })], items(item('a')), { canFetch: true }).hardReminder).toBe('')
   })
 })

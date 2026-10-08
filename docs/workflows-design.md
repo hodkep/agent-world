@@ -187,6 +187,7 @@ Full report: `reports/Making coding agents follow instructions.md` (notes in `re
 
 ## Change log
 
+- 2026-10-08: the rule reminder is sent on a message that points at something (medium and hard rules) or, for hard rules only, on every message; a medium rule no longer costs tokens on a message that matches nothing. Checked on a real Claude agent: the catalog arrives on prompt 10 and on the first prompt after `/compact`.
 - 2026-10-07: the pointing line leaves the choice to the agent (agy decoy test); fixed agy's hook reading the time/settings note as part of the user's message.
 - 2026-10-07: the library UI is built from the picked mocks; added the model comparison (Haiku, Sonnet, Opus), the long-session catalog check and agy's cost over ten turns.
 - 2026-10-07: first version, from the brainstorm. Decisions D1–D9 recorded; the rest is proposed.

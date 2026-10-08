@@ -96,6 +96,17 @@ describe('what an agent is given from the library', () => {
       expect(svc.remind('a1', 'rename the lamp post')).not.toContain('pdf')
       expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 0 })
     })
+    it('sends the rule reminder only when the message matched something, or for a hard rule', async () => {
+      await svc.prepare('a1', true, true)
+      // terse is medium: reminded on a message that points at something, not on one that matches nothing
+      expect(svc.remind('a1', 'rename the lamp post')).toBe('')
+      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always).')
+      svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
+      await svc.prepare('a1', true, true)
+      // a hard rule is reminded on every message, and only the hard one when nothing matched
+      expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always); pdf (working with PDFs).')
+    })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
       await svc.prepare('a1', true)
       svc.remind('a1', 'split this pdf into pages')

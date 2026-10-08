@@ -134,7 +134,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(nudged).toContain("Library: pdf covers this kind of work")
     expect(nudged).toContain("library_get('pdf')")
     expect(nudged).toContain('Reminder: terse (always).')
-    expect(JSON.parse(await prompt('rename the lamp post')).hookSpecificOutput.additionalContext).not.toContain('pdf')
+    // terse is medium, so a message that points at nothing gets no reminder either
+    expect(await prompt('rename the lamp post')).toBe('')
     // Its own Skill tool is counted too (and only for items of the library), and the stats say triggered, answered and used.
     const tool = (name: string, input: object) => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: name, tool_input: input }) })
     await tool('Skill', { skill: 'agent-world-library:pdf' })

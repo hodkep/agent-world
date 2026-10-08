@@ -28,7 +28,7 @@ const GLOSSARY: [string, string][] = [
   ['Pointed at', 'Only a line that says when it applies is in the opening text. When a message matches, the agent is pointed at the item and reads it then.'],
   ['By a step', 'A workflow step puts the item in when that step starts. It is not in the opening text.'],
   ['Off', 'In the library, but in no opening text and never pointed at.'],
-  ['Strength', 'How firmly the agent is reminded each turn: soft is a hint, hard is an instruction.'],
+  ['Strength', 'How firmly the agent is reminded: soft is a hint. Medium is reminded on a message that points at something. Hard is reminded on every message.'],
   ['Opening text', 'What an agent is given when it starts: the told items, the list of when-lines and how to read an item.'],
   ['When it applies', 'One plain sentence. A message that sounds like it makes the agent point at the item.'],
   ['Tokens', 'Roughly three quarters of a word. Opening text is capped at 300 so it stays cheap.'],
@@ -332,8 +332,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 {trialOut && <p className="hint" role="status">{trialOut.length ? `It would point the agent at ${trialOut.map((m) => m.name).join(', ')}.` : 'It would point at nothing: no item\'s "when" sounds like it.'}</p>}
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
-                <h4>Reminder each turn</h4>
-                <p className="hint">{preview?.reminder || (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
+                <h4>Reminder</h4>
+                <p className="hint">{preview?.reminder ? `${preview.reminder}${preview.hardReminder && preview.hardReminder !== preview.reminder ? ` On every message: ${preview.hardReminder}` : preview.hardReminder ? ' On every message.' : ' Only on a message that points at something.'}` : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
                 {holders.length > 0 && (
                   <>
                     <h4>Who gets this</h4>
