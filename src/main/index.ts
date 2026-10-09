@@ -469,7 +469,7 @@ const todoRemind = (id: string, prompt: string): string => {
   }
 }
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
-const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)
+const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search', 'library_skip'].map((t) => `mcp__agent-world__${t}`)
 // The todo board is the project's own list, so an agent may use it without asking each time too.
 const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
@@ -1047,7 +1047,8 @@ async function main() {
     library: {
       index: (caller) => libraryService.index(caller),
       get: (caller, id, file) => libraryService.get(caller, id, file),
-      search: (caller, query) => libraryService.search(caller, query)
+      search: (caller, query) => libraryService.search(caller, query),
+      skip: (caller, id, reason) => libraryService.skip(caller, id, reason)
     }
   })
   const pages = await startFileServer()

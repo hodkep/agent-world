@@ -119,7 +119,7 @@ describe('what an agent is given from the library', () => {
       svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
       await svc.prepare('a1', true, true)
       // a hard rule is reminded on every message, and only the hard one when nothing matched
-      expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+      expect(svc.remind('a1', 'rename the lamp post')).toContain('Reminder: pdf (working with PDFs).')
       expect(svc.remind('a1', 'start working on this pdf')).toContain('Reminder: terse (always); pdf (working with PDFs).')
     })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
@@ -233,5 +233,57 @@ describe('what an agent is given from the library', () => {
       await svc.prepare('a1', true)
       expect(svc.silent('/work/shop', () => Date.now() + 60_000)).toEqual([])
     })
+  })
+})
+
+describe('the forced check on a hard rule', () => {
+  beforeEach(() => svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }]))
+  it('asks the agent to say which rules apply, read the one that does, and report one it passes over', async () => {
+    await svc.prepare('a1', true)
+    const r = svc.remind('a1', 'rename the lamp post')
+    expect(r).toContain('Reminder: pdf (working with PDFs).')
+    expect(r).toMatch(/before your first tool call.*one line.*which of these apply/i)
+    expect(r).toContain("library_get('pdf')")
+    expect(r).toContain('library_skip')
+  })
+  it('does not add it for a medium rule, or to an agent that cannot call the tools', async () => {
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'medium' }])
+    await svc.prepare('a1', true)
+    expect(svc.remind('a1', 'split this pdf into pages')).not.toContain('library_skip')
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
+    await svc.prepare('a2', false)
+    expect(svc.remind('a2', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+  })
+  it('is off when the playbook turns it off (the workspace over the global), and says what it costs', async () => {
+    svc.playbooks.writeFeatures('global', { forcedCheck: false })
+    await svc.prepare('a1', true)
+    expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: true })
+    await svc.prepare('a1', true)
+    expect(svc.remind('a1', 'rename the lamp post')).toContain('library_skip')
+    const c = svc.compileFor('/work/shop', true)
+    expect(c.features.forcedCheck).toBe(true)
+    expect(c.forcedCheckTokens).toBeGreaterThan(20)
+    expect(c.forcedCheckTokens).toBeLessThan(120)
+  })
+  it('keeps the rules when a feature is written, and the features when rules are written', () => {
+    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: false })
+    expect(svc.playbooks.read({ workspace: 'shop' })).toHaveLength(1)
+    svc.playbooks.write({ workspace: 'shop' }, [])
+    expect(svc.playbooks.readFeatures({ workspace: 'shop' })).toEqual({ forcedCheck: false })
+  })
+})
+
+describe('an agent passing over an item', () => {
+  it('is logged with its reason, and refused for an item outside its playbook or with no reason', async () => {
+    await svc.prepare('a1', true)
+    svc.skip('a1', 'pdf', 'the question is only about PDFs')
+    expect(svc.usesOf('a1').find((u) => u.how === 'skipped')).toMatchObject({ id: 'pdf', reason: 'the question is only about PDFs' })
+    expect(svc.stats().items.pdf).toMatchObject({ declined: 1, reasons: ['the question is only about PDFs'] })
+    expect(pushed).toContain('a1:skipped')
+    expect(() => svc.skip('a1', 'secret', 'x')).toThrow('not in this workspace')
+    expect(() => svc.skip('a1', 'pdf', '   ')).toThrow('reason')
+    expect(svc.skip('a1', 'pdf', 'x'.repeat(500))).toBeUndefined()
+    expect(svc.usesOf('a1').at(-1)!.reason).toHaveLength(200)
   })
 })

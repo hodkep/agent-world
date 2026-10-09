@@ -50,6 +50,7 @@ interface Options {
     index: (callerId: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
     get: (callerId: string, id: string, file?: string) => Promise<string>
     search: (callerId: string, query: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
+    skip: (callerId: string, id: string, reason: string) => void
   }
 }
 
@@ -228,6 +229,21 @@ function addLibraryTools(server: McpServer, callerId: string, lib: LibraryApi) {
       try {
         const list = await lib.search(callerId, query)
         return { content: [{ type: 'text' as const, text: list.length ? list.map(lineOf).join('\n') : 'Nothing matches.' }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'library_skip',
+    {
+      description: 'Say that a library item you were pointed at does not apply to this task, and why. Call it when you decide not to read an item a reminder named; do not call it for items nobody pointed at.',
+      inputSchema: { id: z.string().min(1).max(80).describe('The id of the item'), reason: z.string().min(1).max(500).describe('Why it does not apply, in a few words') }
+    },
+    async ({ id, reason }) => {
+      try {
+        lib.skip(callerId, id, reason)
+        return { content: [{ type: 'text' as const, text: `Noted: ${id} does not apply.` }] }
       } catch (err) {
         return fail(err)
       }

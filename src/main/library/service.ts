@@ -6,6 +6,7 @@ import { writePluginDir } from './pluginDir'
 import { matchItems } from './match'
 import { buildCatalog } from './catalog'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
+import type { PlaybookFeatures } from '../../shared/library'
 
 export interface AgentRef {
   id: string
@@ -54,6 +55,8 @@ export function createLibraryService(d: Deps) {
   const MATCHES = 3
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
+  /** The switches in force: the defaults, then the global playbook's, then the workspace's. */
+  const featuresFor = (repoPath: string): Required<PlaybookFeatures> => ({ forcedCheck: true, ...playbooks.readFeatures('global'), ...playbooks.readFeatures({ workspace: d.workspaceKey(repoPath) }) })
   const itemsMap = () => new Map(library.listSync().map((i) => [i.id, i]))
   const agentOrThrow = (id: string) => {
     const a = d.agent(id)
@@ -63,9 +66,10 @@ export function createLibraryService(d: Deps) {
   const notAllowed = (id: string) => new Error(`${id} is not in this workspace's playbook. Call library_index to see what is available.`)
 
   /** The rules and what they compile to for a workspace, before any agent is involved (the Settings preview uses this). */
-  function compileFor(repoPath: string, canFetch: boolean): Compiled & { rules: Rule[] } {
+  function compileFor(repoPath: string, canFetch: boolean): Compiled & { rules: Rule[]; features: Required<PlaybookFeatures> } {
     const rules = rulesFor(repoPath)
-    return { ...compile(rules, itemsMap(), { canFetch }), rules }
+    const features = featuresFor(repoPath)
+    return { ...compile(rules, itemsMap(), { canFetch, forcedCheck: features.forcedCheck }), rules, features }
   }
 
   function entriesFor(repoPath: string): IndexEntry[] {
@@ -83,12 +87,12 @@ export function createLibraryService(d: Deps) {
   const indexSync = (agentId: string) => entriesFor(agentOrThrow(agentId).repoPath)
   const index = async (agentId: string) => indexSync(agentId)
 
-  function record(agentId: string, id: string, how: How, mode?: string, words?: string) {
+  function record(agentId: string, id: string, how: How, mode?: string, words?: string, reason?: string) {
     const a = d.agent(agentId)
     if (!a) return
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
-    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words })
+    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words, reason })
     if (how === 'fetched' || how === 'skill' || how === 'read') state.get(agentId)?.read.add(id)
     d.onUse?.(a.id, how, id)
   }
@@ -149,6 +153,14 @@ export function createLibraryService(d: Deps) {
         parts.push(buildCatalog(entries))
       }
       return parts.join('\n')
+    },
+
+    /** The agent says a library item it was pointed at does not apply; what it says is kept, so the playbook's wording can be tuned. */
+    skip(agentId: string, id: string, reason: string): void {
+      if (!indexSync(agentId).some((e) => e.id === id)) throw notAllowed(id)
+      const why = reason.trim().slice(0, 200)
+      if (!why) throw new Error('Say in a few words why it does not apply: a reason is needed.')
+      record(agentId, id, 'skipped', undefined, undefined, why)
     },
 
     /** The agent lost its earlier context (compaction): show it the catalog again at its next prompt. */
