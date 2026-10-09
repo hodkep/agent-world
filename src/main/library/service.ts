@@ -155,6 +155,12 @@ export function createLibraryService(d: Deps) {
       return parts.join('\n')
     },
 
+    /** The switches of the global playbook, with their defaults (what the Library window and Setup show and change). */
+    features: (): Required<PlaybookFeatures> => ({ forcedCheck: true, ...playbooks.readFeatures('global') }),
+    setFeatures(f: PlaybookFeatures): void {
+      playbooks.writeFeatures('global', { forcedCheck: !!f.forcedCheck })
+    },
+
     /** The agent says a library item it was pointed at does not apply; what it says is kept, so the playbook's wording can be tuned. */
     skip(agentId: string, id: string, reason: string): void {
       if (!indexSync(agentId).some((e) => e.id === id)) throw notAllowed(id)

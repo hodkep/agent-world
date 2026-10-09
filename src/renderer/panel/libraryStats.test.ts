@@ -28,4 +28,21 @@ describe('reachedFor', () => {
   it('sums to one line: how often pointed, how often read, and the share', () => {
     expect(reachedFor(stats({ a: [10, 5], b: [10, 7] }), 'both', () => '')).toMatchObject({ pointed: 20, read: 12, share: 60 })
   })
+  it('tells apart an item agents said no to from one nobody answered, and groups what they said', () => {
+    const s = stats({ merge: [10, 2] })
+    s.items.merge!.declined = 6
+    s.items.merge!.byProvider.claude!.declined = 6
+    s.items.merge!.reasons = ['trivial, both sides only appended', 'No conflict markers left', 'trivial, both sides only appended', 'trivial, both sides only appended', 'trivial, both sides only appended', 'no conflict markers left']
+    const row = reachedFor(s, 'both', () => 'git stopped a merge').rows[0]!
+    expect(row).toMatchObject({ pointed: 10, read: 2, declined: 6, silent: 2 })
+    expect(row.text).toContain('6 said no')
+    expect(row.text).toContain('2 passed over without a word')
+    expect(row.reasons).toEqual([{ text: 'trivial, both sides only appended', n: 4 }, { text: 'no conflict markers left', n: 2 }])
+    expect(row.advice).toContain('narrower')
+  })
+  it('says nothing new for an item nobody said no to', () => {
+    const row = reachedFor(stats({ a: [10, 9] }), 'both', () => 'x').rows[0]!
+    expect(row).toMatchObject({ declined: 0, silent: 1, reasons: [], advice: '' })
+    expect(row.text).not.toContain('said no')
+  })
 })

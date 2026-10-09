@@ -1439,6 +1439,8 @@ async function main() {
     libraryService.playbooks.write(scope ? { workspace: repoSlug(scope) } : 'global', good)
     return good
   })
+  ipcMain.handle('playbook:features', () => libraryService.features())
+  ipcMain.handle('playbook:set-features', (_, f: { forcedCheck?: boolean }) => (libraryService.setFeatures({ forcedCheck: !!f?.forcedCheck }), libraryService.features()))
   ipcMain.handle('library:preview', (_, folder: string, providerId: string) => {
     const p = providers().find((x) => x.id === providerId) ?? providers()[0]
     const m = p ? mailState(p) : 'no'

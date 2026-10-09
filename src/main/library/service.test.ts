@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createLibraryService } from './service'
+import { FORCED_CHECK_TOKENS } from '../../shared/library'
 
 let dir: string
 let svc: ReturnType<typeof createLibraryService>
@@ -285,5 +286,20 @@ describe('an agent passing over an item', () => {
     expect(() => svc.skip('a1', 'pdf', '   ')).toThrow('reason')
     expect(svc.skip('a1', 'pdf', 'x'.repeat(500))).toBeUndefined()
     expect(svc.usesOf('a1').at(-1)!.reason).toHaveLength(200)
+  })
+})
+
+describe('the switch for the check, as the Library window and Setup use it', () => {
+  it('is on until someone turns it off, kept in the global playbook, and its cost is near the measured text', async () => {
+    expect(svc.features()).toEqual({ forcedCheck: true })
+    svc.setFeatures({ forcedCheck: false })
+    expect(svc.features()).toEqual({ forcedCheck: false })
+    expect(svc.playbooks.readFeatures('global')).toEqual({ forcedCheck: false })
+    // a project's own setting still wins when it has one
+    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: true })
+    expect(svc.compileFor('/work/shop', true).features.forcedCheck).toBe(true)
+    // the number shown to people is the size of the real sentence, give or take a few tokens
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'ui work', strength: 'hard' }])
+    expect(Math.abs(svc.compileFor('/work/shop', true).forcedCheckTokens - FORCED_CHECK_TOKENS)).toBeLessThanOrEqual(12)
   })
 })

@@ -41,6 +41,13 @@ export function LibraryReach({ byId, whenOf, onFix }: { byId: Map<string, Librar
               </span>
               <span className="reach-v">{x.text}</span>
             </button>
+            {open === x.id && x.reasons.length > 0 && (
+              <div className="reach-said" aria-label={`What agents said about ${x.id}`}>
+                <b>What agents said when they passed it over</b>
+                {x.reasons.map((r) => <span key={r.text} className="hint">“{r.text}”{r.n > 1 ? ` ×${r.n}` : ''}</span>)}
+                {x.advice && <span className="advice">{x.advice}</span>}
+              </div>
+            )}
             {open === x.id && (x.health === 'bad' || x.health === 'mid') && (
               <div className="reach-fix">
                 <button className="primary" onClick={() => onFix(x.id, 'when')}>Write a when</button>

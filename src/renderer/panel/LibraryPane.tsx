@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { describeReminder } from './libraryReminder'
+import { groupTokens } from './libraryCost'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode } from '../../shared/library'
 import type { ProviderId, ProviderInfo } from '../../shared/types'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
@@ -57,6 +59,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const ready = providers.filter((p) => p.detection.state === 'ready')
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
+  // The global switch for the check before acting (a project's own setting, if a playbook file has one, still wins for its agents).
+  const [checkOn, setCheckOn] = useState(true)
+  useEffect(() => void window.aw.library.features().then((f) => setCheckOn(f.forcedCheck), () => undefined), [])
   const [help, setHelp] = useState(false)
   const [tab, setTab] = useState<'shelf' | 'playbook' | 'reach'>('shelf')
   const [find, setFind] = useState('')
@@ -353,8 +358,14 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 {trialOut && <p className="hint" role="status">{trialOut.length ? `It would point the agent at ${trialOut.map((m) => m.name).join(', ')}.` : 'It would point at nothing: no item\'s "when" sounds like it.'}</p>}
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
+                <h4>Feature</h4>
+                <button className="su-toggle lib-feature" role="switch" aria-checked={checkOn} aria-label="Check before acting" onClick={() => void window.aw.library.setFeatures({ forcedCheck: !checkOn }).then((f) => (setCheckOn(f.forcedCheck), refreshPreview()), (e) => setError(clean(e)))}>
+                  <i />
+                  <span><b>Check before acting</b><small>{checkOn ? 'On: agents say which hard rules apply, and report the ones they skip.' : 'Off: agents get the plain reminder only.'}</small></span>
+                  <span className="lib-tok">{preview && preview.forcedCheckTokens === 0 ? 'nothing yet: no rule is hard' : `+≈ ${groupTokens(preview?.forcedCheckTokens ?? 0)} tokens / message`}</span>
+                </button>
                 <h4>Reminder</h4>
-                <p className="hint">{preview?.reminder ? `${preview.reminder}${preview.hardReminder && preview.hardReminder !== preview.reminder ? ` On every message: ${preview.hardReminder}` : preview.hardReminder ? ' On every message.' : ' Only on a message that points at something.'}` : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
+                <p className="hint">{preview?.reminder ? describeReminder(preview.reminder, effective.filter((r) => r.strength === 'hard' && r.mode !== 'off').map((r) => r.id)) : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
                 {holders.length > 0 && (
                   <>
                     <h4>Who gets this</h4>
