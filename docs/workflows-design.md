@@ -207,6 +207,26 @@ AI-DLC (AI-Driven Development Life Cycle) is AWS's method, introduced in 2025 by
 
 I found no independent critique of AI-DLC itself in this pass (Thoughtworks and InfoQ write about AI in development generally, and warn of "cognitive debt" as AI writes more code). Still to do: read the method-definition paper and the stage chapters of the repo, and look at other published process families (spec-driven development, for example) before we fix our terms.
 
+## Intent check (proposed, 2026-10-09, from cocain's report `docs/research/ai-dlc.md`)
+
+The gap: the agent can be wrong about what the user meant, and models are poor at noticing when a request is underspecified (Ambig-SWE; Ask or Assume). AI-DLC answers with questions first and approval after, and has no read-back of the agent's own understanding; none of Kiro, Spec Kit, BMAD, Cursor or Claude Code plan mode names one either, so this part would be new, not copied. Nothing found measures a plan-summary gate.
+
+**Where it sits.** Inside the plan gate of D16, not as a fourth gate. The plan step writes a fixed block at the top of `plan.md`: goal in one line; assumptions each marked *given* or *guessed*; out of scope; open questions. The engine checks the block in code (0 tokens, D15): missing block, no gate; non-empty open questions, the gate shows them as choices with pros and cons. An empty list changes nothing for the person.
+
+**Follows the dial (D17), still configurable (D16).**
+
+| Dial | Block + questions (A, B) | Separate check on a small model (C) | Audit of the diff against the block at the merge gate (D) |
+|---|---|---|---|
+| economy | only when the task is not small (E) | off | off |
+| balanced | on | off | on |
+| max | on | on, request only, estimated 1-3k tokens | on |
+
+**Small-task skip (E).** The block is skipped when the change can be described in one sentence (Anthropic's own rule for plan mode) or the person says so. Who decides "small" is open (question 12).
+
+**Tasks (D18).** The confirmed block belongs to the run, not the round: a follow-up round reuses it and only a scope change (new unit, edited goal or out-of-scope line) reopens the changed lines. Unrelated work is a new run with a new block. An unattended run refuses to start without a confirmed block.
+
+**Guessed or given.** The model marks it; code flags any assumption with no quoted user words as guessed. Token figures are cocain's estimates, not measurements. Before building, measure on 20 requests (10 clear, 10 with one hidden gap) how often the block lists the gap as guessed, how often it asks, and how often it wastes a question on a clear one.
+
 ## Open questions
 
 0. Library: is serving on demand through the MCP server, with only a tiny core pushed, the right default? Where should workspace items live by default (in the repo, or private in the app's data)? Should existing skills and instruction files be adopted automatically as read-only sources?
@@ -222,9 +242,12 @@ I found no independent critique of AI-DLC itself in this pass (Thoughtworks and 
 8. How does the app find where one task ends and the next begins? (proposed below)
 9. A follow-up after a task was finished: a new round of the same run, or a new run? (proposed below)
 10. How do we enforce "a commit follows a workflow" without touching the repo's git settings?
+11. Intent check: build A and B first (block plus questions at the plan gate)? Proposed yes; C only at max.
+12. Who decides a task is small enough to skip the intent block: the agent, a one-sentence test in code, or the person?
 
 ## Change log
 
+- 2026-10-09: intent check proposed inside the plan gate (read-back block, blocking open questions, dial positions, small-task skip), from cocain's AI-DLC and intent-gap report.
 - 2026-10-08: answers to the open questions recorded (D15-D20); task and follow-up model proposed; framework-or-own-engine and first AI-DLC research added.
 - 2026-10-08: the rule reminder is sent on a message that points at something (medium and hard rules) or, for hard rules only, on every message; a medium rule no longer costs tokens on a message that matches nothing. Checked on a real Claude agent: the catalog arrives on prompt 10 and on the first prompt after `/compact`.
 - 2026-10-07: the pointing line leaves the choice to the agent (agy decoy test); fixed agy's hook reading the time/settings note as part of the user's message.
