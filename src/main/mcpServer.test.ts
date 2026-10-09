@@ -118,8 +118,13 @@ describe('the library tools', () => {
       if (id !== 'pdf') throw new Error(`${id} is not in this workspace's playbook.`)
       return file ? `file ${file}` : '# pdf\n\nUse the scripts.'
     },
-    search: async (_c: string, q: string) => (q.includes('pdf') ? [entry] : [])
+    search: async (_c: string, q: string) => (q.includes('pdf') ? [entry] : []),
+    skip: (_c: string, id: string, reason: string) => {
+      if (id !== 'pdf') throw new Error(`${id} is not in this workspace's playbook.`)
+      skipped.push(`${id}: ${reason}`)
+    }
   }
+  const skipped: string[] = []
   it('are listed for an agent, and each answers from the caller\'s own playbook', async () => {
     const s = await setup(lib)
     const c = await connect(s.url, 'a1')
@@ -136,6 +141,13 @@ describe('the library tools', () => {
     expect((refused as { isError?: boolean }).isError).toBe(true)
     expect(text(refused)).toContain('not in this workspace')
     expect(text(await c.callTool({ name: 'library_search', arguments: { query: 'pdf' } }))).toContain('- pdf')
+  })
+  it('record that the agent passed over an item, and refuse what is not in its playbook', async () => {
+    const c = await connect((await setup(lib)).url, 'a1')
+    expect(text(await c.callTool({ name: 'library_skip', arguments: { id: 'pdf', reason: 'only a question' } }))).toContain('Noted')
+    expect(skipped).toEqual(['pdf: only a question'])
+    const refused = await c.callTool({ name: 'library_skip', arguments: { id: 'secret', reason: 'x' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
   })
   it('are not offered when the app has no library', async () => {
     const c = await connect((await setup()).url, 'a1')

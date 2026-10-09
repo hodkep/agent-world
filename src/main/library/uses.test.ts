@@ -34,6 +34,20 @@ describe('what the library log says', () => {
   })
 })
 
+describe('an item the agent decided not to use', () => {
+  it('is counted as declined, with its reason, apart from a pointer nobody answered', () => {
+    const s = summarize([
+      u({ how: 'triggered', turn: 1 }), u({ how: 'skipped', turn: 1, reason: 'trivial, both sides only appended' }),
+      u({ how: 'triggered', turn: 2 }),
+      u({ how: 'triggered', turn: 3, provider: 'agy' }), u({ how: 'skipped', turn: 3, provider: 'agy', reason: 'a question, not the work' })
+    ])
+    expect(s.items.tdd).toMatchObject({ triggered: 3, answered: 0, declined: 2 })
+    expect(s.items.tdd!.reasons).toEqual(['trivial, both sides only appended', 'a question, not the work'])
+    expect(s.items.tdd!.byProvider.agy).toMatchObject({ declined: 1 })
+    expect(s.top).toEqual([])
+  })
+})
+
 describe('turns of different launches', () => {
   it('do not answer each other: turn 1 of one launch is not turn 1 of the next', () => {
     const s = summarize([u({ how: 'triggered', turn: 1, launch: 100 }), u({ how: 'fetched', turn: 1, launch: 200 })])

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Summary } from '../../shared/library'
 import { reachedFor } from './libraryStats'
 
-const t = (triggered: number, answered: number) => ({ delivered: 0, triggered, answered, used: answered })
+const t = (triggered: number, answered: number) => ({ delivered: 0, triggered, answered, used: answered, declined: 0 })
 const stats = (items: Record<string, [number, number, number?, number?]>): Summary => ({
-  items: Object.fromEntries(Object.entries(items).map(([id, [trig, ans, ct, at]]) => [id, { id, ...t(trig, ans), byProvider: { claude: t(ct ?? trig, ct === undefined ? ans : Math.min(ans, ct)), ...(at !== undefined ? { agy: t(at, 0) } : {}) } }])),
+  items: Object.fromEntries(Object.entries(items).map(([id, [trig, ans, ct, at]]) => [id, { id, ...t(trig, ans), reasons: [], byProvider: { claude: t(ct ?? trig, ct === undefined ? ans : Math.min(ans, ct)), ...(at !== undefined ? { agy: t(at, 0) } : {}) } }])),
   agents: {},
   top: []
 })

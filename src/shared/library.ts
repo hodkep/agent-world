@@ -29,6 +29,12 @@ export interface PlaybookRule {
   strength: RuleStrength
 }
 
+/** Switches in a playbook that change what agents are told. */
+export interface PlaybookFeatures {
+  /** Before acting, an agent says which hard rules apply, reads the one that does, and reports one it passes over. */
+  forcedCheck?: boolean
+}
+
 /** A skill folder found on this computer that can be copied into the library. */
 export interface LibraryCandidate {
   source: string
@@ -46,10 +52,14 @@ export interface LibraryPreview {
   reminder: string
   hardReminder: string
   rules: PlaybookRule[]
+  /** The switches in force for this workspace (the workspace's over the global, then the defaults). */
+  features: Required<PlaybookFeatures>
+  /** What the forced check adds to a message that carries it (about, in tokens). */
+  forcedCheckTokens: number
 }
 
-/** started: the opening text an agent was launched with (no item) · delivered: put in front of the agent at launch · triggered: the prompt matched the item's rule · fetched/skill/read: the agent used it. */
-export type How = 'started' | 'delivered' | 'triggered' | 'fetched' | 'skill' | 'read'
+/** started: the opening text an agent was launched with (no item) · delivered: put in front of the agent at launch · triggered: the prompt matched the item's rule · fetched/skill/read: the agent used it · skipped: the agent said it did not apply, with its reason. */
+export type How = 'started' | 'delivered' | 'triggered' | 'fetched' | 'skill' | 'read' | 'skipped'
 
 export interface Use {
   t: number
@@ -66,6 +76,8 @@ export interface Use {
   launch?: number
   /** The exact words the agent was given (for started and triggered), so they can be shown as they were. */
   words?: string
+  /** For skipped: why the agent passed the item over, in its words. */
+  reason?: string
 }
 
 export interface Tally {
@@ -73,9 +85,13 @@ export interface Tally {
   triggered: number
   answered: number
   used: number
+  /** Pointed at and the agent said, with a reason, that it did not apply. */
+  declined: number
 }
 export interface ItemStats extends Tally {
   id: string
+  /** What agents said when they passed it over, oldest first. */
+  reasons: string[]
   byProvider: Record<string, Tally>
 }
 export interface Summary {
