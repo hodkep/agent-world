@@ -31,6 +31,8 @@ import { SubagentPanel } from './chat/SubagentPanel'
 import { OPEN_SUBAGENT } from './chat/subagentEvents'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
+import { ShortcutsSheet } from './panel/ShortcutsSheet'
+import { hint, keysOf } from './shortcuts'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
@@ -148,6 +150,7 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [shortcuts, setShortcuts] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   // What is installed here; first-run setup opens from it, and Settings can open it again.
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
@@ -536,6 +539,13 @@ export function App() {
     window.addEventListener('keydown', onKey, { capture: true })
     return () => window.removeEventListener('keydown', onKey, { capture: true })
   }, [current])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '/') (e.preventDefault(), e.stopPropagation(), setShortcuts((o) => !o))
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
   // A pending permission must never sit behind a collapsed panel.
   const needsOf = (id: string): Need[] => [
     ...(trusts[id] ? [{ kind: 'trust', path: trusts[id]! } as const] : []),
@@ -1097,6 +1107,7 @@ export function App() {
           setPrefs(next)
           void window.aw.setPrefs(next)
         }} onClose={() => setSettings(false)} />}
+      {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
       {palette && current && (
         <Palette
           agentId={current.id}
@@ -1134,7 +1145,8 @@ export function App() {
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         <LimitChips limits={shownLimits} pool={pool} accounts={prefs?.accounts ?? []} />
         {error && <span className="error">{error}</span>}
-        <IconButton className="push" icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
+        <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
+        <IconButton icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
       <main>
@@ -1218,7 +1230,7 @@ export function App() {
             </div>
             {folder && (
               <div className="zoom-ctl" role="group" aria-label="Terminals">
-                <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title="Show or hide the terminals in this project (Ctrl+`)">
+                <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
                   <span className="term-gl" aria-hidden="true">&gt;_</span>
                   Terminal
                   {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}

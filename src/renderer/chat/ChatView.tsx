@@ -32,6 +32,7 @@ import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } fro
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
+import { hint, keysOf } from '../shortcuts'
 import { slipsFor, startsBefore } from './slips'
 import type { UsageLimits } from '../../shared/usage'
 
@@ -621,7 +622,7 @@ function ChatMenu({ agentId, markdown, onSearch }: { agentId: string; markdown: 
       </button>
       {open && (
         <div className="pop-menu right" role="menu" aria-label="Conversation tools">
-          <button role="menuitem" title="Search this conversation (⌘F)" onClick={() => (setOpen(false), onSearch())}>
+          <button role="menuitem" title={hint('chat-find')} onClick={() => (setOpen(false), onSearch())}>
             Search
           </button>
           <button
@@ -1424,6 +1425,7 @@ function Composer({
           rows={1}
           placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
           aria-label={`Message ${agentName}`}
+          title={`${keysOf('send')} sends · ${keysOf('newline')} new line · ${keysOf('history')} earlier messages · ${keysOf('search-sent')} search them`}
           onChange={(e) => {
             search.current = null
             const t = (e.nativeEvent as InputEvent).inputType ?? ''
@@ -1500,7 +1502,7 @@ function Composer({
             onClick={() => setModeOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={modeOpen}
-            title="Permission mode: how much this agent may do without asking. Shift+Tab moves to the next one."
+            title={`Permission mode: how much this agent may do without asking. ${keysOf('cycle-mode')} moves to the next one.`}
           >
             {switching ? 'Switching…' : modeInfo(mode).label}
           </button>
@@ -1551,11 +1553,11 @@ function Composer({
             </button>
           )}
           {busy ? (
-            <button className="cb-icon cb-stop" onClick={() => (onStopping(true), onStop())} disabled={stopping} aria-label="Stop" title="Interrupt (Esc)">
+            <button className="cb-icon cb-stop" onClick={() => (onStopping(true), onStop())} disabled={stopping} aria-label="Stop" title={`Interrupt (${keysOf('stop')})`}>
               <PixelIcon name="stop" />
             </button>
           ) : (
-            <button className="cb-icon cb-send" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0 && quotes.length === 0} aria-label="Send" title="Send (Enter) · Shift+Enter new line · Shift+Tab changes mode">
+            <button className="cb-icon cb-send" onClick={() => void submit()} disabled={!text.trim() && attached.length === 0 && quotes.length === 0} aria-label="Send" title={`Send (${keysOf('send')}) · ${keysOf('newline')} new line · ${keysOf('cycle-mode')} changes mode`}>
               <PixelIcon name="send" />
             </button>
           )}
