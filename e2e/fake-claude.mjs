@@ -243,7 +243,10 @@ async function spawnViaOffice(provider, task) {
   const server = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world']
   const client = new Client({ name: 'fake-claude', version: '1' })
   await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }))
+  // The conversation shows the call the way Claude saves it, and what came back.
+  const call = use('mcp__agent-world__spawn_subagent', { provider, task })
   const r = await client.callTool({ name: 'spawn_subagent', arguments: { provider, task } }, undefined, { timeout: 120000 })
+  done(call, r.content[0].text)
   console.log(`spawn_subagent → ${r.content[0].text}`)
   await client.close()
 }
