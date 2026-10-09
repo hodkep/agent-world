@@ -31,6 +31,8 @@ export interface SubagentDeps<A extends Rec> {
   /** How long one call holds on for the answer. A program gives up on a tool call after about a minute, so a longer job is waited for in turns. */
   waitMs?: number
   now?: () => number
+  /** The model a subagent's program says it runs on, as shown to the user. */
+  modelOf?: (id: string) => string | undefined
   /** The office is told a subagent came or went, so it can be shown at work with the agent that asked for it. */
   announce?: (what: 'start' | 'stop', parent: A, child: A) => void
 }
@@ -115,7 +117,7 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
       }
     },
     /** The children of an agent, as its list of subagents shows them. */
-    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id) || answered.has(c.id), d.alive(c.id))),
+    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id) || answered.has(c.id), d.alive(c.id), Date.now(), d.modelOf?.(c.id))),
     /** One child's conversation, for its parent only. */
     conversation: (parentId: string, id: string): ChatItem[] => (d.byId(id)?.parent === parentId ? d.items(id) : [])
   }

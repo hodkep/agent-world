@@ -109,6 +109,13 @@ describe('a program asking whether to trust the folder a subagent works in', () 
   })
 })
 
+describe('the model a subagent runs on', () => {
+  it('is shown as the child\'s program reports it, and left out when nothing says', () => {
+    expect(childInfo({ id: 'c', provider: 'agy', task: 'x' }, [], false, true, 1, 'Gemini 3.8 Flash').model).toBe('Gemini 3.8 Flash')
+    expect(childInfo({ id: 'c', provider: 'agy', task: 'x' }, [], false, true, 1).model).toBeUndefined()
+  })
+})
+
 describe('when a subagent that has said nothing yet began', () => {
   it('is when it was made, not the start of time', () => {
     expect(childInfo({ id: 'c', provider: 'agy', task: 'x', hiredAt: 5000 }, [], false, true, 9000)).toMatchObject({ startedAt: 5000, updatedAt: 9000 })

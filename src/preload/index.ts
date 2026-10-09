@@ -142,6 +142,7 @@ const api: AwApi = {
     setBase: (id, base) => ipcRenderer.invoke('code:set-base', id, base),
     diff: (id, path) => ipcRenderer.invoke('code:diff', id, path),
     files: (id) => ipcRenderer.invoke('code:files', id),
+    mentionFiles: (id) => ipcRenderer.invoke('code:mention-files', id),
     read: (id, path) => ipcRenderer.invoke('code:read', id, path),
     write: (id, path, content) => ipcRenderer.invoke('code:write', id, path, content),
     commit: (id, message) => ipcRenderer.invoke('code:commit', id, message),

@@ -27,6 +27,7 @@ import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
+import { modelLabel } from '../shared/spawn'
 import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
@@ -941,6 +942,8 @@ async function main() {
     alive: (id) => sessions.has(id),
     stop: (id) => sessions.get(id)?.kill(),
     limits: () => prefs.subagents,
+    // What its program reports on its own screen or hook; else what it was started with.
+    modelOf: (id) => modelLabel(lastStats.get(id)?.model ?? byId(id)?.options?.model) || undefined,
     // The agent that asked has it at work in the office, like one of Claude's own subagents.
     announce: (what, parent, child) => send('agent-event', { type: what === 'start' ? 'subagent-start' : 'subagent-stop', agentId: parent.id, sessionId: parent.sessionId, subagentId: child.id, ...(what === 'start' && { subagentType: child.provider ?? 'claude' }) } as AgentEvent)
   })
@@ -1504,6 +1507,11 @@ async function main() {
     return { original: await originalContent(a.cwd, base, path), current }
   })
   ipcMain.handle('code:files', async (_, id: string) => listFiles((await worktreeOf(id)).a.cwd))
+  // What typing @ offers. An agent working directly in a folder, or in one that is not a repository, has no list to give: that is an empty one, not a failure to report.
+  ipcMain.handle('code:mention-files', async (_, id: string) => {
+    const a = byId(id)
+    return a ? listFiles(a.cwd).catch(() => [] as string[]) : []
+  })
   ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile((await worktreeOf(id)).a.cwd, path))
   ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await worktreeOf(id)).a.cwd, path, content))
   ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await worktreeOf(id)).a.cwd, message))

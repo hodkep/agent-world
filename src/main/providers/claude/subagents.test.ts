@@ -43,6 +43,17 @@ describe('reading the subagents a session started', () => {
     expect(a!.updatedAt).toBe(Date.parse('2026-10-01T08:00:09.000Z'))
   })
 
+  it('says which model it ran on, from the first of its replies that names one', () => {
+    const d = session({
+      m1: {
+        meta: { agentType: 'Explore', description: 'Which model', toolUseId: 'toolu_M' },
+        lines: [line({ type: 'user', timestamp: '2026-10-01T08:00:00.000Z', message: { role: 'user', content: 'go' } }), line({ type: 'assistant', timestamp: '2026-10-01T08:00:02.000Z', message: { role: 'assistant', model: 'claude-haiku-5-5', stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] } })]
+      }
+    })
+    expect(listSubagents(d)[0]!.model).toBe('Haiku 5.5')
+    expect(listSubagents(dir).find((s) => s.toolUseId === 'toolu_A')!.model).toBeUndefined()
+  })
+
   it('counts handing its report back as the answer, not as one more call', () => {
     const d = session({
       h1: {

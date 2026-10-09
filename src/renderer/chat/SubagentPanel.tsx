@@ -123,6 +123,7 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
           <span className={`sp-pill ${state}`}>{stateLabel}</span>
           <span>
             {info?.type ?? 'agent'}
+            {info?.model ? ` · ${info.model}` : ''}
             {info?.background ? ' · background' : ''} · started by {agentName}
           </span>
           <span className="sp-time">{info ? elapsedLabel((state === 'working' ? now : info.updatedAt) - info.startedAt) : ''}</span>

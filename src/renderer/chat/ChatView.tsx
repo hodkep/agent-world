@@ -1139,7 +1139,7 @@ function Composer({
   // Suggestions come from the same lists as the ⌘K palette and the Files tab.
   useEffect(() => {
     void window.aw.listCommands(agentId).then(setCommands, () => {})
-    void window.aw.code.files(agentId).then(setFiles, () => setFiles([]))
+    void window.aw.code.mentionFiles(agentId).then(setFiles, () => setFiles([]))
   }, [agentId])
   useEffect(() => {
     const el = box.current

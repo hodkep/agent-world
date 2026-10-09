@@ -54,7 +54,7 @@ const detailOf = (input: Record<string, unknown>) => {
 }
 
 /** A child agent as the parent's list of subagents shows it. Its provider is its type, so the chip says which program runs it. */
-export function childInfo(child: { id: string; provider?: string; task?: string; hiredAt?: number }, items: ChatItem[], idle: boolean, alive: boolean, now = Date.now()): SubagentInfo {
+export function childInfo(child: { id: string; provider?: string; task?: string; hiredAt?: number }, items: ChatItem[], idle: boolean, alive: boolean, now = Date.now(), model?: string): SubagentInfo {
   const report = finalReport(items, idle)
   const first = items.find((i) => i.kind === 'user')
   return {
@@ -72,7 +72,8 @@ export function childInfo(child: { id: string; provider?: string; task?: string;
     background: false,
     spawns: [],
     // Not running and never answered: it was stopped, or the app closed on it.
-    stopped: report === null && !alive
+    stopped: report === null && !alive,
+    ...(model && { model })
   }
 }
 

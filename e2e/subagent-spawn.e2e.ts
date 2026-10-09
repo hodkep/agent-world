@@ -85,7 +85,26 @@ test('a Claude agent starts an agy subagent and gets its answer back', async () 
     const [ada] = await page.evaluate(() => window.aw.listAgents())
     const subs = await page.evaluate((id) => window.aw.subagents(id), ada!.id)
     expect(subs[0]).toMatchObject({ type: 'agy', done: true })
+    // The model agy shows on its own screen is named in the panel's header.
+    await expect(page.getByRole('complementary', { name: 'Subagents' }).locator('.sp-meta')).toContainText(/agy · Gemini \S+/)
     expect(subs[0]!.result.length).toBeGreaterThan(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agent working directly in a folder is not an error for the message box: it just has no files to offer', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-mention-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    // The Code tab's own list still says why there is none; the message box's is empty and quiet.
+    await expect(page.evaluate((id) => window.aw.code.mentionFiles(id), ada!.id)).resolves.toEqual([])
+    await expect(page.evaluate((id) => window.aw.code.files(id), ada!.id)).rejects.toThrow(/not in a git worktree/)
   } finally {
     await shutdown()
   }

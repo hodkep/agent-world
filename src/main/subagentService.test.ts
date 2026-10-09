@@ -172,3 +172,11 @@ describe('waiting, stopping and listing', () => {
     expect(t.svc.conversation('q', 'c1')).toEqual([])
   })
 })
+
+describe('the model of a subagent', () => {
+  it('comes from what its program reports, in the list of subagents', async () => {
+    const agents: { id: string; name: string; provider?: string; branch: string | null; parent?: string; task?: string }[] = [{ id: 'p', name: 'ada', branch: null }, { id: 'c1', name: 'bo', provider: 'agy', branch: null, parent: 'p', task: 'x' }]
+    const svc = createSubagents({ agents: () => agents, byId: (id) => agents.find((a) => a.id === id), create: async () => agents[1]!, deliver: () => {}, items: () => [], idle: () => false, alive: () => true, stop: () => {}, modelOf: (id) => (id === 'c1' ? 'Gemini 3.8 Flash' : undefined) })
+    expect(svc.infos('p')[0]).toMatchObject({ agentId: 'c1', model: 'Gemini 3.8 Flash' })
+  })
+})
