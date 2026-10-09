@@ -67,7 +67,7 @@ export function Timeline({ info, now }: { info: SubagentInfo | undefined; now: n
 }
 
 /** One subagent as a row: its task, its latest call, a tick for each call, and its time; opens to every call and its answer. */
-export function SubagentRowView({ type, description, info, state, now, level = 0, needsYou = false, actions }: { type: string; description: string; info: SubagentInfo | undefined; state: SubagentState; now: number; level?: number; needsYou?: boolean; actions?: ReactNode }) {
+export function SubagentRowView({ type, description, info, state, now, level = 0, needsYou = false, actions, onOpen }: { type: string; description: string; info: SubagentInfo | undefined; state: SubagentState; now: number; level?: number; needsYou?: boolean; actions?: ReactNode; /** Shown on the row itself: its conversation in the panel beside the chat. */ onOpen?: () => void }) {
   const [open, setOpen] = useState(false)
   const last = info?.calls.at(-1)
   return (
@@ -84,6 +84,11 @@ export function SubagentRowView({ type, description, info, state, now, level = 0
         <Timeline info={info} now={now} />
         <span className="dg-time">{info ? elapsedLabel((info.done ? info.updatedAt : now) - info.startedAt) : '–'}</span>
       </button>
+      {onOpen && (
+        <button className="dg-open-btn" onClick={onOpen} title="Open its conversation in the panel beside the chat">
+          Open
+        </button>
+      )}
       {open && <Trail info={info} now={now} />}
       {open && actions && <div className="dg-actions">{actions}</div>}
     </div>
@@ -116,7 +121,7 @@ export function Delegation({ agentId, calls }: { agentId: string; calls: Call[] 
       {shown && (
         <div className="dg-rows">
           {calls.map((c, i) => (
-            <SubagentRowView key={c.toolUseId} type={c.subagentType} description={c.description} info={mine.get(c.toolUseId)} state={states[i]!} now={now} actions={mine.get(c.toolUseId) && <button onClick={() => openSubagent(agentId, mine.get(c.toolUseId)!.agentId)}>Open conversation</button>} />
+            <SubagentRowView key={c.toolUseId} type={c.subagentType} description={c.description} info={mine.get(c.toolUseId)} state={states[i]!} now={now} actions={mine.get(c.toolUseId) && <button onClick={() => openSubagent(agentId, mine.get(c.toolUseId)!.agentId)}>Open conversation</button>} onOpen={mine.get(c.toolUseId) && (() => openSubagent(agentId, mine.get(c.toolUseId)!.agentId))} />
           ))}
         </div>
       )}

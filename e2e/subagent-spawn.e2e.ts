@@ -20,6 +20,12 @@ test('an agent starts another as its subagent: it answers the call, is left out 
     await expect(page.locator('.term-host:visible')).toContainText(/spawn_subagent → /, { timeout: 60_000 })
     await expect(page.locator('.term-host:visible')).toContainText('"status":"done"')
 
+    // It opened in the panel beside the chat as it started, with the conversation it had.
+    const panel = page.getByRole('complementary', { name: 'Subagents' })
+    await expect(panel).toBeVisible()
+    await expect(panel.getByRole('tab', { name: /read the exporter/ })).toBeVisible()
+    await page.screenshot({ path: '/tmp/claude-501/spawn-panel.png' })
+
     const agents = await page.evaluate(() => window.aw.listAgents())
     expect(agents.map((a) => a.name)).toEqual(['ada'])
     const subs = await page.evaluate((id) => window.aw.subagents(id), agents[0]!.id)
