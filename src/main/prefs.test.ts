@@ -39,3 +39,12 @@ describe('preferences', () => {
     expect(loadPrefs(file)).toEqual(DEFAULT_PREFS)
   })
 })
+
+describe('the subagent limits', () => {
+  it('start at 2 levels and 3 at once, keep what is saved, and stay within sensible bounds', () => {
+    expect(cleanPrefs({}).subagents).toEqual({ maxDepth: 2, maxRunning: 3 })
+    expect(cleanPrefs({ subagents: { maxDepth: 3, maxRunning: 6 } }).subagents).toEqual({ maxDepth: 3, maxRunning: 6 })
+    expect(cleanPrefs({ subagents: { maxDepth: 99, maxRunning: 0 } }).subagents).toEqual({ maxDepth: 4, maxRunning: 1 })
+    expect(cleanPrefs({ subagents: { maxDepth: 'deep', maxRunning: 2.5 } }).subagents).toEqual({ maxDepth: 2, maxRunning: 3 })
+  })
+})

@@ -113,6 +113,8 @@ export interface CodeApi {
   setBase(agentId: string, base: string): Promise<void>
   diff(agentId: string, path: string): Promise<{ original: string; current: string }>
   files(agentId: string): Promise<string[]>
+  /** The files the message box offers when you type @: the folder's files, or none for an agent in a folder that is not a repository (not an error). */
+  mentionFiles(agentId: string): Promise<string[]>
   read(agentId: string, path: string): Promise<string>
   write(agentId: string, path: string, content: string): Promise<void>
   commit(agentId: string, message: string): Promise<void>

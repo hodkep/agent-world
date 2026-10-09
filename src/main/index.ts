@@ -26,6 +26,9 @@ import type { EventHandle, EventSourceOptions, Provider } from './providers/port
 import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
+import { createSubagents } from './subagentService'
+import { modelLabel } from '../shared/spawn'
+import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -149,6 +152,8 @@ const DESCRIBE_HINT = "Whenever you run a shell command, fill in the Bash tool's
 const memoryFile = (repoPath: string) => join(HOME, 'memory', `${repoSlug(repoPath)}.json`)
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
+// Subagents whose trust question was answered for them.
+const trustAnswered = new Set<string>()
 const planOpen = new Set<string>()
 // When the terminal last drew anything: Claude's spinner redraws constantly while it works.
 const lastOutput = new Map<string, number>()
@@ -338,6 +343,8 @@ const termMenuSeen = new Map<string, { sig: string; since: number }>()
 const termMenuSent = new Map<string, string>()
 const MENU_STABLE_MS = 800
 const pendingPermissions = new Map<string, PermissionRequest>()
+// For a permission a subagent asked: the agent above it, whose card it is on.
+const childAsks = new Map<string, string>()
 // The last question and plan Claude showed each agent, kept so a reloaded window can show them again.
 const stickyEvents = new Map<string, RawEvent>()
 // Agents whose question menu is on screen, and the questions Claude last asked each (from its PreToolUse hook).
@@ -684,7 +691,13 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
       if (ui(a.id).inputReady(text)) mailbox.started(a.id)
       const trust = ui(a.id).trustPrompt(text)
-      if (trust && !trustOpen.has(a.id)) {
+      // A subagent has no card to be asked on: its parent's folder, or a worktree made for it, is trusted for it.
+      if (trust && mayTrust(agents, a.id, join(HOME, 'worktrees'))) {
+        if (!trustAnswered.has(a.id)) {
+          trustAnswered.add(a.id)
+          void ui(a.id).answerTrust({ screen: () => screens.get(a.id)?.text() ?? '', write: (keys) => sessions.get(a.id)?.write(keys), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) }, true)
+        }
+      } else if (trust && !trustOpen.has(a.id)) {
         trustOpen.add(a.id)
         send('trust-prompt', a.id, trust.path || a.cwd)
         notify('trust', a, 'Needs you to trust its workspace before it can start.')
@@ -800,7 +813,7 @@ async function main() {
   // The packaged app has its icon built in; a development run needs it set.
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   mkdirSync(HOME, { recursive: true })
-  agents = loadAgents(AGENTS_FILE)
+  agents = withoutOrphans(loadAgents(AGENTS_FILE))
   for (const a of agents) followChat(a)
   loadUsage()
   loadPrices()
@@ -827,13 +840,23 @@ async function main() {
       // The terminal menu may already be drawn (and static) by the time the hook arrives.
       if (ui(r.agentId).anyMenu(screens.get(r.agentId)?.text() ?? '')) menuSeen.add(r.agentId)
       refreshAttention()
-      send('permission', r)
-      notify('permission', byId(r.agentId), `Wants to use ${r.tool}: ${r.detail}`)
+      // A subagent is not in the office: its question goes on the card of the agent above it, and that agent shows as waiting for you.
+      const shown = shownTo(agents, r)
+      send('permission', shown)
+      notify('permission', byId(shown.agentId), `Wants to use ${r.tool}: ${shown.detail}`)
+      if (shown.agentId !== r.agentId) {
+        childAsks.set(r.id, shown.agentId)
+        send('agent-event', { type: 'activity', agentId: shown.agentId, sessionId: shown.sessionId, activity: 'permission', detail: shown.detail })
+      }
     },
     onPermissionSettled: (id) => {
       pendingPermissions.delete(id)
       refreshAttention()
       send('permission-settled', id)
+      const top = childAsks.get(id)
+      childAsks.delete(id)
+      // Its subagent was answered: the agent goes back to what it was doing, unless another subagent of it is still asking.
+      if (top && ![...childAsks.values()].includes(top)) send('agent-event', { type: 'activity', agentId: top, sessionId: byId(top)?.sessionId ?? '', activity: lastActivity.get(top) ?? 'delegating' })
     },
     onStatus: onStats,
     reminderFor: libraryRemind,
@@ -885,7 +908,52 @@ async function main() {
     }
   }
   idleCheck = setTimeout(sweep, 300)
+  // Agents starting agents of either program as their subagents: the child is a real agent, left out of the office, that shows in its parent's subagents.
+  const subagents = createSubagents<AgentRecord>({
+    agents: () => agents,
+    byId,
+    create: async (parent, i) => {
+      const p = providers().find((x) => x.id === i.provider)
+      if (!p) throw new Error(`There is no program called ${i.provider}.`)
+      if ((await p.detect(binFor(p))).state !== 'ready') throw new Error(`${p.label} is not ready on this computer (is it installed and signed in?).`)
+      const wanted = i.branch ? cleanName(i.branch.replace(/^aw\//, '')) : ''
+      const name = wanted ? checkName(wanted, agents.map((a) => a.name)) : await nextName(parent.repoPath)
+      if (wanted && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
+      const own = i.worktree !== false && (await isGitRepo(parent.repoPath))
+      const wt = own ? await createWorktree({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), ...(parent.branch && { from: parent.branch }) }) : null
+      // It works the way its parent does (full autonomy only if the parent has it); one that only reads cannot change anything. When it stops to ask, the question comes up on its parent's card.
+      const mode = !wt ? p.autonomy.plan : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
+      const child: AgentRecord = {
+        id: randomUUID(), name, sessionId: randomUUID(), repoPath: parent.repoPath, cwd: wt?.path ?? parent.cwd, branch: wt?.branch ?? null, base: wt?.base ?? null, provider: p.id, started: false, hiredAt: Date.now(), parent: parent.id, task: i.task,
+        options: fitOptions(p.models, { provider: p.id, ...(mode && { permissionMode: mode as PermissionMode }), ...(i.model && p.models.some((m) => m.value === i.model) && { model: i.model }) })
+      }
+      accountsSvc.assign(child, prefs.defaults.accounts[p.id])
+      agents.push(child)
+      persist()
+      spawn(child, env)
+      return child
+    },
+    deliver: (child, text) => void mailbox.send(child.parent!, child.name, text, { expectsReply: false }),
+    items: (id) => {
+      const a = byId(id)
+      return a ? providerOf(a).transcript.readAll(a) : []
+    },
+    idle: (id) => ['idle', 'waiting'].includes(lastActivity.get(id) ?? ''),
+    alive: (id) => sessions.has(id),
+    stop: (id) => sessions.get(id)?.kill(),
+    limits: () => prefs.subagents,
+    // What its program reports on its own screen or hook; else what it was started with.
+    modelOf: (id) => modelLabel(lastStats.get(id)?.model ?? byId(id)?.options?.model) || undefined,
+    // The agent that asked has it at work in the office, like one of Claude's own subagents.
+    announce: (what, parent, child) => send('agent-event', { type: what === 'start' ? 'subagent-start' : 'subagent-stop', agentId: parent.id, sessionId: parent.sessionId, subagentId: child.id, ...(what === 'start' && { subagentType: child.provider ?? 'claude' }) } as AgentEvent)
+  })
+  setInterval(() => subagents.tick(), 2000)
+  // Subagents whose program has ended are cleared away an hour on, when they have been read; their worktree goes with them unless it holds unmerged work.
+  const clearOld = () => void Promise.all(staleChildren(agents, new Set(sessions.keys()), Date.now()).map((id) => removeAgent(id).catch(() => undefined)))
+  setInterval(clearOld, 60_000)
+  setTimeout(clearOld, 5_000)
   const mcp = await startMcpServer({
+    subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
       agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
@@ -988,7 +1056,7 @@ async function main() {
   // again, and as a last resort Ctrl+C once, which also interrupts a running operation.
   // A reloaded window has forgotten everything it was showing. Say it all again: what is waiting on the user comes back.
   ipcMain.handle('resync', () => {
-    for (const r of pendingPermissions.values()) send('permission', r)
+    for (const r of pendingPermissions.values()) send('permission', shownTo(agents, r))
     for (const id of questionOpen) {
       const e = stickyEvents.get(`${id}:question`)
       if (e) send('agent-event', e)
@@ -1138,7 +1206,7 @@ async function main() {
     return workspaceInfo(e.sender.id)
   })
   ipcMain.handle('window:new', () => void createWindow())
-  ipcMain.handle('list-agents', () => agents.map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
+  ipcMain.handle('list-agents', () => agents.filter((a) => !a.parent).map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string) => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
@@ -1384,6 +1452,7 @@ async function main() {
   const removeAgent = async (id: string, mode?: 'discard' | 'keep-worktree', merged = false): Promise<RemoveResult> => {
     const a = byId(id)
     if (!a) return { ok: true }
+    for (const c of agents.filter((x) => x.parent === id)) await removeAgent(c.id, mode, merged)
     sessions.get(id)?.kill()
     // An agent that took over another's worktree leaves it in place while the other still uses it.
     const shared = agents.some((x) => x.id !== id && x.cwd === a.cwd)
@@ -1438,6 +1507,11 @@ async function main() {
     return { original: await originalContent(a.cwd, base, path), current }
   })
   ipcMain.handle('code:files', async (_, id: string) => listFiles((await worktreeOf(id)).a.cwd))
+  // What typing @ offers. An agent working directly in a folder, or in one that is not a repository, has no list to give: that is an empty one, not a failure to report.
+  ipcMain.handle('code:mention-files', async (_, id: string) => {
+    const a = byId(id)
+    return a ? listFiles(a.cwd).catch(() => [] as string[]) : []
+  })
   ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile((await worktreeOf(id)).a.cwd, path))
   ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await worktreeOf(id)).a.cwd, path, content))
   ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await worktreeOf(id)).a.cwd, message))
@@ -1590,12 +1664,14 @@ async function main() {
   // What the agent's subagents have done so far, from the files Claude keeps for them next to the session.
   ipcMain.handle('subagents:list', (_, id: string) => {
     const a = byId(id)
-    return a ? providerOf(a).transcript.subagents(a) : []
+    return a ? [...providerOf(a).transcript.subagents(a), ...subagents.infos(a.id)] : []
   })
   // One subagent's own conversation, to be read like an agent's.
   ipcMain.handle('subagents:chat', (_, id: string, subagentId: string) => {
     const a = byId(id)
-    return a ? (providerOf(a).transcript.subagentConversation?.(a, subagentId) ?? []) : []
+    if (!a) return []
+    const child = subagents.conversation(a.id, subagentId)
+    return child.length ? child : (providerOf(a).transcript.subagentConversation?.(a, subagentId) ?? [])
   })
   // What the profile card shows beyond the live numbers. Counted from the whole saved conversation, so it covers more than the chat keeps in view.
   // A terminal draws its own text, so the page cannot tell the system what is selected: the terminal asks for the menu itself.
@@ -1633,7 +1709,7 @@ async function main() {
       }
     }
     const clock = workClocks.get(id) ?? { total: a.workedMs ?? 0, since: null }
-    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length, commits }
+    return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length + subagents.infos(a.id).length, commits }
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
   ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))
@@ -1740,7 +1816,8 @@ async function main() {
   // you had open goes to sleep. A restart after a longer gap starts asleep, as before.
   for (const id of recentlyRunning(RUNNING_FILE, Date.now(), 20_000)) {
     const a = byId(id)
-    if (a && !sessions.has(id)) spawn(a, env)
+    // A subagent's parent was waiting on its answer, and that wait ended with the app: it stays as it was, stopped, and is not started again.
+    if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
   const heartbeat = setInterval(noteRunning, 2000)
 

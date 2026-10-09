@@ -17,10 +17,12 @@ interface PanelProps {
   quoteInto?: () => Element | null | undefined
   /** Run first when a follow-up is started from somewhere other than this agent's own chat (it opens that chat). */
   onBeforeQuote?: () => void
+  /** Run first when a subagent is opened from somewhere other than this agent's own chat (it selects that agent, so the panel shows beside its chat). */
+  onBeforeOpen?: () => void
 }
 
 /** All of one main agent's subagents in the same view as the delegation card: a bar, and a row each, with what can be done to it. */
-export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto, onBeforeQuote }: PanelProps) {
+export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto, onBeforeQuote, onBeforeOpen }: PanelProps) {
   const [told, setTold] = useState<string | null>(null)
   const [old, setOld] = useState(false)
   const { active, finished } = splitCrew(crewRows(infos), now)
@@ -42,9 +44,10 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
         now={now}
         level={r.level}
         needsYou={waiting?.has(r.info.agentId)}
+        onOpen={() => (onBeforeOpen?.(), openSubagent(agentId, r.info.agentId))}
         actions={
           <>
-            <button title="Read this subagent's own conversation in a panel beside the chat" onClick={() => openSubagent(agentId, r.info.agentId)}>
+            <button title="Read this subagent's own conversation in a panel beside the chat" onClick={() => (onBeforeOpen?.(), openSubagent(agentId, r.info.agentId))}>
               Open conversation
             </button>
           {st === 'working' ? (

@@ -91,9 +91,22 @@ describe('what an agent is given from the library', () => {
       expect(readFileSync(file, 'utf8')).toContain('- pdf: working with PDFs')
       expect((await svc.prepare('a3', true)).core).not.toContain('catalog')
     })
+    it('does not point at the same item again at once, nor after the agent has read it, until it loses its context', async () => {
+      await svc.prepare('a1', true, true)
+      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
+      expect(svc.remind('a1', 'start working on this pdf')).not.toContain("library_get('pdf')")
+      for (let i = 0; i < 10; i++) svc.remind('a1', 'rename the lamp post')
+      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
+      svc.record('a1', 'pdf', 'fetched')
+      for (let i = 0; i < 10; i++) svc.remind('a1', 'rename the lamp post')
+      expect(svc.remind('a1', 'start working on this pdf')).not.toContain("library_get('pdf')")
+      svc.refresh('a1')
+      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
+      expect(svc.stats().items.pdf!.triggered).toBe(3)
+    })
     it('points at the item a prompt matches, and logs it as triggered', async () => {
       await svc.prepare('a1', true, true)
-      const r = svc.remind('a1', 'split this pdf into pages')
+      const r = svc.remind('a1', 'start working on this pdf')
       expect(r).toContain("library_get('pdf')")
       expect(svc.remind('a1', 'rename the lamp post')).not.toContain('pdf')
       expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 0 })
@@ -102,26 +115,26 @@ describe('what an agent is given from the library', () => {
       await svc.prepare('a1', true, true)
       // terse is medium: reminded on a message that points at something, not on one that matches nothing
       expect(svc.remind('a1', 'rename the lamp post')).toBe('')
-      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always).')
+      expect(svc.remind('a1', 'start working on this pdf')).toContain('Reminder: terse (always).')
       svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
       await svc.prepare('a1', true, true)
       // a hard rule is reminded on every message, and only the hard one when nothing matched
       expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
-      expect(svc.remind('a1', 'split this pdf into pages')).toContain('Reminder: terse (always); pdf (working with PDFs).')
+      expect(svc.remind('a1', 'start working on this pdf')).toContain('Reminder: terse (always); pdf (working with PDFs).')
     })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
       await svc.prepare('a1', true)
-      svc.remind('a1', 'split this pdf into pages')
+      svc.remind('a1', 'start working on this pdf')
       await svc.get('a1', 'pdf')
       expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 1, used: 1 })
     })
     it('names the skill where the program loads skills, and gives the file path where it does not (even if it could ask the office)', async () => {
       await svc.prepare('a1', false, true)
-      expect(svc.remind('a1', 'split this pdf')).toContain('Use the pdf skill')
+      expect(svc.remind('a1', 'start working on this pdf')).toContain('Use the pdf skill')
       await svc.prepare('a1', false, false)
-      expect(svc.remind('a1', 'split this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
+      expect(svc.remind('a1', 'start working on this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
       await svc.prepare('a1', true, false)
-      expect(svc.remind('a1', 'split this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
+      expect(svc.remind('a1', 'start working on this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
     })
     it('adds the whole catalog every tenth prompt and right after a compaction', async () => {
       await svc.prepare('a1', true)
@@ -144,7 +157,7 @@ describe('what an agent is given from the library', () => {
   describe('what the screen is shown', () => {
     it('keeps the exact words pointed at an agent and the opening text it started with, for that agent only', async () => {
       await svc.prepare('a1', true, true)
-      svc.remind('a1', 'split this pdf into pages')
+      svc.remind('a1', 'start working on this pdf')
       await svc.get('a1', 'pdf')
       await svc.prepare('a3', true, true)
       const uses = svc.usesOf('a1')
@@ -155,7 +168,7 @@ describe('what an agent is given from the library', () => {
     })
     it('leaves the choice to the agent: the line says it may not apply and what to do then', async () => {
       await svc.prepare('a1', true, true)
-      const line = svc.remind('a1', 'split this pdf into pages')
+      const line = svc.remind('a1', 'start working on this pdf')
       expect(line).toContain('pdf covers this kind of work')
       expect(line).toMatch(/not just answering a question/i)
       expect(line).toMatch(/if you are doing that work/i)
@@ -168,7 +181,7 @@ describe('what an agent is given from the library', () => {
     })
     it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
       await svc.prepare('a1', true)
-      svc.remind('a1', 'split this pdf into pages')
+      svc.remind('a1', 'start working on this pdf')
       expect(pushed).toContain('a1:triggered')
       expect(svc.stats().items.terse).toMatchObject({ delivered: 1, used: 0 })
       expect(Object.keys(svc.stats().items)).not.toContain('')
@@ -199,9 +212,9 @@ describe('what an agent is given from the library', () => {
 
   describe('trying a message against a playbook', () => {
     it('says which on-demand items a message would point at for a workspace, and none for one that matches nothing', async () => {
-      expect((await svc.tryMessage('/work/shop', 'please split this pdf into pages')).map((m) => m.id)).toEqual(['pdf'])
+      expect((await svc.tryMessage('/work/shop', 'please start working on this pdf')).map((m) => m.id)).toEqual(['pdf'])
       expect(await svc.tryMessage('/work/shop', 'rename the lamp post')).toEqual([])
-      expect(await svc.tryMessage('/work/other', 'please split this pdf into pages')).toEqual([])
+      expect(await svc.tryMessage('/work/other', 'please start working on this pdf')).toEqual([])
     })
   })
 

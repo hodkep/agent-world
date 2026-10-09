@@ -60,4 +60,6 @@ export interface SubagentInfo {
   spawns: string[]
   /** It was stopped (Claude ends its file with the interruption) and has not carried on since. */
   stopped: boolean
+  /** The model it runs on, as it is named to the user, when that is known. */
+  model?: string
 }

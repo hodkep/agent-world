@@ -1,0 +1,111 @@
+import { mkdirSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { expect, test } from '@playwright/test'
+import { approve, hire, launchApp } from './launch'
+
+test('an agent starts another as its subagent: it answers the call, is left out of the office, and shows in the parent\'s subagents', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-spawn-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '300', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_SPAWN: 'ada:claude:read the exporter and tell me what it does' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await approve(page).catch(() => {})
+    await page.locator('.roster button', { hasText: 'ada' }).click()
+    await expect(page.locator('.term-host:visible')).toContainText(/spawn_subagent → /, { timeout: 60_000 })
+    await expect(page.locator('.term-host:visible')).toContainText('"status":"done"')
+
+    // It opened in the panel beside the chat as it started, with the conversation it had.
+    const panel = page.getByRole('complementary', { name: 'Subagents' })
+    await expect(panel).toBeVisible()
+    await expect(panel.getByRole('tab', { name: /read the exporter/ })).toBeVisible()
+    await page.screenshot({ path: '/tmp/claude-501/spawn-panel.png' })
+
+    const agents = await page.evaluate(() => window.aw.listAgents())
+    expect(agents.map((a) => a.name)).toEqual(['ada'])
+    const subs = await page.evaluate((id) => window.aw.subagents(id), agents[0]!.id)
+    expect(subs).toHaveLength(1)
+    expect(subs[0]).toMatchObject({ type: 'claude', done: true, description: 'read the exporter and tell me what it does' })
+    expect(subs[0]!.result).toContain('Done.')
+    const talk = await page.evaluate(([id, sub]) => window.aw.subagentChat(id!, sub!), [agents[0]!.id, subs[0]!.agentId])
+    expect(talk.some((i) => i.kind === 'assistant')).toBe(true)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a permission a subagent asks for comes up on its parent\'s card, naming the subagent, and can be answered there', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-spawn-ask-'))
+  // Not the chat fake: its script asks for a permission to run a command, as an agent does.
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '300', FAKE_SPAWN: 'ada:claude:run the tests' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    // ada's own permission first, then her subagent starts and asks for one of its own.
+    await approve(page)
+    const dialog = page.getByRole('dialog')
+    if (!(await dialog.isVisible())) await page.locator('.ask-pill').first().click({ timeout: 30_000 })
+    await expect(dialog).toContainText(/\(subagent\) wants: pnpm test/, { timeout: 30_000 })
+    // While it works it is at work in the office with the agent that asked, like one of Claude's own subagents.
+    await expect.poll(async () => JSON.parse((await page.locator('.stage').getAttribute('data-crew')) ?? '[]').length).toBe(1)
+    await dialog.getByRole('button', { name: 'Allow' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    expect((await page.evaluate(() => window.aw.listAgents())).map((a) => a.name)).toEqual(['ada'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a Claude agent starts an agy subagent and gets its answer back', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-spawn-agy-'))
+  const agyHome = join(home, 'agy')
+  mkdirSync(agyHome)
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '300', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_SPAWN: 'ada:agy:say hello from agy' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.locator('.roster button', { hasText: 'ada' }).click()
+    await expect(page.locator('.term-host:visible')).toContainText(/spawn_subagent → /, { timeout: 60_000 })
+    await expect(page.locator('.term-host:visible')).toContainText('"status":"done"')
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    const subs = await page.evaluate((id) => window.aw.subagents(id), ada!.id)
+    expect(subs[0]).toMatchObject({ type: 'agy', done: true })
+    // The model agy shows on its own screen is named in the panel's header.
+    await expect(page.getByRole('complementary', { name: 'Subagents' }).locator('.sp-meta')).toContainText(/agy · Gemini \S+/)
+    expect(subs[0]!.result.length).toBeGreaterThan(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agent working directly in a folder is not an error for the message box: it just has no files to offer', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-mention-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    // The Code tab's own list still says why there is none; the message box's is empty and quiet.
+    await expect(page.evaluate((id) => window.aw.code.mentionFiles(id), ada!.id)).resolves.toEqual([])
+    await expect(page.evaluate((id) => window.aw.code.files(id), ada!.id)).rejects.toThrow(/not in a git worktree/)
+  } finally {
+    await shutdown()
+  }
+})

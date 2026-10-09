@@ -7,6 +7,13 @@ const RUN_PATH = 'M4 5h16v14H4zM10 9v6l5-3z'
 export const runIconMarkup = (size = 16) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="${RUN_PATH}"/></svg>`
 
+/** Copy: two sheets, one behind the other. As markup, for the button put on a quoted block in a reply. */
+export const copyIconMarkup = (size = 14) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M9 9h11v11H9zM5 15V4h11"/></svg>`
+/** The same button once it has copied: a tick. */
+export const tickIconMarkup = (size = 14) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>`
+
 // Plain outline icons (24 grid, 2px square-ended strokes): the 8-bit bitmaps read badly this small.
 const ICONS = {
   history: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,

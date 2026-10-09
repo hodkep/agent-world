@@ -55,6 +55,7 @@ export function CrewView({ agents, waitingOf, onOpen, onClose }: { agents: { id:
                   waiting={g.waiting}
                   quoteInto={() => document.querySelector(`.chat[data-agent="${g.a.id}"]`)}
                   onBeforeQuote={() => (onOpen(g.a.id), onClose())}
+                  onBeforeOpen={() => (onOpen(g.a.id), onClose())}
                 />
                 <button className="crew-open" onClick={() => (onOpen(g.a.id), onClose())}>
                   Open {g.a.name}

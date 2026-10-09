@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ChatItem, SubagentCall, SubagentInfo } from '../../../shared/chat'
+import { modelLabel } from '../../../shared/spawn'
 import { TranscriptTail } from './chatTail'
 
 const FIELDS = ['file_path', 'path', 'command', 'pattern', 'query', 'url', 'description', 'prompt']
@@ -29,15 +30,18 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
   let handedBack = false
   let stopped = false
   const spawns: string[] = []
+  let model = ''
   for (const l of raw.split('\n')) {
     if (!l) continue
-    let d: { type?: string; timestamp?: string; message?: { stop_reason?: string | null; content?: unknown } }
+    let d: { type?: string; timestamp?: string; message?: { model?: string; stop_reason?: string | null; content?: unknown } }
     try {
       d = JSON.parse(l)
     } catch {
       continue
     }
     const at = d.timestamp ? Date.parse(d.timestamp) : 0
+    // Its replies say which model wrote them; a synthetic one (an error line) is not a model.
+    if (!model && d.type === 'assistant' && d.message?.model && !d.message.model.startsWith('<')) model = d.message.model
     if (at) {
       startedAt ||= at
       updatedAt = Math.max(updatedAt, at)
@@ -64,7 +68,7 @@ function parse(meta: { agentType?: string; description?: string; toolUseId?: str
     done = d.message!.stop_reason === 'end_turn'
     result = done ? text : ''
   }
-  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result, depth: meta.spawnDepth ?? 1, background: meta.requestShape === 'background', spawns, stopped: stopped && !done }
+  return { agentId, toolUseId: meta.toolUseId ?? '', type: meta.agentType ?? 'agent', description: meta.description ?? '', startedAt, updatedAt, done, calls, result, depth: meta.spawnDepth ?? 1, background: meta.requestShape === 'background', spawns, stopped: stopped && !done, ...(model && { model: modelLabel(model) }) }
 }
 
 /** The subagents a session started, read from `<session folder>/subagents`. A file that cannot be read is skipped. */

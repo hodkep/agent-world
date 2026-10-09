@@ -83,6 +83,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
     set({ roleModels: model ? { ...rest, [title]: model } : rest })
   }
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
+  const setSubagents = (patch: Partial<Prefs['subagents']>) => set({ subagents: { ...prefs.subagents, ...patch } })
   const ready = providers.filter((p) => p.detection.state === 'ready')
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
@@ -161,6 +162,26 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                 </div>
               </div>
               <Switch checked={prefs.defaults.inPlace} onChange={(inPlace) => setDefaults({ inPlace })} title="Work in my folder directly (no branch)" hint="No branch and no worktree: agents on one folder can overwrite each other." />
+              <div className="set-sub" role="group" aria-label="Subagents">
+                <span className="lab">Subagents</span>
+                <p className="hint">When an agent starts another as its subagent (Claude or agy, either way), these keep it from running away.</p>
+                <label>
+                  Levels deep
+                  <select aria-label="Levels of subagents" value={prefs.subagents.maxDepth} onChange={(e) => setSubagents({ maxDepth: Number(e.target.value) })}>
+                    {[1, 2, 3, 4].map((n) => (
+                      <option key={n} value={n}>{n === 1 ? '1: an agent may start subagents, they may not' : n === 2 ? '2: a subagent may start subagents too (default)' : `${n}`}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  At once under one agent
+                  <select aria-label="Subagents at once" value={prefs.subagents.maxRunning} onChange={(e) => setSubagents({ maxRunning: Number(e.target.value) })}>
+                    {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+                      <option key={n} value={n}>{n === 3 ? '3 (default)' : n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </>
           )}
           {pane === 'rules' && (

@@ -437,6 +437,8 @@ export function App() {
     const offs = [
       window.aw.onAgentEvent((e) => {
         setWorld((w) => applyEvent(w, e))
+        // A subagent another program was asked to do (through the office) opens in the panel as it starts: nobody else would tell you it is there.
+        if (e.type === 'subagent-start') void window.aw.subagents(e.agentId).then((l) => l.some((i) => i.agentId === e.subagentId && i.toolUseId.startsWith('spawn:')) && openSub(e.agentId, e.subagentId), () => {})
         if (e.type === 'subagent-stop') sentAway.current.set(e.subagentId, Date.now())
         if (e.type === 'activity' && e.tool === 'SendMessage' && e.target && !e.subagentId) void messageSubagent(e.agentId, e.sessionId, e.target)
         // The main process marks an agent started on its first real activity; mirror it so Clone unlocks.

@@ -1,3 +1,4 @@
+import { isAwaitCall, isSpawnCall, spawnLabel } from '../../shared/spawn'
 import { jobId, monitorTask } from './watch'
 import type { ChatItem, HookInfo, NoteEvent, SubagentInfo } from '../../shared/chat'
 import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
@@ -79,8 +80,12 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     lastAt = i.at
     switch (i.kind) {
       case 'tool': {
-        if (i.name === 'Agent' || i.name === 'Task') {
-          const call = { toolUseId: i.toolUseId, description: String(i.input.description ?? i.input.subagent_type ?? 'subagent'), subagentType: String(i.input.subagent_type ?? 'agent') }
+        if (isAwaitCall(i.name)) break
+        if (i.name === 'Agent' || i.name === 'Task' || isSpawnCall(i.name)) {
+          // One started through the office names its program and its task, which is how it is found among the agent's subagents.
+          const call = isSpawnCall(i.name)
+            ? { toolUseId: i.toolUseId, description: spawnLabel(String(i.input.task ?? 'subagent')), subagentType: String(i.input.provider ?? 'agent') }
+            : { toolUseId: i.toolUseId, description: String(i.input.description ?? i.input.subagent_type ?? 'subagent'), subagentType: String(i.input.subagent_type ?? 'agent') }
           const last = rows.at(-1)
           if (last?.kind === 'delegation') last.calls.push(call)
           else rows.push({ kind: 'delegation', id: i.id, calls: [call] })
