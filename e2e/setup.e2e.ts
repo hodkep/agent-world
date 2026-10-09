@@ -37,6 +37,16 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await expect(track).toHaveAttribute('aria-checked', 'true')
     await setup.getByRole('button', { name: 'Continue' }).click()
 
+    // One feature for now: the check before acting. It is on, says what it costs on stated assumptions, and a click turns it off in the global playbook.
+    await expect(setup.getByRole('heading', { name: 'Which features should agents use?' })).toBeVisible()
+    const check = setup.getByRole('switch', { name: 'Check before acting' })
+    await expect(check).toHaveAttribute('aria-checked', 'true')
+    await expect(setup.getByRole('table', { name: 'What the check adds, on these assumptions' })).toContainText('≈ 2,750 tokens')
+    await check.click()
+    await expect(check).toHaveAttribute('aria-checked', 'false')
+    await expect.poll(() => JSON.parse(readFileSync(join(home, 'library', 'playbooks', 'global.json'), 'utf8'))).toMatchObject({ features: { forcedCheck: false } })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+
     await expect(setup.getByRole('heading', { name: 'Hire your first agent' })).toBeVisible()
     await setup.getByLabel('Name').fill('ada')
     await setup.getByRole('button', { name: 'Hire and finish' }).click()
@@ -120,6 +130,7 @@ test('setup can be run again from Settings and closed at any step', async () => 
     await setup.getByRole('button', { name: 'Continue' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
+    await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Hire and finish' }).click()
     await expect(setup).toBeHidden()
 
@@ -159,6 +170,7 @@ test('setup offers only Claude Code and agy', async () => {
     await expect(setup.getByRole('button', { name: 'Disconnect' })).toBeVisible()
     await expect(next).toBeEnabled()
     await next.click()
+    await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await expect(setup.getByLabel('Provider').locator('option')).toHaveText(['Claude Code', 'agy (Antigravity)'])
