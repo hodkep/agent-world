@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type History, type Pt, type Shape, type Tool, add, canRedo, canUndo, clear, drawShapes, empty, lineWidth, redo, undo } from './annotate'
 import { Lightbox } from './Images'
+import { hint } from '../shortcuts'
 import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 
 const TOOLS: { tool: Tool; icon: HeaderIconName; label: string }[] = [
@@ -173,10 +174,10 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
           ))}
         </div>
         <div className="editor-group">
-          <button className="tool" onClick={() => setHist(undo)} disabled={!canUndo(hist)} aria-label="Undo" title="Undo (⌘Z)">
+          <button className="tool" onClick={() => setHist(undo)} disabled={!canUndo(hist)} aria-label="Undo" title={hint('undo')}>
             <OutlineIcon name="undo" size={18} />
           </button>
-          <button className="tool" onClick={() => setHist(redo)} disabled={!canRedo(hist)} aria-label="Redo" title="Redo (⇧⌘Z)">
+          <button className="tool" onClick={() => setHist(redo)} disabled={!canRedo(hist)} aria-label="Redo" title={hint('redo')}>
             <OutlineIcon name="redo" size={18} />
           </button>
           <button className="tool" onClick={() => setHist(clear)} disabled={hist.done.length === 0} aria-label="Clear all marks" title="Clear all marks">

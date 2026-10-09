@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { isBusy } from '../../shared/shells'
 import { RUN_EVENT } from '../chat/runnable'
 import { TerminalView } from './TerminalView'
+import { keysOf } from '../shortcuts'
 
 const keyFor = (folder: string) => `aw.terms.${folder}`
 const readIds = (folder: string): string[] => {
@@ -157,7 +158,7 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
         <span className="twhere" title={folder ?? ''}>
           {folderName}
         </span>
-        <button className="thide" onClick={onHide} title="Hide the terminals; they keep running (Ctrl+`)" aria-label="Hide the terminals">
+        <button className="thide" onClick={onHide} title={`Hide the terminals; they keep running (${keysOf('terminals')})`} aria-label="Hide the terminals">
           ▾
         </button>
       </div>
