@@ -29,8 +29,10 @@ test('a subagent opens as a conversation in a panel to the right of the chat: th
     await page.getByRole('button', { name: /subagents? working/ }).click()
     const list = page.getByRole('dialog', { name: 'Subagents' })
     await expect(list.locator('.dg-row')).toHaveCount(2, { timeout: 20_000 })
+    // Clicking a subagent opens its conversation at once; Details shows its calls in the list instead.
+    await list.locator('.dg-row').first().getByRole('button', { name: 'Details' }).click()
+    await expect(list.locator('.dg-row').first().locator('.dg-open')).toBeVisible()
     await list.locator('.dg-row').first().locator('.dg-line').click()
-    await list.getByRole('button', { name: 'Open conversation' }).click()
     await page.keyboard.press('Escape')
 
     const panel = page.getByRole('complementary', { name: 'Subagents' })
@@ -52,7 +54,6 @@ test('a subagent opens as a conversation in a panel to the right of the chat: th
     // A second subagent gets a tab beside the first, and closing both closes the panel.
     await page.getByRole('button', { name: /subagents? working/ }).click()
     await list.locator('.dg-row').nth(1).locator('.dg-line').click()
-    await list.getByRole('button', { name: 'Open conversation' }).click()
     await page.keyboard.press('Escape')
     await expect(panel.getByRole('tab')).toHaveCount(2)
     await expect(panel.locator('.sp-pill')).toHaveText('WORKING')

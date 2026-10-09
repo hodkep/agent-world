@@ -42,6 +42,7 @@ export function CrewPanel({ agentId, managerName, infos, now, waiting, quoteInto
         now={now}
         level={r.level}
         needsYou={waiting?.has(r.info.agentId)}
+        onOpen={() => openSubagent(agentId, r.info.agentId)}
         actions={
           <>
             <button title="Read this subagent's own conversation in a panel beside the chat" onClick={() => openSubagent(agentId, r.info.agentId)}>

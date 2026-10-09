@@ -72,7 +72,7 @@ export function SubagentRowView({ type, description, info, state, now, level = 0
   const last = info?.calls.at(-1)
   return (
     <div className={`dg-row s-${state} ${needsYou ? 'needs-you' : ''}`} style={level ? { paddingLeft: level * 18 } : undefined} data-level={level}>
-      <button className="dg-line" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button className="dg-line" aria-expanded={onOpen ? undefined : open} onClick={() => (onOpen ? onOpen() : setOpen(!open))} title={onOpen ? 'Open its conversation in the panel beside the chat' : undefined}>
         <span className="dg-dot" aria-hidden="true" />
         <span className="dg-what">
           <span>
@@ -85,8 +85,9 @@ export function SubagentRowView({ type, description, info, state, now, level = 0
         <span className="dg-time">{info ? elapsedLabel((info.done ? info.updatedAt : now) - info.startedAt) : '–'}</span>
       </button>
       {onOpen && (
-        <button className="dg-open-btn" onClick={onOpen} title="Open its conversation in the panel beside the chat">
-          Open
+        // Clicking the row opens its conversation beside the chat; this shows its calls and answer here instead.
+        <button className="dg-open-btn" aria-expanded={open} onClick={() => setOpen(!open)} title="Show its calls and its answer here">
+          {open ? 'Less' : 'Details'}
         </button>
       )}
       {open && <Trail info={info} now={now} />}
