@@ -2219,7 +2219,8 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .reach-bar i.mid { background: var(--accent); }
 .reach-bar i.few { background: var(--dim); }
 .reach-v { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.reach-said { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; background: var(--panel-2); border-left: 2px solid var(--accent); }
+.reach-said { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; background: var(--panel-2); }
+.reach-said b { color: var(--accent); }
 .reach-said .advice { color: var(--text); }
 .reach-fix { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px 10px; }
 @media (max-width: 700px) { .reach-row { grid-template-columns: 1fr; } }
