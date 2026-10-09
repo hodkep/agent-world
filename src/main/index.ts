@@ -27,7 +27,7 @@ import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
-import { mayTrust, shownTo, withoutOrphans } from './subagentSpawn'
+import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -945,6 +945,10 @@ async function main() {
     announce: (what, parent, child) => send('agent-event', { type: what === 'start' ? 'subagent-start' : 'subagent-stop', agentId: parent.id, sessionId: parent.sessionId, subagentId: child.id, ...(what === 'start' && { subagentType: child.provider ?? 'claude' }) } as AgentEvent)
   })
   setInterval(() => subagents.tick(), 2000)
+  // Subagents whose program has ended are cleared away an hour on, when they have been read; their worktree goes with them unless it holds unmerged work.
+  const clearOld = () => void Promise.all(staleChildren(agents, new Set(sessions.keys()), Date.now()).map((id) => removeAgent(id).catch(() => undefined)))
+  setInterval(clearOld, 60_000)
+  setTimeout(clearOld, 5_000)
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,

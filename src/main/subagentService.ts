@@ -46,7 +46,13 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
   // Which have been announced as started, and which as gone.
   const here = new Set<string>()
   const children = (parentId: string) => d.agents().filter((a) => a.parent === parentId)
-  const report = (id: string) => finalReport(d.items(id), d.idle(id))
+  // Whoever has answered stays answered: once its program is stopped it no longer looks idle.
+  const answered = new Set<string>()
+  const report = (id: string) => {
+    const r = finalReport(d.items(id), d.idle(id) || answered.has(id))
+    if (r !== null) answered.add(id)
+    return r
+  }
   const finished = (id: string) => report(id) !== null || cut.has(id) || !d.alive(id)
   const mine = (callerId: string, id: string) => {
     const c = d.byId(id)
@@ -104,10 +110,12 @@ export function createSubagents<A extends Rec>(d: SubagentDeps<A>) {
         if (c && parent && !finished(id)) continue
         here.delete(id)
         if (c && parent) d.announce?.('stop', parent, c)
+        // It has given its answer: its program has nothing left to do, so it is stopped (its conversation stays to be read).
+        if (c && d.alive(id)) d.stop(id)
       }
     },
     /** The children of an agent, as its list of subagents shows them. */
-    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id), d.alive(c.id))),
+    infos: (parentId: string): SubagentInfo[] => children(parentId).map((c) => childInfo(c, d.items(c.id), d.idle(c.id) || answered.has(c.id), d.alive(c.id))),
     /** One child's conversation, for its parent only. */
     conversation: (parentId: string, id: string): ChatItem[] => (d.byId(id)?.parent === parentId ? d.items(id) : [])
   }

@@ -103,3 +103,11 @@ export function mayTrust(agents: { id: string; cwd: string; parent?: string }[],
   const parent = a?.parent ? agents.find((x) => x.id === a.parent) : undefined
   return !!a && !!parent && (a.cwd === parent.cwd || a.cwd.startsWith(`${worktreeRoot.replace(/\/$/, '')}/`))
 }
+
+/** How long a finished subagent stays in its parent's list (for reading what it did) before it is cleared away. */
+export const KEEP_MS = 3_600_000
+
+/** The subagents to clear away: their program has ended and they were made more than an hour ago. */
+export function staleChildren(agents: { id: string; parent?: string; hiredAt?: number }[], running: Set<string>, now: number): string[] {
+  return agents.filter((a) => a.parent && !running.has(a.id) && now - (a.hiredAt ?? 0) > KEEP_MS).map((a) => a.id)
+}

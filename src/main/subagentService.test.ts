@@ -27,7 +27,8 @@ function setup(over: { createFails?: string; limits?: { maxDepth: number; maxRun
     items: (id) => convo.get(id) ?? [],
     idle: (id) => idle.has(id),
     alive: (id) => !dead.has(id),
-    stop: (id) => void stopped.push(id),
+    // A stopped program is no longer idle, as with a real one: its activity is not 'idle' once it is gone.
+    stop: (id) => (stopped.push(id), idle.delete(id)),
     limits: over.limits ? () => over.limits! : undefined,
     announce: (what, parent, child) => void told.push(`${what}:${parent.id}:${child.id}`),
     // Time passing: a real turn of the event loop, so the test can act while a call waits.
@@ -133,6 +134,20 @@ describe('telling the office a subagent came and went', () => {
     t.dead.add('c2')
     t.svc.tick()
     expect(t.told.filter((x) => x.startsWith('stop')).sort()).toEqual(['stop:p:c1', 'stop:p:c2'])
+  })
+})
+
+describe('a subagent that has answered', () => {
+  it('has its program stopped once, so it is not left running', async () => {
+    const t = setup()
+    await t.svc.spawn('p', { provider: 'agy', task: 'x', background: true })
+    t.svc.tick()
+    expect(t.stopped).toEqual([])
+    t.finish('c1', 'All done.')
+    t.svc.tick()
+    t.svc.tick()
+    expect(t.stopped).toEqual(['c1'])
+    expect(t.svc.infos('p')[0]).toMatchObject({ done: true, result: 'All done.' })
   })
 })
 

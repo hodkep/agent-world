@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../shared/chat'
-import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, mayTrust, shownTo, subagentPrompt, withoutOrphans } from './subagentSpawn'
+import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, mayTrust, shownTo, staleChildren, subagentPrompt, withoutOrphans } from './subagentSpawn'
 
 const a = (id: string, parent?: string) => ({ id, parent })
 
@@ -112,5 +112,22 @@ describe('a program asking whether to trust the folder a subagent works in', () 
 describe('when a subagent that has said nothing yet began', () => {
   it('is when it was made, not the start of time', () => {
     expect(childInfo({ id: 'c', provider: 'agy', task: 'x', hiredAt: 5000 }, [], false, true, 9000)).toMatchObject({ startedAt: 5000, updatedAt: 9000 })
+  })
+})
+
+describe('subagents left behind', () => {
+  const HOUR = 3_600_000
+  const all = [
+    { id: 'p' },
+    { id: 'old-dead', parent: 'p', hiredAt: 0 },
+    { id: 'new-dead', parent: 'p', hiredAt: 10 * HOUR - 5 * 60_000 },
+    { id: 'old-alive', parent: 'p', hiredAt: 0 },
+    { id: 'noage', parent: 'p' }
+  ]
+  it('are removed once their program has ended and they are an hour old, so the list does not fill with old ones', () => {
+    expect(staleChildren(all, new Set(['p', 'old-alive']), 10 * HOUR)).toEqual(['old-dead', 'noage'])
+  })
+  it('are kept while their program runs, and never include an agent that is not a subagent', () => {
+    expect(staleChildren([{ id: 'solo', hiredAt: 0 }], new Set(), 10 * HOUR)).toEqual([])
   })
 })
