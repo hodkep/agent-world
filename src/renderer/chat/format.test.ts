@@ -94,7 +94,8 @@ describe('chat rows', () => {
       { kind: 'tool', id: 'c', at: t0 + 3, toolUseId: 't3', name: 'mcp__agent-world__await_subagents', input: { ids: ['x'] } }
     ]
     const rows = toRows(items, [])
-    expect(rows.map((r) => r.kind)).toEqual(['user', 'delegation', 'tool'])
+    // The wait for its answer is not drawn: the subagent's row shows how it is getting on.
+    expect(rows.map((r) => r.kind)).toEqual(['user', 'delegation'])
     expect(rows[1]).toMatchObject({ kind: 'delegation', calls: [{ toolUseId: 't1', description: 'Read src/main/prefs.ts and say what it checks', subagentType: 'agy' }, { toolUseId: 't2', description: 'Count the files', subagentType: 'claude' }] })
   })
 
