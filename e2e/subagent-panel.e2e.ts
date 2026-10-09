@@ -63,6 +63,13 @@ test('a subagent opens as a conversation in a panel to the right of the chat: th
     await panel.getByRole('button', { name: 'Close the subagents panel' }).click()
     await expect(panel).toHaveCount(0)
     await expect.poll(async () => Math.abs((await stage.boundingBox())!.width - before.stage)).toBeLessThan(2)
+
+    // From the top bar, for any agent: clicking a subagent selects that agent and opens its panel.
+    await page.locator('header').getByRole('button', { name: /^Subagents/ }).click()
+    const everyone = page.getByRole('dialog', { name: 'Subagents' })
+    await everyone.locator('.dg-row').first().locator('.dg-line').click()
+    await expect(everyone).toHaveCount(0)
+    await expect(page.getByRole('complementary', { name: 'Subagents' })).toBeVisible()
   } finally {
     await shutdown()
   }
