@@ -7,7 +7,7 @@ import { elapsedLabel, subagentState, toRows } from './format'
 import type { PictureSet } from './gallery'
 import { Lightbox } from './Images'
 import { RowView } from './ChatView'
-import { liveLine, signature, tabLabel, trimFork } from './subagentView'
+import { PANEL_MIN, clampPanel, liveLine, signature, tabLabel, trimFork } from './subagentView'
 
 const read = (key: string) => {
   try {
@@ -93,10 +93,60 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
       (e: unknown) => setTold(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': /, '') : String(e))
     )
   }
+  // Its width: dragged from the left edge, remembered, and reset by a double click.
+  const box = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState<number | null>(() => {
+    try {
+      const n = Number(localStorage.getItem('aw.subw'))
+      return n >= PANEL_MIN ? n : null
+    } catch {
+      return null
+    }
+  })
+  const keepWidth = (w: number | null) => {
+    try {
+      localStorage.setItem('aw.subw', w === null ? '' : String(w))
+    } catch {
+      /* remembering the width is a convenience */
+    }
+  }
+  const fit = (want: number) => clampPanel(want, window.innerWidth, document.querySelector('main > aside')?.getBoundingClientRect().width ?? 0)
   const stateLabel = { waiting: 'STARTING', working: 'WORKING', done: 'DONE', stopped: 'STOPPED' }[state]
 
   return (
-    <div className="subpanel" role="complementary" aria-label="Subagents" onKeyDown={(e) => e.key === 'Escape' && onCloseAll()}>
+    <div ref={box} className="subpanel" role="complementary" aria-label="Subagents" style={width ? { width } : undefined} onKeyDown={(e) => e.key === 'Escape' && onCloseAll()}>
+      <div
+        className="sp-grip"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the subagents panel"
+        tabIndex={0}
+        title="Drag to resize · double-click to reset"
+        onDoubleClick={() => (setWidth(null), keepWidth(null))}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          e.stopPropagation()
+          const next = fit((width ?? box.current!.getBoundingClientRect().width) + (e.key === 'ArrowLeft' ? 24 : -24))
+          setWidth(next)
+          keepWidth(next)
+        }}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          const grip = e.currentTarget
+          grip.setPointerCapture(e.pointerId)
+          const right = box.current!.getBoundingClientRect().right
+          let last = width
+          const move = (ev: PointerEvent) => setWidth((last = fit(right - ev.clientX)))
+          const up = () => {
+            grip.removeEventListener('pointermove', move)
+            grip.removeEventListener('pointerup', up)
+            keepWidth(last)
+          }
+          grip.addEventListener('pointermove', move)
+          grip.addEventListener('pointerup', up)
+        }}
+      />
       <div className="sp-tabs" role="tablist" aria-label="Subagents opened">
         {ids.map((id) => {
           const i = shown(id)

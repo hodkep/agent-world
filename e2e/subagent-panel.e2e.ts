@@ -51,6 +51,20 @@ test('a subagent opens as a conversation in a panel to the right of the chat: th
     expect(before.stage - after.stage).toBeGreaterThan(sub.width - 4)
     expect((await panel.boundingBox())!.x).toBeGreaterThan((await chat.boundingBox())!.x)
 
+    // Its left edge is dragged to resize it: wider when dragged left, the chat keeps its width, the width is remembered, and a double click resets it.
+    const grip = panel.getByRole('separator', { name: 'Resize the subagents panel' })
+    const wide0 = (await panel.boundingBox())!.width
+    const gb = (await grip.boundingBox())!
+    await page.mouse.move(gb.x + gb.width / 2, gb.y + 200)
+    await page.mouse.down()
+    await page.mouse.move(gb.x + gb.width / 2 - 120, gb.y + 200, { steps: 6 })
+    await page.mouse.up()
+    await expect.poll(async () => Math.round((await panel.boundingBox())!.width)).toBeGreaterThan(wide0 + 100)
+    expect(Math.abs((await chat.boundingBox())!.width - before.chat)).toBeLessThan(2)
+    expect(Number(await page.evaluate(() => localStorage.getItem('aw.subw')))).toBeGreaterThan(wide0 + 100)
+    await grip.dblclick()
+    await expect.poll(async () => Math.abs((await panel.boundingBox())!.width - wide0)).toBeLessThan(2)
+
     // A second subagent gets a tab beside the first, and closing both closes the panel.
     await page.getByRole('button', { name: /subagents? working/ }).click()
     await list.locator('.dg-row').nth(1).locator('.dg-line').click()

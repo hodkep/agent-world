@@ -2507,3 +2507,10 @@ aside:not(.drawer) { flex: none; }
 .md blockquote:has(.quote-copy) { padding-right: 36px; }
 .dg-row { position: relative; }
 .dg-open-btn { position: absolute; right: 70px; top: 5px; font-size: 11px; padding: 1px 8px; }
+
+/* The edge of the subagent panel that is dragged to resize it: wide to grab, a thin line while hovered. */
+.sp-grip { position: absolute; left: -5px; top: 0; bottom: 0; width: 9px; cursor: col-resize; touch-action: none; z-index: 5; }
+.sp-grip::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 3px; background: transparent; }
+.sp-grip:hover::after, .sp-grip:focus-visible::after, .sp-grip:active::after { background: var(--accent); }
+.sp-grip:focus-visible { outline: none; }
+@media (max-width: 900px) { .sp-grip { display: none; } }
