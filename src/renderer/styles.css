@@ -1743,7 +1743,7 @@ dialog.handoff { width: min(640px, 94vw); }
 
 /* Accounts: each Claude login is a row with its own colour, kept apart from the rest of the office's greens and golds by being a small square. */
 .acct-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; vertical-align: 1px; box-shadow: 0 0 0 1px var(--ink); flex: none; }
-.set-note { margin: 0; padding: 8px 10px; max-width: 62ch; color: var(--muted); font-size: 12px; background: var(--well); box-shadow: inset 3px 0 0 var(--accent-dim, #5a4c1e); }
+.set-note { margin: 0; padding: 8px 10px; max-width: 62ch; color: var(--muted); font-size: 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
 .acct-list { display: flex; flex-direction: column; gap: 8px; }
 .acct { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; background: var(--well); box-shadow: inset 0 0 0 1px var(--line); }
 .acct[data-default="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -1788,7 +1788,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .lbd-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .lbd-leds { display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; }
 .lbd-leds i { height: 9px; background: #1b2230; }
-.lbd-leds i.on { background: #2fc4d8; box-shadow: 0 0 4px #2fc4d899; }
+.lbd-leds i.on { background: var(--think); box-shadow: 0 0 0 1px var(--ink); }
 .lbd-leds[data-l="warn"] i.on { background: #f2c230; box-shadow: 0 0 4px #f2c23099; }
 .lbd-leds[data-l="hot"] i.on { background: #e65050; box-shadow: 0 0 4px #e6505099; }
 .lbd-note { font-size: 10px; color: var(--muted); white-space: nowrap; }
@@ -1846,7 +1846,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .st-delta { font-style: normal; font-family: Menlo, Consolas, monospace; color: var(--ok-text); }
 .st-delta[data-up='true'] { color: var(--danger-text); }
 .st-hero { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 16px 18px; background: var(--panel-2); border: 2px solid var(--ink); }
-.st-hero h2 { margin: 0 0 4px; font-size: 18px; line-height: 1.3; }
+.st-hero h2 { margin: 0 0 4px; font-size: 16px; line-height: 1.3; }
 .st-hero h2 em { font-style: normal; color: var(--accent); }
 .st-hero p { margin: 0; color: var(--muted); }
 .st-hero .st-card { min-width: 150px; }
