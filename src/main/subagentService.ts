@@ -5,6 +5,7 @@ import { type Limits, checkSpawn, childInfo, finalReport, subagentPrompt } from 
 interface Rec {
   id: string
   name: string
+  hiredAt?: number
   provider?: string
   branch: string | null
   parent?: string

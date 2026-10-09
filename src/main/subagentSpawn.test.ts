@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../shared/chat'
-import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, shownTo, subagentPrompt, withoutOrphans } from './subagentSpawn'
+import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, mayTrust, shownTo, subagentPrompt, withoutOrphans } from './subagentSpawn'
 
 const a = (id: string, parent?: string) => ({ id, parent })
 
@@ -92,5 +92,25 @@ describe('after a restart', () => {
   it('drops subagents whose parent is gone, and theirs, and keeps the rest', () => {
     const all = [a('root'), a('c1', 'root'), a('lost', 'removed'), a('g-of-lost', 'lost'), a('solo')]
     expect(withoutOrphans(all).map((x) => x.id)).toEqual(['root', 'c1', 'solo'])
+  })
+})
+
+describe('a program asking whether to trust the folder a subagent works in', () => {
+  const agents = [{ id: 'p', cwd: '/work/shop' }, { id: 'c1', cwd: '/work/shop', parent: 'p' }, { id: 'c2', cwd: '/home/u/.agent-world/worktrees/shop/bo', parent: 'p' }, { id: 'c3', cwd: '/elsewhere', parent: 'p' }, { id: 'solo', cwd: '/work/other' }]
+  const root = '/home/u/.agent-world/worktrees'
+  it('is answered yes for the folder its parent works in, and for a worktree the office made for it', () => {
+    expect(mayTrust(agents, 'c1', root)).toBe(true)
+    expect(mayTrust(agents, 'c2', root)).toBe(true)
+  })
+  it('is left to the user for any other folder, and for an agent that is not a subagent', () => {
+    expect(mayTrust(agents, 'c3', root)).toBe(false)
+    expect(mayTrust(agents, 'solo', root)).toBe(false)
+    expect(mayTrust(agents, 'nobody', root)).toBe(false)
+  })
+})
+
+describe('when a subagent that has said nothing yet began', () => {
+  it('is when it was made, not the start of time', () => {
+    expect(childInfo({ id: 'c', provider: 'agy', task: 'x', hiredAt: 5000 }, [], false, true, 9000)).toMatchObject({ startedAt: 5000, updatedAt: 9000 })
   })
 })

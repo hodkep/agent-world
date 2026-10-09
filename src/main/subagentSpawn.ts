@@ -54,7 +54,7 @@ const detailOf = (input: Record<string, unknown>) => {
 }
 
 /** A child agent as the parent's list of subagents shows it. Its provider is its type, so the chip says which program runs it. */
-export function childInfo(child: { id: string; provider?: string; task?: string }, items: ChatItem[], idle: boolean, alive: boolean, now = Date.now()): SubagentInfo {
+export function childInfo(child: { id: string; provider?: string; task?: string; hiredAt?: number }, items: ChatItem[], idle: boolean, alive: boolean, now = Date.now()): SubagentInfo {
   const report = finalReport(items, idle)
   const first = items.find((i) => i.kind === 'user')
   return {
@@ -62,7 +62,7 @@ export function childInfo(child: { id: string; provider?: string; task?: string 
     toolUseId: `spawn:${child.id}`,
     type: child.provider ?? 'claude',
     description: spawnLabel(child.task ?? ''),
-    startedAt: first?.at ?? 0,
+    startedAt: first?.at ?? child.hiredAt ?? now,
     // One that is still working is working now, however long its step takes; the chat would call it stopped after a quiet spell.
     updatedAt: report === null && alive ? now : (items.at(-1)?.at ?? first?.at ?? 0),
     done: report !== null,
@@ -92,4 +92,14 @@ export function shownTo<R extends { id: string; agentId: string; sessionId: stri
 export function withoutOrphans<T extends Tree>(agents: T[]): T[] {
   const keep = (a: T, hops = 0): boolean => !a.parent || (hops < 20 && agents.some((p) => p.id === a.parent && keep(p, hops + 1)))
   return agents.filter((a) => keep(a))
+}
+
+/**
+ * A program that asks to trust a folder before it starts waits for an answer a subagent cannot give (it is not in the office). The
+ * folder its parent already works in, and one the office made for it, are the user's own, so those are answered yes.
+ */
+export function mayTrust(agents: { id: string; cwd: string; parent?: string }[], id: string, worktreeRoot: string): boolean {
+  const a = agents.find((x) => x.id === id)
+  const parent = a?.parent ? agents.find((x) => x.id === a.parent) : undefined
+  return !!a && !!parent && (a.cwd === parent.cwd || a.cwd.startsWith(`${worktreeRoot.replace(/\/$/, '')}/`))
 }

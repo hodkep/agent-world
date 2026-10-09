@@ -27,7 +27,7 @@ import { commandLine } from './commands'
 import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
-import { shownTo, withoutOrphans } from './subagentSpawn'
+import { mayTrust, shownTo, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import { claudeWindows } from '../shared/limits'
@@ -151,6 +151,8 @@ const DESCRIBE_HINT = "Whenever you run a shell command, fill in the Bash tool's
 const memoryFile = (repoPath: string) => join(HOME, 'memory', `${repoSlug(repoPath)}.json`)
 const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
+// Subagents whose trust question was answered for them.
+const trustAnswered = new Set<string>()
 const planOpen = new Set<string>()
 // When the terminal last drew anything: Claude's spinner redraws constantly while it works.
 const lastOutput = new Map<string, number>()
@@ -688,7 +690,13 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
       if (ui(a.id).inputReady(text)) mailbox.started(a.id)
       const trust = ui(a.id).trustPrompt(text)
-      if (trust && !trustOpen.has(a.id)) {
+      // A subagent has no card to be asked on: its parent's folder, or a worktree made for it, is trusted for it.
+      if (trust && mayTrust(agents, a.id, join(HOME, 'worktrees'))) {
+        if (!trustAnswered.has(a.id)) {
+          trustAnswered.add(a.id)
+          void ui(a.id).answerTrust({ screen: () => screens.get(a.id)?.text() ?? '', write: (keys) => sessions.get(a.id)?.write(keys), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) }, true)
+        }
+      } else if (trust && !trustOpen.has(a.id)) {
         trustOpen.add(a.id)
         send('trust-prompt', a.id, trust.path || a.cwd)
         notify('trust', a, 'Needs you to trust its workspace before it can start.')
