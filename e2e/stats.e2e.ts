@@ -91,3 +91,31 @@ test('the top bar buttons are icons that name themselves at once, and Usage and 
     await shutdown()
   }
 })
+
+test('Usage and Weekly Rewind fit a short window: the dialog ends inside it and its content scrolls instead of being cut off at the bottom', async () => {
+  const { page, shutdown } = await start()
+  try {
+    await page.setViewportSize({ width: 1200, height: 560 })
+    const header = page.locator('header')
+    for (const name of ['Usage', 'Weekly Rewind']) {
+      await header.getByRole('button', { name, exact: true }).click()
+      const dialog = page.getByRole('dialog', { name })
+      const body = dialog.locator('.st-body')
+      await expect(body).toBeVisible()
+      const d = (await dialog.boundingBox())!
+      const b = (await body.boundingBox())!
+      // The dialog is inside the window, and the part that holds the content ends where the dialog does.
+      expect(d.y + d.height).toBeLessThanOrEqual(560)
+      expect(b.y + b.height).toBeLessThanOrEqual(d.y + d.height + 1)
+      // What does not fit is reached by scrolling, down to its last line.
+      await body.evaluate((el) => (el.scrollTop = el.scrollHeight))
+      const last = body.locator(':scope > *').last()
+      const lb = (await last.boundingBox())!
+      expect(lb.y + lb.height).toBeLessThanOrEqual(b.y + b.height + 1)
+      await page.mouse.click(5, 5)
+      await expect(dialog).toHaveCount(0)
+    }
+  } finally {
+    await shutdown()
+  }
+})

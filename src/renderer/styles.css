@@ -1326,10 +1326,12 @@ code a.file-link { font: inherit; }
 .tip-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; padding: 1px 3px; background: var(--accent); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 1.2; }
 
 /* Usage and Weekly Rewind. */
-.settings.stats { width: min(920px, 94vw); max-height: 92vh; overflow: hidden; }
+.settings.stats { width: min(920px, 94vw); height: min(700px, 92vh); max-height: 92vh; overflow: hidden; }
+/* A column, so the head keeps its height and the body takes (and scrolls in) what is left, whatever the window's height. */
+.settings.stats[open] { display: flex; flex-direction: column; }
 .stats .settings-head { gap: 12px; }
 .st-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--muted); }
-.st-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; max-height: calc(92vh - 52px); }
+.st-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; flex: 1 1 auto; min-height: 0; }
 .st-note { margin: 0; color: var(--muted); font-size: 12px; padding: 0 2px; }
 .st-body h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .st-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
@@ -1709,7 +1711,8 @@ dialog.handoff { width: min(640px, 94vw); }
 .set-pane .hire-opt .hint { font-size: 11px; color: var(--muted); padding: 0; }
 @media (max-width: 640px) { .settings-v2[open] { grid-template-columns: 1fr; } .set-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 2px solid var(--ink); } .set-nav .g { display: none; } .set-nav button { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; } .set-nav button.on { border-bottom-color: var(--accent); } }
 
-.settings.stats .st-body { min-height: 440px; }
+/* The dialog has one height whatever the tab (700px, or the window's less a margin) and its body scrolls in what the head, range and tabs leave. */
+.settings.stats .st-body { min-height: 0; }
 .hire-foot { position: sticky; bottom: 0; z-index: 1; }
 
 /* Accounts: each Claude login is a row with its own colour, kept apart from the rest of the office's greens and golds by being a small square. */
@@ -2531,3 +2534,6 @@ aside:not(.drawer) { flex: none; }
 .sp-grip:hover::after, .sp-grip:focus-visible::after, .sp-grip:active::after { background: var(--accent); }
 .sp-grip:focus-visible { outline: none; }
 @media (max-width: 900px) { .sp-grip { display: none; } }
+/* The subagents list has only a head above its body: it takes the height of its content, with a steady least. */
+.crew-dialog.settings.stats { height: auto; }
+.crew-dialog.stats .st-body { min-height: min(440px, calc(92vh - 70px)); }
