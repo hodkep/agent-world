@@ -37,6 +37,8 @@ a workflow and suggests a model and settings for each step.
 | D18 | **A run is a task, not a session.** A session can hold many tasks, additions to a task and follow-ups; the agent identifies task boundaries (see "Tasks and follow-ups"). "Changes code" means **a commit**. |
 | D19 | **First version: a linear pipeline of about five steps.** The end goal is **user-defined workflows made by chatting with a dedicated, pre-created builder agent**, like one hired in the app but supplied ready-made. |
 | D20 | **Terms come from research on AI-DLC and what its main contributors published**, not from memory (first pass in "AI-DLC research" below). |
+| D21 | **Task boundaries are found as proposed under "Tasks and follow-ups"**: the agent says so with `task_begin` and `task_done`, a commit or an approved plan ends a round, and the app asks once when a message does not fit. A follow-up is **round 2 of the same run**. A commit outside a task is **flagged, not blocked** (no git hook in the first version). |
+| D22 | **The intent check (read-back block and blocking open questions at the plan gate) is built first; the small-task skip is the agent's own call, following an instruction we ship**, not a rule in code. The separate small-model check stays at the max dial position only. |
 | D9 | The concept is still settling: the product owner is "not at all sure how this works in reality". We brainstorm and settle before building, with mocks approved first. |
 
 ## What exists today (so we build on it, not around it)
@@ -178,7 +180,7 @@ Full report: `reports/Making coding agents follow instructions.md` (notes in `re
 - Both Gemini CLI and agy have hooks (Gemini CLI's `BeforeAgent` `additionalContext` is the per-turn analogue); agy's hook output format and rule precedence are undocumented in what was found.
 - Bundled scripts run by absolute path on both programs; only the permission to run them gates it (tested in print mode for agy).
 
-## Tasks and follow-ups (proposed, from the answers of 2026-10-08)
+## Tasks and follow-ups (decided in D21, from the answers of 2026-10-08 and 2026-10-11)
 
 A session is a conversation; a **task** is a piece of work with a purpose and an end, and it is the thing a workflow run records. A session holds many tasks, and a task can grow.
 
@@ -186,7 +188,7 @@ A session is a conversation; a **task** is a piece of work with a purpose and an
 - **Follow-ups.** A request after a task finished (a change to its review, a missed case) re-opens it as a **round 2** of the same run, with its own steps drawn under the first. Only the steps that apply run again (usually implement, test, review), and the plan is redone only if the scope changed. This is the same idea as AI-DLC's *bolt*: a short cycle on a unit of work.
 - **Added tasks.** Work added alongside the original is a new **unit** inside the run when it is part of the same goal (AI-DLC's *unit of work*), or a new run when it is not. A unit has its own commits; review and test run per unit or once at the end, as the workflow says.
 - **Commits.** Every commit in a session's worktree belongs to the open task. A commit with no open task is attached to the nearest one and flagged, so nothing is untracked. Enforcement happens at the commit and at Finish, not at each edit, so an agent can still try things before it commits.
-- **Open:** whether to refuse a commit (needs a git hook in the worktree) or only flag it. A hook changes the repo's git settings, so the first version only flags.
+- **Decided (2026-10-11):** a commit with no task is flagged, not refused. A refusing hook would change the repo's git settings.
 
 ## Framework or our own engine (2026-10-08)
 
@@ -239,14 +241,15 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 5. ~~What counts as changing code~~ A commit, D18. How follow-ups and added tasks attach is proposed below and needs an answer.
 6. ~~First version~~ Linear, about five steps, D19.
 7. ~~AI-DLC terms~~ Researched, D20; see below. Still to decide which terms we use in the app.
-8. How does the app find where one task ends and the next begins? (proposed below)
-9. A follow-up after a task was finished: a new round of the same run, or a new run? (proposed below)
-10. How do we enforce "a commit follows a workflow" without touching the repo's git settings?
-11. Intent check: build A and B first (block plus questions at the plan gate)? Proposed yes; C only at max.
-12. Who decides a task is small enough to skip the intent block: the agent, a one-sentence test in code, or the person?
+8. ~~How does the app find where one task ends and the next begins?~~ Decided, D21.
+9. ~~A follow-up after a task was finished~~ Round 2 of the same run, D21.
+10. ~~How do we enforce "a commit follows a workflow"~~ Flagged, not blocked, D21.
+11. ~~Intent check: build A and B first~~ Yes, D22; C only at max.
+12. ~~Who decides a task is small enough to skip the intent block~~ The agent, using an instruction we ship (D22). The wording of that instruction still has to be written and measured.
 
 ## Change log
 
+- 2026-10-11: answers recorded: task boundaries, round 2 for follow-ups, flagged commits (D21); intent check first, small-task skip by the agent through a shipped instruction (D22).
 - 2026-10-09: intent check proposed inside the plan gate (read-back block, blocking open questions, dial positions, small-task skip), from cocain's AI-DLC and intent-gap report.
 - 2026-10-08: answers to the open questions recorded (D15-D20); task and follow-up model proposed; framework-or-own-engine and first AI-DLC research added.
 - 2026-10-08: the rule reminder is sent on a message that points at something (medium and hard rules) or, for hard rules only, on every message; a medium rule no longer costs tokens on a message that matches nothing. Checked on a real Claude agent: the catalog arrives on prompt 10 and on the first prompt after `/compact`.
