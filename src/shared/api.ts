@@ -227,6 +227,8 @@ export interface AwApi {
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   /** An agent has a new entry in the library's log (read it again with library.uses). */
   onLibraryUse(cb: (agentId: string, how: string, item: string) => void): () => void
+  /** An agent opened a page in a browser: the app shows it in that agent's Preview tab. `path` is the file, as found on this computer. */
+  onOpenPage(cb: (agentId: string, path: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>

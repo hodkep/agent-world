@@ -293,6 +293,8 @@ if (process.env.FAKE_LOOP) {
 if (process.env.FAKE_CHAT) {
   await hook('Stop')
   // The chat agent has no script to reach the line further down, so it starts its subagent once its screen is up.
+  // FAKE_OPEN=<command>: the agent runs that shell command once its screen is up (the hook the app sees is what matters here).
+  if (process.env.FAKE_OPEN) setTimeout(() => void hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: process.env.FAKE_OPEN } }), 2500)
   if (myName && myName === spawnFrom) setTimeout(() => void spawnViaOffice(spawnProvider, spawnTask.join(':')).catch((e) => console.log(`spawn failed: ${e.message}`)), 2500)
   let typed = ''
   const prompts = []
