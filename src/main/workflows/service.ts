@@ -1,13 +1,21 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
 import { type PlanAnswer, type Run, type RunEvent, reduceRuns } from '../../shared/runs'
+import { auditPrompt, parseAudit } from '../../shared/audit'
 import { parsePlan } from '../../shared/plan'
+import type { MergeCheck } from '../../shared/mergeCheck'
+import type { Dial } from '../../shared/workflows'
 
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
   enabled: () => boolean
   /** The plan gate: a task's plan is approved by the person before the agent edits. */
   planGate: () => boolean
+  /** The merge gate: Land is held until the plan was approved and the audit's findings were seen. */
+  mergeGate: () => boolean
+  dial: () => Dial
+  /** One question to a model for the audit, under the agent's own account; the reply text and what it cost. */
+  ask: (agentId: string, prompt: string) => Promise<{ text: string; cost?: number; model?: string }>
   /** When workflows were switched on (ms): earlier commits are history. */
   since: () => number
   now: () => number
@@ -18,7 +26,7 @@ interface Deps {
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit']
+const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -38,6 +46,9 @@ export function parseRuns(text: string): RunEvent[] {
 
 /** Tasks agents report through the office tools, kept in an append-only log the way the ledger is. */
 export class Workflows {
+  /** Audits being asked for right now, by run and head, so two views of the same head share one model call. */
+  private auditing = new Map<string, Promise<void>>()
+
   constructor(
     private file: string,
     private deps: Deps
@@ -168,5 +179,90 @@ export class Workflows {
     return plan.state === 'submitted'
       ? 'Not yet: your plan is waiting for the person to approve it.'
       : 'Not yet: the person asked for changes to your plan. Revise it and call plan_submit again.'
+  }
+
+  /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */
+  mergeCheck(agentId: string, head: string, o: { auditable?: boolean } = {}): MergeCheck | null {
+    const run = this.mine(agentId)[0]
+    if (!this.deps.enabled() || !this.deps.mergeGate() || !run) return null
+    const blocking: string[] = []
+    const notes: string[] = []
+    const plan = [...run.rounds].reverse().find((r) => r.plan)?.plan
+    let state: MergeCheck['plan'] = plan?.state === 'submitted' ? 'waiting' : (plan?.state ?? 'none')
+    if (run.auto) {
+      state = 'not-needed'
+      notes.push('The app started this run from a commit, so there was no plan to approve.')
+    } else if (!this.deps.planGate()) state = 'not-needed'
+    else if (state === 'none') blocking.push('No plan was approved for this task.')
+    else if (state === 'waiting') blocking.push('The plan is still waiting for your approval.')
+    else if (state === 'changes') blocking.push('You asked for changes to the plan and no new plan was approved.')
+    if (run.status === 'open') notes.push('The task is still open: the agent has not said it is done.')
+    const commits = run.rounds.reduce((n, r) => n + r.commits.length, 0)
+    const flagged = run.rounds.reduce((n, r) => n + r.commits.filter((c) => c.flagged).length, 0)
+    if (flagged) notes.push(`${flagged} commit${flagged === 1 ? ' was' : 's were'} made outside the task.`)
+    const audit = this.auditState(run, head, o.auditable ?? true)
+    if (audit.state === 'done') {
+      const unseen = audit.findings.filter((f) => !f.seen).length
+      if (unseen) blocking.push(`${unseen} audit finding${unseen === 1 ? ' has' : 's have'} not been seen.`)
+    }
+    const readback = this.planOf(run)
+    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, blocking, notes }
+  }
+
+  /** The plan an audit reads against: the latest round's that has a goal (a released hold has none). */
+  private planOf(run: Run) {
+    return [...run.rounds].reverse().find((r) => r.plan?.readback.goal)?.plan?.readback
+  }
+
+  private auditState(run: Run, head: string, auditable: boolean): MergeCheck['audit'] {
+    if (this.deps.dial() === 'economy') return { state: 'off', reason: 'economy' }
+    if (!auditable) return { state: 'off', reason: 'provider' }
+    if (!this.planOf(run)) return { state: 'off', reason: 'no-plan' }
+    if (this.auditing.has(`${run.id} ${head}`)) return { state: 'running' }
+    const a = run.audit
+    if (a?.head !== head) return { state: 'not-run' }
+    return a.state === 'failed' ? { state: 'failed', reason: a.reason } : { state: 'done', findings: a.findings, files: a.files, lines: a.lines, truncated: a.truncated, ...(a.cost !== undefined && { cost: a.cost }), ...(a.model && { model: a.model }) }
+  }
+
+  /** The audit of `head` against the agent's plan: one question to a model, its findings logged with what it cost. */
+  runAudit(agentId: string, head: string, diff: string): Promise<void> {
+    const run = this.mine(agentId)[0]
+    if (!run || !this.planOf(run) || this.deps.dial() === 'economy' || (run.audit?.head === head && run.audit.state === 'done')) return Promise.resolve()
+    const key = `${run.id} ${head}`
+    const running = this.auditing.get(key)
+    if (running) return running
+    const p = this.audit(agentId, run, head, diff).finally(() => this.auditing.delete(key))
+    this.auditing.set(key, p)
+    return p
+  }
+
+  private async audit(agentId: string, run: Run, head: string, diff: string) {
+    const readback = this.planOf(run)!
+    const shown = auditPrompt(readback, diff)
+    const failed = (reason: string) => this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'failed', reason })
+    let reply: Awaited<ReturnType<Deps['ask']>>
+    try {
+      reply = await this.deps.ask(agentId, shown.prompt)
+    } catch (e) {
+      return failed((e as Error).message)
+    }
+    const findings = parseAudit(reply.text)
+    if (!findings) return failed('The reply was not a list of findings.')
+    this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'done', findings, files: shown.files, lines: shown.lines, truncated: shown.truncated, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.model && { model: reply.model }) })
+  }
+
+  /** The person has looked at these findings (by position) of the audit of `head`. */
+  seen(agentId: string, head: string, which: number[]) {
+    const run = this.mine(agentId)[0]
+    if (!run) throw new Error('No such run.')
+    this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
+  }
+
+  /** Land is about to happen: refused while the check holds it, unless the person chose to land anyway; either way the choice is logged. */
+  landing(agentId: string, head: string, o: { anyway?: boolean; auditable?: boolean } = {}) {
+    const check = this.mergeCheck(agentId, head, o)
+    if (!check) return
+    if (check.blocking.length && !o.anyway) throw new Error(`Not ready to land:\n${check.blocking.map((b) => `- ${b}`).join('\n')}`)
+    this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: check.blocking.length ? 'anyway' : 'checked', held: check.blocking })
   }
 }

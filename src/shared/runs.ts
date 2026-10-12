@@ -1,3 +1,4 @@
+import type { Finding } from './audit'
 import type { PlanReadback } from './plan'
 
 /**
@@ -15,6 +16,13 @@ export type RunEvent =
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
   | { k: 'commit'; t: number; run: string; sha: string; subject: string; flagged?: boolean; /** The round it was made in; the latest when not given. */ round?: number }
+  /** A model's review of the branch head against the plan, or why it could not be done. */
+  | { k: 'audit'; t: number; run: string; head: string; state: 'done'; findings: Finding[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
+  | { k: 'audit'; t: number; run: string; head: string; state: 'failed'; reason: string }
+  /** The person has seen these findings (by position) of the audit of `head`. */
+  | { k: 'seen'; t: number; run: string; head: string; which: number[] }
+  /** The work was landed: after the checks, or "anyway" with `held` still holding it. */
+  | { k: 'merge'; t: number; run: string; head: string; how: 'checked' | 'anyway'; held: string[] }
 
 export interface PlanAnswer {
   question: string
@@ -42,6 +50,15 @@ export interface Round {
   commits: RunCommit[]
   plan?: RoundPlan
 }
+export type RunAudit =
+  | { head: string; t: number; state: 'failed'; reason: string }
+  | { head: string; t: number; state: 'done'; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
+export interface Landed {
+  t: number
+  head: string
+  how: 'checked' | 'anyway'
+  held: string[]
+}
 export interface Run {
   id: string
   agent: string
@@ -54,6 +71,9 @@ export interface Run {
   endedAt?: number
   summary?: string
   rounds: Round[]
+  /** The audit of the branch head the person last looked at, if one ran. */
+  audit?: RunAudit
+  landed?: Landed
 }
 
 /** Folds the log into runs, oldest first. An event for a run that was never begun is ignored, so a damaged log still reads. */
@@ -82,6 +102,12 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     } else if (e.k === 'commit') {
       const into = (e.round !== undefined && r.rounds.find((x) => x.n === e.round)) || round
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })
+    } else if (e.k === 'audit') {
+      r.audit = e.state === 'failed' ? { head: e.head, t: e.t, state: 'failed', reason: e.reason } : { head: e.head, t: e.t, state: 'done', findings: e.findings.map((f) => ({ ...f, seen: false })), files: e.files, lines: e.lines, truncated: e.truncated, ...(e.cost !== undefined && { cost: e.cost }), ...(e.model && { model: e.model }) }
+    } else if (e.k === 'seen') {
+      if (r.audit?.state === 'done' && r.audit.head === e.head) for (const i of e.which) if (r.audit.findings[i]) r.audit.findings[i]!.seen = true
+    } else if (e.k === 'merge') {
+      r.landed = { t: e.t, head: e.head, how: e.how, held: e.held }
     } else {
       r.status = e.k === 'done' ? 'done' : 'stopped'
       r.endedAt = e.t

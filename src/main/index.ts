@@ -57,6 +57,8 @@ import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
+import { askClaude } from './workflows/ask'
+import { auditModel } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
@@ -65,7 +67,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -423,6 +425,15 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   enabled: () => prefs.workflows.enabled,
   since: () => prefs.workflows.since,
   planGate: () => prefs.workflows.planGate,
+  mergeGate: () => prefs.workflows.mergeGate,
+  dial: () => prefs.workflows.dial,
+  // The audit runs under the agent's own account, so what it costs lands where the agent's work does.
+  ask: (id, prompt) => {
+    const a = byId(id)
+    if (!a) return Promise.reject(new Error('Unknown agent.'))
+    const p = providerOf(a)
+    return askClaude(resolveCommand(binFor(p)), auditModel(prefs.workflows.dial) ?? 'haiku', prompt, { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor(a.provider, a.configDir) })
+  },
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
   who: (id) => {
@@ -1738,15 +1749,46 @@ async function main() {
     return base
   })
   // The last steps for a piece of work: is it ready, then land it on the base branch and, if asked, retire the agent.
+  // The merge gate: where the plan stands and what the audit found for the branch as it is now. The audit is started here when it has not
+  // run for this head, and the window is told when it answers.
+  const startAudit = async (id: string, a: AgentRecord, base: string, head: string) => {
+    await workflows.runAudit(id, head, await branchDiff(a.cwd, base, a.branch!))
+    send('workflows')
+  }
+  const mergeOf = async (id: string, a: AgentRecord, base: string, ahead: number) => {
+    const head = await git(a.cwd, 'rev-parse', a.branch!)
+    const auditable = providerOf(a).id === 'claude'
+    let check = workflows.mergeCheck(id, head, { auditable })
+    if (check?.audit.state === 'not-run' && ahead > 0) {
+      void startAudit(id, a, base, head).catch(() => undefined)
+      check = workflows.mergeCheck(id, head, { auditable })
+    }
+    return { head, auditable, check }
+  }
   ipcMain.handle('finish:status', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
-    return { branch: a.branch!, base, ...(await finishReadiness(a.repoPath, a.cwd, a.branch!, base)) }
+    const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
+    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead)).check }
   })
-  ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean }) => {
+  // "Run the audit again" after one failed.
+  ipcMain.handle('finish:audit', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    await startAudit(id, a, base, await git(a.cwd, 'rev-parse', a.branch!))
+  })
+  ipcMain.handle('finish:seen', async (_, id: string, which: number[]) => {
+    const { a } = await worktreeOf(id)
+    workflows.seen(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
+    send('workflows')
+  })
+  ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean; anyway?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
     if (r.uncommitted) throw new Error(`${a.name} has ${r.uncommitted} uncommitted file(s); commit them first (Code tab).`)
     if (!r.ahead) throw new Error(`${a.branch} has nothing that ${base} does not already have.`)
+    // The server says no, not only the dialog: an audit still running or a plan never approved holds the branch back.
+    const { head, auditable } = await mergeOf(id, a, base, 0)
+    workflows.landing(id, head, { anyway: !!o.anyway, auditable })
+    send('workflows')
     await mergeInto(a.repoPath, a.branch!, base, { squash: o.squash, message: o.message })
     if (o.cleanup) return { base, removed: (await removeAgent(id, undefined, true)).ok }
     return { base, removed: false }

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MergeGate } from '../workflows/MergeGate'
+import { mergeRows } from '../workflows/mergeRows'
 import { BasePicker } from './BasePicker'
 
 type Status = Awaited<ReturnType<typeof window.aw.finishStatus>>
@@ -23,6 +25,8 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
   useEffect(() => {
     dialog.current?.showModal()
     void load()
+    // The audit answers a while after the dialog opened, and findings are ticked from here: both change the check.
+    return window.aw.onWorkflows(() => void load())
   }, [load])
   const checks = status && [
     { ok: status.ahead > 0, text: status.ahead > 0 ? `${status.ahead} commit${status.ahead === 1 ? '' : 's'} on ${status.branch} to land` : `Nothing to land: ${status.base} already has everything on ${status.branch}` },
@@ -30,12 +34,14 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
     { ok: status.baseReady, text: status.baseReady ? `Your checkout is on ${status.base} with nothing uncommitted` : `Your own checkout must be on ${status.base} with nothing uncommitted` },
     { ok: status.conflicts.length === 0, text: status.conflicts.length === 0 ? `No conflicts with ${status.base}` : `Would conflict in ${status.conflicts.join(', ')}` }
   ]
+  const rows = status?.merge ? mergeRows(status.merge) : []
+  const held = !!status?.merge?.blocking.length
   const ready = !!checks && checks.every((c) => c.ok)
   const land = async () => {
     setBusy(true)
     setError('')
     try {
-      const r = await window.aw.finishRun(agentId, { squash, message, cleanup })
+      const r = await window.aw.finishRun(agentId, { squash, message, cleanup, anyway: held })
       onDone(r.removed)
     } catch (e) {
       setError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -48,6 +54,7 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
         <b>Finish {agentName}'s work</b>
         <button onClick={onClose}>Close</button>
       </header>
+      {status?.merge && <MergeGate merge={status.merge} onSeen={(i) => void window.aw.finishSeen(agentId, [i])} onAgain={() => void window.aw.finishAudit(agentId)} />}
       <fieldset>
         <legend>Ready?</legend>
         {!status && !error && <span className="hint">Checking…</span>}
@@ -55,6 +62,11 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
           {checks?.map((c) => (
             <li key={c.text} className={c.ok ? 'ok' : 'no'}>
               <span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {c.text}
+            </li>
+          ))}
+          {rows.map((r) => (
+            <li key={r.text} className={r.ok === null ? 'note' : r.ok ? 'ok' : 'no'}>
+              <span aria-hidden="true">{r.ok === null ? '•' : r.ok ? '✓' : '✗'}</span> {r.text}
             </li>
           ))}
         </ul>
@@ -90,7 +102,7 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
       )}
       <div className="settings-row" style={{ padding: '10px 14px', justifyContent: 'flex-end' }}>
         <button className="primary" disabled={!ready || busy || (squash && !message.trim())} onClick={() => void land()}>
-          {busy ? 'Landing…' : `Land on ${status?.base ?? 'base'}`}
+          {busy ? 'Landing…' : `${held ? 'Land anyway' : 'Land'} on ${status?.base ?? 'base'}`}
         </button>
       </div>
     </dialog>

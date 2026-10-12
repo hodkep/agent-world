@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -369,5 +369,21 @@ describe('commits since a time', () => {
     writeFileSync(join(wt.path, 'brand-new.ts'), 'new\n')
     expect((await uncommittedFiles(wt.path)).sort()).toEqual(['a.ts', 'brand-new.ts'])
     expect(await uncommittedFiles(tmp)).toEqual([])
+  })
+})
+
+describe('the diff an auditor reads', () => {
+  it('is what the branch adds to its base, without plan files or uncommitted edits', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'one changed\n')
+    mkdirSync(join(wt.path, '.agent-world'))
+    writeFileSync(join(wt.path, '.agent-world', 'plan.md'), '# plan\n')
+    git(wt.path, 'add', '-A')
+    git(wt.path, 'commit', '-qm', 'edit a')
+    writeFileSync(join(wt.path, 'b.ts'), 'not committed\n')
+    const diff = await branchDiff(wt.path, 'main', wt.branch)
+    expect(diff).toContain('diff --git a/a.ts b/a.ts')
+    expect(diff).toContain('+one changed')
+    expect(diff).not.toContain('plan.md')
+    expect(diff).not.toContain('b.ts')
   })
 })

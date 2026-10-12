@@ -76,6 +76,8 @@ const api: AwApi = {
   onOpenPage: on('open-page'),
   finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
+  finishAudit: (id) => ipcRenderer.invoke('finish:audit', id),
+  finishSeen: (id, which) => ipcRenderer.invoke('finish:seen', id, which),
   memoryList: (id) => ipcRenderer.invoke('memory:list', id),
   memoryAdd: (id, text) => ipcRenderer.invoke('memory:add', id, text),
   memoryForget: (id, entryId) => ipcRenderer.invoke('memory:forget', id, entryId),

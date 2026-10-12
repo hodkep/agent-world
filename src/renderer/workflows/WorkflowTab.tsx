@@ -1,5 +1,5 @@
 import type { Round, Run } from '../../shared/runs'
-import { type RunSpend, formatDuration, spendText } from '../../shared/runStats'
+import { type RunSpend, auditText, formatDuration, landedText, spendText } from '../../shared/runStats'
 
 const clock = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -64,6 +64,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend }: { agentName: st
             </header>
             {r.summary && <p className="wf-summary">{r.summary}</p>}
             {r.auto && <p className="hint">{agentName} did not announce this task, so the app started the run from its commit. Its start time and cost are unknown.</p>}
+            {[auditText(r), landedText(r)].map((line) => line && <p key={line} className="wf-gate">{line}</p>)}
             {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} />)}
           </article>
         ))

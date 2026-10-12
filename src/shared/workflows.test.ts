@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, auditModel, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs: five of 150 tokens', () => {
@@ -47,10 +47,16 @@ describe('when the Workflows button and window are shown', () => {
 
 describe('switching workflows on or off', () => {
   it('records when it was switched on, and keeps that when only the dial changes or it goes off', () => {
-    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true }
+    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true }
     const on = switchWorkflows(off, true, 5000)
-    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true })
+    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true, mergeGate: true })
     expect(switchWorkflows(on, true, 9000)).toEqual(on)
-    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true })
+    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true, mergeGate: true })
+  })
+})
+
+describe('which model the app asks for its own checks', () => {
+  it('a small model at balanced, a stronger one at max, and none at economy where no check runs', () => {
+    expect([auditModel('economy'), auditModel('balanced'), auditModel('max')]).toEqual([undefined, 'haiku', 'sonnet'])
   })
 })

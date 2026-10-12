@@ -10,6 +10,8 @@ export interface WorkflowPrefs {
   since: number
   /** The plan gate: the person approves a task's plan before the agent edits. On with workflows unless switched off. */
   planGate: boolean
+  /** The merge gate: Land waits until the plan was approved and the audit's findings were seen. On with workflows unless switched off. */
+  mergeGate: boolean
 }
 
 export interface CostPart {
@@ -43,6 +45,9 @@ export function dialSummary(dial: Dial): string {
   const before = new Set(workflowCost(below).parts.map((p) => p.label))
   return '+ ' + workflowCost(dial).parts.filter((p) => !before.has(p.label)).map((p) => p.label.toLowerCase()).join(', ')
 }
+
+/** The model the app's own checks use at a dial level (a guess until a pilot measures it); none where no check runs. */
+export const auditModel = (d: Dial): string | undefined => (d === 'economy' ? undefined : d === 'balanced' ? 'haiku' : 'sonnet')
 
 export const dialName = (d: Dial) => d.charAt(0).toUpperCase() + d.slice(1)
 

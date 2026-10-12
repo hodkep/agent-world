@@ -2,16 +2,21 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { Dial } from '../../shared/workflows'
 import { Workflows } from './service'
 
+type Reply = { text: string; cost?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, since: 0, t: 1000, n: 0 }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
       planGate: () => state.planGate,
+      mergeGate: () => state.mergeGate,
+      dial: () => state.dial,
+      ask: (agent, prompt) => (state.askedFor.push(agent), state.asked.push(prompt), state.reply(prompt)),
       now: () => (state.t += 10),
       newId: () => `r${++state.n}`,
       who: (id) => (id === 'a1' ? { name: 'ada', project: '/p' } : id === 'a2' ? { name: 'bo', project: '/p' } : undefined)
@@ -274,5 +279,182 @@ describe('what the gate holds back', () => {
     expect(edit(wf)).toBeNull()
     wf.begin('a1', 'more', { followUp: true })
     expect(edit(wf)).toBeNull()
+  })
+})
+
+describe('the merge gate', () => {
+  it('has nothing to say when workflows or the merge gate are off, or the agent never had a run', () => {
+    const { wf, state } = make()
+    expect(wf.mergeCheck('a1', 'h1')).toBeNull()
+    wf.begin('a1', 'Add a toggle')
+    expect(wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    state.mergeGate = false
+    expect(wf.mergeCheck('a1', 'h1')).toBeNull()
+    state.mergeGate = true
+    state.enabled = false
+    expect(wf.mergeCheck('a1', 'h1')).toBeNull()
+  })
+
+  it('holds Land until the plan was approved or the person released the hold, and says why', () => {
+    const { wf } = make()
+    const run = (wf.begin('a1', 'Add a toggle'), wf.runs()[0]!.id)
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'none', blocking: ['No plan was approved for this task.'] })
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'waiting', blocking: ['The plan is still waiting for your approval.'] })
+    wf.decide(run, 'changes', { note: 'smaller' })
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'changes', blocking: ['You asked for changes to the plan and no new plan was approved.'] })
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(run, 'approved')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'approved', blocking: [] })
+  })
+
+  it('does not hold Land for a plan when the hold was released, the plan gate is off, or the app started the run from a commit', () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.decide(wf.runs()[0]!.id, 'released')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'released', blocking: [] })
+    wf.begin('a2', 'Other task')
+    state.planGate = false
+    expect(wf.mergeCheck('a2', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [] })
+    const auto = make()
+    auto.wf.commit('a1', 'c9', 'fix: login', 2000)
+    expect(auto.wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [], notes: ['The app started this run from a commit, so there was no plan to approve.'] })
+  })
+
+  it('notes, without holding Land, that the task is still open or that commits were made outside it', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.decide(wf.runs()[0]!.id, 'released')
+    expect(wf.mergeCheck('a1', 'h1')!.notes).toEqual(['The task is still open: the agent has not said it is done.'])
+    wf.done('a1')
+    wf.commit('a1', 's1', 'chore: a', 9000)
+    wf.commit('a1', 's2', 'chore: b', 9100)
+    wf.commit('a1', 's3', 'chore: c', 9200)
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ blocking: [], notes: ['3 commits were made outside the task.'] })
+    const one = make()
+    one.wf.begin('a1', 'x')
+    one.wf.decide(one.wf.runs()[0]!.id, 'released')
+    one.wf.done('a1')
+    one.wf.commit('a1', 's1', 'chore: a', 9000)
+    expect(one.wf.mergeCheck('a1', 'h1')!.notes).toEqual(['1 commit was made outside the task.'])
+  })
+
+  it('audits the diff against the approved plan, shows the findings, and holds Land until each was seen', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","file":"a.ts","text":"Adds a project key."},{"kind":"guess-wrong","text":"Saved in localStorage."}]}', cost: 0.004, model: 'haiku' })
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(state.asked).toHaveLength(1)
+    expect(state.askedFor).toEqual(['a1'])
+    expect(state.asked[0]).toContain('Add a toggle.')
+    expect(state.asked[0]).toContain('diff --git a/a.ts b/a.ts')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({
+      audit: { state: 'done', findings: [{ kind: 'out-of-scope', file: 'a.ts', text: 'Adds a project key.', seen: false }, { kind: 'guess-wrong', text: 'Saved in localStorage.', seen: false }], files: 1, cost: 0.004, model: 'haiku' },
+      blocking: ['2 audit findings have not been seen.']
+    })
+    wf.seen('a1', 'h1', [0])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['1 audit finding has not been seen.'])
+    wf.seen('a1', 'h1', [1])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual([])
+  })
+
+  it('runs no audit at the economy dial, for a provider that cannot, or when there is no plan to audit against, and says which', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    state.dial = 'economy'
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(state.asked).toEqual([])
+    expect(wf.mergeCheck('a1', 'h1')!.audit).toEqual({ state: 'off', reason: 'economy' })
+    state.dial = 'max'
+    expect(wf.mergeCheck('a1', 'h1', { auditable: false })!.audit).toEqual({ state: 'off', reason: 'provider' })
+    wf.begin('a2', 'Other')
+    wf.decide(wf.runs()[1]!.id, 'released')
+    await wf.runAudit('a2', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(state.asked).toEqual([])
+    expect(wf.mergeCheck('a2', 'h1')!.audit).toEqual({ state: 'off', reason: 'no-plan' })
+  })
+
+  it('a model call that throws or answers with something unreadable is logged as failed and never holds Land', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    state.reply = async () => {
+      throw new Error('claude timed out')
+    }
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ audit: { state: 'failed', reason: 'claude timed out' }, blocking: [] })
+    state.reply = async () => ({ text: 'Looks fine to me.' })
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ audit: { state: 'failed', reason: 'The reply was not a list of findings.' }, blocking: [] })
+  })
+
+  it('audits a branch head once, however often or at once Finish asks, retries after a failure, and starts over when the head moves', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    const diff = 'diff --git a/a.ts b/a.ts\n+x\n'
+    await Promise.all([wf.runAudit('a1', 'h1', diff), wf.runAudit('a1', 'h1', diff)])
+    await wf.runAudit('a1', 'h1', diff)
+    expect(state.asked).toHaveLength(1)
+    await wf.runAudit('a1', 'h2', diff)
+    expect(state.asked).toHaveLength(2)
+    state.reply = async () => {
+      throw new Error('offline')
+    }
+    await wf.runAudit('a1', 'h3', diff)
+    state.reply = async () => ({ text: '{"findings":[]}' })
+    await wf.runAudit('a1', 'h3', diff)
+    expect(state.asked).toHaveLength(4)
+    expect(wf.mergeCheck('a1', 'h3')!.audit).toMatchObject({ state: 'done', findings: [] })
+  })
+
+  it('refuses to land while something holds it, unless the person chose to land anyway, and records which it was', () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    expect(() => wf.landing('a1', 'h1')).toThrow('No plan was approved for this task.')
+    expect(wf.runs()[0]!.landed).toBeUndefined()
+    wf.landing('a1', 'h1', { anyway: true })
+    expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'anyway', held: ['No plan was approved for this task.'] })
+    wf.decide(wf.runs()[0]!.id, 'released')
+    wf.landing('a1', 'h2')
+    expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h2', how: 'checked', held: [] })
+    state.mergeGate = false
+    expect(() => wf.landing('a1', 'h3')).not.toThrow()
+    expect(wf.runs()[0]!.landed!.head).toBe('h2')
+  })
+
+  it('says the audit is running while the model has not answered, so a second look does not start another', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    let answer!: (r: Reply) => void
+    state.reply = () => new Promise<Reply>((r) => (answer = r))
+    const pending = wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.mergeCheck('a1', 'h1')!.audit).toEqual({ state: 'running' })
+    answer({ text: '{"findings":[]}' })
+    await pending
+    expect(wf.mergeCheck('a1', 'h1')!.audit.state).toBe('done')
+  })
+
+  it('carries what the "Against the plan" block shows: the approved goal, what is out of scope, and how many commits were in the task or outside it', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', '## Goal\nAdd a dark-mode toggle.\n\n## Assumptions\nnone\n\n## Out of scope\n- A theme per project.\n- Animations.\n\n## Open questions\nnone\n')
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    wf.commit('a1', 'c1', 'feat: toggle', 1030)
+    wf.commit('a1', 'c2', 'feat: save', 1040)
+    wf.done('a1')
+    wf.commit('a1', 'c3', 'chore: late', 9000)
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ planned: { goal: 'Add a dark-mode toggle.', outOfScope: ['A theme per project.', 'Animations.'] }, commits: 3, flagged: 1 })
+    const none = make()
+    none.wf.begin('a1', 'x')
+    expect(none.wf.mergeCheck('a1', 'h1')!.planned).toBeNull()
   })
 })
