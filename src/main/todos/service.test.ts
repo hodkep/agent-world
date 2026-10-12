@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createTodoService } from './service'
+import { addTodo, emptyBoard, type Actor } from '../../shared/todos'
 
 const make = () => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-todos-'))
@@ -88,7 +89,7 @@ describe('the todo service', () => {
   it('makes a task for a request the person sent, claimed by the agent, and flags it when the turn ends unfinished', () => {
     const { svc } = make()
     const t = svc.trackRequest('a1', 'please fix the login bug on Safari')
-    expect(t).toMatchObject({ title: 'please fix the login bug on Safari', list: 'Requests', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
+    expect(t).toMatchObject({ title: 'fix the login bug on Safari', list: 'Inbox', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
     expect(t!.createdLink).toMatchObject({ agentId: 'a1' })
     svc.turnEnded('a1')
     expect(svc.board('/work/shop').todos[0]!.stale).toBe(true)
@@ -178,6 +179,48 @@ describe('the todo service', () => {
     expect(svc.similarDone('c1', 'wire the anthropic key into settings accounts')).toEqual([])
   })
 
+  it('keeps the board to a few lists by area: an agent\'s list name is matched to an existing one, a generic one is refused, and too many are refused', () => {
+    const { svc } = make()
+    svc.addByAgent('a1', { title: 'one', list: 'Application' })
+    svc.addByAgent('a1', { title: 'two', list: 'application' })
+    svc.addByAgent('a1', { title: 'three', list: 'Applications' })
+    expect(svc.board('/work/shop').lists).toEqual(['Application'])
+    expect(() => svc.addByAgent('a1', { title: 'x', list: 'Misc' })).toThrow(/area/i)
+    expect(() => svc.addByAgent('a1', { title: 'x', list: 'Requests' })).toThrow(/Application/)
+    for (const l of ['Canvas', 'Library', 'Release', 'Terminal', 'Settings', 'Agents', 'Usage']) svc.addByAgent('a1', { title: l, list: l })
+    expect(svc.board('/work/shop').lists).toHaveLength(8)
+    expect(() => svc.addByAgent('a1', { title: 'y', list: 'Brand new area' })).toThrow(/already has 8 lists/)
+    expect(svc.addByAgent('a1', { title: 'z', list: 'canvas' }).list).toBe('Canvas')
+    expect(svc.listsOf('a1')).toHaveLength(8)
+  })
+
+  it('a task added with no list waits in the Inbox, and an agent names and sorts it with an update or when it finishes', () => {
+    const { svc } = make()
+    const t = svc.addByAgent('a1', { title: 'the thing' })
+    expect(t.list).toBe('Inbox')
+    const u = svc.updateByAgent('a1', t.id, { title: 'Wire the Anthropic key', list: 'Application' })
+    expect(u).toMatchObject({ title: 'Wire the Anthropic key', list: 'Application' })
+    const r = svc.trackRequest('b1', 'please build a settings page for the accounts')!
+    expect(r.list).toBe('Inbox')
+    const d = svc.doneByAgent('b1', r.id, 'Built it', { title: 'Settings page for accounts', list: 'application' })
+    expect(d).toMatchObject({ status: 'done', title: 'Settings page for accounts', list: 'Application' })
+    expect(svc.listsOf('a1')).toEqual(['Application'])
+  })
+
+  it('does not make a second task for the same request while the first is still open', () => {
+    const { svc } = make()
+    const a = svc.trackRequest('a1', 'they got this error when they opened the page')!
+    const b = svc.trackRequest('a1', 'they got this error when they opened the page')!
+    expect(b.id).toBe(a.id)
+    expect(svc.board('/work/shop').todos).toHaveLength(1)
+  })
+
+  it('a git instruction and an approval make no task', () => {
+    const { svc } = make()
+    expect(svc.trackRequest('a1', 'commit those and merge to main')).toBeUndefined()
+    expect(svc.trackRequest('a1', 'these are good, lets implement these.')).toBeUndefined()
+  })
+
   it('counts what needs the person, per project', () => {
     const { svc } = make()
     svc.addByAgent('a1', { title: 'key', needsYou: true })
@@ -190,5 +233,22 @@ describe('the todo service', () => {
     const { dir, svc } = make()
     writeFileSync(join(dir, 'shop.json'), '{not json')
     expect(svc.board('/work/shop')).toMatchObject({ lists: [], todos: [] })
+  })
+})
+
+describe('a board made before tasks were sorted by area', () => {
+  it('moves what the app made for requests out of "Requests" into the Inbox and names each by its own words, leaving the rest alone', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aw-todos-old-'))
+    const you: Actor = { kind: 'human', name: 'you' }
+    let b = addTodo(emptyBoard(), { title: '> should the wall bookshelf open a new panel', list: 'Requests', auto: true }, you, 1, { agentId: 'a1', itemId: 'u1', at: 1, excerpt: '> should the wall bookshelf open a new panel (my suggestion)\n\nyes, a panel, and show the shelves as tabs' }).board
+    b = addTodo(b, { title: 'Written by hand', list: 'Requests' }, you, 2).board
+    b = addTodo(b, { title: 'Kept in place', list: 'Setup' }, you, 3).board
+    writeFileSync(join(dir, 'shop.json'), JSON.stringify(b))
+    const svc = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 5, onChange: () => undefined })
+    const out = svc.board('/work/shop')
+    expect(out.todos.map((t) => [t.title, t.list])).toEqual([['a panel, and show the shelves as tabs', 'Inbox'], ['Written by hand', 'Requests'], ['Kept in place', 'Setup']])
+    expect(out.lists).toEqual(['Requests', 'Setup', 'Inbox'])
+    // It is saved, so it is only done once.
+    expect(JSON.parse(readFileSync(join(dir, 'shop.json'), 'utf8')).todos[0].list).toBe('Inbox')
   })
 })

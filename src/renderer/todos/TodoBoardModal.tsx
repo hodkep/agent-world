@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MessageLink, Todo, TodoBoard } from '../../shared/todos'
+import { INBOX, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
 import { useConfirm } from '../panel/ConfirmDialog'
 import { TodoDetail, type AskAgent } from './TodoDetail'
 import { Modal } from '../panel/Modal'
@@ -69,7 +69,7 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
       {error && <p className="error td-error" role="alert">{error}</p>}
       <div className="td-wrap">
         <div className="td-board" role="list" aria-label="Todo lists">
-          {shown.lists.map((list) => {
+          {shown.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX)).map((list) => {
             const { open: openTodos, done } = splitList(shown, list)
             const isFolded = !folded.has(list)
             return (

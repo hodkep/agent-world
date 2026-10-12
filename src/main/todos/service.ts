@@ -5,7 +5,7 @@ import { askMessage, type AskMode } from '../../shared/todoAsk'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, knowledgeLine, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, MAX_LISTS, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -35,6 +35,23 @@ export function createTodoService(d: TodoDeps) {
   mkdirSync(d.dir, { recursive: true })
   const fileOf = (key: string) => join(d.dir, `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`)
 
+  /** A board made before tasks were sorted by area: what the app made for requests leaves "Requests" for the Inbox and is named by its own words; a task someone wrote keeps its list. */
+  function tidy(b: TodoBoard, key: string): TodoBoard {
+    const old = b.todos.filter((t) => t.auto && t.list === 'Requests')
+    if (!old.length) return b
+    const todos = b.todos.map((t) => (old.includes(t) ? { ...t, list: INBOX, title: t.createdLink?.excerpt ? requestTitle(t.createdLink.excerpt) : t.title } : t))
+    const lists = [...b.lists.filter((l) => l !== INBOX), INBOX]
+    const next = { ...b, todos, lists: lists.filter((l) => l !== 'Requests' || todos.some((t) => t.list === 'Requests')) }
+    // Saved straight away, so this happens once; the change event is for open windows and there are none yet.
+    try {
+      writeFileSync(`${fileOf(key)}.tmp`, JSON.stringify(next, null, 1))
+      renameSync(`${fileOf(key)}.tmp`, fileOf(key))
+    } catch {
+      /* it is tidied again next time */
+    }
+    return next
+  }
+
   function load(key: string): TodoBoard {
     const hit = cache.get(key)
     if (hit) return hit
@@ -42,7 +59,7 @@ export function createTodoService(d: TodoDeps) {
     try {
       if (existsSync(fileOf(key))) {
         const j = JSON.parse(readFileSync(fileOf(key), 'utf8')) as Partial<TodoBoard>
-        if (Array.isArray(j.lists) && Array.isArray(j.todos) && typeof j.next === 'number') b = j as TodoBoard
+        if (Array.isArray(j.lists) && Array.isArray(j.todos) && typeof j.next === 'number') b = tidy(j as TodoBoard, key)
       }
     } catch {
       /* a damaged file starts an empty board; the next change replaces it */
@@ -103,6 +120,15 @@ export function createTodoService(d: TodoDeps) {
   const asks = new Map<string, number>()
   const shown = new Map<string, number>()
   const POINT_GAP = 10
+  /** The list an agent's name stands for: an existing list that means it, else a new one; a name that says no area, or a new list past the limit, is refused with the lists to use instead. */
+  function listFor(b: TodoBoard, name: string): string {
+    const areas = b.lists.filter((l) => l !== INBOX)
+    const have = areas.length ? ` The lists are: ${areas.join(', ')}.` : ''
+    if (isGenericList(name)) throw new Error(`“${name}” says nothing about the area. Put it in a list for the part of the project it belongs to, or name a new area.${have}`)
+    const list = resolveList(b.lists, name)
+    if (!b.lists.includes(list) && areas.length >= MAX_LISTS) throw new Error(`The board already has ${areas.length} lists; use one of them for this.${have}`)
+    return list
+  }
   const lastTodo = (b: TodoBoard, id: string) => b.todos.find((t) => t.id === id)!
   const sorted = (ts: Todo[]) => [...ts].sort((x, y) => x.order - y.order)
 
@@ -138,6 +164,10 @@ export function createTodoService(d: TodoDeps) {
     async settled() {
       while (inflight.size) await Promise.all([...inflight])
     },
+    /** The lists by area on an agent's board (not the Inbox), for telling it which exist. */
+    listsOf(agentId: string): string[] {
+      return load(keyOf(agentOf(agentId).repoPath)).lists.filter((l) => l !== INBOX)
+    },
     /** Tasks of the agent's project that match words, done ones included. */
     searchForAgent(agentId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }): TodoHit[] {
       return searchTodos(load(keyOf(agentOf(agentId).repoPath)), query, o)
@@ -161,8 +191,11 @@ export function createTodoService(d: TodoDeps) {
     trackRequest(agentId: string, prompt: string): Todo | undefined {
       const a = agentOf(agentId)
       if (!isWork(prompt)) return undefined
+      const title = requestTitle(prompt)
+      const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
+      if (same) return same
       return change(a.repoPath, (b) => {
-        const made = addTodo(b, { title: requestTitle(prompt), list: 'Requests', notes: prompt.trim().length > 120 ? prompt.trim().slice(0, 1000) : '', auto: true }, YOU, now(), d.lastRequest(a.id, prompt))
+        const made = addTodo(b, { title, list: INBOX, notes: prompt.trim().length > 120 ? prompt.trim().slice(0, 1000) : '', auto: true }, YOU, now(), d.lastRequest(a.id, prompt))
         const board = claimTodo(made.board, made.todo.id, actor(a), now())
         return { board, out: lastTodo(board, made.todo.id) }
       })
@@ -192,7 +225,7 @@ export function createTodoService(d: TodoDeps) {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
         const l = d.lastMessage(a.id)
-        const r = addTodo(b, i, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt, 800) })
+        const r = addTodo(b, { ...i, list: i.list?.trim() ? listFor(b, i.list) : INBOX }, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt, 800) })
         return { board: r.board, out: r.todo }
       })
     },
@@ -203,9 +236,11 @@ export function createTodoService(d: TodoDeps) {
         return { board, out: lastTodo(board, id) }
       })
     },
-    doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[] }): Todo {
+    doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }): Todo {
       const a = agentOf(agentId)
-      const t = change(a.repoPath, (b) => {
+      const t = change(a.repoPath, (b0) => {
+        // Naming the task and sorting it into a list can be done as it is finished, which costs no call of its own.
+        const b = extra?.title?.trim() || extra?.list?.trim() ? updateTodo(b0, id, { ...(extra.title?.trim() && { title: extra.title }), ...(extra.list?.trim() && { list: listFor(b0, extra.list) }) }, actor(a), now()) : b0
         const l = d.lastMessage(a.id)
         const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) }, extra)
         return { board, out: lastTodo(board, id) }
@@ -213,10 +248,10 @@ export function createTodoService(d: TodoDeps) {
       recordWork(a, id)
       return t
     },
-    updateByAgent(agentId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Todo {
+    updateByAgent(agentId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }): Todo {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
-        const board = updateTodo(b, id, p, actor(a), now())
+        const board = updateTodo(b, id, { ...p, ...(p.list?.trim() && { list: listFor(b, p.list) }) }, actor(a), now())
         return { board, out: lastTodo(board, id) }
       })
     }
