@@ -189,7 +189,7 @@ describe('agent-world MCP server: subagents', () => {
 
 describe('the todo tools', () => {
   const agents = { a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }, a2: { id: 'a2', name: 'bob', provider: 'agy', repoPath: '/work/shop' } }
-  const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), now: () => Date.now(), onChange: () => undefined })
+  const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), lastRequest: () => undefined, now: () => Date.now(), onChange: () => undefined })
   it('add, list, claim and finish a task, each as the calling agent', async () => {
     const svc = make()
     const a = await connect((await setup(undefined, svc)).url, 'a1')

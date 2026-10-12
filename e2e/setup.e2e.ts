@@ -29,6 +29,12 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await expect(setup.locator('.su-step.skipped')).toContainText('Project folder')
     await setup.getByRole('button', { name: 'Plan first' }).click()
+    // Tracking every request as a todo is offered here with what it adds, and is off until chosen.
+    const track = setup.getByRole('switch', { name: 'Track every request as a todo' })
+    await expect(track).toHaveAttribute('aria-checked', 'false')
+    await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toContainText('tokens')
+    await track.click()
+    await expect(track).toHaveAttribute('aria-checked', 'true')
     await setup.getByRole('button', { name: 'Continue' }).click()
 
     await expect(setup.getByRole('heading', { name: 'Hire your first agent' })).toBeVisible()
@@ -37,7 +43,7 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await expect(setup).toBeHidden()
     await expect(page.locator('.roster, header').getByText('ada').first()).toBeVisible()
 
-    await expect.poll(() => JSON.parse(readFileSync(join(home, 'preferences.json'), 'utf8'))).toMatchObject({ setup: { done: true, defaultProvider: 'claude' }, defaults: { permissionMode: 'plan' } })
+    await expect.poll(() => JSON.parse(readFileSync(join(home, 'preferences.json'), 'utf8'))).toMatchObject({ setup: { done: true, defaultProvider: 'claude' }, defaults: { permissionMode: 'plan' }, todoTracking: 'full' })
     await expect.poll(() => JSON.parse(readFileSync(join(home, 'agents.json'), 'utf8'))[0]).toMatchObject({ name: 'ada', provider: 'claude', options: { permissionMode: 'plan', provider: 'claude' } })
     await page.reload()
     await expect(page.getByRole('dialog', { name: 'First-run setup' })).toHaveCount(0)
@@ -82,6 +88,7 @@ test('setup can be run again from Settings and closed at any step', async () => 
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await expect(settings).toBeVisible()
+    await settings.getByRole('tab', { name: /Setup/ }).click()
     await settings.getByRole('button', { name: 'Set up again' }).click()
     await expect(setup.getByRole('heading', { name: 'Welcome to Agent World' })).toBeVisible()
     await setup.getByRole('button', { name: 'Close' }).click()

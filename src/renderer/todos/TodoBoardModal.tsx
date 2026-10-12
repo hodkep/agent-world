@@ -121,6 +121,7 @@ function TaskRow({ t, selected, onSelect, onTick, onDragStart, onDropOn }: { t: 
           {t.needsYou && !done && <span className="td-flag">needs you</span>}
           {t.status === 'doing' && <span className="td-st doing">doing{t.claimedBy ? ` · ${t.claimedBy.name}` : ''}</span>}
           {t.status === 'blocked' && <span className="td-st blocked">blocked</span>}
+          {t.stale && <span className="td-st blocked" title="The agent's turn ended and it never marked this done or blocked">unfinished</span>}
           <Who a={t.createdBy} />
           <span>created {agoLabel(t.createdAt)}</span>
           {t.updatedAt !== t.createdAt && <span>updated {t.updatedBy.name} {agoLabel(t.updatedAt)}</span>}
@@ -141,7 +142,7 @@ function Detail({ t, folder, onClose, act, onOpenMessage }: { t: Todo; folder: s
       <input className="td-dtitle" value={title} aria-label="Task title" onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && act(window.aw.todos.update(folder, t.id, { title }))} />
       <dl className="td-kv">
         <dt>List</dt><dd>{t.list}</dd>
-        <dt>Status</dt><dd>{t.status}{t.blockedWhy ? `: ${t.blockedWhy}` : ''}{t.claimedBy ? ` · ${t.claimedBy.name}` : ''}</dd>
+        <dt>Status</dt><dd>{t.status}{t.blockedWhy ? `: ${t.blockedWhy}` : ''}{t.claimedBy ? ` · ${t.claimedBy.name}` : ''}{t.stale ? ' · its turn ended without saying done or blocked' : ''}{t.auto ? ' · made from your message' : ''}</dd>
         <dt>Created</dt><dd><Who a={t.createdBy} /> · {agoLabel(t.createdAt)}</dd>
         <dt>Updated</dt><dd><Who a={t.updatedBy} /> · {agoLabel(t.updatedAt)}</dd>
         {done && t.doneBy && <><dt>Done by</dt><dd><Who a={t.doneBy} /> · {agoLabel(t.doneAt ?? t.updatedAt)}</dd></>}

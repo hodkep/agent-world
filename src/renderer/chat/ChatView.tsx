@@ -275,12 +275,14 @@ export function ChatView({
   const [lost, setLost] = useState<string | null>(null)
   useEffect(() => {
     if (!jump) return
-    const at = found.findIndex((r) => r.id === jump.itemId)
+    // A task made from a message you sent points at it by its words until the transcript has it.
+    const words = jump.excerpt.slice(0, 60)
+    const at = found.findIndex((r) => (jump.itemId ? r.id === jump.itemId : r.kind === 'user' && !!words && r.text.replace(/\s+/g, ' ').trim().startsWith(words)))
     setLost(null)
     if (at < 0) return setLost(jump.excerpt || 'That message is no longer in this conversation.')
     stick.current = false
     setShown((n) => Math.max(n, found.length - at + 5))
-    setFlash(jump.itemId)
+    setFlash(found[at]!.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jump?.n])
   useEffect(() => {
