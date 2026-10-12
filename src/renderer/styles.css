@@ -2642,9 +2642,9 @@ aside:not(.drawer) { flex: none; }
 .td-task { display: grid; grid-template-columns: 4px 16px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); }
 .td-task:hover { background: var(--panel-hover); }
 .td-task.sel { background: var(--selected); }
-.td-bar { align-self: stretch; min-height: 34px; background: var(--dim); }
-.td-task.doing .td-bar { background: var(--think); } .td-task.need .td-bar { background: var(--accent); }
-.td-task.blocked .td-bar { background: var(--danger); } .td-task.done .td-bar { background: var(--ok); }
+.td-stripe { align-self: stretch; min-height: 34px; background: var(--dim); }
+.td-task.doing .td-stripe { background: var(--think); } .td-task.need .td-stripe { background: var(--accent); }
+.td-task.blocked .td-stripe { background: var(--danger); } .td-task.done .td-stripe { background: var(--ok); }
 .td-ck { width: 16px; height: 16px; padding: 0; margin-top: 2px; border: 2px solid var(--muted); background: var(--well); border-radius: 50%; display: grid; place-items: center; font-size: 11px; line-height: 1; color: var(--ink); }
 .td-task.done .td-ck { background: var(--ok); border-color: var(--ok); }
 .td-task.done .td-title { text-decoration: line-through; color: var(--muted); }
@@ -2684,3 +2684,30 @@ aside:not(.drawer) { flex: none; }
 .td-send { display: flex; gap: 10px; align-items: center; } .td-send .hint { font-size: 11.5px; margin: 0; }
 .td-sent { padding: 8px 10px; background: #10222a; border: 2px solid var(--ink); font-size: 12px; }
 .td-foot { display: flex; gap: 8px; padding: 10px 14px; }
+
+/* A link to a task, in text */
+.todo-ref { display: inline-flex; gap: 5px; align-items: center; padding: 0 7px 0 5px; margin: 0 1px; border: 2px solid var(--ink); background: var(--panel-3); box-shadow: 0 0 0 1px var(--line); color: var(--text); font: 600 11.5px ui-sans-serif, system-ui, sans-serif; line-height: 1.5; vertical-align: baseline; cursor: pointer; }
+.todo-ref:hover { box-shadow: 0 0 0 1px var(--accent); }
+.todo-ref .s { width: 8px; height: 8px; border: 1px solid var(--ink); background: var(--dim); flex: none; }
+.todo-ref .s.done { background: var(--ok); } .todo-ref .s.doing { background: var(--think); } .todo-ref .s.need { background: var(--accent); } .todo-ref .s.blocked { background: var(--danger); }
+.todo-ref em { font-style: normal; color: var(--muted); font-weight: 400; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-ref .s.gone ~ em { font-style: italic; }
+
+/* Cards for tools that have one of their own (todo, so far) */
+.tcard { background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); margin: 6px 0; font-size: 12.5px; }
+.tcard-h { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 7px 10px; }
+.tcard-ic { width: 18px; height: 18px; display: grid; place-items: center; border: 2px solid var(--ink); background: var(--panel-3); font-size: 11px; flex: none; }
+.tcard.add .tcard-ic { background: var(--accent); color: var(--ink); } .tcard.done .tcard-ic { background: var(--ok); color: var(--ink); } .tcard.claim .tcard-ic { background: var(--think); color: var(--ink); }
+.tcard-side { margin-left: auto; color: var(--muted); font-size: 11px; }
+.tcard-b { padding: 2px 10px 9px 36px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.tcard-muted { color: var(--muted); } .tcard-note { color: var(--muted); } .tcard-err { color: var(--danger-text); }
+.tcard-table { border-collapse: collapse; width: 100%; } .tcard-table td { padding: 3px 6px; border-top: 1px solid var(--line); font-size: 12px; vertical-align: middle; }
+.tcard-chg { display: grid; grid-template-columns: 70px 1fr; gap: 6px; font-size: 12px; }
+
+.td-sec { align-items: stretch; text-align: left; }
+.td-sec .td-notes, .td-sec select, .td-sel select, .td-mode { width: 100%; }
+.td-detail .td-dtitle { width: 100%; }
+.td-mode button { white-space: nowrap; }
+.td-send { flex-wrap: wrap; }
+.td-sec .td-check { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }
+.td-sec .td-check input { width: auto; flex: none; }

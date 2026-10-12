@@ -238,7 +238,7 @@ const ago = (t: number, now = Date.now()) => {
 const flat = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 200)
 const who = (a: { name: string; provider?: string; forMain?: string }) => `${a.provider ? `${a.name} (${a.provider})` : a.name}${a.forMain ? `, a subagent of ${a.forMain}` : ''}`
 const todoLine = (t: Todo) =>
-  `#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
+  `todo#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
 const todoFull = (t: Todo) =>
   [
     todoLine(t),
@@ -291,17 +291,17 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         needs_you: z.boolean().optional().describe('Only the person can do this')
       }
     },
-    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return `Added todo ${t.id} to ${t.list}.` })
+    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return `Added todo#${t.id} to ${t.list}.` })
   )
   server.registerTool(
     'todo_claim',
     { description: 'Say you are doing this task now, so no other agent takes it.', inputSchema: { id } },
-    async (a) => run(() => { const t = todos.claimByAgent(callerId, a.id); return `You are on todo ${t.id}: ${t.title}.` })
+    async (a) => run(() => { const t = todos.claimByAgent(callerId, a.id); return `You are on todo#${t.id}: ${t.title}.` })
   )
   server.registerTool(
     'todo_done',
     { description: 'Mark a task done, with a line on what you did. It records you and the message you are saying this in.', inputSchema: { id, note: z.string().max(500).optional().describe('What was done, in a line') } },
-    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? ''); return `Marked todo ${t.id} done.` })
+    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? ''); return `Marked todo#${t.id} done.` })
   )
   server.registerTool(
     'todo_update',
@@ -316,7 +316,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         blocked_why: z.string().max(500).optional().describe('Why it is blocked')
       }
     },
-    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo ${t.id}.` })
+    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo#${t.id}.` })
   )
 }
 

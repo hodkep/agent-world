@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PictureSet, Shot } from './gallery'
 import { Gallery, Picture } from './Images'
 import { followLink, linkHint } from '../links'
@@ -8,6 +8,8 @@ import { Code, Markdown } from './markdown'
 import { QuoteMark } from './QuoteMark'
 import { pairQuotes } from './quotePairs'
 import { type CodeBlock, splitCode } from '../code/codeContext'
+import { linkifyTodos } from '../todos/linkifyTodos'
+import { openTodo, useTodoVersion } from '../todos/todoStore'
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
@@ -119,6 +121,12 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
   const shots: Shot[] = pictures.flatMap((p) => (thumbs[p] ? [{ src: thumbs[p]!, label: base(p).replace(/^\d{10,}-/, '') }] : []))
   const words = parts.filter((p) => !p.file).map((p) => p.text).join('').trim()
   const pieces = pairQuotes(words)
+  // A task named in the words (todo#14) is a link to it.
+  const bubble = useRef<HTMLDivElement>(null)
+  const todos = useTodoVersion()
+  useEffect(() => {
+    if (bubble.current) linkifyTodos(bubble.current)
+  }, [words, todos])
   return (
     <>
       {pictures.length > 0 && (
@@ -128,7 +136,7 @@ export function UserText({ agentId, text, onImage }: { agentId: string; text: st
           {pictures.filter((p) => thumbs[p] === '').map((p) => <Picture key={p} src="" onOpen={onImage} label={base(p)} />)}
         </>
       )}
-      <div className={`bubble ${pieces.some((p) => p.kind === 'qa') ? 'has-qa' : ''}`}>
+      <div ref={bubble} className={`bubble ${pieces.some((p) => p.kind === 'qa') ? 'has-qa' : ''}`} onClick={(e) => { const ref = (e.target as HTMLElement).closest<HTMLElement>('.todo-ref'); if (ref?.dataset.todo) openTodo(ref.dataset.todo) }}>
         {code.blocks.map((b, i) => (
           <CodeCard key={`c${i}`} block={b} />
         ))}

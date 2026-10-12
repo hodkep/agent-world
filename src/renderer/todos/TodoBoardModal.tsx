@@ -119,7 +119,7 @@ function TaskRow({ t, selected, onSelect, onTick, onDragStart, onDropOn }: { t: 
   const done = t.status === 'done'
   return (
     <div className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
-      <span className="td-bar" aria-hidden="true" />
+      <span className="td-stripe" aria-hidden="true" />
       <button className="td-ck" role="checkbox" aria-checked={done} aria-label={`${done ? 'Reopen' : 'Finish'} ${t.title}`} onClick={onTick}>{done ? '✓' : ''}</button>
       <button className="td-main" onClick={onSelect} aria-label={`Open ${t.title}`} aria-expanded={selected}>
         <span className="td-title">{t.title}</span>
