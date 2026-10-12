@@ -1,10 +1,13 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { type Run, type RunEvent, reduceRuns } from '../../shared/runs'
+import { dirname, relative, sep } from 'node:path'
+import { type PlanAnswer, type Run, type RunEvent, reduceRuns } from '../../shared/runs'
+import { parsePlan } from '../../shared/plan'
 
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
   enabled: () => boolean
+  /** The plan gate: a task's plan is approved by the person before the agent edits. */
+  planGate: () => boolean
   /** When workflows were switched on (ms): earlier commits are history. */
   since: () => number
   now: () => number
@@ -15,7 +18,9 @@ interface Deps {
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'stop', 'commit']
+const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit']
+/** The folder in an agent's worktree where its plan lives: edits there are never held back. */
+export const PLAN_DIR = '.agent-world'
 
 /** What the log says, skipping a half-written last line (expected after a crash) and lines of another kind. */
 export function parseRuns(text: string): RunEvent[] {
@@ -120,5 +125,48 @@ export class Workflows {
     this.append({ k: 'begin', t: at, run, agent: agentId, name: who.name, project: who.project, title: subject, auto: true })
     this.append({ k: 'commit', t: at, run, round: 1, sha, subject })
     this.append({ k: 'done', t: at, run })
+  }
+
+  private openRun(agentId: string) {
+    return this.mine(agentId).find((r) => r.status === 'open')
+  }
+
+  /** The agent hands in its plan: the read-back block is checked in code and every problem is sent back at once. */
+  submitPlan(agentId: string, path: string, markdown: string) {
+    const open = this.openRun(agentId)
+    if (!open) throw new Error('No task is open.')
+    const parsed = parsePlan(markdown)
+    if (!parsed.ok) throw new Error(`The plan's read-back block needs fixing:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
+    this.append({ k: 'plan', t: this.deps.now(), run: open.id, round: open.rounds.length, state: 'submitted', path, readback: parsed.plan })
+    return { questions: parsed.plan.questions.length }
+  }
+
+  /** The person's answer to a waiting plan; a release also works when no plan was ever handed in, so a block can always be lifted. */
+  decide(runId: string, state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: PlanAnswer[] } = {}) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    if (state !== 'released' && round.plan?.state !== 'submitted') throw new Error('No plan is waiting.')
+    this.append({ k: 'plan', t: this.deps.now(), run: runId, round: round.n, state, ...(o.note && { note: o.note }), ...(o.answers?.length && { answers: o.answers }) })
+  }
+
+  /**
+   * Why an edit to `file` must wait, or null when it may go ahead. A task's first round is held from its start until the person
+   * approves the plan; a follow-up round, a task the app started and a finished task are not.
+   */
+  editBlock(agentId: string, file: string, cwd: string): string | null {
+    if (!this.deps.enabled() || !this.deps.planGate()) return null
+    const run = this.openRun(agentId)
+    if (!run || run.auto) return null
+    const round = run.rounds[run.rounds.length - 1]!
+    const plan = round.plan
+    if (plan?.state === 'approved' || plan?.state === 'released') return null
+    if (!plan && round.n > 1) return null
+    const rel = relative(cwd, file)
+    if (!rel.startsWith('..') && rel.split(sep)[0] === PLAN_DIR) return null
+    if (!plan) return `Not yet: this office wants your plan approved first. Write it to ${PLAN_DIR}/plan.md with the read-back block and call plan_submit.`
+    return plan.state === 'submitted'
+      ? 'Not yet: your plan is waiting for the person to approve it.'
+      : 'Not yet: the person asked for changes to your plan. Revise it and call plan_submit again.'
   }
 }

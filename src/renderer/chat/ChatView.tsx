@@ -1,7 +1,7 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
@@ -99,6 +99,7 @@ export function ChatView({
   mode,
   asleep,
   need,
+  gate,
   moreNeeds,
   needActions,
   visible,
@@ -125,6 +126,8 @@ export function ChatView({
   asleep: boolean
   /** What the agent is waiting on you for, if anything: answered right here, in the conversation. */
   need: Need | null
+  /** The workflow's plan gate, when this agent's plan waits for the person. */
+  gate?: ReactNode
   moreNeeds: number
   needActions: NeedActions
   visible: boolean
@@ -638,6 +641,7 @@ export function ChatView({
           <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} onProgress={setNeedProgress} />
         </section>
       )}
+      {gate}
       {error && (
         <div className="chat-banner" role="alert">
           <span>{error}</span>

@@ -6,7 +6,7 @@ type Server = Awaited<ReturnType<typeof startHookServer>>
 let server: Server | undefined
 afterEach(() => server?.close())
 
-async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, prompt: string) => string | null) {
+async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, prompt: string) => string | null, blockEdit?: (id: string, file: string, cwd: string) => string | null) {
   const tools: [string, string, unknown][] = []
   const compacted: string[] = []
   const toolInputs: [string, string][] = []
@@ -16,6 +16,7 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
   const stats: unknown[] = []
   server = await startHookServer({
     reminderFor,
+    blockEdit,
     onToolUse: (id, tool, input) => tools.push([id, tool, input]),
     onCompact: (id) => compacted.push(id),
     onStatus: (s) => stats.push(s),
@@ -196,5 +197,17 @@ describe('hook server', () => {
     expect(seen).toEqual(['split the pdf'])
     expect(tools).toEqual([['a1', 'Skill', { skill: 'pdf' }]])
     expect(compacted).toEqual(['a1'])
+  })
+
+  it('refuses an edit the office is holding back, saying why, and lets every other tool and every allowed edit through', async () => {
+    const asked: [string, string, string][] = []
+    const { server } = await setup(5_000, undefined, (id, file, cwd) => (asked.push([id, file, cwd]), file.endsWith('blocked.ts') ? 'Not yet: your plan is waiting.' : null))
+    const edit = (tool: string, input: object) => post(server.url, { session_id: 's1', cwd: '/w', hook_event_name: 'PreToolUse', tool_name: tool, tool_input: input })
+    const denied = await edit('Edit', { file_path: '/w/src/blocked.ts', old_string: 'a', new_string: 'b' })
+    expect(await denied.json()).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'Not yet: your plan is waiting.' } })
+    expect((await edit('Write', { file_path: '/w/src/fine.ts', content: 'x' })).status).toBe(200)
+    expect(await (await edit('NotebookEdit', { notebook_path: '/w/blocked.ts' })).json()).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+    expect(await (await edit('Bash', { command: 'ls' })).text()).toBe('')
+    expect(asked).toEqual([['a1', '/w/src/blocked.ts', '/w'], ['a1', '/w/src/fine.ts', '/w'], ['a1', '/w/blocked.ts', '/w']])
   })
 })

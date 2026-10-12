@@ -163,6 +163,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                   onCancel={() => setAsking(null)}
                 />
               )}
+              <Switch role="switch" checked={prefs.workflows.planGate} onChange={(planGate) => set({ workflows: { ...prefs.workflows, planGate } })} title="Plan gate" hint="With Workflows on, an agent that starts a task writes its plan first, says what it understood, and waits for you to approve it before it edits files. Claude agents are held back by the app; agy agents are only asked to wait." />
               <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}

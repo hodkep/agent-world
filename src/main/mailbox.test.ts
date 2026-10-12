@@ -154,4 +154,27 @@ describe('mailbox', () => {
     box.looksIdle('a3')
     expect(delivered).toEqual([])
   })
+
+  it('the office itself can message an agent: typed in at once when it is idle, held until its turn ends when busy, and no reply is asked for', () => {
+    box.fromOffice('a1', 'Your plan was approved.')
+    expect(delivered).toEqual([{ to: 'a1', text: '[Agent World] Your plan was approved.' }])
+    box.busy('a2')
+    box.fromOffice('a2', 'Revise it.')
+    expect(delivered).toHaveLength(1)
+    box.turnEnded('a2')
+    expect(delivered[1]).toEqual({ to: 'a2', text: '[Agent World] Revise it.' })
+  })
+
+  it('office messages go first, and are dropped with the agent', () => {
+    box.busy('a2')
+    box.send('a1', 'linus', 'ping')
+    box.fromOffice('a2', 'Approved.')
+    box.turnEnded('a2')
+    expect(delivered[0]!.text).toBe('[Agent World] Approved.')
+    box.busy('a2')
+    box.fromOffice('a2', 'Later.')
+    box.gone('a2')
+    box.turnEnded('a2')
+    expect(delivered.some((d) => d.text.includes('Later'))).toBe(false)
+  })
 })

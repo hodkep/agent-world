@@ -27,6 +27,9 @@ function readBody(req: IncomingMessage): Promise<string | null> {
 }
 
 
+/** The tools that change files; the others (a read, a shell command) are never held back by the office. */
+const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+
 export async function startHookServer(o: EventSourceOptions): Promise<EventHandle> {
   interface Held {
     settle: (d: Decision | null) => void
@@ -120,6 +123,13 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
     if (event) o.onEvent({ ...event, agentId })
     // The text Claude adds to what it was just asked, so a rule the agent might drift from is in front of it again this turn.
     if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && p.tool_input && typeof p.tool_input === 'object') o.onToolUse?.(agentId, p.tool_name, p.tool_input as Record<string, unknown>)
+    // The office can hold an edit back (a plan not yet approved); the program is refused with the reason, and nothing else is affected.
+    if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && EDIT_TOOLS.includes(p.tool_name) && o.blockEdit) {
+      const input = (p.tool_input && typeof p.tool_input === 'object' ? p.tool_input : {}) as Record<string, unknown>
+      const file = typeof input.file_path === 'string' ? input.file_path : typeof input.notebook_path === 'string' ? input.notebook_path : ''
+      const why = file ? o.blockEdit(agentId, file, typeof p.cwd === 'string' ? p.cwd : '') : null
+      if (why) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: why } }))
+    }
     if (hookEvent === 'PostCompact') o.onCompact?.(agentId)
     const reminder = hookEvent === 'UserPromptSubmit' ? o.reminderFor?.(agentId, typeof p.prompt === 'string' ? p.prompt : '') : null
     if (reminder) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: reminder } }))

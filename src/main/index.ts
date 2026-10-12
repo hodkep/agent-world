@@ -18,7 +18,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, extname, isAbsolute, join, relative, sep } from 'node:path'
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
 import { contextItems } from './contextMenu'
@@ -58,6 +58,7 @@ import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { runSpend } from '../shared/runStats'
+import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
 import { WORKFLOW_HINT, WORKFLOW_TOOLS } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
@@ -421,6 +422,7 @@ const userHome = () => process.env.AW_USER_HOME ?? homedir()
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   enabled: () => prefs.workflows.enabled,
   since: () => prefs.workflows.since,
+  planGate: () => prefs.workflows.planGate,
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
   who: (id) => {
@@ -981,6 +983,7 @@ async function main() {
     },
     onStatus: onStats,
     reminderFor: libraryRemind,
+    blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
     onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
     onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
@@ -1098,8 +1101,34 @@ async function main() {
     libraryOn: () => prefs.libraryEnabled,
     workflows: {
       offered: workflowsFor,
-      begin: (caller, title, followUp) => (workflows.begin(caller, title, { followUp }), send('workflows')),
-      done: (caller, summary) => (workflows.done(caller, summary), send('workflows'))
+      begin: (caller, title, followUp) => {
+        const id = workflows.begin(caller, title, { followUp })
+        send('workflows')
+        // A follow-up round is not forced to plan again; a task's first round is.
+        return { planFirst: workflows.runs().find((r) => r.id === id)?.rounds.length === 1 }
+      },
+      done: (caller, summary) => (workflows.done(caller, summary), send('workflows')),
+      planGate: () => prefs.workflows.planGate,
+      submitPlan: async (caller, path) => {
+        const a = byId(caller)
+        if (!a) throw new Error('Unknown agent.')
+        // The plan is a file in the agent's own worktree; nothing outside it is read.
+        const file = resolve(a.cwd, path)
+        let text: string
+        try {
+          // Real paths, so a link inside the worktree cannot lead out of it.
+          const real = realpathSync(file)
+          const rel = relative(realpathSync(a.cwd), real)
+          if (rel.startsWith('..') || isAbsolute(rel)) throw new Error('outside')
+          text = readFileSync(real, 'utf8').slice(0, 100_000)
+        } catch (err) {
+          throw new Error(err instanceof Error && err.message === 'outside' ? 'The plan must be a file inside your worktree.' : `There is no plan at ${path}. Write it there first.`)
+        }
+        const rel = relative(a.cwd, file)
+        const r = workflows.submitPlan(caller, rel, text)
+        send('workflows')
+        return r
+      }
     },
     library: {
       index: (caller) => libraryService.index(caller),
@@ -1495,6 +1524,13 @@ async function main() {
     const runs = workflows.runs()
     const now = Date.now()
     return { runs, open: runs.filter((r) => r.status === 'open').length, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now)])) }
+  })
+  ipcMain.handle('workflows:decide', (_, runId: string, state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: { question: string; answer: string }[] }) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    workflows.decide(runId, state, { note: o?.note?.slice(0, 2000), answers: o?.answers?.slice(0, 20) })
+    // The answer reaches the agent as its next message.
+    if (run) mailbox.fromOffice(run.agent, planReply(state, { note: o?.note?.slice(0, 2000), answers: o?.answers?.slice(0, 20) }))
+    send('workflows')
   })
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
