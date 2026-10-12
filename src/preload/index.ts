@@ -72,6 +72,7 @@ const api: AwApi = {
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
   onLibraryUse: on('library-use'),
+  onTodosChanged: on('todos-changed'),
   onOpenPage: on('open-page'),
   finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
@@ -111,6 +112,19 @@ const api: AwApi = {
   getLimits: (refresh) => ipcRenderer.invoke('limits:get', refresh),
   mailPlan: (id) => ipcRenderer.invoke('provider:mail-plan', id),
   setMail: (id, on) => ipcRenderer.invoke('provider:mail-set', id, on),
+  todos: {
+    get: (folder) => ipcRenderer.invoke('todos:get', folder),
+    add: (folder, i) => ipcRenderer.invoke('todos:add', folder, i),
+    update: (folder, id, p) => ipcRenderer.invoke('todos:update', folder, id, p),
+    remove: (folder, id) => ipcRenderer.invoke('todos:remove', folder, id),
+    done: (folder, id) => ipcRenderer.invoke('todos:done', folder, id),
+    reopen: (folder, id) => ipcRenderer.invoke('todos:reopen', folder, id),
+    move: (folder, id, list, index) => ipcRenderer.invoke('todos:move', folder, id, list, index),
+    addList: (folder, name) => ipcRenderer.invoke('todos:add-list', folder, name),
+    renameList: (folder, from, to) => ipcRenderer.invoke('todos:rename-list', folder, from, to),
+    removeList: (folder, name) => ipcRenderer.invoke('todos:remove-list', folder, name),
+    needsYou: (folder) => ipcRenderer.invoke('todos:needs-you', folder)
+  },
   library: {
     list: () => ipcRenderer.invoke('library:list'),
     uses: (agentId) => ipcRenderer.invoke('library:uses', agentId),

@@ -100,6 +100,7 @@ export function ChatView({
   needActions,
   visible,
   focusTick,
+  jump,
   info,
   actions,
   limits,
@@ -125,6 +126,8 @@ export function ChatView({
   needActions: NeedActions
   visible: boolean
   focusTick: number
+  /** Open the chat at a message (a todo points at the one it was made or finished in); `n` changes each time it is asked. */
+  jump?: { itemId: string; excerpt: string; n: number } | null
   info?: AgentInfo
   actions: AgentActions
   limits: UsageLimits
@@ -267,6 +270,28 @@ export function ChatView({
   const [shown, setShown] = useState(WINDOW)
   useEffect(() => setShown(WINDOW), [agentId])
   const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
+  // A todo asks for a message: open the chat at it and flash it, or, when it is gone (the conversation was cleared), show what it said.
+  const [flash, setFlash] = useState<string | null>(null)
+  const [lost, setLost] = useState<string | null>(null)
+  useEffect(() => {
+    if (!jump) return
+    const at = found.findIndex((r) => r.id === jump.itemId)
+    setLost(null)
+    if (at < 0) return setLost(jump.excerpt || 'That message is no longer in this conversation.')
+    stick.current = false
+    setShown((n) => Math.max(n, found.length - at + 5))
+    setFlash(jump.itemId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump?.n])
+  useEffect(() => {
+    if (!flash) return
+    const el = log.current?.querySelector<HTMLElement>(`[data-row="${CSS.escape(flash)}"]`)
+    if (!el) return
+    el.scrollIntoView({ block: 'center' })
+    el.classList.add('flash')
+    const t = setTimeout(() => (el.classList.remove('flash'), setFlash(null)), 2400)
+    return () => clearTimeout(t)
+  }, [flash, rows])
 
   // Every match of the search, marked with the page's own highlighting; `at` is the one being looked at.
   const [hits, setHits] = useState(0)
@@ -490,6 +515,12 @@ export function ChatView({
           <p className="chat-empty">
             { asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
           </p>
+        )}
+        {lost !== null && (
+          <section className="msg note td-lost" role="note" aria-label="Message not found">
+            <b>That message is no longer in this chat.</b> It said: “{lost}”
+            <button onClick={() => setLost(null)} aria-label="Dismiss">×</button>
+          </section>
         )}
         {rows.length < found.length && (
           <button className="earlier" onClick={() => setShown((n) => n + WINDOW)}>
@@ -751,7 +782,7 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
       const mail = parseAgentMail(r.text)
       if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
       return (
-        <div className={`msg user ${r.pending ? 'pending' : ''}`} data-user-msg>
+        <div className={`msg user ${r.pending ? 'pending' : ''}`} data-user-msg data-row={r.id}>
           <JumpButtons />
           <Clamped>
             <UserText agentId={agentId} text={r.text} onImage={onImage} />
@@ -793,7 +824,7 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
       )
     case 'assistant':
       return (
-        <div className="msg assistant">
+        <div className="msg assistant" data-row={r.id}>
           {r.hooks?.map((h, i) => <HookStrip key={i} hook={h} agentName={agentName} />)}
           <div className="who">
             {agentName}

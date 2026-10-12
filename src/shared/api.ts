@@ -4,6 +4,7 @@ import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
+import type { TodoBoard, TodoStatus } from './todos'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -225,6 +226,8 @@ export interface AwApi {
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
+  /** A project's todo board changed (by the person or an agent): read it again with todos.get. */
+  onTodosChanged(cb: (workspace: string) => void): () => void
   /** An agent has a new entry in the library's log (read it again with library.uses). */
   onLibraryUse(cb: (agentId: string, how: string, item: string) => void): () => void
   /** An agent opened a page in a browser: the app shows it in that agent's Preview tab. `path` is the file, as found on this computer. */
@@ -291,6 +294,21 @@ export interface AwApi {
   mailPlan(provider: ProviderId): Promise<{ files: string[]; commands: string[]; note: string } | null>
   /** Connects or disconnects it, after the user approved the plan; says the new state. */
   setMail(provider: ProviderId, on: boolean): Promise<ProviderInfo['mail']>
+  /** The todo board of a project: lists of tasks the person and the agents both add to and finish. */
+  todos: {
+    get(folder: string): Promise<{ board: TodoBoard; key: string }>
+    add(folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }): Promise<void>
+    update(folder: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Promise<void>
+    remove(folder: string, id: string): Promise<void>
+    done(folder: string, id: string): Promise<void>
+    reopen(folder: string, id: string): Promise<void>
+    move(folder: string, id: string, list: string, index: number): Promise<void>
+    addList(folder: string, name: string): Promise<void>
+    renameList(folder: string, from: string, to: string): Promise<void>
+    removeList(folder: string, name: string): Promise<void>
+    /** How many open tasks wait on the person, for the top bar. */
+    needsYou(folder: string): Promise<number>
+  }
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
   library: {
     list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>

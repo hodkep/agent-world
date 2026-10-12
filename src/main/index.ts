@@ -1,6 +1,7 @@
 import { readText, resolveFile, startFileServer } from './files'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
+import { createTodoService } from './todos/service'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
@@ -417,8 +418,26 @@ const libraryService = createLibraryService({
   workspaceKey: repoSlug,
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
+// The todo board of each project: the person adds in the window, agents through the office tools, and each task points back at the message it came from.
+const todoService = createTodoService({
+  dir: join(HOME, 'todos'),
+  workspaceKey: repoSlug,
+  agent: (id) => {
+    const a = byId(id)
+    return a ? { id: a.id, name: a.name, provider: providerOf(a).id, repoPath: a.repoPath } : undefined
+  },
+  // What the agent said last, which is the message a call it makes now belongs to.
+  lastMessage: (id) => {
+    const items = chats.get(id)?.items ?? []
+    const said = items.findLast((i) => i.kind === 'assistant') ?? items.at(-1)
+    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? said.text.replace(/```[\s\S]*?```/g, ' … ').replace(/[*`#>_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) : '' } : undefined
+  },
+  onChange: (workspace) => send('todos-changed', workspace)
+})
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)
+// The todo board is the project's own list, so an agent may use it without asking each time too.
+const TODO_TOOLS = ['todo_list', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 const libraryRemind = (id: string, prompt: string) => {
   try {
@@ -673,7 +692,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: lib.core ? LIBRARY_TOOLS : [] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -990,6 +1009,7 @@ async function main() {
       libraryService.hookCalled(id)
       return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
     },
+    todos: todoService,
     library: {
       index: (caller) => libraryService.index(caller),
       get: (caller, id, file) => libraryService.get(caller, id, file),
@@ -1344,6 +1364,17 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
+  ipcMain.handle('todos:get', (_, folder: string) => ({ board: todoService.board(String(folder)), key: repoSlug(String(folder)) }))
+  ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => void todoService.addByPerson(String(folder), i))
+  ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
+  ipcMain.handle('todos:remove', (_, folder: string, id: string) => todoService.removeByPerson(String(folder), String(id)))
+  ipcMain.handle('todos:done', (_, folder: string, id: string) => todoService.doneByPerson(String(folder), String(id)))
+  ipcMain.handle('todos:reopen', (_, folder: string, id: string) => todoService.reopenByPerson(String(folder), String(id)))
+  ipcMain.handle('todos:move', (_, folder: string, id: string, list: string, index: number) => todoService.moveByPerson(String(folder), String(id), String(list), Number(index) || 0))
+  ipcMain.handle('todos:add-list', (_, folder: string, name: string) => todoService.addList(String(folder), String(name)))
+  ipcMain.handle('todos:rename-list', (_, folder: string, from: string, to: string) => todoService.renameList(String(folder), String(from), String(to)))
+  ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))
+  ipcMain.handle('todos:needs-you', (_, folder: string) => todoService.needsYou(String(folder)))
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
