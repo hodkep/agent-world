@@ -13,7 +13,10 @@ test('the grid shows every agent with its terminal and opens the one you click',
     await page.reload()
     await hire(page, { name: 'ada' })
     await hire(page, { name: 'linus' })
+    // The zoom and Terminal buttons belong to the office canvas: there while it shows, gone while the grid takes its place.
+    await expect(page.locator('.stage-ctl')).toBeVisible()
     await page.getByRole('button', { name: 'Grid', exact: true }).click()
+    await expect(page.locator('.stage-ctl')).toHaveCount(0)
     const list = page.getByRole('list', { name: 'All agents' })
     // The side panel is showing linus (hired last), so he is left out of the grid and only ada is in it.
     await expect(list.getByRole('listitem')).toHaveCount(1)
@@ -29,6 +32,7 @@ test('the grid shows every agent with its terminal and opens the one you click',
     if (await page.locator('.scrim').count()) await page.locator('.scrim').click({ position: { x: 5, y: 5 } })
     await page.getByRole('button', { name: 'Grid', exact: true }).click()
     await expect(list).toHaveCount(0)
+    await expect(page.locator('.stage-ctl')).toBeVisible()
   } finally {
     await shutdown()
   }

@@ -1248,27 +1248,30 @@ export function App() {
               )}
             </div>
           )}
-          <div className="stage-ctl" style={{ bottom: termOpen && folder ? termH + 10 : 10 }}>
-            <div className="zoom-ctl" role="group" aria-label="View">
-              <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
-              <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
-              <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
-                Fit office
-              </button>
-              <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
-                Reset
-              </button>
-            </div>
-            {folder && (
-              <div className="zoom-ctl" role="group" aria-label="Terminals">
-                <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
-                  <span className="term-gl" aria-hidden="true">&gt;_</span>
-                  Terminal
-                  {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+          {/* The zoom and Terminal buttons are the office canvas's: with the grid showing in its place there is nothing for them to act on. */}
+          {!(grid && agents.length > 0) && (
+            <div className="stage-ctl" style={{ bottom: termOpen && folder ? termH + 10 : 10 }}>
+              <div className="zoom-ctl" role="group" aria-label="View">
+                <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
+                <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
+                <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
+                  Fit office
+                </button>
+                <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
+                  Reset
                 </button>
               </div>
-            )}
-          </div>
+              {folder && (
+                <div className="zoom-ctl" role="group" aria-label="Terminals">
+                  <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
+                    <span className="term-gl" aria-hidden="true">&gt;_</span>
+                    Terminal
+                    {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
           {tip && (
             <FloatingTip x={tip.x} y={tip.y}>
