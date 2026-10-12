@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode } from '../../shared/library'
 import type { ProviderId, ProviderInfo } from '../../shared/types'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
+import { AddItemMenu } from './AddItemMenu'
 import { LibraryItemPane } from './LibraryItemPane'
 import { LibraryReach, type Fix } from './LibraryReach'
 import { LibraryRule } from './LibraryRule'
@@ -53,7 +54,6 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [scope, setScope] = useState<'global' | 'workspace'>(folder ? 'workspace' : 'global')
   const [books, setBooks] = useState<{ global: PlaybookRule[]; workspace: PlaybookRule[] }>({ global: [], workspace: [] })
-  const [adding, setAdding] = useState('')
   const ready = providers.filter((p) => p.detection.state === 'ready')
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
@@ -332,11 +332,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
               })}
             </div>
             <div className="lib-bar">
-              <select aria-label="Item to add" value={adding} onChange={(e) => setAdding(e.target.value)}>
-                <option value="">Add an item…</option>
-                {items.filter((i) => !rules.some((r) => r.id === i.id)).map((i) => <option key={i.id} value={i.id}>{i.name} ({i.kind})</option>)}
-              </select>
-              <button disabled={!adding} onClick={() => (void saveRules([...rules, { id: adding, mode: 'on-demand', when: '', strength: 'soft' }]), setAdding(''))}>Add to playbook</button>
+              <AddItemMenu items={items} added={new Set(rules.map((r) => r.id))} onAdd={(id) => void saveRules([...rules, { id, mode: 'on-demand', when: '', strength: 'soft' }])} />
             </div>
           </div>
           <div className="pb-r">
