@@ -1220,7 +1220,7 @@ async function main() {
   })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
-  ipcMain.handle('chat:interrupt', (_, id: string) => {
+  ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => {
     const p = sessions.get(id)
     if (!p) return
     const { first, then } = keysOf(id).interrupt
@@ -1237,6 +1237,13 @@ async function main() {
       setTimeout(() => {
         if (sessions.get(id) === p && ui(id).looksWorking(screens.get(id)?.text() ?? '')) p.write(keys)
       }, delay)
+    // Esc before anything was produced makes Claude take the prompt back into its own input box: it moves to the message box instead, as after a rewind.
+    if (restore)
+      setTimeout(() => {
+        if (sessions.get(id) !== p || !ui(id).typedText?.(screens.get(id)?.text() ?? '')) return
+        p.write(keysOf(id).clearInput)
+        send('composer-prefill', id, restore)
+      }, 800)
   })
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.

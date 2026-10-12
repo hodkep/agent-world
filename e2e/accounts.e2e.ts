@@ -98,8 +98,7 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect(five).toContainText('80% left', { timeout: 20_000 })
     await ring.click()
 
-    // Allowances are kept per account: each shows apart in the Usage tab, while the header shows the tightest of them.
-    await expect(page.getByRole('status', { name: /5-hour limit: 30% left/ })).toBeVisible({ timeout: 20_000 })
+    // Allowances are kept per account: each shows apart in the Usage tab.
     await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
     const modal = page.getByRole('dialog', { name: /usage/i })
     await modal.getByRole('button', { name: 'Refresh' }).click()

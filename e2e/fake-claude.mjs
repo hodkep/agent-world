@@ -401,6 +401,15 @@ if (process.env.FAKE_CHAT) {
     await hook('UserPromptSubmit', { prompt })
     // A working Claude shows a spinner line; it is gone when the turn ends.
     if (!process.env.FAKE_HANG) process.stdout.write('\x1b[19;1H✽ Working… (2s · ↓ 40 tokens)')
+    // FAKE_RESTORE_ON_ESC=1: like the real one, an Esc before anything was produced takes the prompt back into the input box.
+    if (process.env.FAKE_RESTORE_ON_ESC) {
+      await new Promise((resolve) => {
+        const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), resolve())
+        process.stdin.on('data', onKey)
+      })
+      turn = false
+      return void process.stdout.write(`\x1b[19;1H\x1b[2K\x1b[22;1H❯\u00a0${prompt}`)
+    }
     // FAKE_HANG=1: the turn is interrupted (Esc) and Claude, like the real one, never sends a Stop hook.
     if (process.env.FAKE_HANG) {
       await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x' } })

@@ -1,13 +1,13 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, highlight, markdownSpans, rowText, spanLabel, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, markdownSpans, norm, rowText, spanLabel, toMarkdown, toRows } from './format'
 import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
@@ -170,6 +170,11 @@ export function ChatView({
   }, [busy, sent.length])
   const [stopping, setStopping] = useState(false)
   const [needProgress, setNeedProgress] = useState('')
+  // A card can be closed while the agent keeps waiting; a strip brings it back, and a different ask shows its card again.
+  const [closedNeed, setClosedNeed] = useState<string | null>(null)
+  const needKey = need ? JSON.stringify(need) : null
+  const needClosed = needKey !== null && closedNeed === needKey
+  const closeNeed = () => setClosedNeed(needKey)
   // How long this turn has been going, counted live: from your last message, or from when this view saw the agent start
   // if it started by itself (a subagent report, a queued message).
   const [now, setNow] = useState(() => Date.now())
@@ -251,10 +256,15 @@ export function ChatView({
   const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
   useEffect(() => window.aw.onBtw((id, b) => id === agentId && setBtw(b)), [agentId])
   const [cut, setCut] = useState<string | null>(null)
+  // After an Esc with nothing after your last message Claude takes it back: it is hidden here, whether it is still "Sending…" or already saved, until you send again.
+  const takenBack = useRef(0)
+  // Once you send again only what was saved before that stays hidden, so the same words sent again show.
+  const [gone, setGone] = useState<{ text: string; until: number } | null>(null)
   useEffect(
     () =>
       window.aw.onComposerPrefill((id, t) => {
         if (id !== agentId) return
+        if (Date.now() - takenBack.current < 5000) return setGone({ text: norm(t), until: Infinity })
         const hit = [...allRows].reverse().find((r) => r.kind === 'user' && !r.pending && r.text.includes(t.slice(0, 40)))
         if (hit) setCut(hit.id)
       }),
@@ -262,8 +272,9 @@ export function ChatView({
   )
   const visible_ = useMemo(() => {
     const at = cut ? allRows.findIndex((r) => r.id === cut) : -1
-    return at < 0 ? allRows : allRows.filter((r, i) => i < at || ('pending' in r && r.pending))
-  }, [allRows, cut])
+    const rest = at < 0 ? allRows : allRows.filter((r, i) => i < at || ('pending' in r && r.pending))
+    return gone ? rest.filter((r) => !(r.kind === 'user' && norm(r.text) === gone.text && (r.pending ? gone.until === Infinity : (r.at ?? 0) < gone.until))) : rest
+  }, [allRows, cut, gone])
   // Searching keeps the whole conversation in place and marks the matches in it; it does not cut the rows down.
   const found = visible_
   const searching = !!query?.trim()
@@ -296,6 +307,22 @@ export function ChatView({
     const t = setTimeout(() => (el.classList.remove('flash'), setFlash(null)), 2400)
     return () => clearTimeout(t)
   }, [flash, rows])
+
+  // Loading earlier messages must not move what is being read: the browser does not hold the view at the very top, so the first message in view is put back where it was.
+  const reading = useRef<{ el: HTMLElement; top: number } | null>(null)
+  const showEarlier = () => {
+    const l = log.current
+    const top = l?.getBoundingClientRect().top ?? 0
+    const el = l && [...l.querySelectorAll<HTMLElement>('.msg')].find((m) => m.getBoundingClientRect().bottom > top)
+    reading.current = el ? { el, top: el.getBoundingClientRect().top - top } : null
+    setShown((n) => n + WINDOW)
+  }
+  useLayoutEffect(() => {
+    const l = log.current
+    const r = reading.current
+    reading.current = null
+    if (l && r?.el.isConnected) l.scrollTop += r.el.getBoundingClientRect().top - l.getBoundingClientRect().top - r.top
+  }, [shown])
 
   // Every match of the search, marked with the page's own highlighting; `at` is the one being looked at.
   const [hits, setHits] = useState(0)
@@ -369,6 +396,7 @@ export function ChatView({
   const send = useCallback(
     async (text: string) => {
       setError(null)
+      setGone((g) => g && { ...g, until: Date.now() })
       const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: busy }
       // /clear empties the conversation at once (the main process does the same on its side); a busy agent only queues it.
       if (/^\/clear$/i.test(p.text) && !p.queued) {
@@ -465,8 +493,17 @@ export function ChatView({
           const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir)
           if (to) show(to)
         }
+        // With a question open the first Esc closes its card (the agent keeps waiting) and the next one stops the agent, as with the list of completions.
+        else if (e.key === 'Escape' && need && !needClosed && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (e.preventDefault(), closeNeed())
         // Esc interrupts the agent from anywhere in the conversation, unless a menu or dialog is open: that takes the Esc to close itself.
-        else if (e.key === 'Escape' && busy && !stopping && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (setStopping(true), void window.aw.chatInterrupt(agentId))
+        else if (e.key === 'Escape' && busy && !stopping && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) {
+          setStopping(true)
+          // With nothing after your last message yet, Claude takes it back: it leaves the conversation and returns to the box with what went with it.
+          const last = allRows.at(-1)
+          const unsent = last?.kind === 'user' && !parseAgentMail(last.text) ? last.text : undefined
+          if (unsent !== undefined) (takenBack.current = Date.now(), window.dispatchEvent(new CustomEvent('aw:unsend', { detail: { agentId } })))
+          void window.aw.chatInterrupt(agentId, unsent)
+        }
       }}
     >
       {pick && (
@@ -527,7 +564,7 @@ export function ChatView({
           </section>
         )}
         {rows.length < found.length && (
-          <button className="earlier" onClick={() => setShown((n) => n + WINDOW)}>
+          <button className="earlier" onClick={showEarlier}>
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
@@ -558,7 +595,13 @@ export function ChatView({
           </div>
         )}
       </div>
-      {need && (
+      {need && needClosed && (
+        <div className="chat-banner" role="status">
+          <span>{agentName} is waiting for you · {needTitle(need).toLowerCase()}</span>
+          <button onClick={() => setClosedNeed(null)}>Show</button>
+        </div>
+      )}
+      {need && !needClosed && (
         <section className={`inline-need dialog kind-${need.kind}`} aria-label={`${agentName} is waiting for you`}>
           <header className="dialog-bar">
             <span className="blip" aria-hidden="true" />
@@ -566,6 +609,7 @@ export function ChatView({
             <span className="dialog-kind">{needTitle(need)}</span>
             {need.kind === 'question' && needProgress && <span className="dialog-count">{needProgress}</span>}
             {moreNeeds > 0 && <span className="dialog-more">+{moreNeeds} waiting</span>}
+            <button className="dialog-x" onClick={closeNeed} aria-label="Close (Esc)" title="Close (Esc); the agent keeps waiting" />
           </header>
           <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} onProgress={setNeedProgress} />
         </section>
@@ -1152,7 +1196,30 @@ function Composer({
     el?.addEventListener('beforeinput', on)
     return () => el?.removeEventListener('beforeinput', on)
   })
-  useEffect(() => window.aw.onComposerPrefill((id, t) => id === agentId && (edit(t), box.current?.focus())), [agentId])
+  // What the last message was made of, kept until the next one, so Esc before an answer can put all of it back: the words, the pictures and files, the quotes.
+  const lastSent = useRef<{ value: string; attached: Attachment[]; quotes: typeof quotes } | null>(null)
+  const unsentAt = useRef(0)
+  useEffect(() => {
+    const on = (e: Event) => (e as CustomEvent<{ agentId: string }>).detail.agentId === agentId && (unsentAt.current = Date.now())
+    window.addEventListener('aw:unsend', on)
+    return () => window.removeEventListener('aw:unsend', on)
+  }, [agentId])
+  useEffect(
+    () =>
+      window.aw.onComposerPrefill((id, t) => {
+        if (id !== agentId) return
+        const mine = lastSent.current
+        if (mine && Date.now() - unsentAt.current < 5000) {
+          if (mine.value) sent.current.shift()
+          edit(mine.value)
+          setAttached(mine.attached)
+          setQuotes(mine.quotes)
+          lastSent.current = null
+        } else edit(t)
+        box.current?.focus()
+      }),
+    [agentId]
+  )
   const modeWrap = useRef<HTMLSpanElement>(null)
   // The mode menu closes on Esc or a click anywhere else.
   useEffect(() => {
@@ -1327,7 +1394,8 @@ function Composer({
       setText('')
       undo.current.reset({ text: '', caret: 0 })
       setQuotes([])
-      for (const a of attached) if (a.preview) URL.revokeObjectURL(a.preview)
+      for (const a of lastSent.current?.attached ?? []) if (a.preview) URL.revokeObjectURL(a.preview)
+      lastSent.current = { value, attached, quotes }
       setAttached([])
     } catch {
       /* the error is shown above the composer; the text stays for another try */

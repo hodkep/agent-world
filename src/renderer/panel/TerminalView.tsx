@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { mentionText } from '../../shared/mention'
 import { openFileEvent } from '../files/context'
 import { macKeySequence } from './macKeys'
-import { type Match, findMatches, markTarget, stepMatch } from './termFind'
+import { type Match, findMatches, stepMatch } from './termFind'
 import { findLinks } from './termLinks'
 
 // `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
@@ -91,20 +91,11 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
       for (const c of early.splice(0)) write(c.data, c.end)
     })
     const input = term.onData((d) => window.aw.ptyWrite(ptyId, d))
-    // Cmd and Option with the arrows move by line and by word, as in the system terminal.
+    // Option with the arrows moves by word, and with Backspace deletes one, as in the system terminal.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type === 'keydown' && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
         if (e.key === 'f') return (openFind(), false)
         if (e.key === 'k') return (term.clear(), false)
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-          // Between the commands typed here, when the shell marks its prompts.
-          const lines = marks.current.filter((m) => !m.marker.isDisposed).map((m) => m.marker.line)
-          if (lines.length === 0) return true
-          const to = markTarget(lines, term.buffer.active.viewportY, e.key === 'ArrowUp' ? -1 : 1)
-          if (to === 'end') term.scrollToBottom()
-          else if (to !== null) term.scrollToLine(to)
-          return false
-        }
       }
       const seq = macKeySequence(e)
       if (seq === null) return true

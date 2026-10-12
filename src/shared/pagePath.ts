@@ -1,6 +1,6 @@
 const PAGE = /\.(html?|pdf)$/i
 
-/** What was typed into the Preview bar as a page on this computer: an absolute path, ~/…, C:\…, or a file: address; as a plain path. Null for anything else. */
+/** What was typed into the Preview bar as a page on this computer: an absolute path, ~/…, C:\…, a file: address, or a path from the agent's folder; as a plain path. Null for anything else, such as an address with a scheme or a port. */
 export function pagePath(text: string): string | null {
   let t = text.trim()
   if (/^file:\/\//i.test(t)) {
@@ -11,7 +11,8 @@ export function pagePath(text: string): string | null {
     }
   }
   const rooted = t.startsWith('/') || t.startsWith('~/') || /^[A-Za-z]:[\\/]/.test(t)
-  return rooted && PAGE.test(t) ? t : null
+  // "http:", "localhost:3000" and the like are addresses, so what is left without one is a path from the agent's folder.
+  return PAGE.test(t) && (rooted || !/^[a-z][a-z0-9+.-]*:/i.test(t)) ? t : null
 }
 
 const OPENERS = new Set(['open', 'xdg-open', 'gnome-open', 'wslview', 'start', 'explorer', 'explorer.exe'])
