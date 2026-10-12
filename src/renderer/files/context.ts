@@ -10,3 +10,6 @@ export function openFileEvent(agentId: string, path: string) {
 
 /** What to call a page shown from a file (its address is temporary and says nothing). */
 export const pageLabels = new Map<string, string>()
+
+/** The path typed in the Preview bar for a page shown from a file, by the temporary address it is served at: the bar keeps showing the path. */
+export const pagePaths = new Map<string, string>()

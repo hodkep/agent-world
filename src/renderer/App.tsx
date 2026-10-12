@@ -102,6 +102,8 @@ export function App() {
   const [allAgents, setAgents] = useState<AgentRecord[]>([])
   const [world, setWorld] = useState<World>(emptyWorld)
   const [selected, setSelected] = useState<string | null>(null)
+  const selectedRef = useRef<string | null>(null)
+  selectedRef.current = selected
   const [asks, setAsks] = useState<PermissionRequest[]>([])
   const [workspaces, setWorkspaces] = useState<Workspaces | null>(null)
   const folder = workspaces?.active ?? null
@@ -705,6 +707,18 @@ export function App() {
     return () => window.removeEventListener(PREVIEW_EVENT, on)
   })
 
+  // A page an agent opened in a browser is shown in its Preview tab too; the one you are looking at switches to it, any other keeps what you are doing.
+  useEffect(
+    () =>
+      window.aw.onOpenPage((agentId, path) => {
+        void window.aw.fileUrl(agentId, path).then(({ info, url }) => {
+          pageLabels.set(url, info.name)
+          setPreviewTarget((t) => ({ ...t, [agentId]: { url, n: (t[agentId]?.n ?? 0) + 1 } }))
+          if (agentId === selectedRef.current) (setPeek(true), setView('preview'))
+        }, () => {})
+      }),
+    []
+  )
   // A file an agent mentioned, clicked in a chat: a page or PDF goes to the Preview tab, a code file in the agent's folder to the
   // Code tab, anything else to the File tab, which also offers the machine's own program.
   useEffect(() => {

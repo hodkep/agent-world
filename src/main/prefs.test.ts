@@ -48,3 +48,11 @@ describe('the subagent limits', () => {
     expect(cleanPrefs({ subagents: { maxDepth: 'deep', maxRunning: 2.5 } }).subagents).toEqual({ maxDepth: 2, maxRunning: 3 })
   })
 })
+
+describe('opening pages in the app', () => {
+  it('is on unless it was switched off, and a stray value is on', () => {
+    expect(cleanPrefs({}).openPagesInApp).toBe(true)
+    expect(cleanPrefs({ openPagesInApp: false }).openPagesInApp).toBe(false)
+    expect(cleanPrefs({ openPagesInApp: 'no' }).openPagesInApp).toBe(true)
+  })
+})

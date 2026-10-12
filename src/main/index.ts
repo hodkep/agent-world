@@ -28,6 +28,7 @@ import { homeDirName } from './home'
 import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
 import { modelLabel } from '../shared/spawn'
+import { pagesOpenedBy } from '../shared/pagePath'
 import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
@@ -263,6 +264,22 @@ function noteServers(id: string, chunk: string, terminal = true) {
       added = true
     }
   if (added) void probeServers()
+}
+// A page an agent opens in a browser is also shown in the app's Preview (a Settings choice). The same call can reach us twice (the permission
+// request and the tool call), so a page is shown once in a few seconds.
+const pageSeen = new Map<string, number>()
+function notePages(id: string, json: string) {
+  if (!prefs.openPagesInApp) return
+  const a = byId(id)
+  if (!a) return
+  for (const written of pagesOpenedBy(json))
+    void resolveFile(a.cwd, written).then((info) => {
+      if (!info || (info.kind !== 'html' && info.kind !== 'pdf')) return
+      const key = `${id}|${info.path}`
+      if (Date.now() - (pageSeen.get(key) ?? 0) < 5000) return
+      pageSeen.set(key, Date.now())
+      send('open-page', id, info.path)
+    })
 }
 async function probeServers() {
   let changed = false
@@ -824,7 +841,7 @@ async function main() {
   const eventOptions = (p: Provider): EventSourceOptions => ({
     agentForToken: (t) => agentTokens.get(t) ?? null,
     // The page an agent opens in a browser tool or curls is the one to preview, even when it did not start that server itself.
-    onToolInput: (id, json) => noteServers(id, json, false),
+    onToolInput: (id, json) => (noteServers(id, json, false), notePages(id, json)),
     permissionTimeoutMs: PERMISSION_TIMEOUT_SEC * 1000,
     onEvent: (e) => {
       // Only the terminal process exiting means the agent left. SessionEnd also fires on /clear and when we

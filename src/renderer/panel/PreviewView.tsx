@@ -4,7 +4,8 @@ import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './pic
 import { DEVICES, USER_AGENT, fitScale, sizeOf, viewOf, type DeviceKind } from './devices'
 import { MAX_VISITS, addVisit, ago, completion, forget, suggest, type Visit } from './addressHistory'
 import { OutlineIcon } from './IconButton'
-import { pageLabels } from '../files/context'
+import { pageLabels, pagePaths } from '../files/context'
+import { pagePath } from '../../shared/pagePath'
 import { PREVIEW_EVENT, isPreviewable, localAddress } from '../links'
 
 // The subset of the <webview> element used here.
@@ -50,6 +51,22 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
   const rest = typed ? completion(typed, rows[0]?.url) : ''
   const now = Date.now()
   const go = (raw: string) => {
+    // A path to a page on this computer is shared by the app's own file server, and shown under the path that was typed.
+    const file = pagePath(raw)
+    if (file) {
+      void window.aw.fileUrl(agentId, file).then(
+        ({ info, url }) => {
+          pageLabels.set(url, info.name)
+          pagePaths.set(url, raw.trim())
+          window.dispatchEvent(new CustomEvent(PREVIEW_EVENT, { detail: { agentId, url } }))
+          setBad(false)
+          setTyped(null)
+          setOpen(false)
+        },
+        () => setBad(true)
+      )
+      return
+    }
     const url = localAddress(raw)
     setBad(!url)
     if (!url) return
@@ -95,7 +112,7 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
             else if (rows[at]) go(rows[at]!.url)
           } else if (e.key === 'Escape' && (open || typed !== null)) (e.preventDefault(), e.stopPropagation(), close(), e.currentTarget.blur())
         }}
-        placeholder="Open a local address, like 5287 or localhost:3000/app"
+        placeholder="Open a local address, like 5287 or localhost:3000/app, or a page like ~/design/index.html"
         aria-label="Local address to preview"
         aria-invalid={bad}
         aria-expanded={open}
@@ -389,7 +406,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         <button onClick={() => view.current?.reload()} aria-label="Reload" title="Reload the page">
           <OutlineIcon name="reload" />
         </button>
-        <AddressField agentId={agentId} shown={shown || current.url} state={current.alive ? 'up' : 'down'} live={live} history={history} onForget={forgetVisit} />
+        <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={current.alive ? 'up' : 'down'} live={live} history={history} onForget={forgetVisit} />
         <span className="preview-dev" ref={devWrap}>
           <button className="dev-btn" aria-haspopup="menu" aria-expanded={devMenu} aria-label={`Screen size: ${DEVICES[dev.kind].label}`} title="Screen size: see the page as it looks on a tablet or phone" onClick={() => setDevMenu((o) => !o)}>
             <OutlineIcon name={DEVICE_ICON[dev.kind]} />
