@@ -2581,7 +2581,7 @@ aside:not(.drawer) { flex: none; }
 .td-pop { position: absolute; right: 0; top: 100%; z-index: 5; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 8px 20px #000a; display: flex; flex-direction: column; min-width: 150px; }
 .td-pop button { text-align: left; background: none; border: 0; padding: 6px 10px; }
 .td-pop button:hover { background: var(--selected); }
-.td-body { overflow: auto; padding: 4px 0; min-height: 0; flex: 1; }
+.td-body { overflow: auto; padding: 6px 0; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
 .td-main { background: none; border: 0; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: inherit; }
 .td-title { line-height: 1.35; overflow-wrap: anywhere; }
 .td-sub { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 11px; }
@@ -2591,7 +2591,7 @@ aside:not(.drawer) { flex: none; }
 .td-flag { font: 700 10.5px Menlo, monospace; padding: 1px 6px; border: 2px solid var(--ink); background: var(--accent); color: var(--ink); }
 .td-st { font: 700 10.5px Menlo, monospace; padding: 1px 6px; border: 2px solid var(--ink); background: var(--panel-2); }
 .td-st.doing { color: var(--think); } .td-st.blocked { color: var(--danger-text); }
-.td-add, .td-done-h { display: flex; gap: 6px; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 7px 10px; color: var(--muted); }
+.td-add, .td-done-h { display: flex; gap: 6px; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; color: var(--muted); }
 .td-add:hover { color: var(--accent); }
 .td-new { margin: 6px 10px; width: calc(100% - 20px); }
 .td-newlist { flex: 0 0 200px; padding: 14px; border: 2px dashed var(--line); background: none; color: var(--muted); text-align: center; }
@@ -2639,7 +2639,7 @@ aside:not(.drawer) { flex: none; }
 .help-body li span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* Task rows: a status stripe, a tick, and the task with room around it */
-.td-task { display: grid; grid-template-columns: 4px 16px minmax(0, 1fr); gap: 10px; align-items: start; padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); }
+.td-task { display: grid; grid-template-columns: 4px 16px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 10px 8px 0; }
 .td-task:hover { background: var(--panel-hover); }
 .td-task.sel { background: var(--selected); }
 .td-stripe { align-self: stretch; min-height: 34px; background: var(--dim); }
@@ -2711,3 +2711,14 @@ aside:not(.drawer) { flex: none; }
 .td-send { flex-wrap: wrap; }
 .td-sec .td-check { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }
 .td-sec .td-check input { width: auto; flex: none; }
+
+/* Calm: no lines around a task, and a close button that is only a cross */
+.td-body .td-task { flex: none; }
+.td-x { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; background: none; border: 0; box-shadow: none; color: var(--muted); font-size: 18px; line-height: 1; }
+.td-x:hover { background: var(--panel-hover); color: var(--text); }
+.td-dhead { border-bottom: 1px solid var(--line); }
+.td-notes.grow { min-height: 72px; resize: none; }
+.td-main { box-shadow: none; outline-offset: 2px; border-radius: 0; }
+.td-main:hover, .td-main:active { box-shadow: none; background: none; }
+.td-add, .td-done-h, .td-more, .td-ck, .td-link-btn, .td-newlist, .td-pop button { box-shadow: none; }
+.td-add:hover:not(:disabled), .td-done-h:hover:not(:disabled), .td-more:hover:not(:disabled) { background: var(--panel-hover); }
