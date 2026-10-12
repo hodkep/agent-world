@@ -32,3 +32,12 @@ export function tabLabel(i: SubagentInfo): string {
   if (!d) return i.type
   return d.length > 26 ? `${d.slice(0, 26)}…` : d
 }
+
+export const PANEL_MIN = 320
+/** The least of the office kept in view beside the chat and the panel. */
+const OFFICE_KEEP = 160
+
+/** A width for the subagent panel: at least what reads well, at most what leaves the chat its width and a strip of the office. */
+export function clampPanel(want: number, windowW: number, chatW: number): number {
+  return Math.round(Math.max(PANEL_MIN, Math.min(windowW - chatW - OFFICE_KEEP, want)))
+}

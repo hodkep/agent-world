@@ -19,17 +19,19 @@ test('chat: margin notes under a message say what the library did for it, and op
     await page.evaluate(async (folder) => {
       const pdf = await window.aw.library.save({ kind: 'prompt', name: 'pdf', description: 'Work with PDFs.', body: 'Split with the helper.' })
       const terse = await window.aw.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
-      await window.aw.library.setPlaybook(folder, [{ id: pdf.id, mode: 'on-demand', when: 'working with PDFs', strength: 'soft' }, { id: terse.id, mode: 'always', when: '', strength: 'soft' }])
+      await window.aw.library.setPlaybook(folder, [{ id: pdf.id, mode: 'on-demand', when: 'split a pdf into pages', strength: 'soft' }, { id: terse.id, mode: 'always', when: '', strength: 'soft' }])
     }, home)
     await hire(page)
     await page.getByRole('tab', { name: 'Chat' }).click()
     const box = page.getByRole('textbox', { name: 'Message ada' })
-    await box.fill('please split this pdf into pages')
+    await box.fill('hello there')
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
-    await expect(log.locator('.msg.user')).toContainText('split this pdf')
+    await expect(log.locator('.msg.user')).toContainText('hello there')
+    // The answer is in the transcript, so the message has its time and what the hook does next lands after it.
+    await expect(log.locator('.msg.assistant').first()).toBeVisible()
 
-    // The program's own hook runs for that message and points at the item; the agent then reads it with its Skill tool.
+    // The program's own hook runs for a message and points at the item (the fake sends its own for the message above, which matches nothing, so this one is the pointing); the agent then reads it with its Skill tool.
     await expect.poll(() => readFileSync(args, 'utf8').includes('--settings')).toBe(true)
     const line = readFileSync(args, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
     const hook = JSON.parse(readFileSync(line[line.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
@@ -52,7 +54,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     await page.getByRole('tab', { name: 'Library' }).click()
     const tab = page.getByRole('tabpanel', { name: 'Library' })
     await expect(tab).toContainText('pointed at 1 item')
-    await expect(tab.getByLabel('What it was told')).toContainText('working with PDFs: pdf')
+    await expect(tab.getByLabel('What it was told')).toContainText('split a pdf into pages: pdf')
     await expect(tab.getByLabel('What it did')).toContainText('Pointed at pdf')
     await expect(tab.getByLabel('What it did')).toContainText('Read pdf')
 

@@ -264,6 +264,8 @@ export interface Prefs {
   notifications: 'all' | 'attention' | 'off'
   /** Keep the computer awake while an agent works. */
   keepAwake: boolean
+  /** When an agent opens an HTML page in a browser (open page.html, xdg-open, start, a browser tool), also show it in the app's Preview tab. */
+  openPagesInApp: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
   wrapUp: boolean
   /** How agents starting agents as their subagents are held in: how many levels, and how many at once under one agent. */

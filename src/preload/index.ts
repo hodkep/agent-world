@@ -72,6 +72,7 @@ const api: AwApi = {
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
   onLibraryUse: on('library-use'),
+  onOpenPage: on('open-page'),
   finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
   memoryList: (id) => ipcRenderer.invoke('memory:list', id),

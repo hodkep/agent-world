@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
-import { liveLine, signature, tabLabel, trimFork } from './subagentView'
+import { PANEL_MIN, clampPanel, liveLine, signature, tabLabel, trimFork } from './subagentView'
 
 const at = 1_000
 const tool = (id: string, name: string, input: Record<string, unknown> = {}): ChatItem => ({ kind: 'tool', id, at, toolUseId: `use-${id}`, name, input })
@@ -52,5 +52,17 @@ describe('the name on a subagent\'s tab', () => {
     expect(tabLabel(info())).toBe('Show delivery photos to ve…')
     expect(tabLabel(info({ description: 'Short' }))).toBe('Short')
     expect(tabLabel(info({ description: '' }))).toBe('fork')
+  })
+})
+
+describe('how wide the subagent panel may be dragged', () => {
+  it('keeps to the least that reads well, and leaves the chat and a strip of the office', () => {
+    expect(clampPanel(100, 1600, 520)).toBe(PANEL_MIN)
+    expect(clampPanel(500, 1600, 520)).toBe(500)
+    // 1600 wide, chat 520, 160 left for the office: the panel may take 920.
+    expect(clampPanel(2000, 1600, 520)).toBe(920)
+  })
+  it('never goes below the least even where there is no room', () => {
+    expect(clampPanel(700, 800, 520)).toBe(PANEL_MIN)
   })
 })

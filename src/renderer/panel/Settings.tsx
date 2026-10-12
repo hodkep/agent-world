@@ -127,6 +127,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                 </select>
               </label>
               <Switch checked={prefs.keepAwake} onChange={(keepAwake) => set({ keepAwake })} title="Keep the computer awake while an agent works" hint="Sleep is stopped only while something is running." />
+              <Switch checked={prefs.openPagesInApp} onChange={(openPagesInApp) => set({ openPagesInApp })} title="Open pages in the app preview" hint="When an agent opens an HTML page in a browser, also show it in that agent's Preview tab. The command it ran still runs." />
               <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
             </>
           )}
