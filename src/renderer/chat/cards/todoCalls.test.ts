@@ -40,9 +40,21 @@ describe('parseTodoCall', () => {
   it('list says when there is nothing', () => {
     expect(parseTodoCall('todo_list', {}, R('No open todos.'))).toMatchObject({ kind: 'list', empty: true, rows: [] })
   })
+  it('search: the words asked for and each task found', () => {
+    const text = 'todo#2 [Tests] Fix the flaky login test — done; created by ada 4 h ago, updated 3 min ago; done by ada\n  matches how, note: Detach the banner\ntodo#9 [Tools] Slow thing — open; created by you 2 h ago, updated 3 min ago\n  matches title: Slow thing'
+    const c = parseTodoCall('mcp__agent-world__todo_search', { query: 'cookie banner' }, R(text))
+    expect(c).toMatchObject({ kind: 'search', query: 'cookie banner', empty: false })
+    if (c?.kind !== 'search') throw new Error('not a search')
+    expect(c.rows.map((r) => [r.id, r.status])).toEqual([['2', 'done'], ['9', 'open']])
+    expect(parseTodoCall('todo_search', { query: 'zebra' }, R('No todos match “zebra”.'))).toMatchObject({ kind: 'search', empty: true, rows: [] })
+    expect(isTodoCall('todo_search')).toBe(true)
+  })
+  it('done keeps how it was done and the files named', () => {
+    expect(parseTodoCall('todo_done', { id: '14', note: 'n', how: 'Like so', files: ['a.ts', 'b.ts'] }, undefined)).toEqual({ kind: 'done', id: '14', note: 'n', how: 'Like so', files: ['a.ts', 'b.ts'] })
+  })
   it('claim, done and get name the task; done keeps the note', () => {
     expect(parseTodoCall('todo_claim', { id: '22' }, R('You are on todo#22: Test the hold.'))).toEqual({ kind: 'claim', id: '22' })
-    expect(parseTodoCall('todo_done', { id: '14', note: 'Wrote it' }, R('Marked todo#14 done.'))).toEqual({ kind: 'done', id: '14', note: 'Wrote it' })
+    expect(parseTodoCall('todo_done', { id: '14', note: 'Wrote it' }, R('Marked todo#14 done.'))).toEqual({ kind: 'done', id: '14', note: 'Wrote it', how: '', files: [] })
     expect(parseTodoCall('todo_get', { id: '3' }, undefined)).toEqual({ kind: 'get', id: '3' })
   })
   it('update: only the fields that were given, in words', () => {

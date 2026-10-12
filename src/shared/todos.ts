@@ -50,6 +50,12 @@ export interface Todo {
   doneBy?: Actor
   doneNote?: string
   doneLink?: MessageLink
+  /** How it was done, in the finisher's words. */
+  doneHow?: string
+  /** The files it touched: those the agent named and those git shows. */
+  doneFiles?: string[]
+  /** The commits made while it was being done. */
+  doneCommits?: { sha: string; subject: string }[]
   history: TodoEvent[]
 }
 
@@ -152,10 +158,17 @@ export function askedTodo(b: TodoBoard, id: string, agent: Actor, by: Actor, at:
   return put(b, stamp(t, by, at, { what: 'asked', note: `${agent.name}: ${clip(text, NOTE_MAX)}` }))
 }
 
-export function doneTodo(b: TodoBoard, id: string, by: Actor, note: string, at: number, link?: MessageLink): TodoBoard {
+const HOW_MAX = 1500
+const FILES_MAX = 30
+const COMMITS_MAX = 10
+const uniqFiles = (fs: string[] | undefined) => [...new Set((fs ?? []).map((f) => f.trim()).filter(Boolean))].slice(0, FILES_MAX)
+
+export function doneTodo(b: TodoBoard, id: string, by: Actor, note: string, at: number, link?: MessageLink, extra?: { how?: string; files?: string[] }): TodoBoard {
   const t = find(b, id)
   const n = clip(note, NOTE_MAX)
-  const next: Todo = { ...t, status: 'done', blockedWhy: undefined, doneAt: at, doneBy: by, doneNote: n || undefined, doneLink: link }
+  const how = clip(extra?.how, HOW_MAX)
+  const files = uniqFiles(extra?.files)
+  const next: Todo = { ...t, status: 'done', blockedWhy: undefined, doneAt: at, doneBy: by, doneNote: n || undefined, doneLink: link, ...(how && { doneHow: how }), ...(files.length && { doneFiles: files }) }
   delete next.claimedBy
   return put(b, stamp(next, by, at, { what: 'done', ...(n && { note: n }), ...(link && { link }) }))
 }
@@ -167,7 +180,26 @@ export function reopenTodo(b: TodoBoard, id: string, by: Actor, at: number): Tod
   delete next.doneBy
   delete next.doneNote
   delete next.doneLink
+  delete next.doneHow
+  delete next.doneFiles
+  delete next.doneCommits
   return put(b, stamp(next, by, at, { what: 'reopened' }))
+}
+
+/** What git shows was done while the task was being done: its commits and files, kept with it. Not an edit, so the history does not change. */
+export function attachWork(b: TodoBoard, id: string, work: { commits: { sha: string; subject: string }[]; files: string[] }): TodoBoard {
+  const t = find(b, id)
+  const files = uniqFiles([...(t.doneFiles ?? []), ...work.files])
+  const commits = work.commits.slice(0, COMMITS_MAX).map((c) => ({ sha: c.sha.slice(0, 12), subject: clip(c.subject, 160) }))
+  return put(b, { ...t, ...(files.length && { doneFiles: files }), ...(commits.length && { doneCommits: commits }) })
+}
+
+/** A line of what was done and how, for the project's shared memory, so an agent that recalls "how did we do X" finds it. Empty when there is nothing to say. */
+export function knowledgeLine(t: Todo): string {
+  const parts = [t.doneNote, t.doneHow && `How: ${t.doneHow}`, t.doneFiles?.length && `Files: ${t.doneFiles.join(', ')}`, t.doneCommits?.length && `Commits: ${t.doneCommits.map((c) => `${c.sha} ${c.subject}`).join('; ')}`].filter(Boolean)
+  if (!parts.length) return ''
+  const when = new Date(t.doneAt ?? t.updatedAt).toISOString().slice(0, 10)
+  return `Done todo#${t.id} "${t.title}" by ${t.doneBy?.name ?? 'someone'} on ${when}. ${parts.join(' ')}`
 }
 
 /** An agent's turn ended: what the app made for its requests and it is still on, without saying done or blocked, is flagged. */

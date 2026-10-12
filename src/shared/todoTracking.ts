@@ -7,9 +7,16 @@ const SMALL_TALK = /^(ok(ay)?|yes|no|yep|nope|thanks?|thank you|thx|cool|great|n
 /** One short paragraph in an agent's opening text; paid for in every session, so it is kept brief. */
 export function trackingHint(mode: TodoTracking): string {
   if (mode === 'full') {
-    return 'This project keeps a todo board the person watches. The app records every request you are given as a task for you. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot). Name a task as todo#N in your replies so it links to the board.'
+    return 'This project keeps a todo board the person watches. The app records every request you are given as a task for you. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot). Name a task as todo#N in your replies so it links to the board. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
   }
-  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked. Name a task as todo#N in your replies so it links to the board.'
+  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked. Name a task as todo#N in your replies so it links to the board. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
+}
+
+/** A line for a message that looks like work already done: which tasks, who did them, and how to find out how. Empty when nothing looks alike. */
+export function similarLine(found: { id: string; title: string; by: string }[]): string {
+  if (!found.length) return ''
+  const list = found.map((f) => `todo#${f.id} "${f.title.slice(0, 70)}" (done by ${f.by})`).join('; ')
+  return `Done before: ${list}. If it is the same kind of work, read how with todo_get, or ask whoever did it, before starting.`
 }
 
 /** A request with some substance: not a thank-you, a slash command or a one-word answer. */

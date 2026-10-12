@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addList, addTodo, askedTodo, assignTodo, claimTodo, excerptOf, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -79,6 +79,43 @@ describe('changing', () => {
   })
   it('says what is not found', () => {
     expect(() => doneTodo(start(), '99', ada, '', 1)).toThrow(/99/)
+  })
+})
+
+describe('what was done and how', () => {
+  const start = () => claimTodo(addTodo(emptyBoard(), { title: 'Wire the key', list: 'L' }, you, 1).board, '1', ada, 2)
+  it('keeps how it was done and the files the agent named', () => {
+    const b = doneTodo(start(), '1', ada, 'Key wired', 9, link, { how: 'Read it from Settings → Accounts and passed it to the client.', files: ['src/a.ts', 'src/a.ts', ' src/b.ts '] })
+    expect(b.todos[0]).toMatchObject({ doneNote: 'Key wired', doneHow: 'Read it from Settings → Accounts and passed it to the client.', doneFiles: ['src/a.ts', 'src/b.ts'] })
+  })
+  it('attaches the commits and files git shows, without counting as an edit, and merges files with the agent\'s', () => {
+    let b = doneTodo(start(), '1', ada, '', 9, undefined, { files: ['src/a.ts'] })
+    const edits = b.todos[0]!.history.length
+    b = attachWork(b, '1', { commits: [{ sha: 'abc1234', subject: 'fix: wire the key' }], files: ['src/a.ts', 'src/c.ts'] })
+    expect(b.todos[0]).toMatchObject({ doneCommits: [{ sha: 'abc1234', subject: 'fix: wire the key' }], doneFiles: ['src/a.ts', 'src/c.ts'] })
+    expect(b.todos[0]!.history).toHaveLength(edits)
+  })
+  it('caps the commits and files kept', () => {
+    const commits = Array.from({ length: 30 }, (_, i) => ({ sha: `s${i}`, subject: 'c' }))
+    const files = Array.from({ length: 80 }, (_, i) => `f${i}`)
+    const b = attachWork(doneTodo(start(), '1', ada, '', 9), '1', { commits, files })
+    expect(b.todos[0]!.doneCommits).toHaveLength(10)
+    expect(b.todos[0]!.doneFiles).toHaveLength(30)
+  })
+  it('writes a line fit for the shared memory: who, what, how, files and commits', () => {
+    const b = attachWork(doneTodo(start(), '1', ada, 'Key wired', Date.UTC(2026, 9, 12), undefined, { how: 'Passed it to the client.', files: ['src/a.ts'] }), '1', { commits: [{ sha: 'abc1234', subject: 'fix: wire the key' }], files: [] })
+    const line = knowledgeLine(b.todos[0]!)
+    expect(line).toContain('todo#1')
+    expect(line).toContain('Wire the key')
+    expect(line).toContain('ada')
+    expect(line).toContain('Key wired')
+    expect(line).toContain('Passed it to the client.')
+    expect(line).toContain('src/a.ts')
+    expect(line).toContain('abc1234 fix: wire the key')
+    expect(line).toContain('2026-10-12')
+  })
+  it('has no line for a task with nothing to say about how it was done', () => {
+    expect(knowledgeLine(doneTodo(start(), '1', ada, '', 9).todos[0]!)).toBe('')
   })
 })
 

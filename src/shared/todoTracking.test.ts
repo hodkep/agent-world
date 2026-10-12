@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deferralCue, isWork, requestTitle, reminderLine, trackingCost, trackingHint } from './todoTracking'
+import { deferralCue, isWork, requestTitle, reminderLine, similarLine, trackingCost, trackingHint } from './todoTracking'
 
 describe('trackingHint', () => {
   it('tells an agent in deferred mode to record what is put off, and says nothing about each request', () => {
@@ -14,8 +14,8 @@ describe('trackingHint', () => {
     expect(h).toMatch(/every request|each request/i)
   })
   it('stays short, because it is paid for in every session', () => {
-    expect(trackingHint('deferred').length).toBeLessThan(480)
-    expect(trackingHint('full').length).toBeLessThan(600)
+    expect(trackingHint('deferred').length).toBeLessThan(700)
+    expect(trackingHint('full').length).toBeLessThan(820)
   })
 })
 
@@ -74,5 +74,24 @@ describe('trackingCost', () => {
     expect(f.sessions.map((s) => s.requests)).toEqual([3, 12, 50])
     expect(f.sessions[1]!.tokens).toBe(f.opening + 12 * f.perRequest)
     expect(f.sessions[2]!.tokens).toBeGreaterThan(d.sessions[2]!.tokens)
+  })
+})
+
+describe('similarLine', () => {
+  it('names finished tasks that look like the request, and how to read them, in one short line', () => {
+    const l = similarLine([{ id: '12', title: 'Wire the Anthropic key', by: 'ada' }, { id: '15', title: 'Add a test connection', by: 'bob' }])
+    expect(l).toContain('todo#12')
+    expect(l).toContain('Wire the Anthropic key')
+    expect(l).toContain('ada')
+    expect(l).toContain('todo#15')
+    expect(l).toMatch(/todo_get/)
+    expect(l.length).toBeLessThan(400)
+  })
+  it('says nothing when none look alike', () => {
+    expect(similarLine([])).toBe('')
+  })
+  it('the opening text says to search past tasks', () => {
+    expect(trackingHint('deferred')).toMatch(/todo_search/)
+    expect(trackingHint('full')).toMatch(/todo_search/)
   })
 })

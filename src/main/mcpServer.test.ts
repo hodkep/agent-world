@@ -189,7 +189,7 @@ describe('agent-world MCP server: subagents', () => {
 
 describe('the todo tools', () => {
   const agents = { a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }, a2: { id: 'a2', name: 'bob', provider: 'agy', repoPath: '/work/shop' } }
-  const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), lastRequest: () => undefined, now: () => Date.now(), onChange: () => undefined })
+  const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), lastRequest: () => undefined, workSince: async () => ({ commits: [{ sha: 'abc1234', subject: 'fix: it' }], files: [] }), remember: () => undefined, now: () => Date.now(), onChange: () => undefined })
   it('add, list, claim and finish a task, each as the calling agent', async () => {
     const svc = make()
     const a = await connect((await setup(undefined, svc)).url, 'a1')
@@ -207,6 +207,26 @@ describe('the todo tools', () => {
     expect(got).toContain('key added')
     expect(got).toContain('said so')
     expect(text(await a.callTool({ name: 'todo_list', arguments: {} }))).toBe('No open todos.')
+  })
+  it('search finished and open tasks by words, and done keeps how it was done', async () => {
+    const svc = make()
+    const a = await connect((await setup(undefined, svc)).url, 'a1')
+    const b = await connect(server!.url, 'a2')
+    await a.callTool({ name: 'todo_add', arguments: { title: 'Fix the flaky login test' } })
+    await a.callTool({ name: 'todo_add', arguments: { title: 'Write the changelog' } })
+    expect(text(await a.callTool({ name: 'todo_done', arguments: { id: '1', note: 'Waited for the banner', how: 'Detach the cookie banner before clicking.', files: ['e2e/login.spec.ts'] } }))).toContain('Marked todo#1 done')
+    await svc.settled()
+    const found = text(await b.callTool({ name: 'todo_search', arguments: { query: 'cookie banner' } }))
+    expect(found).toContain('todo#1')
+    expect(found).toContain('done by ada')
+    expect(found).toMatch(/banner/i)
+    expect(found).not.toContain('changelog')
+    expect(text(await b.callTool({ name: 'todo_search', arguments: { query: 'zebra' } }))).toBe('No todos match “zebra”.')
+    const got = text(await b.callTool({ name: 'todo_get', arguments: { id: '1' } }))
+    expect(got).toContain('How: Detach the cookie banner before clicking.')
+    expect(got).toContain('e2e/login.spec.ts')
+    expect(got).toContain('abc1234 fix: it')
+    expect(text(await b.callTool({ name: 'todo_search', arguments: { query: 'changelog', status: 'done' } }))).toContain('No todos match')
   })
   it('say plainly when a todo does not exist, and are not offered when the app has no board', async () => {
     const a = await connect((await setup(undefined, make())).url, 'a1')
