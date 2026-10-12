@@ -288,6 +288,8 @@ export interface Prefs {
   defaults: { /** Which program new agents use; empty means the one chosen in setup. */ provider: ProviderId | ''; model: string; permissionMode: string; inPlace: boolean; /** The account new agents of each program use; unset or empty means that program's own login on this computer. */ accounts: Partial<Record<ProviderId, string>> }
   /** Extra accounts, each signed in once in a config folder of its own. Each program's own login on this computer is always there and is not listed. */
   accounts: Account[]
+  /** Workflows: tasks recorded round by round, with gates. Off until the person turns them on; off hides everything that belongs to them. */
+  workflows: import('./workflows').WorkflowPrefs
 }
 
 /** A login of one program kept apart from the others: its folder holds its sign-in, settings and conversations. */

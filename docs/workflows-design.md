@@ -39,6 +39,7 @@ a workflow and suggests a model and settings for each step.
 | D20 | **Terms come from research on AI-DLC and what its main contributors published**, not from memory (first pass in "AI-DLC research" below). |
 | D21 | **Task boundaries are found as proposed under "Tasks and follow-ups"**: the agent says so with `task_begin` and `task_done`, a commit or an approved plan ends a round, and the app asks once when a message does not fit. A follow-up is **round 2 of the same run**. A commit outside a task is **flagged, not blocked** (no git hook in the first version). |
 | D22 | **The intent check (read-back block and blocking open questions at the plan gate) is built first; the small-task skip is the agent's own call, following an instruction we ship**, not a rule in code. The separate small-model check stays at the max dial position only. |
+| D23 | **Workflows are a feature with a switch, off until turned on** (decided 2026-10-12 from the approved mocks). On first run the Features step offers it with its cost per dial level; later it is Settings → Features. Off hides the Workflow tab, the top-bar Workflows button and the recording tools. On adds the top-bar Workflows window (runs and stats across agents). Turning it off with open runs lets them finish, starts none new and shows "winding down" until they end (built with the recorder). The cost figures are estimates on printed assumptions until a real run measures them. |
 | D9 | The concept is still settling: the product owner is "not at all sure how this works in reality". We brainstorm and settle before building, with mocks approved first. |
 
 ## What exists today (so we build on it, not around it)
@@ -249,6 +250,7 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 
 ## Change log
 
+- 2026-10-12: D23, the workflows switch; slice 1 built (switch in Setup and Settings, cost per dial, top-bar button and an empty Workflows window).
 - 2026-10-11: answers recorded: task boundaries, round 2 for follow-ups, flagged commits (D21); intent check first, small-task skip by the agent through a shipped instruction (D22).
 - 2026-10-09: intent check proposed inside the plan gate (read-back block, blocking open questions, dial positions, small-task skip), from cocain's AI-DLC and intent-gap report.
 - 2026-10-08: answers to the open questions recorded (D15-D20); task and follow-up model proposed; framework-or-own-engine and first AI-DLC research added.
