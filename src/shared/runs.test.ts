@@ -115,3 +115,19 @@ describe('what the merge gate adds to a run', () => {
     expect(r!.status).toBe('open')
   })
 })
+
+describe('what the intent check adds to a submitted plan', () => {
+  const readback: PlanReadback = { goal: 'Add a toggle.', assumptions: [], outOfScope: [], questions: [{ text: 'Which window?', options: ['All', 'This'] }, { text: 'Follow the system?', options: ['Yes', 'No'], source: 'check' }] }
+  const submitted = (check?: object): RunEvent => ({ k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback, ...(check && { check }) }) as RunEvent
+
+  it('keeps what the check cost and how many questions it added with the plan, and its questions are in the read-back marked as its own', () => {
+    const [r] = reduceRuns([begin('r1', 100), submitted({ added: 1, cost: 0.0006, model: 'claude-haiku-5-5' })])
+    expect(r!.rounds[0]!.plan).toMatchObject({ state: 'submitted', check: { added: 1, cost: 0.0006, model: 'claude-haiku-5-5' } })
+    expect(r!.rounds[0]!.plan!.readback.questions.map((q) => q.source)).toEqual([undefined, 'check'])
+  })
+
+  it('a check that failed keeps its reason, and a plan without one has none', () => {
+    expect(reduceRuns([begin('r1', 100), submitted({ failed: 'timed out' })])[0]!.rounds[0]!.plan!.check).toEqual({ failed: 'timed out' })
+    expect(reduceRuns([begin('r1', 100), submitted()])[0]!.rounds[0]!.plan!.check).toBeUndefined()
+  })
+})

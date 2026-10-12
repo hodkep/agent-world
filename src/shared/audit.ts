@@ -1,4 +1,5 @@
 import type { PlanReadback } from './plan'
+import { jsonIn } from './reply'
 
 /** What a reviewer found when it read a diff against the plan the person approved. */
 export type FindingKind = 'out-of-scope' | 'goal-unmet' | 'guess-wrong'
@@ -6,19 +7,6 @@ export interface Finding {
   kind: FindingKind
   file?: string
   text: string
-}
-
-/** The first JSON object in a reply that parses, whatever prose or code fence surrounds it. */
-function jsonIn(reply: string): unknown {
-  const end = reply.lastIndexOf('}')
-  for (let i = reply.indexOf('{'); i !== -1 && i < end; i = reply.indexOf('{', i + 1)) {
-    try {
-      return JSON.parse(reply.slice(i, end + 1))
-    } catch {
-      // not an object from here; try the next brace
-    }
-  }
-  return null
 }
 
 const KINDS: readonly string[] = ['out-of-scope', 'goal-unmet', 'guess-wrong']

@@ -24,14 +24,16 @@ export interface CostPart {
   usd?: number
 }
 
-// The briefs and the intent check are guesses; the audit's size and price were measured on haiku (pilot/audit.pilot.ts, 2026-10-12).
+// The briefs are a guess; the audit and the intent check were measured on haiku (pilot/audit.pilot.ts, pilot/intent.pilot.ts, 2026-10-12): both are
+// dominated by the program's own ~3,500-token starting text, so each call is about 4,000 tokens.
 // All are shown to people as assumptions and replaced when real runs measure them.
 const STEPS = 5
 const BRIEF = 150
 const PLAN_BLOCK = 250
 const MERGE_AUDIT = 4000
 const MERGE_AUDIT_USD = 0.0004
-const INTENT_CHECK = 2000
+const INTENT_CHECK = 4000
+const INTENT_CHECK_USD = 0.0002
 
 /** What workflows add to one task of about five steps at a dial level, split into what lands in the agent's context and what is a separate call. */
 export function workflowCost(dial: Dial): { context: number; calls: number; parts: CostPart[] } {
@@ -40,7 +42,7 @@ export function workflowCost(dial: Dial): { context: number; calls: number; part
     parts.push({ label: 'Plan read-back', detail: `a block of about ${PLAN_BLOCK} tokens at the top of the plan`, tokens: PLAN_BLOCK, where: 'agent' })
     parts.push({ label: 'Merge audit', detail: 'a separate model reads the finished branch against the plan', tokens: MERGE_AUDIT, where: 'separate', ...(dial === 'balanced' && { usd: MERGE_AUDIT_USD }) })
   }
-  if (dial === 'max') parts.push({ label: 'Intent check', detail: 'a second, smaller model reads the plan against your request', tokens: INTENT_CHECK, where: 'separate' })
+  if (dial === 'max') parts.push({ label: 'Intent check', detail: 'a second, smaller model reads the plan against your request', tokens: INTENT_CHECK, where: 'separate', usd: INTENT_CHECK_USD })
   const sum = (where: CostPart['where']) => parts.filter((p) => p.where === where).reduce((n, p) => n + p.tokens, 0)
   return { context: sum('agent'), calls: sum('separate'), parts }
 }

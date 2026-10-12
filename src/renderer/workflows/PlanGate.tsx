@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { answersOf, unanswered } from '../../shared/plan'
 import type { Round, Run } from '../../shared/runs'
+import { checkText } from '../../shared/runStats'
 
 type Decide = (state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }) => void
 
@@ -29,7 +30,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
         {r.outOfScope.length > 0 && <div className="pg-row"><span className="pg-k scope">Out of scope</span><span className="dim">{r.outOfScope.join(' ')}</span></div>}
         {r.questions.map((q) => (
           <div key={q.text} className="pg-row">
-            <span className="pg-k open">Open</span>
+            <span className="pg-k open" title={q.source === 'check' ? 'Found by the intent check, comparing your request with the plan' : undefined}>{q.source === 'check' ? 'From check' : 'Open'}</span>
             <div className="pg-q">
               <span>{q.text}</span>
               {q.options.length > 0 ? (
@@ -64,6 +65,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
           )}
           <button className="pg-release" onClick={() => onDecide('released')} title="Let the agent edit without approving this plan">Let {agentName} edit without approval</button>
         </div>
+        {checkText(plan.check) && <small className="pg-foot">{checkText(plan.check)}</small>}
         <small className="pg-foot">{open.length > 0 ? `${open.length} open question${open.length === 1 ? '' : 's'} block approval · ` : ''}{plan.path || 'plan.md'}</small>
       </div>
     </section>

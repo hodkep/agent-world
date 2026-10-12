@@ -1,6 +1,6 @@
 import type { LedgerEvent } from './ledger'
 import { weekStartOf } from './ledger'
-import type { Round, Run } from './runs'
+import type { PlanCheck, Round, Run } from './runs'
 
 /** Runs that overlap the week that began last Monday: one still open counts until now. Oldest first, as given. */
 export const runsThisWeek = (runs: Run[], now: number) => runs.filter((r) => (r.endedAt ?? now) >= weekStartOf(now))
@@ -107,4 +107,12 @@ export function landedText(run: Run): string | undefined {
   const l = run.landed
   if (!l) return undefined
   return l.how === 'checked' ? 'Landed after the checks' : `Landed anyway: ${l.held.join(' ')}`
+}
+
+/** The line under a plan about what the intent check did; nothing when no check ran (below the max dial). */
+export function checkText(check: PlanCheck | undefined): string | undefined {
+  if (!check) return undefined
+  if ('failed' in check) return `The intent check failed: ${check.failed}. This is the plan as the agent wrote it.`
+  const what = check.added ? `added ${check.added} question${check.added === 1 ? '' : 's'}` : 'found nothing to add'
+  return `The intent check ${what}${check.model ? ` · ${check.model}` : ''}${check.cost !== undefined ? ` · ${formatCallCost(check.cost)}` : ''}`
 }

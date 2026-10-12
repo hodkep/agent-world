@@ -13,9 +13,10 @@ describe('what workflows add to a task, per dial', () => {
     expect(c.parts.map((p) => [p.label, p.where])).toEqual([['Step briefs', 'agent'], ['Plan read-back', 'agent'], ['Merge audit', 'separate']])
     expect(c.parts[2]).toMatchObject({ tokens: 4000, usd: 0.0004 })
   })
-  it('max adds a separate intent check, whose size is a guess, and gives no price for the audit since it moves to a larger model', () => {
+  it('max adds a separate intent check on haiku, measured like the audit, and gives no price for the audit since it moves to a larger model', () => {
     const c = workflowCost('max')
-    expect({ context: c.context, calls: c.calls }).toEqual({ context: 1000, calls: 6000 })
+    expect({ context: c.context, calls: c.calls }).toEqual({ context: 1000, calls: 8000 })
+    expect(c.parts.find((p) => p.label === 'Intent check')).toMatchObject({ tokens: 4000, usd: 0.0002, where: 'separate' })
     expect(c.parts.map((p) => p.label)).toEqual(['Step briefs', 'Plan read-back', 'Merge audit', 'Intent check'])
     expect(c.parts.find((p) => p.label === 'Merge audit')!.usd).toBeUndefined()
   })

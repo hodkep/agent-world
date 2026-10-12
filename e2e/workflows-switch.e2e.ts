@@ -35,7 +35,7 @@ test('workflows are off until switched on: Settings has the switch and its cost,
     await sw.click()
     await expect(sw).toBeChecked()
     await settings.getByRole('radio', { name: 'Max' }).click()
-    await expect(cost.getByRole('row', { name: /Max/ })).toContainText('≈ 6,000 tokens')
+    await expect(cost.getByRole('row', { name: /Max/ })).toContainText('≈ 8,000 tokens')
     await expect(settings.getByText('audited by a larger model (sonnet)')).toBeVisible()
     await expect(cost.getByRole('row', { name: /Max/ })).toHaveAttribute('aria-current', 'true')
     await settings.getByRole('button', { name: 'Close' }).click()
