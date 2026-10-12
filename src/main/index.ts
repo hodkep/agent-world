@@ -2,7 +2,8 @@ import { readText, resolveFile, startFileServer } from './files'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
 import { createTodoService } from './todos/service'
-import { reminderLine, trackingHint } from '../shared/todoTracking'
+import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
+import { commitsSince } from './gitops'
 import { excerptOf } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
@@ -436,7 +437,7 @@ const todoService = createTodoService({
   lastMessage: (id) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'assistant') ?? items.at(-1)
-    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text) : '' } : undefined
+    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text, 2000) : '' } : undefined
   },
   // The message the person just sent: found among the chat's items when the transcript already has it, else pointed at by its words (the chat finds it by them).
   lastRequest: (id, text) => {
@@ -444,6 +445,13 @@ const todoService = createTodoService({
     const said = items.findLast((i) => i.kind === 'user' && i.text.trim() === text.trim())
     return { agentId: id, itemId: said?.id ?? '', at: said?.at ?? Date.now(), excerpt: excerptOf(text) }
   },
+  // What the agent committed while it worked on a task, from git in its own checkout.
+  workSince: (id, since) => {
+    const a = byId(id)
+    return a ? commitsSince(a.cwd, since) : Promise.resolve({ commits: [], files: [] })
+  },
+  // A finished task is also a line in the project's shared memory, where "recall" finds it.
+  remember: (repoPath, text, by) => void remember(memoryFile(repoPath), text, by),
   onChange: (workspace) => send('todos-changed', workspace)
 })
 // What is added to each message for the todo board: in fully tracked mode the app makes a task for the request first (not for a subagent, whose work its parent already tracks).
@@ -451,9 +459,11 @@ const todoRemind = (id: string, prompt: string): string => {
   try {
     const a = byId(id)
     if (!a || a.parent) return ''
-    if (prefs.todoTracking !== 'full') return reminderLine('deferred', prompt)
+    // A finished task that looks like this request is pointed at, whichever mode: it costs a line only when one matches.
+    const similar = similarLine(todoService.similarDone(id, prompt))
+    if (prefs.todoTracking !== 'full') return [reminderLine('deferred', prompt), similar].filter(Boolean).join('\n')
     const made = todoService.trackRequest(id, prompt)
-    return reminderLine('full', prompt, made && { id: made.id, list: made.list })
+    return [reminderLine('full', prompt, made && { id: made.id, list: made.list }), similar].filter(Boolean).join('\n')
   } catch {
     return ''
   }
@@ -461,7 +471,7 @@ const todoRemind = (id: string, prompt: string): string => {
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search'].map((t) => `mcp__agent-world__${t}`)
 // The todo board is the project's own list, so an agent may use it without asking each time too.
-const TODO_TOOLS = ['todo_list', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
+const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 const libraryRemind = (id: string, prompt: string) => {
   try {

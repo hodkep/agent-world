@@ -15,10 +15,11 @@ export type TodoCall =
   | { kind: 'list'; rows: TodoListRow[]; empty: boolean }
   | { kind: 'get'; id: string }
   | { kind: 'claim'; id: string }
-  | { kind: 'done'; id: string; note: string }
+  | { kind: 'done'; id: string; note: string; how: string; files: string[] }
+  | { kind: 'search'; query: string; rows: TodoListRow[]; empty: boolean }
   | { kind: 'update'; id: string; changes: { label: string; to: string }[] }
 
-const NAME = /(?:^|__)todo_(add|list|get|claim|done|update)$/
+const NAME = /(?:^|__)todo_(add|list|search|get|claim|done|update)$/
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 export const isTodoCall = (name: string): boolean => NAME.test(name)
@@ -51,9 +52,13 @@ export function parseTodoCall(name: string, input: Record<string, unknown>, resu
     const rows = text.split('\n').flatMap((l) => parseRow(l) ?? [])
     return { kind: 'list', rows, empty: rows.length === 0 }
   }
+  if (kind === 'search') {
+    const rows = text.split('\n').flatMap((l) => parseRow(l) ?? [])
+    return { kind: 'search', query: str(input.query), rows, empty: rows.length === 0 }
+  }
   if (kind === 'get') return { kind: 'get', id: str(input.id) }
   if (kind === 'claim') return { kind: 'claim', id: str(input.id) }
-  if (kind === 'done') return { kind: 'done', id: str(input.id), note: str(input.note) }
+  if (kind === 'done') return { kind: 'done', id: str(input.id), note: str(input.note), how: str(input.how), files: Array.isArray(input.files) ? input.files.filter((f): f is string => typeof f === 'string') : [] }
   const changes: { label: string; to: string }[] = []
   if (str(input.title)) changes.push({ label: 'Title', to: str(input.title) })
   if (str(input.status)) changes.push({ label: 'Status', to: str(input.status) })

@@ -96,6 +96,20 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
           <button className="primary td-open" onClick={() => onOpenMessage(link)}>{done ? 'Open the message it was finished in' : 'Open the message it was made in'} ↗</button>
         </section>
       )}
+      {done && (t.doneHow || t.doneFiles?.length || t.doneCommits?.length) && (
+        <section className="td-sec" aria-label="How it was done">
+          <h5>How it was done</h5>
+          {t.doneHow && <div className="td-md"><Markdown text={t.doneHow} /></div>}
+          {t.doneCommits && t.doneCommits.length > 0 && (
+            <ul className="td-commits" aria-label="Commits">
+              {t.doneCommits.map((c) => <li key={c.sha}><code>{c.sha}</code> {c.subject}</li>)}
+            </ul>
+          )}
+          {t.doneFiles && t.doneFiles.length > 0 && (
+            <div className="td-files" aria-label="Files">{t.doneFiles.map((f) => <code key={f}>{f}</code>)}</div>
+          )}
+        </section>
+      )}
       <section className="td-sec" aria-label="Activity">
         <h5>Activity</h5>
         <ul className="td-act">

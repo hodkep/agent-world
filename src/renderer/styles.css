@@ -2722,3 +2722,8 @@ aside:not(.drawer) { flex: none; }
 .td-main:hover, .td-main:active { box-shadow: none; background: none; }
 .td-add, .td-done-h, .td-more, .td-ck, .td-link-btn, .td-newlist, .td-pop button { box-shadow: none; }
 .td-add:hover:not(:disabled), .td-done-h:hover:not(:disabled), .td-more:hover:not(:disabled) { background: var(--panel-hover); }
+
+.td-commits { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.td-commits code, .td-files code { color: var(--accent); }
+.td-files { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11.5px; }
+.td-files code { background: var(--well); padding: 1px 6px; border: 1px solid var(--line); }

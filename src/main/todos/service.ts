@@ -2,8 +2,10 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path'
 import { isWork, requestTitle } from '../../shared/todoTracking'
 import { askMessage, type AskMode } from '../../shared/todoAsk'
+import { searchTodos, type TodoHit } from '../../shared/todoSearch'
+import { matchItems } from '../library/match'
 import {
-  addList, addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, knowledgeLine, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -16,6 +18,10 @@ export interface TodoDeps {
   lastMessage: (agentId: string) => MessageLink | undefined
   /** The message the person just sent an agent (its words are given), so the task made for it points at it. */
   lastRequest: (agentId: string, text: string) => MessageLink | undefined
+  /** What git shows an agent committed since a time (ms): its commits and the files they touched. */
+  workSince: (agentId: string, since: number) => Promise<{ commits: { sha: string; subject: string }[]; files: string[] }>
+  /** Writes a line into the project's shared memory. */
+  remember: (repoPath: string, text: string, by: string) => void
   now?: () => number
   onChange: (workspace: string) => void
 }
@@ -65,6 +71,38 @@ export function createTodoService(d: TodoDeps) {
     save(key, board)
     return out
   }
+  // Finishing a task is answered at once; what git shows and the memory line follow, so a slow git never holds an agent up.
+  const inflight = new Set<Promise<void>>()
+  const sinceOf = (t: Todo) => [...t.history].reverse().find((e) => e.what === 'claimed' || e.what === 'assigned')?.at ?? t.createdAt
+  function recordWork(a: { id: string; name: string; repoPath: string }, id: string) {
+    const key = keyOf(a.repoPath)
+    const t = load(key).todos.find((x) => x.id === id)
+    if (!t) return
+    const p: Promise<void> = (async () => {
+      let work: { commits: { sha: string; subject: string }[]; files: string[] } = { commits: [], files: [] }
+      try {
+        work = await d.workSince(a.id, sinceOf(t))
+      } catch {
+        /* not a repository, or git is not there: the task keeps what the agent said */
+      }
+      const cur = load(key)
+      if (!cur.todos.some((x) => x.id === id)) return
+      if (work.commits.length || work.files.length) save(key, attachWork(cur, id, work))
+      const line = knowledgeLine(load(key).todos.find((x) => x.id === id)!)
+      if (line) {
+        try {
+          d.remember(a.repoPath, line, a.name)
+        } catch {
+          /* memory is a help, not a part of finishing */
+        }
+      }
+    })().finally(() => void inflight.delete(p))
+    inflight.add(p)
+  }
+  // Finished tasks pointed at an agent, and when, so the same one is not pointed at again at once.
+  const asks = new Map<string, number>()
+  const shown = new Map<string, number>()
+  const POINT_GAP = 10
   const lastTodo = (b: TodoBoard, id: string) => b.todos.find((t) => t.id === id)!
   const sorted = (ts: Todo[]) => [...ts].sort((x, y) => x.order - y.order)
 
@@ -95,6 +133,29 @@ export function createTodoService(d: TodoDeps) {
         const board = mode === 'work' ? assignTodo(b, id, actor(a), YOU, now()) : askedTodo(b, id, actor(a), YOU, now(), words || 'a question')
         return { board, out: { message: askMessage(lastTodo(board, id), mode, words) } }
       })
+    },
+    /** Resolves when the git and memory work after finished tasks is done (for tests, and for quitting). */
+    async settled() {
+      while (inflight.size) await Promise.all([...inflight])
+    },
+    /** Tasks of the agent's project that match words, done ones included. */
+    searchForAgent(agentId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }): TodoHit[] {
+      return searchTodos(load(keyOf(agentOf(agentId).repoPath)), query, o)
+    },
+    /** Finished tasks that look like what an agent was just asked, best first, and none it was already pointed at in the last few messages. */
+    similarDone(agentId: string, prompt: string): { id: string; title: string; by: string }[] {
+      const a = d.agent(agentId)
+      if (!a) return []
+      const turn = (asks.get(agentId) ?? 0) + 1
+      asks.set(agentId, turn)
+      const done = load(keyOf(a.repoPath)).todos.filter((t) => t.status === 'done' && (t.doneNote || t.doneHow || t.doneCommits?.length))
+      const entries = done.map((t) => ({ id: t.id, name: t.title, description: '', when: [t.title, t.doneNote, t.doneHow].filter(Boolean).join(' ') }))
+      return matchItems(prompt, entries, 2)
+        .filter((m) => turn - (shown.get(`${agentId}:${m.id}`) ?? -Infinity) >= POINT_GAP)
+        .map((m) => {
+          shown.set(`${agentId}:${m.id}`, turn)
+          return { id: m.id, title: m.name, by: done.find((t) => t.id === m.id)?.doneBy?.name ?? 'someone' }
+        })
     },
     /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
     trackRequest(agentId: string, prompt: string): Todo | undefined {
@@ -130,7 +191,8 @@ export function createTodoService(d: TodoDeps) {
     addByAgent(agentId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }): Todo {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
-        const r = addTodo(b, i, actor(a), now(), d.lastMessage(a.id))
+        const l = d.lastMessage(a.id)
+        const r = addTodo(b, i, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt, 800) })
         return { board: r.board, out: r.todo }
       })
     },
@@ -141,12 +203,15 @@ export function createTodoService(d: TodoDeps) {
         return { board, out: lastTodo(board, id) }
       })
     },
-    doneByAgent(agentId: string, id: string, note: string): Todo {
+    doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[] }): Todo {
       const a = agentOf(agentId)
-      return change(a.repoPath, (b) => {
-        const board = doneTodo(b, id, actor(a), note, now(), d.lastMessage(a.id))
+      const t = change(a.repoPath, (b) => {
+        const l = d.lastMessage(a.id)
+        const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) }, extra)
         return { board, out: lastTodo(board, id) }
       })
+      recordWork(a, id)
+      return t
     },
     updateByAgent(agentId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Todo {
       const a = agentOf(agentId)

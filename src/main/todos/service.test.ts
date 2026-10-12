@@ -7,6 +7,8 @@ import { createTodoService } from './service'
 const make = () => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-todos-'))
   const changes: string[] = []
+  const worked: number[] = []
+  const remembered: { repo: string; text: string; by: string }[] = []
   let clock = 1000
   const agents: Record<string, { id: string; name: string; provider: string; repoPath: string; forMain?: string }> = {
     a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' },
@@ -19,11 +21,13 @@ const make = () => {
     workspaceKey: (p) => p.split('/').pop()!,
     agent: (id) => agents[id],
     lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: clock, excerpt: 'Done: it works' }),
+    workSince: async (_id, since) => { worked.push(since); return { commits: [{ sha: 'abc1234def', subject: 'fix: wire the key' }], files: ['src/b.ts'] } },
+    remember: (repo, text, by) => void remembered.push({ repo, text, by }),
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes }
+  return { dir, svc, changes, worked, remembered }
 }
 
 describe('the todo service', () => {
@@ -34,7 +38,7 @@ describe('the todo service', () => {
     expect(svc.board('/work/shop').todos.map((t) => t.title)).toEqual(['Add key'])
     expect(svc.board('/work/other').todos.map((t) => t.title)).toEqual(['Other project'])
     expect(readdirSync(dir).sort()).toEqual(['other.json', 'shop.json'])
-    const again = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, now: () => 1, onChange: () => undefined })
+    const again = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 1, onChange: () => undefined })
     expect(again.board('/work/shop').todos[0]).toMatchObject({ title: 'Add key', createdBy: { name: 'ada', provider: 'claude' } })
     expect(JSON.parse(readFileSync(join(dir, 'shop.json'), 'utf8')).next).toBe(2)
   })
@@ -120,6 +124,58 @@ describe('the todo service', () => {
     expect(svc.board('/work/shop').todos[0]!.history.at(-1)).toMatchObject({ what: 'asked', note: 'ada: is it needed?' })
     expect(() => svc.askAgent('/work/shop', t.id, 'a1', 'work', '')).toThrow(/bob is already doing/)
     expect(() => svc.askAgent('/work/shop', t.id, 'nobody', 'ask', '')).toThrow(/agent/i)
+  })
+
+  it('keeps how a task was done, adds the commits git shows since it was claimed, and writes it to the shared memory', async () => {
+    const { svc, worked, remembered } = make()
+    const t = svc.addByAgent('a1', { title: 'Wire the key' })
+    svc.claimByAgent('a1', t.id)
+    svc.doneByAgent('a1', t.id, 'Key wired', { how: 'Passed it to the client.', files: ['src/a.ts'] })
+    expect(svc.board('/work/shop').todos[0]).toMatchObject({ status: 'done', doneHow: 'Passed it to the client.', doneFiles: ['src/a.ts'] })
+    await svc.settled()
+    const done = svc.board('/work/shop').todos[0]!
+    expect(done.doneCommits).toEqual([{ sha: 'abc1234def', subject: 'fix: wire the key' }])
+    expect(done.doneFiles).toEqual(['src/a.ts', 'src/b.ts'])
+    expect(worked).toHaveLength(1)
+    expect(worked[0]).toBeGreaterThan(1000)
+    expect(remembered).toHaveLength(1)
+    expect(remembered[0]).toMatchObject({ repo: '/work/shop', by: 'ada' })
+    expect(remembered[0]!.text).toContain('todo#1')
+    expect(remembered[0]!.text).toContain('Passed it to the client.')
+    expect(remembered[0]!.text).toContain('abc1234')
+  })
+
+  it('writes no memory for a task finished with nothing to say, and survives git failing', async () => {
+    const { svc, remembered, dir } = make()
+    const quiet = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => ({ id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/quiet' }), lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => { throw new Error('not a repo') }, remember: (r, t, b) => void remembered.push({ repo: r, text: t, by: b }), now: () => 5, onChange: () => undefined })
+    const t = quiet.addByAgent('a1', { title: 'Plain' })
+    quiet.doneByAgent('a1', t.id, '')
+    await quiet.settled()
+    expect(quiet.board('/work/quiet').todos[0]).toMatchObject({ status: 'done' })
+    expect(remembered).toHaveLength(0)
+    void svc
+  })
+
+  it('searches the project\'s tasks for an agent, done ones included', async () => {
+    const { svc } = make()
+    const a = svc.addByAgent('a1', { title: 'Fix the flaky login test' })
+    svc.doneByAgent('a1', a.id, 'Waited for the cookie banner', { how: 'Detach before click' })
+    svc.addByAgent('a1', { title: 'Write the changelog' })
+    await svc.settled()
+    expect(svc.searchForAgent('b1', 'cookie banner', {}).map((h) => h.todo.id)).toEqual([a.id])
+    expect(svc.searchForAgent('c1', 'cookie banner', {})).toEqual([])
+  })
+
+  it('points an agent at a finished task that looks like its request, once in a while, never at itself', async () => {
+    const { svc } = make()
+    const a = svc.addByAgent('a1', { title: 'Wire the Anthropic key into the Settings accounts page' })
+    svc.doneByAgent('a1', a.id, 'Added the key field and a test connection', { how: 'Settings → Accounts' })
+    await svc.settled()
+    const first = svc.similarDone('b1', 'please wire the anthropic key into settings accounts')
+    expect(first.map((h) => h.id)).toEqual([a.id])
+    expect(svc.similarDone('b1', 'please wire the anthropic key into settings accounts')).toEqual([])
+    expect(svc.similarDone('b1', 'rename the lamp post')).toEqual([])
+    expect(svc.similarDone('c1', 'wire the anthropic key into settings accounts')).toEqual([])
   })
 
   it('counts what needs the person, per project', () => {

@@ -25,7 +25,7 @@ export function TrackingCost({ full }: { full: boolean }) {
           ))}
         </tbody>
       </table>
-      <p className="hint">Estimates: the real figure depends on caching and on how you work. Either way you can add tasks by hand, and agents add one when you ask in plain words.</p>
+      <p className="hint">Estimates: the real figure depends on caching and on how you work. Either way you can add tasks by hand, agents add one when you ask in plain words, and a message that looks like work already finished gets one extra line (about 60 tokens) pointing at it.</p>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { registerToolCard, type ToolCardProps } from './registry'
 const WHAT: Record<TodoCall['kind'], { icon: string; tone: string }> = {
   add: { icon: '＋', tone: 'add' },
   list: { icon: '☰', tone: '' },
+  search: { icon: '⌕', tone: '' },
   get: { icon: '◎', tone: '' },
   claim: { icon: '▶', tone: 'claim' },
   done: { icon: '✓', tone: 'done' },
@@ -49,6 +50,16 @@ function TodoCard({ run, working }: ToolCardProps) {
           </tbody></table>
         )}><b>Listed the todos</b></Shell>
       )
+    case 'search':
+      return (
+        <Shell kind="search" side={pending ? 'searching…' : call.empty ? 'nothing found' : `${call.rows.length} found`} body={call.rows.length > 0 && (
+          <table className="tcard-table"><tbody>
+            {call.rows.slice(0, 6).map((r) => (
+              <tr key={r.id}><td><TodoLink id={r.id} showTitle={false} /></td><td>{r.title}</td><td className="tcard-muted">{r.status === 'done' ? `done${r.by ? ` · ${r.by}` : ''}` : r.status}</td></tr>
+            ))}
+          </tbody></table>
+        )}><b>Searched the todos</b><span className="tcard-muted">“{call.query}”</span></Shell>
+      )
     case 'get':
       return <Shell kind="get"><b>Read</b><TodoLink id={call.id} /></Shell>
     case 'claim':
@@ -56,7 +67,7 @@ function TodoCard({ run, working }: ToolCardProps) {
     case 'done': {
       const link = todoBrief(call.id)?.link
       return (
-        <Shell kind="done" side={link && <button className="todo-ref" onClick={() => openMessage(link)} title="Open the message in the chat">Open message ↗</button>} body={call.note && <span>{call.note}</span>}>
+        <Shell kind="done" side={link && <button className="todo-ref" onClick={() => openMessage(link)} title="Open the message in the chat">Open message ↗</button>} body={(call.note || call.how || call.files.length > 0) && <>{call.note && <span>{call.note}</span>}{call.how && <span className="tcard-note">{call.how}</span>}{call.files.length > 0 && <span className="tcard-muted">{call.files.slice(0, 4).join(', ')}{call.files.length > 4 ? ` +${call.files.length - 4}` : ''}</span>}</>}>
           <b>{pending ? 'Marking' : 'Marked'} done</b>
           <TodoLink id={call.id} />
         </Shell>

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitsSince, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -341,5 +341,27 @@ describe('the commits on the active branch', () => {
   it('only takes a hash, never an option or a path, for a commit', async () => {
     await expect(commitDetail(wt.path, '--output=/tmp/x')).rejects.toThrow(/commit/)
     await expect(commitDiff(wt.path, 'HEAD; rm -rf', 'a.ts')).rejects.toThrow(/commit/)
+  })
+})
+
+describe('commits since a time', () => {
+  // The setup commit is made just now, so the work is dated later and the time asked about falls between them.
+  const later = () => ({ ...process.env, GIT_COMMITTER_DATE: new Date(Date.now() + 30_000).toISOString(), GIT_AUTHOR_DATE: new Date(Date.now() + 30_000).toISOString() })
+  const commit = (args: string[]) => execFileSync('git', args, { cwd: wt.path, env: later() })
+  it('lists the commits made after it, newest first, with the files they touched, and none before it', async () => {
+    const between = Date.now() + 10_000
+    writeFileSync(join(wt.path, 'a.ts'), 'one changed\n')
+    commit(['commit', '-qam', 'fix: edit a'])
+    writeFileSync(join(wt.path, 'c.ts'), 'new\n')
+    git(wt.path, 'add', '.')
+    commit(['commit', '-qm', 'feat: add c'])
+    const got = await commitsSince(wt.path, between)
+    expect(got.commits.map((c) => c.subject)).toEqual(['feat: add c', 'fix: edit a'])
+    expect(got.commits[0]!.sha).toMatch(/^[0-9a-f]{7,}$/)
+    expect(got.files.sort()).toEqual(['a.ts', 'c.ts'])
+    expect((await commitsSince(wt.path, Date.now() + 120_000)).commits).toEqual([])
+  })
+  it('is empty outside a repository', async () => {
+    expect(await commitsSince(tmp, 0)).toEqual({ commits: [], files: [] })
   })
 })

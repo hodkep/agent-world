@@ -57,7 +57,15 @@ test('todos: a board of lists the person and an agent both fill, with a finished
 
     // The person sees both with who made them; the agent sees the person's task too, and finishes its own.
     expect(say(await client.callTool({ name: 'todo_list', arguments: {} }))).toContain('Add the Anthropic key')
-    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '2', note: 'logged in' } }))).toContain('Marked todo#2 done')
+    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '2', note: 'logged in', how: 'Opened the agy terminal and signed in with the browser flow.', files: ['docs/agy-login.md'] } }))).toContain('Marked todo#2 done')
+    // The finished task is a knowledge base entry: found by words, and written to the shared memory where `recall` finds it.
+    expect(say(await client.callTool({ name: 'todo_search', arguments: { query: 'agy browser sign' } }))).toContain('todo#2')
+    await expect.poll(async () => say(await client.callTool({ name: 'recall', arguments: { query: 'agy browser' } }))).toContain('todo#2')
+    // A new request that looks like that finished work gets a line pointing at it, once.
+    const hook = JSON.parse(readFileSync(claudeLine[claudeLine.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
+    const ask = async (prompt: string) => (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: claudeLine[claudeLine.indexOf('--session-id') + 1], prompt }) })).text()) || ''
+    expect(await ask('please log in to agy with the browser flow again')).toContain('Done before: todo#2')
+    expect(await ask('please log in to agy with the browser flow again')).not.toContain('Done before')
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     await expect(board.getByRole('button', { name: 'Open Log in to agy' })).toHaveCount(0)
     await board.getByRole('button', { name: /Done \(1\)/ }).click()
@@ -65,6 +73,8 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     const detail = board.getByRole('complementary', { name: 'Task detail' })
     await expect(detail).toContainText('Done by')
     await expect(detail).toContainText('logged in')
+    await expect(detail.getByLabel('How it was done')).toContainText('signed in with the browser flow')
+    await expect(detail.getByLabel('Files')).toContainText('docs/agy-login.md')
     await expect(detail.getByLabel('Activity')).toContainText('Done by ada')
     await expect(detail.getByLabel('Activity')).not.toContainText('updated by')
 

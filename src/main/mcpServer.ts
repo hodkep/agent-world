@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
 import type { Todo, TodoStatus } from '../shared/todos'
+import type { TodoHit } from '../shared/todoSearch'
 
 export interface Colleague {
   name: string
@@ -18,7 +19,8 @@ export interface TodoApi {
   getForAgent: (callerId: string, id: string) => Todo
   addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => Todo
   claimByAgent: (callerId: string, id: string) => Todo
-  doneByAgent: (callerId: string, id: string, note: string) => Todo
+  doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[] }) => Todo
+  searchForAgent: (callerId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }) => TodoHit[]
   updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }) => Todo
 }
 
@@ -245,6 +247,9 @@ const todoFull = (t: Todo) =>
     t.notes && `Notes: ${t.notes}`,
     t.createdLink && `Made in ${t.createdBy.name}'s message ${ago(t.createdLink.at)}: "${flat(t.createdLink.excerpt)}"`,
     t.status === 'done' && t.doneBy && `Done by ${who(t.doneBy)} ${ago(t.doneAt ?? t.updatedAt)}${t.doneNote ? `: ${t.doneNote}` : ''}`,
+    t.doneHow && `How: ${t.doneHow}`,
+    t.doneFiles?.length && `Files: ${t.doneFiles.join(', ')}`,
+    t.doneCommits?.length && `Commits: ${t.doneCommits.map((c) => `${c.sha} ${c.subject}`).join('; ')}`,
     t.doneLink && `Finished in ${t.doneBy?.name ?? 'an agent'}'s message: "${flat(t.doneLink.excerpt)}"`,
     'History:',
     ...t.history.map((e) => `- ${e.what} by ${who(e.by)} ${ago(e.at)}${e.note ? ` (${e.note})` : ''}`)
@@ -276,6 +281,25 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
     async (f) => run(() => { const l = todos.listForAgent(callerId, f); return l.length ? l.map(todoLine).join('\n') : f.status === 'done' ? 'No done todos.' : 'No open todos.' })
   )
   server.registerTool(
+    'todo_search',
+    {
+      description: 'Search this project\'s todos, finished ones too, by a few words: titles, notes, how a task was done, the files and commits, and the messages it came from. Use it before doing something that may have been done before; then read a hit with todo_get, or ask whoever did it.',
+      inputSchema: {
+        query: z.string().min(1).max(200).describe('A few words'),
+        status: z.enum(['open', 'doing', 'blocked', 'done', 'any']).optional().describe('Only this status; any by default'),
+        limit: z.number().int().min(1).max(20).optional()
+      }
+    },
+    async (a) =>
+      run(() => {
+        const hits = todos.searchForAgent(callerId, a.query, { status: a.status ?? 'any', limit: a.limit ?? 8 })
+        if (!hits.length) return `No todos match “${a.query}”.`
+        return hits
+          .map((h) => `${todoLine(h.todo)}${h.todo.status === 'done' && h.todo.doneBy ? `; done by ${h.todo.doneBy.name}` : ''}\n  matches ${h.where.join(', ')}: ${h.snippet}`)
+          .join('\n')
+      })
+  )
+  server.registerTool(
     'todo_get',
     { description: 'One todo in full: notes, history, and the chat messages it was made and finished in.', inputSchema: { id } },
     async (a) => run(() => todoFull(todos.getForAgent(callerId, a.id)))
@@ -300,8 +324,16 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
   )
   server.registerTool(
     'todo_done',
-    { description: 'Mark a task done, with a line on what you did. It records you and the message you are saying this in.', inputSchema: { id, note: z.string().max(500).optional().describe('What was done, in a line') } },
-    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? ''); return `Marked todo#${t.id} done.` })
+    {
+      description: 'Mark a task done. Say what you did in a line, and how in a few (the approach, where the knowledge is), so someone who has to do it again can find out. It records you, the message you are saying this in, and the commits you made.',
+      inputSchema: {
+        id,
+        note: z.string().max(500).optional().describe('What was done, in a line'),
+        how: z.string().max(1500).optional().describe('How: the approach, the steps, anything a later reader needs'),
+        files: z.array(z.string().max(300)).max(30).optional().describe('The main files you changed or read')
+      }
+    },
+    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? '', { how: a.how, files: a.files }); return `Marked todo#${t.id} done.` })
   )
   server.registerTool(
     'todo_update',

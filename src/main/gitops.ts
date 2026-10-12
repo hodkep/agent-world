@@ -5,6 +5,25 @@ import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
 import { git } from './worktree'
 
+/** The commits made in a checkout after a time (newest first, at most 20) and the files they touched: what an agent did while it worked on something. Empty when this is not a repository. */
+export async function commitsSince(cwd: string, sinceMs: number): Promise<{ commits: { sha: string; subject: string }[]; files: string[] }> {
+  try {
+    const out = await git(cwd, 'log', `--since=${new Date(sinceMs).toISOString()}`, '-n', '20', '--name-only', '--format=%x1e%h%x1f%s')
+    const commits: { sha: string; subject: string }[] = []
+    const files = new Set<string>()
+    for (const block of out.split('\x1e').filter((b) => b.trim())) {
+      const [head, ...rest] = block.split('\n')
+      const [sha, subject] = (head ?? '').split('\x1f')
+      if (!sha) continue
+      commits.push({ sha, subject: subject ?? '' })
+      for (const f of rest) if (f.trim()) files.add(f.trim())
+    }
+    return { commits, files: [...files] }
+  } catch {
+    return { commits: [], files: [] }
+  }
+}
+
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
 export interface Change {
   path: string
