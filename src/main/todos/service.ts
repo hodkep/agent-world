@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path'
 import { isWork, requestTitle } from '../../shared/todoTracking'
 import { askMessage, type AskMode } from '../../shared/todoAsk'
+import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
@@ -20,6 +21,10 @@ export interface TodoDeps {
   lastRequest: (agentId: string, text: string) => MessageLink | undefined
   /** What git shows an agent committed since a time (ms): its commits and the files they touched. */
   workSince: (agentId: string, since: number) => Promise<{ commits: { sha: string; subject: string }[]; files: string[] }>
+  /** Whether an agent is working right now (a request of its that is open may still be being answered). */
+  busy?: (agentId: string) => boolean
+  /** A small model asked to name and sort a task: its answer as text, or '' when it cannot be asked. Not set when there is none to ask. */
+  ask?: (prompt: string) => Promise<string>
   /** Writes a line into the project's shared memory. */
   remember: (repoPath: string, text: string, by: string) => void
   now?: () => number
@@ -27,6 +32,8 @@ export interface TodoDeps {
 }
 
 const YOU: Actor = { kind: 'human', name: 'you' }
+/** The app itself, when it names a task or closes one. */
+const APP: Actor = { kind: 'human', name: 'app' }
 
 /** The todo boards, one per project, kept in files and changed either by the person (in the window) or by an agent (through the office tools). */
 export function createTodoService(d: TodoDeps) {
@@ -105,6 +112,7 @@ export function createTodoService(d: TodoDeps) {
       const cur = load(key)
       if (!cur.todos.some((x) => x.id === id)) return
       if (work.commits.length || work.files.length) save(key, attachWork(cur, id, work))
+      await tidyOne(a.repoPath, id)
       const line = knowledgeLine(load(key).todos.find((x) => x.id === id)!)
       if (line) {
         try {
@@ -115,6 +123,33 @@ export function createTodoService(d: TodoDeps) {
       }
     })().finally(() => void inflight.delete(p))
     inflight.add(p)
+  }
+  /** Names and sorts one task the agent left with the person's words, by asking a small model once; false when nothing was done. */
+  async function tidyOne(repoPath: string, id: string): Promise<boolean> {
+    if (!d.ask) return false
+    const key = keyOf(repoPath)
+    const t = load(key).todos.find((x) => x.id === id)
+    if (!t || !t.auto || t.named) return false
+    const lists = load(key).lists.filter((l) => l !== INBOX)
+    let out: ReturnType<typeof parseTidy> = null
+    try {
+      out = parseTidy(await d.ask(tidyPrompt({ request: t.createdLink?.excerpt ?? t.title, reply: t.doneLink?.excerpt ?? t.doneNote ?? '', commits: (t.doneCommits ?? []).map((c) => c.subject), lists })))
+    } catch {
+      /* no answer: the task keeps the words it has */
+    }
+    if (!out) return false
+    const answer = out
+    change(repoPath, (b) => {
+      let list: string | undefined
+      try {
+        list = answer.list ? listFor(b, answer.list) : undefined
+      } catch {
+        list = answer.list ? resolveList(b.lists.filter((l) => l !== INBOX), answer.list) : undefined
+        if (list && !b.lists.includes(list)) list = undefined
+      }
+      return { board: updateTodo(b, id, { title: answer.title, ...(list && { list }) }, APP, now()), out: undefined }
+    })
+    return true
   }
   // Finished tasks pointed at an agent, and when, so the same one is not pointed at again at once.
   const asks = new Map<string, number>()
@@ -200,14 +235,44 @@ export function createTodoService(d: TodoDeps) {
         return { board, out: lastTodo(board, made.todo.id) }
       })
     },
-    /** An agent's turn ended: what was made for its requests and it is still on is flagged, so the board does not claim work is in hand. */
-    turnEnded(agentId: string) {
+    /** An agent's turn ended. What the app made for its requests and it is still on is finished (the request was answered), unless the turn was cut off: then it is flagged, so the board does not claim work is in hand. */
+    turnEnded(agentId: string, o: { interrupted?: boolean } = {}) {
       const a = d.agent(agentId)
       if (!a) return
       const key = keyOf(a.repoPath)
       const b = load(key)
-      const next = markStale(b, agentId, now())
-      if (next.todos.some((t, i) => t.stale !== b.todos[i]!.stale)) save(key, next)
+      if (o.interrupted) {
+        const next = markStale(b, agentId, now())
+        if (next.todos.some((t, i) => t.stale !== b.todos[i]!.stale)) save(key, next)
+        return
+      }
+      const open = b.todos.filter((t) => t.auto && t.status === 'doing' && t.claimedBy?.id === agentId)
+      if (!open.length) return
+      const link = d.lastMessage(a.id)
+      let board = b
+      for (const t of open) {
+        board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt, 2000) })
+        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+      }
+      save(key, board)
+      for (const t of open) recordWork(a, t.id)
+    },
+    /** Names and sorts every task waiting in the Inbox that an agent left with the person's words; how many were named. */
+    async tidyInbox(repoPath: string): Promise<number> {
+      const key = keyOf(repoPath)
+      // A request left open by an agent that is not working any more was answered: its turn is over.
+      const left = load(key).todos.filter((t) => t.auto && t.status === 'doing' && t.claimedBy?.id && !d.busy?.(t.claimedBy.id))
+      if (left.length) {
+        let board = load(key)
+        for (const t of left) {
+          board = doneTodo(board, t.id, t.claimedBy!, 'Closed: its turn had ended', now())
+          board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+        }
+        save(key, board)
+      }
+      let n = 0
+      for (const t of load(key).todos.filter((x) => x.auto && !x.named).slice(0, 30)) if (await tidyOne(repoPath, t.id)) n++
+      return n
     },
 
     // An agent, through the office tools: who it is and which message it said come from the app, not from the call.

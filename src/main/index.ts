@@ -16,7 +16,7 @@ import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { basename, extname, isAbsolute, join, relative, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
 import { contextItems } from './contextMenu'
@@ -422,6 +422,8 @@ const libraryService = createLibraryService({
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The todo board of each project: the person adds in the window, agents through the office tools, and each task points back at the message it came from.
+// When each agent was last stopped by the person, so a turn that ends then is not counted as a request answered.
+const stoppedAt = new Map<string, number>()
 const todoService = createTodoService({
   dir: join(HOME, 'todos'),
   workspaceKey: repoSlug,
@@ -449,6 +451,15 @@ const todoService = createTodoService({
   workSince: (id, since) => {
     const a = byId(id)
     return a ? commitsSince(a.cwd, since) : Promise.resolve({ commits: [], files: [] })
+  },
+  // A small model names and sorts the tasks the app makes for requests, as a separate one-off call that adds nothing to an agent's context.
+  busy: (id) => !['idle', 'waiting', 'asleep', undefined].includes(lastActivity.get(id)),
+  ask: (prompt) => {
+    const p = providers().find((x) => x.id === 'claude')
+    if (!p) return Promise.resolve('')
+    return new Promise<string>((resolve) =>
+      execFile(binFor(p), ['-p', '--model', 'haiku', prompt], { env: p.env(process.env), cwd: tmpdir(), timeout: 60_000, maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? '' : stdout))
+    )
   },
   // A finished task is also a line in the project's shared memory, where "recall" finds it.
   remember: (repoPath, text, by) => void remember(memoryFile(repoPath), text, by),
@@ -647,7 +658,9 @@ function trackTurns(e: AgentEvent) {
     lastActivity.set(a.id, e.activity)
     if (!['idle', 'waiting', 'asleep'].includes(e.activity)) busyAt.set(a.id, Date.now())
     runClock(a, e.activity)
-    if (e.activity === 'idle' || e.activity === 'waiting') (mailbox.turnEnded(a.id), todoService.turnEnded(a.id))
+    if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
+    // A turn that ended on its own answered the request; one that waits for you or was stopped did not.
+    if (e.activity === 'idle') todoService.turnEnded(a.id, { interrupted: Date.now() - (stoppedAt.get(a.id) ?? 0) < 30_000 })
     else mailbox.busy(a.id)
   }
 }
@@ -1224,6 +1237,7 @@ async function main() {
   ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => {
     const p = sessions.get(id)
     if (!p) return
+    stoppedAt.set(id, Date.now())
     const { first, then } = keysOf(id).interrupt
     // Stopping answers what the agent was waiting on: a permission card still open would keep it looking busy after the Esc.
     for (const r of [...pendingPermissions.values()]) if (r.agentId === id) eventHandles.forEach((h) => h.decide(r.id, 'deny'))
@@ -1410,6 +1424,7 @@ async function main() {
   ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => void todoService.addByPerson(String(folder), i))
   ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
   ipcMain.handle('todos:ask', (_, folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string) => todoService.askAgent(String(folder), String(id), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000)))
+  ipcMain.handle('todos:tidy-inbox', (_, folder: string) => todoService.tidyInbox(String(folder)))
   ipcMain.handle('todos:remove', (_, folder: string, id: string) => todoService.removeByPerson(String(folder), String(id)))
   ipcMain.handle('todos:done', (_, folder: string, id: string) => todoService.doneByPerson(String(folder), String(id)))
   ipcMain.handle('todos:reopen', (_, folder: string, id: string) => todoService.reopenByPerson(String(folder), String(id)))

@@ -38,6 +38,12 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
 
   const shown = useMemo(() => filterBoard(board, { who, query }), [board, who, query])
   const names = useMemo(() => makers(board), [board])
+  const unsorted = board.todos.filter((t) => t.auto && !t.named).length
+  const [sorting, setSorting] = useState(false)
+  const sortInbox = () => {
+    setSorting(true)
+    void window.aw.todos.tidyInbox(folder).then(() => setError(''), (e) => setError(clean(e))).finally(() => setSorting(false))
+  }
   const open = board.todos.find((t) => t.id === sel) ?? null
   const needs = board.todos.filter((t) => t.needsYou && t.status !== 'done').length
 
@@ -64,6 +70,7 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
         {['all', 'you', ...names].map((w) => (
           <button key={w} className="td-chip" aria-pressed={who === w} onClick={() => setWho(w)}>{w === 'all' ? 'Everyone' : w === 'you' ? 'Made by you' : `Made by ${w}`}</button>
         ))}
+        {unsorted > 0 && <button className="td-sort" onClick={sortInbox} disabled={sorting} title="A small model names each request-made task for what was done and puts it in a list by area; requests left open by agents that are not working are closed">{sorting ? 'Sorting…' : `Name and sort ${unsorted} task${unsorted === 1 ? '' : 's'}`}</button>}
         <input className="td-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search todos…" aria-label="Search todos" />
       </div>
       {error && <p className="error td-error" role="alert">{error}</p>}

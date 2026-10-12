@@ -8,11 +8,11 @@ import { hire, launchApp } from './launch'
 
 const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
 
-test('todos: fully tracked mode makes a task of each request, flags it when the turn ends unfinished, and shows what it costs', async () => {
+test('todos: fully tracked mode makes a task of each request, closes it when the turn ends, names and sorts it by area, and shows what it costs', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-todos-track-'))
   const args = join(home, 'args.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_USAGE: '{"title": "Fix the Safari login bug", "list": "Application"}' },
     home
   )
   try {
@@ -41,26 +41,22 @@ test('todos: fully tracked mode makes a task of each request, flags it when the 
     const box = page.getByRole('textbox', { name: 'Message ada' })
     await box.fill('please fix the login bug on Safari')
     await box.press('Enter')
+    // The agent's turn ended on its own, so the request was answered: the app closes the task and a small model names it and sorts it into a list by area.
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     const board = page.getByRole('dialog', { name: 'Todos' })
-    const task = board.getByRole('listitem', { name: 'Inbox' }).getByRole('button', { name: 'Open fix the login bug on Safari' })
-    await expect(task).toBeVisible()
-    await expect(task).toContainText('you')
-    // Its turn ended and the agent never said done: the board says so rather than showing work in hand.
-    await expect(task).toContainText('unfinished')
-
-    // The agent finishes it through the tool the reminder named; the flag goes.
-    const mcp = JSON.parse(readFileSync(claudeLine()[claudeLine().indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
-    const client = new Client({ name: 'test', version: '1' })
-    await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
-    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '1', note: 'fixed the Safari cookie', title: 'Wire the Safari cookie fix', list: 'Application' } }))).toContain('Marked todo#1 done')
-    await expect(task).toHaveCount(0)
-    // It was named and sorted as it was finished: it left the Inbox for a list by area, and the empty Inbox is not shown.
-    await expect(board.getByRole('listitem', { name: 'Inbox' })).toHaveCount(0)
     const area = board.getByRole('listitem', { name: 'Application' })
+    await expect(area).toBeVisible()
+    await expect(board.getByRole('listitem', { name: 'Inbox' })).toHaveCount(0)
     await area.getByRole('button', { name: /Done \(1\)/ }).click()
-    await expect(area.getByRole('button', { name: 'Open Wire the Safari cookie fix' })).not.toContainText('unfinished')
-    await client.close()
+    const done = area.getByRole('button', { name: 'Open Fix the Safari login bug' })
+    await expect(done).toBeVisible()
+    await expect(done).not.toContainText('unfinished')
+    await done.click()
+    const detail = board.getByRole('complementary', { name: 'Task detail' })
+    await expect(detail).toContainText('Closed when its turn ended')
+    await expect(detail.getByLabel('Activity')).toContainText('app')
+    // The words of the request are kept as where it came from.
+    await expect(detail.getByLabel('Where it came from')).toContainText('please fix the login bug on Safari')
   } finally {
     await shutdown()
   }

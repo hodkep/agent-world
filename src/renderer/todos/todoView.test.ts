@@ -61,6 +61,14 @@ describe('filterBoard', () => {
   })
 })
 
+describe('activityOf, a move', () => {
+  it('says who moved it and where', () => {
+    let b = addTodo(emptyBoard(), { title: 'a', list: 'Inbox' }, you, 1).board
+    b = updateTodo(b, '1', { list: 'Application' }, { kind: 'human', name: 'app' }, 2)
+    expect(activityOf(b.todos[0]!).map((x) => x.text)).toContain('app moved it Inbox → Application')
+  })
+})
+
 describe('activityOf', () => {
   it('lists what matters, oldest first, and folds plain edits into one line', () => {
     let b = addTodo(emptyBoard(), { title: 'Docs' }, ada, 1, { agentId: 'a1', itemId: 'm', at: 1, excerpt: 'x' }).board

@@ -302,6 +302,8 @@ export interface AwApi {
     update(folder: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Promise<void>
     /** Ask an agent about a task, or put it on one: recorded on the board; the message to send that agent is returned. */
     ask(folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<{ message: string }>
+    /** Names and sorts the tasks waiting in the Inbox, by asking a small model; how many were named. */
+    tidyInbox(folder: string): Promise<number>
     remove(folder: string, id: string): Promise<void>
     done(folder: string, id: string): Promise<void>
     reopen(folder: string, id: string): Promise<void>
