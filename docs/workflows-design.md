@@ -247,6 +247,70 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 
 **Guessed or given.** The model marks it; code flags any assumption with no quoted user words as guessed. Token figures are cocain's estimates, not measurements. Before building, measure on 20 requests (10 clear, 10 with one hidden gap) how often the block lists the gap as guessed, how often it asks, and how often it wastes a question on a clear one.
 
+## Proposed: the workflow file, the list tab and the builder (2026-10-12, not yet decided; mocks in the session scratchpad `s12.html`)
+
+Slices 1 to 7 built a fixed pipeline: task, plan (gate), build, audit, land (gate). The builder agent of D19 needs that pipeline to be *data*, so the first step is a file format. `Standard` below is today's behaviour written as a file, so nothing changes for anyone who never edits it.
+
+### The file
+
+JSON (the app already keeps prefs and playbooks as JSON; no new parser). One file per workflow, global in the app's data folder (`HOME/workflows/<id>.json`) and per project in the repo (`<repo>/.agent-world/workflows/<id>.json`), a project's own winning over a global one with the same id (D2). Validated in code like the plan block: every problem is reported at once, nothing is half-loaded.
+
+```json
+{
+  "version": 1,
+  "id": "bug-fix",
+  "name": "Bug fix",
+  "when": "A defect with a known symptom: something that used to work, or should, and does not.",
+  "steps": [
+    { "id": "plan",   "kind": "plan",  "gate": "approve", "brief": "Name the symptom and the likely cause. Say what you would not touch." },
+    { "id": "fix",    "kind": "work",  "name": "Fix, test first", "skills": ["tdd"], "brief": "Write a failing test that shows the bug, then make it pass." },
+    { "id": "tests",  "kind": "check", "name": "Tests pass", "run": "npm test", "gate": "pass", "retries": 3 },
+    { "id": "review", "kind": "audit" },
+    { "id": "land",   "kind": "merge", "gate": "approve" }
+  ]
+}
+```
+
+Steps run in the order listed (D19: linear first; no `needs`, no branches). At most 12 steps, ids lowercase letters, digits and dashes.
+
+| Kind | Who does it | What it needs | Built? |
+|---|---|---|---|
+| `plan` | the agent writes the read-back plan | the plan gate and, by dial, the intent check | yes (D25, D28) |
+| `work` | the agent, with the step's `brief` and `skills` | `step_done` tool; briefs come back from `task_begin` | recording yes; briefs, skills and `step_done` new |
+| `check` | the app runs `run` in the agent's worktree; exit code decides | commands, retries, output tail sent to the agent when it fails | new |
+| `audit` | a model reads the branch against the plan | model from the dial, or `"model"` on the step | yes (D26) |
+| `approve` | the person, in a panel like the plan gate | a generic hold with a note | new |
+| `merge` | the person lands it from Finish | the merge gate | yes (D26) |
+
+`gate`: `auto` (default), `approve` (stops for the person) or `pass` (a `check` must pass). Where a step does not say, the global Settings switches (plan gate, merge gate) apply, so D16 stays true: gates are settings, a workflow overrides them. `model` on a step overrides the dial for that step (D17).
+
+### Safety: commands in a repo file
+
+A project workflow lives in the repo, so a `check` step's `run` is a command from repository content that the app would run on the person's machine. It must not run unseen: the first time a given version of a file with `check` steps would run, the app shows the exact commands and asks; approval is remembered for that file's content hash and any edit asks again. The builder's proposals carry the same prompt. Commands run in the agent's worktree only, with a time limit, and their output is truncated before it reaches the agent.
+
+### How a task gets its workflow
+
+The project's default workflow applies unless the agent picks another: the opening text lists at most five (`id: when`, about 80 tokens, once), and `task_begin` takes an optional `workflow` id. `task_begin` answers with the steps' briefs (the "step briefs" already in the cost table). The run log gains `step` events (started, passed, failed, skipped, stopped, waiting) with the workflow id and file hash, which is what the CI-style strip draws.
+
+### The list tab and the builder
+
+The Workflows window gets two tabs, Runs and Workflows. The list shows each workflow's steps as a strip, its scope, what it is the default for, and how often it ran. The builder is a ready-made agent in the roster (a Claude agent in the project, read-only, with three extra tools: `workflow_list`, `workflow_get`, `workflow_propose`). `workflow_propose` does not write: it puts a proposal card in the chat (steps, the commands it would run, a diff against the saved version) and the person saves it to the project or globally, or keeps talking. Nothing the builder says changes a file by itself.
+
+### Questions to decide (13 to 18)
+
+13. JSON as the file format (recommended), or YAML?
+14. Step kinds in the first version: all six above, or the ones that already exist (`plan`, `audit`, `merge`) plus `work`, with `check` and `approve` later?
+15. A task's workflow: project default, plus the agent may pick (recommended), or the project default only?
+16. The builder saves only through a proposal the person approves in the chat (recommended).
+17. A repo's `check` commands need the person's approval per file version (recommended).
+18. List tab layout (A cards, B table, C list and detail) and builder layout (A in the chat, B in the window, C entry box); mocks in `s12.html`. Recommended: C for the list and A for the builder, with the describe box (D) as the entry point.
+
+### Slices after the decision
+
+8. File format, validation, storage, the built-in `Standard`, and the read-only list tab (nothing in the engine changes yet).
+9. The engine reads the workflow: step events, briefs and `step_done`, `check` and `approve` steps, the command approval, the run strip.
+10. The builder agent, its three tools and the proposal card.
+
 ## Open questions
 
 0. Library: is serving on demand through the MCP server, with only a tiny core pushed, the right default? Where should workspace items live by default (in the repo, or private in the app's data)? Should existing skills and instruction files be adopted automatically as read-only sources?
@@ -266,6 +330,8 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 12. ~~Who decides a task is small enough to skip the intent block~~ The agent, using an instruction we ship (D22). The wording of that instruction still has to be written and measured.
 
 ## Change log
+
+- 2026-10-12: proposed the workflow file, the list tab and the builder (questions 13 to 18), with mocks; nothing built.
 
 - 2026-10-12: D28, slice 7 built: the intent check at max (see D28 for the pilot). The cost table now prices both separate calls from measurement (audit and intent check about 4,000 tokens each, about $0.0004 and $0.0002 on haiku); both are dominated by the program's own ~3,500-token starting text.
 
