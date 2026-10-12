@@ -2770,3 +2770,7 @@ aside:not(.drawer) { flex: none; }
 .tip-btn.dim { opacity: .55; }
 .set-sw.off { opacity: .5; }
 .su-toggle:disabled { opacity: .5; cursor: default; }
+
+/* A feature that depends on the one above it */
+.set-sw.child { margin-left: 22px; padding-left: 14px; border-left: 2px solid var(--line); }
+.set-sw.child + .td-cost { margin-left: 36px; }
