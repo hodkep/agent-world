@@ -50,9 +50,9 @@ function ProgramCard({ provider, saved, onSave, onRescan }: { provider: Provider
 }
 
 /** A choice with a line under it, drawn as a switch. It is a checkbox underneath, so a keyboard and a screen reader treat it as one. */
-function Switch({ checked, onChange, title, hint, disabled }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string; disabled?: boolean }) {
+function Switch({ checked, onChange, title, hint, disabled, child }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string; disabled?: boolean; /** A feature that depends on the one above it: drawn indented under it. */ child?: boolean }) {
   return (
-    <label className={`set-sw${disabled ? ' off' : ''}`}>
+    <label className={`set-sw${disabled ? ' off' : ''}${child ? ' child' : ''}`}>
       <span><b>{title}</b>{hint && <small>{hint}</small>}</span>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </label>
@@ -144,7 +144,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <p className="set-lead">Features change what agents are told. They add text to messages, so each shows what it costs.</p>
               <Switch checked={prefs.libraryEnabled} onChange={(libraryEnabled) => set({ libraryEnabled })} title="Library and playbook" hint="The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window and tab say it is off. Takes effect for agents started from now on and for each new message." />
               <LibraryCostBox />
-              <Switch disabled={!prefs.libraryEnabled} checked={check && prefs.libraryEnabled} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
+              <Switch child disabled={!prefs.libraryEnabled} checked={check && prefs.libraryEnabled} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
               <CheckCost />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
