@@ -582,13 +582,13 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
-  // Cmd/Ctrl+up/down steps through the workspaces, left/right through the agents of the open one. It wins over the terminal and message box, which gave those keys up.
+  // Ctrl+Tab steps through the agents of the open workspace (Shift goes back) and Cmd/Ctrl+Shift+[ and ] through the workspaces. They win over the terminal and message box. The Cmd+arrows are left to the system, which uses them to jump around text.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const byAgent = matches(e, 'agent-switch')
       if ((!byAgent && !matches(e, 'workspace-switch')) || document.querySelector('dialog[open]')) return
       e.preventDefault(), e.stopPropagation()
-      const dir = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1
+      const dir = byAgent ? (e.shiftKey ? -1 : 1) : e.code === 'BracketLeft' || e.key === '[' || e.key === '{' ? -1 : 1
       if (byAgent) {
         const to = next(agents.map((a) => a.id), selected, dir)
         if (to) select(to)

@@ -54,16 +54,37 @@ describe('a key press against the table', () => {
   const press = (key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
 
   it('takes Cmd or Ctrl for Mod, and any of the shortcut\'s keys', () => {
-    expect(matches(press('ArrowUp', { metaKey: true }), 'workspace-switch')).toBe(true)
-    expect(matches(press('ArrowDown', { ctrlKey: true }), 'workspace-switch')).toBe(true)
-    expect(matches(press('ArrowLeft', { metaKey: true }), 'agent-switch')).toBe(true)
+    expect(matches(press('/', { metaKey: true }), 'shortcuts')).toBe(true)
+    expect(matches(press('/', { ctrlKey: true }), 'shortcuts')).toBe(true)
+  })
+
+  it('switches agent with Ctrl+Tab and Ctrl+Shift+Tab, on any keyboard', () => {
+    expect(matches(press('Tab', { ctrlKey: true }), 'agent-switch')).toBe(true)
+    expect(matches(press('Tab', { ctrlKey: true, shiftKey: true }), 'agent-switch')).toBe(true)
+    expect(matches(press('Tab'), 'agent-switch')).toBe(false)
+    expect(matches(press('Tab', { metaKey: true }), 'agent-switch')).toBe(false)
+    expect(matches(press('Tab', { shiftKey: true }), 'cycle-mode')).toBe(true)
+  })
+
+  it('switches workspace with Shift+Mod+[ and ], read from the key itself so a layout where the bracket needs Shift still matches', () => {
+    expect(matches({ ...press('{', { metaKey: true, shiftKey: true }), code: 'BracketLeft' }, 'workspace-switch')).toBe(true)
+    expect(matches({ ...press('}', { ctrlKey: true, shiftKey: true }), code: 'BracketRight' }, 'workspace-switch')).toBe(true)
+    expect(matches(press('[', { metaKey: true, shiftKey: true }), 'workspace-switch')).toBe(true)
+    expect(matches({ ...press('[', { metaKey: true }), code: 'BracketLeft' }, 'workspace-switch')).toBe(false)
+  })
+
+  it('no longer takes Cmd+arrow, which is the system\'s to jump around text', () => {
+    for (const k of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+      expect(matches(press(k, { metaKey: true }), 'workspace-switch'), k).toBe(false)
+      expect(matches(press(k, { metaKey: true }), 'agent-switch'), k).toBe(false)
+    }
   })
 
   it('needs the exact modifiers: no Mod, a stray Shift or Alt, or another key is not a match', () => {
-    expect(matches(press('ArrowUp'), 'workspace-switch')).toBe(false)
-    expect(matches(press('ArrowUp', { metaKey: true, shiftKey: true }), 'workspace-switch')).toBe(false)
-    expect(matches(press('ArrowUp', { metaKey: true, altKey: true }), 'workspace-switch')).toBe(false)
-    expect(matches(press('ArrowLeft', { metaKey: true }), 'workspace-switch')).toBe(false)
+    expect(matches(press('['), 'workspace-switch')).toBe(false)
+    expect(matches(press('[', { metaKey: true }), 'workspace-switch')).toBe(false)
+    expect(matches(press('[', { metaKey: true, shiftKey: true, altKey: true }), 'workspace-switch')).toBe(false)
+    expect(matches(press('Tab', { ctrlKey: true, altKey: true }), 'agent-switch')).toBe(false)
     expect(matches(press('/', { metaKey: true }), 'shortcuts')).toBe(true)
   })
 })
@@ -79,10 +100,13 @@ describe('the table of shortcuts', () => {
   })
 
   it('lists switching workspace and agent, and gives no key to two things', () => {
-    expect(hint('workspace-switch', true)).toBe('Previous or next workspace (⌘↑ ⌘↓)')
-    expect(hint('agent-switch', false)).toBe('Previous or next agent in this workspace (Ctrl+← Ctrl+→)')
-    const owners = SHORTCUTS.filter((s) => s.place === 'Anywhere' || s.place === 'Terminal').flatMap((s) => s.keys)
-    expect(owners.filter((k) => /^Mod\+Arrow/.test(k))).toHaveLength(4)
+    expect(hint('workspace-switch', true)).toBe('Previous or next workspace (⇧⌘[ ⇧⌘])')
+    expect(hint('workspace-switch', false)).toBe('Previous or next workspace (Shift+Ctrl+[ Shift+Ctrl+])')
+    expect(hint('agent-switch', true)).toBe('Previous or next agent in this workspace (⇧⌃Tab ⌃Tab)')
+    // The arrows with Cmd are the system's: nothing that works anywhere takes them, and only the terminal uses them, as a terminal does (line start and end, between commands).
+    const arrows = (place: string) => SHORTCUTS.filter((s) => s.place === place).flatMap((s) => s.keys).filter((k) => /^Mod\+Arrow/.test(k))
+    expect(arrows('Anywhere')).toEqual([])
+    expect(arrows('Terminal')).toHaveLength(4)
   })
 
   it('words a hover hint as what it does and the key, for the platform', () => {

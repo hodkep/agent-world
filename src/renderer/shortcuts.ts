@@ -19,8 +19,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'palette', place: 'Anywhere', text: 'Command palette for the selected agent', keys: ['Mod+K'] },
   { id: 'terminals', place: 'Anywhere', text: 'Show or hide the terminals', keys: ['Ctrl+`'] },
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
-  { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Mod+ArrowUp', 'Mod+ArrowDown'] },
-  { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Mod+ArrowLeft', 'Mod+ArrowRight'] },
+  { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
+  { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Shift+Ctrl+Tab', 'Ctrl+Tab'] },
   { id: 'close', place: 'Anywhere', text: 'Close a dialog, menu or card', keys: ['Esc'] },
   { id: 'resize-panel', place: 'Anywhere', text: 'Resize the side panel (on its edge)', keys: ['ArrowLeft', 'ArrowRight'] },
 
@@ -41,6 +41,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'term-clear', place: 'Terminal', text: 'Clear the terminal', keys: ['Mod+K'], mac: true },
   { id: 'term-open', place: 'Terminal', text: 'Open a link or file path', keys: ['Mod+click'] },
   { id: 'term-word', place: 'Terminal', text: 'Move by word', keys: ['Alt+ArrowLeft', 'Alt+ArrowRight'], mac: true },
+  { id: 'term-jump', place: 'Terminal', text: 'Jump between commands', keys: ['Mod+ArrowUp', 'Mod+ArrowDown'], mac: true },
+  { id: 'term-line', place: 'Terminal', text: 'Move to the start or end of the line', keys: ['Mod+ArrowLeft', 'Mod+ArrowRight'], mac: true },
   { id: 'term-del-word', place: 'Terminal', text: 'Delete a word', keys: ['Alt+Backspace'], mac: true },
   { id: 'term-del-line', place: 'Terminal', text: 'Delete the line', keys: ['Mod+Backspace'], mac: true },
 
@@ -55,16 +57,22 @@ export function showKey(combo: string, mac: boolean): string {
   return parts.join(mac ? '' : '+')
 }
 
-type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
+type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'> & Partial<Pick<KeyboardEvent, 'code'>>
 
-/** Whether a key press is one of the keys of this shortcut, so a handler reads the same table the sheet shows. Mod is Cmd or Ctrl; Shift and Alt must match exactly. */
+// A bracket is read from the key itself where the press says which one it was: with Shift the character is { or } on a US keyboard.
+const CODE: Record<string, string> = { '[': 'BracketLeft', ']': 'BracketRight' }
+
+/** Whether a key press is one of the keys of this shortcut, so a handler reads the same table the sheet shows. Mod is Cmd or Ctrl (Ctrl alone is the Ctrl key); Shift and Alt must match exactly. */
 export function matches(e: KeyPress, id: string): boolean {
   const s = SHORTCUTS.find((x) => x.id === id)
   if (!s) throw new Error(`No shortcut ${id}`)
   return s.keys.some((combo) => {
     const parts = combo.split('+')
     const key = parts[parts.length - 1]!
-    return e.key === key && (e.metaKey || e.ctrlKey) === parts.includes('Mod') && e.shiftKey === parts.includes('Shift') && e.altKey === parts.includes('Alt')
+    const same = e.code && CODE[key] ? e.code === CODE[key] : e.key === key
+    // Ctrl alone means the Ctrl key even on a Mac (where Mod is Cmd); Mod is Cmd or Ctrl.
+    const mod = parts.includes('Ctrl') ? e.ctrlKey && !e.metaKey : (e.metaKey || e.ctrlKey) === parts.includes('Mod')
+    return same && mod && e.shiftKey === parts.includes('Shift') && e.altKey === parts.includes('Alt')
   })
 }
 
