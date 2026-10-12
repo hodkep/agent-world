@@ -793,7 +793,12 @@ export function App() {
       setOpenFile({ path: book })
     })
 
-  plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
+  // The office stays under the grid and under dialogs and still hears the pointer, so what it would show is shown only while nothing is on top of it.
+  const officeCovered = () => (grid && agents.length > 0) || !!document.querySelector('dialog[open], .scrim, [role="dialog"]')
+  plantHover.current = (v, x, y) => setTip(v && !officeCovered() ? { ...v, x, y } : null)
+  useEffect(() => {
+    if (tip && officeCovered()) setTip(null)
+  })
   // The book on a desk is the agent's work in progress: clicking it shows what has changed.
   handbookOpen.current = (id) => {
     select(id)
