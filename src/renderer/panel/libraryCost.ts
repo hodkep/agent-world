@@ -15,3 +15,15 @@ export function checkCost() {
 }
 
 export const groupTokens = (n: number) => n.toLocaleString('en-US')
+
+/** What the library and playbook add to an agent's context, on assumptions people can read: the opening text (at most the budget) once per session, and a line pointing at an item on some messages. */
+export function libraryCost() {
+  const openingMax = 300
+  const perPointing = 60
+  const sessions = [
+    { label: 'A short task', pointings: 1 },
+    { label: 'A normal session', pointings: 4 },
+    { label: 'A long day', pointings: 15 }
+  ]
+  return { openingMax, perPointing, sessions: sessions.map((s) => ({ ...s, tokens: openingMax + s.pointings * perPointing })) }
+}

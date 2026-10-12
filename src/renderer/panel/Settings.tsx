@@ -9,6 +9,7 @@ import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
 import { CheckCost } from './CheckCost'
+import { LibraryCostBox } from './LibraryCostBox'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -49,11 +50,11 @@ function ProgramCard({ provider, saved, onSave, onRescan }: { provider: Provider
 }
 
 /** A choice with a line under it, drawn as a switch. It is a checkbox underneath, so a keyboard and a screen reader treat it as one. */
-function Switch({ checked, onChange, title, hint }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string }) {
+function Switch({ checked, onChange, title, hint, disabled }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string; disabled?: boolean }) {
   return (
-    <label className="set-sw">
+    <label className={`set-sw${disabled ? ' off' : ''}`}>
       <span><b>{title}</b>{hint && <small>{hint}</small>}</span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </label>
   )
 }
@@ -73,7 +74,7 @@ const PANES = [
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders }: { prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
@@ -90,7 +91,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const ready = providers.filter((p) => p.detection.state === 'ready')
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
-  const [pane, setPane] = useState<Pane>('general')
+  const [pane, setPane] = useState<Pane>(PANES.some((p) => p.id === initialPane) ? (initialPane as Pane) : 'general')
   // Check before acting lives in the library's own settings; it is read here so the switch shows what is saved.
   const [check, setCheck] = useState(true)
   useEffect(() => void window.aw.library.features().then((f) => setCheck(f.forcedCheck), () => undefined), [])
@@ -141,7 +142,9 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
             <>
               <legend>Features</legend>
               <p className="set-lead">Features change what agents are told. They add text to messages, so each shows what it costs.</p>
-              <Switch checked={check} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
+              <Switch checked={prefs.libraryEnabled} onChange={(libraryEnabled) => set({ libraryEnabled })} title="Library and playbook" hint="The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window and tab say it is off. Takes effect for agents started from now on and for each new message." />
+              <LibraryCostBox />
+              <Switch disabled={!prefs.libraryEnabled} checked={check && prefs.libraryEnabled} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
               <CheckCost />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />

@@ -6,6 +6,7 @@ import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } fro
 import { ProviderLogo } from './ProviderLogo'
 import { TrackingCost } from '../todos/TrackingCost'
 import { CheckCost } from './CheckCost'
+import { LibraryCostBox } from './LibraryCostBox'
 
 const STEPS = [
   { id: 'welcome', name: 'Welcome' },
@@ -270,7 +271,12 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                 <p>Features change what agents are told. They add a little text to each message, so each shows what it costs. You can change them any time in Settings, under Features.</p>
               </div>
               <div className="su-content">
-                <button className="su-toggle" role="switch" aria-checked={check} aria-label="Check before acting" onClick={() => void window.aw.library.setFeatures({ forcedCheck: !check }).then((f) => setCheck(f.forcedCheck), () => undefined)}>
+                <button className="su-toggle" role="switch" aria-checked={prefs.libraryEnabled} aria-label="Library and playbook" onClick={() => onPrefs({ libraryEnabled: !prefs.libraryEnabled })}>
+                  <i />
+                  <span><b>Library and playbook</b><small>The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window says it is off.</small></span>
+                </button>
+                <LibraryCostBox />
+                <button className="su-toggle" role="switch" disabled={!prefs.libraryEnabled} aria-checked={check && prefs.libraryEnabled} aria-label="Check before acting" onClick={() => void window.aw.library.setFeatures({ forcedCheck: !check }).then((f) => setCheck(f.forcedCheck), () => undefined)}>
                   <i />
                   <span><b>Check before acting</b><small>When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard.</small></span>
                 </button>

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { LibraryOff } from './LibraryOff'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
 import { useLibraryUses } from '../chat/LibrarySlips'
 import { summaryOf, timeline, type Step } from './libraryTimeline'
@@ -7,7 +8,7 @@ const ICON: Record<Step['tone'], IconName> = { told: 'flag', point: 'tag', read:
 const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 /** The agent's Library tab: what it was told on the left, what it did about it on the right, so the gap between them is the page. */
-export function AgentLibrary({ agentId, agentName }: { agentId: string; agentName: string }) {
+export function AgentLibrary({ agentId, agentName, enabled, onOpenSettings }: { agentId: string; agentName: string; enabled: boolean; onOpenSettings: () => void }) {
   const { uses, items } = useLibraryUses(agentId)
   const name = (id: string) => items.get(id)?.name ?? id
   const steps = useMemo(() => timeline(uses, name), [uses, items]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -15,6 +16,7 @@ export function AgentLibrary({ agentId, agentName }: { agentId: string; agentNam
   const started = uses.findLast((u) => u.how === 'started')
   const pointed = [...new Set(uses.filter((u) => u.how === 'triggered').map((u) => u.id))]
   const told = [...new Set(uses.filter((u) => u.how === 'delivered' && u.launch === started?.launch).map((u) => u.id))]
+  if (!enabled) return <LibraryOff onOpenSettings={onOpenSettings} />
   if (!uses.length) return <div className="al"><p className="hint">The library has done nothing for {agentName} yet. It starts with the opening text its playbook gives, then points at items as messages match.</p></div>
   return (
     <div className="al" role="tabpanel" aria-label="Library">

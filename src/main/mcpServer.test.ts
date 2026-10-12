@@ -18,10 +18,11 @@ afterEach(async () => {
 const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
-async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos']) {
+async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos'], libraryOn?: () => boolean) {
   sent.length = 0
   server = await startMcpServer({
     library,
+    libraryOn,
     todos,
     agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
@@ -148,6 +149,15 @@ describe('the library tools', () => {
     expect(skipped).toEqual(['pdf: only a question'])
     const refused = await c.callTool({ name: 'library_skip', arguments: { id: 'secret', reason: 'x' } })
     expect((refused as { isError?: boolean }).isError).toBe(true)
+  })
+  it('are not offered while the library is switched off, and come back when it is switched on', async () => {
+    let on = false
+    const s = await setup(lib, undefined, () => on)
+    const c = await connect(s.url, 'a1')
+    expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('library_index')
+    on = true
+    const again = await connect(s.url, 'a1')
+    expect((await again.listTools()).tools.map((t) => t.name)).toContain('library_index')
   })
   it('are not offered when the app has no library', async () => {
     const c = await connect((await setup()).url, 'a1')
