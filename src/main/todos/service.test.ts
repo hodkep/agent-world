@@ -9,6 +9,9 @@ const make = () => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-todos-'))
   const changes: string[] = []
   const worked: number[] = []
+  const asked: string[] = []
+  const busyAgents = new Set<string>()
+  const answer = { text: '{"title": "Fix the Safari login bug", "list": "Application"}' }
   const remembered: { repo: string; text: string; by: string }[] = []
   let clock = 1000
   const agents: Record<string, { id: string; name: string; provider: string; repoPath: string; forMain?: string }> = {
@@ -24,11 +27,13 @@ const make = () => {
     lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: clock, excerpt: 'Done: it works' }),
     workSince: async (_id, since) => { worked.push(since); return { commits: [{ sha: 'abc1234def', subject: 'fix: wire the key' }], files: ['src/b.ts'] } },
     remember: (repo, text, by) => void remembered.push({ repo, text, by }),
+    busy: (id) => busyAgents.has(id),
+    ask: async (prompt) => { asked.push(prompt); return answer.text },
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes, worked, remembered }
+  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents }
 }
 
 describe('the todo service', () => {
@@ -91,10 +96,10 @@ describe('the todo service', () => {
     const t = svc.trackRequest('a1', 'please fix the login bug on Safari')
     expect(t).toMatchObject({ title: 'fix the login bug on Safari', list: 'Inbox', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
     expect(t!.createdLink).toMatchObject({ agentId: 'a1' })
-    svc.turnEnded('a1')
+    svc.turnEnded('a1', { interrupted: true })
     expect(svc.board('/work/shop').todos[0]!.stale).toBe(true)
     svc.doneByAgent('a1', t!.id, 'fixed')
-    svc.turnEnded('a1')
+    svc.turnEnded('a1', { interrupted: true })
     expect(svc.board('/work/shop').todos[0]!.stale).toBeUndefined()
   })
 
@@ -219,6 +224,69 @@ describe('the todo service', () => {
     const { svc } = make()
     expect(svc.trackRequest('a1', 'commit those and merge to main')).toBeUndefined()
     expect(svc.trackRequest('a1', 'these are good, lets implement these.')).toBeUndefined()
+  })
+
+  it('closes the task made for a request when the agent\'s turn ends cleanly, and flags it only when the turn was cut off', async () => {
+    const { svc } = make()
+    const a = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true, doneBy: { id: 'a1' } })
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)!.doneLink).toMatchObject({ agentId: 'a1' })
+    const b = svc.trackRequest('a1', 'now add a health check endpoint to the server')!
+    svc.turnEnded('a1', { interrupted: true })
+    expect(svc.board('/work/shop').todos.find((t) => t.id === b.id)).toMatchObject({ status: 'doing', stale: true })
+  })
+
+  it('names and sorts a task the agent left with the person\'s words: a small model is asked once, and the answer sets its title and list', async () => {
+    const { svc, asked } = make()
+    const a = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    const t = svc.board('/work/shop').todos.find((x) => x.id === a.id)!
+    expect(t).toMatchObject({ title: 'Fix the Safari login bug', list: 'Application', named: true })
+    expect(svc.board('/work/shop').lists).toContain('Application')
+    expect(asked).toHaveLength(1)
+    expect(asked[0]).toContain('login bug on Safari')
+    // Done again, or ended again, it is not asked about again.
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(asked).toHaveLength(1)
+    expect(svc.board('/work/shop').todos.find((x) => x.id === a.id)!.history.at(-1)).toMatchObject({ what: 'moved', by: { name: 'app' } })
+  })
+
+  it('leaves a task alone that an agent already named, and survives a model that answers badly or not at all', async () => {
+    const { svc, asked, answer } = make()
+    const a = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    svc.updateByAgent('a1', a.id, { title: 'Fix the Safari login bug', list: 'Application' })
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(asked).toHaveLength(0)
+    answer.text = 'no idea'
+    const b = svc.trackRequest('a1', 'now add a health check endpoint to the server')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === b.id)).toMatchObject({ status: 'done', list: 'Inbox', title: 'now add a health check endpoint to the server' })
+  })
+
+  it('sorts everything waiting in the Inbox when asked, and says how many it named', async () => {
+    const { svc } = make()
+    svc.trackRequest('a1', 'please fix the login bug on Safari')
+    svc.trackRequest('b1', 'build a settings page for the accounts')
+    expect(await svc.tidyInbox('/work/shop')).toBe(2)
+    expect(svc.board('/work/shop').todos.every((t) => t.named && t.list === 'Application')).toBe(true)
+    expect(await svc.tidyInbox('/work/shop')).toBe(0)
+  })
+
+  it('when asked to sort the Inbox it also closes requests left open by agents that are not working now, and not those still working', async () => {
+    const { svc, busyAgents } = make()
+    const old = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    const live = svc.trackRequest('b1', 'build a settings page for the accounts')!
+    busyAgents.add('b1')
+    expect(await svc.tidyInbox('/work/shop')).toBe(2)
+    const board = svc.board('/work/shop').todos
+    expect(board.find((t) => t.id === old.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true, named: true })
+    expect(board.find((t) => t.id === live.id)).toMatchObject({ status: 'doing', named: true })
   })
 
   it('counts what needs the person, per project', () => {

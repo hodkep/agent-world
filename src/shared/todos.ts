@@ -39,6 +39,10 @@ export interface Todo {
   auto?: boolean
   /** An agent's turn ended while it was still on this task, and it never said done or blocked. */
   stale?: boolean
+  /** Its title and list were set by an agent or by the app, so the words of the request are no longer the title. */
+  named?: boolean
+  /** Finished by the app when the agent's turn ended cleanly, not by the agent saying so. */
+  closedAtTurnEnd?: boolean
   /** Place within its list, lowest first. */
   order: number
   createdAt: number
@@ -164,6 +168,7 @@ export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?
     ...(p.title !== undefined && { title: clip(p.title, TITLE_MAX) || t.title }),
     ...(p.notes !== undefined && { notes: clip(p.notes, NOTES_MAX) }),
     ...(p.needsYou !== undefined && { needsYou: p.needsYou }),
+    ...((p.title?.trim() || p.list?.trim()) && { named: true }),
     status,
     blockedWhy: status === 'blocked' ? clip(p.blockedWhy ?? t.blockedWhy, NOTE_MAX) || undefined : undefined
   }

@@ -40,6 +40,23 @@ function Banner({ t }: { t: Todo }) {
   return <div className="td-banner open" role="status"><span className="td-big" aria-hidden="true">○</span><div><b>Open</b><div>{t.needsYou ? 'Waiting for you.' : 'Nobody is on it yet.'}</div></div></div>
 }
 
+/** A message a task points at: what it said, as markdown, and a way to open it in its chat. */
+function Source({ label, link, open, onOpen }: { label: string; link: MessageLink; open: string; onOpen: (l: MessageLink) => void }) {
+  const [whole, setWhole] = useState(false)
+  return (
+    <section className="td-sec" aria-label={label}>
+      <h5>{label}</h5>
+      {link.excerpt && (
+        <div className={`td-quote td-md${whole ? ' whole' : ''}`}>
+          <Markdown text={link.excerpt} />
+        </div>
+      )}
+      {link.excerpt.length > 280 && <button className="td-link-btn" onClick={() => setWhole((w) => !w)}>{whole ? 'Show less' : 'Show the whole excerpt'}</button>}
+      <button className="primary td-open" onClick={() => onOpen(link)}>{open} ↗</button>
+    </section>
+  )
+}
+
 /** One task, opened: its outcome, details, where it came from, what happened, and a way to ask any agent about it. */
 /** A text box that is as tall as what is in it (up to a limit), so notes are read without scrolling a small box. */
 function Grow({ value, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }) {
@@ -67,9 +84,7 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
 }) {
   const [title, setTitle] = useState(t.title)
   const [notes, setNotes] = useState(t.notes)
-  const [whole, setWhole] = useState(false)
   const done = t.status === 'done'
-  const link = done ? t.doneLink : t.createdLink
   const activity = activityOf(t)
   return (
     <aside className="td-detail" aria-label="Task detail">
@@ -84,18 +99,8 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
         <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
         <div className="td-by">Made by <Who a={t.createdBy} /> · {agoLabel(t.createdAt)}{t.auto ? ' · from your message' : ''}</div>
       </section>
-      {link && (
-        <section className="td-sec" aria-label="Where it came from">
-          <h5>Where it came from</h5>
-          {link.excerpt && (
-            <div className={`td-quote td-md${whole ? ' whole' : ''}`}>
-              <Markdown text={link.excerpt} />
-            </div>
-          )}
-          {link.excerpt.length > 280 && <button className="td-link-btn" onClick={() => setWhole((w) => !w)}>{whole ? 'Show less' : 'Show the whole excerpt'}</button>}
-          <button className="primary td-open" onClick={() => onOpenMessage(link)}>{done ? 'Open the message it was finished in' : 'Open the message it was made in'} ↗</button>
-        </section>
-      )}
+      {t.createdLink && <Source label="Where it came from" link={t.createdLink} open="Open the message it was made in" onOpen={onOpenMessage} />}
+      {done && t.doneLink && <Source label="Where it was finished" link={t.doneLink} open="Open the message it was finished in" onOpen={onOpenMessage} />}
       {done && (t.doneHow || t.doneFiles?.length || t.doneCommits?.length) && (
         <section className="td-sec" aria-label="How it was done">
           <h5>How it was done</h5>

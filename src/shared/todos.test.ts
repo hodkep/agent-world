@@ -218,6 +218,19 @@ describe('resolveList', () => {
   })
 })
 
+describe('a task that has been named', () => {
+  it('is marked named once its title or list is set, and not by editing its notes', () => {
+    let b = addTodo(emptyBoard(), { title: 'raw words', list: INBOX, auto: true }, you, 1).board
+    b = updateTodo(b, '1', { notes: 'steps' }, ada, 2)
+    expect(b.todos[0]!.named).toBeUndefined()
+    b = updateTodo(b, '1', { title: 'Wire the key' }, ada, 3)
+    expect(b.todos[0]!.named).toBe(true)
+    let c = addTodo(emptyBoard(), { title: 'x', list: INBOX }, you, 1).board
+    c = updateTodo(c, '1', { list: 'Application' }, ada, 2)
+    expect(c.todos[0]!.named).toBe(true)
+  })
+})
+
 describe('moving a task by list name through an update', () => {
   it('updateTodo can put a task in another list, making it if needed, and records it', () => {
     let b = addTodo(emptyBoard(), { title: 'Wire it', list: INBOX }, you, 1).board

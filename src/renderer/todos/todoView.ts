@@ -77,7 +77,7 @@ export function activityOf(t: Todo): ActivityLine[] {
       : e.what === 'asked' ? `${by} asked ${e.note ?? ''}`.trim()
       : e.what === 'done' ? `Done by ${by}${e.note ? `: ${e.note}` : ''}`
       : e.what === 'reopened' ? `Reopened by ${by}`
-      : `Moved ${e.note ?? ''}`.trim()
+      : `${by} moved it ${e.note ?? ''}`.trim()
     out.push({ text, at: e.at, key: true })
   }
   return out

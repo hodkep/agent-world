@@ -25,7 +25,7 @@ export function TrackingCost({ full }: { full: boolean }) {
           ))}
         </tbody>
       </table>
-      <p className="hint">Estimates: the real figure depends on caching and on how you work. Either way you can add tasks by hand, agents add one when you ask in plain words, and a message that looks like work already finished gets one extra line (about 60 tokens) pointing at it.</p>
+      <p className="hint">Estimates: the real figure depends on caching and on how you work. Either way you can add tasks by hand, agents add one when you ask in plain words, a message that looks like work already finished gets one extra line (about 60 tokens) pointing at it, and a small model (Haiku) names and sorts each finished request on a call of its own, about 700 tokens that are never added to the agent's context.</p>
     </div>
   )
 }
