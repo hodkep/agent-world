@@ -54,6 +54,12 @@ interface Options {
     search: (callerId: string, query: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
     skip: (callerId: string, id: string, reason: string) => void
   }
+  /** Tasks agents report so the office can record them as workflow runs. `offered` says whether this caller gets the tools. */
+  workflows?: {
+    offered: (callerId: string) => boolean
+    begin: (callerId: string, title: string, followUp: boolean) => void
+    done: (callerId: string, summary?: string) => void
+  }
 }
 
 export interface SpawnInput {
@@ -190,6 +196,7 @@ function toolsFor(callerId: string, o: Options) {
   )
   if (o.library && (o.libraryOn?.() ?? true)) addLibraryTools(server, callerId, o.library)
   if (o.todos) addTodoTools(server, callerId, o.todos)
+  if (o.workflows?.offered(callerId)) addWorkflowTools(server, callerId, o.workflows)
   return server
 }
 
@@ -372,6 +379,43 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
       }
     },
     async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo#${t.id}.` })
+  )
+}
+
+type WorkflowApi = NonNullable<Options['workflows']>
+
+function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) {
+  const fail = (err: unknown) => ({ isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] })
+  server.registerTool(
+    'task_begin',
+    {
+      description:
+        'Say that you are starting a task that changes code or takes several steps, so the office can record it. Do not call it for a question, a typo or a tiny edit. Pass follow_up only when the request is more work on the task you just finished (a missed case, a change to its review); a different piece of work is a new task.',
+      inputSchema: { title: z.string().min(1).max(120).describe('The task in a few words'), follow_up: z.boolean().optional().describe('true when this continues the task you last finished') }
+    },
+    async ({ title, follow_up }) => {
+      try {
+        wf.begin(callerId, title, follow_up ?? false)
+        return { content: [{ type: 'text' as const, text: `Task begun: ${title}` }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'task_done',
+    {
+      description: 'Say that the task you began is finished, with one line on what was done.',
+      inputSchema: { summary: z.string().max(300).optional().describe('One line: what was done') }
+    },
+    async ({ summary }) => {
+      try {
+        wf.done(callerId, summary)
+        return { content: [{ type: 'text' as const, text: 'Task done.' }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
   )
 }
 

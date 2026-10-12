@@ -2887,3 +2887,12 @@ aside:not(.drawer) { flex: none; }
 .wf-cost .hint { margin: 0; }
 .wf-empty { padding: 28px 20px; display: flex; flex-direction: column; gap: 4px; }
 .wf-empty p { margin: 0; color: var(--muted); max-width: 60ch; }
+.wf-wind { padding: 10px 20px; background: var(--selected); color: var(--text); border-bottom: 2px solid var(--ink); }
+.wf-confirm { width: min(480px, 92vw); }
+.wf-confirm-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.wf-confirm-body ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.wf-confirm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.wf-confirm-body small { color: var(--muted); }
+.wf-runs { list-style: none; margin: 0; padding: 14px 20px; display: flex; flex-direction: column; gap: 6px; }
+.wf-runs li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--ink); }
+.wf-runs small { color: var(--muted); }

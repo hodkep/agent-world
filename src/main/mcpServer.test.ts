@@ -18,12 +18,13 @@ afterEach(async () => {
 const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
-async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos'], libraryOn?: () => boolean) {
+async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos'], libraryOn?: () => boolean, workflows?: Parameters<typeof startMcpServer>[0]['workflows']) {
   sent.length = 0
   server = await startMcpServer({
     library,
     libraryOn,
     todos,
+    workflows,
     agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
     send: (from, to, message, expectsReply) => {
@@ -271,5 +272,37 @@ describe('the todo tools', () => {
     expect(text(r)).toContain('No todo 77')
     const c = await connect((await setup()).url, 'a1')
     expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('todo_add')
+  })
+})
+
+describe('workflow tools', () => {
+  const calls: string[] = []
+  const wf = {
+    offered: (caller: string) => caller === 'a1',
+    begin: (caller: string, title: string, followUp: boolean) => {
+      if (title === 'off') throw new Error('Workflows are off.')
+      calls.push(`${caller} begin ${title} ${followUp}`)
+    },
+    done: (caller: string, summary?: string) => void calls.push(`${caller} done ${summary ?? ''}`)
+  }
+  it('task_begin and task_done reach the recorder with the caller and what was said', async () => {
+    calls.length = 0
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'Fix the login redirect' } }))).toContain('Task begun')
+    await c.callTool({ name: 'task_begin', arguments: { title: 'A missed case', follow_up: true } })
+    expect(text(await c.callTool({ name: 'task_done', arguments: { summary: 'All fixed.' } }))).toContain('Task done')
+    expect(calls).toEqual(['a1 begin Fix the login redirect false', 'a1 begin A missed case true', 'a1 done All fixed.'])
+  })
+  it('say plainly when the recorder refuses', async () => {
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const refused = await c.callTool({ name: 'task_begin', arguments: { title: 'off' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
+    expect(text(refused)).toContain('Workflows are off')
+  })
+  it('are offered only to an agent the recorder says should have them', async () => {
+    const s = await setup(undefined, undefined, undefined, wf)
+    expect((await (await connect(s.url, 'a1')).listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['task_begin', 'task_done']))
+    expect((await (await connect(s.url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('task_begin')
+    expect((await (await connect((await setup()).url, 'a1')).listTools()).tools.map((t) => t.name)).not.toContain('task_begin')
   })
 })

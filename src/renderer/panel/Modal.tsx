@@ -10,11 +10,11 @@ export function closeOnBackdrop(onClose: () => void) {
 }
 
 /** A native dialog opened as a modal, like Settings: it floats over the office with a backdrop; Esc closes it. */
-export function Modal({ label, className = '', onClose, children }: { label: string; className?: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ label, className = '', role, onClose, children }: { label: string; className?: string; role?: 'alertdialog'; onClose: () => void; children: ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => dialog.current?.showModal(), [])
   return (
-    <dialog ref={dialog} className={`settings ${className}`} aria-label={label} onClose={onClose} onCancel={onClose} {...closeOnBackdrop(onClose)}>
+    <dialog ref={dialog} className={`settings ${className}`} role={role} aria-label={label} onClose={onClose} onCancel={onClose} {...closeOnBackdrop(onClose)}>
       {children}
     </dialog>
   )
