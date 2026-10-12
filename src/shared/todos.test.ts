@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addList, addTodo, claimTodo, excerptOf, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { addList, addTodo, askedTodo, assignTodo, claimTodo, excerptOf, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -79,6 +79,24 @@ describe('changing', () => {
   })
   it('says what is not found', () => {
     expect(() => doneTodo(start(), '99', ada, '', 1)).toThrow(/99/)
+  })
+})
+
+describe('asking an agent', () => {
+  const start = () => addTodo(emptyBoard(), { title: 'Docs', list: 'L' }, you, 1).board
+  it('assigns a task to an agent on the person\'s say-so: the agent is on it, the history says who asked', () => {
+    const b = assignTodo(start(), '1', ada, you, 5)
+    expect(b.todos[0]).toMatchObject({ status: 'doing', claimedBy: ada, updatedBy: you })
+    expect(b.todos[0]!.history.at(-1)).toMatchObject({ what: 'assigned', by: you, note: 'ada' })
+  })
+  it('does not take a task another agent is doing', () => {
+    const b = claimTodo(start(), '1', ada, 2)
+    expect(() => assignTodo(b, '1', { kind: 'agent', id: 'b1', name: 'bob', provider: 'agy' }, you, 3)).toThrow(/ada is already doing/)
+  })
+  it('records a question put to an agent without changing the task', () => {
+    const b = askedTodo(start(), '1', ada, you, 7, 'Is this still needed?')
+    expect(b.todos[0]).toMatchObject({ status: 'open', updatedAt: 7 })
+    expect(b.todos[0]!.history.at(-1)).toMatchObject({ what: 'asked', by: you, note: 'ada: Is this still needed?' })
   })
 })
 

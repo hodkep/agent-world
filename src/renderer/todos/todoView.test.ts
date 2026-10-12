@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { addTodo, doneTodo, emptyBoard, type Actor } from '../../shared/todos'
-import { actorTag, agoLabel, filterBoard, splitList } from './todoView'
+import { addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, reopenTodo, updateTodo, type Actor } from '../../shared/todos'
+import { activityOf, actorTag, agoLabel, filterBoard, splitList } from './todoView'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -58,5 +58,28 @@ describe('filterBoard', () => {
     expect(filterBoard(b, { who: 'all', query: 'key' }).todos.length).toBe(2)
     expect(filterBoard(b, { who: 'all', query: 'KEY store' }).todos.map((t) => t.title)).toEqual(['Fix the key store'])
     expect(filterBoard(b, { who: 'ada', query: 'nope' }).lists).toEqual(['Setup', 'Tools'])
+  })
+})
+
+describe('activityOf', () => {
+  it('lists what matters, oldest first, and folds plain edits into one line', () => {
+    let b = addTodo(emptyBoard(), { title: 'Docs' }, ada, 1, { agentId: 'a1', itemId: 'm', at: 1, excerpt: 'x' }).board
+    b = updateTodo(b, '1', { notes: 'a' }, ada, 2)
+    b = updateTodo(b, '1', { notes: 'ab' }, ada, 3)
+    b = updateTodo(b, '1', { notes: 'abc' }, you, 4)
+    b = claimTodo(b, '1', ada, 5)
+    b = doneTodo(b, '1', ada, 'Wrote it', 6)
+    const a = activityOf(b.todos[0]!)
+    expect(a.map((x) => x.text)).toEqual(['Made by ada from its message', 'Edited 3 times', 'Claimed by ada', 'Done by ada: Wrote it'])
+    expect(a.map((x) => x.key)).toEqual([true, false, true, true])
+    expect(a[1]!.at).toBe(4)
+  })
+  it('says who asked whom, who put an agent on it, and a reopen', () => {
+    let b = addTodo(emptyBoard(), { title: 'Docs' }, you, 1).board
+    b = askedTodo(b, '1', ada, you, 2, 'Still needed?')
+    b = assignTodo(b, '1', bob, you, 3)
+    b = doneTodo(b, '1', bob, '', 4)
+    b = reopenTodo(b, '1', you, 5)
+    expect(activityOf(b.todos[0]!).map((x) => x.text)).toEqual(['Made by you', 'you asked ada: Still needed?', 'you put bob on it', 'Done by bob', 'Reopened by you'])
   })
 })

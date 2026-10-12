@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isWork, requestTitle } from '../../shared/todoTracking'
+import { askMessage, type AskMode } from '../../shared/todoAsk'
 import {
-  addList, addTodo, claimTodo, doneTodo, emptyBoard, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  addList, addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -87,6 +88,14 @@ export function createTodoService(d: TodoDeps) {
     reopenByPerson: (repoPath: string, id: string) => change(repoPath, (b) => ({ board: reopenTodo(b, id, YOU, now()), out: undefined })),
     moveByPerson: (repoPath: string, id: string, list: string, index: number) => change(repoPath, (b) => ({ board: moveTodo(b, id, list, index, YOU, now()), out: undefined })),
 
+    /** The person asks an agent about a task or puts it on one: the board records it and the message to send the agent is given back. */
+    askAgent(repoPath: string, id: string, agentId: string, mode: AskMode, words: string): { message: string } {
+      const a = agentOf(agentId)
+      return change(repoPath, (b) => {
+        const board = mode === 'work' ? assignTodo(b, id, actor(a), YOU, now()) : askedTodo(b, id, actor(a), YOU, now(), words || 'a question')
+        return { board, out: { message: askMessage(lastTodo(board, id), mode, words) } }
+      })
+    },
     /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
     trackRequest(agentId: string, prompt: string): Todo | undefined {
       const a = agentOf(agentId)

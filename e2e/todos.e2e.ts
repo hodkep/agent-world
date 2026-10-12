@@ -65,7 +65,8 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     const detail = board.getByRole('complementary', { name: 'Task detail' })
     await expect(detail).toContainText('Done by')
     await expect(detail).toContainText('logged in')
-    await expect(detail.getByLabel('History')).toContainText('done')
+    await expect(detail.getByLabel('Activity')).toContainText('Done by ada')
+    await expect(detail.getByLabel('Activity')).not.toContainText('updated by')
 
     // The message it was finished in opens in the chat and flashes.
     await detail.getByRole('button', { name: /Open the message it was finished in/ }).click()
@@ -82,6 +83,20 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     await sure.getByRole('button', { name: 'Cancel' }).click()
     await expect(sure).toHaveCount(0)
     await expect(board.getByRole('listitem', { name: 'Manual setup' })).toBeVisible()
+
+    // Any agent can be asked about a task, or put on it, from its detail; the agent gets a message that names the task and the chat opens.
+    await board.getByRole('button', { name: 'Open Add the Anthropic key' }).click()
+    const panel = board.getByRole('complementary', { name: 'Task detail' })
+    await expect(panel.getByLabel('Agent to ask')).toContainText('ada · Claude')
+    await panel.getByRole('button', { name: 'Work on it' }).click()
+    await panel.getByLabel('What to say').fill('Start with the Settings page.')
+    await panel.getByRole('button', { name: 'Send to ada' }).click()
+    await expect(board).toHaveCount(0)
+    await expect(log.locator('.msg.user').last()).toContainText('todo#1')
+    await expect(log.locator('.msg.user').last()).toContainText('Start with the Settings page.')
+    await page.locator('header').getByRole('button', { name: /Todos/ }).click()
+    await expect(board.getByRole('listitem', { name: 'Manual setup' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toContainText('doing · ada')
+
 
     await board.getByRole('button', { name: 'Open Add the Anthropic key' }).dragTo(board.getByRole('listitem', { name: 'Tools' }).locator('.td-body'))
     await expect(board.getByRole('listitem', { name: 'Tools' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toBeVisible()

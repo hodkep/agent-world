@@ -116,6 +116,7 @@ const api: AwApi = {
     get: (folder) => ipcRenderer.invoke('todos:get', folder),
     add: (folder, i) => ipcRenderer.invoke('todos:add', folder, i),
     update: (folder, id, p) => ipcRenderer.invoke('todos:update', folder, id, p),
+    ask: (folder, id, agentId, mode, words) => ipcRenderer.invoke('todos:ask', folder, id, agentId, mode, words),
     remove: (folder, id) => ipcRenderer.invoke('todos:remove', folder, id),
     done: (folder, id) => ipcRenderer.invoke('todos:done', folder, id),
     reopen: (folder, id) => ipcRenderer.invoke('todos:reopen', folder, id),

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MessageLink, Todo, TodoBoard } from '../../shared/todos'
 import { useConfirm } from '../panel/ConfirmDialog'
-import { Markdown } from '../chat/markdown'
+import { TodoDetail, type AskAgent } from './TodoDetail'
 import { Modal } from '../panel/Modal'
 import { actorTag, agoLabel, filterBoard, makers, splitList } from './todoView'
 
@@ -13,11 +13,12 @@ function Who({ a }: { a: Todo['createdBy'] }) {
 }
 
 /** The todo board of the open project in a large window: every list side by side, the person's tasks and the agents' together. */
-export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: string; onClose: () => void; onOpenMessage: (link: MessageLink) => void }) {
+export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage, onAsk }: { folder: string; agents: AskAgent[]; focusId?: string | null; onClose: () => void; onOpenMessage: (link: MessageLink) => void; onAsk: (agentId: string, message: string, openChat: boolean) => Promise<void> }) {
   const [board, setBoard] = useState<TodoBoard>({ lists: [], todos: [], next: 1 })
   const [who, setWho] = useState('all')
   const [query, setQuery] = useState('')
-  const [sel, setSel] = useState<string | null>(null)
+  const [sel, setSel] = useState<string | null>(focusId ?? null)
+  useEffect(() => { if (focusId) setSel(focusId) }, [focusId])
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [adding, setAdding] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -107,7 +108,7 @@ export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: str
             <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) act(window.aw.todos.addList(folder, newList)); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
           )}
         </div>
-        {open && <Detail key={open.id} t={open} folder={folder} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} ask={ask} />}
+        {open && <TodoDetail key={open.id} t={open} folder={folder} agents={agents} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
       </div>
       {confirmNode}
     </Modal>
@@ -117,7 +118,8 @@ export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: str
 function TaskRow({ t, selected, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; selected: boolean; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
   const done = t.status === 'done'
   return (
-    <div className={`td-task${done ? ' done' : ''}${selected ? ' sel' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
+    <div className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
+      <span className="td-bar" aria-hidden="true" />
       <button className="td-ck" role="checkbox" aria-checked={done} aria-label={`${done ? 'Reopen' : 'Finish'} ${t.title}`} onClick={onTick}>{done ? '✓' : ''}</button>
       <button className="td-main" onClick={onSelect} aria-label={`Open ${t.title}`} aria-expanded={selected}>
         <span className="td-title">{t.title}</span>
@@ -132,42 +134,5 @@ function TaskRow({ t, selected, onSelect, onTick, onDragStart, onDropOn }: { t: 
         </span>
       </button>
     </div>
-  )
-}
-
-function Detail({ t, folder, onClose, act, onOpenMessage, ask }: { t: Todo; folder: string; onClose: () => void; act: (p: Promise<unknown>) => void; onOpenMessage: (l: MessageLink) => void; ask: ReturnType<typeof useConfirm>[0] }) {
-  const [title, setTitle] = useState(t.title)
-  const [notes, setNotes] = useState(t.notes)
-  const done = t.status === 'done'
-  const link = done ? t.doneLink : t.createdLink
-  return (
-    <aside className="td-detail" aria-label="Task detail">
-      <button className="td-x" onClick={onClose} aria-label="Close detail">×</button>
-      <input className="td-dtitle" value={title} aria-label="Task title" onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && act(window.aw.todos.update(folder, t.id, { title }))} />
-      <dl className="td-kv">
-        <dt>List</dt><dd>{t.list}</dd>
-        <dt>Status</dt><dd>{t.status}{t.blockedWhy ? `: ${t.blockedWhy}` : ''}{t.claimedBy ? ` · ${t.claimedBy.name}` : ''}{t.stale ? ' · its turn ended without saying done or blocked' : ''}{t.auto ? ' · made from your message' : ''}</dd>
-        <dt>Created</dt><dd><Who a={t.createdBy} /> · {agoLabel(t.createdAt)}</dd>
-        <dt>Updated</dt><dd><Who a={t.updatedBy} /> · {agoLabel(t.updatedAt)}</dd>
-        {done && t.doneBy && <><dt>Done by</dt><dd><Who a={t.doneBy} /> · {agoLabel(t.doneAt ?? t.updatedAt)}</dd></>}
-      </dl>
-      <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
-      <textarea className="td-notes" rows={4} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
-      {done && t.doneNote && <div className="td-quote td-md"><Markdown text={t.doneNote} /></div>}
-      {link && (
-        <div className="td-link">
-          {link.excerpt && <div className="td-quote td-md" aria-label="The message"><Markdown text={link.excerpt} /></div>}
-          <button className="primary" onClick={() => onOpenMessage(link)}>{done ? 'Open the message it was finished in' : 'Open the message it was made in'} ↗</button>
-        </div>
-      )}
-      <div className="su-row">
-        <button className="primary" onClick={() => act(done ? window.aw.todos.reopen(folder, t.id) : window.aw.todos.done(folder, t.id))}>{done ? 'Reopen' : 'Mark done'}</button>
-        <button className="danger" onClick={() => void ask({ title: `Remove “${t.title}”?`, body: 'It is deleted for you and for the agents. This cannot be undone.', confirm: 'Remove', danger: true }).then((yes) => { if (yes) { act(window.aw.todos.remove(folder, t.id)); onClose() } })}>Remove</button>
-      </div>
-      <h4>History</h4>
-      <ul className="td-hist" aria-label="History">
-        {[...t.history].reverse().map((e, i) => <li key={i}><b>{e.what}</b> by <Who a={e.by} /> · {agoLabel(e.at)}{e.note ? ` (${e.note})` : ''}</li>)}
-      </ul>
-    </aside>
   )
 }
