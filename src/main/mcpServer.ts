@@ -235,16 +235,17 @@ const ago = (t: number, now = Date.now()) => {
   const s = Math.max(0, Math.round((now - t) / 1000))
   return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129_600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86_400)} days ago`
 }
-const who = (a: { name: string; provider?: string }) => (a.provider ? `${a.name} (${a.provider})` : a.name)
+const flat = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 200)
+const who = (a: { name: string; provider?: string; forMain?: string }) => `${a.provider ? `${a.name} (${a.provider})` : a.name}${a.forMain ? `, a subagent of ${a.forMain}` : ''}`
 const todoLine = (t: Todo) =>
   `#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
 const todoFull = (t: Todo) =>
   [
     todoLine(t),
     t.notes && `Notes: ${t.notes}`,
-    t.createdLink && `Made in ${t.createdBy.name}'s message ${ago(t.createdLink.at)}: "${t.createdLink.excerpt}"`,
+    t.createdLink && `Made in ${t.createdBy.name}'s message ${ago(t.createdLink.at)}: "${flat(t.createdLink.excerpt)}"`,
     t.status === 'done' && t.doneBy && `Done by ${who(t.doneBy)} ${ago(t.doneAt ?? t.updatedAt)}${t.doneNote ? `: ${t.doneNote}` : ''}`,
-    t.doneLink && `Finished in ${t.doneBy?.name ?? 'an agent'}'s message: "${t.doneLink.excerpt}"`,
+    t.doneLink && `Finished in ${t.doneBy?.name ?? 'an agent'}'s message: "${flat(t.doneLink.excerpt)}"`,
     'History:',
     ...t.history.map((e) => `- ${e.what} by ${who(e.by)} ${ago(e.at)}${e.note ? ` (${e.note})` : ''}`)
   ]

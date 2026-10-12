@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MessageLink, Todo, TodoBoard } from '../../shared/todos'
+import { useConfirm } from '../panel/ConfirmDialog'
+import { Markdown } from '../chat/markdown'
 import { Modal } from '../panel/Modal'
 import { actorTag, agoLabel, filterBoard, makers, splitList } from './todoView'
 
@@ -7,7 +9,7 @@ const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error in
 
 function Who({ a }: { a: Todo['createdBy'] }) {
   const t = actorTag(a)
-  return <span className="td-who"><i className={`td-dot ${t.tone}`} />{t.label}</span>
+  return <span className="td-who"><i className={`td-dot ${t.tone}`} />{t.label}{t.forMain && <small className="td-for"> for {t.forMain}</small>}</span>
 }
 
 /** The todo board of the open project in a large window: every list side by side, the person's tasks and the agents' together. */
@@ -24,6 +26,7 @@ export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: str
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null)
   const [error, setError] = useState('')
   const dragging = useRef<string | null>(null)
+  const [ask, confirmNode] = useConfirm()
 
   const load = useCallback(() => void window.aw.todos.get(folder).then((r) => setBoard(r.board), (e) => setError(clean(e))), [folder])
   useEffect(() => {
@@ -80,7 +83,7 @@ export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: str
                     {menu === list && (
                       <div className="td-pop" role="menu">
                         <button role="menuitem" onClick={() => (setRenaming({ from: list, to: list }), setMenu(null))}>Rename list</button>
-                        <button role="menuitem" className="danger" onClick={() => { const n = board.todos.filter((t) => t.list === list).length; setMenu(null); if (n === 0 || window.confirm(`Delete ${list} and its ${n} task${n === 1 ? '' : 's'}?`)) act(window.aw.todos.removeList(folder, list)) }}>Delete list</button>
+                        <button role="menuitem" className="danger" onClick={() => { const n = board.todos.filter((t) => t.list === list).length; setMenu(null); if (n === 0) return act(window.aw.todos.removeList(folder, list)); void ask({ title: `Delete ${list} and its ${n} task${n === 1 ? '' : 's'}?`, body: 'This cannot be undone.', confirm: 'Delete list', danger: true }).then((yes) => yes && act(window.aw.todos.removeList(folder, list))) }}>Delete list</button>
                       </div>
                     )}
                   </span>
@@ -104,8 +107,9 @@ export function TodoBoardModal({ folder, onClose, onOpenMessage }: { folder: str
             <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) act(window.aw.todos.addList(folder, newList)); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
           )}
         </div>
-        {open && <Detail key={open.id} t={open} folder={folder} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} />}
+        {open && <Detail key={open.id} t={open} folder={folder} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} ask={ask} />}
       </div>
+      {confirmNode}
     </Modal>
   )
 }
@@ -131,7 +135,7 @@ function TaskRow({ t, selected, onSelect, onTick, onDragStart, onDropOn }: { t: 
   )
 }
 
-function Detail({ t, folder, onClose, act, onOpenMessage }: { t: Todo; folder: string; onClose: () => void; act: (p: Promise<unknown>) => void; onOpenMessage: (l: MessageLink) => void }) {
+function Detail({ t, folder, onClose, act, onOpenMessage, ask }: { t: Todo; folder: string; onClose: () => void; act: (p: Promise<unknown>) => void; onOpenMessage: (l: MessageLink) => void; ask: ReturnType<typeof useConfirm>[0] }) {
   const [title, setTitle] = useState(t.title)
   const [notes, setNotes] = useState(t.notes)
   const done = t.status === 'done'
@@ -149,16 +153,16 @@ function Detail({ t, folder, onClose, act, onOpenMessage }: { t: Todo; folder: s
       </dl>
       <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
       <textarea className="td-notes" rows={4} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
-      {done && t.doneNote && <blockquote className="td-quote"><b>{t.doneNote}</b></blockquote>}
+      {done && t.doneNote && <div className="td-quote td-md"><Markdown text={t.doneNote} /></div>}
       {link && (
         <div className="td-link">
-          {link.excerpt && <blockquote className="td-quote"><i>“{link.excerpt}”</i></blockquote>}
+          {link.excerpt && <div className="td-quote td-md" aria-label="The message"><Markdown text={link.excerpt} /></div>}
           <button className="primary" onClick={() => onOpenMessage(link)}>{done ? 'Open the message it was finished in' : 'Open the message it was made in'} ↗</button>
         </div>
       )}
       <div className="su-row">
         <button className="primary" onClick={() => act(done ? window.aw.todos.reopen(folder, t.id) : window.aw.todos.done(folder, t.id))}>{done ? 'Reopen' : 'Mark done'}</button>
-        <button className="danger" onClick={() => { if (window.confirm(`Remove “${t.title}”?`)) { act(window.aw.todos.remove(folder, t.id)); onClose() } }}>Remove</button>
+        <button className="danger" onClick={() => void ask({ title: `Remove “${t.title}”?`, body: 'It is deleted for you and for the agents. This cannot be undone.', confirm: 'Remove', danger: true }).then((yes) => { if (yes) { act(window.aw.todos.remove(folder, t.id)); onClose() } })}>Remove</button>
       </div>
       <h4>History</h4>
       <ul className="td-hist" aria-label="History">

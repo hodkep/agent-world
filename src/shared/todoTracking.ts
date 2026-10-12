@@ -21,7 +21,14 @@ export function isWork(prompt: string): boolean {
 }
 
 /** The first line of a request, as the title of the task made for it. */
-export const requestTitle = (prompt: string): string => (prompt.trim().split('\n')[0] ?? '').trim().slice(0, 120)
+export function requestTitle(prompt: string): string {
+  const lines = prompt
+    .replace(/<\/?[a-z_][a-z0-9_-]*(\s[^>]*)?>/gi, '\n')
+    .split('\n')
+    .map((l) => l.replace(/@"[^"]*"/g, '').trim())
+    .filter(Boolean)
+  return (lines[0] ?? 'Request').slice(0, 120)
+}
 
 /** The person is putting something off. */
 export const deferralCue = (prompt: string): boolean => DEFER.test(prompt)

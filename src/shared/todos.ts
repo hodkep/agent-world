@@ -6,6 +6,8 @@ export interface Actor {
   id?: string
   name: string
   provider?: string
+  /** For a subagent: the main agent it works for. */
+  forMain?: string
 }
 
 /** Where in a chat something happened: enough to open that message, with a copy of its start for when it is gone. */
@@ -61,6 +63,17 @@ export interface TodoBoard {
 const TITLE_MAX = 200
 const NOTES_MAX = 4000
 const NOTE_MAX = 500
+
+const EXCERPT_MAX = 800
+
+/** The start of a message kept with a task, as the writer wrote it (markdown and all), cut at a line when it is long. */
+export function excerptOf(text: string, max = EXCERPT_MAX): string {
+  const t = text.trim()
+  if (t.length <= max) return t
+  const cut = t.slice(0, max)
+  const nl = cut.lastIndexOf('\n')
+  return nl > 0 ? `${cut.slice(0, nl).trimEnd()}\n…` : `${cut}…`
+}
 
 export const emptyBoard = (): TodoBoard => ({ lists: [], todos: [], next: 1 })
 

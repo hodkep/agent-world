@@ -3,6 +3,7 @@ import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
 import { createTodoService } from './todos/service'
 import { reminderLine, trackingHint } from '../shared/todoTracking'
+import { excerptOf } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
@@ -425,19 +426,23 @@ const todoService = createTodoService({
   workspaceKey: repoSlug,
   agent: (id) => {
     const a = byId(id)
-    return a ? { id: a.id, name: a.name, provider: providerOf(a).id, repoPath: a.repoPath } : undefined
+    if (!a) return undefined
+    // A subagent is shown with the main agent it works for (the top of its chain).
+    let top = a
+    for (let n = 0; top.parent && n < 8; n++) top = byId(top.parent) ?? top
+    return { id: a.id, name: a.name, provider: providerOf(a).id, repoPath: a.repoPath, ...(top !== a && { forMain: top.name }) }
   },
   // What the agent said last, which is the message a call it makes now belongs to.
   lastMessage: (id) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'assistant') ?? items.at(-1)
-    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? said.text.replace(/```[\s\S]*?```/g, ' … ').replace(/[*`#>_]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200) : '' } : undefined
+    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text) : '' } : undefined
   },
   // The message the person just sent: found among the chat's items when the transcript already has it, else pointed at by its words (the chat finds it by them).
   lastRequest: (id, text) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'user' && i.text.trim() === text.trim())
-    return { agentId: id, itemId: said?.id ?? '', at: said?.at ?? Date.now(), excerpt: text.replace(/\s+/g, ' ').trim().slice(0, 200) }
+    return { agentId: id, itemId: said?.id ?? '', at: said?.at ?? Date.now(), excerpt: excerptOf(text) }
   },
   onChange: (workspace) => send('todos-changed', workspace)
 })

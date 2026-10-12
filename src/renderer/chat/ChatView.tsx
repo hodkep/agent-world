@@ -34,6 +34,7 @@ import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
 import { hint, keysOf } from '../shortcuts'
 import { slipsFor, startsBefore } from './slips'
+import { HelpCard } from './HelpCard'
 import type { UsageLimits } from '../../shared/usage'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
@@ -276,8 +277,9 @@ export function ChatView({
   useEffect(() => {
     if (!jump) return
     // A task made from a message you sent points at it by its words until the transcript has it.
-    const words = jump.excerpt.slice(0, 60)
-    const at = found.findIndex((r) => (jump.itemId ? r.id === jump.itemId : r.kind === 'user' && !!words && r.text.replace(/\s+/g, ' ').trim().startsWith(words)))
+    const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+    const words = norm(jump.excerpt).slice(0, 60)
+    const at = found.findIndex((r) => (jump.itemId ? r.id === jump.itemId : r.kind === 'user' && !!words && norm(r.text).startsWith(words)))
     setLost(null)
     if (at < 0) return setLost(jump.excerpt || 'That message is no longer in this conversation.')
     stick.current = false
@@ -1093,6 +1095,7 @@ function Composer({
 }) {
   const [text, setText] = useState(() => drafts.get(agentId) ?? '')
   const [commands, setCommands] = useState<PaletteCommand[]>([])
+  const [help, setHelp] = useState(false)
   const [files, setFiles] = useState<string[]>([])
   const [at, setAt] = useState(0)
   // Esc closes the open list of completions; it stays closed until the words before the caret change.
@@ -1310,6 +1313,13 @@ function Composer({
     const asked = quotes.map((q) => [q.text.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n'), q.note.trim()].filter(Boolean).join('\n\n')).join('\n\n')
     const body = picked ? [mentions, picked, value].filter(Boolean).join('\n\n') : mentions ? `${mentions}${value ? `\n${value}` : ''}` : value
     const full = asked ? [asked, body].filter(Boolean).join('\n\n') : body
+    // /help is a screen of the program's terminal that leaves nothing in the conversation, so the chat answers it itself (and sends nothing to the terminal).
+    if (/^\/help$/i.test(value) && !mentions && !asked && !picked) {
+      setHelp(true)
+      setText('')
+      undo.current.reset({ text: '', caret: 0 })
+      return
+    }
     try {
       await onSend(full)
       if (value) sent.current.unshift(value)
@@ -1354,6 +1364,7 @@ function Composer({
       }}
     >
       {latest}
+      {help && <HelpCard commands={commands} onClose={() => setHelp(false)} onPick={(name) => { setHelp(false); setText(`/${name} `); requestAnimationFrame(() => box.current?.focus()) }} />}
       {suggestions.length > 0 && (
         <ul className="suggest" role="listbox" aria-label="Suggestions">
           {suggestions.map((s, i) => (

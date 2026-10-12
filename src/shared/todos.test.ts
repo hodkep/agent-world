@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addList, addTodo, claimTodo, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { addList, addTodo, claimTodo, excerptOf, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -79,6 +79,22 @@ describe('changing', () => {
   })
   it('says what is not found', () => {
     expect(() => doneTodo(start(), '99', ada, '', 1)).toThrow(/99/)
+  })
+})
+
+describe('excerptOf', () => {
+  it('keeps the markdown as written and trims the ends', () => {
+    expect(excerptOf('  | a | b |\n|---|---|\n| 1 | 2 |  ')).toBe('| a | b |\n|---|---|\n| 1 | 2 |')
+  })
+  it('cuts a long text at a line, never in the middle of one, and says it was cut', () => {
+    const text = Array.from({ length: 100 }, (_, i) => `line ${i} of the message`).join('\n')
+    const out = excerptOf(text, 120)
+    expect(out.length).toBeLessThanOrEqual(125)
+    expect(out.endsWith('\n…')).toBe(true)
+    expect(out.split('\n').slice(0, -1).every((l) => /^line \d+ of the message$/.test(l))).toBe(true)
+  })
+  it('cuts one very long line where it must', () => {
+    expect(excerptOf('x'.repeat(2000), 100)).toBe(`${'x'.repeat(100)}…`)
   })
 })
 
