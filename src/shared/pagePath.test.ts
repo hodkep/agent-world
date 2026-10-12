@@ -12,8 +12,11 @@ describe('pagePath: what typed into the Preview bar is a local page', () => {
   it('takes a PDF too, since the file server shows those', () => {
     expect(pagePath('/tmp/report.pdf')).toBe('/tmp/report.pdf')
   })
+  it('takes a path from the agent\'s folder too, as it was typed', () => {
+    for (const t of ['a.html', 'index.htm', './out/index.html', '../site/a.html', 'site/index.html', 'my design/a.html', 'out\\index.html']) expect(pagePath(t)).toBe(t)
+  })
   it('leaves addresses, ports, other files and a missing name alone', () => {
-    for (const t of ['5287', 'localhost:3000/a.html', 'http://localhost:3000/a.html', 'https://example.com/a.html', '/tmp/notes.md', '/tmp/', '~', 'a.html', '', '   ']) expect(pagePath(t)).toBeNull()
+    for (const t of ['5287', 'localhost:3000/a.html', 'localhost:3000', 'http://localhost:3000/a.html', 'https://example.com/a.html', '/tmp/notes.md', '/tmp/', '~', 'notes.md', 'site/', '', '   ']) expect(pagePath(t)).toBeNull()
   })
 })
 
