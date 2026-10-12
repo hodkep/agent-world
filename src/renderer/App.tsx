@@ -44,6 +44,8 @@ import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { LibraryModal } from './panel/LibraryModal'
 import { TodoBoardModal } from './todos/TodoBoardModal'
+import { OPEN_MESSAGE, OPEN_TODO, setTodoBoard } from './todos/todoStore'
+import type { MessageLink } from '../shared/todos'
 import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
@@ -161,11 +163,30 @@ export function App() {
   const [todoFocus, setTodoFocus] = useState<string | null>(null)
   const [jump, setJump] = useState<{ agentId: string; itemId: string; excerpt: string; n: number } | null>(null)
   useEffect(() => {
-    if (!folder) return setTodoNeeds(0)
-    const load = () => void window.aw.todos.needsYou(folder).then(setTodoNeeds, () => undefined)
+    if (!folder) return (setTodoNeeds(0), setTodoBoard(null))
+    const load = () => void window.aw.todos.get(folder).then((r) => (setTodoBoard(r.board), setTodoNeeds(r.board.todos.filter((t) => t.needsYou && t.status !== 'done').length)), () => undefined)
     load()
     return window.aw.onTodosChanged(load)
   }, [folder])
+  // The chat of the agent that said something, scrolled to that message (what a task or a card points back at).
+  const openMsg = (l: MessageLink) => {
+    select(l.agentId)
+    setView('chat')
+    setJump({ agentId: l.agentId, itemId: l.itemId, excerpt: l.excerpt, n: Date.now() })
+  }
+  const openMsgRef = useRef(openMsg)
+  openMsgRef.current = openMsg
+  useEffect(() => {
+    const open = (e: Event) => openMsgRef.current((e as CustomEvent<MessageLink>).detail)
+    window.addEventListener(OPEN_MESSAGE, open)
+    return () => window.removeEventListener(OPEN_MESSAGE, open)
+  }, [])
+  // A link to a task, anywhere in the app, opens the Todos window on it.
+  useEffect(() => {
+    const open = (e: Event) => (setTodoFocus(String((e as CustomEvent).detail)), setTodoOpen(true))
+    window.addEventListener(OPEN_TODO, open)
+    return () => window.removeEventListener(OPEN_TODO, open)
+  }, [])
   // What is installed here; first-run setup opens from it, and Settings can open it again.
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
@@ -1143,12 +1164,7 @@ export function App() {
             }
           }}
           onClose={() => (setTodoOpen(false), setTodoFocus(null))}
-          onOpenMessage={(l) => {
-            setTodoOpen(false)
-            select(l.agentId)
-            setView('chat')
-            setJump({ agentId: l.agentId, itemId: l.itemId, excerpt: l.excerpt, n: Date.now() })
-          }}
+          onOpenMessage={(l) => (setTodoOpen(false), openMsg(l))}
         />
       )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} onClose={() => setLibraryOpen(false)} />}

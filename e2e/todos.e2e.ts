@@ -48,7 +48,7 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     const mcp = JSON.parse(readFileSync(claudeLine[claudeLine.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
-    expect(say(await client.callTool({ name: 'todo_add', arguments: { title: 'Log in to agy', list: 'Tools', needs_you: true } }))).toContain('Added todo 2 to Tools')
+    expect(say(await client.callTool({ name: 'todo_add', arguments: { title: 'Log in to agy', list: 'Tools', needs_you: true } }))).toContain('Added todo#2 to Tools')
     const theirs = board.getByRole('button', { name: 'Open Log in to agy' })
     await expect(theirs).toContainText('ada · Claude')
     await expect(theirs).toContainText('needs you')
@@ -57,7 +57,7 @@ test('todos: a board of lists the person and an agent both fill, with a finished
 
     // The person sees both with who made them; the agent sees the person's task too, and finishes its own.
     expect(say(await client.callTool({ name: 'todo_list', arguments: {} }))).toContain('Add the Anthropic key')
-    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '2', note: 'logged in' } }))).toContain('Marked todo 2 done')
+    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '2', note: 'logged in' } }))).toContain('Marked todo#2 done')
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     await expect(board.getByRole('button', { name: 'Open Log in to agy' })).toHaveCount(0)
     await board.getByRole('button', { name: /Done \(1\)/ }).click()
@@ -94,6 +94,13 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     await expect(board).toHaveCount(0)
     await expect(log.locator('.msg.user').last()).toContainText('todo#1')
     await expect(log.locator('.msg.user').last()).toContainText('Start with the Settings page.')
+    // The task is named todo#1 in that message and is a link: a click opens the board on it.
+    const chip = log.locator('.msg.user').last().locator('.todo-ref')
+    await expect(chip).toContainText('todo#1')
+    await expect(chip).toContainText('Add the Anthropic key')
+    await chip.click()
+    await expect(board.getByRole('complementary', { name: 'Task detail' }).getByLabel('Task title')).toHaveValue('Add the Anthropic key')
+    await board.getByRole('button', { name: 'Close todos' }).click()
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     await expect(board.getByRole('listitem', { name: 'Manual setup' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toContainText('doing · ada')
 

@@ -419,6 +419,21 @@ if (process.env.FAKE_CHAT) {
       const nav = use('mcp__playwright__browser_navigate', { url: 'https://experts.snorkel-ai.com/home' })
       done(nav, "### Ran Playwright code\n```js\nawait page.goto('https://experts.snorkel-ai.com/home');\n```\n### Page\n- Page URL: https://experts.snorkel-ai.com/home\n- Page Title: Snorkel AI Experts Portal")
     }
+    // FAKE_TODO=1: calls to the todo tools, as an agent keeping the board would make them, and a reply that names a task.
+    if (process.env.FAKE_TODO) {
+      const t = 'mcp__agent-world__'
+      const a = use(`${t}todo_add`, { title: 'Write the docs page', list: 'Manual setup', needs_you: true })
+      done(a, 'Added todo#14 to Manual setup.')
+      const l = use(`${t}todo_list`, {})
+      done(l, 'todo#14 [Manual setup] Write the docs page — open, needs you; created by ada (claude) just now, updated just now\ntodo#9 [Tools] Slow — thing — doing, bob (agy) is on it; created by you 2 h ago, updated 3 min ago')
+      const c = use(`${t}todo_claim`, { id: '9' })
+      done(c, 'You are on todo#9: Slow — thing.')
+      const u = use(`${t}todo_update`, { id: '9', status: 'blocked', blocked_why: 'needs the fake tool' })
+      done(u, 'Updated todo#9.')
+      const d = use(`${t}todo_done`, { id: '14', note: 'Wrote the docs page.' })
+      done(d, 'Marked todo#14 done.')
+      say('All set: todo#14 is finished and `todo#99` stays code. See todo #9 too.')
+    }
     // FAKE_FILES=1: the agent makes a few files and names them in its reply, as a real one does.
     if (process.env.FAKE_FILES) {
       const fs = await import('node:fs')

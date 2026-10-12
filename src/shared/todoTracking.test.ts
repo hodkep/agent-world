@@ -14,8 +14,8 @@ describe('trackingHint', () => {
     expect(h).toMatch(/every request|each request/i)
   })
   it('stays short, because it is paid for in every session', () => {
-    expect(trackingHint('deferred').length).toBeLessThan(420)
-    expect(trackingHint('full').length).toBeLessThan(520)
+    expect(trackingHint('deferred').length).toBeLessThan(480)
+    expect(trackingHint('full').length).toBeLessThan(600)
   })
 })
 
@@ -56,7 +56,7 @@ describe('reminderLine', () => {
   })
   it('in full mode names the task made for the request and how to close it', () => {
     const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Requests' })
-    expect(l).toContain('#12')
+    expect(l).toContain('todo#12')
     expect(l).toMatch(/todo_done/)
   })
   it('in full mode says nothing when no task was made (a thank-you)', () => {

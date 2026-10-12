@@ -12,6 +12,8 @@ import { languageFor, monaco } from '../code/monaco'
 import { followLink, linkHint } from '../links'
 import { openFileEvent } from '../files/context'
 import { handleFileClick, linkifyFiles } from '../files/linkify'
+import { linkifyTodos } from '../todos/linkifyTodos'
+import { openTodo, useTodoVersion } from '../todos/todoStore'
 import { EMOJI } from './emoji'
 
 marked.setOptions({ gfm: true, breaks: false })
@@ -96,6 +98,11 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
     [text]
   )
   const box = useRef<HTMLDivElement>(null)
+  // A link to a task shows its title and state, so it is drawn again when the board changes.
+  const todos = useTodoVersion()
+  useEffect(() => {
+    if (box.current) linkifyTodos(box.current)
+  }, [html, todos])
   useEffect(() => {
     const el = box.current
     if (!el) return
@@ -167,6 +174,8 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       // The HTML above has been through DOMPurify.
       dangerouslySetInnerHTML={{ __html: html }}
       onClick={(e) => {
+        const ref = (e.target as HTMLElement).closest<HTMLElement>('.todo-ref')
+        if (ref?.dataset.todo) return openTodo(ref.dataset.todo)
         if (handleFileClick(e, agentId ?? '')) return
         const a = (e.target as HTMLElement).closest('a')
         if (!a) return

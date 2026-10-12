@@ -7,9 +7,9 @@ const SMALL_TALK = /^(ok(ay)?|yes|no|yep|nope|thanks?|thank you|thx|cool|great|n
 /** One short paragraph in an agent's opening text; paid for in every session, so it is kept brief. */
 export function trackingHint(mode: TodoTracking): string {
   if (mode === 'full') {
-    return 'This project keeps a todo board the person watches. The app records every request you are given as a task for you. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot).'
+    return 'This project keeps a todo board the person watches. The app records every request you are given as a task for you. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot). Name a task as todo#N in your replies so it links to the board.'
   }
-  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked.'
+  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked. Name a task as todo#N in your replies so it links to the board.'
 }
 
 /** A request with some substance: not a thank-you, a slash command or a one-word answer. */
@@ -36,7 +36,7 @@ export const deferralCue = (prompt: string): boolean => DEFER.test(prompt)
 /** What is added to a message an agent is sent, in the mode in force: nothing most of the time. */
 export function reminderLine(mode: TodoTracking, prompt: string, made?: { id: string; list: string }): string {
   if (mode === 'full') {
-    return made ? `Todo #${made.id} (${made.list}) tracks this request, and you are on it. Call todo_done when it is finished, or todo_update with status blocked and why.` : ''
+    return made ? `todo#${made.id} (${made.list}) tracks this request, and you are on it. Call todo_done when it is finished, or todo_update with status blocked and why.` : ''
   }
   return deferralCue(prompt) ? 'If this puts something off, record it with todo_add so it is not forgotten.' : ''
 }

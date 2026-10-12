@@ -6,6 +6,8 @@ import { Code, Markdown } from './markdown'
 import { argRows, mcpHeadline, parseMcpName, resultNote, resultSections, toolLookup } from './mcp'
 import { bashTitle } from './titles'
 import { MonitorCard, ScheduleCard, UnscheduleLine } from './WatchCards'
+import './cards/todo'
+import { toolCardFor } from './cards/registry'
 
 export interface ToolRun {
   name: string
@@ -190,11 +192,15 @@ function ToolLookupLine({ run, status }: { run: ToolRun; status: string }) {
 /** What a tool call looks like in the conversation: a headline you can read at a glance, details on demand. */
 export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boolean; onImage: (src: string) => void }) {
   const { name, input, result } = run
+  const agentId = useContext(AgentIdContext)
   const failed = result?.isError
   const status = result ? (failed ? 'failed' : 'done') : working ? 'running' : 'unknown'
   const out = result?.text ?? ''
   // A command starts folded to its headline; a click on it opens the command and what it printed, and another folds it again.
   const [open, setOpen] = useState(false)
+  // A tool with a card of its own (registered in chat/cards) is drawn by it; the rest fall through to the generic card.
+  const own = toolCardFor({ name, input })
+  if (own) return <own.Card run={run} agentId={agentId} working={working} />
   if (name === 'ToolSearch') return <ToolLookupLine run={run} status={status} />
   if (name === 'Monitor') return <MonitorCard run={run} />
   if (name === 'Schedule') return <ScheduleCard run={run} />
