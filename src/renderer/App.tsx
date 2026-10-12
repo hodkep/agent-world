@@ -1571,7 +1571,7 @@ export function App() {
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
-          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
+          {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} inPlace={current.branch ? undefined : { path: current.cwd }} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>
         {current && subs[current.id] && (
           <SubagentPanel

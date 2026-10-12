@@ -50,7 +50,7 @@ import { recentlyRunning, writeRunning } from './resume'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
-import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, type WorkspaceState } from './workspaces'
+import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
@@ -1258,7 +1258,7 @@ async function main() {
   // Each window has its own project, chosen on the picker a fresh window opens with; the saved list is shared.
   const workspaceInfo = async (windowId: number) => {
     const active = windowWorkspaces.get(windowId)
-    const paths = [...new Set([...workspaces.recent, ...(active ? [active] : [])])]
+    const paths = workspacePaths(workspaces, active, agents.filter((a) => !a.parent).map((a) => a.repoPath))
     const items = await Promise.all(
       paths.map(async (path) => ({
         path,
