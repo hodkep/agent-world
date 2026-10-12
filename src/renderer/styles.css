@@ -2630,3 +2630,27 @@ aside:not(.drawer) { flex: none; }
 .su-cost th { color: var(--text); }
 .su-cost td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); }
 .td-cost .hint { margin: 0; }
+
+.confirm-dialog.settings { width: min(420px, 92vw); height: auto; min-height: 0; }
+.cf-body { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.cf-body b { font-size: 14px; line-height: 1.4; }
+.cf-body p { margin: 0; color: var(--muted); line-height: 1.5; }
+.cf-body .su-row { justify-content: flex-end; margin-top: 6px; }
+
+.td-md { font-style: normal; max-height: 260px; overflow: auto; }
+.td-md > :first-child { margin-top: 0; } .td-md > :last-child { margin-bottom: 0; }
+.td-md table { font-size: 11.5px; }
+.td-for { color: var(--muted); }
+
+/* /help answered in the chat */
+.help-card { margin: 0 0 6px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; max-height: 320px; }
+.help-card header { display: flex; align-items: baseline; gap: 8px; }
+.help-card header small { color: var(--muted); }
+.help-card header button { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1; }
+.help-body { overflow: auto; min-height: 0; }
+.help-body h4 { margin: 8px 0 2px; font: 700 10.5px Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.help-body ul { list-style: none; margin: 0; padding: 0; }
+.help-body li button { display: flex; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 3px 4px; }
+.help-body li button:hover { background: var(--selected); }
+.help-body code { color: var(--accent); flex: none; }
+.help-body li span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

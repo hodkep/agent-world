@@ -31,6 +31,11 @@ describe('isWork', () => {
 })
 
 describe('requestTitle', () => {
+  it('skips wrapper tags and attached-file lines, and takes the first real line', () => {
+    expect(requestTitle('<pasted_content id="7f60">\n@"/tmp/a.png"\n1. SS1 - the history is not needed\n2. more</pasted_content>')).toBe('1. SS1 - the history is not needed')
+    expect(requestTitle('<pasted_content id="x">just this</pasted_content>')).toBe('just this')
+    expect(requestTitle('@"/a.png" @"/b.png"')).toBe('Request')
+  })
   it('is the first line, trimmed to a title', () => {
     expect(requestTitle('  Fix the login bug\nit fails on Safari  ')).toBe('Fix the login bug')
     expect(requestTitle('x'.repeat(300)).length).toBeLessThanOrEqual(120)

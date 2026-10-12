@@ -10,7 +10,7 @@ export interface TodoDeps {
   /** Where the boards are kept: one file per project. */
   dir: string
   workspaceKey: (repoPath: string) => string
-  agent: (id: string) => { id: string; name: string; provider: string; repoPath: string } | undefined
+  agent: (id: string) => { id: string; name: string; provider: string; repoPath: string; /** For a subagent: the main agent it works for. */ forMain?: string } | undefined
   /** The message an agent most recently said, so a task can point back at it. */
   lastMessage: (agentId: string) => MessageLink | undefined
   /** The message the person just sent an agent (its words are given), so the task made for it points at it. */
@@ -56,7 +56,7 @@ export function createTodoService(d: TodoDeps) {
     if (!a) throw new Error('Only an agent in this office can use the todo board.')
     return a
   }
-  const actor = (a: { id: string; name: string; provider: string }): Actor => ({ kind: 'agent', id: a.id, name: a.name, provider: a.provider })
+  const actor = (a: { id: string; name: string; provider: string; forMain?: string }): Actor => ({ kind: 'agent', id: a.id, name: a.name, provider: a.provider, ...(a.forMain && { forMain: a.forMain }) })
   /** Runs a change on a project's board and saves it. */
   const change = <T>(repoPath: string, f: (b: TodoBoard) => { board: TodoBoard; out: T }): T => {
     const key = keyOf(repoPath)

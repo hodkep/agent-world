@@ -3,12 +3,15 @@ import type { Actor, Todo, TodoBoard } from '../../shared/todos'
 export interface ActorTag {
   tone: 'me' | 'cl' | 'ag'
   label: string
+  /** For a subagent: the main agent it works for. */
+  forMain?: string
 }
 
 /** Who made or changed something, as the board labels it: a colour for you, Claude and agy. */
 export function actorTag(a: Actor): ActorTag {
   if (a.kind === 'human') return { tone: 'me', label: a.name }
-  return a.provider === 'agy' ? { tone: 'ag', label: `${a.name} · agy` } : { tone: 'cl', label: `${a.name} · ${a.provider === 'claude' || !a.provider ? 'Claude' : a.provider}` }
+  const main = a.forMain ? { forMain: a.forMain } : {}
+  return a.provider === 'agy' ? { tone: 'ag', label: `${a.name} · agy`, ...main } : { tone: 'cl', label: `${a.name} · ${a.provider === 'claude' || !a.provider ? 'Claude' : a.provider}`, ...main }
 }
 
 export function agoLabel(t: number, now = Date.now()): string {

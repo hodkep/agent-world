@@ -8,10 +8,11 @@ const make = () => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-todos-'))
   const changes: string[] = []
   let clock = 1000
-  const agents: Record<string, { id: string; name: string; provider: string; repoPath: string }> = {
+  const agents: Record<string, { id: string; name: string; provider: string; repoPath: string; forMain?: string }> = {
     a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' },
     b1: { id: 'b1', name: 'bob', provider: 'agy', repoPath: '/work/shop' },
-    c1: { id: 'c1', name: 'cy', provider: 'claude', repoPath: '/work/other' }
+    c1: { id: 'c1', name: 'cy', provider: 'claude', repoPath: '/work/other' },
+    h1: { id: 'h1', name: 'helper', provider: 'agy', repoPath: '/work/shop', forMain: 'ada' }
   }
   const svc = createTodoService({
     dir,
@@ -96,6 +97,14 @@ describe('the todo service', () => {
     const { svc } = make()
     expect(svc.trackRequest('a1', 'thanks')).toBeUndefined()
     expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('says which main agent a subagent works for, on what it adds and finishes', () => {
+    const { svc } = make()
+    const t = svc.addByAgent('h1', { title: 'Found a flaky test' })
+    expect(t.createdBy).toMatchObject({ name: 'helper', provider: 'agy', forMain: 'ada' })
+    svc.doneByAgent('h1', t.id, 'fixed')
+    expect(svc.board('/work/shop').todos[0]!.doneBy).toMatchObject({ forMain: 'ada' })
   })
 
   it('counts what needs the person, per project', () => {

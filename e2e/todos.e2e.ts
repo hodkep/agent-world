@@ -74,6 +74,15 @@ test('todos: a board of lists the person and an agent both fill, with a finished
 
     // A task moves to another list by dragging, and the board survives a reload (it is in a file).
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
+    // Deleting a list asks inside the app, and Cancel keeps everything.
+    await board.getByRole('button', { name: 'Menu for Manual setup' }).click()
+    await board.getByRole('menuitem', { name: 'Delete list' }).click()
+    const sure = page.getByRole('dialog', { name: /Delete Manual setup and its 1 task\?/ })
+    await expect(sure).toBeVisible()
+    await sure.getByRole('button', { name: 'Cancel' }).click()
+    await expect(sure).toHaveCount(0)
+    await expect(board.getByRole('listitem', { name: 'Manual setup' })).toBeVisible()
+
     await board.getByRole('button', { name: 'Open Add the Anthropic key' }).dragTo(board.getByRole('listitem', { name: 'Tools' }).locator('.td-body'))
     await expect(board.getByRole('listitem', { name: 'Tools' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toBeVisible()
     await page.reload()

@@ -11,6 +11,7 @@ describe('actorTag', () => {
     expect(actorTag(you)).toEqual({ tone: 'me', label: 'you' })
     expect(actorTag(ada)).toEqual({ tone: 'cl', label: 'ada · Claude' })
     expect(actorTag(bob)).toEqual({ tone: 'ag', label: 'bob · agy' })
+    expect(actorTag({ ...bob, forMain: 'ada' })).toEqual({ tone: 'ag', label: 'bob · agy', forMain: 'ada' })
   })
 })
 
