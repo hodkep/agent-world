@@ -463,7 +463,7 @@ const todoRemind = (id: string, prompt: string): string => {
     const similar = similarLine(todoService.similarDone(id, prompt))
     if (prefs.todoTracking !== 'full') return [reminderLine('deferred', prompt), similar].filter(Boolean).join('\n')
     const made = todoService.trackRequest(id, prompt)
-    return [reminderLine('full', prompt, made && { id: made.id, list: made.list }), similar].filter(Boolean).join('\n')
+    return [reminderLine('full', prompt, made && { id: made.id, list: made.list }, todoService.listsOf(id)), similar].filter(Boolean).join('\n')
   } catch {
     return ''
   }

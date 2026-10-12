@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { INBOX, MAX_LISTS, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -190,5 +190,40 @@ describe('needsYou', () => {
     b = addTodo(b, { title: 'c' }, ada, 3).board
     expect(needsYou(b)).toBe(2)
     expect(needsYou(doneTodo(b, '1', you, '', 4))).toBe(1)
+  })
+})
+
+describe('resolveList', () => {
+  const lists = ['Application', 'Canvas', 'Library & playbooks', 'Release']
+  it('finds an existing list however it is written', () => {
+    expect(resolveList(lists, 'application')).toBe('Application')
+    expect(resolveList(lists, '  CANVAS ')).toBe('Canvas')
+    expect(resolveList(lists, 'Canvases')).toBe('Canvas')
+    expect(resolveList(lists, 'library')).toBe('Library & playbooks')
+    expect(resolveList(lists, 'Playbook')).toBe('Library & playbooks')
+    expect(resolveList(lists, 'Releases')).toBe('Release')
+  })
+  it('keeps a new name when nothing existing is close', () => {
+    expect(resolveList(lists, 'Terminal')).toBe('Terminal')
+    expect(resolveList([], 'Terminal')).toBe('Terminal')
+  })
+  it('does not call two different areas the same because they share a common word', () => {
+    expect(resolveList(['Agent chat'], 'Agent canvas')).toBe('Agent canvas')
+  })
+  it('knows the lists that say nothing about an area', () => {
+    for (const n of ['Requests', 'misc', 'Other', 'General', 'To do', 'Tasks', 'stuff', 'Todo', 'Backlog']) expect(isGenericList(n), n).toBe(true)
+    expect(isGenericList('Canvas')).toBe(false)
+    expect(isGenericList(INBOX)).toBe(false)
+    expect(MAX_LISTS).toBeGreaterThanOrEqual(6)
+  })
+})
+
+describe('moving a task by list name through an update', () => {
+  it('updateTodo can put a task in another list, making it if needed, and records it', () => {
+    let b = addTodo(emptyBoard(), { title: 'Wire it', list: INBOX }, you, 1).board
+    b = updateTodo(b, '1', { list: 'Application', title: 'Wire the Anthropic key' }, ada, 2)
+    expect(b.lists).toContain('Application')
+    expect(b.todos[0]).toMatchObject({ list: 'Application', title: 'Wire the Anthropic key' })
+    expect(b.todos[0]!.history.at(-1)).toMatchObject({ what: 'moved', note: 'Inbox → Application' })
   })
 })

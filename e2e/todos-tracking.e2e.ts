@@ -42,7 +42,7 @@ test('todos: fully tracked mode makes a task of each request, flags it when the 
     await box.press('Enter')
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     const board = page.getByRole('dialog', { name: 'Todos' })
-    const task = board.getByRole('listitem', { name: 'Requests' }).getByRole('button', { name: 'Open please fix the login bug on Safari' })
+    const task = board.getByRole('listitem', { name: 'Inbox' }).getByRole('button', { name: 'Open fix the login bug on Safari' })
     await expect(task).toBeVisible()
     await expect(task).toContainText('you')
     // Its turn ended and the agent never said done: the board says so rather than showing work in hand.
@@ -52,10 +52,13 @@ test('todos: fully tracked mode makes a task of each request, flags it when the 
     const mcp = JSON.parse(readFileSync(claudeLine()[claudeLine().indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
-    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '1', note: 'fixed the Safari cookie' } }))).toContain('Marked todo#1 done')
+    expect(say(await client.callTool({ name: 'todo_done', arguments: { id: '1', note: 'fixed the Safari cookie', title: 'Wire the Safari cookie fix', list: 'Application' } }))).toContain('Marked todo#1 done')
     await expect(task).toHaveCount(0)
-    await board.getByRole('button', { name: /Done \(1\)/ }).click()
-    await expect(board.getByRole('button', { name: 'Open please fix the login bug on Safari' })).not.toContainText('unfinished')
+    // It was named and sorted as it was finished: it left the Inbox for a list by area, and the empty Inbox is not shown.
+    await expect(board.getByRole('listitem', { name: 'Inbox' })).toHaveCount(0)
+    const area = board.getByRole('listitem', { name: 'Application' })
+    await area.getByRole('button', { name: /Done \(1\)/ }).click()
+    await expect(area.getByRole('button', { name: 'Open Wire the Safari cookie fix' })).not.toContainText('unfinished')
     await client.close()
   } finally {
     await shutdown()

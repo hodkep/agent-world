@@ -19,9 +19,11 @@ export interface TodoApi {
   getForAgent: (callerId: string, id: string) => Todo
   addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => Todo
   claimByAgent: (callerId: string, id: string) => Todo
-  doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[] }) => Todo
+  doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }) => Todo
   searchForAgent: (callerId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }) => TodoHit[]
-  updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }) => Todo
+  updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }) => Todo
+  /** The lists by area on the board (not the Inbox). */
+  listsOf: (callerId: string) => string[]
 }
 
 interface Options {
@@ -278,7 +280,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         mine: z.boolean().optional().describe('Only the tasks you claimed')
       }
     },
-    async (f) => run(() => { const l = todos.listForAgent(callerId, f); return l.length ? l.map(todoLine).join('\n') : f.status === 'done' ? 'No done todos.' : 'No open todos.' })
+    async (f) => run(() => { const l = todos.listForAgent(callerId, f); const lists = todos.listsOf(callerId); const head = lists.length ? `Lists: ${lists.join(', ')}\n` : ''; return l.length ? head + l.map(todoLine).join('\n') : f.status === 'done' ? 'No done todos.' : 'No open todos.' })
   )
   server.registerTool(
     'todo_search',
@@ -310,12 +312,12 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
       description: 'Add a task to this project\'s todo board. Use needs_you for a step only the person can do (a key to paste, a login, an install). The task remembers the message you said it in.',
       inputSchema: {
         title: z.string().min(1).max(200).describe('What needs doing, in a line'),
-        list: z.string().max(60).optional().describe('The list to put it in (made if new); the first list by default'),
+        list: z.string().max(60).optional().describe('The list for the part of the project it belongs to (Application, Canvas, Library…): an existing list that means it is used, a new one is made only when none fits. Leave it out to put the task in the Inbox.'),
         notes: z.string().max(4000).optional().describe('Steps or detail'),
         needs_you: z.boolean().optional().describe('Only the person can do this')
       }
     },
-    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return `Added todo#${t.id} to ${t.list}.` })
+    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return t.list === 'Inbox' ? `Added todo#${t.id} to Inbox. Name it and sort it into a list by area with todo_update (title, list).` : `Added todo#${t.id} to ${t.list}.` })
   )
   server.registerTool(
     'todo_claim',
@@ -330,10 +332,12 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         id,
         note: z.string().max(500).optional().describe('What was done, in a line'),
         how: z.string().max(1500).optional().describe('How: the approach, the steps, anything a later reader needs'),
-        files: z.array(z.string().max(300)).max(30).optional().describe('The main files you changed or read')
+        files: z.array(z.string().max(300)).max(30).optional().describe('The main files you changed or read'),
+        title: z.string().min(1).max(200).optional().describe('A line that says what was done, if the task still has the person\'s words for a title'),
+        list: z.string().max(60).optional().describe('The list for its area, if it is still in the Inbox')
       }
     },
-    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? '', { how: a.how, files: a.files }); return `Marked todo#${t.id} done.` })
+    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? '', { how: a.how, files: a.files, title: a.title, list: a.list }); return `Marked todo#${t.id} done.` })
   )
   server.registerTool(
     'todo_update',
@@ -341,14 +345,15 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
       description: 'Change a task: its title, notes, whether it needs the person, or its status (open, doing, blocked: say why).',
       inputSchema: {
         id,
-        title: z.string().min(1).max(200).optional(),
+        title: z.string().min(1).max(200).optional().describe('A line that says what is being done (your words, not the person\'s)'),
+        list: z.string().max(60).optional().describe('Move it to the list for its area (Application, Canvas…); an existing list that means it is used'),
         notes: z.string().max(4000).optional(),
         needs_you: z.boolean().optional(),
         status: z.enum(['open', 'doing', 'blocked']).optional(),
         blocked_why: z.string().max(500).optional().describe('Why it is blocked')
       }
     },
-    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo#${t.id}.` })
+    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo#${t.id}.` })
   )
 }
 

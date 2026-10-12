@@ -81,6 +81,36 @@ export function excerptOf(text: string, max = EXCERPT_MAX): string {
   return nl > 0 ? `${cut.slice(0, nl).trimEnd()}\n…` : `${cut}…`
 }
 
+/** Where a task made from a request waits until it is named and put in a list by area. */
+export const INBOX = 'Inbox'
+/** How many lists an agent may make before it must reuse one: a board with a list for everything is as little use as one list for all. */
+export const MAX_LISTS = 8
+
+const GENERIC = new Set(['request', 'requests', 'misc', 'miscellaneous', 'other', 'others', 'general', 'todo', 'todos', 'to do', 'task', 'tasks', 'stuff', 'things', 'backlog', 'new', 'unsorted', 'various', 'default'])
+const norm = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const STOP = new Set(['and', 'the', 'of', 'for', 'a', 'to'])
+const variants = (w: string) => new Set([w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ies$/, 'y')])
+const sameWord = (a: string, b: string) => [...variants(a)].some((v) => variants(b).has(v))
+const wordsOf = (n: string) => norm(n).split(' ').filter((w) => w && !STOP.has(w))
+
+/** A list name that says nothing about an area ("Requests", "Misc", "Other"). Agents are asked to name an area instead. */
+export const isGenericList = (n: string): boolean => GENERIC.has(norm(n))
+
+/** The existing list a name means, however it is written (case, plural, a word of a longer name); else the name as given. Keeps the board to a few lists without anyone policing it. */
+export function resolveList(lists: string[], name: string): string {
+  const given = clip(name, 60)
+  const want = wordsOf(given)
+  if (!want.length) return given
+  const exact = lists.find((l) => norm(l) === norm(given))
+  if (exact) return exact
+  const ranked = lists
+    .map((l) => ({ l, have: wordsOf(l) }))
+    .filter(({ have }) => have.length > 0 && (want.every((w) => have.some((h) => sameWord(w, h))) || have.every((h) => want.some((w) => sameWord(w, h)))))
+    .map(({ l, have }) => ({ l, overlap: want.filter((w) => have.some((h) => sameWord(w, h))).length, size: have.length }))
+    .sort((a, b) => b.overlap - a.overlap || a.size - b.size)
+  return ranked[0]?.l ?? given
+}
+
 export const emptyBoard = (): TodoBoard => ({ lists: [], todos: [], next: 1 })
 
 const clip = (s: string | undefined, n: number) => (s ?? '').trim().slice(0, n)
@@ -124,8 +154,10 @@ export function addTodo(b: TodoBoard, i: { title: string; list?: string; notes?:
   return { board: { ...withList, todos: [...withList.todos, todo], next: b.next + 1 }, todo }
 }
 
-export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }, by: Actor, at: number): TodoBoard {
+export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }, by: Actor, at: number): TodoBoard {
   const t = find(b, id)
+  // A list named in the patch is the list that already means it, if there is one, and the task is moved there after its fields change.
+  const target = p.list?.trim() ? resolveList(b.lists, p.list) : undefined
   const status = p.status ?? t.status
   const next: Todo = {
     ...t,
@@ -136,7 +168,8 @@ export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?
     blockedWhy: status === 'blocked' ? clip(p.blockedWhy ?? t.blockedWhy, NOTE_MAX) || undefined : undefined
   }
   if (status !== 'doing' && status !== 'blocked') delete next.claimedBy
-  return put(b, stamp(next, by, at, { what: 'updated' }))
+  const changed = put(b, stamp(next, by, at, { what: 'updated' }))
+  return target && target !== t.list ? moveTodo(changed, id, target, Number.MAX_SAFE_INTEGER, by, at) : changed
 }
 
 export function claimTodo(b: TodoBoard, id: string, by: Actor, at: number): TodoBoard {
