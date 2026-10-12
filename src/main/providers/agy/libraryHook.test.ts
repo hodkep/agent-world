@@ -63,6 +63,18 @@ describe("agy's hooks", () => {
     expect(agyLibraryHook('pre-inv', payload('c4', { transcriptPath: join(home, 'brain', 'c1', '.system_generated', 'logs', '..', '..', '..', '..', 'secret.jsonl') }), t.io)).toEqual({})
     expect(t.asked).toEqual([])
   })
+  it('add a line when a tool result since the last model call shows a situation, once per result', () => {
+    const met: string[] = []
+    const t = io('')
+    const withMet = { ...t.io, met: (tool: string, input: Record<string, unknown>, out: string) => (met.push(`${tool}|${String(input.command ?? input.path)}`), out.includes('CONFLICT') ? 'SITUATION' : '') }
+    expect(agyLibraryHook('pre-inv', payload(), withMet)).toEqual({})
+    const step = (n: number, type: string, content: string) => JSON.stringify({ step_index: String(n), source: 'MODEL', type, content }) + '\n'
+    appendFileSync(transcript, step(2, 'PLANNER_RESPONSE', 'CONFLICT mentioned in thought') + step(3, 'RUN_COMMAND', 'Created At: x\nThe command exited with code 1.\nOutput:\nCONFLICT (content): Merge conflict in a.txt'))
+    expect(agyLibraryHook('pre-inv', payload(), withMet)).toEqual({ injectSteps: [{ ephemeralMessage: 'SITUATION' }] })
+    // a model's own words are not tool output, and the same step is not looked at twice
+    expect(met).toEqual(['run_command|undefined'])
+    expect(agyLibraryHook('pre-inv', payload(), withMet)).toEqual({})
+  })
   it('report a file read after a tool call, and nothing for other tools', () => {
     const t = io()
     expect(agyLibraryHook('post-tool', payload('c1', { toolCall: { name: 'view_file', args: { AbsolutePath: '/lib/skills/pdf/SKILL.md' } } }), t.io)).toEqual({})

@@ -5,7 +5,7 @@ import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
 import { matchItems } from './match'
 import { buildCatalog } from './catalog'
-import { detectSituation, SITUATIONS } from './situations'
+import { checksPassed, detectSituation, outputOf, REPEATS, SITUATIONS, TRIVIAL } from './situations'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
@@ -46,7 +46,7 @@ export function createLibraryService(d: Deps) {
   const playbooks = new Playbooks(d.root)
   const log = new UseLog(join(d.root, 'uses.jsonl'))
   // Per agent: how many prompts it has had, whether it can fetch, its per-turn rule reminder, and whether the full catalog is due again.
-  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean; /** The turn each item was last pointed at, and the items this agent has read since it last lost its context. */ pointed: Map<string, number>; read: Set<string>; /** The situations being worked on, each pointed at once until it is over. */ open: Set<string> }>()
+  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean; /** The turn each item was last pointed at, and the items this agent has read since it last lost its context. */ pointed: Map<string, number>; read: Set<string>; /** The situations being worked on, each pointed at once until it is over, and how many times each has shown with nothing green between. */ open: Set<string>; streak: Map<string, number> }>()
   // When each agent's hook last called the office.
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
@@ -105,7 +105,7 @@ export function createLibraryService(d: Deps) {
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
-      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false, pointed: new Map(), read: new Set(), open: new Set() })
+      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false, pointed: new Map(), read: new Set(), open: new Set(), streak: new Map() })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
@@ -158,9 +158,14 @@ export function createLibraryService(d: Deps) {
       if (!st) return ''
       // A commit or a continued merge ends the conflict being worked on, so the next one is new.
       const cmd = typeof input.command === 'string' ? input.command : ''
-      if (/\bgit\s+(commit|(merge|rebase|cherry-pick)\s+--continue)\b/.test(cmd)) st.open.delete('merge-conflict')
+      // (agy's tool results do not carry the command, so git's own summary line of a commit, "[main 1a2b3c4] message", ends it too.)
+      if (/\bgit\s+(commit|(merge|rebase|cherry-pick)\s+--continue)\b/.test(cmd) || /^\[[^\]\n]+ [0-9a-f]{7,}\] /m.test(typeof response === 'string' ? response : (response as { stdout?: string } | null)?.stdout ?? '')) (st.open.delete('merge-conflict'), st.streak.delete('merge-conflict'))
+      if (checksPassed(outputOf(response))) (st.open.delete('failing-checks'), st.streak.delete('failing-checks'))
       const found = detectSituation(tool, input, response)
-      if (!found || st.open.has(found.kind)) return ''
+      if (!found) return ''
+      const times = (st.streak.get(found.kind) ?? 0) + 1
+      st.streak.set(found.kind, times)
+      if (st.open.has(found.kind) || times < (REPEATS[found.kind] ?? 1)) return ''
       const entries = indexSync(agentId)
       const items = itemsMap()
       const rule = rulesFor(agentOrThrow(agentId).repoPath).find((r) => r.mode === 'on-demand' && r.also?.includes(found.kind) && items.has(r.id) && entries.some((e) => e.id === r.id))
@@ -169,9 +174,9 @@ export function createLibraryService(d: Deps) {
       const file = it.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
       const tool_ = `library_get('${rule.id}')`
       const way = st.native ? (st.canFetch ? `Read it with ${tool_}` : `Use the ${rule.id} skill`) : file ? `Read ${file}` : st.canFetch ? `Read it with ${tool_}` : `Ask for ${rule.id}`
-      const skip = st.canFetch ? ` If it is trivial (one small hunk, nothing both sides changed) you may pass it over: say why with library_skip('${rule.id}', reason).` : ' If it is trivial you may pass it over.'
+      const skip = st.canFetch ? ` If it is trivial (${TRIVIAL[found.kind] ?? 'nothing to learn from it'}) you may pass it over: say why with library_skip('${rule.id}', reason).` : ' If it is trivial you may pass it over.'
       const because = `${SITUATIONS[found.kind] ?? found.kind}, ${found.detail}`
-      const line = `Library: a ${because} was found, and ${rule.id} covers it (${it.description.slice(0, 100)}). ${way} first.${skip}`
+      const line = `Library: a ${because} was found, and ${rule.id} covers it (${it.description.slice(0, 100)}). ${way} first, and do what it says.${skip}`
       st.open.add(found.kind)
       st.pointed.set(rule.id, st.turn)
       record(agentId, rule.id, 'triggered', rule.mode, line, undefined, because)

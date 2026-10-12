@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -11,7 +11,7 @@ const skill = (dir: string, name: string, desc: string, body: string) => {
 
 const CONFLICT = 'Auto-merging a.txt\nCONFLICT (content): Merge conflict in a.txt\nAutomatic merge failed; fix conflicts and then commit the result.'
 
-async function setup(extra: { rule?: object } = {}) {
+async function setup(extra: { rule?: object; agy?: boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'aw-sit-'))
   const lib = join(home, 'aw', 'library')
   skill(join(lib, 'skills', 'resolving-merge-conflicts'), 'resolving-merge-conflicts', 'Resolve a git merge conflict.', '# Merge')
@@ -20,7 +20,7 @@ async function setup(extra: { rule?: object } = {}) {
     { id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium', also: ['merge-conflict'], ...extra.rule }
   ] }))
   const args = join(home, 'args.log')
-  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '50', FAKE_CHAT: '1' }, home)
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: join(home, 'agy'), FAKE_ENV_FILE: join(home, 'env.log'), FAKE_ARGS: args, FAKE_DELAY_MS: '50', FAKE_CHAT: '1' }, home)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 1000 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
@@ -78,6 +78,48 @@ test('a rule that does not list the situation is left alone', async () => {
   const { shutdown, tool } = await setup({ rule: { also: [] } })
   try {
     expect(await tool('git merge feature', CONFLICT)).toBe('')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('failing checks are pointed at when the same red shows twice, not the first', async () => {
+  const { shutdown, tool } = await setup({ rule: { also: ['failing-checks'] } })
+  try {
+    const red = ' Test Files  1 failed | 3 passed (4)\n      Tests  2 failed | 10 passed (12)'
+    expect(await tool('pnpm test', red)).toBe('')
+    const out = JSON.parse(await tool('pnpm test', red)).hookSpecificOutput
+    expect(out.additionalContext).toContain('failing test or type check')
+    expect(out.additionalContext).toContain('resolving-merge-conflicts')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agy agent is pointed at the skill when a tool result it got shows a conflict, before its next model call', async () => {
+  const { home, page, shutdown, uses } = await setup()
+  try {
+    await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    const form = page.getByRole('form', { name: 'Hire an agent' })
+    await form.getByRole('radio', { name: /agy/ }).check()
+    await form.getByLabel('Name').fill('bob')
+    await form.getByRole('button', { name: 'Hire' }).click()
+    await form.waitFor({ state: 'detached' })
+    const envLog = join(home, 'env.log')
+    await expect.poll(() => (existsSync(envLog) ? readFileSync(envLog, 'utf8') : '').split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).length).toBeGreaterThan(0)
+    const started = JSON.parse(readFileSync(envLog, 'utf8').split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).at(-1)!) as { url: string; token: string }
+    const transcript = join(home, 'agy', 'brain', 'conv-9', '.system_generated', 'logs', 'transcript_full.jsonl')
+    mkdirSync(join(transcript, '..'), { recursive: true })
+    const step = (n: number, type: string, source: string, content: string) => JSON.stringify({ step_index: String(n), source, type, content }) + '\n'
+    writeFileSync(transcript, step(0, 'USER_INPUT', 'USER_EXPLICIT', '<USER_REQUEST>\nmerge the feature branch\n</USER_REQUEST>'))
+    const call = async () => (await (await fetch(started.url.replace(/\/mcp$/, '/hook/pre-inv'), { method: 'POST', headers: { authorization: `Bearer ${started.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ conversationId: 'conv-9', transcriptPath: transcript }) })).json()) as { injectSteps?: { ephemeralMessage: string }[] }
+    expect(await call()).toEqual({})
+    appendFileSync(transcript, step(2, 'RUN_COMMAND', 'MODEL', `Created At: x\nThe command exited with code 1.\nOutput:\n${CONFLICT}`))
+    const got = await call()
+    expect(got.injectSteps![0]!.ephemeralMessage).toContain('merge conflict, 1 file')
+    expect(got.injectSteps![0]!.ephemeralMessage).toContain('SKILL.md')
+    expect(uses().filter((u) => u.how === 'triggered' && u.provider === 'agy')).toMatchObject([{ id: 'resolving-merge-conflicts', because: 'merge conflict, 1 file' }])
+    expect(await call()).toEqual({})
   } finally {
     await shutdown()
   }
