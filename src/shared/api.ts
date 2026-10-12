@@ -336,6 +336,12 @@ export interface AwApi {
     decide(runId: string, state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }): Promise<void>
     /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
     stopAll(): Promise<void>
+    /** The workflows a project can use: Standard, the global files and the project's own, with what is wrong with any that do not read. */
+    definitions(project: string | null): Promise<import('./workflow').WorkflowEntry[]>
+    /** Copies a workflow into the project or for everything; says the new one. */
+    duplicate(project: string | null, id: string, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
+    /** Deletes a workflow's file from the project or the global folder. */
+    remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
   }
   /** Fires when a run began, finished, got a commit or was stopped. */
   onWorkflows(cb: () => void): () => void

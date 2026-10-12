@@ -12,6 +12,8 @@ export interface WorkflowPrefs {
   planGate: boolean
   /** The merge gate: Land waits until the plan was approved and the audit's findings were seen. On with workflows unless switched off. */
   mergeGate: boolean
+  /** The workflow a project uses unless the agent picks another, by project folder. A project with no entry uses Standard. */
+  defaults: Record<string, string>
 }
 
 export interface CostPart {
@@ -73,3 +75,12 @@ export const workflowsShown = (enabled: boolean, open: number) => enabled || ope
 
 /** The new setting after the switch is flipped: switching on from off records the moment, nothing else does. */
 export const switchWorkflows = (w: WorkflowPrefs, enabled: boolean, now: number): WorkflowPrefs => ({ ...w, enabled, since: enabled && !w.enabled ? now : w.since })
+
+/** The workflow id a project uses by default. */
+export const defaultWorkflow = (w: WorkflowPrefs, project: string | null) => (project ? w.defaults[project] : undefined) ?? 'standard'
+
+/** The preferences with `id` as the default for `project`; Standard is what no entry means, so choosing it removes the entry. */
+export function withDefault(w: WorkflowPrefs, project: string, id: string): WorkflowPrefs {
+  const { [project]: _gone, ...rest } = w.defaults
+  return { ...w, defaults: id === 'standard' ? rest : { ...rest, [project]: id } }
+}

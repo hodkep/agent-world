@@ -18,9 +18,10 @@ describe('preferences', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
   it('workflows start off at the balanced dial, and a bad value falls back', () => {
-    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true })
-    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false })
-    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo', since: -3, planGate: 'no', mergeGate: 'no' } }).workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true })
+    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} })
+    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } })
+    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo', since: -3, planGate: 'no', mergeGate: 'no', defaults: { '/p/a': 'Not An Id', '/p/b': 7, '/p/c': 'ok-one' } } }).workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: { '/p/c': 'ok-one' } })
+    expect(cleanPrefs({ workflows: { defaults: 'nope' } }).workflows.defaults).toEqual({})
   })
   it('keep only accounts with a plain id and a name, once each', () => {
     expect(cleanPrefs({ accounts: [{ id: 'work', name: ' Work ' }, { id: 'work', name: 'Dup' }, { id: '../x', name: 'Bad' }, { id: 'ok', name: '' }, { id: 'x', name: 'X', provider: 'nope' }, 4] }).accounts).toEqual([{ id: 'work', name: 'Work', provider: 'claude' }])

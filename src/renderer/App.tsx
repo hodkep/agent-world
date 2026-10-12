@@ -60,7 +60,7 @@ import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
 import { pendingPlans } from '../shared/runs'
-import { windingDown, workflowsShown } from '../shared/workflows'
+import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
@@ -271,6 +271,12 @@ export function App() {
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
+  const patchPrefs = (patch: Partial<Prefs>) => {
+    const next = { ...prefsNow.current!, ...patch }
+    prefsNow.current = next
+    setPrefs(next)
+    void window.aw.setPrefs(next)
+  }
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
@@ -1133,7 +1139,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} onClose={() => setReport(null)} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1144,12 +1150,7 @@ export function App() {
         <Setup
           providers={providers}
           prefs={prefs}
-          onPrefs={(patch) => {
-            const next = { ...prefsNow.current!, ...patch }
-            prefsNow.current = next
-            setPrefs(next)
-            void window.aw.setPrefs(next)
-          }}
+          onPrefs={patchPrefs}
           workspaces={workspaces}
           folder={folder}
           onPick={pick}
