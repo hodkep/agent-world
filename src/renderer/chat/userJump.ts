@@ -7,11 +7,24 @@ export const userMessages = (log: Element) => [...log.querySelectorAll<HTMLEleme
 let last: HTMLElement | null = null
 export const lastJump = (log: Element) => (last && last.isConnected && log.contains(last) ? last : null)
 
-/** Scroll to one of your messages and flash it once so it can be found. */
+/**
+ * Scroll to one of your messages, put it in the middle and flash it once so it can be found.
+ * Replies that were not drawn yet are counted as a short placeholder and grow when they come into view, so a smooth scroll
+ * aimed from the start ends up somewhere else: this jumps at once and puts the message back in the middle for a few frames, until things stop moving.
+ */
 export function show(el: HTMLElement) {
   last = el
+  const log = el.closest<HTMLElement>('.chat-log')
+  const centre = () => {
+    if (!log) return
+    const r = el.getBoundingClientRect()
+    log.scrollTop += (r.top + r.bottom) / 2 - (log.getBoundingClientRect().top + log.clientHeight / 2)
+  }
+  centre()
+  let frames = 0
+  const settle = () => (centre(), ++frames < 12 && requestAnimationFrame(settle))
+  requestAnimationFrame(settle)
   el.addEventListener('animationend', () => el.classList.remove('jumped'), { once: true })
-  el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
   el.classList.remove('jumped')
   void el.offsetWidth
   el.classList.add('jumped')
