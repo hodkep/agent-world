@@ -2747,3 +2747,16 @@ aside:not(.drawer) { flex: none; }
 .su-body { min-height: 0; overflow: hidden; }
 .su-content { min-height: 0; overflow-y: auto; padding-right: 6px; }
 .su-nav { flex: none; }
+
+/* Setup: nothing is cut off at the edge of the scrolling content, and everything in a step is as wide as the step */
+.su-content { padding: 4px 8px 10px 4px; gap: 14px; }
+.su-content > * { min-width: 0; }
+.su-toggle { width: 100%; box-sizing: border-box; }
+.su-row > .su-toggle { width: auto; flex: 1 1 280px; }
+.su-cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.su-content .td-cost { width: 100%; gap: 8px; }
+.su-content .su-cost { max-width: none; width: 100%; table-layout: fixed; }
+.su-content .su-cost caption, .su-content .td-cost .hint { max-width: none; padding: 0; margin: 0; }
+.su-content .su-cost caption { padding-bottom: 8px; }
+.su-content .su-cost td.n { white-space: nowrap; }
+.su-head p { max-width: none; }

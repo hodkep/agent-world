@@ -100,6 +100,41 @@ test('setup is one large fixed window: the same size on every step, inside a sho
   }
 })
 
+test('setup: nothing in a step is cut off at the edge of its scrolling content, and the switches and tables are as wide as the step', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-edges-'))
+  const { app, shutdown } = await open(home, fake)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1280, height: 820 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    for (let i = 0; i < 3; i++) await setup.getByRole('button', { name: /Continue|Skip for now/ }).first().click()
+    for (const heading of ['How much may they do alone?', 'Which features should agents use?']) {
+      await expect(setup.getByRole('heading', { name: heading })).toBeVisible()
+      // Every card, switch and table, with the 2 px ring drawn around it, is inside the content on both sides and at the top.
+      const edges = await setup.locator('.su-content').evaluate((c) => {
+        const box = c.getBoundingClientRect()
+        const things = [...c.querySelectorAll<HTMLElement>('.su-card, .su-toggle, .su-cost, .su-field input, .su-field select')]
+        return things.map((e) => { const r = e.getBoundingClientRect(); return { cls: e.className, left: r.left - 2 - box.left, right: box.right - (r.right + 2), top: r.top - 2 - box.top } })
+      })
+      for (const e of edges) {
+        expect(e.left, `${e.cls} left`).toBeGreaterThanOrEqual(0)
+        expect(e.right, `${e.cls} right`).toBeGreaterThanOrEqual(0)
+        expect(e.top, `${e.cls} top`).toBeGreaterThanOrEqual(0)
+      }
+      if (heading.startsWith('Which')) {
+        // The switches and the tables under them are one width.
+        const widths = await setup.locator('.su-content').evaluate((c) => [...c.querySelectorAll<HTMLElement>(':scope > .su-toggle, :scope .td-cost .su-cost')].map((e) => Math.round(e.getBoundingClientRect().width)))
+        expect(new Set(widths).size, widths.join(',')).toBe(1)
+      }
+      await setup.getByRole('button', { name: /Continue|Skip for now/ }).first().click()
+    }
+  } finally {
+    await shutdown()
+  }
+})
+
 test('with no agent tool on this computer, setup cannot be passed and says how to install one', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-setup-none-'))
   const { app, shutdown } = await open(home, join(home, 'no-such-claude'))
