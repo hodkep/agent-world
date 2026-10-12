@@ -235,9 +235,13 @@ export interface AwApi {
   onOpenPage(cb: (agentId: string, path: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
-  finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[] }>
+  finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
+  /** Run the audit of the branch again (after one failed). */
+  finishAudit(agentId: string): Promise<void>
+  /** The person has seen these findings (by position) of the audit of the branch as it is now. */
+  finishSeen(agentId: string, which: number[]): Promise<void>
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
-  finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean }): Promise<{ base: string; removed: boolean }>
+  finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean; /** Land although the merge gate holds it back; the choice is recorded. */ anyway?: boolean }): Promise<{ base: string; removed: boolean }>
   /** Notes saved for this agent's project, newest first (shared by every agent in it). */
   memoryList(agentId: string): Promise<{ id: string; text: string; by: string; at: number }[]>
   memoryAdd(agentId: string, text: string): Promise<{ id: string; text: string; by: string; at: number }>

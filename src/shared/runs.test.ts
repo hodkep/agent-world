@@ -93,3 +93,25 @@ describe('a round\'s plan', () => {
     expect(reduceRuns([begin('r1', 100), { k: 'plan', t: 200, run: 'r1', round: 1, state: 'released' }])[0]!.rounds[0]!.plan).toMatchObject({ state: 'released', decidedAt: 200 })
   })
 })
+
+describe('what the merge gate adds to a run', () => {
+  const audit = (t: number, head: string): Extract<RunEvent, { k: 'audit' }> => ({ k: 'audit', t, run: 'r1', head, state: 'done', findings: [{ kind: 'out-of-scope', text: 'Adds a project key.' }, { kind: 'guess-wrong', text: 'localStorage.' }], files: 3, lines: 120, truncated: false, cost: 0.004, model: 'haiku' })
+
+  it('the latest audit of the run shows with which findings were seen, and none of it ends the run', () => {
+    const [r] = reduceRuns([begin('r1', 100), audit(200, 'h1'), { k: 'seen', t: 210, run: 'r1', head: 'h1', which: [1] }])
+    expect(r!.status).toBe('open')
+    expect(r!.audit).toEqual({ head: 'h1', t: 200, state: 'done', findings: [{ kind: 'out-of-scope', text: 'Adds a project key.', seen: false }, { kind: 'guess-wrong', text: 'localStorage.', seen: true }], files: 3, lines: 120, truncated: false, cost: 0.004, model: 'haiku' })
+  })
+
+  it('a newer head replaces the audit, so findings seen on an older head do not carry over', () => {
+    const [r] = reduceRuns([begin('r1', 100), audit(200, 'h1'), { k: 'seen', t: 210, run: 'r1', head: 'h1', which: [0, 1] }, audit(300, 'h2')])
+    expect(r!.audit).toMatchObject({ head: 'h2', findings: [{ seen: false }, { seen: false }] })
+  })
+
+  it('a failed audit keeps its reason, and landing is recorded with what was still holding it', () => {
+    const [r] = reduceRuns([begin('r1', 100), { k: 'audit', t: 200, run: 'r1', head: 'h1', state: 'failed', reason: 'timed out' }, { k: 'merge', t: 300, run: 'r1', head: 'h1', how: 'anyway', held: ['No plan was approved for this task.'] }])
+    expect(r!.audit).toEqual({ head: 'h1', t: 200, state: 'failed', reason: 'timed out' })
+    expect(r!.landed).toEqual({ t: 300, head: 'h1', how: 'anyway', held: ['No plan was approved for this task.'] })
+    expect(r!.status).toBe('open')
+  })
+})

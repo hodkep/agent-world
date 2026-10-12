@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LedgerEvent } from './ledger'
 import { type RunEvent, reduceRuns } from './runs'
-import { agentCounts, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
+import { agentCounts, auditText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
 
 const MIN = 60_000
 // Wednesday 2026-10-14 12:00 local; the week began Monday 2026-10-12.
@@ -94,5 +94,24 @@ describe('the cost cell of a run', () => {
     expect(spendText({ usd: 0, tokens: 0, known: true })).toBe('$0')
     expect(spendText({ usd: 0, tokens: 0, known: false })).toBe('—')
     expect(spendText(undefined)).toBe('—')
+  })
+})
+
+describe('what the Workflow tab says about the audit and the landing', () => {
+  const audited = (...extra: RunEvent[]) => reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'audit', t: 2000, run: 'r1', head: 'h1', state: 'done', findings: [{ kind: 'out-of-scope', text: 'x' }, { kind: 'guess-wrong', text: 'y' }], files: 3, lines: 120, truncated: false, cost: 0.004, model: 'claude-haiku-5-5' }, ...extra])[0]!
+
+  it('the audit line counts findings and the unseen ones, with the model and cost', () => {
+    expect(auditText(audited())).toBe('Audit: 2 findings, 2 unseen · claude-haiku-5-5 · $0.0040')
+    expect(auditText(audited({ k: 'seen', t: 2100, run: 'r1', head: 'h1', which: [0, 1] }))).toBe('Audit: 2 findings, all seen · claude-haiku-5-5 · $0.0040')
+    expect(auditText(reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'audit', t: 2000, run: 'r1', head: 'h1', state: 'done', findings: [], files: 1, lines: 4, truncated: false }])[0]!)).toBe('Audit: nothing found')
+    expect(auditText(reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'audit', t: 2000, run: 'r1', head: 'h1', state: 'failed', reason: 'timed out' }])[0]!)).toBe('Audit failed: timed out')
+    expect(auditText(reduceRuns([begin('r1', 1000, 'a1', 'ada')])[0]!)).toBeUndefined()
+  })
+
+  it('the landing line says it was checked, or what was still holding it when the person landed anyway', () => {
+    const run = (how: 'checked' | 'anyway', held: string[]) => reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'merge', t: 3000, run: 'r1', head: 'h1', how, held }])[0]!
+    expect(landedText(run('checked', []))).toBe('Landed after the checks')
+    expect(landedText(run('anyway', ['No plan was approved for this task.', '2 audit findings have not been seen.']))).toBe('Landed anyway: No plan was approved for this task. 2 audit findings have not been seen.')
+    expect(landedText(reduceRuns([begin('r1', 1000, 'a1', 'ada')])[0]!)).toBeUndefined()
   })
 })

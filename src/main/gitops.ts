@@ -306,6 +306,9 @@ export async function finishReadiness(repo: string, cwd: string, branch: string,
   return { ahead, uncommitted, baseReady, conflicts }
 }
 
+/** What the branch has added to `base` since it left it, as a patch: committed work only, and not the plan files agents keep in `.agent-world/`. */
+export const branchDiff = (cwd: string, base: string, branch: string) => git(cwd, 'diff', '--no-color', '--no-ext-diff', `${base}...${branch}`, '--', '.', ':(exclude).agent-world')
+
 export async function pushBranch(cwd: string, branch: string) {
   await git(cwd, 'push', '-u', 'origin', branch)
 }

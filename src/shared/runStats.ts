@@ -87,3 +87,24 @@ export function spendText(s: Pick<RunSpend, 'usd' | 'tokens' | 'known'> | undefi
   if (s.usd > 0) return formatCost(s.usd)
   return s.tokens > 0 ? `${formatTokens(s.tokens)} tokens` : '$0'
 }
+
+/** A model call's cost: to the hundredth of a cent while it is under a cent, since a bare "$0.00" would hide it. */
+export const formatCallCost = (usd: number) => (usd < 0.01 ? `$${usd.toFixed(4)}` : formatCost(usd))
+
+/** One line about the run's latest audit for the Workflow tab; nothing when none ran. */
+export function auditText(run: Run): string | undefined {
+  const a = run.audit
+  if (!a) return undefined
+  if (a.state === 'failed') return `Audit failed: ${a.reason}`
+  if (!a.findings.length) return 'Audit: nothing found'
+  const unseen = a.findings.filter((f) => !f.seen).length
+  const n = a.findings.length
+  return `Audit: ${n} finding${n === 1 ? '' : 's'}, ${unseen ? `${unseen} unseen` : 'all seen'}${a.model ? ` · ${a.model}` : ''}${a.cost !== undefined ? ` · ${formatCallCost(a.cost)}` : ''}`
+}
+
+/** How the run's work was landed: after the checks, or anyway with what was still holding it. */
+export function landedText(run: Run): string | undefined {
+  const l = run.landed
+  if (!l) return undefined
+  return l.how === 'checked' ? 'Landed after the checks' : `Landed anyway: ${l.held.join(' ')}`
+}
