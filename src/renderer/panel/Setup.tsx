@@ -4,6 +4,7 @@ import { MailConnect } from './MailConnect'
 import { TerminalView } from './TerminalView'
 import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderLogo } from './ProviderLogo'
+import { TrackingCost } from '../todos/TrackingCost'
 
 const STEPS = [
   { id: 'welcome', name: 'Welcome' },
@@ -253,6 +254,11 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                     <i />Commit unfinished work to each agent's own branch when I quit
                   </button>
                 </div>
+                <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track every request as a todo" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
+                  <i />
+                  <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
+                </button>
+                <TrackingCost full={prefs.todoTracking === 'full'} />
               </div>
             </>
           )}

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { isWork, requestTitle } from '../../shared/todoTracking'
 import {
-  addList, addTodo, claimTodo, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  addList, addTodo, claimTodo, doneTodo, emptyBoard, markStale, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -12,6 +13,8 @@ export interface TodoDeps {
   agent: (id: string) => { id: string; name: string; provider: string; repoPath: string } | undefined
   /** The message an agent most recently said, so a task can point back at it. */
   lastMessage: (agentId: string) => MessageLink | undefined
+  /** The message the person just sent an agent (its words are given), so the task made for it points at it. */
+  lastRequest: (agentId: string, text: string) => MessageLink | undefined
   now?: () => number
   onChange: (workspace: string) => void
 }
@@ -83,6 +86,26 @@ export function createTodoService(d: TodoDeps) {
     doneByPerson: (repoPath: string, id: string, note = '') => change(repoPath, (b) => ({ board: doneTodo(b, id, YOU, note, now()), out: undefined })),
     reopenByPerson: (repoPath: string, id: string) => change(repoPath, (b) => ({ board: reopenTodo(b, id, YOU, now()), out: undefined })),
     moveByPerson: (repoPath: string, id: string, list: string, index: number) => change(repoPath, (b) => ({ board: moveTodo(b, id, list, index, YOU, now()), out: undefined })),
+
+    /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
+    trackRequest(agentId: string, prompt: string): Todo | undefined {
+      const a = agentOf(agentId)
+      if (!isWork(prompt)) return undefined
+      return change(a.repoPath, (b) => {
+        const made = addTodo(b, { title: requestTitle(prompt), list: 'Requests', notes: prompt.trim().length > 120 ? prompt.trim().slice(0, 1000) : '', auto: true }, YOU, now(), d.lastRequest(a.id, prompt))
+        const board = claimTodo(made.board, made.todo.id, actor(a), now())
+        return { board, out: lastTodo(board, made.todo.id) }
+      })
+    },
+    /** An agent's turn ended: what was made for its requests and it is still on is flagged, so the board does not claim work is in hand. */
+    turnEnded(agentId: string) {
+      const a = d.agent(agentId)
+      if (!a) return
+      const key = keyOf(a.repoPath)
+      const b = load(key)
+      const next = markStale(b, agentId, now())
+      if (next.todos.some((t, i) => t.stale !== b.todos[i]!.stale)) save(key, next)
+    },
 
     // An agent, through the office tools: who it is and which message it said come from the app, not from the call.
     listForAgent(agentId: string, f: { list?: string; status?: TodoStatus; mine?: boolean }): Todo[] {

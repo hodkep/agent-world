@@ -33,6 +33,10 @@ export interface Todo {
   needsYou: boolean
   blockedWhy?: string
   claimedBy?: Actor
+  /** Made by the app for a request the person sent, not typed by anyone. */
+  auto?: boolean
+  /** An agent's turn ended while it was still on this task, and it never said done or blocked. */
+  stale?: boolean
   /** Place within its list, lowest first. */
   order: number
   createdAt: number
@@ -67,7 +71,11 @@ const find = (b: TodoBoard, id: string): Todo => {
   return t
 }
 const put = (b: TodoBoard, t: Todo): TodoBoard => ({ ...b, todos: b.todos.map((x) => (x.id === t.id ? t : x)) })
-const stamp = (t: Todo, by: Actor, at: number, ev: Omit<TodoEvent, 'at' | 'by'>): Todo => ({ ...t, updatedAt: at, updatedBy: by, history: [...t.history, { at, by, ...ev }] })
+const stamp = (t: Todo, by: Actor, at: number, ev: Omit<TodoEvent, 'at' | 'by'>): Todo => {
+  const next: Todo = { ...t, updatedAt: at, updatedBy: by, history: [...t.history, { at, by, ...ev }] }
+  delete next.stale
+  return next
+}
 const lastOrder = (b: TodoBoard, list: string) => b.todos.filter((t) => t.list === list).reduce((n, t) => Math.max(n, t.order), -1)
 
 export function addList(b: TodoBoard, name: string): TodoBoard {
@@ -85,13 +93,13 @@ export function renameList(b: TodoBoard, from: string, to: string): TodoBoard {
 
 export const removeList = (b: TodoBoard, name: string): TodoBoard => ({ ...b, lists: b.lists.filter((l) => l !== name), todos: b.todos.filter((t) => t.list !== name) })
 
-export function addTodo(b: TodoBoard, i: { title: string; list?: string; notes?: string; needsYou?: boolean }, by: Actor, at: number, link?: MessageLink): { board: TodoBoard; todo: Todo } {
+export function addTodo(b: TodoBoard, i: { title: string; list?: string; notes?: string; needsYou?: boolean; auto?: boolean }, by: Actor, at: number, link?: MessageLink): { board: TodoBoard; todo: Todo } {
   const title = clip(i.title, TITLE_MAX)
   if (!title) throw new Error('A todo needs a title.')
   const list = clip(i.list, 60) || b.lists[0] || 'To do'
   const withList = addList(b, list)
   const todo: Todo = {
-    id: String(b.next), list, title, notes: clip(i.notes, NOTES_MAX), status: 'open', needsYou: !!i.needsYou, order: lastOrder(withList, list) + 1,
+    id: String(b.next), list, title, notes: clip(i.notes, NOTES_MAX), status: 'open', needsYou: !!i.needsYou, ...(i.auto && { auto: true }), order: lastOrder(withList, list) + 1,
     createdAt: at, createdBy: by, ...(link && { createdLink: link }), updatedAt: at, updatedBy: by, history: [{ at, by, what: 'created', ...(link && { link }) }]
   }
   return { board: { ...withList, todos: [...withList.todos, todo], next: b.next + 1 }, todo }
@@ -134,6 +142,11 @@ export function reopenTodo(b: TodoBoard, id: string, by: Actor, at: number): Tod
   delete next.doneNote
   delete next.doneLink
   return put(b, stamp(next, by, at, { what: 'reopened' }))
+}
+
+/** An agent's turn ended: what the app made for its requests and it is still on, without saying done or blocked, is flagged. */
+export function markStale(b: TodoBoard, agentId: string, _at: number): TodoBoard {
+  return { ...b, todos: b.todos.map((t) => (t.auto && t.status === 'doing' && t.claimedBy?.id === agentId ? { ...t, stale: true } : t)) }
 }
 
 export function removeTodo(b: TodoBoard, id: string): TodoBoard {

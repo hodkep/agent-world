@@ -7,6 +7,7 @@ import { closeOnBackdrop } from './Modal'
 import { ProviderTag } from './ProviderTag'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
+import { TrackingCost } from '../todos/TrackingCost'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -128,6 +129,8 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </label>
               <Switch checked={prefs.keepAwake} onChange={(keepAwake) => set({ keepAwake })} title="Keep the computer awake while an agent works" hint="Sleep is stopped only while something is running." />
               <Switch checked={prefs.openPagesInApp} onChange={(openPagesInApp) => set({ openPagesInApp })} title="Open pages in the app preview" hint="When an agent opens an HTML page in a browser, also show it in that agent's Preview tab. The command it ran still runs." />
+              <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
+              <TrackingCost full={prefs.todoTracking === 'full'} />
               <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
             </>
           )}

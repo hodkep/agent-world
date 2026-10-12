@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addList, addTodo, claimTodo, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { addList, addTodo, claimTodo, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -79,6 +79,28 @@ describe('changing', () => {
   })
   it('says what is not found', () => {
     expect(() => doneTodo(start(), '99', ada, '', 1)).toThrow(/99/)
+  })
+})
+
+describe('tracked requests', () => {
+  it('marks a task the app made for a request, claimed by the agent, and flags it when the turn ends unfinished', () => {
+    let b = addTodo(emptyBoard(), { title: 'Fix login', list: 'Requests', auto: true }, you, 1).board
+    b = claimTodo(b, '1', ada, 2)
+    expect(b.todos[0]).toMatchObject({ auto: true, status: 'doing' })
+    b = markStale(b, 'a1', 9)
+    expect(b.todos[0]!.stale).toBe(true)
+    b = updateTodo(b, '1', { notes: 'still on it' }, ada, 10)
+    expect(b.todos[0]!.stale).toBeUndefined()
+  })
+  it('leaves finished tasks, other agents\' tasks and tasks made by hand alone', () => {
+    let b = addTodo(emptyBoard(), { title: 'a', auto: true }, you, 1).board
+    b = claimTodo(b, '1', ada, 2)
+    b = doneTodo(b, '1', ada, '', 3)
+    b = addTodo(b, { title: 'b' }, you, 4).board
+    b = claimTodo(b, '2', ada, 5)
+    b = addTodo(b, { title: 'c', auto: true }, you, 6).board
+    b = claimTodo(b, '3', { kind: 'agent', id: 'b1', name: 'bob' }, 7)
+    expect(markStale(b, 'a1', 9).todos.map((t) => !!t.stale)).toEqual([false, false, false])
   })
 })
 

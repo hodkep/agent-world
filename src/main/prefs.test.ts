@@ -54,5 +54,8 @@ describe('opening pages in the app', () => {
     expect(cleanPrefs({}).openPagesInApp).toBe(true)
     expect(cleanPrefs({ openPagesInApp: false }).openPagesInApp).toBe(false)
     expect(cleanPrefs({ openPagesInApp: 'no' }).openPagesInApp).toBe(true)
+    expect(cleanPrefs({}).todoTracking).toBe('deferred')
+    expect(cleanPrefs({ todoTracking: 'full' }).todoTracking).toBe('full')
+    expect(cleanPrefs({ todoTracking: 'everything' }).todoTracking).toBe('deferred')
   })
 })

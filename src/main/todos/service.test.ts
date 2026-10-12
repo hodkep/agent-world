@@ -18,6 +18,7 @@ const make = () => {
     workspaceKey: (p) => p.split('/').pop()!,
     agent: (id) => agents[id],
     lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: clock, excerpt: 'Done: it works' }),
+    lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     onChange: (w) => changes.push(w)
   })
@@ -32,7 +33,7 @@ describe('the todo service', () => {
     expect(svc.board('/work/shop').todos.map((t) => t.title)).toEqual(['Add key'])
     expect(svc.board('/work/other').todos.map((t) => t.title)).toEqual(['Other project'])
     expect(readdirSync(dir).sort()).toEqual(['other.json', 'shop.json'])
-    const again = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, now: () => 1, onChange: () => undefined })
+    const again = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, now: () => 1, onChange: () => undefined })
     expect(again.board('/work/shop').todos[0]).toMatchObject({ title: 'Add key', createdBy: { name: 'ada', provider: 'claude' } })
     expect(JSON.parse(readFileSync(join(dir, 'shop.json'), 'utf8')).next).toBe(2)
   })
@@ -77,6 +78,24 @@ describe('the todo service', () => {
     const t = svc.addByAgent('a1', { title: 'shop task' })
     expect(() => svc.doneByAgent('c1', t.id, '')).toThrow(/No todo/)
     expect(() => svc.addByAgent('nobody', { title: 'x' })).toThrow(/agent/i)
+  })
+
+  it('makes a task for a request the person sent, claimed by the agent, and flags it when the turn ends unfinished', () => {
+    const { svc } = make()
+    const t = svc.trackRequest('a1', 'please fix the login bug on Safari')
+    expect(t).toMatchObject({ title: 'please fix the login bug on Safari', list: 'Requests', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
+    expect(t!.createdLink).toMatchObject({ agentId: 'a1' })
+    svc.turnEnded('a1')
+    expect(svc.board('/work/shop').todos[0]!.stale).toBe(true)
+    svc.doneByAgent('a1', t!.id, 'fixed')
+    svc.turnEnded('a1')
+    expect(svc.board('/work/shop').todos[0]!.stale).toBeUndefined()
+  })
+
+  it('does not make a task for small talk, and finishes the one it made when the agent says so', () => {
+    const { svc } = make()
+    expect(svc.trackRequest('a1', 'thanks')).toBeUndefined()
+    expect(svc.board('/work/shop').todos).toEqual([])
   })
 
   it('counts what needs the person, per project', () => {
