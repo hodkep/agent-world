@@ -12,7 +12,7 @@ import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu } from './panel/WorkspaceMenu'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
-import { type LimitView, type UsageLimits, limitView, noLimits, untilReset } from '../shared/usage'
+import { type LimitView, type UsageLimits, noLimits, untilReset } from '../shared/usage'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../shared/modes'
 import { effortsFor } from '../shared/efforts'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
@@ -32,7 +32,8 @@ import { OPEN_SUBAGENT } from './chat/subagentEvents'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
-import { hint, keysOf } from './shortcuts'
+import { hint, keysOf, matches } from './shortcuts'
+import { next } from './cycle'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
@@ -50,7 +51,7 @@ import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
 import { HandoffDialog } from './panel/HandoffDialog'
-import { banks, claudeWindows, lowCount, pooled, tightest } from '../shared/limits'
+import { banks, claudeWindows, lowCount, pooled } from '../shared/limits'
 import { Swatch } from './panel/ProviderTag'
 import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
@@ -581,6 +582,24 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
+  // Cmd/Ctrl+up/down steps through the workspaces, left/right through the agents of the open one. It wins over the terminal and message box, which gave those keys up.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const byAgent = matches(e, 'agent-switch')
+      if ((!byAgent && !matches(e, 'workspace-switch')) || document.querySelector('dialog[open]')) return
+      e.preventDefault(), e.stopPropagation()
+      const dir = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1
+      if (byAgent) {
+        const to = next(agents.map((a) => a.id), selected, dir)
+        if (to) select(to)
+      } else {
+        const to = next((workspaces?.items ?? []).filter((w) => w.exists).map((w) => w.path), folder, dir)
+        if (to) void run(async () => setWorkspaces(await window.aw.activateWorkspace(to)))
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  })
   // A pending permission must never sit behind a collapsed panel.
   const needsOf = (id: string): Need[] => [
     ...(trusts[id] ? [{ kind: 'trust', path: trusts[id]! } as const] : []),
@@ -808,7 +827,12 @@ export function App() {
       setOpenFile({ path: book })
     })
 
-  plantHover.current = (v, x, y) => setTip(v ? { ...v, x, y } : null)
+  // The office stays under the grid and under dialogs and still hears the pointer, so what it would show is shown only while nothing is on top of it.
+  const officeCovered = () => (grid && agents.length > 0) || !!document.querySelector('dialog[open], .scrim, [role="dialog"]')
+  plantHover.current = (v, x, y) => setTip(v && !officeCovered() ? { ...v, x, y } : null)
+  useEffect(() => {
+    if (tip && officeCovered()) setTip(null)
+  })
   // The book on a desk is the agent's work in progress: clicking it shows what has changed.
   handbookOpen.current = (id) => {
     select(id)
@@ -825,8 +849,7 @@ export function App() {
     window.aw.ptyWrite(id, text)
     select(id)
   }
-  // The tightest allowance of each kind across programs, for the chips; before any program has answered, what Claude's agents report.
-  const shownLimits = pool.length ? pooled(pool) : limits
+  // The tightest allowance of each kind across programs; before any program has answered, what Claude's agents report.
   // An agent's own controls show the allowance of the account it runs on, not the tightest of all of them. A program with accounts and no reading yet for this one shows none, never another's.
   const limitsOf = (a: AgentRecord): UsageLimits => {
     const prog = a.provider ?? DEFAULT_PROVIDER
@@ -1212,7 +1235,6 @@ export function App() {
         <IconButton icon="library" label="Library" onClick={() => setLibraryOpen(true)} haspopup tip="Skills, instructions and the playbook that says what agents are told" />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
-        <LimitChips limits={shownLimits} pool={pool} accounts={prefs?.accounts ?? []} />
         {error && <span className="error">{error}</span>}
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
@@ -1286,27 +1308,30 @@ export function App() {
               )}
             </div>
           )}
-          <div className="stage-ctl" style={{ bottom: termOpen && folder ? termH + 10 : 10 }}>
-            <div className="zoom-ctl" role="group" aria-label="View">
-              <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
-              <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
-              <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
-                Fit office
-              </button>
-              <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
-                Reset
-              </button>
-            </div>
-            {folder && (
-              <div className="zoom-ctl" role="group" aria-label="Terminals">
-                <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
-                  <span className="term-gl" aria-hidden="true">&gt;_</span>
-                  Terminal
-                  {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+          {/* The zoom and Terminal buttons are the office canvas's: with the grid showing in its place there is nothing for them to act on. */}
+          {!(grid && agents.length > 0) && (
+            <div className="stage-ctl" style={{ bottom: termOpen && folder ? termH + 10 : 10 }}>
+              <div className="zoom-ctl" role="group" aria-label="View">
+                <button onClick={() => office.current?.zoomBy(-1)} aria-label="Zoom out" title="Zoom out" className="zc-minus" />
+                <button onClick={() => office.current?.zoomBy(1)} aria-label="Zoom in" title="Zoom in" className="zc-plus" />
+                <button onClick={() => office.current?.fitOffice()} title="Fill the window with the office">
+                  Fit office
+                </button>
+                <button onClick={() => office.current?.resetView()} title="Back to the default view with the grounds">
+                  Reset
                 </button>
               </div>
-            )}
-          </div>
+              {folder && (
+                <div className="zoom-ctl" role="group" aria-label="Terminals">
+                  <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
+                    <span className="term-gl" aria-hidden="true">&gt;_</span>
+                    Terminal
+                    {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
           {tip && (
             <FloatingTip x={tip.x} y={tip.y}>
@@ -1619,26 +1644,5 @@ function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; 
       <span className="tip-note">The tanks show the tightest of each kind; the moons above one are its logins.</span>
       <LimitBoard pool={pool} accounts={accounts} providers={providers} />
     </>
-  )
-}
-
-/** The same two windows as the tanks, as text in the header: readable by keyboard and screen reader, and always on screen. */
-function LimitChips({ limits, pool, accounts }: { limits: UsageLimits; pool: LimitWindow[]; accounts: Prefs['accounts'] }) {
-  const named = (w: LimitWindow | null) => (w ? `${w.group}${accounts.length > 0 && w.account !== undefined ? ` · ${accountName(accounts, w.account)}` : ''}` : undefined)
-  const now = Date.now()
-  const chips = [
-    { key: '5h', name: '5-hour', v: limitView(limits.fiveHour, now), who: named(tightest(pool, 'five_hour')) },
-    { key: 'wk', name: 'weekly', v: limitView(limits.sevenDay, now), who: named(tightest(pool, 'weekly')) }
-  ].filter((c) => c.v.pct !== null)
-  if (chips.length === 0) return null
-  return (
-    <span className="limit-chips" role="group" aria-label="Usage limits, the tightest across your agent programs">
-      {chips.map((c) => (
-        <span key={c.key} className={`chip level-${c.v.level}`} role="status" aria-label={`${c.name} limit: ${Math.round(100 - c.v.pct!)}% left, resets in ${c.v.reset}`} title={`${c.name} limit${c.who ? ` · ${c.who}` : ''} · resets in ${c.v.reset}`}>
-          <span className="chip-dot" aria-hidden="true" />
-          {c.key} {Math.round(100 - c.v.pct!)}% left
-        </span>
-      ))}
-    </span>
   )
 }

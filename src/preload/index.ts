@@ -104,7 +104,7 @@ const api: AwApi = {
   onComposerPrefill: on('composer-prefill'),
   cancelMenu: (id) => ipcRenderer.invoke('menu:cancel', id),
   rewindTo: (id, text) => ipcRenderer.invoke('rewind-to', id, text),
-  chatInterrupt: (id) => ipcRenderer.invoke('chat:interrupt', id),
+  chatInterrupt: (id, restore) => ipcRenderer.invoke('chat:interrupt', id, restore),
   listRoles: (folder) => ipcRenderer.invoke('roles:list', folder),
   saveRole: (r) => ipcRenderer.invoke('roles:save', r),
   deleteRole: (id) => ipcRenderer.invoke('roles:delete', id),

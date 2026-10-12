@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('the bottom strip shows the subscription limits once an agent reports them', async () => {
+test('the tanks on the lawn show the subscription limits once an agent reports them', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-use-'))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_COST: '0.3' }, home)
   try {
@@ -13,15 +13,12 @@ test('the bottom strip shows the subscription limits once an agent reports them'
     await page.reload()
     await expect(page.getByRole('group', { name: 'Claude usage limits' })).toHaveCount(0)
     await hire(page)
-    // The header chips say what is left (the fake reports 38% and 21% used).
-    await expect(page.getByRole('status', { name: /5-hour limit: 62% left, resets in 2h/ })).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByRole('status', { name: /weekly limit: 79% left, resets in 3d/ })).toBeVisible()
-    // Hovering the tanks on the back lawn explains them.
+    // Hovering the tanks on the back lawn says what is left (the fake reports 38% and 21% used).
     const stage = page.locator('.stage')
     const box = (await stage.boundingBox())!
     const at = JSON.parse((await stage.getAttribute('data-power'))!) as { x: number; y: number }
     await page.mouse.move(box.x + at.x, box.y + at.y)
-    await expect(page.getByRole('tooltip').getByRole('img', { name: /62% left, resets in 2h/ })).toBeVisible()
+    await expect(page.getByRole('tooltip').getByRole('img', { name: /62% left, resets in 2h/ })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('tooltip').getByRole('img', { name: /79% left, resets in 3d/ })).toBeVisible()
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'usage.png') })
   } finally {
