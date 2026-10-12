@@ -57,6 +57,7 @@ import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
+import { runSpend } from '../shared/runStats'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
 import { WORKFLOW_HINT, WORKFLOW_TOOLS } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
@@ -1490,7 +1491,11 @@ async function main() {
   ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))
   ipcMain.handle('todos:needs-you', (_, folder: string) => todoService.needsYou(String(folder)))
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
-  ipcMain.handle('workflows:summary', () => ({ runs: workflows.runs(), open: workflows.openCount() }))
+  ipcMain.handle('workflows:summary', () => {
+    const runs = workflows.runs()
+    const now = Date.now()
+    return { runs, open: runs.filter((r) => r.status === 'open').length, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now)])) }
+  })
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
