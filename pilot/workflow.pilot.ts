@@ -49,7 +49,7 @@ describe.skipIf(!ON)('workflow recording with a real agent', () => {
     await git('commit', '-q', '-m', 'start')
     const first = (await git('rev-parse', 'HEAD')).trim()
     let n = 0
-    const wf = new Workflows(join(dir, 'runs.jsonl'), { enabled: () => true, now: Date.now, newId: () => `r${++n}`, who: () => ({ name: 'pilot', project: work }) })
+    const wf = new Workflows(join(dir, 'runs.jsonl'), { enabled: () => true, since: () => 0, now: Date.now, newId: () => `r${++n}`, who: () => ({ name: 'pilot', project: work }) })
     const mcp = await startMcpServer({
       agentForToken: (t) => (t === TOKEN ? 'pilot' : null),
       listAgents: () => [],

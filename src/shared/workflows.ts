@@ -6,6 +6,8 @@ export const isDial = (v: unknown): v is Dial => DIALS.includes(v as Dial)
 export interface WorkflowPrefs {
   enabled: boolean
   dial: Dial
+  /** When workflows were last switched on (ms): work committed before this is history, never recorded as a run. */
+  since: number
 }
 
 export interface CostPart {
@@ -45,3 +47,6 @@ export const dialName = (d: Dial) => d.charAt(0).toUpperCase() + d.slice(1)
 /** Off with runs still open: they finish, nothing new starts, and the button stays until they have. */
 export const windingDown = (enabled: boolean, open: number) => !enabled && open > 0
 export const workflowsShown = (enabled: boolean, open: number) => enabled || open > 0
+
+/** The new setting after the switch is flipped: switching on from off records the moment, nothing else does. */
+export const switchWorkflows = (w: WorkflowPrefs, enabled: boolean, now: number): WorkflowPrefs => ({ ...w, enabled, since: enabled && !w.enabled ? now : w.since })

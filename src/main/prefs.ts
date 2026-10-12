@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced' } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0 } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -46,7 +46,7 @@ function cleanSubagents(raw: unknown, base: Prefs['subagents']): Prefs['subagent
 
 function cleanWorkflows(raw: unknown, base: Prefs['workflows']): Prefs['workflows'] {
   const w = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial }
+  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since }
 }
 
 function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {

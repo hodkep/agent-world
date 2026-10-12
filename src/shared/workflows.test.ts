@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, dialSummary, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs: five of 150 tokens', () => {
@@ -42,5 +42,15 @@ describe('when the Workflows button and window are shown', () => {
     expect(windingDown(false, 2)).toBe(true)
     expect(windingDown(true, 2)).toBe(false)
     expect(windingDown(false, 0)).toBe(false)
+  })
+})
+
+describe('switching workflows on or off', () => {
+  it('records when it was switched on, and keeps that when only the dial changes or it goes off', () => {
+    const off = { enabled: false, dial: 'balanced' as const, since: 0 }
+    const on = switchWorkflows(off, true, 5000)
+    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000 })
+    expect(switchWorkflows(on, true, 9000)).toEqual(on)
+    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000 })
   })
 })

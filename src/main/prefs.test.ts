@@ -18,9 +18,9 @@ describe('preferences', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
   it('workflows start off at the balanced dial, and a bad value falls back', () => {
-    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced' })
-    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max' } }).workflows).toEqual({ enabled: true, dial: 'max' })
-    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo' } }).workflows).toEqual({ enabled: false, dial: 'balanced' })
+    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0 })
+    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234 } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234 })
+    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo', since: -3 } }).workflows).toEqual({ enabled: false, dial: 'balanced', since: 0 })
   })
   it('keep only accounts with a plain id and a name, once each', () => {
     expect(cleanPrefs({ accounts: [{ id: 'work', name: ' Work ' }, { id: 'work', name: 'Dup' }, { id: '../x', name: 'Bad' }, { id: 'ok', name: '' }, { id: 'x', name: 'X', provider: 'nope' }, 4] }).accounts).toEqual([{ id: 'work', name: 'Work', provider: 'claude' }])

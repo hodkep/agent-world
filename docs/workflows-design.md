@@ -40,6 +40,7 @@ a workflow and suggests a model and settings for each step.
 | D21 | **Task boundaries are found as proposed under "Tasks and follow-ups"**: the agent says so with `task_begin` and `task_done`, a commit or an approved plan ends a round, and the app asks once when a message does not fit. A follow-up is **round 2 of the same run**. A commit outside a task is **flagged, not blocked** (no git hook in the first version). |
 | D22 | **The intent check (read-back block and blocking open questions at the plan gate) is built first; the small-task skip is the agent's own call, following an instruction we ship**, not a rule in code. The separate small-model check stays at the max dial position only. |
 | D23 | **Workflows are a feature with a switch, off until turned on** (decided 2026-10-12 from the approved mocks). On first run the Features step offers it with its cost per dial level; later it is Settings → Features. Off hides the Workflow tab, the top-bar Workflows button and the recording tools. On adds the top-bar Workflows window (runs and stats across agents). Turning it off with open runs lets them finish, starts none new and shows "winding down" until they end (built with the recorder). The cost figures are estimates on printed assumptions until a real run measures them. |
+| D24 | **An agent that commits without announcing a task still gets a run, started by the app from the commit** (marked as the app's doing; no model call; only commits made after workflows were switched on). The agent's own `task_begin` is better and wins whenever it is used. Decided 2026-10-12 after a real-agent pilot found agents record about half their tasks. |
 | D9 | The concept is still settling: the product owner is "not at all sure how this works in reality". We brainstorm and settle before building, with mocks approved first. |
 
 ## What exists today (so we build on it, not around it)
@@ -196,7 +197,7 @@ A session is a conversation; a **task** is a piece of work with a purpose and an
 - With the opening text alone, a real Sonnet agent called `task_begin` and `task_done` on 3 of 6 real code tasks. It skipped both for a question and a typo, as told. With a reminder at each turn while no task was open, one run recorded 0 of 4 tasks and a second recorded 1 of 1. The samples are too few to say the reminder helps or hurts; nothing is concluded from them.
 - Two real problems showed: (1) an agent that skips the call leaves its work unrecorded, and (2) an agent in one long session used `follow_up` for a different piece of work, so three features became three rounds of one run. The tool text now says `follow_up` is only for more work on the same task.
 - Commits are read when a turn ends, after `task_done`. They are placed by the time they were made (the round whose window holds it); only a commit made outside every round is flagged. Before this was fixed every commit of a finished task was flagged.
-- **Open (not built):** when an agent commits with no run at all, the app could start a run titled from the commit subject, marked as started by the app, so nothing is untracked even when the agent never calls the tool. This follows D21's "a commit with no task is flagged, not refused", but it changes what the first recorded run is. Decision wanted.
+- **Decided and built (2026-10-12, D24):** when an agent commits and has no run of its own, the app starts a run titled from the commit subject, marked as started by the app, with no model call. Commits within 10 minutes of each other join one such run. Only commits made after workflows were switched on count, so a branch's history is never imported. After a task the agent did announce, a stray commit is still attached to it and flagged.
 - Cost of the pilots so far: about $3 of Claude usage.
 
 ## Framework or our own engine (2026-10-08)
@@ -258,6 +259,7 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 
 ## Change log
 
+- 2026-10-12: D24 built: runs started by the app from commits, so no work goes unrecorded; `since` records when workflows were switched on.
 - 2026-10-12: slice 2 built: run log and recorder (`task_begin`, `task_done`, commits placed by time, round 2, stop), the confirm when turning off with runs open, and the winding-down state; pilot findings added.
 - 2026-10-12: D23, the workflows switch; slice 1 built (switch in Setup and Settings, cost per dial, top-bar button and an empty Workflows window).
 - 2026-10-11: answers recorded: task boundaries, round 2 for follow-ups, flagged commits (D21); intent check first, small-task skip by the agent through a shipped instruction (D22).

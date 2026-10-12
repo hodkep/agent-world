@@ -6,10 +6,11 @@ import { Workflows } from './service'
 
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, t: 1000, n: 0 }
+  const state = { enabled: opts.enabled ?? true, since: 0, t: 1000, n: 0 }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
+      since: () => state.since,
       now: () => (state.t += 10),
       newId: () => `r${++state.n}`,
       who: (id) => (id === 'a1' ? { name: 'ada', project: '/p' } : id === 'a2' ? { name: 'bo', project: '/p' } : undefined)
@@ -102,10 +103,8 @@ describe('commits', () => {
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'def456', flagged: true })
   })
 
-  it('an agent that never began a task has nothing to attach to, and with workflows off only open runs take commits', () => {
+  it('with workflows off only an open run takes a commit', () => {
     const { wf, state } = make()
-    wf.commit('a2', 'aaa111', 'whatever')
-    expect(wf.runs()).toEqual([])
     wf.begin('a1', 'Fix it')
     wf.done('a1')
     state.enabled = false
@@ -140,5 +139,45 @@ describe('commits', () => {
     wf.commit('a1', 'r2c', 'second round', 1035)
     const [r] = wf.runs()
     expect(r!.rounds.map((x) => x.commits.map((c) => c.sha))).toEqual([['r1c'], ['r2c']])
+  })
+})
+
+describe('work the agent never announced', () => {
+  const MIN = 60_000
+  it('a commit from an agent with no run starts one titled from the commit, marked as the app\'s doing, already done', () => {
+    const { wf } = make()
+    wf.commit('a2', 'aaa111', 'feat: add slugify', 5000)
+    const [r] = wf.runs()
+    expect(r).toMatchObject({ agent: 'a2', name: 'bo', title: 'feat: add slugify', status: 'done', auto: true })
+    expect(r!.rounds[0]!.commits).toEqual([{ sha: 'aaa111', subject: 'feat: add slugify', t: 5000 }])
+  })
+
+  it('a commit made before workflows were switched on is history, not work to record', () => {
+    const { wf, state } = make()
+    state.since = 9000
+    wf.commit('a2', 'old000', 'from last week', 5000)
+    expect(wf.runs()).toEqual([])
+    wf.commit('a2', 'new000', 'today', 9500)
+    expect(wf.runs()).toHaveLength(1)
+  })
+
+  it('commits close together are one run; one after a long gap is another', () => {
+    const { wf } = make()
+    wf.commit('a2', 'c1', 'feat: add slugify', 10 * MIN)
+    wf.commit('a2', 'c2', 'test: cover slugify', 14 * MIN)
+    wf.commit('a2', 'c3', 'feat: add truncate', 60 * MIN)
+    expect(wf.runs().map((r) => [r.title, r.rounds[0]!.commits.length])).toEqual([['feat: add slugify', 2], ['feat: add truncate', 1]])
+  })
+
+  it('nothing is started with workflows off, and after a task the agent announced a stray commit is still just flagged', () => {
+    const off = make({ enabled: false })
+    off.wf.commit('a2', 'x1', 'whatever', 5000)
+    expect(off.wf.runs()).toEqual([])
+    const { wf } = make()
+    wf.begin('a1', 'Fix it')
+    wf.done('a1')
+    wf.commit('a1', 'stray', 'chore: tidy', 5000)
+    expect(wf.runs()).toHaveLength(1)
+    expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'stray', flagged: true })
   })
 })

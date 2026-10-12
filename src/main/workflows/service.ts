@@ -5,12 +5,16 @@ import { type Run, type RunEvent, reduceRuns } from '../../shared/runs'
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
   enabled: () => boolean
+  /** When workflows were switched on (ms): earlier commits are history. */
+  since: () => number
   now: () => number
   newId: () => string
   /** Who an agent is, for the run's label; nothing for an agent the office no longer knows. */
   who: (agentId: string) => { name: string; project: string } | undefined
 }
 
+/** Commits this close together (ms) are one piece of work the agent never announced. */
+const SAME_WORK_MS = 10 * 60_000
 const KINDS = ['begin', 'round', 'done', 'stop', 'commit']
 
 /** What the log says, skipping a half-written last line (expected after a crash) and lines of another kind. */
@@ -88,21 +92,33 @@ export class Workflows {
   }
 
   /**
-   * A commit belongs to the round whose time window holds the moment it was made, whenever it is read; one made outside every
-   * window goes to the agent's nearest run, flagged, so nothing is untracked.
+   * A commit belongs to the round whose time window holds the moment it was made, whenever it is read. One made outside every
+   * window means the agent did not announce the work: with no run of the agent's own it starts a run from the commit (marked as the
+   * app's doing); after a task the agent did announce it is attached to the nearest run, flagged. Nothing is untracked, nothing refused.
    */
   commit(agentId: string, sha: string, subject: string, at = this.deps.now()) {
     if (this.events().some((e) => e.k === 'commit' && e.sha === sha)) return
     const mine = this.mine(agentId)
     const last = mine[0]
     // Work committed before the agent's first task began is not part of any run.
-    if (!last || at < mine[mine.length - 1]!.startedAt) return
+    if (last && at < mine[mine.length - 1]!.startedAt) return
     for (const r of mine) {
       const round = r.rounds.find((x) => at >= x.startedAt && (x.endedAt === undefined || at <= x.endedAt))
       if (round) return this.append({ k: 'commit', t: at, run: r.id, round: round.n, sha, subject })
     }
     // With workflows off, a commit outside every window is not recorded: the feature is winding down, not tracking new work.
     if (!this.deps.enabled()) return
-    this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
+    if (last && !last.auto) return this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
+    if (at < this.deps.since()) return
+    if (last?.endedAt !== undefined && at - last.endedAt < SAME_WORK_MS) {
+      this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject })
+      return this.append({ k: 'done', t: at, run: last.id })
+    }
+    const who = this.deps.who(agentId)
+    if (!who) return
+    const run = this.deps.newId()
+    this.append({ k: 'begin', t: at, run, agent: agentId, name: who.name, project: who.project, title: subject, auto: true })
+    this.append({ k: 'commit', t: at, run, round: 1, sha, subject })
+    this.append({ k: 'done', t: at, run })
   }
 }

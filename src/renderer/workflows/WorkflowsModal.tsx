@@ -23,7 +23,7 @@ export function WorkflowsModal({ runs, open, windingDown, onClose }: { runs: Run
       ) : (
         <ul className="wf-runs" aria-label="Runs">
           {[...runs].reverse().map((r) => (
-            <li key={r.id}><span>{runLabel(r)}</span><small>{r.status}</small></li>
+            <li key={r.id}><span>{runLabel(r)}</span><small>{r.status}{r.auto ? ' · started by the app from a commit' : ''}</small></li>
           ))}
         </ul>
       )}
