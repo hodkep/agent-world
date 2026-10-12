@@ -1,0 +1,98 @@
+import { describe, expect, it } from 'vitest'
+import type { LedgerEvent } from './ledger'
+import { type RunEvent, reduceRuns } from './runs'
+import { agentCounts, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
+
+const MIN = 60_000
+// Wednesday 2026-10-14 12:00 local; the week began Monday 2026-10-12.
+const NOW = new Date(2026, 9, 14, 12).getTime()
+const day = (d: number, h = 10) => new Date(2026, 9, d, h).getTime()
+const begin = (run: string, t: number, agent: string, name: string, extra: object = {}): RunEvent => ({ k: 'begin', t, run, agent, name, project: '/p', title: `task ${run}`, ...extra }) as RunEvent
+const commit = (run: string, t: number, sha: string, flagged = false): RunEvent => ({ k: 'commit', t, run, sha, subject: sha, ...(flagged && { flagged }) })
+
+const events: RunEvent[] = [
+  begin('old', day(5), 'a1', 'ada'),
+  { k: 'done', t: day(5, 11), run: 'old' },
+  begin('r1', day(12), 'a1', 'ada'),
+  commit('r1', day(12, 11), 'c1'),
+  { k: 'done', t: day(12, 12), run: 'r1' },
+  { k: 'round', t: day(13, 0), run: 'r1' },
+  commit('r1', day(13, 1), 'c2', true),
+  { k: 'done', t: day(13, 2), run: 'r1' },
+  begin('r2', day(13), 'a2', 'bo'),
+  commit('r2', day(13, 5), 'c3'),
+  begin('r3', day(14, 9), 'a1', 'ada', { auto: true }),
+  { k: 'done', t: day(14, 9), run: 'r3' }
+]
+const runs = reduceRuns(events)
+
+describe('which runs belong to this week', () => {
+  it('keeps a run that overlaps the week, including one still open, and drops last week\'s', () => {
+    expect(runsThisWeek(runs, NOW).map((r) => r.id)).toEqual(['r1', 'r2', 'r3'])
+  })
+})
+
+describe('the numbers over a set of runs', () => {
+  it('counts runs, rounds, open ones, commits and flagged commits, and the ones the app started', () => {
+    const s = runStats(runsThisWeek(runs, NOW), NOW)
+    expect(s).toMatchObject({ runs: 3, rounds: 4, open: 1, commits: 3, flagged: 1, byApp: 1 })
+  })
+  it('adds up the time of the runs the agent announced, an open one counting until now, and leaves out those whose start the app cannot know', () => {
+    // r1: round 1 is 10:00-12:00 on the 12th (2 h) and round 2 is 00:00-02:00 on the 13th (2 h), so 4 h; the time between them is nobody's.
+    // r2: open from the 13th 10:00 to now (the 14th 12:00) = 26 h.
+    expect(runStats(runsThisWeek(runs, NOW), NOW).ms).toBe((4 + 26) * 60 * MIN)
+  })
+})
+
+describe('breakdowns', () => {
+  it('counts runs per agent, most first, and how runs began', () => {
+    const week = runsThisWeek(runs, NOW)
+    expect(agentCounts(week)).toEqual([{ name: 'ada', n: 2 }, { name: 'bo', n: 1 }])
+    expect(howRunsBegan(week)).toEqual({ announced: 2, byApp: 1 })
+  })
+})
+
+describe('what a run cost, from the ledger', () => {
+  const ledger: LedgerEvent[] = [
+    { k: 'cost', t: day(12, 11), agent: 'a1', project: '/p', model: 'sonnet', usd: 0.5 },
+    { k: 'cost', t: day(12, 20), agent: 'a1', project: '/p', model: 'sonnet', usd: 9 }, // between rounds: nobody's
+    { k: 'cost', t: day(13, 1), agent: 'a1', project: '/p', model: 'sonnet', usd: 0.25 },
+    { k: 'cost', t: day(13, 11), agent: 'a2', project: '/p', model: 'sonnet', usd: 2 },
+    { k: 'tokens', t: day(13, 11), agent: 'a2', project: '/p', model: 'gem', input: 1000, output: 500 }
+  ]
+  it('adds what the agent spent inside each round\'s window, and not between rounds', () => {
+    const r1 = runs.find((r) => r.id === 'r1')!
+    expect(runSpend(r1, ledger, NOW).rounds).toEqual([{ usd: 0.5, tokens: 0 }, { usd: 0.25, tokens: 0 }])
+    expect(runSpend(r1, ledger, NOW)).toMatchObject({ usd: 0.75, tokens: 0 })
+  })
+  it('counts tokens for a program that reports them, and an open run until now', () => {
+    expect(runSpend(runs.find((r) => r.id === 'r2')!, ledger, NOW)).toMatchObject({ usd: 2, tokens: 1500 })
+  })
+  it('is nothing for a run the app started, whose start it cannot know', () => {
+    expect(runSpend(runs.find((r) => r.id === 'r3')!, ledger, NOW)).toMatchObject({ usd: 0, tokens: 0, known: false })
+  })
+})
+
+describe('writing numbers for people', () => {
+  it('durations, cost and tokens', () => {
+    expect(formatDuration(9 * MIN)).toBe('9m')
+    expect(formatDuration(200 * MIN)).toBe('3 h 20 m')
+    expect(formatDuration(120 * MIN)).toBe('2 h')
+    expect(formatDuration(0)).toBe('under 1m')
+    expect(formatCost(0.841)).toBe('$0.84')
+    expect(formatCost(0)).toBe('$0')
+    expect(formatTokens(38_400)).toBe('38k')
+    expect(formatTokens(1500)).toBe('1.5k')
+    expect(formatTokens(420)).toBe('420')
+  })
+})
+
+describe('the cost cell of a run', () => {
+  it('shows money, or tokens for a program that reports no price, or a dash where the app cannot know', () => {
+    expect(spendText({ usd: 0.75, tokens: 0, known: true })).toBe('$0.75')
+    expect(spendText({ usd: 0, tokens: 1500, known: true })).toBe('1.5k tokens')
+    expect(spendText({ usd: 0, tokens: 0, known: true })).toBe('$0')
+    expect(spendText({ usd: 0, tokens: 0, known: false })).toBe('—')
+    expect(spendText(undefined)).toBe('—')
+  })
+})

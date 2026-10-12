@@ -57,6 +57,7 @@ import { RewindModal } from './stats/RewindModal'
 import { UsageModal } from './stats/UsageModal'
 import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
+import { WorkflowTab } from './workflows/WorkflowTab'
 import { windingDown, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -123,7 +124,7 @@ export function App() {
   const [drawer, setDrawer] = useState(false)
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
-  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'file'>(readTalk)
+  const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'workflow' | 'file'>(readTalk)
   const [wide, setWide] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
@@ -1124,7 +1125,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} onClose={() => setReport(null)} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1544,6 +1545,11 @@ export function App() {
                   Library
                 </button>
               )}
+              {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && (
+                <button role="tab" aria-selected={view === 'workflow'} onClick={() => setView('workflow')} title="This agent's tasks, round by round">
+                  Workflow{wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? ' ●' : ''}
+                </button>
+              )}
               <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
                 Traces{messages.length ? ` ${messages.length}` : ''}
               </button>
@@ -1576,6 +1582,7 @@ export function App() {
             />
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
+          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

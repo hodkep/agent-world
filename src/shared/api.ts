@@ -327,7 +327,7 @@ export interface AwApi {
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
   workflows: {
     /** Every run recorded, oldest first, and how many are still open. */
-    summary(): Promise<{ runs: Run[]; open: number }>
+    summary(): Promise<{ runs: Run[]; open: number; /** What each run cost, by run id, from the ledger. */ spend: Record<string, import('./runStats').RunSpend> }>
     /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
     stopAll(): Promise<void>
   }

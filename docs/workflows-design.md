@@ -259,6 +259,7 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 
 ## Change log
 
+- 2026-10-12: slice 3 built: the Workflows window (this week's runs, rounds, commits, cost from the ledger and time, runs by agent, how runs began, what is open) and each agent's Workflow tab (round by round with commits). Not built because they need the engine: the dial breakdown, gate tags, plan/implement/test/review steps and the per-step strip.
 - 2026-10-12: D24 built: runs started by the app from commits, so no work goes unrecorded; `since` records when workflows were switched on.
 - 2026-10-12: slice 2 built: run log and recorder (`task_begin`, `task_done`, commits placed by time, round 2, stop), the confirm when turning off with runs open, and the winding-down state; pilot findings added.
 - 2026-10-12: D23, the workflows switch; slice 1 built (switch in Setup and Settings, cost per dial, top-bar button and an empty Workflows window).
