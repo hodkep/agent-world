@@ -23,13 +23,11 @@ test('the library and playbook can be switched off: agents are offered nothing f
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: /Features/ }).click()
     const lib = settings.getByRole('checkbox', { name: /Library and playbook/ })
-    const check = settings.getByRole('checkbox', { name: /Check before acting/ })
+    await expect(settings.getByRole('checkbox', { name: /Check before acting/ })).toHaveCount(0)
     await expect(lib).toBeChecked()
-    await expect(check).toBeEnabled()
     await expect(settings.getByRole('table', { name: 'What the library and playbook add, on these assumptions' })).toContainText('tokens')
     await lib.click()
     await expect(lib).not.toBeChecked()
-    await expect(check).toBeDisabled()
     await settings.getByRole('button', { name: 'Close settings' }).click()
 
     // An agent started now is offered no library tools.
@@ -61,7 +59,6 @@ test('the library and playbook can be switched off: agents are offered nothing f
 
     // Switched back on, it works as before: the tools are back and the window shows the library.
     await again.getByRole('checkbox', { name: /Library and playbook/ }).click()
-    await expect(again.getByRole('checkbox', { name: /Check before acting/ })).toBeEnabled()
     await again.getByRole('button', { name: 'Close settings' }).click()
     expect(await tools()).toContain('library_index')
     await header.getByRole('button', { name: 'Library', exact: true }).click()

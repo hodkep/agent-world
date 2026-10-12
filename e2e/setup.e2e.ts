@@ -37,12 +37,7 @@ test('a first run walks through setup, hires the first agent with the chosen def
     const library = setup.getByRole('switch', { name: 'Library and playbook' })
     await expect(library).toHaveAttribute('aria-checked', 'true')
     await expect(setup.getByRole('table', { name: 'What the library and playbook add, on these assumptions' })).toContainText('tokens')
-    const check = setup.getByRole('switch', { name: 'Check before acting' })
-    await expect(check).toHaveAttribute('aria-checked', 'true')
-    await expect(setup.getByRole('table', { name: 'What the check adds, on these assumptions' })).toContainText('≈ 2,750 tokens')
-    await check.click()
-    await expect(check).toHaveAttribute('aria-checked', 'false')
-    await expect.poll(() => JSON.parse(readFileSync(join(home, 'library', 'playbooks', 'global.json'), 'utf8'))).toMatchObject({ features: { forcedCheck: false } })
+    await expect(setup.getByRole('switch', { name: 'Check before acting' })).toHaveCount(0)
     // Tracking every request as a todo is the other feature here, with what it adds, and is off until chosen.
     const track = setup.getByRole('switch', { name: 'Track every request as a todo' })
     await expect(track).toHaveAttribute('aria-checked', 'false')

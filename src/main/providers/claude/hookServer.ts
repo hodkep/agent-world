@@ -122,6 +122,9 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
     if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && p.tool_input && typeof p.tool_input === 'object') o.onToolUse?.(agentId, p.tool_name, p.tool_input as Record<string, unknown>)
     if (hookEvent === 'PostCompact') o.onCompact?.(agentId)
     const reminder = hookEvent === 'UserPromptSubmit' ? o.reminderFor?.(agentId, typeof p.prompt === 'string' ? p.prompt : '') : null
+    // What the agent met in the middle of a run (a merge conflict): the playbook may have something for it, said right after the tool that showed it.
+    const met = hookEvent === 'PostToolUse' && typeof p.tool_name === 'string' ? o.situationFor?.(agentId, p.tool_name, (p.tool_input ?? {}) as Record<string, unknown>, p.tool_response) : null
+    if (met) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: met } }))
     if (reminder) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: reminder } }))
     res.writeHead(200).end()
   })

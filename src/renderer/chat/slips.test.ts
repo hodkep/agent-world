@@ -13,6 +13,9 @@ describe('slipsFor', () => {
     const s = slipsFor([u({ t: 1000, id: 'a', words: 'w1' }), u({ t: 1500, id: 'b', how: 'skill' })], 500, 5000)
     expect(s.map((x) => [x.id, x.state])).toEqual([['a', 'pointed'], ['b', 'self']])
   })
+  it('keeps what the agent met that pointed it at the item', () => {
+    expect(slipsFor([u({ t: 1000, because: 'merge conflict, 2 files' })], 500, 5000)[0]).toMatchObject({ state: 'pointed', because: 'merge conflict, 2 files' })
+  })
   it('keeps to its own window, one slip per item, and ignores starts and deliveries', () => {
     const s = slipsFor([u({ t: 100 }), u({ t: 1000, words: 'x' }), u({ t: 1100, words: 'x' }), u({ t: 6000 }), u({ t: 1200, how: 'started', id: '' }), u({ t: 1300, how: 'delivered', id: 'terse' })], 500, 5000)
     expect(s).toHaveLength(1)

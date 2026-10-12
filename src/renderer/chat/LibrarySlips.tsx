@@ -24,6 +24,7 @@ export function useLibraryUses(agentId: string): { uses: Use[]; items: Map<strin
 const gap = (ms: number) => (ms < 950 ? 'at once' : ms < 60_000 ? `${(ms / 1000).toFixed(1)}s later` : `${Math.round(ms / 60_000)} min later`)
 const tokens = (s: string) => Math.max(1, Math.ceil(s.length / 4))
 
+const why = (s: { because?: string }) => (s.because ? `pointed because of a ${s.because}` : 'pointed')
 interface Note { key: string; icon: IconName; tone: 'told' | 'read' | 'point' | 'mute'; title: string; says: string; words?: string; description?: string }
 
 function notes(slips: Slip[], starts: Use[], told: number, items: Map<string, LibraryItem>): Note[] {
@@ -33,9 +34,9 @@ function notes(slips: Slip[], starts: Use[], told: number, items: Map<string, Li
     const title = it?.name ?? s.id
     out.push(
       s.state === 'read'
-        ? { key: s.id, icon: 'book', tone: 'read', title, says: `pointed, then read · ${gap(s.gapMs ?? 0)}`, words: s.words, description: it?.description }
+        ? { key: s.id, icon: 'book', tone: 'read', title, says: `${why(s)}, then read · ${gap(s.gapMs ?? 0)}`, words: s.words, description: it?.description }
         : s.state === 'pointed'
-          ? { key: s.id, icon: 'tag', tone: 'mute', title, says: 'pointed, not read', words: s.words, description: it?.description }
+          ? { key: s.id, icon: 'tag', tone: 'mute', title, says: `${why(s)}, not read`, words: s.words, description: it?.description }
           : { key: s.id, icon: 'book', tone: 'point', title, says: 'read on its own, not pointed at', description: it?.description }
     )
   }

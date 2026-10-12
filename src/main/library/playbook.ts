@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { tokens } from './doc'
 import type { Item } from './store'
 
-import type { PlaybookFeatures, PlaybookRule, RuleMode, RuleStrength } from '../../shared/library'
+import type { PlaybookRule, RuleMode, RuleStrength } from '../../shared/library'
 export type Mode = RuleMode
 export type Strength = RuleStrength
 export type Rule = PlaybookRule
@@ -38,7 +38,7 @@ export interface Compiled {
 }
 
 /** What an agent is told for a playbook: the opening text, what it may fetch, and the reminder. `canFetch` is whether it can reach the library tools. */
-export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: boolean; forcedCheck?: boolean }): Compiled {
+export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: boolean }): Compiled {
   const live = rules.filter((r) => r.mode !== 'off' && items.has(r.id))
   const always = live.filter((r) => r.mode === 'always')
   const onDemand = live.filter((r) => r.mode === 'on-demand')
@@ -63,7 +63,7 @@ export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: 
   // A note is easy to read past. The check asks for one visible line, so a rule that applies is not skipped by accident, and one passed over leaves its reason.
   const ids = hard.map((r) => r.id)
   const check = hard.length ? ` Before your first tool call, write one line: which of these apply to this request? If one does, read it first with library_get(${ids.length === 1 ? `'${ids[0]}'` : 'id'}). If you decide it does not apply, call library_skip(id, reason).` : ''
-  const forced = o.canFetch && o.forcedCheck !== false ? check : ''
+  const forced = o.canFetch ? check : ''
   const reminder = line(live.filter((r) => r.strength !== 'soft')) + (hard.length ? forced : '')
   const hardReminder = line(hard) + forced
   const coreTokens = tokens(core)
@@ -78,9 +78,9 @@ export class Playbooks {
   private file(scope: Scope) {
     return scope === 'global' ? join(this.root, 'playbooks', 'global.json') : join(this.root, 'playbooks', 'workspaces', `${scope.workspace}.json`)
   }
-  private raw(scope: Scope): { rules?: unknown; features?: unknown } {
+  private raw(scope: Scope): { rules?: unknown } {
     try {
-      return JSON.parse(readFileSync(this.file(scope), 'utf8')) as { rules?: unknown; features?: unknown }
+      return JSON.parse(readFileSync(this.file(scope), 'utf8')) as { rules?: unknown }
     } catch {
       return {}
     }
@@ -88,14 +88,6 @@ export class Playbooks {
   read(scope: Scope): Rule[] {
     const raw = this.raw(scope)
     return Array.isArray(raw.rules) ? raw.rules.filter(isRule) : []
-  }
-  /** The switches this playbook sets (none, if it sets none). */
-  readFeatures(scope: Scope): PlaybookFeatures {
-    const f = this.raw(scope).features as PlaybookFeatures | undefined
-    return typeof f?.forcedCheck === 'boolean' ? { forcedCheck: f.forcedCheck } : {}
-  }
-  writeFeatures(scope: Scope, features: PlaybookFeatures) {
-    this.save(scope, this.read(scope), features)
   }
   /** When a playbook last changed (0 if it never did). */
   changedAt(scope: Scope): number {
@@ -106,12 +98,12 @@ export class Playbooks {
     }
   }
   write(scope: Scope, rules: Rule[]) {
-    this.save(scope, rules, this.readFeatures(scope))
+    this.save(scope, rules)
   }
-  private save(scope: Scope, rules: Rule[], features: PlaybookFeatures) {
+  private save(scope: Scope, rules: Rule[]) {
     const file = this.file(scope)
     mkdirSync(dirname(file), { recursive: true })
-    writeFileSync(file, JSON.stringify({ rules: rules.filter(isRule), ...(Object.keys(features).length ? { features } : {}) }, null, 2))
+    writeFileSync(file, JSON.stringify({ rules: rules.filter(isRule) }, null, 2))
   }
 }
 

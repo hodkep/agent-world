@@ -255,23 +255,12 @@ describe('the forced check on a hard rule', () => {
     await svc.prepare('a2', false)
     expect(svc.remind('a2', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
   })
-  it('is off when the playbook turns it off (the workspace over the global), and says what it costs', async () => {
-    svc.playbooks.writeFeatures('global', { forcedCheck: false })
-    await svc.prepare('a1', true)
-    expect(svc.remind('a1', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
-    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: true })
+  it('is always there for a hard rule, and says what it costs', async () => {
     await svc.prepare('a1', true)
     expect(svc.remind('a1', 'rename the lamp post')).toContain('library_skip')
     const c = svc.compileFor('/work/shop', true)
-    expect(c.features.forcedCheck).toBe(true)
     expect(c.forcedCheckTokens).toBeGreaterThan(20)
     expect(c.forcedCheckTokens).toBeLessThan(120)
-  })
-  it('keeps the rules when a feature is written, and the features when rules are written', () => {
-    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: false })
-    expect(svc.playbooks.read({ workspace: 'shop' })).toHaveLength(1)
-    svc.playbooks.write({ workspace: 'shop' }, [])
-    expect(svc.playbooks.readFeatures({ workspace: 'shop' })).toEqual({ forcedCheck: false })
   })
 })
 
@@ -289,17 +278,44 @@ describe('an agent passing over an item', () => {
   })
 })
 
-describe('the switch for the check, as the Library window and Setup use it', () => {
-  it('is on until someone turns it off, kept in the global playbook, and its cost is near the measured text', async () => {
-    expect(svc.features()).toEqual({ forcedCheck: true })
-    svc.setFeatures({ forcedCheck: false })
-    expect(svc.features()).toEqual({ forcedCheck: false })
-    expect(svc.playbooks.readFeatures('global')).toEqual({ forcedCheck: false })
-    // a project's own setting still wins when it has one
-    svc.playbooks.writeFeatures({ workspace: 'shop' }, { forcedCheck: true })
-    expect(svc.compileFor('/work/shop', true).features.forcedCheck).toBe(true)
-    // the number shown to people is the size of the real sentence, give or take a few tokens
+describe('the cost of the check before acting', () => {
+  it('is near the measured text', async () => {
     svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'ui work', strength: 'hard' }])
     expect(Math.abs(svc.compileFor('/work/shop', true).forcedCheckTokens - FORCED_CHECK_TOKENS)).toBeLessThanOrEqual(12)
+  })
+})
+
+describe('a situation an agent meets in the middle of a run', () => {
+  const CONFLICT = { stdout: 'CONFLICT (content): Merge conflict in a.txt\nAutomatic merge failed' }
+  const withRule = async (also: string[] = ['merge-conflict']) => {
+    const s = join(dir, 'src', 'rmc')
+    mkdirSync(s, { recursive: true })
+    writeFileSync(join(s, 'SKILL.md'), '---\nname: rmc\ndescription: Resolve a git merge conflict.\n---\n# Merge')
+    await svc.library.addSkillFolder(s, 't')
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'rmc', mode: 'on-demand', when: 'a merge stopped', strength: 'medium', also }])
+    await svc.prepare('a1', true, true)
+  }
+  it('points at the rule that lists it, once, and logs why', async () => {
+    await withRule()
+    expect(svc.situation('a1', 'Bash', { command: 'git status' }, { stdout: 'clean' })).toBe('')
+    const line = svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)
+    expect(line).toContain('merge conflict, 1 file')
+    expect(line).toContain("library_get('rmc')")
+    expect(line).toContain("library_skip('rmc'")
+    expect(svc.situation('a1', 'Bash', { command: 'git status' }, { stdout: 'Unmerged paths:\n  both modified: a.txt' })).toBe('')
+    expect(svc.usesOf('a1').filter((u) => u.how === 'triggered')).toMatchObject([{ id: 'rmc', because: 'merge conflict, 1 file' }])
+  })
+  it('is new again after the conflict was committed, and not repeated once the item was read', async () => {
+    await withRule()
+    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).not.toBe('')
+    svc.situation('a1', 'Bash', { command: 'git commit -am done' }, { stdout: '[main abc] done' })
+    expect(svc.situation('a1', 'Bash', { command: 'git merge y' }, CONFLICT)).not.toBe('')
+    svc.situation('a1', 'Bash', { command: 'git commit -am done' }, { stdout: '[main abc] done' })
+    svc.record('a1', 'rmc', 'fetched')
+    expect(svc.situation('a1', 'Bash', { command: 'git merge z' }, CONFLICT)).toBe('')
+  })
+  it('is left alone when no rule lists it', async () => {
+    await withRule([])
+    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toBe('')
   })
 })
