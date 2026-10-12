@@ -72,9 +72,9 @@ export function OutlineIcon({ name, size = 16 }: { name: HeaderIconName; size?: 
  * A top-bar button shown as an icon, to save room. Its name is still the accessible name, and the tooltip
  * (the hint, drawn by CSS) appears the moment the pointer or keyboard focus arrives, with no delay.
  */
-export function IconButton({ icon, label, tip, onClick, disabled, pressed, expanded, haspopup, badge, className = '' }: { icon: HeaderIconName; label: string; tip: string; onClick: () => void; disabled?: boolean; pressed?: boolean; expanded?: boolean; haspopup?: boolean; badge?: number; className?: string }) {
+export function IconButton({ icon, label, tip, onClick, disabled, pressed, expanded, haspopup, badge, dim, className = '' }: { icon: HeaderIconName; label: string; tip: string; onClick: () => void; disabled?: boolean; pressed?: boolean; expanded?: boolean; haspopup?: boolean; badge?: number; /** Drawn quieter: the thing it opens is switched off. */ dim?: boolean; className?: string }) {
   return (
-    <button className={`tip-btn ${className}`} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={pressed} aria-expanded={expanded} aria-haspopup={haspopup ? 'dialog' : undefined} data-tip={tip === label ? label : `${label} · ${tip}`}>
+    <button className={`tip-btn ${dim ? 'dim' : ''} ${className}`} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={pressed} aria-expanded={expanded} aria-haspopup={haspopup ? 'dialog' : undefined} data-tip={tip === label ? label : `${label} · ${tip}`}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
         {ICONS[icon]}
       </svg>

@@ -486,7 +486,7 @@ const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_cl
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 const libraryRemind = (id: string, prompt: string) => {
   try {
-    return [libraryService.remind(id, prompt), todoRemind(id, prompt)].filter(Boolean).join('\n') || null
+    return [prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt)].filter(Boolean).join('\n') || null
   } catch {
     return null
   }
@@ -735,7 +735,8 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const canFetch = mail === 'yes' || mail === 'connected'
   let lib: { core: string; reminder: string; pluginDir: string | null } = { core: '', reminder: '', pluginDir: null }
   try {
-    lib = libraryService.prepare(a.id, canFetch, !!provider.capabilities.nativeSkills)
+    // Switched off, an agent is told nothing from the library: no opening text, no folder of skills.
+    if (prefs.libraryEnabled) lib = libraryService.prepare(a.id, canFetch, !!provider.capabilities.nativeSkills)
   } catch {
     /* the library is a convenience */
   }
@@ -1057,6 +1058,7 @@ async function main() {
       return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
     },
     todos: todoService,
+    libraryOn: () => prefs.libraryEnabled,
     library: {
       index: (caller) => libraryService.index(caller),
       get: (caller, id, file) => libraryService.get(caller, id, file),

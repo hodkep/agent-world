@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [] }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [] }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -16,6 +16,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     keepAwake: typeof r.keepAwake === 'boolean' ? r.keepAwake : base.keepAwake,
     wrapUp: typeof r.wrapUp === 'boolean' ? r.wrapUp : base.wrapUp,
     openPagesInApp: typeof r.openPagesInApp === 'boolean' ? r.openPagesInApp : base.openPagesInApp,
+    libraryEnabled: typeof r.libraryEnabled === 'boolean' ? r.libraryEnabled : base.libraryEnabled,
     todoTracking: r.todoTracking === 'full' || r.todoTracking === 'deferred' ? r.todoTracking : base.todoTracking,
     subagents: cleanSubagents(r.subagents, base.subagents),
     setup: cleanSetup(r.setup, base.setup),

@@ -268,6 +268,8 @@ export interface Prefs {
   openPagesInApp: boolean
   /** How far agents keep the project's todo board: only what is put off, or every request (which adds tokens). */
   todoTracking: 'deferred' | 'full'
+  /** The library of skills, instructions and prompts, and the playbook that says what agents are told. Off: agents are told nothing from it, and its window says so. */
+  libraryEnabled: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
   wrapUp: boolean
   /** How agents starting agents as their subagents are held in: how many levels, and how many at once under one agent. */

@@ -33,6 +33,10 @@ test('a first run walks through setup, hires the first agent with the chosen def
 
     // One feature for now: the check before acting. It is on, says what it costs on stated assumptions, and a click turns it off in the global playbook.
     await expect(setup.getByRole('heading', { name: 'Which features should agents use?' })).toBeVisible()
+    // The library itself is the first feature: on, with what it costs, and the check below it follows it.
+    const library = setup.getByRole('switch', { name: 'Library and playbook' })
+    await expect(library).toHaveAttribute('aria-checked', 'true')
+    await expect(setup.getByRole('table', { name: 'What the library and playbook add, on these assumptions' })).toContainText('tokens')
     const check = setup.getByRole('switch', { name: 'Check before acting' })
     await expect(check).toHaveAttribute('aria-checked', 'true')
     await expect(setup.getByRole('table', { name: 'What the check adds, on these assumptions' })).toContainText('≈ 2,750 tokens')

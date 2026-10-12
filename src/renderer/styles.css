@@ -2763,3 +2763,10 @@ aside:not(.drawer) { flex: none; }
 
 .td-sort { margin-left: auto; background: var(--selected); box-shadow: inset 0 -2px 0 var(--accent); }
 .td-sort + .td-search { margin-left: 8px; }
+
+/* The library switched off */
+.lib-off { padding: 28px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; max-width: 560px; }
+.lib-off p { margin: 0; color: var(--muted); line-height: 1.55; }
+.tip-btn.dim { opacity: .55; }
+.set-sw.off { opacity: .5; }
+.su-toggle:disabled { opacity: .5; cursor: default; }

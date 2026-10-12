@@ -158,6 +158,8 @@ export function App() {
   const [settings, setSettings] = useState(false)
   const [shortcuts, setShortcuts] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
+  // Where Settings opens when a link to one of its pages (the Library's off notice) asked for it.
+  const [settingsPane, setSettingsPane] = useState<string | undefined>(undefined)
   // The todo board of the open project, how many of its tasks wait on you, and the message a task asked to be opened at.
   const [todoOpen, setTodoOpen] = useState(false)
   const [todoNeeds, setTodoNeeds] = useState(0)
@@ -1190,14 +1192,14 @@ export function App() {
           onOpenMessage={(l) => (setTodoOpen(false), openMsg(l))}
         />
       )}
-      {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} onClose={() => setLibraryOpen(false)} />}
-      {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
+      {settings && prefs && <Settings initialPane={settingsPane} providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
           setPrefs(next)
           void window.aw.setPrefs(next)
-        }} onClose={() => setSettings(false)} />}
+        }} onClose={() => (setSettings(false), setSettingsPane(undefined))} />}
       {shortcuts && <ShortcutsSheet onClose={() => setShortcuts(false)} />}
       {palette && current && (
         <Palette
@@ -1232,7 +1234,7 @@ export function App() {
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
         {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
-        <IconButton icon="library" label="Library" onClick={() => setLibraryOpen(true)} haspopup tip="Skills, instructions and the playbook that says what agents are told" />
+        <IconButton icon="library" label={prefs?.libraryEnabled === false ? 'Library (off)' : 'Library'} dim={prefs?.libraryEnabled === false} onClick={() => setLibraryOpen(true)} haspopup tip={prefs?.libraryEnabled === false ? 'The library and playbook are turned off. Open to turn them on in Settings.' : 'Skills, instructions and the playbook that says what agents are told'} />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         {error && <span className="error">{error}</span>}
@@ -1569,7 +1571,7 @@ export function App() {
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
-          {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} />}
+          {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} inPlace={current.branch ? undefined : { path: current.cwd }} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>

@@ -45,6 +45,8 @@ interface Options {
   }
   /** The project's todo board, shared by the person and the agents. Offered only when set. */
   todos?: TodoApi
+  /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
+  libraryOn?: () => boolean
   /** The shared library of skills and instructions, as far as the caller's playbook allows. */
   library?: {
     index: (callerId: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
@@ -186,7 +188,7 @@ function toolsFor(callerId: string, o: Options) {
       return { content: [{ type: 'text', text: notes.length ? notes.map((n) => `- ${n.text} (${n.by}, ${new Date(n.at).toISOString().slice(0, 10)})`).join('\n') : 'Nothing saved about this yet.' }] }
     }
   )
-  if (o.library) addLibraryTools(server, callerId, o.library)
+  if (o.library && (o.libraryOn?.() ?? true)) addLibraryTools(server, callerId, o.library)
   if (o.todos) addTodoTools(server, callerId, o.todos)
   return server
 }
