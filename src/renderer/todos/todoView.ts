@@ -50,5 +50,38 @@ export function filterBoard(b: TodoBoard, f: BoardFilter): TodoBoard {
   }
 }
 
+export interface ActivityLine {
+  text: string
+  at: number
+  /** Worth a coloured mark: something happened, not just an edit. */
+  key: boolean
+}
+
+/** What happened to a task, in words, oldest first: the events that matter, with plain edits folded into one line ("Edited 3 times"). */
+export function activityOf(t: Todo): ActivityLine[] {
+  const out: ActivityLine[] = []
+  for (const e of t.history) {
+    const by = e.by.name
+    if (e.what === 'updated') {
+      const last = out.at(-1)
+      const n = last && !last.key && /^Edited \d+ times?$/.test(last.text) ? Number(/\d+/.exec(last.text)![0]) + 1 : 1
+      const line = { text: `Edited ${n} time${n === 1 ? '' : 's'}`, at: e.at, key: false }
+      if (last && !last.key && /^Edited/.test(last.text)) out[out.length - 1] = line
+      else out.push(line)
+      continue
+    }
+    const text =
+      e.what === 'created' ? `Made by ${by}${e.link ? ' from its message' : ''}`
+      : e.what === 'claimed' ? `Claimed by ${by}`
+      : e.what === 'assigned' ? `${by} put ${e.note ?? 'an agent'} on it`
+      : e.what === 'asked' ? `${by} asked ${e.note ?? ''}`.trim()
+      : e.what === 'done' ? `Done by ${by}${e.note ? `: ${e.note}` : ''}`
+      : e.what === 'reopened' ? `Reopened by ${by}`
+      : `Moved ${e.note ?? ''}`.trim()
+    out.push({ text, at: e.at, key: true })
+  }
+  return out
+}
+
 /** The names of agents that made tasks here, for the filter chips. */
 export const makers = (b: TodoBoard): string[] => [...new Set(b.todos.filter((t) => t.createdBy.kind === 'agent').map((t) => t.createdBy.name))].sort()

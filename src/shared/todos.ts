@@ -21,7 +21,7 @@ export interface MessageLink {
 export interface TodoEvent {
   at: number
   by: Actor
-  what: 'created' | 'updated' | 'claimed' | 'done' | 'reopened' | 'moved'
+  what: 'created' | 'updated' | 'claimed' | 'assigned' | 'asked' | 'done' | 'reopened' | 'moved'
   note?: string
   link?: MessageLink
 }
@@ -137,6 +137,19 @@ export function claimTodo(b: TodoBoard, id: string, by: Actor, at: number): Todo
   const t = find(b, id)
   if (t.claimedBy && t.claimedBy.id !== by.id && t.status === 'doing') throw new Error(`${t.claimedBy.name} is already doing todo ${id}.`)
   return put(b, stamp({ ...t, status: 'doing', claimedBy: by, blockedWhy: undefined }, by, at, { what: 'claimed' }))
+}
+
+/** The person puts an agent on a task: it is the agent's now, and the history says who asked. */
+export function assignTodo(b: TodoBoard, id: string, agent: Actor, by: Actor, at: number): TodoBoard {
+  const t = find(b, id)
+  if (t.claimedBy && t.claimedBy.id !== agent.id && t.status === 'doing') throw new Error(`${t.claimedBy.name} is already doing todo ${id}.`)
+  return put(b, stamp({ ...t, status: 'doing', claimedBy: agent, blockedWhy: undefined }, by, at, { what: 'assigned', note: agent.name }))
+}
+
+/** A question was put to an agent about a task; the task itself is unchanged. */
+export function askedTodo(b: TodoBoard, id: string, agent: Actor, by: Actor, at: number, text: string): TodoBoard {
+  const t = find(b, id)
+  return put(b, stamp(t, by, at, { what: 'asked', note: `${agent.name}: ${clip(text, NOTE_MAX)}` }))
 }
 
 export function doneTodo(b: TodoBoard, id: string, by: Actor, note: string, at: number, link?: MessageLink): TodoBoard {

@@ -299,6 +299,8 @@ export interface AwApi {
     get(folder: string): Promise<{ board: TodoBoard; key: string }>
     add(folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }): Promise<void>
     update(folder: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Promise<void>
+    /** Ask an agent about a task, or put it on one: recorded on the board; the message to send that agent is returned. */
+    ask(folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<{ message: string }>
     remove(folder: string, id: string): Promise<void>
     done(folder: string, id: string): Promise<void>
     reopen(folder: string, id: string): Promise<void>

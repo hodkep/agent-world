@@ -107,6 +107,21 @@ describe('the todo service', () => {
     expect(svc.board('/work/shop').todos[0]!.doneBy).toMatchObject({ forMain: 'ada' })
   })
 
+  it('puts an agent on a task at the person\'s request, or records a question to it, and gives back the message to send', () => {
+    const { svc } = make()
+    const t = svc.addByPerson('/work/shop', { title: 'Write the docs', list: 'Docs', notes: 'screenshot needed' })
+    const work = svc.askAgent('/work/shop', t.id, 'b1', 'work', 'start with Settings')
+    expect(work.message).toContain('todo#1')
+    expect(work.message).toContain('start with Settings')
+    expect(svc.board('/work/shop').todos[0]).toMatchObject({ status: 'doing', claimedBy: { id: 'b1', name: 'bob' } })
+    const q = svc.askAgent('/work/shop', t.id, 'a1', 'ask', 'is it needed?')
+    expect(q.message).toMatch(/question/i)
+    expect(svc.board('/work/shop').todos[0]!.claimedBy).toMatchObject({ id: 'b1' })
+    expect(svc.board('/work/shop').todos[0]!.history.at(-1)).toMatchObject({ what: 'asked', note: 'ada: is it needed?' })
+    expect(() => svc.askAgent('/work/shop', t.id, 'a1', 'work', '')).toThrow(/bob is already doing/)
+    expect(() => svc.askAgent('/work/shop', t.id, 'nobody', 'ask', '')).toThrow(/agent/i)
+  })
+
   it('counts what needs the person, per project', () => {
     const { svc } = make()
     svc.addByAgent('a1', { title: 'key', needsYou: true })

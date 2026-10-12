@@ -1391,6 +1391,7 @@ async function main() {
   ipcMain.handle('todos:get', (_, folder: string) => ({ board: todoService.board(String(folder)), key: repoSlug(String(folder)) }))
   ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => void todoService.addByPerson(String(folder), i))
   ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
+  ipcMain.handle('todos:ask', (_, folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string) => todoService.askAgent(String(folder), String(id), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000)))
   ipcMain.handle('todos:remove', (_, folder: string, id: string) => todoService.removeByPerson(String(folder), String(id)))
   ipcMain.handle('todos:done', (_, folder: string, id: string) => todoService.doneByPerson(String(folder), String(id)))
   ipcMain.handle('todos:reopen', (_, folder: string, id: string) => todoService.reopenByPerson(String(folder), String(id)))

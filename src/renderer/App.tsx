@@ -158,6 +158,7 @@ export function App() {
   // The todo board of the open project, how many of its tasks wait on you, and the message a task asked to be opened at.
   const [todoOpen, setTodoOpen] = useState(false)
   const [todoNeeds, setTodoNeeds] = useState(0)
+  const [todoFocus, setTodoFocus] = useState<string | null>(null)
   const [jump, setJump] = useState<{ agentId: string; itemId: string; excerpt: string; n: number } | null>(null)
   useEffect(() => {
     if (!folder) return setTodoNeeds(0)
@@ -1128,7 +1129,20 @@ export function App() {
       {todoOpen && folder && (
         <TodoBoardModal
           folder={folder}
-          onClose={() => setTodoOpen(false)}
+          focusId={todoFocus}
+          agents={agents.filter((a) => a.repoPath === folder && !a.parent).map((a) => ({ id: a.id, name: a.name, provider: a.provider ?? 'claude', state: world[a.id]?.activity ?? 'asleep' }))}
+          onAsk={async (agentId, message, openChat) => {
+            const a = agents.find((x) => x.id === agentId)
+            if (!a) throw new Error('That agent is gone.')
+            if ((world[agentId]?.activity ?? 'asleep') === 'asleep') await window.aw.wakeAgent(agentId)
+            await window.aw.chatSend(agentId, message)
+            if (openChat) {
+              setTodoOpen(false)
+              select(agentId)
+              setView('chat')
+            }
+          }}
+          onClose={() => (setTodoOpen(false), setTodoFocus(null))}
           onOpenMessage={(l) => {
             setTodoOpen(false)
             select(l.agentId)
