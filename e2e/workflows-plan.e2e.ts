@@ -164,3 +164,54 @@ test('the hold can be lifted without approving, and a plan sent back keeps the h
     await shutdown()
   }
 })
+
+test('the dial changes what task_begin tells the agent: at economy a small change may skip the plan and edits are not held, at balanced the plan is asked for', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-wfdial-')))
+  const repo = join(tmp, 'shop')
+  mkdirSync(repo)
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' }).trim()
+  git(repo, 'init', '-q', '-b', 'main')
+  writeFileSync(join(repo, 'README.md'), '# shop\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'init')
+  mkdirSync(join(tmp, 'home'), { recursive: true })
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'economy', since: 1, planGate: true, mergeGate: true } }))
+  const argsLog = join(tmp, 'args.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    await expect.poll(() => readFileSync(argsLog, 'utf8').includes('--settings')).toBe(true)
+    const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
+    const flag = (f: string) => launch[launch.indexOf(f) + 1]!
+    const mcpCfg = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
+    const hook = JSON.parse(readFileSync(flag('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0] as { url: string; headers: Record<string, string> }
+    const edit = () => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada!.cwd, hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: join(ada!.cwd, 'src/a.ts'), old_string: 'a', new_string: 'b' } }) }).then((r) => r.text())
+    const client = new Client({ name: 'test', version: '1' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(mcpCfg.url), { requestInit: { headers: mcpCfg.headers } }))
+    const begin = async (title: string) => ((await client.callTool({ name: 'task_begin', arguments: { title } })) as { content: { text: string }[] }).content[0]!.text
+
+    // Economy: the instruction offers the skip, and with no plan submitted nothing is held.
+    expect(await begin('Fix a typo')).toContain('If the whole change can be said in one sentence, skip the plan')
+    expect(await edit()).toBe('')
+
+    // The person moves the dial to Balanced in Settings: the next task is asked for a plan, every time.
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Features' }).click()
+    await settings.getByRole('radio', { name: 'Balanced' }).click()
+    await expect(settings.getByRole('radio', { name: 'Balanced' })).toHaveAttribute('aria-checked', 'true')
+    await expect.poll(() => JSON.parse(readFileSync(join(tmp, 'home', 'preferences.json'), 'utf8')).workflows.dial).toBe('balanced')
+    const later = await begin('Add a dark-mode toggle')
+    expect(later).toContain('.agent-world/plan.md')
+    expect(later).not.toContain('one sentence')
+    expect(await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada!.cwd, hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: join(ada!.cwd, 'src/a.ts'), old_string: 'a', new_string: 'b' } }) })).json()).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+    await client.close()
+  } finally {
+    await shutdown()
+  }
+})

@@ -458,3 +458,28 @@ describe('the merge gate', () => {
     expect(none.wf.mergeCheck('a1', 'h1')!.planned).toBeNull()
   })
 })
+
+describe('the economy dial: a plan is optional, but one that was handed in is still gated', () => {
+  it('holds no edit while no plan was submitted, and holds them again once one is waiting or sent back', () => {
+    const { wf, state } = make()
+    state.dial = 'economy'
+    wf.begin('a1', 'Fix a typo')
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toBeNull()
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toContain('waiting')
+    wf.decide(wf.runs()[0]!.id, 'changes')
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toContain('asked for changes')
+    state.dial = 'balanced'
+    wf.begin('a2', 'Other')
+    expect(wf.editBlock('a2', '/w/src/a.ts', '/w')).toContain('approved first')
+  })
+
+  it('does not hold landing for a plan that was never submitted, but does for one that is waiting', () => {
+    const { wf, state } = make()
+    state.dial = 'economy'
+    wf.begin('a1', 'Fix a typo')
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [] })
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'waiting', blocking: ['The plan is still waiting for your approval.'] })
+  })
+})

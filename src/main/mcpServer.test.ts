@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createTodoService } from './todos/service'
+import type { Dial } from '../shared/workflows'
 import { startMcpServer } from './mcpServer'
+import { planInstruction } from './workflows/hint'
 
 type Server = Awaited<ReturnType<typeof startMcpServer>>
 let server: Server | undefined
@@ -276,6 +278,7 @@ describe('the todo tools', () => {
 })
 
 let gate = true
+let dial: Dial = 'balanced'
 describe('workflow tools', () => {
   const calls: string[] = []
   const wf = {
@@ -286,6 +289,7 @@ describe('workflow tools', () => {
       return { planFirst: !followUp }
     },
     planGate: () => gate,
+    planInstruction: () => planInstruction(dial),
     submitPlan: async (caller: string, path: string) => {
       if (path === 'bad.md') throw new Error("The plan's read-back block needs fixing:\n- Missing \"## Goal\"")
       calls.push(`${caller} plan ${path}`)
@@ -321,6 +325,20 @@ describe('workflow tools', () => {
     expect(first).toContain('plan_submit')
     expect(first).toContain('## Open questions')
     expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'More', follow_up: true } }))).not.toContain('plan_submit')
+  })
+
+  it('task_begin carries the plan instruction of the dial in force when it is called', async () => {
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    try {
+      dial = 'economy'
+      expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'Fix a typo' } }))).toContain('can be said in one sentence')
+      dial = 'max'
+      const first = text(await c.callTool({ name: 'task_begin', arguments: { title: 'Add a toggle' } }))
+      expect(first).toContain('plan_submit')
+      expect(first).not.toContain('one sentence')
+    } finally {
+      dial = 'balanced'
+    }
   })
 
   it('plan_submit hands the plan in and says it now waits; a refused plan comes back with what to fix', async () => {

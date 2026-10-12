@@ -5,7 +5,6 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import type { Todo, TodoStatus } from '../shared/todos'
 import type { TodoHit } from '../shared/todoSearch'
-import { PLAN_INSTRUCTION } from './workflows/hint'
 
 export interface Colleague {
   name: string
@@ -62,6 +61,8 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean) => { planFirst: boolean }
     done: (callerId: string, summary?: string) => void
     planGate: () => boolean
+    /** What task_begin says about the plan: it depends on the dial in force. */
+    planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
     submitPlan: (callerId: string, path: string) => Promise<{ questions: number }>
   }
@@ -401,7 +402,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     async ({ title, follow_up }) => {
       try {
         const { planFirst } = wf.begin(callerId, title, follow_up ?? false)
-        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${planFirst && wf.planGate() ? `\n\n${PLAN_INSTRUCTION}` : ''}` }] }
+        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${planFirst && wf.planGate() ? `\n\n${wf.planInstruction()}` : ''}` }] }
       } catch (err) {
         return fail(err)
       }

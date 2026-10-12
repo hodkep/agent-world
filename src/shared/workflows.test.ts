@@ -1,28 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, auditModel, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, auditModel, dialDoes, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
-  it('economy adds only the step briefs: five of 150 tokens', () => {
+  it('economy adds only the step briefs to the agent: five of 150 tokens, and makes no separate call', () => {
     const c = workflowCost('economy')
-    expect(c.perTask).toBe(750)
-    expect(c.parts).toEqual([{ label: 'Step briefs', detail: '5 steps of about 150 tokens', tokens: 750 }])
+    expect({ context: c.context, calls: c.calls }).toEqual({ context: 750, calls: 0 })
+    expect(c.parts).toEqual([{ label: 'Step briefs', detail: '5 steps of about 150 tokens', tokens: 750, where: 'agent' }])
   })
-  it('balanced adds the plan read-back and the merge audit', () => {
+  it('balanced adds the plan read-back to the agent, and a merge audit that is a separate call of about 4,000 tokens', () => {
     const c = workflowCost('balanced')
-    expect(c.perTask).toBe(4000)
-    expect(c.parts.map((p) => p.label)).toEqual(['Step briefs', 'Plan read-back', 'Merge audit'])
+    expect({ context: c.context, calls: c.calls }).toEqual({ context: 1000, calls: 4000 })
+    expect(c.parts.map((p) => [p.label, p.where])).toEqual([['Step briefs', 'agent'], ['Plan read-back', 'agent'], ['Merge audit', 'separate']])
+    expect(c.parts[2]).toMatchObject({ tokens: 4000, usd: 0.0004 })
   })
-  it('max adds a separate intent check on top', () => {
+  it('max adds a separate intent check, whose size is a guess, and gives no price for the audit since it moves to a larger model', () => {
     const c = workflowCost('max')
-    expect(c.perTask).toBe(6000)
+    expect({ context: c.context, calls: c.calls }).toEqual({ context: 1000, calls: 6000 })
     expect(c.parts.map((p) => p.label)).toEqual(['Step briefs', 'Plan read-back', 'Merge audit', 'Intent check'])
+    expect(c.parts.find((p) => p.label === 'Merge audit')!.usd).toBeUndefined()
   })
-  it('the parts always add up to the total, and the dials are listed cheapest first', () => {
+  it('the parts add up to the two totals, and the dials are listed cheapest first', () => {
     for (const d of DIALS) {
       const c = workflowCost(d)
-      expect(c.parts.reduce((n, p) => n + p.tokens, 0)).toBe(c.perTask)
+      expect(c.parts.filter((p) => p.where === 'agent').reduce((n, p) => n + p.tokens, 0)).toBe(c.context)
+      expect(c.parts.filter((p) => p.where === 'separate').reduce((n, p) => n + p.tokens, 0)).toBe(c.calls)
     }
     expect(DIALS).toEqual(['economy', 'balanced', 'max'])
+  })
+})
+
+describe('what each dial does, in a sentence', () => {
+  it('says what the plan, the audit and the intent check do at each level', () => {
+    expect(dialDoes('economy')).toBe('A plan only when the task is more than one sentence. No audit, no intent check.')
+    expect(dialDoes('balanced')).toBe('A plan every time. A small model (haiku) audits the branch against it.')
+    expect(dialDoes('max')).toBe('A plan every time, audited by a larger model (sonnet), and a second model checks the plan against your request.')
   })
 })
 

@@ -62,7 +62,7 @@ import { auditModel } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
-import { WORKFLOW_HINT, WORKFLOW_TOOLS } from './workflows/hint'
+import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
@@ -1112,6 +1112,7 @@ async function main() {
     libraryOn: () => prefs.libraryEnabled,
     workflows: {
       offered: workflowsFor,
+      planInstruction: () => planInstruction(prefs.workflows.dial),
       begin: (caller, title, followUp) => {
         const id = workflows.begin(caller, title, { followUp })
         send('workflows')

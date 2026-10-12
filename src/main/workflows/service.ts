@@ -172,7 +172,7 @@ export class Workflows {
     const round = run.rounds[run.rounds.length - 1]!
     const plan = round.plan
     if (plan?.state === 'approved' || plan?.state === 'released') return null
-    if (!plan && round.n > 1) return null
+    if (!plan && (round.n > 1 || this.deps.dial() === 'economy')) return null
     const rel = relative(cwd, file)
     if (!rel.startsWith('..') && rel.split(sep)[0] === PLAN_DIR) return null
     if (!plan) return `Not yet: this office wants your plan approved first. Write it to ${PLAN_DIR}/plan.md with the read-back block and call plan_submit.`
@@ -192,7 +192,7 @@ export class Workflows {
     if (run.auto) {
       state = 'not-needed'
       notes.push('The app started this run from a commit, so there was no plan to approve.')
-    } else if (!this.deps.planGate()) state = 'not-needed'
+    } else if (!this.deps.planGate() || (state === 'none' && this.deps.dial() === 'economy')) state = 'not-needed'
     else if (state === 'none') blocking.push('No plan was approved for this task.')
     else if (state === 'waiting') blocking.push('The plan is still waiting for your approval.')
     else if (state === 'changes') blocking.push('You asked for changes to the plan and no new plan was approved.')
