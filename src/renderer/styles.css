@@ -2727,3 +2727,11 @@ aside:not(.drawer) { flex: none; }
 .code-inplace { padding: 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .code-inplace code { background: var(--well); padding: 2px 6px; border: 1px solid var(--line); overflow-wrap: anywhere; }
 .code-inplace p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+/* Setup is one large window of a fixed size: the rail and the footer stay, and what a step holds scrolls inside it */
+.su-overlay { overflow: hidden; }
+.su-win { width: min(1120px, 100%); height: min(800px, 100%); min-height: 0; grid-template-rows: minmax(0, 1fr); }
+.su-rail { min-height: 0; overflow-y: auto; }
+.su-body { min-height: 0; overflow: hidden; }
+.su-content { min-height: 0; overflow-y: auto; padding-right: 6px; }
+.su-nav { flex: none; }
