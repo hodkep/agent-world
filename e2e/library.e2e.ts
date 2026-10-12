@@ -83,25 +83,39 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByRole('tab', { name: 'Playbook' }).click()
     // The workspace playbook: Terse always (reminded each turn), PDFs on demand.
     await pane.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()
-    await pane.getByLabel('Item to add').selectOption({ label: 'Terse (instruction)' })
-    await pane.getByRole('button', { name: 'Add to playbook' }).click()
+    await pane.getByRole('button', { name: 'Add an item…' }).click()
+    await pane.getByLabel('Search items').fill('terse')
+    await pane.getByRole('button', { name: 'Terse' }).click()
     await pane.getByRole('button', { name: 'More for terse' }).click()
     await pane.getByRole('menuitem', { name: 'Told every time' }).click()
     await pane.getByRole('radiogroup', { name: 'Firmness of terse' }).getByRole('radio', { name: 'medium' }).click()
-    await pane.getByLabel('Item to add').selectOption({ label: 'pdf (skill)' })
-    await pane.getByRole('button', { name: 'Add to playbook' }).click()
-    await pane.getByLabel('When to use pdf').fill('working with PDFs')
+    // The menu groups items by where they came from, shows what is already in the playbook dimmed, and searches names, descriptions and publishers.
+    await pane.getByRole('button', { name: 'Add an item…' }).click()
+    const menu = pane.getByRole('dialog', { name: 'Add an item' })
+    await expect(menu.getByRole('button', { name: /Your Claude skills/ })).toBeVisible()
+    await expect(menu.getByRole('button', { name: 'Terse, already in the playbook' })).toHaveAttribute('aria-disabled', 'true')
+    await pane.getByLabel('Search items').fill('zzz')
+    await expect(menu).toContainText('No item matches')
+    await pane.getByLabel('Search items').fill('claude pdf')
+    await expect(menu.getByRole('button', { name: 'caveman' })).toHaveCount(0)
+    await pane.getByLabel('Search items').press('Escape')
+    await expect(menu).toHaveCount(0)
+    await pane.getByRole('button', { name: 'Add an item…' }).click()
+    await pane.getByLabel('Search items').fill('pdf')
+    await pane.getByLabel('Search items').press('Enter')
+    await expect(menu).toHaveCount(0)
+    await pane.getByLabel('When to use pdf').fill('split a pdf into pages')
     // What an agent sees, for each program: Claude is told how to fetch; agy is not connected to the message box yet, so it only gets what can be put in the text.
     const sees = pane.getByRole('group', { name: 'What an agent is told' })
     // Trying a message says what it would point an agent at.
-    await sees.getByLabel('A message to try').fill('please split this pdf')
+    await sees.getByLabel('A message to try').fill('please split this pdf into pages')
     await sees.getByRole('button', { name: 'Try it' }).click()
     await expect(sees.getByRole('status')).toContainText('point the agent at pdf')
     await sees.getByLabel('A message to try').fill('rename the lamp post')
     await sees.getByRole('button', { name: 'Try it' }).click()
     await expect(sees.getByRole('status')).toContainText('point at nothing')
     await expect(sees.getByLabel('Opening text')).toContainText('Talk short and plain.')
-    await expect(sees.getByLabel('Opening text')).toContainText('working with PDFs: pdf')
+    await expect(sees.getByLabel('Opening text')).toContainText('split a pdf into pages: pdf')
     await expect(sees).toContainText('Reminder: terse (always).')
     await sees.getByLabel('Program').selectOption({ label: 'agy (Antigravity)' })
     await expect(sees.getByLabel('Opening text')).toContainText('Talk short and plain.')
@@ -117,11 +131,11 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const claude = claudeStart(args)
     const told = claude[claude.indexOf('--append-system-prompt') + 1]!
     expect(told).toContain('Talk short and plain.')
-    expect(told).toContain('working with PDFs: pdf')
+    expect(told).toContain('split a pdf into pages: pdf')
     // ...and where to read the catalog again if it loses track of what the library holds.
     expect(told).toContain(join(home, 'aw', 'library', 'catalog'))
     const [catalogFile] = require('node:fs').readdirSync(join(home, 'aw', 'library', 'catalog')) as string[]
-    expect(readFileSync(join(home, 'aw', 'library', 'catalog', catalogFile!), 'utf8')).toContain('- pdf: working with PDFs')
+    expect(readFileSync(join(home, 'aw', 'library', 'catalog', catalogFile!), 'utf8')).toContain('- pdf: split a pdf into pages')
     const plugin = claude[claude.indexOf('--plugin-dir') + 1]!
     expect(plugin).toMatch(/library[\\/]run[\\/][\w-]+$/)
     expect(JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).name).toBe('agent-world-library')
@@ -134,6 +148,16 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
     const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
+    // Each message it is sent is answered through its hook with a line for the library items the message points at, and none for one that points at nothing.
+    const hook = JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
+    const prompt = async (text: string) =>
+      (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }) })).text()) || ''
+    const nudged = JSON.parse(await prompt('please split this pdf into pages')).hookSpecificOutput.additionalContext as string
+    expect(nudged).toContain("Library: pdf covers this kind of work")
+    expect(nudged).toContain("library_get('pdf')")
+    expect(nudged).toContain('Reminder: terse (always).')
+    // terse is medium, so a message that points at nothing gets no reminder either
+    expect(await prompt('rename the lamp post')).toBe('')
     const index = say(await client.callTool({ name: 'library_index', arguments: {} }))
     expect(index).toContain('- terse')
     expect(index).toContain('- pdf')
@@ -148,16 +172,6 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(usage.pdf).toMatchObject({ total: 1 })
     expect(usage.caveman).toBeUndefined()
 
-    // Each message it is sent is answered through its hook with a line for the library items the message points at, and none for one that points at nothing.
-    const hook = JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
-    const prompt = async (text: string) =>
-      (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }) })).text()) || ''
-    const nudged = JSON.parse(await prompt('please split this pdf into pages')).hookSpecificOutput.additionalContext as string
-    expect(nudged).toContain("Library: pdf covers this kind of work")
-    expect(nudged).toContain("library_get('pdf')")
-    expect(nudged).toContain('Reminder: terse (always).')
-    // terse is medium, so a message that points at nothing gets no reminder either
-    expect(await prompt('rename the lamp post')).toBe('')
     // Its own Skill tool is counted too (and only for items of the library), and the stats say triggered, answered and used.
     const tool = (name: string, input: object) => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'PreToolUse', session_id: 's1', tool_name: name, tool_input: input }) })
     await tool('Skill', { skill: 'agent-world-library:pdf' })
@@ -185,7 +199,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const started = JSON.parse(read(envLog).trim().split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).at(-1)!) as { url: string; token: string }
     const transcript = join(agyHome, 'brain', 'conv-1', '.system_generated', 'logs', 'transcript_full.jsonl')
     mkdirSync(join(transcript, '..'), { recursive: true })
-    writeFileSync(transcript, JSON.stringify({ step_index: '0', type: 'USER_INPUT', content: '<USER_REQUEST>\nsplit this pdf\n</USER_REQUEST>' }) + '\n')
+    writeFileSync(transcript, JSON.stringify({ step_index: '0', type: 'USER_INPUT', content: '<USER_REQUEST>\nsplit this pdf into pages\n</USER_REQUEST>' }) + '\n')
     const call = async (event: string, body: object) =>
       (await fetch(started.url.replace(/\/mcp$/, `/hook/${event}`), { method: 'POST', headers: { authorization: `Bearer ${started.token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) })).json() as Promise<Record<string, unknown>>
     const skillFile = join(home, 'aw', 'library', 'skills', 'pdf', 'SKILL.md')
