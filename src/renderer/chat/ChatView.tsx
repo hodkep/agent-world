@@ -166,6 +166,11 @@ export function ChatView({
   }, [busy, sent.length])
   const [stopping, setStopping] = useState(false)
   const [needProgress, setNeedProgress] = useState('')
+  // A card can be closed while the agent keeps waiting; a strip brings it back, and a different ask shows its card again.
+  const [closedNeed, setClosedNeed] = useState<string | null>(null)
+  const needKey = need ? JSON.stringify(need) : null
+  const needClosed = needKey !== null && closedNeed === needKey
+  const closeNeed = () => setClosedNeed(needKey)
   // How long this turn has been going, counted live: from your last message, or from when this view saw the agent start
   // if it started by itself (a subagent report, a queued message).
   const [now, setNow] = useState(() => Date.now())
@@ -458,6 +463,8 @@ export function ChatView({
           const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir)
           if (to) show(to)
         }
+        // With a question open the first Esc closes its card (the agent keeps waiting) and the next one stops the agent, as with the list of completions.
+        else if (e.key === 'Escape' && need && !needClosed && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (e.preventDefault(), closeNeed())
         // Esc interrupts the agent from anywhere in the conversation, unless a menu or dialog is open: that takes the Esc to close itself.
         else if (e.key === 'Escape' && busy && !stopping && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) {
           setStopping(true)
@@ -552,7 +559,13 @@ export function ChatView({
           </div>
         )}
       </div>
-      {need && (
+      {need && needClosed && (
+        <div className="chat-banner" role="status">
+          <span>{agentName} is waiting for you · {needTitle(need).toLowerCase()}</span>
+          <button onClick={() => setClosedNeed(null)}>Show</button>
+        </div>
+      )}
+      {need && !needClosed && (
         <section className={`inline-need dialog kind-${need.kind}`} aria-label={`${agentName} is waiting for you`}>
           <header className="dialog-bar">
             <span className="blip" aria-hidden="true" />
@@ -560,6 +573,7 @@ export function ChatView({
             <span className="dialog-kind">{needTitle(need)}</span>
             {need.kind === 'question' && needProgress && <span className="dialog-count">{needProgress}</span>}
             {moreNeeds > 0 && <span className="dialog-more">+{moreNeeds} waiting</span>}
+            <button className="dialog-x" onClick={closeNeed} aria-label="Close (Esc)" title="Close (Esc); the agent keeps waiting" />
           </header>
           <NeedPanel need={need} actions={needActions} onFinishInTerminal={onTerminal} onProgress={setNeedProgress} />
         </section>
