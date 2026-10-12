@@ -84,17 +84,33 @@ test('the merge gate: Finish shows the plan against what the audit found, holds 
   }
 })
 
-test('Land anyway is always possible and is recorded with what was holding it; at economy no audit runs and the row says so', async () => {
-  const o = await office('wfmerge2', { dial: 'economy' })
+test('Land anyway is always possible and is recorded with what was holding it, and asks no model when there is no plan to audit against', async () => {
+  const o = await office('wfmerge2', { dial: 'balanced' })
   try {
     o.begin()
     await headMenu(o.page, 'Finish')
     const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
     await expect(dialog).toContainText('No plan was approved for this task.')
-    await expect(dialog).toContainText('Audit is off at the economy dial.')
     await dialog.getByRole('button', { name: 'Land anyway on main' }).click()
     await expect(dialog).toBeHidden({ timeout: 15_000 })
     expect(o.runs().find((e) => e.k === 'merge')).toMatchObject({ how: 'anyway', held: ['No plan was approved for this task.'] })
+    expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('at economy a plan is optional so landing is not held for a missing one, and no audit runs and the row says so', async () => {
+  const o = await office('wfmerge2b', { dial: 'economy' })
+  try {
+    o.begin()
+    await headMenu(o.page, 'Finish')
+    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await expect(dialog).toContainText('Audit is off at the economy dial.')
+    await expect(dialog).not.toContainText('No plan was approved')
+    await dialog.getByRole('button', { name: 'Land on main' }).click()
+    await expect(dialog).toBeHidden({ timeout: 15_000 })
+    expect(o.runs().find((e) => e.k === 'merge')).toMatchObject({ how: 'checked', held: [] })
     expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
   } finally {
     await o.shutdown()

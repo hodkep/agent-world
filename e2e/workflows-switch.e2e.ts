@@ -24,12 +24,19 @@ test('workflows are off until switched on: Settings has the switch and its cost,
     const sw = settings.getByRole('switch', { name: /^Workflows/ })
     await expect(sw).not.toBeChecked()
     const cost = settings.getByRole('table', { name: 'What workflows add per task' })
+    // Two numbers per level: what lands in the agent's context, and what a separate model call uses.
+    await expect(cost.getByRole('row', { name: /Economy/ })).toContainText('≈ 750 tokens')
+    await expect(cost.getByRole('row', { name: /Economy/ })).toContainText('none')
+    await expect(cost.getByRole('row', { name: /Balanced/ })).toContainText('≈ 1,000 tokens')
     await expect(cost.getByRole('row', { name: /Balanced/ })).toContainText('≈ 4,000 tokens')
+    await expect(cost.getByRole('row', { name: /Balanced/ })).toContainText('$0.0004')
+    await expect(settings.getByText('A plan every time. A small model (haiku) audits the branch against it.')).toBeVisible()
 
     await sw.click()
     await expect(sw).toBeChecked()
     await settings.getByRole('radio', { name: 'Max' }).click()
     await expect(cost.getByRole('row', { name: /Max/ })).toContainText('≈ 6,000 tokens')
+    await expect(settings.getByText('audited by a larger model (sonnet)')).toBeVisible()
     await expect(cost.getByRole('row', { name: /Max/ })).toHaveAttribute('aria-current', 'true')
     await settings.getByRole('button', { name: 'Close' }).click()
 

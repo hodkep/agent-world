@@ -18,24 +18,38 @@ export interface CostPart {
   label: string
   detail: string
   tokens: number
+  /** In the agent's own context, or a separate model call that costs the agent nothing in context but does cost usage. */
+  where: 'agent' | 'separate'
+  /** What one call costs where it was measured (on the small model); left out where it was not. */
+  usd?: number
 }
 
-// Guesses, not measurements: they are shown to people as assumptions and replaced when real runs measure them.
+// The briefs and the intent check are guesses; the audit's size and price were measured on haiku (pilot/audit.pilot.ts, 2026-10-12).
+// All are shown to people as assumptions and replaced when real runs measure them.
 const STEPS = 5
 const BRIEF = 150
 const PLAN_BLOCK = 250
-const MERGE_AUDIT = 3000
+const MERGE_AUDIT = 4000
+const MERGE_AUDIT_USD = 0.0004
 const INTENT_CHECK = 2000
 
-/** What workflows add to one task of about five steps at a dial level, with the parts so the sum can be read. */
-export function workflowCost(dial: Dial): { perTask: number; parts: CostPart[] } {
-  const parts: CostPart[] = [{ label: 'Step briefs', detail: `${STEPS} steps of about ${BRIEF} tokens`, tokens: STEPS * BRIEF }]
+/** What workflows add to one task of about five steps at a dial level, split into what lands in the agent's context and what is a separate call. */
+export function workflowCost(dial: Dial): { context: number; calls: number; parts: CostPart[] } {
+  const parts: CostPart[] = [{ label: 'Step briefs', detail: `${STEPS} steps of about ${BRIEF} tokens`, tokens: STEPS * BRIEF, where: 'agent' }]
   if (dial !== 'economy') {
-    parts.push({ label: 'Plan read-back', detail: `a block of about ${PLAN_BLOCK} tokens at the top of the plan`, tokens: PLAN_BLOCK })
-    parts.push({ label: 'Merge audit', detail: 'a review of the finished branch against the plan', tokens: MERGE_AUDIT })
+    parts.push({ label: 'Plan read-back', detail: `a block of about ${PLAN_BLOCK} tokens at the top of the plan`, tokens: PLAN_BLOCK, where: 'agent' })
+    parts.push({ label: 'Merge audit', detail: 'a separate model reads the finished branch against the plan', tokens: MERGE_AUDIT, where: 'separate', ...(dial === 'balanced' && { usd: MERGE_AUDIT_USD }) })
   }
-  if (dial === 'max') parts.push({ label: 'Intent check', detail: 'a second, smaller model reads the plan against your request', tokens: INTENT_CHECK })
-  return { perTask: parts.reduce((n, p) => n + p.tokens, 0), parts }
+  if (dial === 'max') parts.push({ label: 'Intent check', detail: 'a second, smaller model reads the plan against your request', tokens: INTENT_CHECK, where: 'separate' })
+  const sum = (where: CostPart['where']) => parts.filter((p) => p.where === where).reduce((n, p) => n + p.tokens, 0)
+  return { context: sum('agent'), calls: sum('separate'), parts }
+}
+
+/** What a dial does, in a sentence, for the line under the choice. */
+export function dialDoes(dial: Dial): string {
+  if (dial === 'economy') return 'A plan only when the task is more than one sentence. No audit, no intent check.'
+  if (dial === 'balanced') return 'A plan every time. A small model (haiku) audits the branch against it.'
+  return 'A plan every time, audited by a larger model (sonnet), and a second model checks the plan against your request.'
 }
 
 /** What a dial adds over the one below it, in a few words, for a row of the cost table. */
