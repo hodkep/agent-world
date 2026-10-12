@@ -52,6 +52,44 @@ test('a first run walks through setup, hires the first agent with the chosen def
   }
 })
 
+test('setup is one large fixed window: the same size on every step, inside a short app window, with Back and Continue always in view and the content of a step scrolling', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-size-'))
+  const { app, shutdown } = await open(home, fake)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1100, height: 640 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    const win = setup.locator('.su-win')
+    await expect(setup.getByRole('heading', { name: 'Welcome to Agent World' })).toBeVisible()
+    const first = (await win.boundingBox())!
+    expect(first.y).toBeGreaterThanOrEqual(0)
+    expect(first.y + first.height).toBeLessThanOrEqual(640)
+    // Every step is the same window, and its buttons are on screen without scrolling the page.
+    for (const heading of ['Your agents', 'Pick your project folder', 'How much may they do alone?']) {
+      await setup.getByRole('button', { name: 'Continue' }).click()
+      await expect(setup.getByRole('heading', { name: heading })).toBeVisible()
+      const box = (await win.boundingBox())!
+      expect(box.height).toBeCloseTo(first.height, 0)
+      expect(box.width).toBeCloseTo(first.width, 0)
+      const next = (await setup.getByRole('button', { name: /Continue|Skip for now/ }).first().boundingBox())!
+      expect(next.y + next.height).toBeLessThanOrEqual(box.y + box.height + 1)
+    }
+    // The defaults step is longer than the window: its content scrolls inside, and the footer stays.
+    const content = setup.locator('.su-content')
+    const scrolls = await content.evaluate((e) => ({ over: e.scrollHeight > e.clientHeight, style: getComputedStyle(e).overflowY }))
+    expect(scrolls.style).toBe('auto')
+    expect(scrolls.over).toBe(true)
+    await content.evaluate((e) => (e.scrollTop = e.scrollHeight))
+    await expect(setup.getByRole('button', { name: 'Back' })).toBeInViewport()
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeInViewport()
+    await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toBeInViewport()
+  } finally {
+    await shutdown()
+  }
+})
+
 test('with no agent tool on this computer, setup cannot be passed and says how to install one', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-setup-none-'))
   const { app, shutdown } = await open(home, join(home, 'no-such-claude'))
