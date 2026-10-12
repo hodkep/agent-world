@@ -3,6 +3,8 @@ import { type RunSpend, formatDuration, spendText } from '../../shared/runStats'
 
 const clock = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
+const PLAN_STATE = { submitted: 'waiting', approved: 'approved', changes: 'sent back', released: 'hold lifted' } as const
+
 function RoundCard({ run, round, spend }: { run: Run; round: Round; spend: RunSpend | undefined }) {
   const now = Date.now()
   const mine = spend?.rounds[round.n - 1]
@@ -16,6 +18,13 @@ function RoundCard({ run, round, spend }: { run: Run; round: Round; spend: RunSp
         </span>
         <span className="wf-cost mono">{spendText(mine && spend ? { ...mine, known: spend.known } : undefined)}</span>
       </header>
+      {round.plan && (
+        <p className="wf-plan">
+          <span className={`wf-tag ${round.plan.state === 'approved' || round.plan.state === 'released' ? '' : 'flag'}`}>Plan {PLAN_STATE[round.plan.state]}</span>
+          {round.plan.readback.goal && <span>{round.plan.readback.goal}</span>}
+          {round.plan.note && <span className="muted">Asked for: {round.plan.note}</span>}
+        </p>
+      )}
       {round.commits.length === 0 ? (
         <p className="hint">No commits in this round yet.</p>
       ) : (

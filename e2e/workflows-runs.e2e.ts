@@ -39,7 +39,7 @@ test('turning workflows off with runs open: the confirm lists them, "let them fi
     await bar.getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: 'Features' }).click()
-    const sw = settings.getByRole('switch', { name: 'Workflows' })
+    const sw = settings.getByRole('switch', { name: /^Workflows/ })
     await sw.click()
     await expect(sw).toBeChecked()
     await sw.click()

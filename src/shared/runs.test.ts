@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { type RunEvent, reduceRuns, runLabel } from './runs'
+import type { PlanReadback } from './plan'
+import { type RunEvent, pendingPlans, reduceRuns, runLabel } from './runs'
 
 const begin = (run: string, t: number, title = 'Fix the login redirect', agent = 'a1'): Extract<RunEvent, { k: 'begin' }> => ({ k: 'begin', t, run, agent, name: 'ada', project: '/p', title })
 
@@ -61,5 +62,34 @@ describe('naming a run for a list', () => {
     expect(runLabel(first)).toBe('ada: Fix the login redirect')
     const again = reduceRuns([begin('r1', 100), { k: 'done', t: 200, run: 'r1' }, { k: 'round', t: 300, run: 'r1' }])[0]!
     expect(runLabel(again)).toBe('ada: Fix the login redirect (round 2)')
+  })
+})
+
+const readback: PlanReadback = { goal: 'Add a toggle.', assumptions: [{ kind: 'given', text: 'In Settings.' }], outOfScope: [], questions: [] }
+
+describe('a round\'s plan', () => {
+  it('is submitted, then approved or sent back with a note and the person\'s answers', () => {
+    const [r] = reduceRuns([
+      begin('r1', 100),
+      { k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback },
+      { k: 'plan', t: 300, run: 'r1', round: 1, state: 'changes', note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] }
+    ])
+    expect(r!.rounds[0]!.plan).toEqual({ state: 'changes', path: '.agent-world/plan.md', readback, submittedAt: 200, decidedAt: 300, note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] })
+  })
+
+  it('a resubmitted plan replaces the old one and is waiting again; approving ends the wait', () => {
+    const base: RunEvent[] = [begin('r1', 100), { k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback }, { k: 'plan', t: 300, run: 'r1', round: 1, state: 'changes', note: 'no' }]
+    const again = reduceRuns([...base, { k: 'plan', t: 400, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback: { ...readback, goal: 'Add a toggle, better.' } }])
+    expect(again[0]!.rounds[0]!.plan).toMatchObject({ state: 'submitted', submittedAt: 400, readback: { goal: 'Add a toggle, better.' } })
+    expect(again[0]!.rounds[0]!.plan!.note).toBeUndefined()
+    expect(pendingPlans(again).map((x) => x.run.id)).toEqual(['r1'])
+    const approved = reduceRuns([...base, { k: 'plan', t: 500, run: 'r1', round: 1, state: 'approved' }])
+    expect(approved[0]!.rounds[0]!.plan).toMatchObject({ state: 'approved', decidedAt: 500 })
+    expect(pendingPlans(approved)).toEqual([])
+  })
+
+  it('a decision with no submitted plan before it is ignored, except a release, which lifts the block even then', () => {
+    expect(reduceRuns([begin('r1', 100), { k: 'plan', t: 200, run: 'r1', round: 1, state: 'approved' }])[0]!.rounds[0]!.plan).toBeUndefined()
+    expect(reduceRuns([begin('r1', 100), { k: 'plan', t: 200, run: 'r1', round: 1, state: 'released' }])[0]!.rounds[0]!.plan).toMatchObject({ state: 'released', decidedAt: 200 })
   })
 })

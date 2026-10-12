@@ -60,7 +60,7 @@ test('the Workflows window shows this week in numbers, with what each run cost f
     const auto = table.getByRole('row', { name: /add csv import/ })
     await expect(auto).toContainText('from a commit')
     await expect(auto).toContainText('—')
-    await expect(win).toContainText('Open now')
+    await expect(win).toContainText('open now')
     await expect(win).toContainText('bo: Fix the login redirect')
     await expect(win.getByText('app, from a commit')).toBeVisible()
   } finally {

@@ -1,4 +1,4 @@
-import type { Run } from '../../shared/runs'
+import { type Run, pendingPlans } from '../../shared/runs'
 import { type RunSpend, agentCounts, formatCost, formatDuration, howRunsBegan, runStats, runsThisWeek, spendText } from '../../shared/runStats'
 import { Modal } from '../panel/Modal'
 
@@ -61,7 +61,8 @@ export function WorkflowsModal({ runs, spend, open, windingDown, onClose }: { ru
               <Bars rows={[{ label: 'agent said so', n: began.announced }, { label: 'app, from a commit', n: began.byApp }]} />
             </div>
             <div>
-              <span className="wf-cap">Open now</span>
+              <span className="wf-cap">Needs you / open now</span>
+              {pendingPlans(runs).map(({ run, round }) => <span key={`${run.id}-${round.n}`}><span className="wf-tag flag">Plan</span> {run.name}: {run.title}, waiting for approval</span>)}
               {openNow.length === 0 ? <span className="hint">Nothing is open.</span> : openNow.map((r) => <span key={r.id}><span className="wf-tag open">Open</span> {r.name}: {r.title}</span>)}
             </div>
           </div>

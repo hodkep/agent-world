@@ -58,6 +58,8 @@ import { UsageModal } from './stats/UsageModal'
 import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
+import { PlanGate } from './workflows/PlanGate'
+import { pendingPlans } from '../shared/runs'
 import { windingDown, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -624,6 +626,11 @@ export function App() {
   // Subagents alive right now, from the hooks: free to count on every render.
   const crewLive = agents.reduce((n, a) => n + Object.keys(world[a.id]?.interns ?? {}).length, 0)
   const waitingOf = (id: string) => new Set(Object.entries(world[id]?.interns ?? {}).filter(([, i]) => i.activity === 'permission').map(([k]) => k))
+  // The agent's plan, when it waits for the person: shown in its chat where the answer is given.
+  const gateFor = (a: AgentRecord) => {
+    const p = pendingPlans(wf.runs).find((x) => x.run.agent === a.id)
+    return p ? <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} /> : null
+  }
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView
       key={key}
@@ -634,6 +641,7 @@ export function App() {
       mode={world[a.id]?.mode}
       asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
       need={needsOf(a.id)[0] ?? null}
+      gate={gateFor(a)}
       moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
       needActions={needActions(a.id)}
       visible={visible}
@@ -1240,7 +1248,7 @@ export function App() {
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
         {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
-        {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup tip={windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}
+        {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup badge={pendingPlans(wf.runs).length || undefined} tip={pendingPlans(wf.runs).length ? `${pendingPlans(wf.runs).length} plan${pendingPlans(wf.runs).length === 1 ? '' : 's'} waiting for you` : windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}
         <IconButton icon="library" label={prefs?.libraryEnabled === false ? 'Library (off)' : 'Library'} dim={prefs?.libraryEnabled === false} onClick={() => setLibraryOpen(true)} haspopup tip={prefs?.libraryEnabled === false ? 'The library and playbook are turned off. Open to turn them on in Settings.' : 'Skills, instructions and the playbook that says what agents are told'} />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />

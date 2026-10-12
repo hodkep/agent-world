@@ -275,6 +275,7 @@ describe('the todo tools', () => {
   })
 })
 
+let gate = true
 describe('workflow tools', () => {
   const calls: string[] = []
   const wf = {
@@ -282,6 +283,13 @@ describe('workflow tools', () => {
     begin: (caller: string, title: string, followUp: boolean) => {
       if (title === 'off') throw new Error('Workflows are off.')
       calls.push(`${caller} begin ${title} ${followUp}`)
+      return { planFirst: !followUp }
+    },
+    planGate: () => gate,
+    submitPlan: async (caller: string, path: string) => {
+      if (path === 'bad.md') throw new Error("The plan's read-back block needs fixing:\n- Missing \"## Goal\"")
+      calls.push(`${caller} plan ${path}`)
+      return { questions: 2 }
     },
     done: (caller: string, summary?: string) => void calls.push(`${caller} done ${summary ?? ''}`)
   }
@@ -304,5 +312,37 @@ describe('workflow tools', () => {
     expect((await (await connect(s.url, 'a1')).listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['task_begin', 'task_done']))
     expect((await (await connect(s.url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('task_begin')
     expect((await (await connect((await setup()).url, 'a1')).listTools()).tools.map((t) => t.name)).not.toContain('task_begin')
+  })
+
+  it('task_begin tells the agent to plan first when the office wants a plan, and not for a follow-up', async () => {
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const first = text(await c.callTool({ name: 'task_begin', arguments: { title: 'Add a toggle' } }))
+    expect(first).toContain('.agent-world/plan.md')
+    expect(first).toContain('plan_submit')
+    expect(first).toContain('## Open questions')
+    expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'More', follow_up: true } }))).not.toContain('plan_submit')
+  })
+
+  it('plan_submit hands the plan in and says it now waits; a refused plan comes back with what to fix', async () => {
+    calls.length = 0
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const ok = text(await c.callTool({ name: 'plan_submit', arguments: {} }))
+    expect(ok).toContain('waiting')
+    expect(ok).toContain('2 open question')
+    expect(calls).toEqual(['a1 plan .agent-world/plan.md'])
+    const refused = await c.callTool({ name: 'plan_submit', arguments: { path: 'bad.md' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
+    expect(text(refused)).toContain('Missing "## Goal"')
+  })
+
+  it('plan_submit and the plan instruction are not offered when the plan gate is off', async () => {
+    gate = false
+    try {
+      const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+      expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('plan_submit')
+      expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'x' } }))).not.toContain('plan_submit')
+    } finally {
+      gate = true
+    }
   })
 })

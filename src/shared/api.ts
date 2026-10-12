@@ -328,6 +328,8 @@ export interface AwApi {
   workflows: {
     /** Every run recorded, oldest first, and how many are still open. */
     summary(): Promise<{ runs: Run[]; open: number; /** What each run cost, by run id, from the ledger. */ spend: Record<string, import('./runStats').RunSpend> }>
+    /** The person's answer to a plan that is waiting; it is typed into the agent's prompt. A release lifts the hold on edits without approving. */
+    decide(runId: string, state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }): Promise<void>
     /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
     stopAll(): Promise<void>
   }

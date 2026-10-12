@@ -6,11 +6,12 @@ import { Workflows } from './service'
 
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, since: 0, t: 1000, n: 0 }
+  const state = { enabled: opts.enabled ?? true, planGate: true, since: 0, t: 1000, n: 0 }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
+      planGate: () => state.planGate,
       now: () => (state.t += 10),
       newId: () => `r${++state.n}`,
       who: (id) => (id === 'a1' ? { name: 'ada', project: '/p' } : id === 'a2' ? { name: 'bo', project: '/p' } : undefined)
@@ -179,5 +180,99 @@ describe('work the agent never announced', () => {
     wf.commit('a1', 'stray', 'chore: tidy', 5000)
     expect(wf.runs()).toHaveLength(1)
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'stray', flagged: true })
+  })
+})
+
+const PLAN = `## Goal
+Add a toggle.
+
+## Assumptions
+- [given] It lives in Settings.
+- [guessed] It is saved in preferences.
+
+## Out of scope
+none
+
+## Open questions
+- Every window or this one?
+  - Every window
+  - This window
+`
+
+describe('the plan gate', () => {
+  it('a submitted plan waits for the person, and approving it ends the wait', () => {
+    const { wf } = make()
+    const run = wf.begin('a1', 'Add a toggle')
+    expect(wf.submitPlan('a1', '.agent-world/plan.md', PLAN)).toEqual({ questions: 1 })
+    expect(wf.runs()[0]!.rounds[0]!.plan).toMatchObject({ state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a toggle.' } })
+    wf.decide(run, 'approved')
+    expect(wf.runs()[0]!.rounds[0]!.plan).toMatchObject({ state: 'approved' })
+  })
+
+  it('an incomplete plan is refused with every problem, and nothing is recorded', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    expect(() => wf.submitPlan('a1', 'p.md', '## Goal\nx\n')).toThrow(/Missing "## Assumptions"[\s\S]*Missing "## Out of scope"/)
+    expect(wf.runs()[0]!.rounds[0]!.plan).toBeUndefined()
+  })
+
+  it('needs an open task, and a decision needs a plan that is waiting', () => {
+    const { wf } = make()
+    expect(() => wf.submitPlan('a1', 'p.md', PLAN)).toThrow('No task is open')
+    const run = wf.begin('a1', 'x')
+    expect(() => wf.decide(run, 'approved')).toThrow('No plan is waiting')
+  })
+
+  it('sent back for changes it can be submitted again', () => {
+    const { wf } = make()
+    const run = wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', 'p.md', PLAN)
+    wf.decide(run, 'changes', { note: 'Cover the settings page.', answers: [{ question: 'Every window or this one?', answer: 'Every window' }] })
+    expect(wf.runs()[0]!.rounds[0]!.plan).toMatchObject({ state: 'changes', note: 'Cover the settings page.' })
+    wf.submitPlan('a1', 'p.md', PLAN)
+    expect(wf.runs()[0]!.rounds[0]!.plan!.state).toBe('submitted')
+  })
+})
+
+describe('what the gate holds back', () => {
+  const edit = (wf: Workflows, file = '/w/src/a.ts') => wf.editBlock('a1', file, '/w')
+  it('from the task\'s start until its plan is approved, edits are refused, except to the plan\'s own folder', () => {
+    const { wf } = make()
+    expect(edit(wf)).toBeNull()
+    const run = wf.begin('a1', 'Add a toggle')
+    expect(edit(wf)).toMatch(/plan/i)
+    expect(edit(wf, '/w/.agent-world/plan.md')).toBeNull()
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    expect(edit(wf)).toMatch(/waiting/i)
+    wf.decide(run, 'changes', { note: 'again' })
+    expect(edit(wf)).toMatch(/changes/i)
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(run, 'approved')
+    expect(edit(wf)).toBeNull()
+  })
+
+  it('"release" lifts the block without approving, even before any plan was submitted', () => {
+    const { wf } = make()
+    const run = wf.begin('a1', 'Add a toggle')
+    wf.decide(run, 'released')
+    expect(edit(wf)).toBeNull()
+  })
+
+  it('does nothing with the gate off, for a task the app started, for a follow-up round with no new plan, or after the task is done', () => {
+    const off = make()
+    off.state.planGate = false
+    off.wf.begin('a1', 'x')
+    expect(edit(off.wf)).toBeNull()
+    const auto = make()
+    auto.wf.commit('a1', 'c1', 'feat: x', 5000)
+    expect(edit(auto.wf)).toBeNull()
+    const { wf } = make()
+    const run = wf.begin('a1', 'x')
+    wf.submitPlan('a1', 'p.md', PLAN)
+    wf.decide(run, 'approved')
+    wf.done('a1')
+    expect(edit(wf)).toBeNull()
+    wf.begin('a1', 'more', { followUp: true })
+    expect(edit(wf)).toBeNull()
   })
 })

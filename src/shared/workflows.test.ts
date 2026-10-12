@@ -47,10 +47,10 @@ describe('when the Workflows button and window are shown', () => {
 
 describe('switching workflows on or off', () => {
   it('records when it was switched on, and keeps that when only the dial changes or it goes off', () => {
-    const off = { enabled: false, dial: 'balanced' as const, since: 0 }
+    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true }
     const on = switchWorkflows(off, true, 5000)
-    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000 })
+    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true })
     expect(switchWorkflows(on, true, 9000)).toEqual(on)
-    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000 })
+    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true })
   })
 })

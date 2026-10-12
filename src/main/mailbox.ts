@@ -39,6 +39,8 @@ export class Mailbox {
   private readonly state = new Map<string, State>()
   private readonly queues = new Map<string, AgentMessage[]>()
   private readonly expects = new Map<string, boolean>()
+  /** Messages from the office itself (an answer to a plan), by agent: they go before mail from agents. */
+  private readonly office = new Map<string, string[]>()
   private readonly history: { pair: string; at: number }[] = []
 
   constructor(private readonly deps: Deps) {}
@@ -63,6 +65,12 @@ export class Mailbox {
     this.deps.notify(m)
     this.flush(to.id)
     return m.status === 'delivered' ? 'delivered' : 'queued'
+  }
+
+  /** The office tells an agent something (the person's answer to its plan). No reply is asked for. */
+  fromOffice(agentId: string, text: string) {
+    this.office.set(agentId, [...(this.office.get(agentId) ?? []), text])
+    this.flush(agentId)
   }
 
   pending(agentId: string) {
@@ -103,11 +111,17 @@ export class Mailbox {
   gone(agentId: string) {
     for (const m of this.queues.get(agentId) ?? []) this.deps.notify({ ...m, status: 'dropped' })
     this.queues.delete(agentId)
+    this.office.delete(agentId)
     this.state.set(agentId, 'starting')
   }
 
   private flush(agentId: string) {
     if ((this.state.get(agentId) ?? 'starting') !== 'idle') return
+    const note = this.office.get(agentId)?.shift()
+    if (note !== undefined) {
+      this.state.set(agentId, 'busy')
+      return this.deps.deliver(agentId, `[Agent World] ${unsafe(note)}`)
+    }
     const m = this.queues.get(agentId)?.shift()
     if (!m) return
     const from = this.deps.agents().find((a) => a.id === m.fromId)?.name ?? 'another agent'

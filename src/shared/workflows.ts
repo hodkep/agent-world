@@ -8,6 +8,8 @@ export interface WorkflowPrefs {
   dial: Dial
   /** When workflows were last switched on (ms): work committed before this is history, never recorded as a run. */
   since: number
+  /** The plan gate: the person approves a task's plan before the agent edits. On with workflows unless switched off. */
+  planGate: boolean
 }
 
 export interface CostPart {

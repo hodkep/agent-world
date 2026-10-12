@@ -5,6 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import type { Todo, TodoStatus } from '../shared/todos'
 import type { TodoHit } from '../shared/todoSearch'
+import { PLAN_INSTRUCTION } from './workflows/hint'
 
 export interface Colleague {
   name: string
@@ -57,8 +58,12 @@ interface Options {
   /** Tasks agents report so the office can record them as workflow runs. `offered` says whether this caller gets the tools. */
   workflows?: {
     offered: (callerId: string) => boolean
-    begin: (callerId: string, title: string, followUp: boolean) => void
+    /** `planFirst`: the office wants this task's plan approved before the agent edits, so the agent is told to write and submit one. */
+    begin: (callerId: string, title: string, followUp: boolean) => { planFirst: boolean }
     done: (callerId: string, summary?: string) => void
+    planGate: () => boolean
+    /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
+    submitPlan: (callerId: string, path: string) => Promise<{ questions: number }>
   }
 }
 
@@ -395,13 +400,30 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     },
     async ({ title, follow_up }) => {
       try {
-        wf.begin(callerId, title, follow_up ?? false)
-        return { content: [{ type: 'text' as const, text: `Task begun: ${title}` }] }
+        const { planFirst } = wf.begin(callerId, title, follow_up ?? false)
+        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${planFirst && wf.planGate() ? `\n\n${PLAN_INSTRUCTION}` : ''}` }] }
       } catch (err) {
         return fail(err)
       }
     }
   )
+  if (wf.planGate()) {
+    server.registerTool(
+      'plan_submit',
+      {
+        description: 'Hand in your plan for the person to approve before you change anything. The file must start with the read-back block task_begin described.',
+        inputSchema: { path: z.string().max(300).optional().describe('The plan file in your worktree; defaults to .agent-world/plan.md') }
+      },
+      async ({ path }) => {
+        try {
+          const { questions } = await wf.submitPlan(callerId, path ?? '.agent-world/plan.md')
+          return { content: [{ type: 'text' as const, text: `Plan handed in; it is waiting for the person${questions ? ` (${questions} open question${questions === 1 ? '' : 's'} for them to answer)` : ''}. Do not edit yet: their answer arrives as your next message.` }] }
+        } catch (err) {
+          return fail(err)
+        }
+      }
+    )
+  }
   server.registerTool(
     'task_done',
     {

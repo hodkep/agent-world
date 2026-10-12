@@ -2931,3 +2931,24 @@ aside:not(.drawer) { flex: none; }
 .wf-round .sha { color: var(--muted); }
 .wf-round .hint { padding: 8px 12px; margin: 0; }
 .wf-tab .muted { color: var(--muted); }
+
+/* The plan gate in the chat. */
+.plan-gate .pg-tag { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; color: var(--ink); background: var(--accent); }
+.pg-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pg-task { margin: 0; color: var(--muted); font-size: 12px; }
+.pg-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: start; }
+.pg-k { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 6px; color: var(--ink); background: var(--dim); justify-self: start; }
+.pg-k.goal { background: var(--ok); }
+.pg-k.guessed { background: var(--accent); }
+.pg-k.open { background: var(--think); }
+.pg-k.scope, .pg-k.given { color: var(--text); }
+.pg-body .dim { color: var(--muted); }
+.pg-q { display: flex; flex-direction: column; gap: 6px; }
+.pg-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.pg-opts button.on { background: var(--selected); color: var(--accent); }
+.pg-note { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.pg-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pg-release { margin-left: auto; background: none; box-shadow: none; color: var(--muted); text-decoration: underline; }
+.pg-foot { color: var(--muted); }
+.wf-plan { margin: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--line); }
+.wf-plan .wf-tag { margin-left: 0; align-self: flex-start; }
