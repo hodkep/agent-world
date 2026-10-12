@@ -152,7 +152,7 @@ const api: AwApi = {
   forgetMail: (id, name) => ipcRenderer.invoke('provider:mail-forget', id, name),
   onUsage: on('usage'),
   onWorkflows: on('workflows'),
-  workflows: { summary: () => ipcRenderer.invoke('workflows:summary'), stopAll: () => ipcRenderer.invoke('workflows:stop-all'), decide: (runId, state, o) => ipcRenderer.invoke('workflows:decide', runId, state, o) },
+  workflows: { summary: () => ipcRenderer.invoke('workflows:summary'), stopAll: () => ipcRenderer.invoke('workflows:stop-all'), decide: (runId, state, o) => ipcRenderer.invoke('workflows:decide', runId, state, o), definitions: (project) => ipcRenderer.invoke('workflows:definitions', project), duplicate: (project, id, to) => ipcRenderer.invoke('workflows:duplicate', project, id, to), remove: (project, id, scope) => ipcRenderer.invoke('workflows:remove', project, id, scope) },
   onBudgetAlert: on('budget-alert'),
   onPlanMenu: on('plan-menu'),
   listCommands: (id) => ipcRenderer.invoke('list-commands', id),

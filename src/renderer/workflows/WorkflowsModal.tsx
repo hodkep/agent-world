@@ -1,6 +1,8 @@
 import { type Run, pendingPlans } from '../../shared/runs'
 import { type RunSpend, agentCounts, formatCost, formatDuration, howRunsBegan, runStats, runsThisWeek, spendText } from '../../shared/runStats'
+import { useState } from 'react'
 import { Modal } from '../panel/Modal'
+import { WorkflowList } from './WorkflowList'
 
 /** A label, a bar as long as its share of the largest count, and the count. */
 function Bars({ rows }: { rows: { label: string; n: number }[] }) {
@@ -21,7 +23,8 @@ function Bars({ rows }: { rows: { label: string; n: number }[] }) {
 const timeOf = (r: Run, now: number) => (r.auto ? '—' : formatDuration(r.rounds.reduce((n, x) => n + Math.max(0, (x.endedAt ?? now) - x.startedAt), 0)))
 
 /** Every agent's workflow runs this week in one place: what ran, how many rounds and commits, what it cost and how long it took. */
-export function WorkflowsModal({ runs, spend, open, windingDown, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; onClose: () => void }) {
+export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; onClose: () => void }) {
+  const [tab, setTab] = useState<'runs' | 'workflows'>('runs')
   const now = Date.now()
   const week = runsThisWeek(runs, now)
   const s = runStats(week, now)
@@ -40,7 +43,13 @@ export function WorkflowsModal({ runs, spend, open, windingDown, onClose }: { ru
           <b>Winding down.</b> Workflows are off. {open} run{open === 1 ? ' is' : 's are'} still open; no new ones start, and this button goes when they finish.
         </div>
       )}
-      {runs.length === 0 ? (
+      <div className="lib-tabs" role="tablist" aria-label="Workflows sections">
+        <button role="tab" aria-selected={tab === 'runs'} className={tab === 'runs' ? 'on' : ''} onClick={() => setTab('runs')}>Runs</button>
+        <button role="tab" aria-selected={tab === 'workflows'} className={tab === 'workflows' ? 'on' : ''} onClick={() => setTab('workflows')}>Workflows</button>
+      </div>
+      {tab === 'workflows' ? (
+        <WorkflowList folder={folder} switches={switches} defaultId={defaultId} onDefault={onDefault} />
+      ) : runs.length === 0 ? (
         <div className="wf-empty">
           <b>No runs yet</b>
           <p>A run appears here when an agent starts a task, or commits work it never announced. You can switch Workflows off in Settings, under Features.</p>

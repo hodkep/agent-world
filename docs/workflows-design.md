@@ -51,6 +51,7 @@ a workflow and suggests a model and settings for each step.
 | D32 | **The builder never writes a file by itself**: it proposes, and the person saves the proposal to the project or globally. |
 | D33 | **A repo's `check` commands need the person's approval per file version**: the exact commands are shown, approval is remembered for the file's content hash, any edit asks again. Commands run only in the agent's worktree, with a time limit and truncated output. |
 | D34 | **Layouts chosen 2026-10-12:** the Workflows window gets Runs and Workflows tabs; the Workflows tab is a list with the chosen workflow's steps beside it (mock C); the builder is a split inside the window, chat on the left and the draft on the right (mock B), entered from a "describe it" box (mock D). The builder surface is therefore a second place a chat is shown, reusing the chat component. |
+| D35 | **The workflow file, store and list (built 2026-10-12, slice 8).** `parseWorkflow` checks a file in code (version, id, name, steps, each kind's own fields, gates that fit the kind) and reports every problem at once; unknown fields are refused so a builder's typo is caught. `Standard` (plan, build, audit, land) is built in, always present, and replaceable by a file with id `standard`. Files are read from the app's `workflows` folder and the open project's `.agent-world/workflows/`; a project's wins on the same id; a file that does not read is listed with its problems, never dropped; files over 100 KB and ids that are not plain are refused. Each entry carries a content hash for the later command approval (D33). The default per project is kept in preferences (`workflows.defaults`), not in the repo. The Workflows window's new tab lists, shows steps, makes a default, copies (to the project or for everything) and deletes (with a question). The engine still ignores all of it: agents behave as in slices 1 to 7 until slice 9. |
 | D9 | The concept is still settling: the product owner is "not at all sure how this works in reality". We brainstorm and settle before building, with mocks approved first. |
 
 ## What exists today (so we build on it, not around it)
@@ -336,6 +337,8 @@ The Workflows window gets two tabs, Runs and Workflows. The list shows each work
 12. ~~Who decides a task is small enough to skip the intent block~~ The agent, using an instruction we ship (D22). The wording of that instruction still has to be written and measured.
 
 ## Change log
+
+- 2026-10-12: D35, slice 8 built: workflow file format and validation, the store, the built-in Standard, the per-project default, and the Workflows tab (list and detail). Nothing in the engine reads them yet.
 
 - 2026-10-12: decided the workflow file and its layouts (D29 to D34): JSON, all six step kinds, project default plus the agent's pick, proposals only, per-hash command approval, list-and-detail tab, builder as a split in the window.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, auditModel, dialDoes, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, auditModel, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs to the agent: five of 150 tokens, and makes no separate call', () => {
@@ -59,16 +59,30 @@ describe('when the Workflows button and window are shown', () => {
 
 describe('switching workflows on or off', () => {
   it('records when it was switched on, and keeps that when only the dial changes or it goes off', () => {
-    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true }
+    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: {} }
     const on = switchWorkflows(off, true, 5000)
-    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true, mergeGate: true })
+    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true, mergeGate: true, defaults: {} })
     expect(switchWorkflows(on, true, 9000)).toEqual(on)
-    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true, mergeGate: true })
+    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true, mergeGate: true, defaults: {} })
   })
 })
 
 describe('which model the app asks for its own checks', () => {
   it('a small model at balanced, a stronger one at max, and none at economy where no check runs', () => {
     expect([auditModel('economy'), auditModel('balanced'), auditModel('max')]).toEqual([undefined, 'haiku', 'sonnet'])
+  })
+})
+
+describe('which workflow a project uses by default', () => {
+  const w = { enabled: true, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: { '/p/shop': 'bug-fix' } }
+  it('is the one chosen for that project, else Standard', () => {
+    expect(defaultWorkflow(w, '/p/shop')).toBe('bug-fix')
+    expect(defaultWorkflow(w, '/p/other')).toBe('standard')
+    expect(defaultWorkflow(w, null)).toBe('standard')
+  })
+  it('choosing one sets it for that project only; choosing Standard clears the choice', () => {
+    expect(withDefault(w, '/p/other', 'quick-change').defaults).toEqual({ '/p/shop': 'bug-fix', '/p/other': 'quick-change' })
+    expect(withDefault(w, '/p/shop', 'standard').defaults).toEqual({})
+    expect(w.defaults).toEqual({ '/p/shop': 'bug-fix' })
   })
 })

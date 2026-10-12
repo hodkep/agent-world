@@ -2965,3 +2965,23 @@ aside:not(.drawer) { flex: none; }
 .pg-foot { color: var(--muted); }
 .wf-plan { margin: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--line); }
 .wf-plan .wf-tag { margin-left: 0; align-self: flex-start; }
+
+/* The Workflows tab: the list, and the chosen workflow's steps beside it. */
+.k-plan { --k: var(--accent); } .k-work { --k: var(--think); } .k-check { --k: var(--ok); } .k-audit { --k: #e0894a; } .k-approve { --k: #e07aa8; } .k-merge { --k: #cfd0e6; }
+.wfl { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; flex: 1; overflow: hidden; }
+.wfl-side { list-style: none; margin: 0; padding: 0; border-right: 2px solid var(--ink); overflow: auto; }
+.wfl-side li { padding: 10px 14px; border-bottom: 1px solid var(--ink); display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.wfl-side li.on { background: var(--selected); }
+.wfl-detail { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.wfl-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 16px; }
+.wfl-detail p { margin: 0; }
+.wfl-steps { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.wfl-step { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px; }
+.wfl-dot { width: 12px; height: 12px; margin: 4px 6px; background: var(--k, var(--dim)); box-shadow: 0 0 0 2px var(--ink); }
+.wfl-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.wfl-problems { margin: 0; padding-left: 18px; color: var(--danger-text); display: flex; flex-direction: column; gap: 4px; }
+/* Scoped: `.mono` and `.muted` are not global classes. */
+.wfl .muted { color: var(--muted); }
+.wfl .mono { font: 11px Menlo, Consolas, monospace; }
+.wfl-detail > .mono { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }

@@ -58,6 +58,7 @@ import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askClaude } from './workflows/ask'
+import { WorkflowStore } from './workflows/store'
 import { requestOf } from '../shared/intent'
 import { auditModel } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -442,6 +443,7 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
     return a ? { name: a.name, project: a.repoPath } : undefined
   }
 })
+const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
@@ -1548,6 +1550,11 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, planReply(state, { note: o?.note?.slice(0, 2000), answers: o?.answers?.slice(0, 20) }))
     send('workflows')
   })
+  // The workflow files: Standard, the app's own and the project's. A project is a folder the person has open.
+  const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
+  ipcMain.handle('workflows:definitions', (_, project: unknown) => workflowStore.list(projectOf(project)))
+  ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
+  ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
