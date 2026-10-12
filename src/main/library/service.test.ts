@@ -314,6 +314,19 @@ describe('a situation an agent meets in the middle of a run', () => {
     svc.record('a1', 'rmc', 'fetched')
     expect(svc.situation('a1', 'Bash', { command: 'git merge z' }, CONFLICT)).toBe('')
   })
+  it('says failing checks only when the same red shows twice with nothing green between', async () => {
+    await withRule(['failing-checks'])
+    const red = { stdout: ' Tests  2 failed | 10 passed (12)' }
+    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
+    const line = svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)
+    expect(line).toContain('failing test or type check, tests failed')
+    expect(line).toContain('typo or a one-line fix')
+    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
+    // green ends it; the next red starts counting again
+    svc.situation('a1', 'Bash', { command: 'pnpm test' }, { stdout: ' Tests  12 passed (12)' })
+    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
+    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).not.toBe('')
+  })
   it('is left alone when no rule lists it', async () => {
     await withRule([])
     expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toBe('')

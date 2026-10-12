@@ -1064,7 +1064,7 @@ async function main() {
       const a = byId(id)
       if (!a) return {}
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), met: (tool, input, output) => librarySituation(id, tool, input, output) ?? '' }) ?? {}
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,

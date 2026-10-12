@@ -247,6 +247,8 @@ export interface MailSetup {
 export interface LibraryHookIO {
   remind(prompt: string): string
   used(path: string): void
+  /** A tool result the agent just got: a line to add when it shows a situation the playbook has something for. */
+  met?(tool: string, input: Record<string, unknown>, output: string): string
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
