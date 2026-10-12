@@ -29,12 +29,6 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await setup.getByRole('button', { name: 'Skip for now' }).click()
     await expect(setup.locator('.su-step.skipped')).toContainText('Project folder')
     await setup.getByRole('button', { name: 'Plan first' }).click()
-    // Tracking every request as a todo is offered here with what it adds, and is off until chosen.
-    const track = setup.getByRole('switch', { name: 'Track every request as a todo' })
-    await expect(track).toHaveAttribute('aria-checked', 'false')
-    await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toContainText('tokens')
-    await track.click()
-    await expect(track).toHaveAttribute('aria-checked', 'true')
     await setup.getByRole('button', { name: 'Continue' }).click()
 
     // One feature for now: the check before acting. It is on, says what it costs on stated assumptions, and a click turns it off in the global playbook.
@@ -45,6 +39,12 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await check.click()
     await expect(check).toHaveAttribute('aria-checked', 'false')
     await expect.poll(() => JSON.parse(readFileSync(join(home, 'library', 'playbooks', 'global.json'), 'utf8'))).toMatchObject({ features: { forcedCheck: false } })
+    // Tracking every request as a todo is the other feature here, with what it adds, and is off until chosen.
+    const track = setup.getByRole('switch', { name: 'Track every request as a todo' })
+    await expect(track).toHaveAttribute('aria-checked', 'false')
+    await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toContainText('tokens')
+    await track.click()
+    await expect(track).toHaveAttribute('aria-checked', 'true')
     await setup.getByRole('button', { name: 'Continue' }).click()
 
     await expect(setup.getByRole('heading', { name: 'Hire your first agent' })).toBeVisible()
@@ -77,7 +77,7 @@ test('setup is one large fixed window: the same size on every step, inside a sho
     expect(first.y).toBeGreaterThanOrEqual(0)
     expect(first.y + first.height).toBeLessThanOrEqual(640)
     // Every step is the same window, and its buttons are on screen without scrolling the page.
-    for (const heading of ['Your agents', 'Pick your project folder', 'How much may they do alone?']) {
+    for (const heading of ['Your agents', 'Pick your project folder', 'How much may they do alone?', 'Which features should agents use?']) {
       await setup.getByRole('button', { name: 'Continue' }).click()
       await expect(setup.getByRole('heading', { name: heading })).toBeVisible()
       const box = (await win.boundingBox())!
@@ -86,7 +86,7 @@ test('setup is one large fixed window: the same size on every step, inside a sho
       const next = (await setup.getByRole('button', { name: /Continue|Skip for now/ }).first().boundingBox())!
       expect(next.y + next.height).toBeLessThanOrEqual(box.y + box.height + 1)
     }
-    // The defaults step is longer than the window: its content scrolls inside, and the footer stays.
+    // The features step is longer than the window: its content scrolls inside, and the footer stays.
     const content = setup.locator('.su-content')
     const scrolls = await content.evaluate((e) => ({ over: e.scrollHeight > e.clientHeight, style: getComputedStyle(e).overflowY }))
     expect(scrolls.style).toBe('auto')

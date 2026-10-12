@@ -8,6 +8,7 @@ import { ProviderTag } from './ProviderTag'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
+import { CheckCost } from './CheckCost'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -59,6 +60,7 @@ function Switch({ checked, onChange, title, hint }: { checked: boolean; onChange
 
 const PANES = [
   { id: 'general', group: 'Office', label: 'General', icon: '⚙' },
+  { id: 'features', group: 'Office', label: 'Features', icon: '✓' },
   { id: 'agents', group: 'Office', label: 'New agents', icon: '☺' },
   { id: 'rules', group: 'Office', label: 'House rules', icon: '☰' },
   { id: 'programs', group: 'Programs', label: 'Providers', icon: '▣' },
@@ -89,6 +91,9 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   const [pane, setPane] = useState<Pane>('general')
+  // Check before acting lives in the library's own settings; it is read here so the switch shows what is saved.
+  const [check, setCheck] = useState(true)
+  useEffect(() => void window.aw.library.features().then((f) => setCheck(f.forcedCheck), () => undefined), [])
   const connectable = providers.filter((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing'))
   const panes = PANES.filter((p) => p.id !== 'mail' || connectable.length > 0)
   const modes = startWith?.hireModes ?? []
@@ -129,9 +134,17 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </label>
               <Switch checked={prefs.keepAwake} onChange={(keepAwake) => set({ keepAwake })} title="Keep the computer awake while an agent works" hint="Sleep is stopped only while something is running." />
               <Switch checked={prefs.openPagesInApp} onChange={(openPagesInApp) => set({ openPagesInApp })} title="Open pages in the app preview" hint="When an agent opens an HTML page in a browser, also show it in that agent's Preview tab. The command it ran still runs." />
+              <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
+            </>
+          )}
+          {pane === 'features' && (
+            <>
+              <legend>Features</legend>
+              <p className="set-lead">Features change what agents are told. They add text to messages, so each shows what it costs.</p>
+              <Switch checked={check} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
+              <CheckCost />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
-              <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
             </>
           )}
           {pane === 'agents' && (

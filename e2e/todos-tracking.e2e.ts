@@ -24,6 +24,7 @@ test('todos: fully tracked mode makes a task of each request, flags it when the 
     // The choice is in Settings with its price, off by default.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: /Features/ }).click()
     const sw = settings.getByRole('checkbox', { name: /Track every request as a todo/ })
     await expect(sw).not.toBeChecked()
     await expect(settings.getByLabel('What fully tracked todos add, on these assumptions')).toContainText('A normal session')

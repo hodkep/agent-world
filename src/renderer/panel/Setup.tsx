@@ -5,7 +5,7 @@ import { TerminalView } from './TerminalView'
 import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderLogo } from './ProviderLogo'
 import { TrackingCost } from '../todos/TrackingCost'
-import { checkCost, groupTokens } from './libraryCost'
+import { CheckCost } from './CheckCost'
 
 const STEPS = [
   { id: 'welcome', name: 'Welcome' },
@@ -55,7 +55,6 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   // The library's check before acting: on unless turned off here, and changed at once (it is a switch, not a form).
   const [check, setCheck] = useState(true)
   useEffect(() => void window.aw.library.features().then((f) => setCheck(f.forcedCheck), () => undefined), [])
-  const cost = checkCost()
   const [howto, setHowto] = useState<string | null>(null)
   // The terminal where a provider's own sign-in runs, opened on request and shown right in the step.
   const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
@@ -260,11 +259,6 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                     <i />Commit unfinished work to each agent's own branch when I quit
                   </button>
                 </div>
-                <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track every request as a todo" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
-                  <i />
-                  <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
-                </button>
-                <TrackingCost full={prefs.todoTracking === 'full'} />
               </div>
             </>
           )}
@@ -273,20 +267,19 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
               <div className="su-head">
                 <span className="su-eyebrow">{eyebrow}</span>
                 <h3 tabIndex={-1}>Which features should agents use?</h3>
-                <p>Features change what agents are told. They add a little text to each message, so each shows what it costs. You can change them any time in Library, under Playbook.</p>
+                <p>Features change what agents are told. They add a little text to each message, so each shows what it costs. You can change them any time in Settings, under Features.</p>
               </div>
               <div className="su-content">
                 <button className="su-toggle" role="switch" aria-checked={check} aria-label="Check before acting" onClick={() => void window.aw.library.setFeatures({ forcedCheck: !check }).then((f) => setCheck(f.forcedCheck), () => undefined)}>
                   <i />
                   <span><b>Check before acting</b><small>When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard.</small></span>
                 </button>
-                <table className="su-cost" aria-label="What the check adds, on these assumptions">
-                  <caption>Added to every message while a rule is hard: about <b>{cost.perMessage} tokens</b>. On these assumptions:</caption>
-                  <tbody>
-                    {cost.scenarios.map((x) => <tr key={x.label}><th scope="row">{x.label}</th><td>{x.messages} messages</td><td className="n">≈ {groupTokens(x.tokens)} tokens</td></tr>)}
-                  </tbody>
-                </table>
-                <p className="hint">Plus about {cost.perSkip} tokens each time an agent passes a rule over and says why. Estimates: the real figure depends on caching and on how you work.</p>
+                <CheckCost />
+                <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track every request as a todo" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
+                  <i />
+                  <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
+                </button>
+                <TrackingCost full={prefs.todoTracking === 'full'} />
               </div>
             </>
           )}
