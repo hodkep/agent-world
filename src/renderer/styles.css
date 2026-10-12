@@ -428,12 +428,6 @@ button.choice.on:hover { background: #38331c; }
 .tip .tip-group { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
 .tip .tip-note { color: var(--muted); font-size: 11px; margin-top: 2px; }
 
-.limit-chips { display: inline-flex; gap: 6px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 7px; font: 700 12px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 2px var(--ink); font-variant-numeric: tabular-nums; }
-.chip-dot { width: 7px; height: 7px; background: var(--think); }
-.chip.level-warn .chip-dot { background: var(--accent); }
-.chip.level-hot .chip-dot { background: var(--danger); animation: blink 1s steps(1) infinite; }
-.chip.level-hot { color: var(--danger-text); }
 
 /* ---- Project switcher ------------------------------------------------------------------------- */
 .ws { position: relative; }
