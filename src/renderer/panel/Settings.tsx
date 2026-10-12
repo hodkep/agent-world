@@ -9,6 +9,7 @@ import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
 import { LibraryCostBox } from './LibraryCostBox'
+import { switchWorkflows } from '../../shared/workflows'
 import { WorkflowCost } from '../workflows/WorkflowCost'
 import { WorkflowOffConfirm } from '../workflows/WorkflowOffConfirm'
 import type { Run } from '../../shared/runs'
@@ -82,7 +83,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const [url, setUrl] = useState(prefs.updateUrl)
   // Turning workflows off while runs are open asks what to do with them first.
   const [asking, setAsking] = useState<Run[] | null>(null)
-  const setWorkflows = (enabled: boolean) => set({ workflows: { ...prefs.workflows, enabled } })
+  const setWorkflows = (enabled: boolean) => set({ workflows: switchWorkflows(prefs.workflows, enabled, Date.now()) })
   const turnOff = async () => {
     const { runs, open } = await window.aw.workflows.summary()
     if (open === 0) return setWorkflows(false)
@@ -153,7 +154,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
-              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? set({ workflows: { ...prefs.workflows, enabled } }) : void turnOff())} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
               {asking && (
                 <WorkflowOffConfirm
                   open={asking}

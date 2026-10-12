@@ -419,6 +419,7 @@ const LIBRARY_DIR = join(HOME, 'library')
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   enabled: () => prefs.workflows.enabled,
+  since: () => prefs.workflows.since,
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
   who: (id) => {
@@ -430,7 +431,8 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
 const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
 async function syncRunCommits(a: AgentRecord) {
-  if (!a.base || !a.branch || !workflows.runs().some((r) => r.agent === a.id)) return
+  // Switched on, every agent's commits are read (an agent that never announced a task still gets a run); switched off, only agents with runs.
+  if (!a.base || !a.branch || (!prefs.workflows.enabled && !workflows.runs().some((r) => r.agent === a.id))) return
   try {
     for (const c of parseCommitLog(await git(a.cwd, 'log', '--reverse', `--format=${LOG_FORMAT}`, `${a.base}..${a.branch}`))) workflows.commit(a.id, c.sha, c.subject, c.at)
     send('workflows')

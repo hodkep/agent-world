@@ -6,6 +6,7 @@ import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } fro
 import { ProviderLogo } from './ProviderLogo'
 import { TrackingCost } from '../todos/TrackingCost'
 import { LibraryCostBox } from './LibraryCostBox'
+import { switchWorkflows } from '../../shared/workflows'
 import { WorkflowCost } from '../workflows/WorkflowCost'
 
 const STEPS = [
@@ -280,7 +281,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                   <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
                 </button>
                 <TrackingCost full={prefs.todoTracking === 'full'} />
-                <button className="su-toggle" role="switch" aria-checked={prefs.workflows.enabled} aria-label="Workflows" onClick={() => onPrefs({ workflows: { ...prefs.workflows, enabled: !prefs.workflows.enabled } })}>
+                <button className="su-toggle" role="switch" aria-checked={prefs.workflows.enabled} aria-label="Workflows" onClick={() => onPrefs({ workflows: switchWorkflows(prefs.workflows, !prefs.workflows.enabled, Date.now()) })}>
                   <i />
                   <span><b>Workflows</b><small>Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve. Adds the Workflow tab and a Workflows button in the top bar. Turn it off to hide both.</small></span>
                 </button>

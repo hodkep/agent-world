@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, reduceRuns, runLabel } from './runs'
 
-const begin = (run: string, t: number, title = 'Fix the login redirect', agent = 'a1'): RunEvent => ({ k: 'begin', t, run, agent, name: 'ada', project: '/p', title })
+const begin = (run: string, t: number, title = 'Fix the login redirect', agent = 'a1'): Extract<RunEvent, { k: 'begin' }> => ({ k: 'begin', t, run, agent, name: 'ada', project: '/p', title })
 
 describe('what a run is, read from its log', () => {
   it('a begun task is an open run with one round', () => {
@@ -19,6 +19,12 @@ describe('what a run is, read from its log', () => {
   it('a commit joins the latest round, and keeps its flag', () => {
     const [r] = reduceRuns([begin('r1', 100), { k: 'commit', t: 200, run: 'r1', sha: 'abc', subject: 'fix: keep query' }, { k: 'commit', t: 250, run: 'r1', sha: 'def', subject: 'wip', flagged: true }])
     expect(r!.rounds[0]!.commits).toEqual([{ sha: 'abc', subject: 'fix: keep query', t: 200 }, { sha: 'def', subject: 'wip', t: 250, flagged: true }])
+  })
+
+  it('a run the app started from a commit says so', () => {
+    const [r] = reduceRuns([{ ...begin('r1', 100), auto: true }])
+    expect(r!.auto).toBe(true)
+    expect(reduceRuns([begin('r2', 100)])[0]!.auto).toBeUndefined()
   })
 
   it('a commit that names its round goes there, even when a later round exists', () => {

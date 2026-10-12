@@ -3,7 +3,7 @@
  * (a follow-up after it finished is a new round of the same run), and the commits made in it.
  */
 export type RunEvent =
-  | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string }
+  | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string; /** Started by the app from a commit, because the agent never announced the task. */ auto?: boolean }
   /** A follow-up after the run finished: the same run, round n + 1. */
   | { k: 'round'; t: number; run: string }
   | { k: 'done'; t: number; run: string; summary?: string }
@@ -29,6 +29,7 @@ export interface Run {
   name: string
   project: string
   title: string
+  auto?: boolean
   status: 'open' | 'done' | 'stopped'
   startedAt: number
   endedAt?: number
@@ -41,7 +42,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
   const runs = new Map<string, Run>()
   for (const e of events) {
     if (e.k === 'begin') {
-      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [] }] })
+      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [] }] })
       continue
     }
     const r = runs.get(e.run)
