@@ -279,7 +279,8 @@ export interface AwApi {
   /** Open /rewind and go to the prompt that starts with this text; Claude's own confirmation follows as a menu. */
   rewindTo(agentId: string, promptText: string): Promise<void>
   /** Esc: interrupt what the agent is doing. */
-  chatInterrupt(agentId: string): Promise<void>
+  /** `restore` is the last message sent when nothing came after it: if Claude took it back into its input box, it is moved back to the message box. */
+  chatInterrupt(agentId: string, restore?: string): Promise<void>
   /** Ready-made agents for a project: built in, from Claude subagent files, and saved by the user. */
   listRoles(folder: string): Promise<Role[]>
   saveRole(r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }): Promise<Role>

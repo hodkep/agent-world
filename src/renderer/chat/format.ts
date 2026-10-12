@@ -188,7 +188,6 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
   rows.splice(0, rows.length, ...gather(joined))
   // Messages sent from the composer show at once, until the transcript has them.
   // Claude may record it without the attached-file mentions, as a shell command, or as a slash command.
-  const norm = (t: string) => t.replace(/@"[^"]*"/g, '').replace(/\s+/g, ' ').trim()
   const said = new Set<string>()
   for (const i of items) {
     if (i.kind === 'user') said.add(norm(i.text))
@@ -205,6 +204,9 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
   }
   return rows
 }
+
+/** A message's words without the attached-file mentions or the line breaks, to tell one saved a different way from the one that was sent. */
+export const norm = (t: string) => t.replace(/@"[^"]*"/g, '').replace(/\s+/g, ' ').trim()
 
 /**
  * System events (a Monitor firing, an interrupt, a failed task, a command's output, a compaction, a hook) become chips: a monitor
