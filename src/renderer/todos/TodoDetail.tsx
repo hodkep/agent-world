@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { MessageLink, Todo } from '../../shared/todos'
 import type { AskMode } from '../../shared/todoAsk'
 import { Markdown } from '../chat/markdown'
@@ -41,6 +41,20 @@ function Banner({ t }: { t: Todo }) {
 }
 
 /** One task, opened: its outcome, details, where it came from, what happened, and a way to ask any agent about it. */
+/** A text box that is as tall as what is in it (up to a limit), so notes are read without scrolling a small box. */
+function Grow({ value, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }) {
+  const el = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const t = el.current
+    if (!t) return
+    t.style.height = 'auto'
+    const want = t.scrollHeight + 4
+    t.style.height = `${Math.min(want, 360)}px`
+    t.style.overflowY = want > 360 ? 'auto' : 'hidden'
+  }, [value])
+  return <textarea ref={el} value={value} {...rest} />
+}
+
 export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onAsk, confirm }: {
   t: Todo
   folder: string
@@ -66,7 +80,7 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
       </div>
       <section className="td-sec" aria-label="Details">
         <h5>Details</h5>
-        <textarea className="td-notes" rows={3} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
+        <Grow className="td-notes grow" rows={3} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
         <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
         <div className="td-by">Made by <Who a={t.createdBy} /> · {agoLabel(t.createdAt)}{t.auto ? ' · from your message' : ''}</div>
       </section>
@@ -127,7 +141,7 @@ function AskAgentBox({ t, agents, onAsk, folder, act }: { t: Todo; agents: AskAg
         <button aria-pressed={mode === 'ask'} onClick={() => setMode('ask')}>Ask a question</button>
         <button aria-pressed={mode === 'work'} onClick={() => setMode('work')}>Work on it</button>
       </div>
-      <textarea className="td-notes" rows={2} value={words} placeholder={mode === 'ask' ? 'Your question' : 'Anything to add? (optional)'} aria-label="What to say" onChange={(e) => setWords(e.target.value)} />
+      <Grow className="td-notes grow" rows={2} value={words} placeholder={mode === 'ask' ? 'Your question' : 'Anything to add? (optional)'} aria-label="What to say" onChange={(e) => setWords(e.target.value)} />
       <label className="td-check"><input type="checkbox" checked={openChat} onChange={(e) => setOpenChat(e.target.checked)} /> Open {agent?.name ?? 'its'} chat after sending</label>
       <div className="td-send">
         <button className="primary" disabled={!agent || busy || (mode === 'ask' && !words.trim())} onClick={send}>Send to {agent?.name ?? 'agent'}</button>
