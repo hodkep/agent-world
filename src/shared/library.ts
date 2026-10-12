@@ -27,12 +27,8 @@ export interface PlaybookRule {
   /** For on-demand: when it applies, in words the agent can match to its task. */
   when: string
   strength: RuleStrength
-}
-
-/** Switches in a playbook that change what agents are told. */
-export interface PlaybookFeatures {
-  /** Before acting, an agent says which hard rules apply, reads the one that does, and reports one it passes over. */
-  forcedCheck?: boolean
+  /** Situations the agent may reach in the middle of a run (the names in main/library/situations.ts) that also point it at this item. */
+  also?: string[]
 }
 
 /** What the forced check adds to a message, in tokens, as shown to people before it is on (a test keeps it near the real sentence). */
@@ -55,8 +51,6 @@ export interface LibraryPreview {
   reminder: string
   hardReminder: string
   rules: PlaybookRule[]
-  /** The switches in force for this workspace (the workspace's over the global, then the defaults). */
-  features: Required<PlaybookFeatures>
   /** What the forced check adds to a message that carries it (about, in tokens). */
   forcedCheckTokens: number
 }
@@ -81,6 +75,8 @@ export interface Use {
   words?: string
   /** For skipped: why the agent passed the item over, in its words. */
   reason?: string
+  /** For triggered by something the agent met rather than a message: what, in a few words ("merge conflict, 2 files"). */
+  because?: string
 }
 
 export interface Tally {

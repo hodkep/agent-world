@@ -3,7 +3,7 @@ import type { ChatItem, SubagentInfo } from './chat'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
-import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookFeatures, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
 import type { TodoBoard, TodoStatus } from './todos'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
 
@@ -338,8 +338,6 @@ export interface AwApi {
     /** Saves a playbook: the global one when the scope is null, else that workspace's. */
     setPlaybook(scope: string | null, rules: PlaybookRule[]): Promise<PlaybookRule[]>
     /** The switches of the global playbook (what the check before acting is set to). */
-    features(): Promise<Required<PlaybookFeatures>>
-    setFeatures(f: PlaybookFeatures): Promise<Required<PlaybookFeatures>>
     /** What an agent of that program would be told for this workspace. */
     preview(folder: string, provider: ProviderId): Promise<LibraryPreview>
   }

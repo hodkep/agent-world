@@ -9,7 +9,7 @@ const skill = (dir: string, name: string, desc: string, body: string) => {
   writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${desc}\n---\n${body}`)
 }
 
-test('the check before acting: one switch in the Playbook, and what agents said when they passed an item over, shown when its row opens', async () => {
+test('the check before acting is part of the playbook, and what agents said when they passed an item over, shown when its row opens', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-habits-'))
   const lib = join(home, 'aw', 'library')
   skill(join(lib, 'skills', 'tdd'), 'tdd', 'Test-driven development.', '# TDD')
@@ -36,19 +36,12 @@ test('the check before acting: one switch in the Playbook, and what agents said 
     await page.getByRole('button', { name: 'Library' }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Library' })
 
-    // The Playbook: the switch is on, says what it adds, and the reminder shows the check once.
+    // The Playbook: there is no separate switch, and the reminder always shows the check once.
     await dialog.getByRole('tab', { name: 'Playbook' }).click()
-    const sw = dialog.getByRole('switch', { name: 'Check before acting' })
-    await expect(sw).toHaveAttribute('aria-checked', 'true')
-    await expect(sw).toContainText(/\+≈ \d+ tokens \/ message/)
+    await expect(dialog.getByRole('switch', { name: 'Check before acting' })).toHaveCount(0)
     const reminder = dialog.locator('h4', { hasText: 'Reminder' }).locator('xpath=following-sibling::p[1]')
     await expect(reminder).toContainText('library_skip')
     expect((await reminder.textContent())!.match(/Before your first tool call/g)).toHaveLength(1)
-    await sw.click()
-    await expect(sw).toHaveAttribute('aria-checked', 'false')
-    await expect(reminder).not.toContainText('library_skip')
-    await sw.click()
-    await expect(sw).toHaveAttribute('aria-checked', 'true')
 
     // Reached for: the numbers say how many said no; opening the row lists what they said, grouped, with advice.
     await dialog.getByRole('tab', { name: 'Reached for' }).click()

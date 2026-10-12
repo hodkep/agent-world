@@ -491,6 +491,14 @@ const libraryRemind = (id: string, prompt: string) => {
     return null
   }
 }
+// What an agent met in the middle of a run (a merge conflict) that the playbook has an item for: said right after the tool that showed it.
+const librarySituation = (id: string, tool: string, input: Record<string, unknown>, response: unknown) => {
+  try {
+    return prefs.libraryEnabled ? libraryService.situation(id, tool, input, response) || null : null
+  } catch {
+    return null
+  }
+}
 // A Claude agent used a library item through its own tools: the Skill tool (plain or plugin-prefixed name), or reading a file of the library.
 const noteLibraryUse = (id: string, tool: string, input: Record<string, unknown>) => {
   try {
@@ -944,6 +952,7 @@ async function main() {
     },
     onStatus: onStats,
     reminderFor: libraryRemind,
+    situationFor: librarySituation,
     onToolUse: noteLibraryUse,
     onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
@@ -1456,8 +1465,6 @@ async function main() {
     libraryService.playbooks.write(scope ? { workspace: repoSlug(scope) } : 'global', good)
     return good
   })
-  ipcMain.handle('playbook:features', () => libraryService.features())
-  ipcMain.handle('playbook:set-features', (_, f: { forcedCheck?: boolean }) => (libraryService.setFeatures({ forcedCheck: !!f?.forcedCheck }), libraryService.features()))
   ipcMain.handle('library:preview', (_, folder: string, providerId: string) => {
     const p = providers().find((x) => x.id === providerId) ?? providers()[0]
     const m = p ? mailState(p) : 'no'

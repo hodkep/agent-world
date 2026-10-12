@@ -6,6 +6,8 @@ export interface Slip {
   state: 'read' | 'pointed' | 'self'
   /** The exact line the agent was given, when it was pointed at the item. */
   words?: string
+  /** What the agent met that pointed it at the item, when it was not a message ("merge conflict, 2 files"). */
+  because?: string
   /** How long after being pointed at it was read. */
   gapMs?: number
 }
@@ -18,7 +20,7 @@ export function slipsFor(uses: Use[], from: number, to: number): Slip[] {
   for (const x of uses.filter((x) => x.t >= from && x.t < to).sort((a, b) => a.t - b.t)) {
     const have = out.get(x.id)
     if (x.how === 'triggered') {
-      if (!have) out.set(x.id, { id: x.id, state: 'pointed', words: x.words, at: x.t })
+      if (!have) out.set(x.id, { id: x.id, state: 'pointed', words: x.words, because: x.because, at: x.t })
     } else if (USED.has(x.how)) {
       if (!have) out.set(x.id, { id: x.id, state: 'self', at: x.t })
       else if (have.state === 'pointed') (have.state = 'read'), (have.gapMs = x.t - have.at)

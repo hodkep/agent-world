@@ -140,8 +140,6 @@ const api: AwApi = {
     import: (folder, dirs) => ipcRenderer.invoke('library:import', folder, dirs),
     playbook: (folder) => ipcRenderer.invoke('playbook:get', folder),
     setPlaybook: (scope, rules) => ipcRenderer.invoke('playbook:set', scope, rules),
-    features: () => ipcRenderer.invoke('playbook:features'),
-    setFeatures: (f) => ipcRenderer.invoke('playbook:set-features', f),
     preview: (folder, provider) => ipcRenderer.invoke('library:preview', folder, provider)
   },
   mailStale: (id) => ipcRenderer.invoke('provider:mail-stale', id),

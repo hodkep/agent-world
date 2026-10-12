@@ -8,7 +8,6 @@ import { ProviderTag } from './ProviderTag'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
-import { CheckCost } from './CheckCost'
 import { LibraryCostBox } from './LibraryCostBox'
 
 /** Models of every program that is ready, each program's under its own heading. */
@@ -92,9 +91,6 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   const [pane, setPane] = useState<Pane>(PANES.some((p) => p.id === initialPane) ? (initialPane as Pane) : 'general')
-  // Check before acting lives in the library's own settings; it is read here so the switch shows what is saved.
-  const [check, setCheck] = useState(true)
-  useEffect(() => void window.aw.library.features().then((f) => setCheck(f.forcedCheck), () => undefined), [])
   const connectable = providers.filter((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing'))
   const panes = PANES.filter((p) => p.id !== 'mail' || connectable.length > 0)
   const modes = startWith?.hireModes ?? []
@@ -144,8 +140,6 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <p className="set-lead">Features change what agents are told. They add text to messages, so each shows what it costs.</p>
               <Switch checked={prefs.libraryEnabled} onChange={(libraryEnabled) => set({ libraryEnabled })} title="Library and playbook" hint="The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window and tab say it is off. Takes effect for agents started from now on and for each new message." />
               <LibraryCostBox />
-              <Switch child disabled={!prefs.libraryEnabled} checked={check && prefs.libraryEnabled} onChange={(forcedCheck) => void window.aw.library.setFeatures({ forcedCheck }).then((f) => setCheck(f.forcedCheck), () => undefined)} title="Check before acting" hint="When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard." />
-              <CheckCost />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
             </>

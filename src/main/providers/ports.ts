@@ -182,6 +182,8 @@ export interface EventSourceOptions {
   onSession?: (agentId: string, sessionId: string) => void
   /** Text to add to what an agent is told each time you send it a message (a rule it must not drift from, what its message points at), or null. */
   reminderFor?: (agentId: string, prompt: string) => string | null
+  /** The agent's tool just returned: a line to add when what it returned shows a situation the playbook has something for (a merge conflict), or null. */
+  situationFor?: (agentId: string, tool: string, input: Record<string, unknown>, response: unknown) => string | null
   /** The agent is about to call a tool, with what it was given. */
   onToolUse?: (agentId: string, tool: string, input: Record<string, unknown>) => void
   /** The agent's earlier conversation was just replaced by a summary. */

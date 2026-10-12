@@ -5,7 +5,6 @@ import { TerminalView } from './TerminalView'
 import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderLogo } from './ProviderLogo'
 import { TrackingCost } from '../todos/TrackingCost'
-import { CheckCost } from './CheckCost'
 import { LibraryCostBox } from './LibraryCostBox'
 
 const STEPS = [
@@ -53,9 +52,6 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const [name, setName] = useState('')
   const [crew, setCrew] = useState(false)
   const [busy, setBusy] = useState(false)
-  // The library's check before acting: on unless turned off here, and changed at once (it is a switch, not a form).
-  const [check, setCheck] = useState(true)
-  useEffect(() => void window.aw.library.features().then((f) => setCheck(f.forcedCheck), () => undefined), [])
   const [howto, setHowto] = useState<string | null>(null)
   // The terminal where a provider's own sign-in runs, opened on request and shown right in the step.
   const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
@@ -276,11 +272,6 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                   <span><b>Library and playbook</b><small>The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window says it is off.</small></span>
                 </button>
                 <LibraryCostBox />
-                <button className="su-toggle" role="switch" disabled={!prefs.libraryEnabled} aria-checked={check && prefs.libraryEnabled} aria-label="Check before acting" onClick={() => void window.aw.library.setFeatures({ forcedCheck: !check }).then((f) => setCheck(f.forcedCheck), () => undefined)}>
-                  <i />
-                  <span><b>Check before acting</b><small>When a rule in your library is marked hard, the agent says which apply to the request, reads the one that does, and reports the ones it skips. Nothing is added until a rule is hard.</small></span>
-                </button>
-                <CheckCost />
                 <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track every request as a todo" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
                   <i />
                   <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
