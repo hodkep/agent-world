@@ -8,7 +8,7 @@ import { Workflows } from './service'
 type Reply = { text: string; cost?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
@@ -16,7 +16,7 @@ function make(opts: { enabled?: boolean } = {}) {
       planGate: () => state.planGate,
       mergeGate: () => state.mergeGate,
       dial: () => state.dial,
-      ask: (agent, prompt) => (state.askedFor.push(agent), state.asked.push(prompt), state.reply(prompt)),
+      ask: (agent, prompt, model) => (state.askedFor.push(agent), state.asked.push(prompt), state.models.push(model ?? ''), state.reply(prompt)),
       now: () => (state.t += 10),
       newId: () => `r${++state.n}`,
       who: (id) => (id === 'a1' ? { name: 'ada', project: '/p' } : id === 'a2' ? { name: 'bo', project: '/p' } : undefined)
@@ -481,5 +481,69 @@ describe('the economy dial: a plan is optional, but one that was handed in is st
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [] })
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'waiting', blocking: ['The plan is still waiting for your approval.'] })
+  })
+})
+
+const GAPS = '{"gaps":[{"question":"Should the toggle follow the system setting?","options":["Follow the system","Always manual"]}]}'
+
+describe('the intent check at the max dial', () => {
+  it('asks a small model what the plan leaves open about the request, under the agent, and gives back its questions with the cost', async () => {
+    const { wf, state } = make()
+    state.dial = 'max'
+    wf.begin('a1', 'Add a toggle')
+    state.reply = async () => ({ text: GAPS, cost: 0.0006, model: 'claude-haiku-5-5' })
+    const check = await wf.intentCheck('a1', PLAN, 'add dark mode to the app')
+    expect(state.askedFor).toEqual(['a1'])
+    expect(state.models).toEqual(['haiku'])
+    expect(state.asked[0]).toContain('add dark mode to the app')
+    expect(state.asked[0]).toContain('Add a toggle.')
+    expect(check).toEqual({ questions: [{ text: 'Should the toggle follow the system setting?', options: ['Follow the system', 'Always manual'], source: 'check' }], cost: 0.0006, model: 'claude-haiku-5-5' })
+  })
+
+  it('asks nothing below max, with workflows off, with no open task, or for a plan that will be refused anyway', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    for (const dial of ['economy', 'balanced'] as const) {
+      state.dial = dial
+      expect(await wf.intentCheck('a1', PLAN, 'req')).toBeUndefined()
+    }
+    state.dial = 'max'
+    expect(await wf.intentCheck('a1', '## Goal\nOnly a goal.\n', 'req')).toBeUndefined()
+    expect(await wf.intentCheck('a2', PLAN, 'req')).toBeUndefined()
+    state.enabled = false
+    expect(await wf.intentCheck('a1', PLAN, 'req')).toBeUndefined()
+    expect(state.asked).toEqual([])
+  })
+
+  it('a model that throws or answers with something unreadable gives a failure the plan goes ahead with', async () => {
+    const { wf, state } = make()
+    state.dial = 'max'
+    wf.begin('a1', 'Add a toggle')
+    state.reply = async () => {
+      throw new Error('claude timed out')
+    }
+    expect(await wf.intentCheck('a1', PLAN, 'req')).toEqual({ failed: 'claude timed out' })
+    state.reply = async () => ({ text: 'Looks clear to me.' })
+    expect(await wf.intentCheck('a1', PLAN, 'req')).toEqual({ failed: 'The reply was not a list of gaps.' })
+  })
+
+  it('submitPlan puts the check\'s questions after the agent\'s own, marked as the check\'s, leaves out one already asked, and keeps what the check cost', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    const dup = { text: 'every window or this one?', options: ['x'], source: 'check' as const }
+    const added = { text: 'Follow the system?', options: ['Yes', 'No'], source: 'check' as const }
+    const r = wf.submitPlan('a1', '.agent-world/plan.md', PLAN, { questions: [dup, added], cost: 0.0006, model: 'claude-haiku-5-5' })
+    expect(r.questions).toBe(2)
+    const plan = wf.runs()[0]!.rounds[0]!.plan!
+    expect(plan.readback.questions.map((q) => q.text)).toEqual(['Every window or this one?', 'Follow the system?'])
+    expect(plan.readback.questions.map((q) => q.source)).toEqual([undefined, 'check'])
+    expect(plan.check).toEqual({ added: 1, cost: 0.0006, model: 'claude-haiku-5-5' })
+  })
+
+  it('submitPlan with a failed check records the failure and the plan is exactly the agent\'s', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    expect(wf.submitPlan('a1', '.agent-world/plan.md', PLAN, { failed: 'timed out' }).questions).toBe(1)
+    expect(wf.runs()[0]!.rounds[0]!.plan).toMatchObject({ check: { failed: 'timed out' }, readback: { questions: [{ text: 'Every window or this one?' }] } })
   })
 })

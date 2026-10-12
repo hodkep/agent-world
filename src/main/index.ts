@@ -58,6 +58,7 @@ import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askClaude } from './workflows/ask'
+import { requestOf } from '../shared/intent'
 import { auditModel } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
@@ -428,11 +429,11 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   mergeGate: () => prefs.workflows.mergeGate,
   dial: () => prefs.workflows.dial,
   // The audit runs under the agent's own account, so what it costs lands where the agent's work does.
-  ask: (id, prompt) => {
+  ask: (id, prompt, model) => {
     const a = byId(id)
     if (!a) return Promise.reject(new Error('Unknown agent.'))
     const p = providerOf(a)
-    return askClaude(resolveCommand(binFor(p)), auditModel(prefs.workflows.dial) ?? 'haiku', prompt, { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor(a.provider, a.configDir) })
+    return askClaude(resolveCommand(binFor(p)), model ?? auditModel(prefs.workflows.dial) ?? 'haiku', prompt, { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor(a.provider, a.configDir) })
   },
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
@@ -1137,7 +1138,10 @@ async function main() {
           throw new Error(err instanceof Error && err.message === 'outside' ? 'The plan must be a file inside your worktree.' : `There is no plan at ${path}. Write it there first.`)
         }
         const rel = relative(a.cwd, file)
-        const r = workflows.submitPlan(caller, rel, text)
+        // At max a small model reads the person's request against the plan first, so its questions are in front of them from the start.
+        const request = requestOf(chats.get(caller)?.items ?? [])
+        const check = providerOf(a).id === 'claude' && request ? await workflows.intentCheck(caller, text, request) : undefined
+        const r = workflows.submitPlan(caller, rel, text, check)
         send('workflows')
         return r
       }

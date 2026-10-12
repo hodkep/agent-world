@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LedgerEvent } from './ledger'
 import { type RunEvent, reduceRuns } from './runs'
-import { agentCounts, auditText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
+import { agentCounts, auditText, checkText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
 
 const MIN = 60_000
 // Wednesday 2026-10-14 12:00 local; the week began Monday 2026-10-12.
@@ -113,5 +113,15 @@ describe('what the Workflow tab says about the audit and the landing', () => {
     expect(landedText(run('checked', []))).toBe('Landed after the checks')
     expect(landedText(run('anyway', ['No plan was approved for this task.', '2 audit findings have not been seen.']))).toBe('Landed anyway: No plan was approved for this task. 2 audit findings have not been seen.')
     expect(landedText(reduceRuns([begin('r1', 1000, 'a1', 'ada')])[0]!)).toBeUndefined()
+  })
+})
+
+describe('what the plan panel says about the intent check', () => {
+  it('says how many questions it added with the model and cost, or that it found nothing, or why it failed, and nothing when none ran', () => {
+    expect(checkText({ added: 2, cost: 0.0006, model: 'claude-haiku-5-5' })).toBe('The intent check added 2 questions · claude-haiku-5-5 · $0.0006')
+    expect(checkText({ added: 1 })).toBe('The intent check added 1 question')
+    expect(checkText({ added: 0, cost: 0.0004, model: 'claude-haiku-5-5' })).toBe('The intent check found nothing to add · claude-haiku-5-5 · $0.0004')
+    expect(checkText({ failed: 'claude timed out' })).toBe('The intent check failed: claude timed out. This is the plan as the agent wrote it.')
+    expect(checkText(undefined)).toBeUndefined()
   })
 })

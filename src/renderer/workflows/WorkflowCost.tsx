@@ -23,7 +23,7 @@ export function WorkflowCost({ dial, onDial }: { dial: Dial; onDial?: (d: Dial) 
         </>
       )}
       <table className="su-cost" aria-label="What workflows add per task">
-        <caption>For one task of about five steps. Estimates, except the audit's size and price on haiku, which were measured.</caption>
+        <caption>For one task of about five steps. Estimates, except the audit and the intent check, whose size and price on haiku were measured.</caption>
         <thead>
           <tr>
             <th scope="col">Level</th>

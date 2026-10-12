@@ -13,7 +13,7 @@ export type RunEvent =
   | { k: 'stop'; t: number; run: string }
   /** `flagged`: the commit was made with no task open, so it was attached to the nearest run. */
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
-  | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback }
+  | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
   | { k: 'commit'; t: number; run: string; sha: string; subject: string; flagged?: boolean; /** The round it was made in; the latest when not given. */ round?: number }
   /** A model's review of the branch head against the plan, or why it could not be done. */
@@ -28,10 +28,13 @@ export interface PlanAnswer {
   question: string
   answer: string
 }
+/** What the intent check did for a plan: how many questions it added (they are in the read-back, marked as its own), or why it could not. */
+export type PlanCheck = { added: number; cost?: number; model?: string } | { failed: string }
 export interface RoundPlan {
   state: 'submitted' | 'approved' | 'changes' | 'released'
   path: string
   readback: PlanReadback
+  check?: PlanCheck
   submittedAt: number
   decidedAt?: number
   note?: string
@@ -94,7 +97,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     } else if (e.k === 'plan') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (!into) continue
-      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, submittedAt: e.t }
+      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, ...(e.check && { check: e.check }), submittedAt: e.t }
       else if (e.state === 'released' && !into.plan) into.plan = { state: 'released', path: '', readback: { goal: '', assumptions: [], outOfScope: [], questions: [] }, submittedAt: e.t, decidedAt: e.t }
       else if (into.plan) {
         into.plan = { ...into.plan, state: e.state, decidedAt: e.t, ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }

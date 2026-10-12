@@ -9,6 +9,8 @@ export interface Assumption {
 export interface PlanQuestion {
   text: string
   options: string[]
+  /** Set when the question came from the intent check at the max dial, not from the agent's own plan. */
+  source?: 'check'
 }
 export interface PlanReadback {
   goal: string

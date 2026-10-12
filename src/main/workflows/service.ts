@@ -1,8 +1,9 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
-import { type PlanAnswer, type Run, type RunEvent, reduceRuns } from '../../shared/runs'
+import { type PlanAnswer, type PlanCheck, type Run, type RunEvent, reduceRuns } from '../../shared/runs'
 import { auditPrompt, parseAudit } from '../../shared/audit'
-import { parsePlan } from '../../shared/plan'
+import { intentPrompt, parseIntent } from '../../shared/intent'
+import { parsePlan, type PlanQuestion } from '../../shared/plan'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import type { Dial } from '../../shared/workflows'
 
@@ -15,7 +16,7 @@ interface Deps {
   mergeGate: () => boolean
   dial: () => Dial
   /** One question to a model for the audit, under the agent's own account; the reply text and what it cost. */
-  ask: (agentId: string, prompt: string) => Promise<{ text: string; cost?: number; model?: string }>
+  ask: (agentId: string, prompt: string, model?: string) => Promise<{ text: string; cost?: number; model?: string }>
   /** When workflows were switched on (ms): earlier commits are history. */
   since: () => number
   now: () => number
@@ -23,6 +24,9 @@ interface Deps {
   /** Who an agent is, for the run's label; nothing for an agent the office no longer knows. */
   who: (agentId: string) => { name: string; project: string } | undefined
 }
+
+/** What the intent check found: questions to add to the plan, with what the call cost; or why it could not. */
+export type IntentResult = { questions: PlanQuestion[]; cost?: number; model?: string } | { failed: string }
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
@@ -142,14 +146,37 @@ export class Workflows {
     return this.mine(agentId).find((r) => r.status === 'open')
   }
 
+  /**
+   * At the max dial a small model reads the person's request against the plan and lists what it leaves open. Nothing is asked below max,
+   * with no open task, or for a plan the read-back check will refuse. A model that fails is reported, never fatal: the plan goes ahead without it.
+   */
+  async intentCheck(agentId: string, markdown: string, request: string): Promise<IntentResult | undefined> {
+    if (!this.deps.enabled() || !this.deps.planGate() || this.deps.dial() !== 'max' || !this.openRun(agentId)) return undefined
+    const parsed = parsePlan(markdown)
+    if (!parsed.ok) return undefined
+    try {
+      const reply = await this.deps.ask(agentId, intentPrompt(request, parsed.plan).prompt, 'haiku')
+      const gaps = parseIntent(reply.text)
+      if (!gaps) return { failed: 'The reply was not a list of gaps.' }
+      return { questions: gaps, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.model && { model: reply.model }) }
+    } catch (e) {
+      return { failed: (e as Error).message }
+    }
+  }
+
   /** The agent hands in its plan: the read-back block is checked in code and every problem is sent back at once. */
-  submitPlan(agentId: string, path: string, markdown: string) {
+  submitPlan(agentId: string, path: string, markdown: string, check?: IntentResult) {
     const open = this.openRun(agentId)
     if (!open) throw new Error('No task is open.')
     const parsed = parsePlan(markdown)
     if (!parsed.ok) throw new Error(`The plan's read-back block needs fixing:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
-    this.append({ k: 'plan', t: this.deps.now(), run: open.id, round: open.rounds.length, state: 'submitted', path, readback: parsed.plan })
-    return { questions: parsed.plan.questions.length }
+    // The check's questions come after the agent's own, and one the agent already asked is not asked twice.
+    const asked = new Set(parsed.plan.questions.map((q) => q.text.trim().toLowerCase()))
+    const extra = check && 'questions' in check ? check.questions.filter((q) => !asked.has(q.text.trim().toLowerCase())) : []
+    const readback = { ...parsed.plan, questions: [...parsed.plan.questions, ...extra] }
+    const recorded: PlanCheck | undefined = !check ? undefined : 'failed' in check ? { failed: check.failed } : { added: extra.length, ...(check.cost !== undefined && { cost: check.cost }), ...(check.model && { model: check.model }) }
+    this.append({ k: 'plan', t: this.deps.now(), run: open.id, round: open.rounds.length, state: 'submitted', path, readback, ...(recorded && { check: recorded }) })
+    return { questions: readback.questions.length }
   }
 
   /** The person's answer to a waiting plan; a release also works when no plan was ever handed in, so a block can always be lifted. */
