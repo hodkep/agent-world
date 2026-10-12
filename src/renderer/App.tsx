@@ -43,6 +43,7 @@ import { useLibraryUses } from './chat/LibrarySlips'
 import { IconButton } from './panel/IconButton'
 import { Settings } from './panel/Settings'
 import { LibraryModal } from './panel/LibraryModal'
+import { TodoBoardModal } from './todos/TodoBoardModal'
 import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
 import { parseHandoff } from '../shared/handoff'
@@ -154,6 +155,16 @@ export function App() {
   const [settings, setSettings] = useState(false)
   const [shortcuts, setShortcuts] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
+  // The todo board of the open project, how many of its tasks wait on you, and the message a task asked to be opened at.
+  const [todoOpen, setTodoOpen] = useState(false)
+  const [todoNeeds, setTodoNeeds] = useState(0)
+  const [jump, setJump] = useState<{ agentId: string; itemId: string; excerpt: string; n: number } | null>(null)
+  useEffect(() => {
+    if (!folder) return setTodoNeeds(0)
+    const load = () => void window.aw.todos.needsYou(folder).then(setTodoNeeds, () => undefined)
+    load()
+    return window.aw.onTodosChanged(load)
+  }, [folder])
   // What is installed here; first-run setup opens from it, and Settings can open it again.
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
@@ -579,6 +590,7 @@ export function App() {
       needActions={needActions(a.id)}
       visible={visible}
       focusTick={focusTick}
+      jump={jump?.agentId === a.id ? jump : null}
       limits={limitsOf(a)}
       info={infoOf(a)}
       actions={actionsOf(a)}
@@ -1113,6 +1125,18 @@ export function App() {
           }}
         />
       )}
+      {todoOpen && folder && (
+        <TodoBoardModal
+          folder={folder}
+          onClose={() => setTodoOpen(false)}
+          onOpenMessage={(l) => {
+            setTodoOpen(false)
+            select(l.agentId)
+            setView('chat')
+            setJump({ agentId: l.agentId, itemId: l.itemId, excerpt: l.excerpt, n: Date.now() })
+          }}
+        />
+      )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} onClose={() => setLibraryOpen(false)} />}
       {settings && prefs && <Settings providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
@@ -1154,6 +1178,7 @@ export function App() {
         {agents.length > 0 && (
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
+        {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
         <IconButton icon="library" label="Library" onClick={() => setLibraryOpen(true)} haspopup tip="Skills, instructions and the playbook that says what agents are told" />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />

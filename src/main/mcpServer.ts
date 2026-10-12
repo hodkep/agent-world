@@ -3,12 +3,23 @@ import type { AddressInfo } from 'node:net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { z } from 'zod'
+import type { Todo, TodoStatus } from '../shared/todos'
 
 export interface Colleague {
   name: string
   activity: string
   branch: string | null
   you: boolean
+}
+
+/** The project's todo board, as far as one agent may use it: its own project's, as itself. */
+export interface TodoApi {
+  listForAgent: (callerId: string, f: { list?: string; status?: TodoStatus; mine?: boolean }) => Todo[]
+  getForAgent: (callerId: string, id: string) => Todo
+  addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => Todo
+  claimByAgent: (callerId: string, id: string) => Todo
+  doneByAgent: (callerId: string, id: string, note: string) => Todo
+  updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }) => Todo
 }
 
 interface Options {
@@ -28,6 +39,8 @@ interface Options {
     wait: (callerId: string, ids: string[]) => Promise<SubagentResult>
     stop: (callerId: string, id: string) => string
   }
+  /** The project's todo board, shared by the person and the agents. Offered only when set. */
+  todos?: TodoApi
   /** The shared library of skills and instructions, as far as the caller's playbook allows. */
   library?: {
     index: (callerId: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
@@ -169,6 +182,7 @@ function toolsFor(callerId: string, o: Options) {
     }
   )
   if (o.library) addLibraryTools(server, callerId, o.library)
+  if (o.todos) addTodoTools(server, callerId, o.todos)
   return server
 }
 
@@ -214,6 +228,94 @@ function addLibraryTools(server: McpServer, callerId: string, lib: LibraryApi) {
         return fail(err)
       }
     }
+  )
+}
+
+const ago = (t: number, now = Date.now()) => {
+  const s = Math.max(0, Math.round((now - t) / 1000))
+  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129_600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86_400)} days ago`
+}
+const who = (a: { name: string; provider?: string }) => (a.provider ? `${a.name} (${a.provider})` : a.name)
+const todoLine = (t: Todo) =>
+  `#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
+const todoFull = (t: Todo) =>
+  [
+    todoLine(t),
+    t.notes && `Notes: ${t.notes}`,
+    t.createdLink && `Made in ${t.createdBy.name}'s message ${ago(t.createdLink.at)}: "${t.createdLink.excerpt}"`,
+    t.status === 'done' && t.doneBy && `Done by ${who(t.doneBy)} ${ago(t.doneAt ?? t.updatedAt)}${t.doneNote ? `: ${t.doneNote}` : ''}`,
+    t.doneLink && `Finished in ${t.doneBy?.name ?? 'an agent'}'s message: "${t.doneLink.excerpt}"`,
+    'History:',
+    ...t.history.map((e) => `- ${e.what} by ${who(e.by)} ${ago(e.at)}${e.note ? ` (${e.note})` : ''}`)
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
+  const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] })
+  const fail = (err: unknown) => ({ isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] })
+  const run = (f: () => string) => {
+    try {
+      return text(f())
+    } catch (err) {
+      return fail(err)
+    }
+  }
+  const id = z.string().min(1).max(20).describe('The todo number from todo_list')
+  server.registerTool(
+    'todo_list',
+    {
+      description: 'List this project\'s todo board: open tasks by default, each with its number, list, who made it and when it last changed. Tasks the person added by hand are here too.',
+      inputSchema: {
+        list: z.string().max(60).optional().describe('Only this list'),
+        status: z.enum(['open', 'doing', 'blocked', 'done']).optional().describe('Only this status (done tasks are left out otherwise)'),
+        mine: z.boolean().optional().describe('Only the tasks you claimed')
+      }
+    },
+    async (f) => run(() => { const l = todos.listForAgent(callerId, f); return l.length ? l.map(todoLine).join('\n') : f.status === 'done' ? 'No done todos.' : 'No open todos.' })
+  )
+  server.registerTool(
+    'todo_get',
+    { description: 'One todo in full: notes, history, and the chat messages it was made and finished in.', inputSchema: { id } },
+    async (a) => run(() => todoFull(todos.getForAgent(callerId, a.id)))
+  )
+  server.registerTool(
+    'todo_add',
+    {
+      description: 'Add a task to this project\'s todo board. Use needs_you for a step only the person can do (a key to paste, a login, an install). The task remembers the message you said it in.',
+      inputSchema: {
+        title: z.string().min(1).max(200).describe('What needs doing, in a line'),
+        list: z.string().max(60).optional().describe('The list to put it in (made if new); the first list by default'),
+        notes: z.string().max(4000).optional().describe('Steps or detail'),
+        needs_you: z.boolean().optional().describe('Only the person can do this')
+      }
+    },
+    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return `Added todo ${t.id} to ${t.list}.` })
+  )
+  server.registerTool(
+    'todo_claim',
+    { description: 'Say you are doing this task now, so no other agent takes it.', inputSchema: { id } },
+    async (a) => run(() => { const t = todos.claimByAgent(callerId, a.id); return `You are on todo ${t.id}: ${t.title}.` })
+  )
+  server.registerTool(
+    'todo_done',
+    { description: 'Mark a task done, with a line on what you did. It records you and the message you are saying this in.', inputSchema: { id, note: z.string().max(500).optional().describe('What was done, in a line') } },
+    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? ''); return `Marked todo ${t.id} done.` })
+  )
+  server.registerTool(
+    'todo_update',
+    {
+      description: 'Change a task: its title, notes, whether it needs the person, or its status (open, doing, blocked: say why).',
+      inputSchema: {
+        id,
+        title: z.string().min(1).max(200).optional(),
+        notes: z.string().max(4000).optional(),
+        needs_you: z.boolean().optional(),
+        status: z.enum(['open', 'doing', 'blocked']).optional(),
+        blocked_why: z.string().max(500).optional().describe('Why it is blocked')
+      }
+    },
+    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo ${t.id}.` })
   )
 }
 

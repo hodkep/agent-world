@@ -1,6 +1,10 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createTodoService } from './todos/service'
 import { startMcpServer } from './mcpServer'
 
 type Server = Awaited<ReturnType<typeof startMcpServer>>
@@ -14,10 +18,11 @@ afterEach(async () => {
 const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
-async function setup(library?: Parameters<typeof startMcpServer>[0]['library']) {
+async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos']) {
   sent.length = 0
   server = await startMcpServer({
     library,
+    todos,
     agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
     send: (from, to, message, expectsReply) => {
@@ -179,5 +184,36 @@ describe('agent-world MCP server: subagents', () => {
     expect((r as { isError?: boolean }).isError).toBe(true)
     expect(text(r)).toContain('already has 3 subagents')
     await expect(c.callTool({ name: 'spawn_subagent', arguments: { provider: 'gpt', task: 'x' } })).resolves.toMatchObject({ isError: true })
+  })
+})
+
+describe('the todo tools', () => {
+  const agents = { a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }, a2: { id: 'a2', name: 'bob', provider: 'agy', repoPath: '/work/shop' } }
+  const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), now: () => Date.now(), onChange: () => undefined })
+  it('add, list, claim and finish a task, each as the calling agent', async () => {
+    const svc = make()
+    const a = await connect((await setup(undefined, svc)).url, 'a1')
+    const b = await connect(server!.url, 'a2')
+    expect((await a.listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['todo_list', 'todo_add', 'todo_get', 'todo_claim', 'todo_done', 'todo_update']))
+    expect(text(await a.callTool({ name: 'todo_add', arguments: { title: 'Add the key', list: 'Manual setup', needs_you: true } }))).toMatch(/^Added todo 1 to Manual setup/)
+    expect(text(await b.callTool({ name: 'todo_list', arguments: {} }))).toMatch(/#1 \[Manual setup\] Add the key.*needs you.*ada/)
+    expect(text(await b.callTool({ name: 'todo_claim', arguments: { id: '1' } }))).toMatch(/You are on todo 1/)
+    const clash = await a.callTool({ name: 'todo_claim', arguments: { id: '1' } })
+    expect((clash as { isError?: boolean }).isError).toBe(true)
+    expect(text(clash)).toContain('bob is already doing')
+    expect(text(await b.callTool({ name: 'todo_done', arguments: { id: '1', note: 'key added' } }))).toMatch(/Marked todo 1 done/)
+    const got = text(await a.callTool({ name: 'todo_get', arguments: { id: '1' } }))
+    expect(got).toContain('done by bob')
+    expect(got).toContain('key added')
+    expect(got).toContain('said so')
+    expect(text(await a.callTool({ name: 'todo_list', arguments: {} }))).toBe('No open todos.')
+  })
+  it('say plainly when a todo does not exist, and are not offered when the app has no board', async () => {
+    const a = await connect((await setup(undefined, make())).url, 'a1')
+    const r = await a.callTool({ name: 'todo_done', arguments: { id: '77' } })
+    expect((r as { isError?: boolean }).isError).toBe(true)
+    expect(text(r)).toContain('No todo 77')
+    const c = await connect((await setup()).url, 'a1')
+    expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('todo_add')
   })
 })
