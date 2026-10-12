@@ -17,6 +17,11 @@ describe('preferences', () => {
   it('ignore values of the wrong kind, keeping the rest', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
+  it('workflows start off at the balanced dial, and a bad value falls back', () => {
+    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced' })
+    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max' } }).workflows).toEqual({ enabled: true, dial: 'max' })
+    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo' } }).workflows).toEqual({ enabled: false, dial: 'balanced' })
+  })
   it('keep only accounts with a plain id and a name, once each', () => {
     expect(cleanPrefs({ accounts: [{ id: 'work', name: ' Work ' }, { id: 'work', name: 'Dup' }, { id: '../x', name: 'Bad' }, { id: 'ok', name: '' }, { id: 'x', name: 'X', provider: 'nope' }, 4] }).accounts).toEqual([{ id: 'work', name: 'Work', provider: 'claude' }])
   })

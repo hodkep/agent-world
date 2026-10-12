@@ -9,6 +9,7 @@ import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
 import { LibraryCostBox } from './LibraryCostBox'
+import { WorkflowCost } from '../workflows/WorkflowCost'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -49,11 +50,11 @@ function ProgramCard({ provider, saved, onSave, onRescan }: { provider: Provider
 }
 
 /** A choice with a line under it, drawn as a switch. It is a checkbox underneath, so a keyboard and a screen reader treat it as one. */
-function Switch({ checked, onChange, title, hint, disabled, child }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string; disabled?: boolean; /** A feature that depends on the one above it: drawn indented under it. */ child?: boolean }) {
+function Switch({ checked, onChange, title, hint, disabled, child, role }: { checked: boolean; onChange: (on: boolean) => void; title: string; hint?: string; disabled?: boolean; role?: 'switch'; /** A feature that depends on the one above it: drawn indented under it. */ child?: boolean }) {
   return (
     <label className={`set-sw${disabled ? ' off' : ''}${child ? ' child' : ''}`}>
       <span><b>{title}</b>{hint && <small>{hint}</small>}</span>
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" role={role} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </label>
   )
 }
@@ -142,6 +143,8 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
+              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => set({ workflows: { ...prefs.workflows, enabled } })} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}
           {pane === 'agents' && (

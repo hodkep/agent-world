@@ -2877,3 +2877,13 @@ aside:not(.drawer) { flex: none; }
 .of-row b { color: #c9c8d8; font-weight: 600; flex: none; }
 .of-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .of-card { margin: 3px 0 4px 8px; }
+
+/* Workflows: the cost table's dial and its pick, and the window before any run exists. */
+.wf-cost { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.wf-seg { display: inline-flex; align-self: flex-start; }
+.wf-seg button { padding: 3px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); color: var(--muted); }
+.wf-seg button.on { background: var(--selected); color: var(--accent); }
+.su-cost tr.pick th, .su-cost tr.pick td { background: var(--selected); }
+.wf-cost .hint { margin: 0; }
+.wf-empty { padding: 28px 20px; display: flex; flex-direction: column; gap: 4px; }
+.wf-empty p { margin: 0; color: var(--muted); max-width: 60ch; }
