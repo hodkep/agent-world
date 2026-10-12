@@ -191,6 +191,14 @@ A session is a conversation; a **task** is a piece of work with a purpose and an
 - **Commits.** Every commit in a session's worktree belongs to the open task. A commit with no open task is attached to the nearest one and flagged, so nothing is untracked. Enforcement happens at the commit and at Finish, not at each edit, so an agent can still try things before it commits.
 - **Decided (2026-10-11):** a commit with no task is flagged, not refused. A refusing hook would change the repo's git settings.
 
+### Pilot: does a real agent record its tasks (2026-10-12, Sonnet, `pilot/workflow.pilot.ts`)
+
+- With the opening text alone, a real Sonnet agent called `task_begin` and `task_done` on 3 of 6 real code tasks. It skipped both for a question and a typo, as told. With a reminder at each turn while no task was open, one run recorded 0 of 4 tasks and a second recorded 1 of 1. The samples are too few to say the reminder helps or hurts; nothing is concluded from them.
+- Two real problems showed: (1) an agent that skips the call leaves its work unrecorded, and (2) an agent in one long session used `follow_up` for a different piece of work, so three features became three rounds of one run. The tool text now says `follow_up` is only for more work on the same task.
+- Commits are read when a turn ends, after `task_done`. They are placed by the time they were made (the round whose window holds it); only a commit made outside every round is flagged. Before this was fixed every commit of a finished task was flagged.
+- **Open (not built):** when an agent commits with no run at all, the app could start a run titled from the commit subject, marked as started by the app, so nothing is untracked even when the agent never calls the tool. This follows D21's "a commit with no task is flagged, not refused", but it changes what the first recorded run is. Decision wanted.
+- Cost of the pilots so far: about $3 of Claude usage.
+
 ## Framework or our own engine (2026-10-08)
 
 Not a framework for now. Our agents are CLI sessions in terminals, so a model-calling framework's agents, memory and tools go unused, and its workflows are code where ours are data. The engine is a list of steps, their needs, their gates and an append-only run log. The step runner sits behind one small interface so a library (XState for the state chart, Mastra for pausing and resuming) can replace it later, and a framework would earn its place for steps that call a cheap model over the API and for the chat builder. Mastra's suspend and resume stores a snapshot and continues after a restart, which our log gives us too. The Claude Agent SDK runs Claude Code as a subprocess, covers Claude only, and would hide the terminal you watch.
@@ -250,6 +258,7 @@ The gap: the agent can be wrong about what the user meant, and models are poor a
 
 ## Change log
 
+- 2026-10-12: slice 2 built: run log and recorder (`task_begin`, `task_done`, commits placed by time, round 2, stop), the confirm when turning off with runs open, and the winding-down state; pilot findings added.
 - 2026-10-12: D23, the workflows switch; slice 1 built (switch in Setup and Settings, cost per dial, top-bar button and an empty Workflows window).
 - 2026-10-11: answers recorded: task boundaries, round 2 for follow-ups, flagged commits (D21); intent check first, small-task skip by the agent through a shipped instruction (D22).
 - 2026-10-09: intent check proposed inside the plan gate (read-back block, blocking open questions, dial positions, small-task skip), from cocain's AI-DLC and intent-gap report.

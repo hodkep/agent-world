@@ -56,6 +56,9 @@ import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspace
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
+import { Workflows } from './workflows/service'
+import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
+import { WORKFLOW_HINT, WORKFLOW_TOOLS } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
@@ -414,6 +417,27 @@ const byId = (id: string) => agents.find((a) => a.id === id)
 const LIBRARY_DIR = join(HOME, 'library')
 // Where skills are looked for to import: the user's own folders (a test points it elsewhere).
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
+const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
+  enabled: () => prefs.workflows.enabled,
+  now: Date.now,
+  newId: () => randomUUID().slice(0, 8),
+  who: (id) => {
+    const a = byId(id)
+    return a ? { name: a.name, project: a.repoPath } : undefined
+  }
+})
+// An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
+const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
+/** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
+async function syncRunCommits(a: AgentRecord) {
+  if (!a.base || !a.branch || !workflows.runs().some((r) => r.agent === a.id)) return
+  try {
+    for (const c of parseCommitLog(await git(a.cwd, 'log', '--reverse', `--format=${LOG_FORMAT}`, `${a.base}..${a.branch}`))) workflows.commit(a.id, c.sha, c.subject, c.at)
+    send('workflows')
+  } catch {
+    /* recording is a convenience: a git error must not touch the turn */
+  }
+}
 const libraryService = createLibraryService({
   root: LIBRARY_DIR,
   agent: (id) => {
@@ -676,7 +700,7 @@ function trackTurns(e: AgentEvent) {
     lastActivity.set(a.id, e.activity)
     if (!['idle', 'waiting', 'asleep'].includes(e.activity)) busyAt.set(a.id, Date.now())
     runClock(a, e.activity)
-    if (e.activity === 'idle' || e.activity === 'waiting') mailbox.turnEnded(a.id)
+    if (e.activity === 'idle' || e.activity === 'waiting') (mailbox.turnEnded(a.id), void syncRunCommits(a))
     // A turn that ended on its own answered the request; one that waits for you or was stopped did not.
     if (e.activity === 'idle') todoService.turnEnded(a.id, { interrupted: Date.now() - (stoppedAt.get(a.id) ?? 0) < 30_000 })
     else mailbox.busy(a.id)
@@ -758,7 +782,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && WORKFLOW_HINT, canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1069,6 +1093,11 @@ async function main() {
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,
+    workflows: {
+      offered: workflowsFor,
+      begin: (caller, title, followUp) => (workflows.begin(caller, title, { followUp }), send('workflows')),
+      done: (caller, summary) => (workflows.done(caller, summary), send('workflows'))
+    },
     library: {
       index: (caller) => libraryService.index(caller),
       get: (caller, id, file) => libraryService.get(caller, id, file),
@@ -1459,6 +1488,8 @@ async function main() {
   ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))
   ipcMain.handle('todos:needs-you', (_, folder: string) => todoService.needsYou(String(folder)))
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
+  ipcMain.handle('workflows:summary', () => ({ runs: workflows.runs(), open: workflows.openCount() }))
+  ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
   ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))

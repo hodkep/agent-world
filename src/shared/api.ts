@@ -1,5 +1,6 @@
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
+import type { Run } from './runs'
 import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
@@ -324,6 +325,14 @@ export interface AwApi {
     padUndo(folder: string): Promise<number>
   }
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
+  workflows: {
+    /** Every run recorded, oldest first, and how many are still open. */
+    summary(): Promise<{ runs: Run[]; open: number }>
+    /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
+    stopAll(): Promise<void>
+  }
+  /** Fires when a run began, finished, got a commit or was stopped. */
+  onWorkflows(cb: () => void): () => void
   library: {
     list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>
     /** What the library did for one agent, oldest first: what it started with, what was pointed at, what it read. */

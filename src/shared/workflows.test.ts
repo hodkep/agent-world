@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, dialSummary, workflowCost } from './workflows'
+import { DIALS, dialSummary, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs: five of 150 tokens', () => {
@@ -31,5 +31,16 @@ describe('the one-line description of what a dial adds', () => {
     expect(dialSummary('economy')).toBe('step briefs only')
     expect(dialSummary('balanced')).toBe('+ plan read-back, merge audit')
     expect(dialSummary('max')).toBe('+ intent check')
+  })
+})
+
+describe('when the Workflows button and window are shown', () => {
+  it('on: always; off: only while runs are still open, and then they say so', () => {
+    expect(workflowsShown(true, 0)).toBe(true)
+    expect(workflowsShown(false, 0)).toBe(false)
+    expect(workflowsShown(false, 2)).toBe(true)
+    expect(windingDown(false, 2)).toBe(true)
+    expect(windingDown(true, 2)).toBe(false)
+    expect(windingDown(false, 0)).toBe(false)
   })
 })

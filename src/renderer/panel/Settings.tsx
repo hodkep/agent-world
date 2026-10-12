@@ -10,6 +10,8 @@ import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
 import { LibraryCostBox } from './LibraryCostBox'
 import { WorkflowCost } from '../workflows/WorkflowCost'
+import { WorkflowOffConfirm } from '../workflows/WorkflowOffConfirm'
+import type { Run } from '../../shared/runs'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -78,6 +80,14 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
+  // Turning workflows off while runs are open asks what to do with them first.
+  const [asking, setAsking] = useState<Run[] | null>(null)
+  const setWorkflows = (enabled: boolean) => set({ workflows: { ...prefs.workflows, enabled } })
+  const turnOff = async () => {
+    const { runs, open } = await window.aw.workflows.summary()
+    if (open === 0) return setWorkflows(false)
+    setAsking(runs.filter((r) => r.status === 'open'))
+  }
   const [update, setUpdate] = useState('')
   useEffect(() => window.aw.onUpdateState((s) => s.detail && setUpdate(s.detail)), [])
   useEffect(() => dialog.current?.showModal(), [])
@@ -143,7 +153,15 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
-              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => set({ workflows: { ...prefs.workflows, enabled } })} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? set({ workflows: { ...prefs.workflows, enabled } }) : void turnOff())} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              {asking && (
+                <WorkflowOffConfirm
+                  open={asking}
+                  onFinish={() => (setAsking(null), setWorkflows(false))}
+                  onStop={() => void window.aw.workflows.stopAll().then(() => (setAsking(null), setWorkflows(false)))}
+                  onCancel={() => setAsking(null)}
+                />
+              )}
               <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}

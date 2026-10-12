@@ -41,3 +41,7 @@ export function dialSummary(dial: Dial): string {
 }
 
 export const dialName = (d: Dial) => d.charAt(0).toUpperCase() + d.slice(1)
+
+/** Off with runs still open: they finish, nothing new starts, and the button stays until they have. */
+export const windingDown = (enabled: boolean, open: number) => !enabled && open > 0
+export const workflowsShown = (enabled: boolean, open: number) => enabled || open > 0

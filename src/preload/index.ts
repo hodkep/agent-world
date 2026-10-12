@@ -149,6 +149,8 @@ const api: AwApi = {
   mailStale: (id) => ipcRenderer.invoke('provider:mail-stale', id),
   forgetMail: (id, name) => ipcRenderer.invoke('provider:mail-forget', id, name),
   onUsage: on('usage'),
+  onWorkflows: on('workflows'),
+  workflows: { summary: () => ipcRenderer.invoke('workflows:summary'), stopAll: () => ipcRenderer.invoke('workflows:stop-all') },
   onBudgetAlert: on('budget-alert'),
   onPlanMenu: on('plan-menu'),
   listCommands: (id) => ipcRenderer.invoke('list-commands', id),
