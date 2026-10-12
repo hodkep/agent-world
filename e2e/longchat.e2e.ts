@@ -21,8 +21,19 @@ test('a long conversation shows its latest messages and loads earlier ones on re
     await expect(log.getByText('old message 0', { exact: true })).toHaveCount(0)
     const rendered = await log.locator('.msg').count()
     expect(rendered).toBeLessThan(300)
+    // Scrolled to the top, where the button is, the message being read stays exactly where it is when older ones load above it.
+    await log.evaluate((l) => (l.scrollTop = 0))
+    const topOf = (word: string) => log.evaluate((l, w) => {
+      const m = [...l.querySelectorAll<HTMLElement>('.msg')].find((x) => x.textContent?.includes(w))
+      return m ? Math.round(m.getBoundingClientRect().top - l.getBoundingClientRect().top) : null
+    }, word)
+    const reading = 'old message 250'
+    const before = await topOf(reading)
+    expect(before).not.toBeNull()
     await page.getByRole('button', { name: /Show earlier/ }).click()
     expect(await log.locator('.msg').count()).toBeGreaterThan(rendered)
+    await page.waitForTimeout(500)
+    expect(Math.abs((await topOf(reading))! - before!)).toBeLessThan(3)
   } finally {
     await shutdown()
   }
