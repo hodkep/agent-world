@@ -32,7 +32,8 @@ import { OPEN_SUBAGENT } from './chat/subagentEvents'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
-import { hint, keysOf } from './shortcuts'
+import { hint, keysOf, matches } from './shortcuts'
+import { next } from './cycle'
 import { Finish } from './panel/Finish'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
@@ -546,6 +547,24 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
+  // Cmd/Ctrl+up/down steps through the workspaces, left/right through the agents of the open one. It wins over the terminal and message box, which gave those keys up.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const byAgent = matches(e, 'agent-switch')
+      if ((!byAgent && !matches(e, 'workspace-switch')) || document.querySelector('dialog[open]')) return
+      e.preventDefault(), e.stopPropagation()
+      const dir = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1
+      if (byAgent) {
+        const to = next(agents.map((a) => a.id), selected, dir)
+        if (to) select(to)
+      } else {
+        const to = next((workspaces?.items ?? []).filter((w) => w.exists).map((w) => w.path), folder, dir)
+        if (to) void run(async () => setWorkspaces(await window.aw.activateWorkspace(to)))
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  })
   // A pending permission must never sit behind a collapsed panel.
   const needsOf = (id: string): Need[] => [
     ...(trusts[id] ? [{ kind: 'trust', path: trusts[id]! } as const] : []),
