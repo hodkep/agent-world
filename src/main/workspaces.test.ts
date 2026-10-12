@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { activate, forget, loadWorkspaces, remember, resume, saveWorkspaces } from './workspaces'
+import { activate, forget, loadWorkspaces, remember, resume, saveWorkspaces, workspacePaths } from './workspaces'
 
 const empty = { active: null, recent: [] as string[] }
 
@@ -48,5 +48,18 @@ describe('workspace file', () => {
     expect(loadWorkspaces(file)).toEqual({ active: '/a', recent: ['/a'] })
     writeFileSync(file, '{nope')
     expect(loadWorkspaces(file)).toEqual(empty)
+  })
+})
+
+describe('the projects a menu lists', () => {
+  const state = { active: '/a', recent: ['/a', '/b'] }
+  it('is the saved ones and the open one, newest first', () => {
+    expect(workspacePaths(state, '/c', [])).toEqual(['/a', '/b', '/c'])
+  })
+  it('also has every project an agent works in, so one hired before the list was kept is not lost, after the saved ones', () => {
+    expect(workspacePaths(state, '/a', ['/d', '/b', '/d', '/e'])).toEqual(['/a', '/b', '/d', '/e'])
+  })
+  it('lists nothing twice, and nothing for an empty path', () => {
+    expect(workspacePaths({ active: null, recent: [] }, undefined, ['', '/x', '/x'])).toEqual(['/x'])
   })
 })

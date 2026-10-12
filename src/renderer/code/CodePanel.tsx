@@ -36,7 +36,7 @@ function useErrors() {
 }
 
 /** Review an agent's work (diff against its base) and edit files in its worktree. */
-export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat }: { agentId: string; agentName: string; workDone: number; openFile?: OpenRequest; onOpenChat: () => void }) {
+export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, inPlace }: { agentId: string; agentName: string; workDone: number; openFile?: OpenRequest; onOpenChat: () => void; /** Set when the agent works straight in the project folder (not a git worktree): there is no branch to show changes of or to merge. */ inPlace?: { path: string } }) {
   const [tab, setTab] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : 'changes')
   // What to open in the Files tab: what was asked from outside, or the lines of a chip clicked under the editor.
   const [request, setRequest] = useState<OpenRequest | undefined>(openFile)
@@ -44,6 +44,15 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat }
     if (openFile) (setTab(openFile.tab ?? 'files'), setRequest(openFile))
   }, [openFile])
   const jump = (j: CodeJump) => (setRequest({ path: j.path, tab: 'files', range: { from: j.from, to: j.to } }), setTab('files'))
+  if (inPlace) {
+    return (
+      <div className="code code-inplace" role="note" aria-label="No git worktree">
+        <b>{agentName} works directly in this folder</b>
+        <code>{inPlace.path}</code>
+        <p>It is not a git worktree, so there is no branch to show changes of, commit or merge. That happens when the folder is a git repository: run <code>git init</code> there, then hire the agent again and it gets a worktree of its own.</p>
+      </div>
+    )
+  }
   return (
     <div className="code">
       <div className="tabs" role="tablist">

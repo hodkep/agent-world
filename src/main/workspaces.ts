@@ -18,6 +18,9 @@ export const remember = (s: WorkspaceState, path: string): WorkspaceState => ({
   recent: [path, ...s.recent.filter((p) => p !== path)].slice(0, MAX_RECENT)
 })
 
+/** The projects a menu lists: the saved ones (newest first), the one open in this window, and any project an agent works in (so one hired before the list was kept is not lost). */
+export const workspacePaths = (s: WorkspaceState, active: string | null | undefined, agentRepos: string[]): string[] => [...new Set([...s.recent, ...(active ? [active] : []), ...agentRepos])].filter(Boolean)
+
 export function forget(s: WorkspaceState, path: string): WorkspaceState {
   const recent = s.recent.filter((p) => p !== path)
   return { active: s.active === path ? (recent[0] ?? null) : s.active, recent }
