@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { INBOX, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
 import { useConfirm } from '../panel/ConfirmDialog'
 import { TodoDetail, type AskAgent } from './TodoDetail'
 import { Modal } from '../panel/Modal'
 import { TodoPad } from './TodoPad'
-import { actorTag, agoLabel, autoClosed, filterBoard, makers, pickList, pickRange, splitList } from './todoView'
+import { actorTag, agoLabel, autoClosed, filterBoard, listGroups, makers, pickList, pickRange, splitList } from './todoView'
 
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 
@@ -34,9 +34,13 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
   const anchor = useRef<string | undefined>(undefined)
   const [moveMenu, setMoveMenu] = useState(false)
   const [moveTo, setMoveTo] = useState<string | null>(null)
+  // Lists with something open come first and the rest are small tiles. Who is in which group is fixed when the window is opened or filtered, so a card does not move while it is being used.
+  const [loaded, setLoaded] = useState(false)
+  const [was, setWas] = useState<Map<string, boolean> | undefined>(undefined)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [ask, confirmNode] = useConfirm()
 
-  const load = useCallback(() => void window.aw.todos.get(folder).then((r) => setBoard(r.board), (e) => setError(clean(e))), [folder])
+  const load = useCallback(() => void window.aw.todos.get(folder).then((r) => (setBoard(r.board), setLoaded(true)), (e) => setError(clean(e))), [folder])
   useEffect(() => {
     load()
     return window.aw.onTodosChanged(load)
@@ -78,6 +82,15 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
   const open = board.todos.find((t) => t.id === sel) ?? null
   const needs = board.todos.filter((t) => t.needsYou && t.status !== 'done').length
 
+  // The lists drawn (the Inbox only while it holds something), the number open in each, and which are active.
+  const visible = shown.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))
+  const openCounts = useMemo(() => Object.fromEntries(visible.map((l) => [l, shown.todos.filter((t) => t.list === l && t.status !== 'done').length])), [visible.join('|'), shown]) // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = listGroups(visible, openCounts, was)
+  const ordered = [...groups.active, ...groups.quiet]
+  useEffect(() => {
+    if (loaded && tab === 'lists') setWas(new Map(visible.map((l) => [l, (openCounts[l] ?? 0) > 0])))
+    setExpanded(new Set())
+  }, [loaded, who, query, tab]) // eslint-disable-line react-hooks/exhaustive-deps
   // The order the tasks are drawn in, for a Shift-click range.
   const drawn = shown.lists.flatMap((l) => {
     const { open: o, done: dn } = splitList(shown, l)
@@ -104,7 +117,8 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
     const title = draft.trim()
     setAdding(null)
     setDraft('')
-    if (title) act(window.aw.todos.add(folder, { title, list }))
+    // A list that gets a task is active from now on.
+    if (title) (setWas((w) => new Map(w).set(list, true)), act(window.aw.todos.add(folder, { title, list })))
   }
 
   return (
@@ -126,14 +140,28 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
       {tab === 'pad' && <div className="td-wrap"><TodoPad folder={folder} lists={board.lists} onShowBoard={() => setTab('lists')} onError={fail} /></div>}
       {tab === 'lists' && <div className="td-wrap">
         <div className="td-board" role="list" aria-label="Todo lists">
-          {shown.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX)).map((list) => {
+          {ordered.map((list, index) => {
             const { open: openTodos, done } = splitList(shown, list)
+            const divider = index === groups.active.length && groups.quiet.length > 0
+            if (groups.quiet.includes(list) && !expanded.has(list)) {
+              // A list with nothing open is a small tile; a click opens it (its finished tasks, a place to add one), and a task can be dropped on it.
+              return (
+                <Fragment key={list}>
+                  {divider && <div className="td-sep" aria-hidden="true">Nothing open · {groups.quiet.length}</div>}
+                  <section className="td-tile" role="listitem" aria-label={list} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), setWas((w) => new Map(w).set(list, true)), drop(list, 0))}>
+                    <button onClick={() => setExpanded((x) => new Set(x).add(list))} aria-label={`Open ${list}`} aria-expanded="false"><b>{list}</b><span>{done.length ? `${done.length} done` : 'empty'}</span></button>
+                  </section>
+                </Fragment>
+              )
+            }
             const isFolded = !folded.has(list)
             const mine = openTodos.map((t) => t.id)
             const all = mine.length > 0 && mine.every((id) => picked.has(id))
             const some = mine.some((id) => picked.has(id))
             return (
-              <section key={list} className="td-list" role="listitem" aria-label={list} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), drop(list, openTodos.length))}>
+              <Fragment key={list}>
+              {divider && <div className="td-sep" aria-hidden="true">Nothing open · {groups.quiet.length}</div>}
+              <section className="td-list" role="listitem" aria-label={list} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), drop(list, openTodos.length))}>
                 <header className="td-lh">
                   {renaming?.from === list ? (
                     <input autoFocus value={renaming.to} aria-label={`Rename ${list}`} onChange={(e) => setRenaming({ from: list, to: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { act(window.aw.todos.renameList(folder, list, renaming.to)); setRenaming(null) } else if (e.key === 'Escape') setRenaming(null) }} onBlur={() => setRenaming(null)} />
@@ -163,10 +191,11 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
                   )}
                 </div>
               </section>
+              </Fragment>
             )
           })}
           {newList === null ? <button className="td-newlist" onClick={() => setNewList('')}>＋ New list</button> : (
-            <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) act(window.aw.todos.addList(folder, newList)); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
+            <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) (setWas((w) => new Map(w).set(newList.trim(), true)), act(window.aw.todos.addList(folder, newList))); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
           )}
         </div>
         {open && <TodoDetail key={open.id} t={open} folder={folder} agents={agents} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
