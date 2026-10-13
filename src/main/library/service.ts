@@ -5,7 +5,7 @@ import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
 import { matchItems } from './match'
 import { buildCatalog } from './catalog'
-import { checksPassed, detectSituation, outputOf, REPEATS, SITUATIONS, TRIVIAL } from './situations'
+import { checksPassed, detectSituation, outputOf, REPEATS, SITUATION_WORDS, SITUATIONS, TRIVIAL } from './situations'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
@@ -168,7 +168,8 @@ export function createLibraryService(d: Deps) {
       if (st.open.has(found.kind) || times < (REPEATS[found.kind] ?? 1)) return ''
       const entries = indexSync(agentId)
       const items = itemsMap()
-      const rule = rulesFor(agentOrThrow(agentId).repoPath).find((r) => r.mode === 'on-demand' && r.also?.includes(found.kind) && items.has(r.id) && entries.some((e) => e.id === r.id))
+      // The rule's own "when does it apply" is matched against the situation as it is against a message.
+      const rule = matchItems(SITUATION_WORDS[found.kind] ?? '', entries.filter((e) => e.mode === 'on-demand' && items.has(e.id)), 1)[0]
       if (!rule || st.read.has(rule.id)) return ''
       const it = items.get(rule.id)!
       const file = it.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''

@@ -27,8 +27,6 @@ export interface PlaybookRule {
   /** For on-demand: when it applies, in words the agent can match to its task. */
   when: string
   strength: RuleStrength
-  /** Situations the agent may reach in the middle of a run (the names in main/library/situations.ts) that also point it at this item. */
-  also?: string[]
 }
 
 /** What the forced check adds to a message, in tokens, as shown to people before it is on (a test keeps it near the real sentence). */

@@ -28,7 +28,7 @@ export function LibraryRule({ rule, item, onChange, onRemove }: { rule: Playbook
       <span className={`lr-icon ${rule.mode}`}>{item ? <PixelIcon name={ICON[item.kind]} scale={2} /> : null}</span>
       <div className="lr-name">
         <b title={item?.description}>{item?.name ?? `${rule.id} (missing)`}</b>
-        {rule.mode === 'on-demand' && <input aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply?" onChange={(e) => onChange({ when: e.target.value })} />}
+        {rule.mode === 'on-demand' && <input aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply? a request, or something it meets: a merge conflict, failing tests" onChange={(e) => onChange({ when: e.target.value })} />}
       </div>
       {rule.mode !== 'off' && (
         <div className="lr-gauge" role="radiogroup" aria-label={`Firmness of ${rule.id}`}>
