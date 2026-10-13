@@ -61,6 +61,7 @@ import { askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
+import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_TOOLS, type SaveHow, builderAgent, builderName, builderOptions } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
@@ -434,7 +435,12 @@ const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
 const approvals = new Approvals(join(HOME, 'workflow-approvals.json'))
 /** Whether a run's workflow may run its commands: a project's file needs the person's approval of its exact content; any other needs none. */
 // The workflow builder: the agent the person talks to about workflows, and the drafts it hands in (only the person saves one).
-const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), now: Date.now })
+// What the library holds and what a project's playbook switched on: a workflow's skills are checked against them.
+const skillSource: SkillSource = {
+  items: () => libraryService.library.listSync(),
+  playbook: (project) => new Set((project ? libraryService.rulesFor(project) : libraryService.playbooks.read('global')).filter((r) => r.mode !== 'off').map((r) => r.id))
+}
+const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), skills: skillSource, now: Date.now })
 const BUILDER_ALLOWED = BUILDER_TOOLS.map((t) => `mcp__agent-world__${t}`)
 const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
@@ -505,6 +511,8 @@ const libraryService = createLibraryService({
     return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id, viaHook: !!providerOf(a).libraryHook } : undefined
   },
   workspaceKey: repoSlug,
+  // The skills the steps of an agent's open task name are its to read, whatever its playbook says.
+  grants: (id) => workflows.skillsOf(id),
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The todo board of each project: the person adds in the window, agents through the office tools, and each task points back at the message it came from.
@@ -1176,7 +1184,7 @@ async function main() {
         const missing = workflow && a && !workflowStore.list(a.repoPath).some((e) => e.workflow && e.id === workflow) ? workflow : undefined
         // A follow-up round is not forced to plan again; a task's first round is, when its workflow wants a plan.
         const planFirst = run?.rounds.length === 1 && workflows.planWanted(caller)
-        return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst }) }) }
+        return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst, skills: skillStates(run.workflow, skillSource.items(), skillSource.playbook(a?.repoPath ?? null)) }) }) }
       },
       done: (caller, summary) => (workflows.done(caller, summary), send('workflows'), void kickChecks(caller)),
       stepDone: (caller, step) => {
@@ -1613,7 +1621,7 @@ async function main() {
   })
   // The workflow files: Standard, the app's own and the project's. A project is a folder the person has open.
   const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
-  ipcMain.handle('workflows:definitions', (_, project: unknown) => workflowStore.list(projectOf(project)))
+  ipcMain.handle('workflows:definitions', (_, project: unknown) => builder.entries(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.

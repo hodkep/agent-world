@@ -1,4 +1,5 @@
 import type { RunWorkflow } from '../../shared/runs'
+import type { SkillState } from '../../shared/skills'
 import type { WorkflowEntry } from '../../shared/workflow'
 import type { Dial } from '../../shared/workflows'
 
@@ -23,14 +24,24 @@ export const PLAN_INSTRUCTION =
 export const planInstruction = (dial: Dial) => (dial === 'economy' ? `If the whole change can be said in one sentence, skip the plan and go ahead; nothing is held back. Otherwise: ${PLAN_INSTRUCTION.charAt(0).toLowerCase()}${PLAN_INSTRUCTION.slice(1)}` : PLAN_INSTRUCTION)
 
 /** What task_begin says about the workflow the task follows: the steps the agent does or waits on, with their briefs, and how to report them. */
-export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFirst?: boolean } = {}): string {
+/** What a step's skills are to the agent: the ones it can read with the library tool, and the ones that are not there. `skills` is how each stands in the project; without it they are only named. */
+function skillNote(ids: string[] | undefined, states: Record<string, SkillState> | undefined): string {
+  if (!ids?.length) return ''
+  if (!states) return ` (skill: ${ids.join(', ')})`
+  const usable = ids.filter((id) => states[id] !== 'gone')
+  const gone = ids.filter((id) => states[id] === 'gone')
+  const parts = [usable.length ? `read with library_get: ${usable.join(', ')}` : '', ...gone.map((id) => `there is no skill ${id} in the library, so skip it`)].filter(Boolean)
+  return parts.length ? ` (${parts.join('; ')})` : ''
+}
+
+export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFirst?: boolean; skills?: Record<string, SkillState> } = {}): string {
   const { fellBackFrom, planFirst } = o
   const head = `Workflow: ${w.name}${fellBackFrom ? ` (there is no workflow "${fellBackFrom}", so the project's default was used)` : ''}. Its steps, in order:`
   const lines = w.steps.flatMap((s) => {
     const brief = s.brief ? ` ${s.brief}` : ''
     // The plan line only when a plan is asked for: otherwise the agent would wait for an approval that never comes.
     if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}": the person approves your plan before you edit.${brief}`]
-    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${s.skills?.length ? ` (skill: ${s.skills.join(', ')})` : ''}:${brief}`]
+    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}:${brief}`]
     if (s.kind === 'approve') return [`- ${s.id} "${s.name}": the person approves this before it can land.${brief}`]
     return []
   })

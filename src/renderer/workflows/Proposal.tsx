@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ProposalView, SaveHow } from '../../shared/builder'
 import { type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
-import { StepRow } from './WorkflowList'
+import { SkillChips, StepRow } from './WorkflowList'
 
 const SCOPE_WORDS = { 'built-in': 'the built-in one', global: 'the one kept for everything', project: 'the one in this project' } as const
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -41,6 +41,8 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
   }
   const discard = () => void window.aw.workflows.discardProposal(agentId).then(onGone, () => undefined)
   const newCommands = view.commands.filter((c) => !c.known).length
+  const granted = Object.keys(view.skills).filter((id) => view.skills[id] === 'granted')
+  const grantingSteps = wf.steps.filter((s) => s.skills?.some((id) => granted.includes(id))).map((s) => s.name ?? s.id)
   return (
     <section className="bs-draft" aria-label="Workflow proposal">
       <div className="wfl-head">
@@ -58,7 +60,7 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
         <p className="muted">Nothing differs from the saved one.</p>
       ) : d.isNew || !view.saved ? (
         <ol className="wfl-steps" aria-label="Steps">
-          {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={chips[i]!} />)}
+          {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={chips[i]!} skills={view.skills} />)}
         </ol>
       ) : (
         <>
@@ -82,6 +84,14 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
             ))}
           </ol>
         </>
+      )}
+      {granted.length > 0 && (
+        <div className="bs-note" aria-label="Skills not in the playbook">
+          {!d.isNew && view.saved && !d.same && <SkillChips ids={granted} states={view.skills} />}
+          <span>
+            <b>{granted.length === 1 ? '1 skill is not enabled for this project.' : `${granted.length} skills are not enabled for this project.`}</b> {grantingSteps.length === 1 ? `The ${grantingSteps[0]} step lets` : 'The steps that name them let'} agents read {granted.length === 1 ? 'it' : 'them'} while the task runs. To use {granted.length === 1 ? 'it' : 'them'} in every task, add {granted.length === 1 ? 'it' : 'them'} to the project's playbook in the Library.
+          </span>
+        </div>
       )}
       {view.commands.length > 0 && (
         <div className="bs-note" aria-label="Commands">

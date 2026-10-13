@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import type { Run } from '../../shared/runs'
 import { workflowRuns } from '../../shared/runStats'
+import { type SkillState, goneSkills } from '../../shared/skills'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
 
 const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', merge: 'land' }
@@ -8,7 +9,26 @@ const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'Th
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
 
 /** What a step does, in the words of its file, for the detail beside the list. */
-export function StepRow({ step, chip }: { step: Step; chip: Chip }) {
+const SKILL_WORDS: Record<SkillState, string> = { ready: '', granted: "this step grants it: not in the project's playbook", gone: 'not in the library' }
+
+/** What a work step's skills are here: ready, granted by the step, or not in the library. */
+export function SkillChips({ ids, states }: { ids: string[]; states?: Record<string, SkillState> }) {
+  return (
+    <div className="sk-row" aria-label="Skills">
+      {ids.map((id) => {
+        const state = states?.[id] ?? 'ready'
+        return (
+          <span key={id} className={`sk ${state}`}>
+            {id}
+            {SKILL_WORDS[state] && <small> {SKILL_WORDS[state]}</small>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+export function StepRow({ step, chip, skills }: { step: Step; chip: Chip; skills?: Record<string, SkillState> }) {
   return (
     <li className={`wfl-step k-${step.kind}`}>
       <span className="wfl-dot" aria-hidden="true" />
@@ -17,10 +37,10 @@ export function StepRow({ step, chip }: { step: Step; chip: Chip }) {
         {chip.stops && <span className="wf-tag flag">you approve</span>}
         {step.gate === 'pass' && <span className="wf-tag">must pass</span>}
         <span className="mono muted"> {KIND_LABEL[step.kind]}</span>
-        {step.skills?.length ? <span className="mono muted"> · skill: {step.skills.join(', ')}</span> : null}
         {step.run && <span className="mono muted"> · runs: {step.run}{step.retries ? ` (sent back up to ${step.retries} time${step.retries === 1 ? '' : 's'})` : ''}</span>}
         {step.model && <span className="mono muted"> · {step.model}</span>}
         {step.brief && <div className="muted">{step.brief}</div>}
+        {step.skills?.length ? <SkillChips ids={step.skills} states={skills} /> : null}
       </div>
     </li>
   )
@@ -70,6 +90,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
               <span className="muted">
                 {e.problems ? 'Has problems' : SCOPE_LABEL[e.scope]}
                 {e.id === defaultId && !e.problems ? ' · default' : ''}
+                {e.skills && goneSkills(e.skills).length > 0 && <span className="sk-warn"> · {goneSkills(e.skills).length === 1 ? '1 warning' : `${goneSkills(e.skills).length} warnings`}</span>}
               </span>
             </li>
           )
@@ -99,8 +120,16 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
               {wf.when && <p className="muted">When: {wf.when}</p>}
               <p className="muted">{(() => { const n = workflowRuns(runs, shown.id, Date.now()); return n === 0 ? 'No runs this week.' : `${n} run${n === 1 ? '' : 's'} this week.` })()}</p>
               {shown.overrides && <p className="hint">This one is used instead of the {shown.overrides === 'built-in' ? 'built-in Standard' : 'one kept for everything'} with the same id.</p>}
+              {(() => {
+                const gone = shown.skills ? goneSkills(shown.skills) : []
+                return gone.length > 0 ? (
+                  <p className="sk-banner" role="alert">
+                    <b>{gone.length === 1 ? '1 skill this workflow names is not in the library:' : `${gone.length} skills this workflow names are not in the library:`}</b> {gone.join(', ')}. Agents are told to skip {gone.length === 1 ? 'it' : 'them'}. Fix the file, or add the skill in the Library.
+                  </p>
+                ) : null
+              })()}
               <ol className="wfl-steps" aria-label="Steps">
-                {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} />)}
+                {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} skills={shown.skills} />)}
               </ol>
               {shown.file && <span className="mono muted">{shown.file}</span>}
               {asking ? (

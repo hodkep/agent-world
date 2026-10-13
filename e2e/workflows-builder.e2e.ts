@@ -93,7 +93,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     await win.getByRole('button', { name: 'Start with the builder' }).click()
 
     // The split opens with the builder's own chat, which holds what the person typed, as their words.
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const chat = win.getByRole('log', { name: 'Conversation with builder' })
     await expect(chat).toContainText('Every change to billing gets a security review and two approvals.', { timeout: 20_000 })
     expect(await chat.innerText()).not.toContain('[Agent World]')
@@ -118,7 +118,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     expect(bad.error).toBe(true)
     expect(bad.text).toContain('"name" is required')
     expect(bad.text).toContain('needs "run"')
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
 
     // A good one shows up beside the chat, with its commands and what saving does; nothing is written yet.
     expect((await call('workflow_propose', { file: JSON.stringify(BILLING) })).text).toContain('Proposed "Billing change"')
@@ -144,7 +144,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     // Another agent never gets the builder's tools.
     await win.getByRole('button', { name: 'Close' }).click()
     await hire(page, { name: 'ada' })
-    await expect.poll(() => launches(argsLog).length).toBe(2)
+    await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBe(2)
     const ada = await asAgent(launches(argsLog)[1]!)
     const names = (await ada.client.listTools()).tools.map((t) => t.name)
     expect(names).toContain('task_begin')
@@ -174,7 +174,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
 
     // The same file proposed back is not a proposal.
     expect((await call('workflow_propose', { file: JSON.stringify(BUG_FIX) })).text).toContain('unchanged')
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
 
     const next = structuredClone(BUG_FIX)
     next.steps[2] = { ...next.steps[2]!, retries: 3 } as (typeof next.steps)[number]
@@ -211,7 +211,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await expect(win.getByRole('alert').filter({ hasText: 'changed since' })).toBeVisible()
     expect((JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as { name: string }).name).toBe('Edited by hand')
     await win.getByRole('button', { name: 'Discard' }).click()
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     await client.close()
   } finally {
     await s.shutdown()

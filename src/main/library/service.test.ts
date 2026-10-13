@@ -9,14 +9,18 @@ let dir: string
 let svc: ReturnType<typeof createLibraryService>
 let pushed: string[]
 let pushedItems: string[]
+// The skills each agent's open task names on its steps, as the office reports them.
+let granted: Record<string, string[]>
 beforeEach(async () => {
   pushed = []
   pushedItems = []
+  granted = {}
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
     agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
+    grants: (id) => granted[id] ?? [],
     onUse: (id, how, item) => void (pushed.push(`${id}:${how}`), pushedItems.push(item))
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
@@ -282,5 +286,49 @@ describe('the cost of the check before acting', () => {
   it('is near the measured text', async () => {
     svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'ui work', strength: 'hard' }])
     expect(Math.abs(svc.compileFor('/work/shop', true).forcedCheckTokens - FORCED_CHECK_TOKENS)).toBeLessThanOrEqual(12)
+  })
+})
+
+describe('skills a task\'s workflow names on its steps', () => {
+  beforeEach(async () => {
+    const s = join(dir, 'src', 'review')
+    mkdirSync(s, { recursive: true })
+    writeFileSync(join(s, 'SKILL.md'), '---\nname: review\ndescription: Review a diff against our standards.\n---\nRead the diff first.')
+    await svc.library.addSkillFolder(s, 't')
+  })
+
+  it('can be read by the agent whose task names them even when the playbook leaves them out, and not by anyone else', async () => {
+    await expect(svc.get('a1', 'review')).rejects.toThrow('not in this workspace')
+    granted.a1 = ['review']
+    expect(await svc.get('a1', 'review')).toContain('Read the diff first.')
+    await expect(svc.get('a3', 'review')).rejects.toThrow('not in this workspace')
+  })
+
+  it('show in the agent\'s index as a step\'s, so it can find them', async () => {
+    granted.a1 = ['review']
+    const idx = await svc.index('a1')
+    expect(idx.find((e) => e.id === 'review')).toMatchObject({ kind: 'skill', mode: 'step', description: 'Review a diff against our standards.', when: 'for the step of your workflow that names it' })
+    expect(idx.map((e) => e.id)).toEqual(['terse', 'pdf', 'review'])
+  })
+
+  it('end with the task, and never open an item that is not a skill or does not exist', async () => {
+    granted.a1 = ['review', 'secret', 'nope']
+    await expect(svc.get('a1', 'secret')).rejects.toThrow('not in this workspace')
+    expect((await svc.index('a1')).map((e) => e.id)).toEqual(['terse', 'pdf', 'review'])
+    granted.a1 = []
+    await expect(svc.get('a1', 'review')).rejects.toThrow('not in this workspace')
+  })
+
+  it('leave an item the playbook already has as it is, once', async () => {
+    granted.a1 = ['pdf']
+    const idx = await svc.index('a1')
+    expect(idx.filter((e) => e.id === 'pdf')).toEqual([expect.objectContaining({ mode: 'on-demand', when: 'working with PDFs' })])
+  })
+
+  it('are counted as fetched like any other item', async () => {
+    granted.a1 = ['review']
+    await svc.get('a1', 'review')
+    expect(pushed).toContain('a1:fetched')
+    expect(pushedItems).toContain('review')
   })
 })

@@ -8,6 +8,7 @@ import { intentPrompt, parseIntent } from '../../shared/intent'
 import { parsePlan, type PlanQuestion } from '../../shared/plan'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import type { Dial } from '../../shared/workflows'
+import { namedSkills } from '../../shared/skills'
 
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
@@ -82,6 +83,11 @@ export class Workflows {
 
   runs(): Run[] {
     return reduceRuns(this.events())
+  }
+  /** The skills the steps of the agent's open task's workflow name: what the agent may read for the task. */
+  skillsOf(agentId: string): string[] {
+    const open = this.runs().find((r) => r.agent === agentId && r.status === 'open')
+    return open?.workflow ? namedSkills(open.workflow) : []
   }
   openCount() {
     return this.runs().filter((r) => r.status === 'open').length

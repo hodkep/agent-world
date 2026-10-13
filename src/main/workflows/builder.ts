@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { type ProposalView, type SaveHow, workflowDiff } from '../../shared/builder'
 import { type Scope, type Workflow, type WorkflowEntry, checkCommands, isWorkflowId, parseWorkflow, stepName, toRunWorkflow } from '../../shared/workflow'
+import { type SkillSource, goneSkills, skillList, skillStates } from '../../shared/skills'
 import type { Approvals } from './approvals'
 import type { WorkflowStore } from './store'
 
@@ -55,6 +56,7 @@ interface Deps {
   store: WorkflowStore
   approvals: Approvals
   proposals: Proposals
+  skills: SkillSource
   now: () => number
 }
 
@@ -72,7 +74,7 @@ export class Builder {
 
   /** Every workflow the project can use, one line each, for the builder to read first. */
   list(project: string | null): string {
-    return this.deps.store
+    const workflows = this.deps.store
       .list(project)
       .map((e) => {
         const where = SCOPE_NAME[e.scope]
@@ -81,6 +83,17 @@ export class Builder {
         return `- ${e.id} (${where}): ${w.name}.${w.when ? ` When: ${w.when}` : ''} Steps: ${w.steps.map(stepName).join(', ')}`
       })
       .join('\n')
+    return `${workflows}\n\nSkills you can name on a work step:\n${skillList(this.deps.skills.items(), this.deps.skills.playbook(project)).text}`
+  }
+
+  /** The workflows the project can use, each with how the skills its steps name stand: what the Workflows tab shows. */
+  entries(project: string | null): WorkflowEntry[] {
+    const items = this.deps.skills.items()
+    const playbook = this.deps.skills.playbook(project)
+    return this.deps.store.list(project).map((e) => {
+      const states = e.workflow ? skillStates(e.workflow, items, playbook) : {}
+      return Object.keys(states).length ? { ...e, skills: states } : e
+    })
   }
 
   /** One workflow as its file. */
@@ -98,6 +111,12 @@ export class Builder {
     if (text.length > FILE_MAX) throw new Error(`The file is too long (over ${FILE_MAX / 1000} thousand characters). Make the workflow shorter.`)
     const parsed = parseWorkflow(text)
     if (!parsed.ok) throw new Error(`Nothing was proposed, because the file has problems. Fix all of them and call workflow_propose again:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
+    const gone = goneSkills(skillStates(parsed.workflow, this.deps.skills.items(), this.deps.skills.playbook(project)))
+    if (gone.length) {
+      const known = skillList(this.deps.skills.items(), this.deps.skills.playbook(project)).ids.slice(0, 40).join(', ')
+      const lines = parsed.workflow.steps.flatMap((st, i) => (st.skills ?? []).filter((id) => gone.includes(id)).map((id) => `- Step ${i + 1} ("${st.id}"): there is no skill "${id}" in the library. Skills you can name: ${known || 'none'}.`))
+      throw new Error(`Nothing was proposed, because the file has problems. Fix all of them and call workflow_propose again:\n${lines.join('\n')}`)
+    }
     const saved = this.saved(project, parsed.workflow.id)
     if (saved && workflowDiff(saved.workflow, parsed.workflow).same) return `"${parsed.workflow.name}" is the saved workflow unchanged, so there is nothing to propose.`
     this.deps.proposals.set(agent, { workflow: parsed.workflow, base: this.baseOf(saved), at: this.deps.now() })
@@ -118,6 +137,7 @@ export class Builder {
       diff: workflowDiff(saved?.workflow, r.workflow),
       ...(saved && { saved: { scope: saved.scope } }),
       stale,
+      skills: skillStates(r.workflow, this.deps.skills.items(), this.deps.skills.playbook(project)),
       commands: checkCommands(toRunWorkflow(r.workflow)).map((text) => ({ text, known: before.has(text) })),
       at: r.at
     }

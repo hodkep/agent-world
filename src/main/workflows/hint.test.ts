@@ -51,6 +51,21 @@ describe('what task_begin tells the agent about its workflow', () => {
   })
 })
 
+describe('the skills of a step in the brief', () => {
+  const flow: RunWorkflow = { id: 'skilled', name: 'Skilled', steps: [{ id: 'fix', kind: 'work', name: 'Fix', skills: ['tdd', 'review', 'deploy-notes'] }, { id: 'tidy', kind: 'work', name: 'Tidy', skills: ['deploy-notes'] }, { id: 'plain', kind: 'work', name: 'Plain' }] }
+
+  it('tells the agent to read a skill that exists with library_get and to skip one that is not in the library', () => {
+    const text = workflowBrief(flow, { skills: { tdd: 'ready', review: 'granted', 'deploy-notes': 'gone' } })
+    expect(text).toContain('- fix "Fix" (read with library_get: tdd, review; there is no skill deploy-notes in the library, so skip it):')
+    expect(text).toContain('- tidy "Tidy" (there is no skill deploy-notes in the library, so skip it):')
+    expect(text).toContain('- plain "Plain":')
+  })
+
+  it('names the skills as before when the app has not looked them up', () => {
+    expect(workflowBrief(flow)).toContain('- fix "Fix" (skill: tdd, review, deploy-notes):')
+  })
+})
+
 describe('the plan line of the brief', () => {
   it('is left out when no plan is asked for, so an agent is not told to wait for an approval that never comes', () => {
     const text = workflowBrief(BUG_FIX)
