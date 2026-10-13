@@ -14,6 +14,12 @@ const ICON: Record<LibraryItem['kind'], IconName> = { skill: 'book', instruction
 export function LibraryRule({ rule, item, onChange, onRemove }: { rule: PlaybookRule; item: LibraryItem | undefined; onChange: (patch: Partial<PlaybookRule>) => void; onRemove: () => void }) {
   const [menu, setMenu] = useState(false)
   const box = useRef<HTMLDivElement>(null)
+  // The "when" is free text that may hold several statements, so its box grows with them instead of scrolling one line.
+  const when = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const t = when.current
+    if (t) (t.style.height = 'auto', (t.style.height = `${t.scrollHeight}px`))
+  }, [rule.when, rule.mode])
   useEffect(() => {
     if (!menu) return
     const away = (e: MouseEvent) => box.current && !box.current.contains(e.target as Node) && setMenu(false)
@@ -28,7 +34,7 @@ export function LibraryRule({ rule, item, onChange, onRemove }: { rule: Playbook
       <span className={`lr-icon ${rule.mode}`}>{item ? <PixelIcon name={ICON[item.kind]} scale={2} /> : null}</span>
       <div className="lr-name">
         <b title={item?.description}>{item?.name ?? `${rule.id} (missing)`}</b>
-        {rule.mode === 'on-demand' && <input aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply? a request, or something it meets: a merge conflict, failing tests" onChange={(e) => onChange({ when: e.target.value })} />}
+        {rule.mode === 'on-demand' && <textarea ref={when} rows={1} aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply? a request, or something it meets: a merge conflict, failing tests" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} onChange={(e) => onChange({ when: e.target.value.replace(/\s*\n\s*/g, ' ') })} />}
       </div>
       {rule.mode !== 'off' && (
         <div className="lr-gauge" role="radiogroup" aria-label={`Firmness of ${rule.id}`}>

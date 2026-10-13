@@ -2210,7 +2210,7 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .reach-row:hover:not(:disabled) { background: var(--panel-hover); }
 .reach-n { font-weight: 600; overflow-wrap: anywhere; }
 .reach-bars { display: flex; flex-direction: column; gap: 4px; }
-.reach-bar { display: grid; grid-template-columns: 44px minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
+.reach-bar { display: grid; grid-template-columns: 52px minmax(0, 1fr) 22px; gap: 6px; align-items: center; }
 .reach-bar small { color: var(--muted); font-size: 11px; }
 .reach-bar .tr { height: 8px; background: var(--track); box-shadow: 0 0 0 1px var(--ink); display: block; }
 .reach-bar i { display: block; height: 100%; background: var(--ok); }
@@ -2218,6 +2218,7 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .reach-bar i.bad { background: var(--danger); }
 .reach-bar i.mid { background: var(--accent); }
 .reach-bar i.few { background: var(--dim); }
+.reach-bar i.no { background: var(--wait, var(--accent)); }
 .reach-v { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .reach-said { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; background: var(--panel-2); }
 .reach-said b { color: var(--accent); }
@@ -2493,9 +2494,10 @@ aside:not(.drawer) { flex: none; }
 .lr.off .lr-name b { color: var(--muted); font-weight: 400; }
 .lr-name { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .lr-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.library-modal .lr-name input { background: none; border: 0; box-shadow: none; border-bottom: 1px dashed var(--line); padding: 2px 0; color: var(--think); font-size: 12px; width: 100%; }
-.library-modal .lr-name input::placeholder { color: var(--faint, #8c8aa2); font-style: italic; }
-.library-modal .lr-name input:focus-visible { outline: none; border-bottom: 1px solid var(--accent); }
+.library-modal .lr-name input, .library-modal .lr-name textarea { background: none; border: 0; box-shadow: none; border-bottom: 1px dashed var(--line); padding: 2px 0; color: var(--think); font-size: 12px; width: 100%; }
+.library-modal .lr-name textarea { resize: none; overflow: hidden; font-family: inherit; line-height: 1.35; display: block; }
+.library-modal .lr-name input::placeholder, .library-modal .lr-name textarea::placeholder { color: var(--faint, #8c8aa2); font-style: italic; }
+.library-modal .lr-name input:focus-visible, .library-modal .lr-name textarea:focus-visible { outline: none; border-bottom: 1px solid var(--accent); }
 .lr-gauge { display: inline-flex; gap: 3px; align-items: center; }
 .lr-gauge button { width: 12px; height: 12px; padding: 0; background: var(--track); border: 0; box-shadow: 0 0 0 1px var(--ink); }
 .lr-gauge button.on { background: var(--accent); }

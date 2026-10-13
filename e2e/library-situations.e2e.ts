@@ -174,3 +174,22 @@ test('chat: a slip beside the message says the skill was pointed at because of a
     await shutdown()
   }
 })
+
+test('the "when does it apply" box of a rule grows to show every statement, and a failing check repeated inside one command is pointed at', async () => {
+  const { page, shutdown, tool } = await setup({ rule: { when: 'tests keep failing, or a type check shows errors. git stopped a merge or rebase with conflict markers in files. building a feature test first, and fixing a bug test first' } })
+  try {
+    await page.getByRole('button', { name: 'Library' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Library' })
+    await dialog.getByRole('tab', { name: 'Playbook' }).click()
+    await dialog.getByRole('button', { name: 'Everywhere' }).click()
+    const box = dialog.getByLabel('When to use resolving-merge-conflicts')
+    const h = (await box.boundingBox())!.height
+    expect(h).toBeGreaterThan(30)
+    if (process.env.SHOT) await dialog.screenshot({ path: process.env.SHOT })
+    await expect(box).toHaveJSProperty('scrollHeight', Math.round(h))
+    // The same red twice in one command counts as the same red twice.
+    expect(JSON.parse(await tool('./fail.sh; ./fail.sh', 'Tests 2 failed\nexit=1\nTests 2 failed\nexit=1')).hookSpecificOutput.additionalContext).toContain('resolving-merge-conflicts')
+  } finally {
+    await shutdown()
+  }
+})

@@ -44,5 +44,7 @@ describe('reachedFor', () => {
     const row = reachedFor(stats({ a: [10, 9] }), 'both', () => 'x').rows[0]!
     expect(row).toMatchObject({ declined: 0, silent: 1, reasons: [], advice: '' })
     expect(row.text).not.toContain('said no')
+    // ...but it still says how many were passed over without a word
+    expect(row.text).toContain('1 passed over without a word')
   })
 })

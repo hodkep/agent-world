@@ -38,6 +38,7 @@ export function LibraryReach({ byId, whenOf, onFix }: { byId: Map<string, Librar
               <span className="reach-bars">
                 <span className="reach-bar"><small>pointed</small><span className="tr"><i className="think" style={{ width: `${Math.max(3, (100 * x.pointed) / max)}%` }} /></span><small>{x.pointed}</small></span>
                 <span className="reach-bar"><small>read</small><span className="tr"><i className={BAR[x.health]} style={{ width: `${Math.max(3, (100 * x.read) / max)}%` }} /></span><small>{x.read}</small></span>
+                <span className="reach-bar" title="The agent said it did not apply, and why"><small>said no</small><span className="tr"><i className="no" style={{ width: x.declined ? `${Math.max(3, (100 * x.declined) / max)}%` : 0 }} /></span><small>{x.declined}</small></span>
               </span>
               <span className="reach-v">{x.text}</span>
             </button>

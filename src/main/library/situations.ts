@@ -2,6 +2,8 @@ export interface Situation {
   kind: string
   /** A few words on how big it is, for the line the agent gets and the log. */
   detail: string
+  /** How many times it showed in this one result (the same red printed twice counts as two). */
+  times?: number
 }
 
 /** What makes it trivial enough to pass over, in the line the agent gets. */
@@ -43,8 +45,12 @@ const TEST_PASSED = /\b\d+ passed\b|^ok\s+\S+|\bFound 0 errors\b/m
 
 function failing(out: string): Situation | null {
   const types = out.match(TS)
-  if (types) return { kind: 'failing-checks', detail: `${types.length} type error${types.length === 1 ? '' : 's'}` }
-  return TEST_FAILED.test(out) ? { kind: 'failing-checks', detail: 'tests failed' } : null
+  if (types) return { kind: 'failing-checks', detail: `${types.length} type error${types.length === 1 ? '' : 's'}`, times: 1 }
+  if (!TEST_FAILED.test(out)) return null
+  // The same red line twice in one result is the same failure seen twice (a command that ran a failing test two times).
+  const seen = new Map<string, number>()
+  for (const l of out.split('\n')) if (TEST_FAILED.test(l)) seen.set(l.trim(), (seen.get(l.trim()) ?? 0) + 1)
+  return { kind: 'failing-checks', detail: 'tests failed', times: Math.max(1, ...seen.values()) }
 }
 
 /** A green run of tests or a clean typecheck: the failures before it are over. */

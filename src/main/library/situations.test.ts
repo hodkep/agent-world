@@ -23,10 +23,14 @@ describe('detectSituation', () => {
 
 describe('failing checks', () => {
   it('sees a failed test run or typecheck in what a command printed', () => {
-    expect(bash(' Test Files  1 failed | 3 passed (4)\n      Tests  2 failed | 10 passed (12)', 'pnpm test')).toEqual({ kind: 'failing-checks', detail: 'tests failed' })
-    expect(bash("src/a.ts(4,2): error TS2304: Cannot find name 'x'.\nsrc/b.ts(1,1): error TS2322: bad", 'npx tsc --noEmit')).toEqual({ kind: 'failing-checks', detail: '2 type errors' })
+    expect(bash(' Test Files  1 failed | 3 passed (4)\n      Tests  2 failed | 10 passed (12)', 'pnpm test')).toEqual({ kind: 'failing-checks', detail: 'tests failed', times: 1 })
+    expect(bash("src/a.ts(4,2): error TS2304: Cannot find name 'x'.\nsrc/b.ts(1,1): error TS2322: bad", 'npx tsc --noEmit')).toEqual({ kind: 'failing-checks', detail: '2 type errors', times: 1 })
     expect(bash('=== 1 failed, 4 passed in 0.3s ===', 'pytest')?.kind).toBe('failing-checks')
     expect(bash('--- FAIL: TestThing (0.00s)\nFAIL', 'go test ./...')?.kind).toBe('failing-checks')
+  })
+  it('counts the same failure line printed twice in one result as two failures', () => {
+    expect(bash('Tests 2 failed\nexit=1\nTests 2 failed\nexit=1', './fail.sh; ./fail.sh')).toMatchObject({ kind: 'failing-checks', times: 2 })
+    expect(bash(' Test Files  1 failed | 3 passed (4)\n      Tests  2 failed | 10 passed (12)', 'pnpm test')).toMatchObject({ times: 1 })
   })
   it('stays quiet for a green run, and for words that only mention failing', () => {
     expect(bash(' Tests  12 passed (12)', 'pnpm test')).toBeNull()
