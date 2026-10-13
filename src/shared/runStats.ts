@@ -81,6 +81,9 @@ export function formatTokens(n: number): string {
   return `${k >= 10 ? Math.round(k) : Math.round(k * 10) / 10}k`
 }
 
+/** What a model call cost, for the end of a line: dollars when the program reports them, else the tokens it used. */
+export const callSpend = (c: { cost?: number; tokens?: number }) => (c.cost !== undefined ? ` · ${formatCallCost(c.cost)}` : c.tokens !== undefined ? ` · about ${formatTokens(c.tokens)} tokens` : '')
+
 /** The cost of a run or a round as one short piece of text: a dash when the app cannot know it. */
 export function spendText(s: Pick<RunSpend, 'usd' | 'tokens' | 'known'> | undefined): string {
   if (!s || !s.known) return '—'
@@ -99,7 +102,7 @@ export function auditText(run: Run): string | undefined {
   if (!a.findings.length) return 'Audit: nothing found'
   const unseen = a.findings.filter((f) => !f.seen).length
   const n = a.findings.length
-  return `Audit: ${n} finding${n === 1 ? '' : 's'}, ${unseen ? `${unseen} unseen` : 'all seen'}${a.model ? ` · ${a.model}` : ''}${a.cost !== undefined ? ` · ${formatCallCost(a.cost)}` : ''}`
+  return `Audit: ${n} finding${n === 1 ? '' : 's'}, ${unseen ? `${unseen} unseen` : 'all seen'}${a.model ? ` · ${a.model}` : ''}${callSpend(a)}`
 }
 
 /** How the run's work was landed: after the checks, or anyway with what was still holding it. */
@@ -114,7 +117,7 @@ export function checkText(check: PlanCheck | undefined): string | undefined {
   if (!check) return undefined
   if ('failed' in check) return `The intent check failed: ${check.failed}. This is the plan as the agent wrote it.`
   const what = check.added ? `added ${check.added} question${check.added === 1 ? '' : 's'}` : 'found nothing to add'
-  return `The intent check ${what}${check.model ? ` · ${check.model}` : ''}${check.cost !== undefined ? ` · ${formatCallCost(check.cost)}` : ''}`
+  return `The intent check ${what}${check.model ? ` · ${check.model}` : ''}${callSpend(check)}`
 }
 
 /** How many of this week's runs followed the workflow. */

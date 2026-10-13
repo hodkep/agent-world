@@ -19,17 +19,25 @@ out=$(printf 'header = "Authorization: Bearer %s"\n' "$tok" | curl -s --max-time
 [ -n "$out" ] && printf '%s\\n' "$out" || echo '{}'
 `
 
+/** The version the plugin is written as: an installed one older than this has not got every hook. */
+export const PLUGIN_VERSION = '0.1.2'
+
+/** agy's tools that write a file. */
+export const EDIT_TOOLS = ['write_to_file', 'replace_file_content', 'multi_replace_file_content']
+
 export const HOOKS = {
   [PLUGIN_NAME]: {
     PreInvocation: [{ type: 'command', command: './hook.sh pre-inv' }],
-    PostToolUse: [{ matcher: 'view_file', hooks: [{ type: 'command', command: './hook.sh post-tool' }] }]
+    PostToolUse: [{ matcher: 'view_file', hooks: [{ type: 'command', command: './hook.sh post-tool' }] }],
+    // Before agy edits a file: the office may hold the edit back (the plan was not approved). Anything but a held edit gets no answer, so agy decides as it always did.
+    PreToolUse: EDIT_TOOLS.map((matcher) => ({ matcher, hooks: [{ type: 'command', command: './hook.sh pre-tool' }] }))
   }
 }
 
 /** Writes the plugin's three files into `dir`. */
 export function writeAgyPlugin(dir: string): void {
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'plugin.json'), JSON.stringify({ name: PLUGIN_NAME, version: '0.1.1', description: 'Agent World: points agents at the shared library and counts what they use.' }, null, 2))
+  writeFileSync(join(dir, 'plugin.json'), JSON.stringify({ name: PLUGIN_NAME, version: PLUGIN_VERSION, description: 'Agent World: points agents at the shared library, counts what they use, and holds an edit back while the plan is not approved.' }, null, 2))
   writeFileSync(join(dir, 'hooks.json'), JSON.stringify(HOOKS, null, 2))
   writeFileSync(join(dir, 'hook.sh'), HOOK_SCRIPT)
   chmodSync(join(dir, 'hook.sh'), 0o755)

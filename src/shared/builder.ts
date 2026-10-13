@@ -152,8 +152,13 @@ export type SaveHow = 'project' | 'global' | 'replace' | 'copy'
 /** The project's builder, if the office has made one. */
 export const builderAgent = (agents: AgentRecord[], repoPath: string): AgentRecord | undefined => agents.find((a) => a.builder && a.repoPath === repoPath)
 
-/** How the builder is launched: Claude, in the folder itself, read-only, with its instructions. */
-export const builderOptions = (): AgentOptions => ({ provider: 'claude', role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
+/** How the builder is launched: on the program chosen, in the folder itself, read-only, with its instructions. */
+export const builderOptions = (provider: 'claude' | 'agy'): AgentOptions => ({ provider, role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
+
+/** The program the builder runs on: the person's default when it can use the office's tools (`usable`), else the first that can (claude, then agy). */
+export function builderProgram(preferred: string, usable: ('claude' | 'agy')[]): 'claude' | 'agy' | undefined {
+  return usable.find((p) => p === preferred) ?? usable.find((p) => p === 'claude') ?? usable[0]
+}
 
 /** `builder`, or `builder-2` and on when the name is taken (another project's builder has it). */
 export function builderName(taken: string[]): string {

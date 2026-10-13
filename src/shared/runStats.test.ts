@@ -100,6 +100,12 @@ describe('the cost cell of a run', () => {
 describe('what the Workflow tab says about the audit and the landing', () => {
   const audited = (...extra: RunEvent[]) => reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'audit', t: 2000, run: 'r1', head: 'h1', state: 'done', findings: [{ kind: 'out-of-scope', text: 'x' }, { kind: 'guess-wrong', text: 'y' }], files: 3, lines: 120, truncated: false, cost: 0.004, model: 'claude-haiku-5-5' }, ...extra])[0]!
 
+  it('a program that reports tokens, not dollars, has its tokens in place of the cost', () => {
+    const tokens = reduceRuns([begin('r1', 1000, 'a1', 'ada'), { k: 'audit', t: 2000, run: 'r1', head: 'h1', state: 'done', findings: [{ kind: 'out-of-scope', text: 'x' }], files: 1, lines: 4, truncated: false, tokens: 16948, model: 'gemini-3.8-flash-low' }])[0]!
+    expect(auditText(tokens)).toBe('Audit: 1 finding, 1 unseen · gemini-3.8-flash-low · about 17k tokens')
+    expect(checkText({ added: 1, tokens: 16948, model: 'gemini-3.8-flash-low' })).toBe('The intent check added 1 question · gemini-3.8-flash-low · about 17k tokens')
+  })
+
   it('the audit line counts findings and the unseen ones, with the model and cost', () => {
     expect(auditText(audited())).toBe('Audit: 2 findings, 2 unseen · claude-haiku-5-5 · $0.0040')
     expect(auditText(audited({ k: 'seen', t: 2100, run: 'r1', head: 'h1', which: [0, 1] }))).toBe('Audit: 2 findings, all seen · claude-haiku-5-5 · $0.0040')

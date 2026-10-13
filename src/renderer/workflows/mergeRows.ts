@@ -23,7 +23,7 @@ export function mergeRows(m: MergeCheck): MergeRow[] {
   } else if (a.state === 'running') rows.push({ ok: null, text: 'Auditing the branch against the plan…' })
   else if (a.state === 'failed') rows.push({ ok: null, text: `Audit failed: ${a.reason}. Land is not held for this.` })
   else if (a.state === 'off' && a.reason === 'economy') rows.push({ ok: null, text: 'Audit is off at the economy dial.' })
-  else if (a.state === 'off' && a.reason === 'provider') rows.push({ ok: null, text: 'Audit is not available for this program.' })
+  else if (a.state === 'off' && a.reason === 'no-model') rows.push({ ok: null, text: 'Audit has no model to ask: none of Claude or agy is ready here.' })
   else if (a.state === 'off' && a.reason === 'workflow') rows.push({ ok: null, text: 'This workflow has no audit step.' })
   else if (a.state === 'off' && a.reason === 'gate') rows.push({ ok: null, text: 'The merge step does not ask for an audit.' })
   for (const c of m.checks) {

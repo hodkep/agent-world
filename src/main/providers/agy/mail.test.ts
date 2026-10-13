@@ -26,6 +26,23 @@ describe('connecting agy to the office message box', () => {
     mkdirSync(join(dir, 'plugins', 'aw-library'), { recursive: true })
     expect(make().status()).toBe('connected')
   })
+  it('says the plugin is out of date when the one installed is an older version than this app writes, so connecting again can update it', () => {
+    mkdirSync(join(dir, 'plugins', 'aw-library'), { recursive: true })
+    const at = (version: string) => writeFileSync(join(dir, 'plugins', 'aw-library', 'plugin.json'), JSON.stringify({ name: 'aw-library', version }))
+    at('0.1.1')
+    expect(make().outdated()).toBe(true)
+    at('0.1.2')
+    expect(make().outdated()).toBe(false)
+    at('0.1.10')
+    expect(make().outdated()).toBe(false)
+  })
+  it('is not out of date when there is no plugin, or no version to read', () => {
+    expect(make().outdated()).toBe(false)
+    mkdirSync(join(dir, 'plugins', 'aw-library'), { recursive: true })
+    expect(make().outdated()).toBe(false)
+    writeFileSync(join(dir, 'plugins', 'aw-library', 'plugin.json'), 'not json')
+    expect(make().outdated()).toBe(false)
+  })
   it('is missing, not connected, when the entry is switched off or points at something else', () => {
     writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: 'x', args: ['/elsewhere.js'] } } }))
     expect(make().status()).toBe('missing')
@@ -52,8 +69,18 @@ describe('connecting agy to the office message box', () => {
     // the plugin it installs from: a manifest, the hooks, and the script they run
     expect(JSON.parse(readFileSync(join(dir, 'agy-plugin', 'plugin.json'), 'utf8')).name).toBe('aw-library')
     const hooks = JSON.parse(readFileSync(join(dir, 'agy-plugin', 'hooks.json'), 'utf8'))['aw-library']
-    expect(Object.keys(hooks).sort()).toEqual(['PostToolUse', 'PreInvocation'])
+    expect(Object.keys(hooks).sort()).toEqual(['PostToolUse', 'PreInvocation', 'PreToolUse'])
     expect(readFileSync(join(dir, 'agy-plugin', 'hook.sh'), 'utf8')).toContain('/hook/$1')
+  })
+  it('connecting again over its own entry (an update of the plugin) takes the old entry out first, so agy does not refuse to add it twice', async () => {
+    const calls: string[][] = []
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: '/app/electron', args: [join(dir, 'bin', 'aw-mcp-bridge.cjs')] } } }))
+    await make(calls).connect('agy')
+    expect(calls.map((c) => c.slice(0, 2).join(' '))).toEqual(['mcp remove', 'mcp add', 'plugin uninstall', 'plugin install'])
+    expect(calls[0]).toEqual(['mcp', 'remove', 'agent-world'])
+  })
+  it('says in its plan that the plugin also holds an edit back while a plan waits', () => {
+    expect(make().plan().note).toContain('hold an edit back while a plan waits for you')
   })
   it('takes the entry out again through agy, leaving the bridge file for a later reconnect', async () => {
     const calls: string[][] = []

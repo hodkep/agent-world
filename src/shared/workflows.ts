@@ -67,6 +67,18 @@ export function dialSummary(dial: Dial): string {
 /** The model the app's own checks use at a dial level (a guess until a pilot measures it); none where no check runs. */
 export const auditModel = (d: Dial): string | undefined => (d === 'economy' ? undefined : d === 'balanced' ? 'haiku' : 'sonnet')
 
+/** The model one of the app's own checks asks, for the program that answers: its small model at balanced, its large one at max, none at economy. A step's own choice counts when the program has that model. */
+export function askModel(provider: 'claude' | 'agy', dial: Dial, requested?: string, agyModels: string[] = []): string | undefined {
+  if (dial === 'economy') return undefined
+  if (provider === 'claude') return requested ?? auditModel(dial)
+  return requested && agyModels.includes(requested) ? requested : dial === 'balanced' ? 'gemini-3.8-flash-low' : 'gemini-3.8-flash-high'
+}
+
+/** The program that answers an agent's checks: its own when it can ask, else the first one that can (claude, then agy), else none. */
+export function pickAsker<T extends string>(own: T, ready: T[]): T | undefined {
+  return ready.includes(own) ? own : (['claude', 'agy'] as string[]).map((p) => ready.find((r) => r === p)).find(Boolean) ?? ready[0]
+}
+
 export const dialName = (d: Dial) => d.charAt(0).toUpperCase() + d.slice(1)
 
 /** Off with runs still open: they finish, nothing new starts, and the button stays until they have. */
