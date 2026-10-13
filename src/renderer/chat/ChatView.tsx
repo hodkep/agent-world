@@ -1,7 +1,7 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo } from '../../shared/types'
@@ -33,7 +33,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
 import { hint, keysOf } from '../shortcuts'
-import { slipsFor, startsBefore } from './slips'
+import { placeInline, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import type { UsageLimits } from '../../shared/usage'
 
@@ -249,7 +249,17 @@ export function ChatView({
     const ats = users.map((r) => (r.kind === 'user' ? (r.at ?? 0) : 0))
     const starts = startsBefore(lib.uses, ats)
     const told = (launch?: number) => lib.uses.filter((x) => x.how === 'delivered' && x.launch === launch).length
-    return new Map(users.map((r, k) => [r.id, { slips: slipsFor(lib.uses, ats[k]!, ats[k + 1] ?? Infinity), starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]))
+    // A situation the agent met mid-run is shown beside the tool call that showed it; the message keeps what it pointed at itself.
+    const inline = new Map<string, Slip[]>()
+    const byUser = new Map(users.map((r, k) => {
+      const from = ats[k]!
+      const to = ats[k + 1] ?? Infinity
+      const tools = allRows.flatMap((x) => (x.kind === 'tool' && x.run.at !== undefined && x.run.at >= from && x.run.at < to ? [{ id: x.id, at: x.run.at }] : []))
+      const placed = placeInline(tools, slipsFor(lib.uses, from, to))
+      for (const [id, v] of placed.inline) inline.set(id, v)
+      return [r.id, { slips: placed.rest, starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]
+    }))
+    return { byUser, inline }
   }, [allRows, lib.uses])
   // After a rewind Claude writes nothing until the next message, so the rewound messages are hidden here until it does.
   // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
@@ -569,10 +579,13 @@ export function ChatView({
           </button>
         )}
         {(searching ? rows : groupSteps(rows) as (Row | StepGroup)[]).map((r, at, list) => {
-          if (r.kind === 'group') return <StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />
-          const lb = slipsByRow.get(r.id)
+          const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
+          // A step with a note beside it gets the same wrapper as a message does: a margin for the note in a wide chat, the note under it in a narrow one.
+          const withNote = (el: ReactElement) => (here.length ? <div key={r.id} className="turn step"><div className="turn-row">{el}</div><LibrarySlips slips={here} starts={[]} told={0} items={lib.items} /></div> : el)
+          if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
+          const lb = slipsByRow.byUser.get(r.id)
           const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
-          if (!lb || (!lb.starts.length && !lb.slips.length)) return row
+          if (!lb || (!lb.starts.length && !lb.slips.length)) return withNote(row)
           // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
             <div key={r.id} className="turn">

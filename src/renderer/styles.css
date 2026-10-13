@@ -2251,7 +2251,13 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
   .turn > .slips { grid-column: 2; width: auto; margin: 0; align-self: start; }
   .turn > .slips:first-child { grid-row: 1; }
   .turn > .slips:last-child { grid-row: 2; }
+  /* A step with a note: the step keeps the width it had, and the note stands level with it. */
+  .turn.step { grid-template-rows: auto; }
+  .turn.step > .turn-row { grid-column: 1; grid-row: 1; min-width: 0; }
+  .turn.step > .slips { grid-column: 2; grid-row: 1; }
 }
+.turn-row { display: contents; }
+@container (min-width: 720px) { .turn.step > .turn-row { display: block; } }
 
 
 /* The subagents panel: a column to the right of the chat. The chat keeps its width; the office gives up the room. */

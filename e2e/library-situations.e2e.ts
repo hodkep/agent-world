@@ -135,7 +135,7 @@ test('chat: a slip beside the message says the skill was pointed at because of a
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
   try {
     const page = await app.firstWindow()
-    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.setViewportSize({ width: Number(process.env.VW ?? 1400), height: 1000 })
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
@@ -153,13 +153,21 @@ test('chat: a slip beside the message says the skill was pointed at because of a
     await page.waitForTimeout(800)
     await post({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git merge feature' }, tool_response: { stdout: CONFLICT }, tool_use_id: 't1' })
     await page.waitForTimeout(800)
-    const slips = log.getByLabel('What the library did here')
+    // It stands with the step it came from, not with the message that began the run.
+    const slips = log.locator('.turn.step').getByLabel('What the library did here')
     const note = slips.getByRole('button', { name: /resolving-merge-conflicts/ })
+    await expect(log.locator('.turn:not(.step)').getByRole('button', { name: /resolving-merge-conflicts/ })).toHaveCount(0)
     await expect(note).toContainText('pointed because of a merge conflict, 1 file, not read')
     await post({ hook_event_name: 'PreToolUse', tool_name: 'Skill', tool_input: { skill: 'resolving-merge-conflicts' } })
     await expect(note).toContainText('pointed because of a merge conflict, 1 file, then read')
     await note.click()
     await expect(log.getByRole('group', { name: 'resolving-merge-conflicts, the words' })).toContainText('merge conflict, 1 file was found')
+    // In a chat wide enough for a margin the card stands beside its step, level with it, and not under it.
+    await page.addStyleTag({ content: '.chat-log { width: 1000px !important; max-width: none !important; flex: none !important; }' })
+    const step = await log.locator('.turn.step > .turn-row').boundingBox()
+    const card = await slips.boundingBox()
+    expect(card!.x).toBeGreaterThan(step!.x + step!.width - 1)
+    expect(card!.y).toBeLessThan(step!.y + step!.height)
     await log.screenshot({ path: process.env.SHOT ?? join(home, 'slip.png') })
   } finally {
     await shutdown()
