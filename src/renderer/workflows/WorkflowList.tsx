@@ -61,6 +61,17 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
   const run = (go: () => Promise<unknown>) => go().then(() => (setAsking(false), load()), (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
   const wf = shown?.workflow
   const here = folder ? base(folder) : ''
+  // The list is walked with the arrow keys, Home and End, and the one it rests on is the one shown.
+  const walk = (e: React.KeyboardEvent) => {
+    const at = shown ? list.indexOf(shown) : 0
+    const to = e.key === 'ArrowDown' ? at + 1 : e.key === 'ArrowUp' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? list.length - 1 : null
+    if (to === null || list.length === 0) return
+    e.preventDefault()
+    const next = list[Math.max(0, Math.min(list.length - 1, to))]!
+    setPicked(`${next.scope}:${next.id}`)
+    setAsking(false)
+    document.getElementById(`wfl-${next.scope}-${next.id}`)?.scrollIntoView({ block: 'nearest' })
+  }
   const start = (first: string | undefined, editing?: string) => {
     setStarting(true)
     setError('')
@@ -81,11 +92,11 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
       <button type="button" disabled={!folder || starting} onClick={() => start(undefined)}>Open the builder</button>
     </form>
     <div className="wfl" aria-label="Workflows">
-      <ul className="wfl-side" role="listbox" aria-label="Workflow list">
+      <ul className="wfl-side" role="listbox" aria-label="Workflow list" tabIndex={0} aria-activedescendant={shown ? `wfl-${shown.scope}-${shown.id}` : undefined} onKeyDown={walk}>
         {list.map((e) => {
           const key = `${e.scope}:${e.id}`
           return (
-            <li key={key} role="option" aria-selected={shown === e} className={shown === e ? 'on' : ''} onClick={() => (setPicked(key), setAsking(false))}>
+            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={shown === e ? 'on' : ''} onClick={() => (setPicked(key), setAsking(false))}>
               <b>{e.workflow?.name ?? `${e.id}.json`}</b>
               <span className="muted">
                 {e.problems ? 'Has problems' : SCOPE_LABEL[e.scope]}

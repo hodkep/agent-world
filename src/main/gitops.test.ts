@@ -81,6 +81,18 @@ describe('landing the work', () => {
     expect(git(wt.path, 'log', '-1', '--format=%s')).toBe('add c')
   })
 
+  it('does not count the plan file the plan gate asks for as work, and does not commit it with the work', async () => {
+    mkdirSync(join(wt.path, '.agent-world'))
+    writeFileSync(join(wt.path, '.agent-world', 'plan.md'), '## Goal\nx\n')
+    expect((await finishReadiness(repo, wt.path, wt.branch, 'main')).uncommitted).toBe(0)
+    await expect(commitAll(wt.path, 'nothing but the plan')).rejects.toThrow('Nothing to commit.')
+    writeFileSync(join(wt.path, 'c.ts'), 'three\n')
+    expect((await finishReadiness(repo, wt.path, wt.branch, 'main')).uncommitted).toBe(1)
+    await commitAll(wt.path, 'the work')
+    expect(git(wt.path, 'show', '--name-only', '--format=', 'HEAD')).toBe('c.ts')
+    expect((await finishReadiness(repo, wt.path, wt.branch, 'main')).uncommitted).toBe(0)
+  })
+
   it('refuses an empty commit message or nothing to commit', async () => {
     await expect(commitAll(wt.path, '  ')).rejects.toThrow(/message/i)
     await expect(commitAll(wt.path, 'nothing')).rejects.toThrow(/nothing to commit/i)

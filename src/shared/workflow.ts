@@ -106,7 +106,7 @@ export const STANDARD: Workflow = {
   version: 1,
   id: 'standard',
   name: 'Standard',
-  when: 'Anything that changes code and has no workflow of its own.',
+  when: "The fallback, for work that none of this project's other workflows describes.",
   steps: [
     { id: 'plan', kind: 'plan' },
     { id: 'build', kind: 'work', name: 'Build' },

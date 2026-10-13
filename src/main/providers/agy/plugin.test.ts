@@ -32,7 +32,26 @@ describe("agy's plugin hooks", () => {
     for (const h of hooks.PreToolUse) expect(h.hooks).toEqual([{ type: 'command', command: './hook.sh pre-tool' }])
   })
   it('carry a newer version than the plugin that had no such hook, so connecting again replaces it', () => {
-    expect(JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')).version).toBe('0.1.2')
+    expect(JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')).version).toBe('0.1.3')
+  })
+})
+
+describe("what the plugin's script answers before an edit", () => {
+  // agy reads `{}` for a tool check as a denial (its answer needs a decision), so "nothing to say" must be no output at all: agy then decides as it always did.
+  it('prints nothing when the office has nothing to hold back, however that came about: not started by the office, an office that is not there, or an answer with no decision', async () => {
+    expect(await run('pre-tool', { toolCall: { name: 'write_to_file' } }, {})).toBe('')
+    expect(await run('pre-tool', {}, { AW_MCP_URL: 'http://127.0.0.1:9/mcp', AW_AGENT_TOKEN: 'tok' })).toBe('')
+    expect(await run('pre-tool', {}, { AW_MCP_URL: 'https://example.com/mcp', AW_AGENT_TOKEN: 'tok' })).toBe('')
+    mcp = await startMcpServer({ ...base, agentForToken: () => 'a1', hook: () => ({}) })
+    expect(await run('pre-tool', {}, { AW_MCP_URL: mcp.url, AW_AGENT_TOKEN: 'tok' })).toBe('')
+  })
+  it('prints the denial, with its reason, when the office holds the edit back', async () => {
+    mcp = await startMcpServer({ ...base, agentForToken: () => 'a1', hook: () => ({ decision: 'deny', reason: 'Not yet: your plan is waiting for the person to approve it.' }) })
+    expect(JSON.parse(await run('pre-tool', {}, { AW_MCP_URL: mcp.url, AW_AGENT_TOKEN: 'tok' }))).toEqual({ decision: 'deny', reason: 'Not yet: your plan is waiting for the person to approve it.' })
+  })
+  it('still prints {} for the events where agy wants an object', async () => {
+    expect(await run('pre-inv', {}, {})).toBe('{}')
+    expect(await run('post-tool', {}, { AW_MCP_URL: 'http://127.0.0.1:9/mcp', AW_AGENT_TOKEN: 'tok' })).toBe('{}')
   })
 })
 

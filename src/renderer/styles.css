@@ -2972,6 +2972,7 @@ aside:not(.drawer) { flex: none; }
 .wfl-side { list-style: none; margin: 0; padding: 0; border-right: 2px solid var(--ink); overflow: auto; }
 .wfl-side li { padding: 10px 14px; border-bottom: 1px solid var(--ink); display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
 .wfl-side li.on { background: var(--selected); }
+.wfl-side:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wfl-detail { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
 .wfl-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 16px; }
 .wfl-detail p { margin: 0; }

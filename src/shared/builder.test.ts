@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, workflowDiff } from './builder'
+import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, workflowDiff } from './builder'
 import type { AgentRecord } from './types'
 import { STEPS_MAX, STEP_KINDS, GATES, parseWorkflow, type Workflow } from './workflow'
 
@@ -121,6 +121,10 @@ describe('builderInstructions', () => {
     expect(block).toBeDefined()
     const r = parseWorkflow(block!)
     expect(r.ok, JSON.stringify(r)).toBe(true)
+  })
+
+  it('may use its three tools and read the project\'s notes without being asked each time, and nothing that writes', () => {
+    expect([...BUILDER_ALLOWED]).toEqual(['workflow_list', 'workflow_get', 'workflow_propose', 'recall'])
   })
 
   it('has one name and one role for the agent, and three tools', () => {

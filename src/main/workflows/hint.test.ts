@@ -79,9 +79,9 @@ describe('the workflows the opening text offers', () => {
   const e = (id: string, when?: string) => ({ id, scope: 'project' as const, workflow: { version: 1 as const, id, name: id === 'standard' ? 'Standard' : id === 'bug-fix' ? 'Bug fix' : id, ...(when && { when }), steps: [{ id: 'b', kind: 'work' as const }] } })
   it('lists at most five as "id: when", leaving out the default and a file that has problems, and nothing when there is no choice', () => {
     const list = [e('standard', 'Anything'), e('bug-fix', 'A defect.'), e('quick', 'Typos.'), e('sec', 'Auth.'), e('a', 'A.'), e('b', 'B.'), e('c', 'C.'), { id: 'broken', scope: 'project' as const, problems: ['x'] }]
-    expect(workflowList(list, 'standard')).toBe('This project has workflows. Standard is the default; pass one of these to task_begin as "workflow" if it fits better:\n- bug-fix: A defect.\n- quick: Typos.\n- sec: Auth.\n- a: A.\n- b: B.')
+    expect(workflowList(list, 'standard')).toBe('This project has workflows. Standard is the default: use it unless another one clearly fits the task better, and then pass its id to task_begin as "workflow":\n- bug-fix: A defect.\n- quick: Typos.\n- sec: Auth.\n- a: A.\n- b: B.')
     expect(workflowList([e('standard', 'Anything')], 'standard')).toBe('')
-    expect(workflowList([e('standard'), e('bug-fix')], 'bug-fix')).toBe('This project has workflows. Bug fix is the default; pass one of these to task_begin as "workflow" if it fits better:\n- standard')
+    expect(workflowList([e('standard'), e('bug-fix')], 'bug-fix')).toBe('This project has workflows. Bug fix is the default: use it unless another one clearly fits the task better, and then pass its id to task_begin as "workflow":\n- standard')
   })
 })
 
