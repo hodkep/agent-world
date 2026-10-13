@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { padPlan } from './todoPad'
+import { padFromRows, padPlan, padRows } from './todoPad'
 
 describe('padPlan', () => {
   it('turns checklist and plain bullet lines into tasks, in the Inbox unless a heading names a list', () => {
@@ -29,5 +29,34 @@ describe('padPlan', () => {
     const p = padPlan('- [ ] a\n  note\nkeep\n- [ ] b', [])
     expect(p.used).toBe('- [ ] a\n  note\n- [ ] b')
     expect(p.rest).toBe('keep\n')
+  })
+})
+
+describe('the pad as rows', () => {
+  it('reads every line as a task: bullets with or without a box, headings as the list, and plain lines too', () => {
+    const rows = padRows('first\n- [ ] second\n## Chat\n- [x] third\n* fourth\n\n', ['Chat'])
+    expect(rows.map((r) => [r.title, r.list, r.done])).toEqual([['first', undefined, false], ['second', undefined, false], ['third', 'Chat', true], ['fourth', 'Chat', false]])
+  })
+  it('keeps the notes under a task, which the rows do not show', () => {
+    expect(padRows('- [ ] a\n  detail one\n  detail two\n- [ ] b', [])[0]).toMatchObject({ title: 'a', notes: 'detail one\ndetail two' })
+  })
+  it('writes rows as markdown the pad understands, in the order they are, with a heading whenever the list changes, empty rows left out', () => {
+    const text = padFromRows([
+      { title: 'one', done: false },
+      { title: 'two', list: 'Chat', done: false },
+      { title: '', done: false },
+      { title: 'three', done: true },
+      { title: 'four', list: 'Chat', done: true, notes: 'with detail' },
+      { title: 'five', list: 'Settings', done: false }
+    ])
+    expect(text).toBe('- [ ] one\n## Chat\n- [ ] two\n## Inbox\n- [x] three\n## Chat\n- [x] four\n  with detail\n## Settings\n- [ ] five\n')
+    // what is written is read back as the same tasks, and as the same tasks by the converter
+    expect(padPlan(text, ['Chat', 'Settings']).tasks.map((t) => [t.title, t.list, t.done])).toEqual([['one', undefined, false], ['two', 'Chat', false], ['three', 'Inbox', true], ['four', 'Chat', true], ['five', 'Settings', false]])
+    const back = padRows(text, ['Chat', 'Settings'])
+    expect(back.map((r) => [r.title, r.list, r.done])).toEqual([['one', undefined, false], ['two', 'Chat', false], ['three', undefined, true], ['four', 'Chat', true], ['five', 'Settings', false]])
+  })
+  it('keeps a title on one line and writes nothing for no rows', () => {
+    expect(padFromRows([{ title: 'a\nb  c', done: false }])).toBe('- [ ] a b c\n')
+    expect(padFromRows([])).toBe('')
   })
 })
