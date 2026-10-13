@@ -727,8 +727,10 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .hc-prev::before { clip-path: polygon(100% 0, 0 50%, 100% 100%); margin-left: -1px; }
 .hc-next::before { clip-path: polygon(0 0, 100% 50%, 0 100%); margin-left: 1px; }
 
-.rewind-btn { font-size: 11px; padding: 0 8px; opacity: 0; align-self: flex-end; }
+.user-acts { display: flex; gap: 4px; align-self: flex-end; }
+.rewind-btn { font-size: 11px; padding: 0 8px; opacity: 0; }
 .msg.user:hover .rewind-btn, .rewind-btn:focus-visible { opacity: 1; }
+.msg.user:hover .copy-btn { opacity: 1; }
 .choice-buttons button { text-align: left; }
 
 

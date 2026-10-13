@@ -49,6 +49,9 @@ test('rewind a conversation from a message in the chat', async () => {
     }
     const first = log.locator('.msg.user', { hasText: 'first thing' })
     await first.hover()
+    await expect(first.getByRole('button', { name: 'Copy' })).toBeVisible()
+    await first.getByRole('button', { name: 'Copy' }).click()
+    await expect(first.getByRole('button', { name: 'Copied' })).toBeVisible()
     await first.getByRole('button', { name: 'Rewind' }).click()
     const ask = page.getByRole('region', { name: 'ada is waiting for you' })
     await expect(ask).toContainText('first thing', { timeout: 10_000 })
