@@ -82,47 +82,73 @@ test('todos: pick tasks with a box that shows on hover, a range with Shift, a wh
   }
 })
 
-test('todos: a scratch pad of markdown becomes tasks, shows what it will make first, keeps what it did not understand, and can be undone', async () => {
+test('todos: a scratch pad is a checklist, a row per task with the list it goes to, that becomes tasks and can be undone', async () => {
   const { page, shutdown } = await open()
   try {
+    await page.evaluate(async (f) => void (await window.aw.todos.addList(f, 'Chat')), (await page.evaluate(() => localStorage.getItem('aw.folder')))!)
     await page.locator('header').getByRole('button', { name: 'Todos', exact: true }).click()
     const board = page.getByRole('dialog', { name: 'Todos' })
     await board.getByRole('button', { name: 'Scratch pad' }).click()
     const pad = board.getByRole('region', { name: 'Scratch pad' })
-    const text = pad.getByLabel('Scratch pad text')
-    const written = '## Chat\n- [ ] show the slip\n  with a note\n- [ ] bulk select\n## Settings\n- [x] rename the tab\nhalf a thought\n'
-    await text.fill(written)
-    const prev = pad.getByLabel('What the pad will make')
-    await expect(prev).toContainText('This will make 3 tasks')
-    await expect(prev).toContainText('show the slip')
-    await expect(prev).toContainText('1 line stays in the pad')
-    if (process.env.SHOT) await board.screenshot({ path: `${process.env.SHOT}-pad.png` })
+    await expect(pad.getByRole('button', { name: 'Make 0 tasks' })).toBeDisabled()
 
-    // Saved as typed: the pad is still there after leaving the tab and coming back.
+    // Type a task, Enter for the next one: no text to edit, a row each.
+    await pad.getByLabel('New pad task').fill('show the slip')
+    await pad.getByLabel('New pad task').press('Enter')
+    await page.keyboard.type('bulk select')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('rename the tab')
+    await page.keyboard.press('Enter')
+    // Backspace on the empty row goes back to the last one.
+    await page.keyboard.press('Backspace')
+    await expect(pad.getByLabel('Pad task 3')).toBeFocused()
+    // Many lines pasted at once are many tasks (a bullet in front is dropped).
+    await pad.getByLabel('New pad task').evaluate((el) => {
+      const dt = new DataTransfer()
+      dt.setData('text', '- [ ] pasted one\n* pasted two\n')
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+    })
+    await expect(pad.getByLabel('Pad task 4')).toHaveValue('pasted one')
+    await expect(pad.getByLabel('Pad task 5')).toHaveValue('pasted two')
+    await expect(pad.getByRole('button', { name: 'Make 5 tasks' })).toBeEnabled()
+
+    // Each row says where it goes: Inbox unless changed; the tick makes it a finished task.
+    await expect(pad.getByRole('button', { name: 'List for show the slip: Inbox' })).toBeVisible()
+    for (const t of ['show the slip', 'bulk select']) {
+      await pad.getByRole('button', { name: new RegExp(`List for ${t}`) }).click()
+      await pad.getByRole('menuitem', { name: 'Chat' }).click()
+    }
+    await pad.getByRole('button', { name: /List for rename the tab/ }).click()
+    await pad.getByRole('menuitem', { name: 'New list…' }).click()
+    await pad.getByLabel('New list name for this task').fill('Settings')
+    await pad.getByLabel('New list name for this task').press('Enter')
+    await pad.getByRole('checkbox', { name: 'Finished: rename the tab' }).click()
+    if (process.env.SHOT) await board.screenshot({ path: `${process.env.SHOT}-padlist.png` })
+
+    // Saved as typed: still there after leaving the tab.
     await board.getByRole('button', { name: 'Everyone' }).click()
     await board.getByRole('button', { name: 'Scratch pad' }).click()
-    await expect(text).toHaveValue(written)
+    await expect(pad.getByLabel('Pad task 3')).toHaveValue('rename the tab')
+    await expect(pad.getByRole('button', { name: 'List for show the slip: Chat' })).toBeVisible()
 
-    await pad.getByRole('button', { name: 'Make 3 tasks' }).click()
-    await expect(pad.getByRole('status')).toContainText('Made 3 tasks')
-    await expect(text).toHaveValue('## Settings\nhalf a thought\n')
+    await pad.getByRole('button', { name: 'Make 5 tasks' }).click()
+    await expect(pad.getByRole('status')).toContainText('Made 5 tasks')
+    await expect(pad.getByLabel('Pad task 1')).toHaveCount(0)
     await pad.getByRole('button', { name: 'Show the board' }).click()
     const chat = board.getByRole('listitem', { name: 'Chat' })
     await expect(chat.getByRole('button', { name: 'Open show the slip' })).toBeVisible()
     await expect(chat.getByRole('button', { name: 'Open bulk select' })).toBeVisible()
-    // A list with only a finished task is a small tile; a click opens it.
     await board.getByRole('listitem', { name: 'Settings' }).getByRole('button', { name: 'Open Settings' }).click()
-    const settings = board.getByRole('listitem', { name: 'Settings' })
-    await settings.getByRole('button', { name: /Done \(1\)/ }).click()
-    await expect(settings.getByRole('button', { name: 'Open rename the tab' })).toBeVisible()
+    await board.getByRole('listitem', { name: 'Settings' }).getByRole('button', { name: /Done \(1\)/ }).click()
+    await expect(board.getByRole('listitem', { name: 'Settings' }).getByRole('button', { name: 'Open rename the tab' })).toBeVisible()
 
-    // Undo removes what it made and puts the lines back.
+    // Undo removes what it made and puts the rows back, lists and ticks as they were.
     await board.getByRole('button', { name: 'Scratch pad' }).click()
     await pad.getByRole('button', { name: 'Undo last' }).click()
-    await expect(pad.getByRole('status')).toContainText('Took back 3 tasks')
-    await expect(text).toHaveValue(written)
-    await pad.getByRole('button', { name: 'Show the board' }).click()
-    await expect(board.getByRole('button', { name: /^Open (show the slip|bulk select|rename the tab)$/ })).toHaveCount(0)
+    await expect(pad.getByRole('status')).toContainText('Took back 5 tasks')
+    await expect(pad.getByLabel('Pad task 3')).toHaveValue('rename the tab')
+    await expect(pad.getByRole('checkbox', { name: 'Finished: rename the tab' })).toHaveAttribute('aria-checked', 'true')
+    await expect(pad.getByRole('button', { name: 'List for show the slip: Chat' })).toBeVisible()
   } finally {
     await shutdown()
   }

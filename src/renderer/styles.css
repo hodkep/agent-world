@@ -2802,19 +2802,22 @@ aside:not(.drawer) { flex: none; }
 .td-pop.up { top: auto; bottom: calc(100% + 4px); right: auto; left: 0; min-width: 190px; }
 .td-wrap:has(.td-bulk) .td-board { padding-bottom: 72px; }
 
-/* The scratch pad: the text on the left, what it will make on the right. */
-.td-pad { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); }
-.td-pad-edit { display: flex; min-height: 0; padding: 12px 14px; }
-.td-pad-edit textarea { flex: 1; width: 100%; resize: none; font: 13px/1.6 Menlo, monospace; background: var(--well); border: 2px solid var(--ink); padding: 10px 12px; color: var(--text); }
-.td-pad-prev { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-left: 2px solid var(--ink); background: var(--panel-2); overflow: auto; }
-.td-pad-prev h5 { margin: 0; font: 700 11px Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.td-pad-prev ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.td-pad-prev li { display: flex; gap: 8px; align-items: center; }
-.td-pad-prev li code { margin-left: auto; font: 700 10.5px Menlo, monospace; color: var(--think); }
-.td-pad-prev .td-ck.on { background: var(--ok); border-color: var(--ok); }
-.td-pad-t { min-width: 0; overflow-wrap: anywhere; } .td-pad-t small { color: var(--muted); }
-.td-pad-act { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
-@media (max-width: 760px) { .td-pad { grid-template-columns: 1fr; } .td-pad-prev { border-left: 0; border-top: 2px solid var(--ink); } }
+/* The scratch pad: a checklist, one row per task, each with the list it will go to. */
+.td-pad { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.td-pad-rows { list-style: none; margin: 0; padding: 8px 14px; flex: 1; min-height: 0; overflow: auto; }
+.td-pad-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 22px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.library-modal .td-pad-row input { background: none; border: 0; box-shadow: none; padding: 4px 0; color: var(--text); min-width: 0; font-size: 13.5px; }
+.library-modal .td-pad-row input:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+.td-pad-row.done input { text-decoration: line-through; color: var(--muted); }
+.td-pad-ck { width: 16px; height: 16px; padding: 0; border: 2px solid var(--muted); background: var(--well); display: grid; place-items: center; font-size: 11px; font-weight: 800; line-height: 1; color: var(--ink); }
+.td-pad-ck.on, .td-pad-ck.on:hover { background: var(--ok); border-color: var(--ok); }
+.td-pad-ck:disabled { opacity: .5; }
+.td-pad-chip { min-width: 92px; text-align: left; font: 700 10.5px Menlo, monospace; padding: 1px 7px; border: 2px solid var(--ink); background: var(--panel-2); color: var(--think); white-space: nowrap; }
+.td-pad-chip.none { color: var(--muted); font-weight: 400; }
+.td-pad-x { padding: 0; background: none; border: 0; box-shadow: none; color: var(--dim); font-size: 15px; }
+.td-pad-x:hover { color: var(--danger-text); background: none; box-shadow: none; }
+.td-pad-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-top: 2px solid var(--ink); background: var(--panel); flex: none; }
+.td-pad-keys { margin-left: auto; }
 
 /* The grid: lists with open tasks first, then a divider and a small tile for each list with nothing open. */
 .td-sep { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin: 6px 0 0; color: var(--muted); font: 700 11px Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
