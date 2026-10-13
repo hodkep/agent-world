@@ -1,4 +1,5 @@
 import type { RunWorkflow } from './runs'
+import type { SkillState } from './skills'
 
 /**
  * A workflow is a list of steps an agent's task goes through, kept as a JSON file. The engine follows it; the app checks it in code,
@@ -148,6 +149,8 @@ export interface WorkflowEntry {
   file?: string
   /** A fingerprint of the file's content: what a person's approval of its commands is tied to. */
   hash?: string
+  /** How each skill its steps name stands in the project: ready, granted by the step, or gone. Left out when it names none. */
+  skills?: Record<string, SkillState>
   /** What this one shadows: a project's workflow over a global one, or any file over the built-in Standard. */
   overrides?: Scope
 }

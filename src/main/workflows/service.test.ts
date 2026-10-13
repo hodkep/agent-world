@@ -587,6 +587,29 @@ describe('a task that follows a workflow', () => {
   })
 })
 
+describe('the skills a task\'s workflow names', () => {
+  const WITH_SKILLS: RunWorkflow = { id: 'skilled', name: 'Skilled', steps: [{ id: 'fix', kind: 'work', name: 'Fix', skills: ['tdd', 'review'] }, { id: 'again', kind: 'work', name: 'Again', skills: ['review'] }, { id: 'land', kind: 'merge', name: 'Land' }] }
+
+  it('are the agent\'s while its task is open, each once, and nobody else\'s', () => {
+    const { wf, state } = make()
+    state.pick = () => WITH_SKILLS
+    expect(wf.skillsOf('a1')).toEqual([])
+    wf.begin('a1', 'Fix it')
+    expect(wf.skillsOf('a1')).toEqual(['tdd', 'review'])
+    expect(wf.skillsOf('a2')).toEqual([])
+  })
+
+  it('end when the task does, and a task with no workflow names none', () => {
+    const { wf, state } = make()
+    wf.begin('a2', 'No pick')
+    expect(wf.skillsOf('a2')).toEqual([])
+    state.pick = () => WITH_SKILLS
+    wf.begin('a1', 'Fix it')
+    wf.done('a1')
+    expect(wf.skillsOf('a1')).toEqual([])
+  })
+})
+
 describe('reporting a step done', () => {
   const TWO_WORKS: RunWorkflow = { id: 'two', name: 'Two', steps: [{ id: 'a', kind: 'work', name: 'First' }, { id: 'b', kind: 'work', name: 'Second' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
   const started = (flow: RunWorkflow = TWO_WORKS) => {

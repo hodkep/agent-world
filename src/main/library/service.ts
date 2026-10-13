@@ -32,6 +32,8 @@ interface Deps {
   agent: (id: string) => AgentRef | undefined
   /** A short file-name-safe key for a workspace. */
   workspaceKey: (repoPath: string) => string
+  /** The skills named on the steps of the agent's open task's workflow: it may read them even when its playbook leaves them out. */
+  grants?: (agentId: string) => string[]
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
   onUse?: (agentId: string, how: How, item: string) => void
   /** The clock (tests move it). */
@@ -70,19 +72,25 @@ export function createLibraryService(d: Deps) {
     return { ...compile(rules, itemsMap(), { canFetch }), rules }
   }
 
-  function entriesFor(repoPath: string): IndexEntry[] {
+  function entriesFor(repoPath: string, granted: string[] = []): IndexEntry[] {
     const items = itemsMap()
     const order = { always: 0, 'on-demand': 1, step: 2, off: 3 }
-    return rulesFor(repoPath)
+    const entries = rulesFor(repoPath)
       .filter((r) => r.mode !== 'off' && items.has(r.id))
       .sort((x, y) => order[x.mode] - order[y.mode])
       .map((r) => {
         const i = items.get(r.id)!
         return { id: i.id, kind: i.kind, name: i.name, description: i.description, tokens: i.tokens.body, mode: r.mode, when: r.when }
       })
+    // A step that names a skill lets the agent read it for the task, whatever its playbook says. Only skills that exist, once.
+    for (const id of new Set(granted)) {
+      const i = items.get(id)
+      if (i?.kind === 'skill' && !entries.some((e) => e.id === id)) entries.push({ id: i.id, kind: i.kind, name: i.name, description: i.description, tokens: i.tokens.body, mode: 'step', when: 'for the step of your workflow that names it' })
+    }
+    return entries
   }
 
-  const indexSync = (agentId: string) => entriesFor(agentOrThrow(agentId).repoPath)
+  const indexSync = (agentId: string) => entriesFor(agentOrThrow(agentId).repoPath, d.grants?.(agentId) ?? [])
   const index = async (agentId: string) => indexSync(agentId)
 
   function record(agentId: string, id: string, how: How, mode?: string, words?: string, reason?: string, because?: string) {

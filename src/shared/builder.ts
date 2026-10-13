@@ -1,3 +1,4 @@
+import type { SkillState } from './skills'
 import { DEFAULT_RETRIES } from './steps'
 import type { AgentOptions, AgentRecord } from './types'
 import { GATES, STEPS_MAX, STEP_KINDS, type Scope, type Step, type StepKind, type Workflow, commandDiff, stepName } from './workflow'
@@ -104,7 +105,7 @@ export function builderInstructions(): string {
 You never write a file. You hand a draft to the person with workflow_propose, and only they save it, from a button beside this chat. You also change nothing else in the project: you only read.
 
 Tools: ${BUILDER_TOOLS.join(', ')}.
-- workflow_list shows the workflows that exist. Call it first.
+- workflow_list shows the workflows that exist, and the skills you can name on a work step. Call it first.
 - workflow_get gives one as its file. To change one, start from it and keep everything the person did not ask to change, with the same id.
 - workflow_propose takes the whole file as JSON text. If it is wrong you get every problem back at once: fix them and call it again.
 
@@ -112,6 +113,7 @@ How to work
 - Ask one short question at a time, and only when the answer would change the workflow. Prefer a sensible default to a question.
 - Look in the project (package.json, Makefile, CI files, scripts) for the real commands that run tests, lint and type checks. Never invent a command. If you cannot find one, ask.
 - Keep it short: most workflows need three to seven steps, never more than ${STEPS_MAX}. Steps run in the order listed.
+- A work step may name library skills the agent reads. Name only skills under "Skills you can name"; never invent a skill. If the person asks for one that is not listed, leave it out and say so in your reply. One marked as not in the project's playbook is fine to use: the step lets agents read it, and the person sees a note.
 - "when" is one sentence saying which tasks the workflow fits. Agents read it to choose between workflows, so make it specific.
 - After workflow_propose works, say in a sentence or two what the draft does and what to say if they want it different. Do not paste the file into the chat: the person sees the draft beside it.
 
@@ -138,6 +140,8 @@ export interface ProposalView {
   saved?: { scope: Scope }
   /** What is saved under this id is not what the proposal was made against. */
   stale: boolean
+  /** How each skill the draft names stands in this project. */
+  skills: Record<string, SkillState>
   commands: ProposedCommand[]
   at: number
 }

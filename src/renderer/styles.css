@@ -2986,6 +2986,16 @@ aside:not(.drawer) { flex: none; }
 .wfl-detail > .mono { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
 
+/* A work step's skills: ready (green), granted by the step (amber), not in the library (red). */
+.sk-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.sk { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); font: 11px Menlo, Consolas, monospace; white-space: nowrap; }
+.sk::before { content: ''; width: 8px; height: 8px; background: var(--ok); box-shadow: 0 0 0 1px var(--ink); }
+.sk small { font: 11px ui-sans-serif, system-ui, sans-serif; color: var(--muted); white-space: normal; }
+.sk.granted { box-shadow: 0 0 0 1px var(--accent); } .sk.granted::before { background: var(--accent); }
+.sk.gone { box-shadow: 0 0 0 1px var(--danger-text); } .sk.gone::before { background: var(--danger-text); }
+.sk-warn { color: var(--accent); font-size: 11px; }
+.wfl-detail .sk-banner { padding: 8px 12px; background: var(--well); box-shadow: inset 3px 0 var(--danger-text); font-size: 12px; overflow-wrap: anywhere; }
+
 /* The describe box and the builder: its chat beside its draft. `.mono` and `.muted` are scoped, as above. */
 .wfl-describe { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 2px solid var(--ink); align-items: center; }
 .wfl-describe input { flex: 1; min-width: 0; }

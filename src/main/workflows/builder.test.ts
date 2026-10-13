@@ -25,8 +25,9 @@ function setup() {
   const approvals = new Approvals(join(root, 'approvals.json'))
   const file = join(root, 'proposals.json')
   let t = 1000
-  const make = () => new Builder({ store, approvals, proposals: new Proposals(file), now: () => (t += 1000) })
-  return { root, project, globalDir, store, approvals, file, builder: make(), make }
+  const skills = { items: [{ id: 'tdd', kind: 'skill', description: 'Write the failing test first.' }, { id: 'code-review', kind: 'skill', description: 'Review a diff against our standards.' }, { id: 'house-style', kind: 'instruction', description: 'How we write.' }], playbook: new Set(['tdd']) }
+  const make = () => new Builder({ store, approvals, proposals: new Proposals(file), skills: { items: () => skills.items, playbook: () => skills.playbook }, now: () => (t += 1000) })
+  return { root, project, globalDir, store, approvals, file, skills, builder: make(), make }
 }
 const json = (w: Workflow) => JSON.stringify(w)
 
@@ -197,5 +198,42 @@ describe('saving a proposal', () => {
     s.builder.propose('a1', s.project, json({ ...billing, name: 'Billing' }))
     expect(() => s.builder.save('a1', s.project, 'project')).toThrow('There is already a workflow "billing-change" in that place.')
     expect(s.builder.view('a1', s.project)).not.toBeNull()
+  })
+})
+
+describe('skills in what the builder reads and proposes', () => {
+  const skilled = (...ids: string[]) => wf('skilled', 'Skilled', [{ id: 'fix', kind: 'work', skills: ids }, { id: 'land', kind: 'merge' }])
+
+  it('are listed with the workflows, ready ones first, and the ones outside the playbook say so', () => {
+    const s = setup()
+    const text = s.builder.list(s.project)
+    expect(text).toContain('Skills you can name on a work step:')
+    expect(text).toContain('- tdd: Write the failing test first.\n- code-review: Review a diff against our standards. (not in this project\'s playbook; a step that names it lets agents read it)')
+    expect(text).not.toContain('house-style')
+  })
+
+  it('are refused when they are not in the library, naming the step and the skills there are, and an instruction is not a skill', () => {
+    const s = setup()
+    expect(() => s.builder.propose('a1', s.project, json(skilled('tdd', 'deploy-notes')))).toThrow(/Nothing was proposed[\s\S]*Step 1 \("fix"\): there is no skill "deploy-notes" in the library\. Skills you can name: tdd, code-review\./)
+    expect(() => s.builder.propose('a1', s.project, json(skilled('house-style')))).toThrow('there is no skill "house-style"')
+    expect(s.builder.view('a1', s.project)).toBeNull()
+  })
+
+  it('are accepted when the library has them but the playbook does not, and the draft says how each stands', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(skilled('tdd', 'code-review')))
+    expect(s.builder.view('a1', s.project)!.skills).toEqual({ tdd: 'ready', 'code-review': 'granted' })
+  })
+
+  it('show on each saved workflow that names them, and a skill that has since gone is marked gone, not a problem', () => {
+    const s = setup()
+    s.store.save(s.project, skilled('tdd', 'code-review'), 'project')
+    s.store.save(s.project, wf('plain', 'Plain'), 'project')
+    s.skills.items = s.skills.items.filter((i) => i.id !== 'code-review')
+    const entries = s.builder.entries(s.project)
+    expect(entries.find((e) => e.id === 'skilled')).toMatchObject({ skills: { tdd: 'ready', 'code-review': 'gone' } })
+    expect(entries.find((e) => e.id === 'skilled')!.problems).toBeUndefined()
+    expect(entries.find((e) => e.id === 'plain')!.skills).toBeUndefined()
+    expect(entries.find((e) => e.id === 'standard')!.skills).toBeUndefined()
   })
 })

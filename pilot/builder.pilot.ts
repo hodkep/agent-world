@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'vitest'
 import { BUILDER_TOOLS, builderInstructions, workflowDiff } from '../src/shared/builder'
+import { goneSkills } from '../src/shared/skills'
 import { startMcpServer } from '../src/main/mcpServer'
 import { agentEnv, mcpConfig } from '../src/main/providers/claude/launch'
 import { Approvals } from '../src/main/workflows/approvals'
@@ -31,6 +32,7 @@ const CASES: { name: string; request: string; saved?: object }[] = [
   { name: 'bug fix', request: 'Make a bug-fix workflow: a failing test first, the tests and the type check must pass, and then I read the diff myself.' },
   { name: 'vague', request: 'Make our process better.' },
   { name: 'too big', request: 'I want a workflow with twenty stages: idea, research, spec, design, review of the design, prototype, build, unit tests, integration tests, lint, type check, security, performance, docs, changelog, QA, staging, approval, release notes and land.' },
+  { name: 'skills', request: 'Add a review step to the saved bug-fix workflow after the fix. It should use our review skill, and our deploy-notes skill once it is out.', saved: SAVED_BUG_FIX },
   { name: 'edit', request: 'Change the saved bug-fix workflow: it should also run lint, and give the tests one more try before it asks me.', saved: SAVED_BUG_FIX }
 ]
 
@@ -55,7 +57,7 @@ describe.skipIf(!ON)('the builder with a real agent', () => {
       }
       git('add', '-A')
       git('commit', '-qm', 'start')
-      const builder = new Builder({ store, approvals: new Approvals(join(dir, 'approvals.json')), proposals: new Proposals(join(dir, 'proposals.json')), now: Date.now })
+      const builder = new Builder({ store, approvals: new Approvals(join(dir, 'approvals.json')), proposals: new Proposals(join(dir, 'proposals.json')), skills: { items: () => [{ id: 'tdd', kind: 'skill', description: 'Write the failing test first, then the code.' }, { id: 'code-review', kind: 'skill', description: 'Review a diff against our standards, before merging.' }, { id: 'house-style', kind: 'instruction', description: 'How we write.' }], playbook: () => new Set(['tdd']) }, now: Date.now })
       let proposeCalls = 0
       let refused = 0
       const mcp = await startMcpServer({
@@ -108,8 +110,9 @@ describe.skipIf(!ON)('the builder with a real agent', () => {
           `[${c.name}] draft ${v ? `yes (${v.workflow.steps.length} steps: ${v.workflow.steps.map((s) => s.kind).join(' > ')})` : 'NO'}; propose calls ${proposeCalls}, refused by the file check ${refused}; asked ${asked ? 'yes' : 'no'}; turns ${turns}; $${cost.toFixed(3)}\n` +
             `   commands not in package.json: ${bad.length ? JSON.stringify(bad) : 'none'}; files written ${wrote}; repo dirty ${dirty.length ? JSON.stringify(dirty) : 'no'}\n` +
             (v ? `   id ${v.workflow.id}; when: ${JSON.stringify(v.workflow.when ?? '')}\n` : '') +
+            (v ? `   skills in the draft: ${JSON.stringify(v.skills)}; gone ${goneSkills(v.skills).length}\n` : '') +
             (diff ? `   edit: +${diff.added.length} -${diff.removed.length} ~${diff.changed.length}, id kept ${v!.workflow.id === 'bug-fix'}\n` : '') +
-            `   reply: ${JSON.stringify(reply.slice(0, 220))}\n`
+            `   reply: ${JSON.stringify(reply.slice(0, 600))}\n`
         )
       } finally {
         mcp.close()

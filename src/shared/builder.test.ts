@@ -106,6 +106,12 @@ describe('builderInstructions', () => {
     for (const t of BUILDER_TOOLS) expect(text).toContain(t)
   })
 
+  it('lets it name only skills the list shows, and says it must tell the person when it leaves one out', () => {
+    expect(text).toMatch(/Skills you can name/)
+    expect(text).toMatch(/never invent a skill/i)
+    expect(text).toMatch(/say so in your reply/i)
+  })
+
   it('does not send the builder to report a task, which it does not have', () => {
     expect(text).not.toContain('task_begin')
   })

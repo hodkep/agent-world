@@ -56,7 +56,9 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
     const steps = win.getByRole('list', { name: 'Steps' })
     await expect(steps.getByRole('listitem')).toHaveCount(5)
     await expect(steps).toContainText('Fix, test first')
-    await expect(steps).toContainText('skill: tdd')
+    // This test's library is empty, so the skill the file names shows as not being there.
+    await expect(steps.getByLabel('Skills')).toContainText('tdd')
+    await expect(steps.getByLabel('Skills')).toContainText('not in the library')
     await expect(steps).toContainText('runs: npm test (sent back up to 3 times)')
     await expect(steps).toContainText('must pass')
     await expect(steps.getByRole('listitem').first()).toContainText('you approve')
