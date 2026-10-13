@@ -848,10 +848,15 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
           <Clamped>
             <UserText agentId={agentId} text={r.text} onImage={onImage} />
           </Clamped>
-          {!r.pending && !busy && !asleep && (
-            <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too where the agent's program tracked changes">
-              Rewind
-            </button>
+          {!r.pending && (
+            <div className="user-acts">
+              <Copy text={r.text} />
+              {!busy && !asleep && (
+                <button className="rewind-btn" onClick={() => onRewind(r.text.replace(/@"[^"]*"\s*/g, '').trim() || r.text)} title="Go back to before this message: restore the conversation, and the code too where the agent's program tracked changes">
+                  Rewind
+                </button>
+              )}
+            </div>
           )}
           {r.pending && <span className="msg-meta">{r.queued ? 'Queued: sends when the agent finishes its current step' : 'Sending…'}</span>}
         </div>
