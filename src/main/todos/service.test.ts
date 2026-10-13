@@ -457,4 +457,14 @@ describe('a board made before tasks were sorted by area', () => {
     expect(svc.board('/work/shop').todos.map((t) => t.title)).toEqual(['one'])
     expect(svc.pad('/work/shop')).toBe('- [ ] two\n')
   })
+
+  it('lets an agent use a list that already exists even when its word would be a catch-all elsewhere (an area named from files, like Todos)', () => {
+    const { svc } = make()
+    svc.addByPerson('/work/shop', { title: 'seed', list: 'Todos' })
+    expect(svc.addByAgent('a1', { title: 'in the todos list', list: 'Todos' }).list).toBe('Todos')
+    expect(svc.addByAgent('a1', { title: 'plural', list: 'todos' }).list).toBe('Todos')
+    // a new list with that word is still refused
+    const { svc: other } = make()
+    expect(() => other.addByAgent('a1', { title: 'x', list: 'Todos' })).toThrow(/area/i)
+  })
 })
