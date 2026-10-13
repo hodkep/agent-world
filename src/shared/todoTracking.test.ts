@@ -10,6 +10,8 @@ describe('trackingHint', () => {
   })
   it('tells an agent in full mode that each request is tracked for it and how to finish it', () => {
     const h = trackingHint('full')
+    expect(h).not.toMatch(/Application/)
+    expect(h).toMatch(/implementation or research/)
     expect(h).toMatch(/todo_done/)
     expect(h).toMatch(/every request|each request/i)
   })
@@ -20,6 +22,11 @@ describe('trackingHint', () => {
 })
 
 describe('isWork', () => {
+  it('is not what the system sent: a background task finishing, a hook note, a command', () => {
+    expect(isWork('<task-notification>\n<task-id>x</task-id>\n</task-notification>')).toBe(false)
+    expect(isWork('<system-reminder>something the harness added for you to know</system-reminder>')).toBe(false)
+    expect(isWork('<local-command-stdout>compacted the conversation</local-command-stdout>')).toBe(false)
+  })
   it('is a request with some substance, not a thank-you, a slash command or a one-word answer', () => {
     expect(isWork('please add a health check endpoint to the server')).toBe(true)
     expect(isWork('thanks')).toBe(false)
@@ -127,10 +134,13 @@ describe('requestTitle, made readable', () => {
 })
 
 describe('asking the agent to name and sort the task', () => {
-  const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, ['Application', 'Canvas'])
+  const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, ['Library', 'Canvas'])
   it('says to name it and which lists exist, and to make a new one only when none fits', () => {
     expect(l).toContain('todo_update')
-    expect(l).toContain('Application, Canvas')
+    expect(l).toContain('Library, Canvas')
+    // only implementation or research is kept: a question is left alone and the app drops it
+    expect(l).toMatch(/implementation or research/)
+    expect(l).toMatch(/question/)
     expect(l).toMatch(/title/)
     expect(l).toMatch(/none fits|no list fits/i)
   })
@@ -141,8 +151,9 @@ describe('asking the agent to name and sort the task', () => {
     const many = Array.from({ length: 12 }, (_, i) => `Area${i}`)
     expect(reminderLine('full', 'x y z w', { id: '1', list: 'Inbox' }, many)).not.toContain('Area9')
   })
-  it('the opening text asks for a few lists by area, never a catch-all', () => {
-    expect(trackingHint('full')).toMatch(/by area/)
-    expect(trackingHint('deferred')).toMatch(/by area/)
+  it('the opening text asks for lists by feature, never the app itself or a catch-all', () => {
+    expect(trackingHint('full')).toMatch(/by feature/)
+    expect(trackingHint('deferred')).toMatch(/by feature/)
+    expect(trackingHint('full')).toMatch(/never the app itself/)
   })
 })

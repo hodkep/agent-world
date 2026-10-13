@@ -9,6 +9,8 @@ export interface TidyInput {
   commits: string[]
   /** The lists the board already has. */
   lists: string[]
+  /** The feature its files are in, when they point to one. */
+  area?: string
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()}…` : s.trim())
@@ -19,7 +21,7 @@ export function tidyPrompt(i: TidyInput): string {
   return [
     'You file finished work on a project\'s todo board. Read the request, what the agent said when it finished, and its commits, then answer with JSON only: {"title": "...", "list": "..."}.',
     'title: one line, at most 70 characters, starting with a verb, saying what was done or decided (not the person\'s words, not a question).',
-    `list: the part of the project it belongs to, one or two words (for example Application, Canvas, Library, Terminal, Release). ${lists} Use an existing list when one fits; make a new area only when none does. Never use Misc, Other, General, Requests or Tasks.`,
+    `list: the part of the project it belongs to, one or two words (for example Library, Chat, Settings, Providers, Release). ${lists} Use an existing list when one fits; make a new area only when none does. Never use the app's own name, Application, Misc, Other, General, Requests or Tasks.${i.area ? ` Its files point to ${i.area}: use it unless the request clearly belongs elsewhere.` : ''}`,
     `Request: ${clip(i.request, 700)}`,
     `Agent said: ${clip(i.reply, 900)}`,
     i.commits.length ? `Commits: ${i.commits.slice(0, 6).map((c) => clip(c, 120)).join(' | ')}` : ''

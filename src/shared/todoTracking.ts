@@ -6,9 +6,9 @@ const DEFER = /\b(later|for now|not now|defer(red)?|backlog|next time|another ti
 /** One short paragraph in an agent's opening text; paid for in every session, so it is kept brief. */
 export function trackingHint(mode: TodoTracking): string {
   if (mode === 'full') {
-    return 'This project keeps a todo board the person watches. The app records every request you are given as a task for you. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot). Name a task as todo#N in your replies so it links to the board. Keep tasks in a few lists by area (Application, Canvas…), never a catch-all. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
+    return 'This project keeps a todo board the person watches. The app records each request you are given as a task for you, and keeps it only if it is implementation or research work; for a question, an explanation or chat, leave the task alone and the app drops it. Work on it, add a task with todo_add for anything you split off or put off on purpose, and call todo_done with a one-line note when you finish (todo_update with status blocked and a reason if you cannot). Name a task as todo#N in your replies so it links to the board. Keep tasks in lists by feature (Library, Chat, Settings…), never the app itself and never a catch-all. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
   }
-  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked. Name a task as todo#N in your replies so it links to the board. Keep tasks in a few lists by area (Application, Canvas…), never a catch-all. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
+  return 'This project keeps a todo board the person watches. When something is put off or left out on purpose (by you or by them), record it with todo_add, with the reason in the notes, so it is not forgotten. Add other tasks only when asked. Name a task as todo#N in your replies so it links to the board. Keep tasks in lists by feature (Library, Chat, Settings…), never the app itself and never a catch-all. Before work that may have been done before, search the finished tasks with todo_search; when you finish one, say how in todo_done.'
 }
 
 /** A line for a message that looks like work already done: which tasks, who did them, and how to find out how. Empty when nothing looks alike. */
@@ -33,10 +33,15 @@ function ask(prompt: string): string {
   return t.trim()
 }
 
+// What the harness or the app puts into a conversation that nobody typed: a background task finishing, a hook's note, a command's output.
+const SYSTEM = /^<(task-notification|system-reminder|local-command-[a-z]+|command-(?:name|message|args)|bash-(?:input|stdout|stderr)|user-prompt-submit-hook)\b/i
+/** A message nobody typed: not a request. */
+export const isSystemMessage = (text: string): boolean => SYSTEM.test(text.trim())
+
 /** A request with some substance: not a thank-you, an approval, a plain git instruction (commit, merge, push), a slash command or a one-word answer. */
 export function isWork(prompt: string): boolean {
   const t = prompt.trim()
-  if (!t || t.startsWith('/')) return false
+  if (!t || t.startsWith('/') || isSystemMessage(t)) return false
   const words = ask(t).split(/\s+/).filter(Boolean)
   if (words.length < 4) return false
   // "commit those and merge to main" is an order to do git, not a piece of work to track; a long message that also commits is still work.
@@ -68,8 +73,8 @@ export const deferralCue = (prompt: string): boolean => DEFER.test(prompt)
 export function reminderLine(mode: TodoTracking, prompt: string, made?: { id: string; list: string }, lists: string[] = []): string {
   if (mode === 'full') {
     if (!made) return ''
-    const where = lists.length ? `a list by area: ${lists.slice(0, 8).join(', ')}, or a new area only if none fits` : 'a list named for its area (Application, Canvas…)'
-    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. When you know what it is, call todo_update with a title that says what is being done (your words) and ${where}. Call todo_done when it is finished, or todo_update with status blocked and why.`
+    const where = lists.length ? `a list by area: ${lists.slice(0, 8).join(', ')}, or a new area (a feature, never the app) only if none fits` : 'a list named for its area (Library, Chat…)'
+    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. If it is implementation or research work, call todo_update with a title that says what is being done (your words) and ${where}, then todo_done when it is finished (todo_update with status blocked and why if it cannot be). If it is only a question or chat, leave it: the app drops it.`
   }
   return deferralCue(prompt) ? 'If this puts something off, record it with todo_add so it is not forgotten.' : ''
 }

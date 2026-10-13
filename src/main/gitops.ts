@@ -24,6 +24,16 @@ export async function commitsSince(cwd: string, sinceMs: number): Promise<{ comm
   }
 }
 
+/** The files with changes not yet committed (edited, added or new), so work an agent has not committed still counts as work. */
+export async function uncommittedFiles(cwd: string): Promise<string[]> {
+  try {
+    const out = await git(cwd, 'status', '--porcelain', '-uall')
+    return out.split('\n').map((l) => l.replace(/^\s*\S+\s+/, '').replace(/^.* -> /, '').trim()).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
 export interface Change {
   path: string

@@ -11,9 +11,10 @@ const make = () => {
   const worked: number[] = []
   const asked: string[] = []
   const busyAgents = new Set<string>()
-  const answer = { text: '{"title": "Fix the Safari login bug", "list": "Application"}' }
+  const answer = { text: '{"title": "Fix the Safari login bug", "list": "Library"}' }
   const remembered: { repo: string; text: string; by: string }[] = []
   let clock = 1000
+  const work = { commits: [{ sha: 'abc1234def', subject: 'fix: wire the key' }], files: ['src/b.ts'] }
   const agents: Record<string, { id: string; name: string; provider: string; repoPath: string; forMain?: string }> = {
     a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' },
     b1: { id: 'b1', name: 'bob', provider: 'agy', repoPath: '/work/shop' },
@@ -25,15 +26,17 @@ const make = () => {
     workspaceKey: (p) => p.split('/').pop()!,
     agent: (id) => agents[id],
     lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: clock, excerpt: 'Done: it works' }),
-    workSince: async (_id, since) => { worked.push(since); return { commits: [{ sha: 'abc1234def', subject: 'fix: wire the key' }], files: ['src/b.ts'] } },
+    agentNamed: (repo, name) => Object.values(agents).find((x) => x.name === name && x.repoPath === repo),
+    workSince: async (_id, since) => { worked.push(since); return { commits: [...work.commits], files: [...work.files] } },
     remember: (repo, text, by) => void remembered.push({ repo, text, by }),
+    pause: async () => undefined,
     busy: (id) => busyAgents.has(id),
     ask: async (prompt) => { asked.push(prompt); return answer.text },
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents }
+  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work }
 }
 
 describe('the todo service', () => {
@@ -186,30 +189,30 @@ describe('the todo service', () => {
 
   it('keeps the board to a few lists by area: an agent\'s list name is matched to an existing one, a generic one is refused, and too many are refused', () => {
     const { svc } = make()
-    svc.addByAgent('a1', { title: 'one', list: 'Application' })
-    svc.addByAgent('a1', { title: 'two', list: 'application' })
-    svc.addByAgent('a1', { title: 'three', list: 'Applications' })
-    expect(svc.board('/work/shop').lists).toEqual(['Application'])
+    svc.addByAgent('a1', { title: 'one', list: 'Library' })
+    svc.addByAgent('a1', { title: 'two', list: 'library' })
+    svc.addByAgent('a1', { title: 'three', list: 'Libraries' })
+    expect(svc.board('/work/shop').lists).toEqual(['Library'])
     expect(() => svc.addByAgent('a1', { title: 'x', list: 'Misc' })).toThrow(/area/i)
-    expect(() => svc.addByAgent('a1', { title: 'x', list: 'Requests' })).toThrow(/Application/)
-    for (const l of ['Canvas', 'Library', 'Release', 'Terminal', 'Settings', 'Agents', 'Usage']) svc.addByAgent('a1', { title: l, list: l })
-    expect(svc.board('/work/shop').lists).toHaveLength(8)
-    expect(() => svc.addByAgent('a1', { title: 'y', list: 'Brand new area' })).toThrow(/already has 8 lists/)
+    expect(() => svc.addByAgent('a1', { title: 'x', list: 'Requests' })).toThrow(/Library/)
+    for (const l of ['Canvas', 'Release', 'Terminal', 'Settings', 'Agents', 'Usage', 'Chat', 'Providers', 'Workflows', 'Preview', 'Code']) svc.addByAgent('a1', { title: l, list: l })
+    expect(svc.board('/work/shop').lists).toHaveLength(12)
+    expect(() => svc.addByAgent('a1', { title: 'y', list: 'Brand new area' })).toThrow(/already has 12 lists/)
     expect(svc.addByAgent('a1', { title: 'z', list: 'canvas' }).list).toBe('Canvas')
-    expect(svc.listsOf('a1')).toHaveLength(8)
+    expect(svc.listsOf('a1')).toHaveLength(12)
   })
 
   it('a task added with no list waits in the Inbox, and an agent names and sorts it with an update or when it finishes', () => {
     const { svc } = make()
     const t = svc.addByAgent('a1', { title: 'the thing' })
     expect(t.list).toBe('Inbox')
-    const u = svc.updateByAgent('a1', t.id, { title: 'Wire the Anthropic key', list: 'Application' })
-    expect(u).toMatchObject({ title: 'Wire the Anthropic key', list: 'Application' })
+    const u = svc.updateByAgent('a1', t.id, { title: 'Wire the Anthropic key', list: 'Library' })
+    expect(u).toMatchObject({ title: 'Wire the Anthropic key', list: 'Library' })
     const r = svc.trackRequest('b1', 'please build a settings page for the accounts')!
     expect(r.list).toBe('Inbox')
-    const d = svc.doneByAgent('b1', r.id, 'Built it', { title: 'Settings page for accounts', list: 'application' })
-    expect(d).toMatchObject({ status: 'done', title: 'Settings page for accounts', list: 'Application' })
-    expect(svc.listsOf('a1')).toEqual(['Application'])
+    const d = svc.doneByAgent('b1', r.id, 'Built it', { title: 'Settings page for accounts', list: 'library' })
+    expect(d).toMatchObject({ status: 'done', title: 'Settings page for accounts', list: 'Library' })
+    expect(svc.listsOf('a1')).toEqual(['Library'])
   })
 
   it('does not make a second task for the same request while the first is still open', () => {
@@ -244,8 +247,8 @@ describe('the todo service', () => {
     svc.turnEnded('a1')
     await svc.settled()
     const t = svc.board('/work/shop').todos.find((x) => x.id === a.id)!
-    expect(t).toMatchObject({ title: 'Fix the Safari login bug', list: 'Application', named: true })
-    expect(svc.board('/work/shop').lists).toContain('Application')
+    expect(t).toMatchObject({ title: 'Fix the Safari login bug', list: 'Library', named: true })
+    expect(svc.board('/work/shop').lists).toContain('Library')
     expect(asked).toHaveLength(1)
     expect(asked[0]).toContain('login bug on Safari')
     // Done again, or ended again, it is not asked about again.
@@ -258,7 +261,7 @@ describe('the todo service', () => {
   it('leaves a task alone that an agent already named, and survives a model that answers badly or not at all', async () => {
     const { svc, asked, answer } = make()
     const a = svc.trackRequest('a1', 'please fix the login bug on Safari')!
-    svc.updateByAgent('a1', a.id, { title: 'Fix the Safari login bug', list: 'Application' })
+    svc.updateByAgent('a1', a.id, { title: 'Fix the Safari login bug', list: 'Library' })
     svc.turnEnded('a1')
     await svc.settled()
     expect(asked).toHaveLength(0)
@@ -274,7 +277,7 @@ describe('the todo service', () => {
     svc.trackRequest('a1', 'please fix the login bug on Safari')
     svc.trackRequest('b1', 'build a settings page for the accounts')
     expect(await svc.tidyInbox('/work/shop')).toBe(2)
-    expect(svc.board('/work/shop').todos.every((t) => t.named && t.list === 'Application')).toBe(true)
+    expect(svc.board('/work/shop').todos.every((t) => t.named && t.list === 'Library')).toBe(true)
     expect(await svc.tidyInbox('/work/shop')).toBe(0)
   })
 
@@ -318,5 +321,92 @@ describe('a board made before tasks were sorted by area', () => {
     expect(out.lists).toEqual(['Requests', 'Setup', 'Inbox'])
     // It is saved, so it is only done once.
     expect(JSON.parse(readFileSync(join(dir, 'shop.json'), 'utf8')).todos[0].list).toBe('Inbox')
+  })
+
+  it('records a request another agent sent as made by that agent, and a reply to a message of yours as no request', () => {
+    const { svc } = make()
+    const mail = '[Agent World] Message from bob: please add a health check endpoint to the server\n\nWhen you have an answer, reply using the agent-world send_message tool with to="bob" and expects_reply=false.'
+    const t = svc.trackRequest('a1', mail)!
+    expect(t.createdBy).toMatchObject({ kind: 'agent', name: 'bob', provider: 'agy', id: 'b1' })
+    expect(t.title).toBe('add a health check endpoint to the server')
+    expect(svc.trackRequest('a1', '[Agent World] Message from bob: here is the answer to your question about the build\n\nThis is a reply to you. No reply is needed; carry on with your task.')).toBeUndefined()
+  })
+
+  it('makes no task for what the system sent: a background task finishing, a hook, a command', () => {
+    const { svc } = make()
+    expect(svc.trackRequest('a1', '<task-notification>\n<task-id>bvw4cqgjx</task-id>\n<status>completed</status>\n</task-notification>')).toBeUndefined()
+    expect(svc.trackRequest('a1', '<system-reminder>something the harness added to the conversation for you</system-reminder>')).toBeUndefined()
+    expect(svc.trackRequest('a1', '<command-name>/compact</command-name> compact the conversation now please')).toBeUndefined()
+    expect(svc.board('/work/shop').todos).toHaveLength(0)
+  })
+
+  it('drops the task of a request that was only talked about: no one named it and nothing was changed', async () => {
+    const { svc, work } = make()
+    work.commits = []
+    work.files = []
+    const q = svc.trackRequest('a1', 'why is this error shown in the preview tab')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === q.id)).toBeUndefined()
+    // an agent that named it (it is work or research) keeps it, with or without changes
+    const r = svc.trackRequest('a1', 'research how other apps show skipped items')!
+    svc.updateByAgent('a1', r.id, { title: 'Research how other apps show skipped items' })
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === r.id)).toMatchObject({ status: 'done', title: 'Research how other apps show skipped items' })
+    // changes make it work
+    work.files = ['src/main/library/service.ts']
+    const w = svc.trackRequest('a1', 'build the new stats row for passed over items')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === w.id)).toMatchObject({ status: 'done' })
+  })
+
+  it('sorts a finished task by the feature its files are in, before asking a model, and the model only chooses among areas', async () => {
+    const { svc, work, asked, answer } = make()
+    work.files = ['src/main/library/service.ts', 'src/main/library/situations.ts', 'e2e/library-situations.e2e.ts']
+    answer.text = '{"title": "Point agents at skills when a merge conflict shows up", "list": "Application"}'
+    const a = svc.trackRequest('a1', 'point the agent at the skill when a merge conflict shows up')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ list: 'Library', title: 'Point agents at skills when a merge conflict shows up' })
+    expect(asked[0]).toContain('Library')
+    // another feature gets its own list, not the same catch-all
+    work.files = ['src/main/todos/service.ts', 'src/shared/todos.ts']
+    answer.text = '{"title": "Drop chat-only requests from the board", "list": "Application"}'
+    const b = svc.trackRequest('a1', 'drop the tasks for chat only requests from the board')!
+    svc.turnEnded('a1')
+    await svc.settled()
+    expect(svc.board('/work/shop').todos.find((t) => t.id === b.id)!.list).toBe('Todos')
+    expect(svc.board('/work/shop').lists).toEqual(expect.arrayContaining(['Library', 'Todos']))
+  })
+
+  it('closes a request left open by an agent that has stopped, when the board is opened, and re-files the old catch-all list by files', async () => {
+    const { dir, svc } = make()
+    const a = svc.trackRequest('a1', 'build the settings page for the accounts')!
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)!.status).toBe('doing')
+    expect(svc.sweep('/work/shop')).toBe(1)
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true })
+    // an agent still working keeps its task open
+    const { svc: s2, busyAgents } = make()
+    const b = s2.trackRequest('a1', 'build the settings page for the accounts')!
+    busyAgents.add('a1')
+    expect(s2.sweep('/work/shop')).toBe(0)
+    expect(s2.board('/work/shop').todos.find((t) => t.id === b.id)!.status).toBe('doing')
+    // an old board: "Application" holds what was finished in it; each goes where its files are, the rest to the Inbox, and system messages go
+    const board = emptyBoard()
+    board.lists = ['Inbox', 'Application']
+    const old = { ...addTodo(board, { title: 'Add situations', list: 'Application' }, { kind: 'human', name: 'you' }, 1).board }
+    old.todos[0]!.status = 'done'
+    old.todos[0]!.doneFiles = ['src/main/library/service.ts']
+    const more = addTodo(old, { title: 'Explain things', list: 'Application' }, { kind: 'human', name: 'you' }, 2)
+    const noise = addTodo(more.board, { title: 'bvw4cqgjx', list: 'Inbox', auto: true }, { kind: 'human', name: 'you' }, 3, { agentId: 'a1', itemId: 'x', at: 3, excerpt: '<task-notification>\n<task-id>bvw4cqgjx</task-id>' })
+    writeFileSync(join(dir, 'migrated.json'), JSON.stringify(noise.board))
+    const m = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 1, onChange: () => undefined })
+    const got = m.board('/work/migrated')
+    expect(got.lists).not.toContain('Application')
+    expect(got.todos.find((t) => t.title === 'Add situations')!.list).toBe('Library')
+    expect(got.todos.find((t) => t.title === 'Explain things')!.list).toBe('Inbox')
+    expect(got.todos.find((t) => t.title === 'bvw4cqgjx')).toBeUndefined()
   })
 })

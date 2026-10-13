@@ -3,7 +3,8 @@ import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
 import { createTodoService } from './todos/service'
 import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
-import { commitsSince } from './gitops'
+import { commitsSince, uncommittedFiles } from './gitops'
+import { editedFiles } from './todos/edited'
 import { excerptOf } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
@@ -442,6 +443,11 @@ const todoService = createTodoService({
     return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text, 2000) : '' } : undefined
   },
   // The message the person just sent: found among the chat's items when the transcript already has it, else pointed at by its words (the chat finds it by them).
+  // Which agent another agent's message came from, so a request it sent is recorded as its own.
+  agentNamed: (repoPath, name) => {
+    const x = agents.find((o) => o.name === name && o.repoPath === repoPath)
+    return x && { id: x.id, name: x.name, provider: providerOf(x).id }
+  },
   lastRequest: (id, text) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'user' && i.text.trim() === text.trim())
@@ -450,7 +456,10 @@ const todoService = createTodoService({
   // What the agent committed while it worked on a task, from git in its own checkout.
   workSince: (id, since) => {
     const a = byId(id)
-    return a ? commitsSince(a.cwd, since) : Promise.resolve({ commits: [], files: [] })
+    if (!a) return Promise.resolve({ commits: [], files: [] })
+    // Work not yet committed counts too (files git shows changed, and files its own tools wrote): a task is dropped only when nothing at all was changed.
+    const edited = editedFiles([...(chats.get(id)?.items ?? []), ...(editLog.get(id) ?? [])], a.cwd, since)
+    return Promise.all([commitsSince(a.cwd, since), uncommittedFiles(a.cwd)]).then(([w, dirty]) => ({ commits: w.commits, files: [...new Set([...w.files, ...dirty, ...edited])] }))
   },
   // A small model names and sorts the tasks the app makes for requests, as a separate one-off call that adds nothing to an agent's context.
   busy: (id) => !['idle', 'waiting', 'asleep', undefined].includes(lastActivity.get(id)),
@@ -490,6 +499,14 @@ const libraryRemind = (id: string, prompt: string) => {
   } catch {
     return null
   }
+}
+// The files an agent wrote or edited, as its hook reports each tool call: the chat's copy of the transcript can lag behind the end of a turn, and this does not.
+const editLog = new Map<string, ChatItem[]>()
+const noteEdit = (id: string, tool: string, input: Record<string, unknown>) => {
+  if (!['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(tool)) return
+  const log = editLog.get(id) ?? []
+  log.push({ kind: 'tool', id: `edit-${log.length}`, at: Date.now(), toolUseId: '', name: tool, input })
+  editLog.set(id, log.slice(-200))
 }
 // What an agent met in the middle of a run (a merge conflict) that the playbook has an item for: said right after the tool that showed it.
 const librarySituation = (id: string, tool: string, input: Record<string, unknown>, response: unknown) => {
@@ -953,7 +970,7 @@ async function main() {
     onStatus: onStats,
     reminderFor: libraryRemind,
     situationFor: librarySituation,
-    onToolUse: noteLibraryUse,
+    onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
     onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
     onSession: (id, sessionId) => {
@@ -1431,7 +1448,8 @@ async function main() {
     await (on ? p.mail.connect(binFor(p)) : p.mail.disconnect(binFor(p)))
     return mailState(p)
   })
-  ipcMain.handle('todos:get', (_, folder: string) => ({ board: todoService.board(String(folder)), key: repoSlug(String(folder)) }))
+  // Opening the board first closes what an agent that has stopped left open.
+  ipcMain.handle('todos:get', (_, folder: string) => (todoService.sweep(String(folder)), { board: todoService.board(String(folder)), key: repoSlug(String(folder)) }))
   ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => void todoService.addByPerson(String(folder), i))
   ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
   ipcMain.handle('todos:ask', (_, folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string) => todoService.askAgent(String(folder), String(id), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000)))

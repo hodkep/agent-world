@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { parseTidy, tidyPrompt } from './todoTidy'
 
 describe('tidyPrompt', () => {
-  const p = tidyPrompt({ request: 'why is this error shown? its in the CH project', reply: 'The Code panel offered Merge for an agent with no worktree. I made it say so instead.', commits: ['fix: say so in the Code panel when there is no worktree'], lists: ['Application', 'Canvas'] })
+  const p = tidyPrompt({ request: 'why is this error shown? its in the CH project', reply: 'The Code panel offered Merge for an agent with no worktree. I made it say so instead.', commits: ['fix: say so in the Code panel when there is no worktree'], lists: ['Library', 'Canvas'], area: 'Library' })
   it('gives the request, what the agent said, the commits and the lists to choose from', () => {
     expect(p).toContain('why is this error shown?')
     expect(p).toContain('offered Merge for an agent with no worktree')
     expect(p).toContain('fix: say so in the Code panel')
-    expect(p).toContain('Application, Canvas')
+    expect(p).toContain('Library, Canvas')
+    expect(p).toContain('files point to Library')
   })
   it('asks for a title that says what was done and a list by area, as JSON only, and forbids catch-alls', () => {
     expect(p).toMatch(/JSON/)
@@ -23,7 +24,7 @@ describe('tidyPrompt', () => {
 
 describe('parseTidy', () => {
   it('reads the title and list from the model\'s JSON, even with words around it', () => {
-    expect(parseTidy('Sure!\n```json\n{"title": "Explain agents with no worktree in the Code panel", "list": "Application"}\n```')).toEqual({ title: 'Explain agents with no worktree in the Code panel', list: 'Application' })
+    expect(parseTidy('Sure!\n```json\n{"title": "Explain agents with no worktree in the Code panel", "list": "Library"}\n```')).toEqual({ title: 'Explain agents with no worktree in the Code panel', list: 'Library' })
     expect(parseTidy('{"title":"A","list":"Canvas"}')).toEqual({ title: 'A', list: 'Canvas' })
   })
   it('trims and clips', () => {
