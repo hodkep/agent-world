@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
-import { stepStates } from '../../shared/steps'
+import { DEFAULT_RETRIES, checkFailed, checkGaveUp, checkRuns, stepStates } from '../../shared/steps'
+import type { CheckResult } from './runCheck'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
 import { auditPrompt, parseAudit } from '../../shared/audit'
 import { intentPrompt, parseIntent } from '../../shared/intent'
@@ -20,6 +21,12 @@ interface Deps {
   ask: (agentId: string, prompt: string, model?: string) => Promise<{ text: string; cost?: number; model?: string }>
   /** The workflow a new task follows: the one the agent asked for if there is such a workflow, else the project's default. Nothing when the app has none to offer. */
   pick: (agentId: string, requested?: string) => RunWorkflow | undefined
+  /** Runs a check's command in a folder. */
+  run: (command: string, cwd: string) => Promise<CheckResult>
+  /** Whether the commands of this workflow's file may run: a project's file needs the person's approval of its exact content. */
+  approved: (workflow: RunWorkflow) => boolean
+  /** The folder an agent works in. */
+  cwd: (agentId: string) => string | undefined
   /** When workflows were switched on (ms): earlier commits are history. */
   since: () => number
   now: () => number
@@ -33,7 +40,7 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; model?: s
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step']
+const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -115,8 +122,84 @@ export class Workflows {
     this.append({ k: 'done', t: this.deps.now(), run: open.id, ...(summary && { summary }) })
   }
 
-  private states(run: Run) {
-    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate() })
+  private states(run: Run, head?: string) {
+    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
+  }
+
+  private running = new Set<string>()
+
+  private checkStep(runId: string, step: string) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    if (run.workflow?.steps.find((s) => s.id === step)?.kind !== 'check') throw new Error('That is not a check.')
+    return { run, round }
+  }
+
+  /** The person passes a check over: it does not hold landing. */
+  skipCheck(runId: string, step: string) {
+    const { run, round } = this.checkStep(runId, step)
+    if (this.states(run).find((s) => s.id === step)?.state === 'passed') throw new Error('That check already passed.')
+    this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'skipped' })
+  }
+
+  /** The person asks for a check again: it gets all its tries back. */
+  rerunCheck(runId: string, step: string) {
+    const { round } = this.checkStep(runId, step)
+    this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'rerun' })
+  }
+
+  /** The person approved the commands after all: the checks they had declined are asked for again, and ones that failed on their tries are left as they are. */
+  commandsApproved(runId: string) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    for (const s of this.states(run)) {
+      const declined = round.steps.filter((x) => x.step === s.id && (x.state === 'declined' || x.state === 'rerun')).at(-1)?.state === 'declined'
+      if (s.kind === 'check' && declined) this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step: s.id, state: 'rerun' })
+    }
+  }
+
+  /** The person does not approve the commands of the file: the checks that wait for it are marked failed, and run again only when asked for. */
+  declineCommands(runId: string) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    for (const s of this.states(run)) if (s.kind === 'check' && s.state === 'waiting') this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step: s.id, state: 'declined' })
+  }
+
+  /**
+   * Runs the checks of the agent's workflow that are due, in order, in its worktree, stopping at the first that fails or waits for the
+   * person's approval of its commands. Says how many ran, and what to tell the agent when one failed and may be tried again or has run out of tries.
+   */
+  async runChecks(agentId: string, head: string, o: { fresh?: boolean } = {}): Promise<{ ran: number; sendBack?: string; gaveUp?: string; waitingApproval?: string }> {
+    let ran = 0
+    for (;;) {
+      const run = this.mine(agentId)[0]
+      const cwd = this.deps.cwd(agentId)
+      if (!run?.workflow || run.status === 'stopped' || !cwd) return { ran }
+      const due = this.states(run, head).find((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting'))
+      if (!due) return { ran }
+      if (due.state === 'waiting') return { ran, waitingApproval: due.name }
+      // Asked only for what is new: a check that already ran for this very branch is left, so looking at it does not use up its tries.
+      if (o.fresh && checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return { ran }
+      const key = `${run.id} ${due.id}`
+      if (this.running.has(key)) return { ran }
+      this.running.add(key)
+      try {
+        const step = run.workflow.steps.find((s) => s.id === due.id)!
+        const round = run.rounds[run.rounds.length - 1]!
+        const attempt = checkRuns(round, step.id).results.length + 1
+        const r = await this.deps.run(step.run ?? '', cwd)
+        this.append({ k: 'check', t: this.deps.now(), run: run.id, round: round.n, step: step.id, head, attempt, ok: r.exit === 0, exit: r.exit, timedOut: r.timedOut, ms: r.ms, tail: r.tail })
+        ran++
+        if (r.exit === 0) continue
+        const of = (step.retries ?? DEFAULT_RETRIES) + 1
+        return attempt < of ? { ran, sendBack: checkFailed({ name: step.name, run: step.run ?? '', try: attempt, of, result: r }) } : { ran, gaveUp: checkGaveUp({ name: step.name, tries: attempt }) }
+      } finally {
+        this.running.delete(key)
+      }
+    }
   }
 
   /** Whether the plan comes first for the task the agent has open. */
@@ -142,7 +225,7 @@ export class Workflows {
    * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
-  stepDone(agentId: string, step?: string): { done: string; waiting?: string } {
+  stepDone(agentId: string, step?: string): { done: string; waiting?: string; checking?: boolean } {
     const run = this.openRun(agentId)
     if (!run) throw new Error('No task is open.')
     const flow = run.workflow
@@ -161,13 +244,17 @@ export class Workflows {
       if (!target) {
         // Work the person sent back: the last work step before the approve step that came back.
         const back = flow.steps.findIndex((s) => s.kind === 'approve' && last(s.id)?.state === 'changes')
-        target = back < 0 ? undefined : flow.steps.slice(0, back).reverse().find((s) => s.kind === 'work')
+        // Or the work a check sent back: it failed and still has tries, so the agent has fixed it and says so.
+        const failing = this.states(run).findIndex((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)
+        const at = back >= 0 ? back : failing
+        target = at < 0 ? undefined : flow.steps.slice(0, at).reverse().find((s) => s.kind === 'work')
       }
       if (!target) throw new Error('Every step you do is already reported done.')
     }
     this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
-    const waiting = this.states(this.runs().find((r) => r.id === run.id)!).find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
-    return { done: target.id, ...(waiting && { waiting: waiting.name }) }
+    const after = this.states(this.runs().find((r) => r.id === run.id)!)
+    const waiting = after.find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
+    return { done: target.id, ...(waiting && { waiting: waiting.name }), ...(after.some((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting')) && { checking: true }) }
   }
 
   /** The person's answer to a step that waits for them: approve it, or send the work back with a note. */
@@ -285,7 +372,10 @@ export class Workflows {
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */
   mergeCheck(agentId: string, head: string, o: { auditable?: boolean } = {}): MergeCheck | null {
     const run = this.mine(agentId)[0]
-    if (!this.deps.enabled() || !run || !this.mergeRequired(run)) return null
+    if (!this.deps.enabled() || !run) return null
+    // A merge step with gate auto turns off the plan and audit rules; a check that must pass and a step the person must approve still hold landing.
+    const gated = this.mergeRequired(run)
+    if (!gated && !run.workflow?.steps.some((s) => s.kind === 'check' || s.kind === 'approve' || (s.kind === 'work' && s.gate === 'approve'))) return null
     const blocking: string[] = []
     const notes: string[] = []
     const plan = [...run.rounds].reverse().find((r) => r.plan)?.plan
@@ -293,7 +383,7 @@ export class Workflows {
     if (run.auto) {
       state = 'not-needed'
       notes.push('The app started this run from a commit, so there was no plan to approve.')
-    } else if (!this.planRequired(run) || (state === 'none' && this.deps.dial() === 'economy')) state = 'not-needed'
+    } else if (!gated || !this.planRequired(run) || (state === 'none' && this.deps.dial() === 'economy')) state = 'not-needed'
     else if (state === 'none') blocking.push('No plan was approved for this task.')
     else if (state === 'waiting') blocking.push('The plan is still waiting for your approval.')
     else if (state === 'changes') blocking.push('You asked for changes to the plan and no new plan was approved.')
@@ -301,15 +391,34 @@ export class Workflows {
     const commits = run.rounds.reduce((n, r) => n + r.commits.length, 0)
     const flagged = run.rounds.reduce((n, r) => n + r.commits.filter((c) => c.flagged).length, 0)
     if (flagged) notes.push(`${flagged} commit${flagged === 1 ? ' was' : 's were'} made outside the task.`)
-    const audit = this.auditState(run, head, o.auditable ?? true)
+    const audit: MergeCheck['audit'] = gated ? this.auditState(run, head, o.auditable ?? true) : { state: 'off', reason: 'gate' }
     if (audit.state === 'done') {
       const unseen = audit.findings.filter((f) => !f.seen).length
       if (unseen) blocking.push(`${unseen} audit finding${unseen === 1 ? ' has' : 's have'} not been seen.`)
     }
     // Steps the person must approve before landing: named, so they know which.
-    for (const w of this.states(run)) if (w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work')) blocking.push(`"${w.name}" has not been approved.`)
+    const states = this.states(run, head)
+    for (const w of states) if (w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work')) blocking.push(`"${w.name}" has not been approved.`)
+    // Checks: a row each, and landing held by name for one that has not passed or been skipped (unless its gate is auto, which only reports).
+    const latest = run.rounds[run.rounds.length - 1]!
+    const checks = states.flatMap((c) => {
+      const step = run.workflow?.steps.find((x) => x.id === c.id)
+      if (c.kind !== 'check' || !step) return []
+      const last = checkRuns(latest, c.id).results.at(-1)
+      if (step.gate !== 'auto' && c.state !== 'passed' && c.state !== 'skipped') {
+        blocking.push(
+          c.state === 'pending' ? `"${c.name}" has not run yet.`
+          : c.state === 'running' ? `"${c.name}" has not passed for the branch as it is now.`
+          : c.state === 'waiting' ? `"${c.name}" has not run: its commands are not approved.`
+          : c.tries ? `"${c.name}" failed after ${c.tries} tries.`
+          : `"${c.name}" did not run: you declined its commands.`
+        )
+      }
+      return [{ id: c.id, name: c.name, run: step.run ?? '', state: c.state, ...(c.tries && { tries: c.tries }), ...(last && { ms: last.ms }), ...(last?.tail && !last.ok && { tail: last.tail }) }]
+    })
+    if (!gated && blocking.length === 0 && checks.length === 0) return null
     const readback = this.planOf(run)
-    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, blocking, notes }
+    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, checks, blocking, notes }
   }
 
   /** The plan an audit reads against: the latest round's that has a goal (a released hold has none). */

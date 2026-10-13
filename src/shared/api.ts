@@ -331,13 +331,23 @@ export interface AwApi {
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
   workflows: {
     /** Every run recorded, oldest first, and how many are still open. */
-    summary(): Promise<{ runs: Run[]; open: number; /** What each run cost, by run id, from the ledger. */ spend: Record<string, import('./runStats').RunSpend> }>
+    summary(): Promise<{ runs: Run[]; open: number; /** What each run cost, by run id, from the ledger. */ spend: Record<string, import('./runStats').RunSpend>; /** The runs whose workflow file has checks the person has not approved the commands of. */ unapproved: string[] }>
     /** The person's answer to a plan that is waiting; it is typed into the agent's prompt. A release lifts the hold on edits without approving. */
     decide(runId: string, state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }): Promise<void>
     /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
     stopAll(): Promise<void>
     /** The person's answer to a step of a run that waits for them; it is typed into the agent. */
     approveStep(runId: string, step: string, decision: 'approved' | 'changes', note?: string): Promise<void>
+    /** What the person is shown before approving a project file's check commands. */
+    checkApproval(runId: string): Promise<{ workflow: string; file: string; hash: string; commands: string[]; before?: { hash: string; at: number; diff: { change: 'added' | 'removed' | 'same'; text: string }[] } }>
+    /** Approve the commands of the run's workflow file (this exact version); the checks run at once. */
+    approveChecks(runId: string): Promise<void>
+    /** Do not approve them: the checks that wait are marked failed. */
+    declineChecks(runId: string): Promise<void>
+    /** Run a check again, with all its tries back. */
+    rerunCheck(runId: string, step: string): Promise<void>
+    /** Pass a check over; it no longer holds landing. */
+    skipCheck(runId: string, step: string): Promise<void>
     /** The workflows a project can use: Standard, the global files and the project's own, with what is wrong with any that do not read. */
     definitions(project: string | null): Promise<import('./workflow').WorkflowEntry[]>
     /** Copies a workflow into the project or for everything; says the new one. */

@@ -1,4 +1,5 @@
 import type { Finding } from './audit'
+import type { StepStatus } from './steps'
 
 /** What the person is shown before landing an agent's work: where its plan stands, what the audit found, and what holds Land back. */
 export interface MergeCheck {
@@ -10,6 +11,8 @@ export interface MergeCheck {
   commits: number
   flagged: number
   audit: AuditState
+  /** One row per check step of the run's workflow, for the checklist. */
+  checks: CheckRow[]
   /** Things that hold Land back until the person acts. */
   blocking: string[]
   /** Things to know that never hold it back. */
@@ -17,8 +20,20 @@ export interface MergeCheck {
 }
 
 export type AuditState =
-  | { state: 'off'; reason: 'economy' | 'provider' | 'no-plan' | 'workflow' }
+  | { state: 'off'; reason: 'economy' | 'provider' | 'no-plan' | 'workflow' | 'gate' }
   | { state: 'not-run' }
   | { state: 'running' }
   | { state: 'failed'; reason: string }
   | { state: 'done'; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
+
+export interface CheckRow {
+  id: string
+  name: string
+  run: string
+  state: StepStatus
+  /** How many times it failed since it was last asked for again. */
+  tries?: number
+  /** How long its latest run took, and the end of what it printed when that is worth showing. */
+  ms?: number
+  tail?: string
+}

@@ -57,7 +57,7 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
     await expect(steps.getByRole('listitem')).toHaveCount(5)
     await expect(steps).toContainText('Fix, test first')
     await expect(steps).toContainText('skill: tdd')
-    await expect(steps).toContainText('runs: npm test (up to 3 tries)')
+    await expect(steps).toContainText('runs: npm test (sent back up to 3 times)')
     await expect(steps).toContainText('must pass')
     await expect(steps.getByRole('listitem').first()).toContainText('you approve')
     await expect(win).toContainText('Write a failing test, then make it pass.')

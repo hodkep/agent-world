@@ -292,7 +292,7 @@ describe('workflow tools', () => {
     stepDone: (caller: string, step?: string) => {
       if (step === 'nope') throw new Error('This workflow has no step "nope".')
       calls.push(`${caller} step ${step ?? ''}`)
-      return step === 'fix' ? { done: 'fix', waiting: 'Your review' } : { done: step ?? 'build' }
+      return step === 'fix' ? { done: 'fix', waiting: 'Your review' } : step === 'lint' ? { done: 'lint', checking: true } : { done: step ?? 'build' }
     },
     planInstruction: () => planInstruction(dial),
     submitPlan: async (caller: string, path: string) => {
@@ -383,10 +383,11 @@ describe('workflow tools', () => {
     const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
     expect(text(await c.callTool({ name: 'step_done', arguments: {} }))).toBe('Step "build" reported done.')
     expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'fix' } }))).toBe('Step "fix" reported done. "Your review" now waits for the person to approve it; their answer arrives as your next message.')
+    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'lint' } }))).toBe('Step "lint" reported done. The app is running the checks that follow; if one fails you get its output as your next message.')
     const refused = await c.callTool({ name: 'step_done', arguments: { step: 'nope' } })
     expect((refused as { isError?: boolean }).isError).toBe(true)
     expect(text(refused)).toContain('no step "nope"')
-    expect(calls).toEqual(['a1 step ', 'a1 step fix'])
+    expect(calls).toEqual(['a1 step ', 'a1 step fix', 'a1 step lint'])
     expect((await (await connect((await setup(undefined, undefined, undefined, wf)).url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('step_done')
   })
 })

@@ -151,6 +151,18 @@ export interface WorkflowEntry {
 }
 
 /** The workflow as a run keeps it: every step with a name, and the hash of the file it came from. */
-export function toRunWorkflow(wf: Workflow, hash?: string): RunWorkflow {
-  return { id: wf.id, name: wf.name, ...(hash && { hash }), steps: wf.steps.map((s) => ({ ...s, name: s.name ?? KIND_NAME[s.kind] })) }
+export function toRunWorkflow(wf: Workflow, hash?: string, scope?: 'project' | 'global'): RunWorkflow {
+  return { id: wf.id, name: wf.name, ...(hash && { hash }), ...(scope && { scope }), steps: wf.steps.map((s) => ({ ...s, name: s.name ?? KIND_NAME[s.kind] })) }
+}
+
+/** The command of each check step, in order, each once: what approving the workflow's file lets the app run. */
+export const checkCommands = (wf: RunWorkflow): string[] => [...new Set(wf.steps.flatMap((s) => (s.kind === 'check' && s.run ? [s.run] : [])))]
+
+/** This version's commands against an older approved version: new ones first, then what is gone, then what stayed. */
+export function commandDiff(before: string[], after: string[]): { change: 'added' | 'removed' | 'same'; text: string }[] {
+  return [
+    ...after.filter((c) => !before.includes(c)).map((text) => ({ change: 'added' as const, text })),
+    ...before.filter((c) => !after.includes(c)).map((text) => ({ change: 'removed' as const, text })),
+    ...after.filter((c) => before.includes(c)).map((text) => ({ change: 'same' as const, text }))
+  ]
 }

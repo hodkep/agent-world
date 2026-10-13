@@ -4,12 +4,13 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Dial } from '../../shared/workflows'
 import type { RunWorkflow } from '../../shared/runs'
+import { stepStates } from '../../shared/steps'
 import { Workflows } from './service'
 
 type Reply = { text: string; cost?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
@@ -17,6 +18,14 @@ function make(opts: { enabled?: boolean } = {}) {
       planGate: () => state.planGate,
       mergeGate: () => state.mergeGate,
       pick: (_agent, id) => (state.picked.push(id), state.pick(id)),
+      run: async (command, cwd) => {
+        state.ran.push(`${command} @ ${cwd}`)
+        if (state.gate) await state.gate
+        const r = state.results.shift() ?? { exit: 0 }
+        return { exit: r.exit, timedOut: r.timedOut ?? false, tail: r.tail ?? '', ms: 1200 }
+      },
+      approved: () => state.approved,
+      cwd: () => '/w',
       dial: () => state.dial,
       ask: (agent, prompt, model) => (state.askedFor.push(agent), state.asked.push(prompt), state.models.push(model ?? ''), state.reply(prompt)),
       now: () => (state.t += 10),
@@ -724,5 +733,213 @@ describe('the merge gate follows the workflow', () => {
     }
     expect([wanted({ gate: 'auto' }, true), wanted({ gate: 'approve' }, false), wanted({}, true), wanted({}, false), wanted(undefined, true)]).toEqual([false, true, true, false, false])
     expect(make().wf.planWanted('a1')).toBe(false)
+  })
+})
+
+describe('running a workflow\'s checks', () => {
+  const FLOW: RunWorkflow = { id: 'c', name: 'C', hash: 'h1', scope: 'project', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 }, { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const started = (built = true) => {
+    const t = make()
+    t.state.pick = () => FLOW
+    t.wf.begin('a1', 'Task')
+    if (built) t.wf.stepDone('a1', 'build')
+    return t
+  }
+  const stateOf = (wf: Workflows, id: string, head = 'h1', approved = true) => stepStates(wf.runs()[0]!, { auditOn: false, head, approved }).find((s) => s.id === id)!.state
+
+  it('runs each check that is due, in order and in the agent\'s worktree, and goes on to the next once one passes', async () => {
+    const { wf, state } = started()
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 2 })
+    expect(state.ran).toEqual(['npm test @ /w', 'npm run lint @ /w'])
+    expect([stateOf(wf, 'tests'), stateOf(wf, 'lint')]).toEqual(['passed', 'passed'])
+    expect(wf.runs()[0]!.rounds[0]!.checks.map((c) => [c.step, c.attempt, c.ok, c.head])).toEqual([['tests', 1, true, 'h1'], ['lint', 1, true, 'h1']])
+  })
+
+  it('does nothing while the work before a check is not reported done', async () => {
+    const { wf, state } = started(false)
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0 })
+    expect(state.ran).toEqual([])
+  })
+
+  it('a failing check is sent back to the agent with what it printed, again after the agent reports once more, and when it has no tries left the person is asked', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'FAIL a' }, { exit: 1, tail: 'FAIL b' }, { exit: 2, tail: 'FAIL c' }]
+    const first = await wf.runChecks('a1', 'h1')
+    expect(first).toEqual({ ran: 1, sendBack: 'The check "Tests pass" failed (try 1 of 3): `npm test` exited with 1. What it printed last:\nFAIL a\nFix it, commit, then call step_done again. This is still the same task, so do not call task_begin again.' })
+    expect(stateOf(wf, 'tests')).toBe('running')
+    const second = await wf.runChecks('a1', 'h2')
+    expect(second.sendBack).toContain('(try 2 of 3)')
+    const third = await wf.runChecks('a1', 'h3')
+    expect(third).toEqual({ ran: 1, gaveUp: 'The check "Tests pass" still fails after 3 tries. The person has been asked what to do; change nothing more until they answer.' })
+    expect(stateOf(wf, 'tests', 'h3')).toBe('failed')
+    state.ran.length = 0
+    expect(await wf.runChecks('a1', 'h4')).toEqual({ ran: 0 })
+    expect(state.ran).toEqual([])
+  })
+
+  it('does not run a project\'s commands the person has not approved, and says which check waits', async () => {
+    const { wf, state } = started()
+    state.approved = false
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0, waitingApproval: 'Tests pass' })
+    expect(state.ran).toEqual([])
+    state.approved = true
+    expect((await wf.runChecks('a1', 'h1')).ran).toBe(2)
+  })
+
+  it('runs again when the branch has moved since it passed, and a second request while one is running does not run it twice', async () => {
+    const { wf, state } = started()
+    await wf.runChecks('a1', 'h1')
+    state.ran.length = 0
+    expect((await wf.runChecks('a1', 'h2')).ran).toBe(2)
+    expect(state.ran).toHaveLength(2)
+    state.ran.length = 0
+    expect((await wf.runChecks('a1', 'h2')).ran).toBe(0)
+    const later = started()
+    let release!: () => void
+    later.state.gate = new Promise<void>((r) => (release = r))
+    const a = later.wf.runChecks('a1', 'h1')
+    const b = await later.wf.runChecks('a1', 'h1')
+    release()
+    await a
+    expect(b.ran).toBe(0)
+    expect(later.state.ran.filter((c) => c.startsWith('npm test'))).toHaveLength(1)
+  })
+
+  it('the person can skip a check, ask for it again after it ran out of tries, or decline the commands, and is refused what makes no sense', async () => {
+    const { wf, state } = started()
+    const run = wf.runs()[0]!.id
+    state.results = [{ exit: 1 }, { exit: 1 }, { exit: 1 }]
+    for (const h of ['h1', 'h2', 'h3']) await wf.runChecks('a1', h)
+    expect(stateOf(wf, 'tests', 'h3')).toBe('failed')
+    wf.rerunCheck(run, 'tests')
+    expect(stateOf(wf, 'tests', 'h3')).toBe('running')
+    state.results = [{ exit: 0 }]
+    expect((await wf.runChecks('a1', 'h3')).ran).toBe(2)
+    expect(() => wf.skipCheck(run, 'tests')).toThrow('That check already passed.')
+    expect(() => wf.skipCheck(run, 'build')).toThrow('That is not a check.')
+    expect(() => wf.skipCheck('nope', 'tests')).toThrow('No such run.')
+    expect(() => wf.rerunCheck(run, 'build')).toThrow('That is not a check.')
+  })
+
+  it('skipping a check that has not passed passes it over, and declining the commands marks the checks that wait as failed', async () => {
+    const a = started()
+    a.state.results = [{ exit: 1 }, { exit: 1 }, { exit: 1 }]
+    for (const h of ['h1', 'h2', 'h3']) await a.wf.runChecks('a1', h)
+    a.wf.skipCheck(a.wf.runs()[0]!.id, 'tests')
+    expect(stateOf(a.wf, 'tests', 'h3')).toBe('skipped')
+    const b = started()
+    b.state.approved = false
+    expect(stateOf(b.wf, 'tests', 'h1', false)).toBe('waiting')
+    b.wf.declineCommands(b.wf.runs()[0]!.id)
+    expect(stateOf(b.wf, 'tests', 'h1', false)).toBe('failed')
+  })
+
+  const held = (wf: Workflows, head = 'h1') => wf.mergeCheck('a1', head)!.blocking.filter((b) => !b.includes('plan'))
+
+  it('landing is held, by name, for a check that has not run, has not passed for this branch, failed on every try, was declined or waits for approval', async () => {
+    const t = started(false)
+    t.state.pick = () => ({ ...FLOW, steps: FLOW.steps.map((s) => (s.id === 'lint' ? { ...s, gate: 'auto' as const } : s)) })
+    t.wf.begin('a2', 'Other')
+    expect(t.wf.mergeCheck('a2', 'h1')!.blocking).toContain('"Tests pass" has not run yet.')
+    t.wf.stepDone('a2', 'build')
+    expect(t.wf.mergeCheck('a2', 'h1')!.blocking).toContain('"Tests pass" has not passed for the branch as it is now.')
+    t.state.approved = false
+    expect(t.wf.mergeCheck('a2', 'h1')!.blocking).toContain('"Tests pass" has not run: its commands are not approved.')
+    t.wf.declineCommands(t.wf.runs().at(-1)!.id)
+    expect(t.wf.mergeCheck('a2', 'h1')!.blocking).toContain('"Tests pass" did not run: you declined its commands.')
+    t.state.approved = true
+    t.wf.rerunCheck(t.wf.runs().at(-1)!.id, 'tests')
+    t.state.results = [{ exit: 1 }, { exit: 1 }, { exit: 1 }]
+    for (const h of ['h1', 'h2', 'h3']) await t.wf.runChecks('a2', h)
+    expect(t.wf.mergeCheck('a2', 'h3')!.blocking).toContain('"Tests pass" failed after 3 tries.')
+  })
+
+  it('a passed or skipped check holds nothing, and a check whose gate is auto never holds landing', async () => {
+    const { wf, state } = started()
+    state.pick = () => FLOW
+    await wf.runChecks('a1', 'h1')
+    expect(held(wf)).toEqual([])
+    const auto = started()
+    auto.state.pick = () => ({ ...FLOW, steps: FLOW.steps.map((s) => (s.kind === 'check' ? { ...s, gate: 'auto' as const } : s)) })
+    auto.wf.begin('a2', 'Third')
+    auto.wf.stepDone('a2', 'build')
+    expect(auto.wf.mergeCheck('a2', 'h1')!.blocking.filter((b) => b.includes('has not'))).toEqual([])
+    const skipped = started()
+    skipped.wf.skipCheck(skipped.wf.runs()[0]!.id, 'tests')
+    skipped.wf.skipCheck(skipped.wf.runs()[0]!.id, 'lint')
+    expect(held(skipped.wf)).toEqual([])
+  })
+
+  it('gives Finish a row per check: its state, what it ran, how long it took and how many times it failed', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'FAIL a' }, { exit: 0 }, { exit: 0 }]
+    await wf.runChecks('a1', 'h1')
+    await wf.runChecks('a1', 'h1')
+    const rows = wf.mergeCheck('a1', 'h1')!.checks
+    expect(rows).toEqual([
+      { id: 'tests', name: 'Tests pass', run: 'npm test', state: 'passed', ms: 1200 },
+      { id: 'lint', name: 'Lint', run: 'npm run lint', state: 'passed', ms: 1200 }
+    ])
+    const failed = started()
+    failed.state.results = [{ exit: 1, tail: 'FAIL a' }]
+    await failed.wf.runChecks('a1', 'h1')
+    expect(failed.wf.mergeCheck('a1', 'h1')!.checks[0]).toEqual({ id: 'tests', name: 'Tests pass', run: 'npm test', state: 'running', tries: 1, ms: 1200, tail: 'FAIL a' })
+  })
+
+  it('when asked only for what is new (as Finish does), leaves alone a check that already ran for this branch, so looking at Finish never uses up its tries', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1 }]
+    await wf.runChecks('a1', 'h1')
+    state.ran.length = 0
+    expect(await wf.runChecks('a1', 'h1', { fresh: true })).toEqual({ ran: 0 })
+    expect(state.ran).toEqual([])
+    expect((await wf.runChecks('a1', 'h2', { fresh: true })).ran).toBeGreaterThan(0)
+  })
+
+  it('says, when the agent reports its work, that the app is now running the checks that follow', () => {
+    expect(started(false).wf.stepDone('a1', 'build')).toEqual({ done: 'build', checking: true })
+    const none = make()
+    none.state.pick = () => ({ id: 'n', name: 'N', steps: [{ id: 'build', kind: 'work', name: 'Build' }] })
+    none.wf.begin('a1', 'Task')
+    expect(none.wf.stepDone('a1')).toEqual({ done: 'build' })
+  })
+
+  it('after a check failed and the agent fixed it, reporting again is accepted and has the checks run once more, rather than refused as already done', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'FAIL' }]
+    await wf.runChecks('a1', 'h1')
+    expect(wf.stepDone('a1')).toEqual({ done: 'build', checking: true })
+    expect((await wf.runChecks('a1', 'h2')).ran).toBe(2)
+    expect(() => wf.stepDone('a1')).toThrow('Every step you do is already reported done.')
+  })
+
+  it('a merge step with gate auto turns off the plan and audit rules but not a check that must pass or a step the person must approve', async () => {
+    const t = started()
+    t.state.pick = () => ({ ...FLOW, steps: FLOW.steps.filter((s) => s.id !== 'lint').map((s) => (s.kind === 'merge' ? { ...s, gate: 'auto' as const } : s)) })
+    t.wf.begin('a2', 'Other')
+    t.wf.stepDone('a2', 'build')
+    const check = t.wf.mergeCheck('a2', 'h1')!
+    expect(check.blocking).toEqual(['"Tests pass" has not passed for the branch as it is now.'])
+    expect(check).toMatchObject({ plan: 'not-needed', audit: { state: 'off', reason: 'gate' } })
+    await t.wf.runChecks('a2', 'h1')
+    // Nothing holds landing any more, but the check that passed is still listed for Finish.
+    expect(t.wf.mergeCheck('a2', 'h1')).toMatchObject({ blocking: [], checks: [{ id: 'tests', state: 'passed' }] })
+  })
+
+  it('approving the commands after declining them lets the declined checks run, and leaves alone a check that failed on its tries', async () => {
+    const { wf, state } = started()
+    state.approved = false
+    const run = wf.runs()[0]!.id
+    wf.declineCommands(run)
+    state.approved = true
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0 })
+    wf.commandsApproved(run)
+    expect((await wf.runChecks('a1', 'h1')).ran).toBe(2)
+    state.results = [{ exit: 1 }, { exit: 1 }, { exit: 1 }]
+    const b = started()
+    b.state.results = [{ exit: 1 }, { exit: 1 }, { exit: 1 }]
+    for (const h of ['h1', 'h2', 'h3']) await b.wf.runChecks('a1', h)
+    b.wf.commandsApproved(b.wf.runs()[0]!.id)
+    expect(stateOf(b.wf, 'tests', 'h3')).toBe('failed')
   })
 })

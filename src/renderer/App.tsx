@@ -60,7 +60,8 @@ import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
 import { pendingPlans } from '../shared/runs'
-import { waitingSteps } from '../shared/steps'
+import { checkPanels, waitingSteps } from '../shared/steps'
+import { CheckGate } from './workflows/CheckGate'
 import { StepGate } from './workflows/StepGate'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
@@ -275,7 +276,9 @@ export function App() {
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
   // The audit runs at every dial but economy; steps and plans waiting for the person are what the Workflows button counts.
   const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true }
-  const needsYou = pendingPlans(wf.runs).length + waitingSteps(wf.runs, stepCtx).length
+  // A project's workflow file whose check commands are not approved: its checks wait for the person.
+  const ctxFor = (r: { id: string }) => ({ ...stepCtx, approved: !wf.unapproved.includes(r.id) })
+  const needsYou = pendingPlans(wf.runs).length + waitingSteps(wf.runs, stepCtx).length + checkPanels(wf.runs, ctxFor).length
   const patchPrefs = (patch: Partial<Prefs>) => {
     const next = { ...prefsNow.current!, ...patch }
     prefsNow.current = next
@@ -641,9 +644,11 @@ export function App() {
   const gateFor = (a: AgentRecord) => {
     const p = pendingPlans(wf.runs).find((x) => x.run.agent === a.id)
     const w = waitingSteps(wf.runs.filter((r) => r.agent === a.id), stepCtx).at(0)
+    const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
     return (
       <>
         {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
+        {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
         {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
       </>
     )
@@ -1150,7 +1155,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} onClose={() => setReport(null)} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1602,7 +1607,7 @@ export function App() {
             />
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
-          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctx={stepCtx} />}
+          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

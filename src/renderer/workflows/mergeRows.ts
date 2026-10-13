@@ -25,6 +25,13 @@ export function mergeRows(m: MergeCheck): MergeRow[] {
   else if (a.state === 'off' && a.reason === 'economy') rows.push({ ok: null, text: 'Audit is off at the economy dial.' })
   else if (a.state === 'off' && a.reason === 'provider') rows.push({ ok: null, text: 'Audit is not available for this program.' })
   else if (a.state === 'off' && a.reason === 'workflow') rows.push({ ok: null, text: 'This workflow has no audit step.' })
+  else if (a.state === 'off' && a.reason === 'gate') rows.push({ ok: null, text: 'The merge step does not ask for an audit.' })
+  for (const c of m.checks) {
+    if (c.state === 'passed') rows.push({ ok: true, text: `${c.name}: ${c.run} passed (${Math.max(1, Math.round((c.ms ?? 0) / 1000))} s)` })
+    else if (c.state === 'skipped') rows.push({ ok: null, text: `${c.name}: skipped` })
+    // One that holds landing is a cross below, in the server's words; one that only reports is a plain line.
+    else if (!m.blocking.some((b) => b.startsWith(`"${c.name}"`))) rows.push({ ok: null, text: `${c.name}: has not passed yet (it only reports, so it does not hold landing)` })
+  }
   // Whatever else holds landing (a step waiting for approval) comes in the server's words.
   for (const b of m.blocking.slice(used)) rows.push({ ok: false, text: b })
   for (const n of m.notes) rows.push({ ok: null, text: n })
