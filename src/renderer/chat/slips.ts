@@ -10,6 +10,8 @@ export interface Slip {
   because?: string
   /** For skipped: why the agent passed it over, in its words. */
   reason?: string
+  /** When it was pointed at, for one met mid-run (so it can be placed at the tool call that showed it). */
+  at?: number
   /** How long after being pointed at it was read. */
   gapMs?: number
 }
@@ -30,7 +32,7 @@ export function slipsFor(uses: Use[], from: number, to: number): Slip[] {
       else if (have.state === 'pointed') (have.state = 'read'), (have.gapMs = x.t - have.at)
     }
   }
-  return [...out.values()].map(({ at: _at, ...s }) => s)
+  return [...out.values()].map(({ at, ...s }) => (s.because ? { ...s, at } : s))
 }
 
 /** The opening texts agents were started with, each above the first message sent after it (by that message's place). */
@@ -41,4 +43,16 @@ export function startsBefore(uses: Use[], userAts: number[]): Map<number, Use[]>
     if (k >= 0) out.set(k, [...(out.get(k) ?? []), x])
   }
   return out
+}
+
+/** Slips met mid-run go beside the last tool row that began at or before them (the one whose output showed the situation); the others, and any that match no row, stay with the message. */
+export function placeInline(tools: { id: string; at?: number }[], slips: Slip[]): { inline: Map<string, Slip[]>; rest: Slip[] } {
+  const inline = new Map<string, Slip[]>()
+  const rest: Slip[] = []
+  for (const s of slips) {
+    const row = s.because && s.at !== undefined ? [...tools].reverse().find((t) => t.at !== undefined && t.at <= s.at!) : undefined
+    if (row) inline.set(row.id, [...(inline.get(row.id) ?? []), s])
+    else rest.push(s)
+  }
+  return { inline, rest }
 }
