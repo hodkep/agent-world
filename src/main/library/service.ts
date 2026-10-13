@@ -163,7 +163,7 @@ export function createLibraryService(d: Deps) {
       if (checksPassed(outputOf(response))) (st.open.delete('failing-checks'), st.streak.delete('failing-checks'))
       const found = detectSituation(tool, input, response)
       if (!found) return ''
-      const times = (st.streak.get(found.kind) ?? 0) + 1
+      const times = (st.streak.get(found.kind) ?? 0) + (found.times ?? 1)
       st.streak.set(found.kind, times)
       if (st.open.has(found.kind) || times < (REPEATS[found.kind] ?? 1)) return ''
       const entries = indexSync(agentId)

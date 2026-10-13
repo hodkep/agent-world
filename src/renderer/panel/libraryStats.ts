@@ -31,7 +31,7 @@ export function reachedFor(s: Summary, program: string, whenOf: (id: string) => 
     const health: Health = t.triggered < ENOUGH ? 'few' : share < 0.4 ? 'bad' : share < 0.7 ? 'mid' : 'good'
     const declined = t.declined ?? 0
     const silent = Math.max(0, t.triggered - t.answered - declined)
-    const said = declined ? ` ${declined} said no${silent ? `. ${silent} passed over without a word` : ''}.` : ''
+    const said = declined ? ` ${declined} said no${silent ? `. ${silent} passed over without a word` : ''}.` : silent ? ` ${silent} passed over without a word.` : ''
     const text =
       health === 'few' ? `Pointed at ${t.triggered} time${t.triggered > 1 ? 's' : ''}. Too few to judge yet.`
       : health === 'bad' ? `Pointed at ${t.triggered} times, read ${t.answered}. ${whenOf(i.id) ? 'The "when" may be too broad.' : 'It has no "when", so only its description is matched.'}`

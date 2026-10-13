@@ -331,6 +331,10 @@ describe('a situation an agent meets in the middle of a run', () => {
     await withRule('building a feature test first. A merge stopped with conflict markers; reviewing a pull request.')
     expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toContain('rmc')
   })
+  it('counts two identical reds in one command as the same red twice', async () => {
+    await withRule('tests keep failing, or a type check shows errors')
+    expect(svc.situation('a1', 'Bash', { command: './fail.sh; ./fail.sh' }, { stdout: 'Tests 2 failed\nexit=1\nTests 2 failed\nexit=1' })).toContain('failing test or type check')
+  })
   it('is left alone when no rule says when it applies to it', async () => {
     await withRule('splitting a pdf into pages')
     expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toBe('')
