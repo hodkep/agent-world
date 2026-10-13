@@ -215,6 +215,9 @@ export function createTodoService(d: TodoDeps) {
   function listFor(b: TodoBoard, name: string): string {
     const areas = b.lists.filter((l) => l !== INBOX)
     const have = areas.length ? ` The lists are: ${areas.join(', ')}.` : ''
+    // A list that is already on the board is used as it is: an area named from a task's files may be a word that is a catch-all anywhere else ("Todos" in a project about todos).
+    const existing = resolveList(b.lists, name)
+    if (b.lists.includes(existing) && existing !== INBOX) return existing
     if (isGenericList(name)) throw new Error(`“${name}” says nothing about the area. Put it in a list for the part of the project it belongs to, or name a new area.${have}`)
     const list = resolveList(b.lists, name)
     if (!b.lists.includes(list) && areas.length >= MAX_LISTS) throw new Error(`The board already has ${areas.length} lists; use one of them for this.${have}`)
