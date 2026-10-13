@@ -110,3 +110,11 @@ export function pickList(ids: string[], picked: Set<string>): Set<string> {
   else for (const i of ids) out.add(i)
   return out
 }
+
+/** The lists with something open come first, in the board's own order, then the rest. `was` is how each list was grouped when the window was opened or filtered: a list keeps its group until then, so a card does not move away under the mouse. */
+export function listGroups(lists: string[], open: Record<string, number>, was?: Map<string, boolean>): { active: string[]; quiet: string[] } {
+  const active: string[] = []
+  const quiet: string[] = []
+  for (const l of lists) (was?.get(l) ?? (open[l] ?? 0) > 0 ? active : quiet).push(l)
+  return { active, quiet }
+}

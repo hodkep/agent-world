@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, reopenTodo, updateTodo, type Actor } from '../../shared/todos'
-import { activityOf, actorTag, agoLabel, filterBoard, pickList, pickRange, splitList } from './todoView'
+import { activityOf, actorTag, agoLabel, filterBoard, listGroups, pickList, pickRange, splitList } from './todoView'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -121,5 +121,24 @@ describe('picking tasks', () => {
     expect([...pickList(['1', '2', '3'], new Set(['9']))].sort()).toEqual(['1', '2', '3', '9'])
     expect([...pickList(['1', '2', '3'], new Set(['1', '2', '3', '9']))]).toEqual(['9'])
     expect([...pickList(['1', '2', '3'], new Set(['1']))].sort()).toEqual(['1', '2', '3'])
+  })
+})
+
+describe('listGroups', () => {
+  const lists = ['Inbox', 'Library', 'Chat', 'Todos', 'Office']
+  const open = { Inbox: 2, Library: 4, Chat: 0, Todos: 3, Office: 0 }
+  it('puts lists with an open task first, in the board\'s order, and the rest after it', () => {
+    expect(listGroups(lists, open)).toEqual({ active: ['Inbox', 'Library', 'Todos'], quiet: ['Chat', 'Office'] })
+  })
+  it('keeps a list where it was when the snapshot says so, so a card does not move while it is being used', () => {
+    const was = new Map([['Inbox', true], ['Library', true], ['Chat', false], ['Todos', true], ['Office', false]])
+    expect(listGroups(lists, { ...open, Library: 0, Chat: 1 }, was)).toEqual({ active: ['Inbox', 'Library', 'Todos'], quiet: ['Chat', 'Office'] })
+  })
+  it('places a list the snapshot does not know by what it holds now', () => {
+    expect(listGroups([...lists, 'New'], { ...open, New: 1 }, new Map([['Chat', false]]))).toEqual({ active: ['Inbox', 'Library', 'Todos', 'New'], quiet: ['Chat', 'Office'] })
+  })
+  it('is all active when every list has something open, and all quiet when none does', () => {
+    expect(listGroups(['a', 'b'], { a: 1, b: 1 }).quiet).toEqual([])
+    expect(listGroups(['a', 'b'], { a: 0, b: 0 }).active).toEqual([])
   })
 })

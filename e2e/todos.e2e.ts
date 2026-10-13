@@ -68,6 +68,8 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     expect(await ask('please log in to agy with the browser flow again')).not.toContain('Done before')
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     await expect(board.getByRole('button', { name: 'Open Log in to agy' })).toHaveCount(0)
+    // Its list has nothing open now, so it is a small tile until it is opened.
+    await board.getByRole('button', { name: 'Open Tools' }).click()
     await board.getByRole('button', { name: /Done \(1\)/ }).click()
     await board.getByRole('button', { name: 'Open Log in to agy' }).click()
     const detail = board.getByRole('complementary', { name: 'Task detail' })
@@ -115,7 +117,7 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     await expect(board.getByRole('listitem', { name: 'Manual setup' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toContainText('doing · ada')
 
 
-    await board.getByRole('button', { name: 'Open Add the Anthropic key' }).dragTo(board.getByRole('listitem', { name: 'Tools' }).locator('.td-body'))
+    await board.getByRole('button', { name: 'Open Add the Anthropic key' }).dragTo(board.getByRole('listitem', { name: 'Tools' }))
     await expect(board.getByRole('listitem', { name: 'Tools' }).getByRole('button', { name: 'Open Add the Anthropic key' })).toBeVisible()
     await page.reload()
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()

@@ -110,6 +110,8 @@ test('todos: a scratch pad of markdown becomes tasks, shows what it will make fi
     const chat = board.getByRole('listitem', { name: 'Chat' })
     await expect(chat.getByRole('button', { name: 'Open show the slip' })).toBeVisible()
     await expect(chat.getByRole('button', { name: 'Open bulk select' })).toBeVisible()
+    // A list with only a finished task is a small tile; a click opens it.
+    await board.getByRole('listitem', { name: 'Settings' }).getByRole('button', { name: 'Open Settings' }).click()
     const settings = board.getByRole('listitem', { name: 'Settings' })
     await settings.getByRole('button', { name: /Done \(1\)/ }).click()
     await expect(settings.getByRole('button', { name: 'Open rename the tab' })).toBeVisible()
@@ -120,7 +122,7 @@ test('todos: a scratch pad of markdown becomes tasks, shows what it will make fi
     await expect(pad.getByRole('status')).toContainText('Took back 3 tasks')
     await expect(text).toHaveValue(written)
     await pad.getByRole('button', { name: 'Show the board' }).click()
-    await expect(board.getByRole('button', { name: /^Open / })).toHaveCount(0)
+    await expect(board.getByRole('button', { name: /^Open (show the slip|bulk select|rename the tab)$/ })).toHaveCount(0)
   } finally {
     await shutdown()
   }
