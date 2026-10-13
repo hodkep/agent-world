@@ -336,6 +336,8 @@ export interface AwApi {
     decide(runId: string, state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }): Promise<void>
     /** Close every open run as stopped ("Stop them now" when workflows are turned off). */
     stopAll(): Promise<void>
+    /** The person's answer to a step of a run that waits for them; it is typed into the agent. */
+    approveStep(runId: string, step: string, decision: 'approved' | 'changes', note?: string): Promise<void>
     /** The workflows a project can use: Standard, the global files and the project's own, with what is wrong with any that do not read. */
     definitions(project: string | null): Promise<import('./workflow').WorkflowEntry[]>
     /** Copies a workflow into the project or for everything; says the new one. */

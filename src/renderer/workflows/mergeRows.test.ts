@@ -34,4 +34,18 @@ describe('the rows the Finish checklist gets from the merge check', () => {
     expect(mergeRows({ ...base, audit: { state: 'off', reason: 'provider' } }).at(-1)).toEqual({ ok: null, text: 'Audit is not available for this program.' })
     expect(mergeRows({ ...base, plan: 'not-needed', audit: { state: 'off', reason: 'no-plan' } })).toEqual([])
   })
+
+  it('a step the person has not approved is a cross in the server\'s words, after the plan and audit rows, and a workflow with no audit step says so', () => {
+    const held: MergeCheck = { ...base, plan: 'waiting', audit: { state: 'done', findings: [{ kind: 'out-of-scope', text: 'x', seen: false }], files: 1, lines: 5, truncated: false }, blocking: ['The plan is still waiting for your approval.', '1 audit finding has not been seen.', '"Your review" has not been approved.'] }
+    expect(mergeRows(held)).toEqual([
+      { ok: false, text: 'The plan is still waiting for your approval.' },
+      { ok: false, text: '1 audit finding has not been seen.' },
+      { ok: false, text: '"Your review" has not been approved.' }
+    ])
+    expect(mergeRows({ ...base, audit: { state: 'off', reason: 'workflow' }, blocking: ['"Your review" has not been approved.'] })).toEqual([
+      { ok: true, text: 'Plan approved' },
+      { ok: null, text: 'This workflow has no audit step.' },
+      { ok: false, text: '"Your review" has not been approved.' }
+    ])
+  })
 })

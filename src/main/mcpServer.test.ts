@@ -278,17 +278,22 @@ describe('the todo tools', () => {
 })
 
 let gate = true
+let planFirst = true
 let dial: Dial = 'balanced'
 describe('workflow tools', () => {
   const calls: string[] = []
   const wf = {
     offered: (caller: string) => caller === 'a1',
-    begin: (caller: string, title: string, followUp: boolean) => {
+    begin: (caller: string, title: string, followUp: boolean, workflow?: string) => {
       if (title === 'off') throw new Error('Workflows are off.')
-      calls.push(`${caller} begin ${title} ${followUp}`)
-      return { planFirst: !followUp }
+      calls.push(`${caller} begin ${title} ${followUp}${workflow ? ` workflow=${workflow}` : ''}`)
+      return { planFirst: planFirst && !followUp, brief: `Workflow: ${workflow ?? 'Standard'}. Its steps, in order:` }
     },
-    planGate: () => gate,
+    stepDone: (caller: string, step?: string) => {
+      if (step === 'nope') throw new Error('This workflow has no step "nope".')
+      calls.push(`${caller} step ${step ?? ''}`)
+      return step === 'fix' ? { done: 'fix', waiting: 'Your review' } : { done: step ?? 'build' }
+    },
     planInstruction: () => planInstruction(dial),
     submitPlan: async (caller: string, path: string) => {
       if (path === 'bad.md') throw new Error("The plan's read-back block needs fixing:\n- Missing \"## Goal\"")
@@ -353,14 +358,35 @@ describe('workflow tools', () => {
     expect(text(refused)).toContain('Missing "## Goal"')
   })
 
-  it('plan_submit and the plan instruction are not offered when the plan gate is off', async () => {
-    gate = false
+  it('plan_submit is always offered, and the plan instruction comes only when the office says the plan comes first', async () => {
+    planFirst = false
     try {
       const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
-      expect((await c.listTools()).tools.map((t) => t.name)).not.toContain('plan_submit')
+      expect((await c.listTools()).tools.map((t) => t.name)).toContain('plan_submit')
       expect(text(await c.callTool({ name: 'task_begin', arguments: { title: 'x' } }))).not.toContain('plan_submit')
     } finally {
-      gate = true
+      planFirst = true
     }
+  })
+
+  it('task_begin passes the workflow the agent asked for and answers with the workflow\'s brief', async () => {
+    calls.length = 0
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const reply = text(await c.callTool({ name: 'task_begin', arguments: { title: 'Fix it', workflow: 'bug-fix' } }))
+    expect(reply).toContain('Task begun: Fix it')
+    expect(reply).toContain('Workflow: bug-fix. Its steps, in order:')
+    expect(calls).toEqual(['a1 begin Fix it false workflow=bug-fix'])
+  })
+
+  it('step_done reports a step and says what now waits for the person; a refusal comes back in words', async () => {
+    calls.length = 0
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    expect(text(await c.callTool({ name: 'step_done', arguments: {} }))).toBe('Step "build" reported done.')
+    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'fix' } }))).toBe('Step "fix" reported done. "Your review" now waits for the person to approve it; their answer arrives as your next message.')
+    const refused = await c.callTool({ name: 'step_done', arguments: { step: 'nope' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
+    expect(text(refused)).toContain('no step "nope"')
+    expect(calls).toEqual(['a1 step ', 'a1 step fix'])
+    expect((await (await connect((await setup(undefined, undefined, undefined, wf)).url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('step_done')
   })
 })

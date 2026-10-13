@@ -2985,3 +2985,17 @@ aside:not(.drawer) { flex: none; }
 .wfl .mono { font: 11px Menlo, Consolas, monospace; }
 .wfl-detail > .mono { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
+
+/* The steps of a run, drawn as a pipeline. */
+.wf-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.wf-strip .st { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); border-left: 3px solid var(--k, var(--dim)); font-size: 11px; white-space: nowrap; }
+.wf-strip .st-mark { width: 10px; text-align: center; color: var(--muted); }
+.wf-strip .is-passed .st-mark { color: var(--ok); }
+.wf-strip .is-pending, .wf-strip .is-skipped { color: var(--muted); opacity: 0.7; }
+.wf-strip .is-skipped > span:nth-child(2) { text-decoration: line-through; }
+.wf-strip .is-running { box-shadow: 0 0 0 1px var(--accent); }
+.wf-strip .is-waiting { box-shadow: 0 0 0 1px var(--accent); }
+.wf-strip .st-tag { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); background: var(--accent); padding: 0 4px; }
+.wf-round .wf-strip { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.wf-round .wf-strip li { flex-wrap: nowrap; padding: 2px 8px 2px 6px; border-top: 0; align-items: center; }
+.wf-round .wf-strip li > span:nth-child(2) { flex: 0 0 auto; }

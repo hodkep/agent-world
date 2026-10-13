@@ -1,9 +1,11 @@
+import type { RunWorkflow } from '../../shared/runs'
+import type { WorkflowEntry } from '../../shared/workflow'
 import type { Dial } from '../../shared/workflows'
 
 /** What an agent is told about recording tasks, in the opening text while workflows are on. */
 export const WORKFLOW_HINT =
   'This office records tasks. When you start a task that changes code or takes several steps, call the agent-world task_begin tool with a few words; when it is finished, call task_done with one line. Skip both for a question, a typo or a tiny edit. Pass follow_up to task_begin only when the request is more work on the task you just finished (a fix, a missed case, a change to it); a different piece of work is a new task.'
-export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit'].map((t) => `mcp__agent-world__${t}`)
+export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_done'].map((t) => `mcp__agent-world__${t}`)
 /** Said at the start of a turn (by the program's prompt hook) while no task is open: the opening text alone was not followed reliably. */
 export const WORKFLOW_REMINDER =
   'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo or a tiny edit.'
@@ -19,3 +21,29 @@ export const PLAN_INSTRUCTION =
 
 /** The plan instruction for a dial: economy lets the agent skip the plan for a change that fits in one sentence; the others always ask for it. */
 export const planInstruction = (dial: Dial) => (dial === 'economy' ? `If the whole change can be said in one sentence, skip the plan and go ahead; nothing is held back. Otherwise: ${PLAN_INSTRUCTION.charAt(0).toLowerCase()}${PLAN_INSTRUCTION.slice(1)}` : PLAN_INSTRUCTION)
+
+/** What task_begin says about the workflow the task follows: the steps the agent does or waits on, with their briefs, and how to report them. */
+export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFirst?: boolean } = {}): string {
+  const { fellBackFrom, planFirst } = o
+  const head = `Workflow: ${w.name}${fellBackFrom ? ` (there is no workflow "${fellBackFrom}", so the project's default was used)` : ''}. Its steps, in order:`
+  const lines = w.steps.flatMap((s) => {
+    const brief = s.brief ? ` ${s.brief}` : ''
+    // The plan line only when a plan is asked for: otherwise the agent would wait for an approval that never comes.
+    if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}": the person approves your plan before you edit.${brief}`]
+    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${s.skills?.length ? ` (skill: ${s.skills.join(', ')})` : ''}:${brief}`]
+    if (s.kind === 'approve') return [`- ${s.id} "${s.name}": the person approves this before it can land.${brief}`]
+    return []
+  })
+  return [head, ...lines, 'Report each step you do with step_done and its id, for example step_done("' + (w.steps.find((s) => s.kind === 'work')?.id ?? 'build') + '"); with no id it reports the next one. The app audits the branch and the person lands it.'].join('\n')
+}
+
+const OFFERED_MAX = 5
+
+/** The line of the opening text that lists the project's other workflows, so an agent can pass one to task_begin; nothing when there is no choice. */
+export function workflowList(entries: WorkflowEntry[], defaultId: string): string {
+  const usable = entries.filter((e) => e.workflow)
+  const chosen = usable.find((e) => e.id === defaultId) ?? usable.find((e) => e.id === 'standard')
+  const others = usable.filter((e) => e !== chosen).slice(0, OFFERED_MAX)
+  if (!chosen || others.length === 0) return ''
+  return [`This project has workflows. ${chosen.workflow!.name} is the default; pass one of these to task_begin as "workflow" if it fits better:`, ...others.map((e) => `- ${e.id}${e.workflow!.when ? `: ${e.workflow!.when}` : ''}`)].join('\n')
+}

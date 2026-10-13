@@ -1,4 +1,5 @@
 import type { Finding } from './audit'
+import type { Gate, StepKind } from './workflow'
 import type { PlanReadback } from './plan'
 
 /**
@@ -6,7 +7,7 @@ import type { PlanReadback } from './plan'
  * (a follow-up after it finished is a new round of the same run), and the commits made in it.
  */
 export type RunEvent =
-  | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string; /** Started by the app from a commit, because the agent never announced the task. */ auto?: boolean }
+  | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string; /** Started by the app from a commit, because the agent never announced the task. */ auto?: boolean; /** The workflow the task follows, as its file was when the task began. */ workflow?: RunWorkflow }
   /** A follow-up after the run finished: the same run, round n + 1. */
   | { k: 'round'; t: number; run: string }
   | { k: 'done'; t: number; run: string; summary?: string }
@@ -15,6 +16,7 @@ export type RunEvent =
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
+  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes'; note?: string; implicit?: boolean }
   | { k: 'commit'; t: number; run: string; sha: string; subject: string; flagged?: boolean; /** The round it was made in; the latest when not given. */ round?: number }
   /** A model's review of the branch head against the plan, or why it could not be done. */
   | { k: 'audit'; t: number; run: string; head: string; state: 'done'; findings: Finding[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
@@ -23,6 +25,35 @@ export type RunEvent =
   | { k: 'seen'; t: number; run: string; head: string; which: number[] }
   /** The work was landed: after the checks, or "anyway" with `held` still holding it. */
   | { k: 'merge'; t: number; run: string; head: string; how: 'checked' | 'anyway'; held: string[] }
+
+/** The workflow a run follows, kept with the run so a later edit to the file cannot change how an old run is read. */
+export interface RunWorkflow {
+  id: string
+  name: string
+  hash?: string
+  steps: RunStep[]
+}
+/** A step as a run keeps it: the whole definition, with a name. */
+export interface RunStep {
+  id: string
+  kind: StepKind
+  name: string
+  gate?: Gate
+  brief?: string
+  skills?: string[]
+  run?: string
+  retries?: number
+  model?: string
+}
+/** What happened to one step in a round: the agent said it is done, or the person approved it or sent it back. */
+export interface StepLog {
+  step: string
+  state: 'done' | 'approved' | 'changes'
+  t: number
+  note?: string
+  /** The app marked it done when the agent finished the task, because the agent never said so. */
+  implicit?: boolean
+}
 
 export interface PlanAnswer {
   question: string
@@ -52,6 +83,7 @@ export interface Round {
   endedAt?: number
   commits: RunCommit[]
   plan?: RoundPlan
+  steps: StepLog[]
 }
 export type RunAudit =
   | { head: string; t: number; state: 'failed'; reason: string }
@@ -69,6 +101,7 @@ export interface Run {
   project: string
   title: string
   auto?: boolean
+  workflow?: RunWorkflow
   status: 'open' | 'done' | 'stopped'
   startedAt: number
   endedAt?: number
@@ -84,7 +117,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
   const runs = new Map<string, Run>()
   for (const e of events) {
     if (e.k === 'begin') {
-      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [] }] })
+      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), ...(e.workflow && { workflow: e.workflow }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [], steps: [] }] })
       continue
     }
     const r = runs.get(e.run)
@@ -93,7 +126,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     if (e.k === 'round') {
       r.status = 'open'
       delete r.endedAt
-      r.rounds.push({ n: round.n + 1, startedAt: e.t, commits: [] })
+      r.rounds.push({ n: round.n + 1, startedAt: e.t, commits: [], steps: [] })
     } else if (e.k === 'plan') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (!into) continue
@@ -102,6 +135,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       else if (into.plan) {
         into.plan = { ...into.plan, state: e.state, decidedAt: e.t, ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
       }
+    } else if (e.k === 'step') {
+      r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })
     } else if (e.k === 'commit') {
       const into = (e.round !== undefined && r.rounds.find((x) => x.n === e.round)) || round
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })

@@ -1,4 +1,5 @@
 import { type Run, pendingPlans } from '../../shared/runs'
+import { type StepContext, waitingSteps } from '../../shared/steps'
 import { type RunSpend, agentCounts, formatCost, formatDuration, howRunsBegan, runStats, runsThisWeek, spendText } from '../../shared/runStats'
 import { useState } from 'react'
 import { Modal } from '../panel/Modal'
@@ -23,7 +24,7 @@ function Bars({ rows }: { rows: { label: string; n: number }[] }) {
 const timeOf = (r: Run, now: number) => (r.auto ? '—' : formatDuration(r.rounds.reduce((n, x) => n + Math.max(0, (x.endedAt ?? now) - x.startedAt), 0)))
 
 /** Every agent's workflow runs this week in one place: what ran, how many rounds and commits, what it cost and how long it took. */
-export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; onClose: () => void }) {
+export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, ctx, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; ctx: StepContext; onClose: () => void }) {
   const [tab, setTab] = useState<'runs' | 'workflows'>('runs')
   const now = Date.now()
   const week = runsThisWeek(runs, now)
@@ -48,7 +49,7 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
         <button role="tab" aria-selected={tab === 'workflows'} className={tab === 'workflows' ? 'on' : ''} onClick={() => setTab('workflows')}>Workflows</button>
       </div>
       {tab === 'workflows' ? (
-        <WorkflowList folder={folder} switches={switches} defaultId={defaultId} onDefault={onDefault} />
+        <WorkflowList folder={folder} runs={runs} switches={switches} defaultId={defaultId} onDefault={onDefault} />
       ) : runs.length === 0 ? (
         <div className="wf-empty">
           <b>No runs yet</b>
@@ -72,6 +73,7 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
             <div>
               <span className="wf-cap">Needs you / open now</span>
               {pendingPlans(runs).map(({ run, round }) => <span key={`${run.id}-${round.n}`}><span className="wf-tag flag">Plan</span> {run.name}: {run.title}, waiting for approval</span>)}
+              {waitingSteps(runs, ctx).map(({ run, step }) => <span key={`${run.id}-${step.id}`}><span className="wf-tag flag">Step</span> {run.name}: {step.name}, waiting for approval</span>)}
               {openNow.length === 0 ? <span className="hint">Nothing is open.</span> : openNow.map((r) => <span key={r.id}><span className="wf-tag open">Open</span> {r.name}: {r.title}</span>)}
             </div>
           </div>

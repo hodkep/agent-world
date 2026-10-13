@@ -116,3 +116,6 @@ export function checkText(check: PlanCheck | undefined): string | undefined {
   const what = check.added ? `added ${check.added} question${check.added === 1 ? '' : 's'}` : 'found nothing to add'
   return `The intent check ${what}${check.model ? ` · ${check.model}` : ''}${check.cost !== undefined ? ` · ${formatCallCost(check.cost)}` : ''}`
 }
+
+/** How many of this week's runs followed the workflow. */
+export const workflowRuns = (runs: Run[], id: string, now: number) => runsThisWeek(runs, now).filter((r) => r.workflow?.id === id).length

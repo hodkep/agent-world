@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LedgerEvent } from './ledger'
 import { type RunEvent, reduceRuns } from './runs'
-import { agentCounts, auditText, checkText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
+import { agentCounts, auditText, workflowRuns, checkText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
 
 const MIN = 60_000
 // Wednesday 2026-10-14 12:00 local; the week began Monday 2026-10-12.
@@ -123,5 +123,22 @@ describe('what the plan panel says about the intent check', () => {
     expect(checkText({ added: 0, cost: 0.0004, model: 'claude-haiku-5-5' })).toBe('The intent check found nothing to add · claude-haiku-5-5 · $0.0004')
     expect(checkText({ failed: 'claude timed out' })).toBe('The intent check failed: claude timed out. This is the plan as the agent wrote it.')
     expect(checkText(undefined)).toBeUndefined()
+  })
+})
+
+describe('how often a workflow was used', () => {
+  it('counts this week\'s runs that followed it, and none for one that was never used', () => {
+    const wf = (id: string) => ({ id, name: id, steps: [{ id: 'b', kind: 'work' as const, name: 'Build' }] })
+    const runs = reduceRuns([
+      { ...begin('r1', day(14), 'a1', 'ada'), workflow: wf('bug-fix') } as RunEvent,
+      { ...begin('r2', day(13), 'a1', 'ada'), workflow: wf('bug-fix') } as RunEvent,
+      { ...begin('r3', day(12), 'a2', 'bo'), workflow: wf('standard') } as RunEvent,
+      { ...begin('r4', day(5), 'a2', 'bo'), workflow: wf('bug-fix') } as RunEvent,
+      { k: 'done', t: day(5, 12), run: 'r4' } as RunEvent,
+      begin('r5', day(14), 'a2', 'bo')
+    ])
+    expect(workflowRuns(runs, 'bug-fix', NOW)).toBe(2)
+    expect(workflowRuns(runs, 'standard', NOW)).toBe(1)
+    expect(workflowRuns(runs, 'quick-change', NOW)).toBe(0)
   })
 })

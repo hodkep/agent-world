@@ -1,3 +1,5 @@
+import type { RunWorkflow } from './runs'
+
 /**
  * A workflow is a list of steps an agent's task goes through, kept as a JSON file. The engine follows it; the app checks it in code,
  * so a file written by hand or proposed by the builder is either valid or comes back with every problem named.
@@ -146,4 +148,9 @@ export interface WorkflowEntry {
   hash?: string
   /** What this one shadows: a project's workflow over a global one, or any file over the built-in Standard. */
   overrides?: Scope
+}
+
+/** The workflow as a run keeps it: every step with a name, and the hash of the file it came from. */
+export function toRunWorkflow(wf: Workflow, hash?: string): RunWorkflow {
+  return { id: wf.id, name: wf.name, ...(hash && { hash }), steps: wf.steps.map((s) => ({ ...s, name: s.name ?? KIND_NAME[s.kind] })) }
 }

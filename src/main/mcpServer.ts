@@ -57,10 +57,14 @@ interface Options {
   /** Tasks agents report so the office can record them as workflow runs. `offered` says whether this caller gets the tools. */
   workflows?: {
     offered: (callerId: string) => boolean
-    /** `planFirst`: the office wants this task's plan approved before the agent edits, so the agent is told to write and submit one. */
-    begin: (callerId: string, title: string, followUp: boolean) => { planFirst: boolean }
+    /**
+     * `planFirst`: the office wants this task's plan approved before the agent edits, so the agent is told to write and submit one.
+     * `brief`: what the task's workflow asks of the agent, step by step.
+     */
+    begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string }
     done: (callerId: string, summary?: string) => void
-    planGate: () => boolean
+    /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
+    stepDone: (callerId: string, step?: string) => { done: string; waiting?: string }
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
@@ -397,34 +401,47 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     {
       description:
         'Say that you are starting a task that changes code or takes several steps, so the office can record it. Do not call it for a question, a typo or a tiny edit. Pass follow_up only when the request is more work on the task you just finished (a missed case, a change to its review); a different piece of work is a new task.',
-      inputSchema: { title: z.string().min(1).max(120).describe('The task in a few words'), follow_up: z.boolean().optional().describe('true when this continues the task you last finished') }
+      inputSchema: { title: z.string().min(1).max(120).describe('The task in a few words'), follow_up: z.boolean().optional().describe('true when this continues the task you last finished'), workflow: z.string().max(40).optional().describe('The id of a workflow listed in your instructions, if one fits this task better than the default') }
     },
-    async ({ title, follow_up }) => {
+    async ({ title, follow_up, workflow }) => {
       try {
-        const { planFirst } = wf.begin(callerId, title, follow_up ?? false)
-        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${planFirst && wf.planGate() ? `\n\n${wf.planInstruction()}` : ''}` }] }
+        const { planFirst, brief } = wf.begin(callerId, title, follow_up ?? false, workflow)
+        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${brief ? `\n\n${brief}` : ''}${planFirst ? `\n\n${wf.planInstruction()}` : ''}` }] }
       } catch (err) {
         return fail(err)
       }
     }
   )
-  if (wf.planGate()) {
-    server.registerTool(
-      'plan_submit',
-      {
-        description: 'Hand in your plan for the person to approve before you change anything. The file must start with the read-back block task_begin described.',
-        inputSchema: { path: z.string().max(300).optional().describe('The plan file in your worktree; defaults to .agent-world/plan.md') }
-      },
-      async ({ path }) => {
-        try {
-          const { questions } = await wf.submitPlan(callerId, path ?? '.agent-world/plan.md')
-          return { content: [{ type: 'text' as const, text: `Plan handed in; it is waiting for the person${questions ? ` (${questions} open question${questions === 1 ? '' : 's'} for them to answer)` : ''}. Do not edit yet: their answer arrives as your next message.` }] }
-        } catch (err) {
-          return fail(err)
-        }
+  server.registerTool(
+    'plan_submit',
+    {
+      description: 'Hand in your plan for the person to approve before you change anything. The file must start with the read-back block task_begin described.',
+      inputSchema: { path: z.string().max(300).optional().describe('The plan file in your worktree; defaults to .agent-world/plan.md') }
+    },
+    async ({ path }) => {
+      try {
+        const { questions } = await wf.submitPlan(callerId, path ?? '.agent-world/plan.md')
+        return { content: [{ type: 'text' as const, text: `Plan handed in; it is waiting for the person${questions ? ` (${questions} open question${questions === 1 ? '' : 's'} for them to answer)` : ''}. Do not edit yet: their answer arrives as your next message.` }] }
+      } catch (err) {
+        return fail(err)
       }
-    )
-  }
+    }
+  )
+  server.registerTool(
+    'step_done',
+    {
+      description: 'Say that a step of your task\'s workflow that you do is finished. With no step it reports the next one you have not reported.',
+      inputSchema: { step: z.string().max(40).optional().describe('The step id from the workflow you were given') }
+    },
+    async ({ step }) => {
+      try {
+        const r = wf.stepDone(callerId, step)
+        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}` }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
   server.registerTool(
     'task_done',
     {

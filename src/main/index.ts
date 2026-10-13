@@ -60,11 +60,13 @@ import { Workflows } from './workflows/service'
 import { askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { requestOf } from '../shared/intent'
-import { auditModel } from '../shared/workflows'
+import { stepReply } from '../shared/steps'
+import { toRunWorkflow } from '../shared/workflow'
+import { auditModel, defaultWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
-import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction } from './workflows/hint'
+import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
@@ -423,7 +425,16 @@ const byId = (id: string) => agents.find((a) => a.id === id)
 const LIBRARY_DIR = join(HOME, 'library')
 // Where skills are looked for to import: the user's own folders (a test points it elsewhere).
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
+const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
+  // A new task follows the workflow it asked for, else its project's default, else Standard; the run keeps the file as it was then.
+  pick: (id, requested) => {
+    const a = byId(id)
+    if (!a) return undefined
+    const usable = workflowStore.list(a.repoPath).filter((e) => e.workflow)
+    const chosen = usable.find((e) => e.id === requested) ?? usable.find((e) => e.id === defaultWorkflow(prefs.workflows, a.repoPath)) ?? usable.find((e) => e.id === 'standard')
+    return chosen ? toRunWorkflow(chosen.workflow!, chosen.hash) : undefined
+  },
   enabled: () => prefs.workflows.enabled,
   since: () => prefs.workflows.since,
   planGate: () => prefs.workflows.planGate,
@@ -443,7 +454,6 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
     return a ? { name: a.name, project: a.repoPath } : undefined
   }
 })
-const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
@@ -801,7 +811,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && WORKFLOW_HINT, canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1116,14 +1126,23 @@ async function main() {
     workflows: {
       offered: workflowsFor,
       planInstruction: () => planInstruction(prefs.workflows.dial),
-      begin: (caller, title, followUp) => {
-        const id = workflows.begin(caller, title, { followUp })
+      begin: (caller, title, followUp, workflow) => {
+        const id = workflows.begin(caller, title, { followUp, workflow })
         send('workflows')
-        // A follow-up round is not forced to plan again; a task's first round is.
-        return { planFirst: workflows.runs().find((r) => r.id === id)?.rounds.length === 1 }
+        const run = workflows.runs().find((r) => r.id === id)
+        const a = byId(caller)
+        // An agent that asked for a workflow that is not there is told the default was used.
+        const missing = workflow && a && !workflowStore.list(a.repoPath).some((e) => e.workflow && e.id === workflow) ? workflow : undefined
+        // A follow-up round is not forced to plan again; a task's first round is, when its workflow wants a plan.
+        const planFirst = run?.rounds.length === 1 && workflows.planWanted(caller)
+        return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst }) }) }
       },
       done: (caller, summary) => (workflows.done(caller, summary), send('workflows')),
-      planGate: () => prefs.workflows.planGate,
+      stepDone: (caller, step) => {
+        const r = workflows.stepDone(caller, step)
+        send('workflows')
+        return r
+      },
       submitPlan: async (caller, path) => {
         const a = byId(caller)
         if (!a) throw new Error('Unknown agent.')
@@ -1555,6 +1574,15 @@ async function main() {
   ipcMain.handle('workflows:definitions', (_, project: unknown) => workflowStore.list(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
+  // The person's answer to a step that waits for them (not the plan: that has its own); it is typed into the agent.
+  ipcMain.handle('workflows:approve-step', (_, runId: string, step: string, decision: 'approved' | 'changes', note?: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const text = typeof note === 'string' ? note.slice(0, 2000).trim() : ''
+    workflows.approveStep(runId, String(step), decision === 'changes' ? 'changes' : 'approved', { note: text })
+    const name = run?.workflow?.steps.find((s) => s.id === step)?.name ?? String(step)
+    if (run) mailbox.fromOffice(run.agent, stepReply(name, decision === 'changes' ? 'changes' : 'approved', text))
+    send('workflows')
+  })
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))

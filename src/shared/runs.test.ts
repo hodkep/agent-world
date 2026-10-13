@@ -8,7 +8,7 @@ describe('what a run is, read from its log', () => {
   it('a begun task is an open run with one round', () => {
     const [r] = reduceRuns([begin('r1', 100)])
     expect(r).toMatchObject({ id: 'r1', agent: 'a1', name: 'ada', title: 'Fix the login redirect', status: 'open', startedAt: 100 })
-    expect(r!.rounds).toEqual([{ n: 1, startedAt: 100, commits: [] }])
+    expect(r!.rounds).toEqual([{ n: 1, startedAt: 100, commits: [], steps: [] }])
   })
 
   it('done closes the run and its round, with the summary', () => {
@@ -129,5 +129,30 @@ describe('what the intent check adds to a submitted plan', () => {
   it('a check that failed keeps its reason, and a plan without one has none', () => {
     expect(reduceRuns([begin('r1', 100), submitted({ failed: 'timed out' })])[0]!.rounds[0]!.plan!.check).toEqual({ failed: 'timed out' })
     expect(reduceRuns([begin('r1', 100), submitted()])[0]!.rounds[0]!.plan!.check).toBeUndefined()
+  })
+})
+
+describe('a run that follows a workflow', () => {
+  const workflow = { id: 'bug-fix', name: 'Bug fix', hash: 'abc123', steps: [{ id: 'plan', kind: 'plan' as const, name: 'Plan' }, { id: 'fix', kind: 'work' as const, name: 'Fix' }, { id: 'ok', kind: 'approve' as const, name: 'Your review', gate: 'approve' as const }] }
+
+  it('keeps the workflow it began with, as it was then', () => {
+    const [r] = reduceRuns([{ ...begin('r1', 100), workflow }])
+    expect(r!.workflow).toEqual(workflow)
+    expect(reduceRuns([begin('r2', 100)])[0]!.workflow).toBeUndefined()
+  })
+
+  it('puts step events in the round they were made in, and ignores one for a round that does not exist', () => {
+    const [r] = reduceRuns([
+      { ...begin('r1', 100), workflow },
+      { k: 'step', t: 200, run: 'r1', round: 1, step: 'fix', state: 'done' },
+      { k: 'step', t: 250, run: 'r1', round: 1, step: 'ok', state: 'approved' },
+      { k: 'step', t: 300, run: 'r1', round: 9, step: 'fix', state: 'done' },
+      { k: 'done', t: 400, run: 'r1' },
+      { k: 'round', t: 500, run: 'r1' },
+      { k: 'step', t: 600, run: 'r1', round: 2, step: 'fix', state: 'done', implicit: true }
+    ])
+    expect(r!.rounds[0]!.steps).toEqual([{ step: 'fix', state: 'done', t: 200 }, { step: 'ok', state: 'approved', t: 250 }])
+    expect(r!.rounds[1]!.steps).toEqual([{ step: 'fix', state: 'done', t: 600, implicit: true }])
+    expect(r!.status).toBe('open')
   })
 })

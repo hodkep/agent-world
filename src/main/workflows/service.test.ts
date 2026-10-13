@@ -3,18 +3,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Dial } from '../../shared/workflows'
+import type { RunWorkflow } from '../../shared/runs'
 import { Workflows } from './service'
 
 type Reply = { text: string; cost?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
       planGate: () => state.planGate,
       mergeGate: () => state.mergeGate,
+      pick: (_agent, id) => (state.picked.push(id), state.pick(id)),
       dial: () => state.dial,
       ask: (agent, prompt, model) => (state.askedFor.push(agent), state.asked.push(prompt), state.models.push(model ?? ''), state.reply(prompt)),
       now: () => (state.t += 10),
@@ -545,5 +547,182 @@ describe('the intent check at the max dial', () => {
     wf.begin('a1', 'Add a toggle')
     expect(wf.submitPlan('a1', '.agent-world/plan.md', PLAN, { failed: 'timed out' }).questions).toBe(1)
     expect(wf.runs()[0]!.rounds[0]!.plan).toMatchObject({ check: { failed: 'timed out' }, readback: { questions: [{ text: 'Every window or this one?' }] } })
+  })
+})
+
+const BUG_FIX: RunWorkflow = { id: 'bug-fix', name: 'Bug fix', hash: 'h1', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+
+describe('a task that follows a workflow', () => {
+  it('begins with the workflow the project picks, or the one the agent asked for, and keeps it as it was then', () => {
+    const { wf, state } = make()
+    state.pick = (id) => ({ ...BUG_FIX, id: id ?? 'standard' })
+    wf.begin('a1', 'Fix it')
+    wf.begin('a2', 'Other', { workflow: 'bug-fix' })
+    expect(state.picked).toEqual([undefined, 'bug-fix'])
+    expect(wf.runs().map((r) => r.workflow?.id)).toEqual(['standard', 'bug-fix'])
+    expect(wf.runs()[1]!.workflow!.steps.map((s) => s.id)).toEqual(['plan', 'fix', 'ok', 'land'])
+  })
+
+  it('a follow-up round goes on with the same workflow without picking again, and a run with no pick has no workflow', () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'No pick')
+    expect(wf.runs()[0]!.workflow).toBeUndefined()
+    state.pick = () => BUG_FIX
+    wf.begin('a2', 'Task')
+    wf.done('a2')
+    state.picked.length = 0
+    wf.begin('a2', 'More', { followUp: true })
+    expect(state.picked).toEqual([])
+    expect(wf.runs()[1]!.rounds).toHaveLength(2)
+    expect(wf.runs()[1]!.workflow!.id).toBe('bug-fix')
+  })
+})
+
+describe('reporting a step done', () => {
+  const TWO_WORKS: RunWorkflow = { id: 'two', name: 'Two', steps: [{ id: 'a', kind: 'work', name: 'First' }, { id: 'b', kind: 'work', name: 'Second' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const started = (flow: RunWorkflow = TWO_WORKS) => {
+    const t = make()
+    t.state.pick = () => flow
+    t.wf.begin('a1', 'Task')
+    return t
+  }
+  const logged = (wf: Workflows) => wf.runs()[0]!.rounds.at(-1)!.steps.map((s) => `${s.step}:${s.state}`)
+
+  it('marks the first work step still open, or the one named, and says what now waits for the person', () => {
+    const { wf } = started()
+    expect(wf.stepDone('a1')).toEqual({ done: 'a' })
+    expect(wf.stepDone('a1', 'b')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(logged(wf)).toEqual(['a:done', 'b:done'])
+  })
+
+  it('refuses a step that does not exist, is not a work step, is already done, or a task with no steps to report', () => {
+    const { wf } = started()
+    expect(() => wf.stepDone('a1', 'nope')).toThrow('This workflow has no step "nope". Its steps: a, b, ok, land.')
+    expect(() => wf.stepDone('a1', 'land')).toThrow('"land" is not a step you report: the app or the person does it.')
+    wf.stepDone('a1', 'a')
+    expect(() => wf.stepDone('a1', 'a')).toThrow('"a" is already done.')
+    wf.stepDone('a1')
+    expect(() => wf.stepDone('a1')).toThrow('Every step you do is already reported done.')
+    const bare = make()
+    bare.wf.begin('a1', 'No steps')
+    expect(() => bare.wf.stepDone('a1')).toThrow('This task has no steps to report.')
+    expect(() => bare.wf.stepDone('a2')).toThrow('No task is open.')
+  })
+
+  it('after the person sent the work back, reporting again reports the work done once more', () => {
+    const { wf, state } = started()
+    wf.stepDone('a1')
+    wf.stepDone('a1')
+    wf.approveStep(wf.runs()[0]!.id, 'ok', 'changes', { note: 'smaller' })
+    state.t += 100
+    expect(wf.stepDone('a1')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(logged(wf)).toEqual(['a:done', 'b:done', 'ok:changes', 'b:done'])
+  })
+})
+
+describe('approving a step, and finishing the task', () => {
+  const FLOW: RunWorkflow = { id: 'f', name: 'F', steps: [{ id: 'a', kind: 'work', name: 'First' }, { id: 'b', kind: 'work', name: 'Second', gate: 'approve' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const started = () => {
+    const t = make()
+    t.state.pick = () => FLOW
+    t.wf.begin('a1', 'Task')
+    return { ...t, run: t.wf.runs()[0]!.id, log: () => t.wf.runs()[0]!.rounds.at(-1)!.steps.map((s) => `${s.step}:${s.state}${s.implicit ? '*' : ''}`) }
+  }
+
+  it('approves a step that waits for the person, and refuses one that does not, or a run that is not there', () => {
+    const { wf, run, log } = started()
+    expect(() => wf.approveStep(run, 'ok', 'approved')).toThrow('Nothing is waiting for approval there.')
+    wf.stepDone('a1')
+    wf.stepDone('a1')
+    wf.approveStep(run, 'b', 'approved')
+    wf.approveStep(run, 'ok', 'approved', { note: 'good' })
+    expect(log()).toEqual(['a:done', 'b:done', 'b:approved', 'ok:approved'])
+    expect(wf.runs()[0]!.rounds[0]!.steps.at(-1)!.note).toBe('good')
+    expect(() => wf.approveStep(run, 'ok', 'approved')).toThrow('Nothing is waiting for approval there.')
+    expect(() => wf.approveStep('nope', 'ok', 'approved')).toThrow('No such run.')
+  })
+
+  it('finishing the task marks the work steps the agent never reported as done by the app, and leaves the ones it did', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'a')
+    wf.done('a1', 'All done.')
+    expect(log()).toEqual(['a:done', 'b:done*'])
+    expect(wf.runs()[0]!.status).toBe('done')
+  })
+})
+
+describe('the plan hold follows the workflow', () => {
+  const flow = (plan?: { gate?: 'auto' | 'approve' }): RunWorkflow => ({ id: 'f', name: 'F', steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] })
+  const held = (w: RunWorkflow | undefined, planGate: boolean) => {
+    const { wf, state } = make()
+    state.planGate = planGate
+    state.pick = () => w
+    wf.begin('a1', 'Task')
+    return wf.editBlock('a1', '/w/src/a.ts', '/w') !== null
+  }
+
+  it('a plan step that names its gate decides, whatever the Settings switch says', () => {
+    expect([held(flow({ gate: 'auto' }), true), held(flow({ gate: 'approve' }), false)]).toEqual([false, true])
+  })
+
+  it('a plan step with no gate follows the switch, a workflow with no plan step holds nothing, and a run with no workflow follows the switch as before', () => {
+    expect([held(flow({}), true), held(flow({}), false)]).toEqual([true, false])
+    expect(held(flow(), true)).toBe(false)
+    expect([held(undefined, true), held(undefined, false)]).toEqual([true, false])
+  })
+})
+
+describe('the merge gate follows the workflow', () => {
+  const flow = (o: { plan?: boolean; audit?: boolean; merge?: { gate?: 'auto' | 'approve' } | false; review?: boolean } = {}): RunWorkflow => ({
+    id: 'f',
+    name: 'F',
+    steps: [
+      ...(o.plan === false ? [] : [{ id: 'plan', kind: 'plan' as const, name: 'Plan' }]),
+      { id: 'build', kind: 'work' as const, name: 'Build' },
+      ...(o.review ? [{ id: 'ok', kind: 'approve' as const, name: 'Your review', gate: 'approve' as const }] : []),
+      ...(o.audit === false ? [] : [{ id: 'audit', kind: 'audit' as const, name: 'Audit' }]),
+      ...(o.merge === false ? [] : [{ id: 'land', kind: 'merge' as const, name: 'Land', ...o.merge }])
+    ]
+  })
+  const started = (w: RunWorkflow, switches: { mergeGate?: boolean; planGate?: boolean } = {}) => {
+    const t = make()
+    Object.assign(t.state, switches)
+    t.state.pick = () => w
+    t.wf.begin('a1', 'Task')
+    return t
+  }
+
+  it('a merge step that names its gate decides, whatever the Settings switch says, and one with no gate follows the switch', () => {
+    expect(started(flow({ merge: { gate: 'auto' } })).wf.mergeCheck('a1', 'h1')).toBeNull()
+    expect(started(flow({ merge: { gate: 'approve' } }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: {} }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).toBeNull()
+    expect(started(flow({ merge: false }), { mergeGate: true }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+  })
+
+  it('a workflow with no plan step needs no plan to land, and one with no audit step has no audit and asks no model', async () => {
+    const t = started(flow({ plan: false, audit: false }))
+    expect(t.wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'not-needed', audit: { state: 'off', reason: 'workflow' }, blocking: [] })
+    await t.wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(t.state.asked).toEqual([])
+  })
+
+  it('a step the person has not approved holds landing and is named; approving it lifts the hold', () => {
+    const t = started(flow({ plan: false, review: true }))
+    expect(t.wf.mergeCheck('a1', 'h1')!.blocking).toEqual([])
+    t.wf.stepDone('a1')
+    expect(t.wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['"Your review" has not been approved.'])
+    t.wf.approveStep(t.wf.runs()[0]!.id, 'ok', 'approved')
+    expect(t.wf.mergeCheck('a1', 'h1')!.blocking).toEqual([])
+  })
+
+  it('says whether the plan comes first for the task that is open, by the same rule', () => {
+    const wanted = (plan: { gate?: 'auto' | 'approve' } | undefined, planGate: boolean) => {
+      const t = started(flow({ merge: {} }), { planGate })
+      t.state.pick = () => ({ ...flow(), steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), ...flow({ plan: false }).steps] })
+      t.wf.begin('a2', 'Task')
+      return t.wf.planWanted('a2')
+    }
+    expect([wanted({ gate: 'auto' }, true), wanted({ gate: 'approve' }, false), wanted({}, true), wanted({}, false), wanted(undefined, true)]).toEqual([false, true, true, false, false])
+    expect(make().wf.planWanted('a1')).toBe(false)
   })
 })
