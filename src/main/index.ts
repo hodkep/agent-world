@@ -61,9 +61,9 @@ import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
-import { blockText, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
+import { blockText, currentBranch, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
-import { BUILDER_TOOLS, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
+import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { stepReply } from '../shared/steps'
@@ -444,7 +444,7 @@ const skillSource: SkillSource = {
   playbook: (project) => new Set((project ? libraryService.rulesFor(project) : libraryService.playbooks.read('global')).filter((r) => r.mode !== 'off').map((r) => r.id))
 }
 const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), skills: skillSource, now: Date.now })
-const BUILDER_ALLOWED = BUILDER_TOOLS.map((t) => `mcp__agent-world__${t}`)
+const BUILDER_ALLOWED = BUILDER_ALLOWED_NAMES.map((t) => `mcp__agent-world__${t}`)
 const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   run: (command, cwd) => runCheck(command, cwd, { env: checkEnv(process.env, loginShellPath() ?? process.env.PATH ?? '') }),
@@ -1188,7 +1188,7 @@ async function main() {
       if (event === 'git-ref') {
         const where = typeof payload.cwd === 'string' ? payload.cwd : ''
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
-        if (!where || !isInside(a.cwd, where) || !holdsBranch(a.branch, refs)) return {}
+        if (!where || !isInside(a.cwd, where) || !holdsBranch(a.branch ?? currentBranch(a.cwd), refs)) return {}
         const why = workflows.commitBlock(id, where, stagedFiles(where))
         return why ? { block: blockText(why) } : {}
       }

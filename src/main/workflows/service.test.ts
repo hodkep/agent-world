@@ -720,6 +720,35 @@ describe('approving a step, and finishing the task', () => {
     expect(() => wf.approveStep('nope', 'ok', 'approved')).toThrow('No such run.')
   })
 
+  it('work the person sends back after the task was finished opens the task again; an approval does not', () => {
+    const { wf, run } = started()
+    wf.stepDone('a1')
+    wf.stepDone('a1')
+    wf.approveStep(run, 'b', 'approved')
+    wf.done('a1', 'Done.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    wf.approveStep(run, 'ok', 'approved')
+    expect(wf.runs()[0]!.status).toBe('done')
+    const again = started()
+    again.wf.stepDone('a1')
+    again.wf.stepDone('a1')
+    again.wf.approveStep(again.run, 'b', 'approved')
+    again.wf.done('a1', 'Done.')
+    again.wf.approveStep(again.run, 'ok', 'changes', { note: 'add a test' })
+    expect(again.wf.runs()[0]!.status).toBe('open')
+    expect(again.wf.stepDone('a1').done).toBe('b')
+  })
+
+  it('work sent back by an approve step is reported again by its id as well as with no id', () => {
+    const { wf, run } = started()
+    wf.stepDone('a1')
+    wf.stepDone('a1')
+    wf.approveStep(run, 'b', 'approved')
+    wf.approveStep(run, 'ok', 'changes', { note: 'add a test' })
+    expect(() => wf.stepDone('a1', 'a')).toThrow('Work was sent back: report the fix with step_done("b"), or with no id.')
+    expect(wf.stepDone('a1', 'b').done).toBe('b')
+  })
+
   it('finishing the task marks the work steps the agent never reported as done by the app, and leaves the ones it did', () => {
     const { wf, log } = started()
     wf.stepDone('a1', 'a')
@@ -828,6 +857,73 @@ describe('running a workflow\'s checks', () => {
     const { wf, state } = started(false)
     expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0 })
     expect(state.ran).toEqual([])
+  })
+
+  it('a task the agent already finished is opened again when its check sends work back, so the fix can be reported, and stays finished when the check passes', async () => {
+    const passing = started()
+    passing.wf.done('a1', 'Done.')
+    await passing.wf.runChecks('a1', 'h1')
+    expect(passing.wf.runs()[0]!.status).toBe('done')
+    const { wf, state } = started()
+    wf.done('a1', 'Done.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    state.results = [{ exit: 1, tail: 'FAIL a' }]
+    const first = await wf.runChecks('a1', 'h1')
+    expect(first.sendBack).toContain('failed (try 1 of 3)')
+    expect(wf.runs()[0]!.status).toBe('open')
+    expect(wf.stepDone('a1').done).toBe('build')
+    await wf.runChecks('a1', 'h2')
+    expect(stateOf(wf, 'tests', 'h2')).toBe('passed')
+  })
+
+  it('a task the agent finishes while its check is still running is opened again when that check fails: it is the run as it is now that counts', async () => {
+    const { wf, state } = started()
+    let release = () => {}
+    state.gate = new Promise<void>((r) => (release = r))
+    state.results = [{ exit: 1, tail: 'FAIL a' }]
+    const running = wf.runChecks('a1', 'h1')
+    await new Promise((r) => setTimeout(r, 0))
+    wf.done('a1', 'Done.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    release()
+    expect((await running).sendBack).toContain('failed (try 1 of 3)')
+    expect(wf.runs()[0]!.status).toBe('open')
+    expect(wf.stepDone('a1').done).toBe('build')
+  })
+
+  it('a finished task opened again by a failing check stays open while the check keeps failing, and the person is asked when it runs out of tries', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'a' }, { exit: 1, tail: 'b' }, { exit: 1, tail: 'c' }]
+    wf.done('a1', 'Done.')
+    await wf.runChecks('a1', 'h1')
+    await wf.runChecks('a1', 'h2')
+    const last = await wf.runChecks('a1', 'h3')
+    expect(last.gaveUp).toBeDefined()
+    expect(wf.runs()[0]!.status).toBe('open')
+  })
+
+  it('the agent that reports the fix by the step\'s id, as the brief taught it to, is heard like one that names nothing; a step with nothing sent back is still done', async () => {
+    const { wf, state } = started()
+    expect(() => wf.stepDone('a1', 'build')).toThrow('"build" is already done.')
+    state.results = [{ exit: 1, tail: 'FAIL a' }]
+    await wf.runChecks('a1', 'h1')
+    expect(wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
+    expect(wf.runs()[0]!.rounds[0]!.steps.filter((x) => x.step === 'build').map((x) => x.state)).toEqual(['done', 'done'])
+    // Once the check passes there is nothing to report again.
+    await wf.runChecks('a1', 'h2')
+    expect(() => wf.stepDone('a1', 'build')).toThrow('"build" is already done.')
+  })
+
+  it('the refusal of a step that is done says how to report a fix when a check was sent back, and names the step to use', async () => {
+    const t = make()
+    t.state.pick = () => ({ ...FLOW, steps: [{ id: 'first', kind: 'work', name: 'First' }, { id: 'build', kind: 'work', name: 'Build' }, ...FLOW.steps.slice(1)] })
+    t.wf.begin('a1', 'Task')
+    t.wf.stepDone('a1', 'first')
+    t.wf.stepDone('a1', 'build')
+    t.state.results = [{ exit: 1, tail: 'FAIL a' }]
+    await t.wf.runChecks('a1', 'h1')
+    expect(() => t.wf.stepDone('a1', 'first')).toThrow('"first" is already done. A check was sent back: report the fix with step_done("build"), or with no id.')
+    expect(t.wf.stepDone('a1', 'build').done).toBe('build')
   })
 
   it('a failing check is sent back to the agent with what it printed, again after the agent reports once more, and when it has no tries left the person is asked', async () => {

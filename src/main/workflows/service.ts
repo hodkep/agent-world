@@ -42,7 +42,7 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: 
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -202,6 +202,8 @@ export class Workflows {
         ran++
         if (r.exit === 0) continue
         const of = (step.retries ?? DEFAULT_RETRIES) + 1
+        // The agent may have said the task was done before its checks ran: the work coming back makes it open again, so the fix can be reported.
+        if (this.runs().find((x) => x.id === run.id)?.status === 'done') this.append({ k: 'reopen', t: this.deps.now(), run: run.id })
         return attempt < of ? { ran, sendBack: checkFailed({ name: step.name, run: step.run ?? '', try: attempt, of, result: r }) } : { ran, gaveUp: checkGaveUp({ name: step.name, tries: attempt }) }
       } finally {
         this.running.delete(key)
@@ -240,22 +242,26 @@ export class Workflows {
     const round = run.rounds[run.rounds.length - 1]!
     const last = (id: string) => round.steps.filter((x) => x.step === id).at(-1)
     const reportable = (s: RunWorkflow['steps'][number]) => s.kind === 'work' && (last(s.id)?.state === undefined || last(s.id)?.state === 'changes')
+    // The work that was sent back, for the agent to report again: by the person (an approve step came back), or by a check that failed and still has tries.
+    const sentBack = (): { step: RunWorkflow['steps'][number]; by: 'person' | 'check' } | undefined => {
+      const back = flow.steps.findIndex((s) => s.kind === 'approve' && last(s.id)?.state === 'changes')
+      const failing = this.states(run).findIndex((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)
+      const at = back >= 0 ? back : failing
+      const found = at < 0 ? undefined : flow.steps.slice(0, at).reverse().find((s) => s.kind === 'work')
+      return found && { step: found, by: back >= 0 ? 'person' : 'check' }
+    }
     let target: RunWorkflow['steps'][number] | undefined
     if (step) {
       target = flow.steps.find((s) => s.id === step)
       if (!target) throw new Error(`This workflow has no step "${step}". Its steps: ${flow.steps.map((s) => s.id).join(', ')}.`)
       if (target.kind !== 'work') throw new Error(`"${step}" is not a step you report: the app or the person does it.`)
-      if (!reportable(target)) throw new Error(`"${step}" is already done.`)
-    } else {
-      target = flow.steps.find(reportable)
-      if (!target) {
-        // Work the person sent back: the last work step before the approve step that came back.
-        const back = flow.steps.findIndex((s) => s.kind === 'approve' && last(s.id)?.state === 'changes')
-        // Or the work a check sent back: it failed and still has tries, so the agent has fixed it and says so.
-        const failing = this.states(run).findIndex((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)
-        const at = back >= 0 ? back : failing
-        target = at < 0 ? undefined : flow.steps.slice(0, at).reverse().find((s) => s.kind === 'work')
+      if (!reportable(target)) {
+        // An agent told to "call step_done again" names the step it named before; when that step is the one sent back, that is the fix being reported.
+        const back = sentBack()
+        if (back?.step.id !== target.id) throw new Error(`"${step}" is already done.${back ? ` ${back.by === 'check' ? 'A check was sent back' : 'Work was sent back'}: report the fix with step_done("${back.step.id}"), or with no id.` : ''}`)
       }
+    } else {
+      target = flow.steps.find(reportable) ?? sentBack()?.step
       if (!target) throw new Error('Every step you do is already reported done.')
     }
     this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
@@ -271,6 +277,7 @@ export class Workflows {
     if (!run || !round) throw new Error('No such run.')
     const waiting = this.states(run).find((s) => s.id === step && s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
     if (!waiting) throw new Error('Nothing is waiting for approval there.')
+    if (decision === 'changes' && run.status === 'done') this.append({ k: 'reopen', t: this.deps.now(), run: runId })
     this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: decision, ...(o.note && { note: o.note }) })
   }
 

@@ -87,6 +87,9 @@ describe('the built-in Standard workflow', () => {
   it('is itself a valid workflow, and is today\'s pipeline: plan, build, audit, land', () => {
     expect(parseWorkflow(JSON.stringify(STANDARD))).toEqual({ ok: true, workflow: STANDARD })
     expect(STANDARD.id).toBe('standard')
+    // An agent that reads "when" must not prefer it to a workflow the project made for its work.
+    expect(STANDARD.when).toMatch(/fallback/i)
+    expect(STANDARD.when).not.toMatch(/anything/i)
     expect(STANDARD.steps.map((s) => s.kind)).toEqual(['plan', 'work', 'audit', 'merge'])
   })
 })

@@ -157,7 +157,7 @@ test('connected agy with an older plugin says so and updates it on approval, aft
     expect(JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version).toBe('0.1.1')
     await plan.getByRole('button', { name: 'Update' }).click()
     // Between agy's uninstall and its install the file is not there for a moment.
-    await expect.poll(() => { try { return JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version } catch { return 'none' } }, { timeout: 15_000 }).toBe('0.1.2')
+    await expect.poll(() => { try { return JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version } catch { return 'none' } }, { timeout: 15_000 }).toBe('0.1.3')
     await expect(note).toBeHidden({ timeout: 15_000 })
     expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['agent-world'])
   } finally {
@@ -171,7 +171,7 @@ test('with agy as the default program and connected, the builder is an agy agent
   const plugins = join(tmp, 'plugins')
   mkdirSync(join(home, 'agy'), { recursive: true })
   mkdirSync(join(plugins, 'aw-library'), { recursive: true })
-  writeFileSync(join(plugins, 'aw-library', 'plugin.json'), JSON.stringify({ name: 'aw-library', version: '0.1.2' }))
+  writeFileSync(join(plugins, 'aw-library', 'plugin.json'), JSON.stringify({ name: 'aw-library', version: '0.1.3' }))
   const config = join(tmp, 'mcp_config.json')
   writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': { command: process.execPath, args: [join(home, 'bin', 'aw-mcp-bridge.cjs')] } } }))
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'agy' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))

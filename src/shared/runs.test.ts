@@ -56,6 +56,28 @@ describe('what a run is, read from its log', () => {
   })
 })
 
+describe('a run that is opened again because work was sent back', () => {
+  it('is open again in the same round, without the end or the summary it had, and what follows counts in that round', () => {
+    const [r] = reduceRuns([begin('r1', 1000), { k: 'done', t: 2000, run: 'r1', summary: 'Done.' }, { k: 'reopen', t: 3000, run: 'r1' }, { k: 'commit', t: 4000, run: 'r1', sha: 'abc', subject: 'fix' }])
+    expect(r).toMatchObject({ status: 'open' })
+    expect(r!.endedAt).toBeUndefined()
+    expect(r!.summary).toBeUndefined()
+    expect(r!.rounds).toHaveLength(1)
+    expect(r!.rounds[0]!.endedAt).toBeUndefined()
+    expect(r!.rounds[0]!.commits).toHaveLength(1)
+  })
+
+  it('does not reopen a run that was stopped, or one that is already open', () => {
+    expect(reduceRuns([begin('r1', 1000), { k: 'stop', t: 2000, run: 'r1' }, { k: 'reopen', t: 3000, run: 'r1' }])[0]!.status).toBe('stopped')
+    expect(reduceRuns([begin('r1', 1000), { k: 'reopen', t: 3000, run: 'r1' }])[0]!.status).toBe('open')
+  })
+
+  it('can end again: a second done closes it with its own summary', () => {
+    const [r] = reduceRuns([begin('r1', 1000), { k: 'done', t: 2000, run: 'r1', summary: 'First.' }, { k: 'reopen', t: 3000, run: 'r1' }, { k: 'done', t: 4000, run: 'r1', summary: 'Second.' }])
+    expect(r).toMatchObject({ status: 'done', summary: 'Second.', endedAt: 4000 })
+  })
+})
+
 describe('naming a run for a list', () => {
   it('is the agent and the task, with the round only after the first', () => {
     const first = reduceRuns([begin('r1', 100)])[0]!

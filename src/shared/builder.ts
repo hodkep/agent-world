@@ -74,6 +74,8 @@ export const BUILDER_NAME = 'builder'
 export const BUILDER_ROLE = 'Workflow builder'
 /** The tools only the builder is given. */
 export const BUILDER_TOOLS = ['workflow_list', 'workflow_get', 'workflow_propose'] as const
+/** What the builder may use without being asked each time: its own tools and the project's notes, which it only reads. */
+export const BUILDER_ALLOWED = [...BUILDER_TOOLS, 'recall'] as const
 
 const KIND_DOES: Record<StepKind, string> = {
   plan: 'the agent writes a plan for the person to read. Fields: brief.',

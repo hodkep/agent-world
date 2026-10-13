@@ -56,5 +56,5 @@ export function workflowList(entries: WorkflowEntry[], defaultId: string): strin
   const chosen = usable.find((e) => e.id === defaultId) ?? usable.find((e) => e.id === 'standard')
   const others = usable.filter((e) => e !== chosen).slice(0, OFFERED_MAX)
   if (!chosen || others.length === 0) return ''
-  return [`This project has workflows. ${chosen.workflow!.name} is the default; pass one of these to task_begin as "workflow" if it fits better:`, ...others.map((e) => `- ${e.id}${e.workflow!.when ? `: ${e.workflow!.when}` : ''}`)].join('\n')
+  return [`This project has workflows. ${chosen.workflow!.name} is the default: use it unless another one clearly fits the task better, and then pass its id to task_begin as "workflow":`, ...others.map((e) => `- ${e.id}${e.workflow!.when ? `: ${e.workflow!.when}` : ''}`)].join('\n')
 }

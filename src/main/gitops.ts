@@ -89,10 +89,13 @@ export async function writeWorktreeFile(cwd: string, path: string, content: stri
   await writeFile(full, content)
 }
 
+/** The plan the plan gate asks an agent to write: it is read by the office, and is not the agent's work. */
+const NOT_WORK = [':(exclude).agent-world/plan.md']
+
 export async function commitAll(cwd: string, message: string) {
   if (!message.trim()) throw new Error('A commit message is required.')
-  await git(cwd, 'add', '-A')
-  if (!(await git(cwd, 'status', '--porcelain'))) throw new Error('Nothing to commit.')
+  await git(cwd, 'add', '-A', '--', '.', ...NOT_WORK)
+  if (!(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK))) throw new Error('Nothing to commit.')
   await git(cwd, 'commit', '-m', message.trim())
 }
 
@@ -263,7 +266,7 @@ export async function commitDiff(cwd: string, hash: string, path: string) {
 export async function mergeInto(repo: string, branch: string, base: string, o: { squash?: boolean; message?: string } = {}) {
   const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
   if (current !== base) throw new Error(`${base} is not checked out in ${repo} (it is on ${current}); switch to ${base} first.`)
-  if (await git(repo, 'status', '--porcelain')) throw new Error(`${repo} has uncommitted changes; commit or stash them before merging.`)
+  if (await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK)) throw new Error(`${repo} has uncommitted changes; commit or stash them before merging.`)
   try {
     if (o.squash) {
       await git(repo, 'merge', '--squash', branch)
@@ -291,8 +294,8 @@ export interface Readiness {
 /** What stands between the agent's work and the base branch, without changing anything. */
 export async function finishReadiness(repo: string, cwd: string, branch: string, base: string): Promise<Readiness> {
   const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
-  const uncommitted = lines(await git(cwd, 'status', '--porcelain')).length
-  const baseReady = (await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')) === base && !(await git(repo, 'status', '--porcelain'))
+  const uncommitted = lines(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK)).length
+  const baseReady = (await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')) === base && !(await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK))
   let conflicts: string[] = []
   if (ahead > 0) {
     try {

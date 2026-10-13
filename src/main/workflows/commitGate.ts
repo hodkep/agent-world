@@ -100,6 +100,12 @@ export function originalHooks(cwd: string): string {
   return hooks ? resolve(cwd, hooks) : ''
 }
 
+/** The branch checked out in `cwd`, for an agent that works in the folder itself and has none of its own; null for a detached head or outside a repository. */
+export function currentBranch(cwd: string): string | null {
+  const b = git(cwd, 'symbolic-ref', '--short', '-q', 'HEAD')
+  return b || null
+}
+
 /** The files a commit would hold (paths from the work tree's root), as git sees them staged in `cwd`. */
 export const stagedFiles = (cwd: string): string[] => git(cwd, 'diff', '--cached', '--name-only').split('\n').filter(Boolean)
 

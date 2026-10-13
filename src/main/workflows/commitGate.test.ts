@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HOOK_NAMES, blockText, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
+import { HOOK_NAMES, blockText, currentBranch, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
 
 const dirs: string[] = []
 const servers: Server[] = []
@@ -225,6 +225,18 @@ describe('a branch update with the office\'s hooks in place', () => {
     await run(work, {}, 'add', '-A')
     expect((await run(work, agentEnv(hooks, office.url, own), 'commit', '-qm', 'b')).ok).toBe(true)
     expect(readFileSync(join(work, 'refs-seen.log'), 'utf8')).toContain('refs/heads/main')
+  })
+})
+
+describe('the branch an agent working in the folder itself is on', () => {
+  it('is the branch checked out there, and nothing for a detached head or a folder that is not a repository', async () => {
+    const { work } = await repo()
+    expect(currentBranch(work)).toBe('main')
+    await run(work, {}, 'checkout', '-q', '-b', 'feature/x')
+    expect(currentBranch(work)).toBe('feature/x')
+    await run(work, {}, 'checkout', '-q', '--detach')
+    expect(currentBranch(work)).toBeNull()
+    expect(currentBranch(tmp())).toBeNull()
   })
 })
 
