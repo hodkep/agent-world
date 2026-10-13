@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
-import { type PlanAnswer, type PlanCheck, type Run, type RunEvent, reduceRuns } from '../../shared/runs'
+import { stepStates } from '../../shared/steps'
+import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
 import { auditPrompt, parseAudit } from '../../shared/audit'
 import { intentPrompt, parseIntent } from '../../shared/intent'
 import { parsePlan, type PlanQuestion } from '../../shared/plan'
@@ -17,6 +18,8 @@ interface Deps {
   dial: () => Dial
   /** One question to a model for the audit, under the agent's own account; the reply text and what it cost. */
   ask: (agentId: string, prompt: string, model?: string) => Promise<{ text: string; cost?: number; model?: string }>
+  /** The workflow a new task follows: the one the agent asked for if there is such a workflow, else the project's default. Nothing when the app has none to offer. */
+  pick: (agentId: string, requested?: string) => RunWorkflow | undefined
   /** When workflows were switched on (ms): earlier commits are history. */
   since: () => number
   now: () => number
@@ -30,7 +33,7 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; model?: s
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge']
+const KINDS = ['begin', 'round', 'done', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -83,7 +86,7 @@ export class Workflows {
   }
 
   /** `followUp`: the request continues the agent's last task, so that run gets a new round instead of a new run. */
-  begin(agentId: string, title: string, opts: { followUp?: boolean } = {}) {
+  begin(agentId: string, title: string, opts: { followUp?: boolean; workflow?: string } = {}) {
     if (!this.deps.enabled()) throw new Error('Workflows are off.')
     const who = this.deps.who(agentId)
     if (!who) throw new Error('Unknown agent.')
@@ -96,14 +99,85 @@ export class Workflows {
     const open = last?.status === 'open' ? last : undefined
     if (open) this.append({ k: 'done', t: this.deps.now(), run: open.id })
     const run = this.deps.newId()
-    this.append({ k: 'begin', t: this.deps.now(), run, agent: agentId, name: who.name, project: who.project, title })
+    const workflow = this.deps.pick(agentId, opts.workflow)
+    this.append({ k: 'begin', t: this.deps.now(), run, agent: agentId, name: who.name, project: who.project, title, ...(workflow && { workflow }) })
     return run
   }
 
   done(agentId: string, summary?: string) {
     const open = this.runs().find((r) => r.agent === agentId && r.status === 'open')
     if (!open) throw new Error('No task is open.')
+    // Agents often forget to report a step: finishing the task reports the ones left, marked as the app's doing.
+    const round = open.rounds[open.rounds.length - 1]!
+    for (const s of open.workflow?.steps ?? []) {
+      if (s.kind === 'work' && !round.steps.some((x) => x.step === s.id && x.state !== 'changes')) this.append({ k: 'step', t: this.deps.now(), run: open.id, round: round.n, step: s.id, state: 'done', implicit: true })
+    }
     this.append({ k: 'done', t: this.deps.now(), run: open.id, ...(summary && { summary }) })
+  }
+
+  private states(run: Run) {
+    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate() })
+  }
+
+  /** Whether the plan comes first for the task the agent has open. */
+  planWanted(agentId: string): boolean {
+    const run = this.openRun(agentId)
+    return !!run && this.planRequired(run)
+  }
+
+  /** Whether landing is held for the plan, the audit and the person's approvals: the merge step's own gate decides, else the Settings switch. */
+  private mergeRequired(run: Run): boolean {
+    const merge = run.workflow?.steps.find((s) => s.kind === 'merge')
+    return merge?.gate === 'approve' ? true : merge?.gate === 'auto' ? false : this.deps.mergeGate()
+  }
+
+  /** Whether the run's plan must be approved before edits: the plan step's own gate decides, else the Settings switch; a workflow with no plan step needs none. */
+  private planRequired(run: Run): boolean {
+    if (!run.workflow) return this.deps.planGate()
+    const plan = run.workflow.steps.find((s) => s.kind === 'plan')
+    return !plan ? false : plan.gate === 'approve' ? true : plan.gate === 'auto' ? false : this.deps.planGate()
+  }
+
+  /**
+   * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
+   * reports the last work step done once more. Says which step now waits for the person, if one does.
+   */
+  stepDone(agentId: string, step?: string): { done: string; waiting?: string } {
+    const run = this.openRun(agentId)
+    if (!run) throw new Error('No task is open.')
+    const flow = run.workflow
+    if (!flow) throw new Error('This task has no steps to report.')
+    const round = run.rounds[run.rounds.length - 1]!
+    const last = (id: string) => round.steps.filter((x) => x.step === id).at(-1)
+    const reportable = (s: RunWorkflow['steps'][number]) => s.kind === 'work' && (last(s.id)?.state === undefined || last(s.id)?.state === 'changes')
+    let target: RunWorkflow['steps'][number] | undefined
+    if (step) {
+      target = flow.steps.find((s) => s.id === step)
+      if (!target) throw new Error(`This workflow has no step "${step}". Its steps: ${flow.steps.map((s) => s.id).join(', ')}.`)
+      if (target.kind !== 'work') throw new Error(`"${step}" is not a step you report: the app or the person does it.`)
+      if (!reportable(target)) throw new Error(`"${step}" is already done.`)
+    } else {
+      target = flow.steps.find(reportable)
+      if (!target) {
+        // Work the person sent back: the last work step before the approve step that came back.
+        const back = flow.steps.findIndex((s) => s.kind === 'approve' && last(s.id)?.state === 'changes')
+        target = back < 0 ? undefined : flow.steps.slice(0, back).reverse().find((s) => s.kind === 'work')
+      }
+      if (!target) throw new Error('Every step you do is already reported done.')
+    }
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
+    const waiting = this.states(this.runs().find((r) => r.id === run.id)!).find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
+    return { done: target.id, ...(waiting && { waiting: waiting.name }) }
+  }
+
+  /** The person's answer to a step that waits for them: approve it, or send the work back with a note. */
+  approveStep(runId: string, step: string, decision: 'approved' | 'changes', o: { note?: string } = {}) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    const waiting = this.states(run).find((s) => s.id === step && s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
+    if (!waiting) throw new Error('Nothing is waiting for approval there.')
+    this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: decision, ...(o.note && { note: o.note }) })
   }
 
   /** "Stop them now": every open run is closed as stopped. */
@@ -193,9 +267,9 @@ export class Workflows {
    * approves the plan; a follow-up round, a task the app started and a finished task are not.
    */
   editBlock(agentId: string, file: string, cwd: string): string | null {
-    if (!this.deps.enabled() || !this.deps.planGate()) return null
+    if (!this.deps.enabled()) return null
     const run = this.openRun(agentId)
-    if (!run || run.auto) return null
+    if (!run || run.auto || !this.planRequired(run)) return null
     const round = run.rounds[run.rounds.length - 1]!
     const plan = round.plan
     if (plan?.state === 'approved' || plan?.state === 'released') return null
@@ -211,7 +285,7 @@ export class Workflows {
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */
   mergeCheck(agentId: string, head: string, o: { auditable?: boolean } = {}): MergeCheck | null {
     const run = this.mine(agentId)[0]
-    if (!this.deps.enabled() || !this.deps.mergeGate() || !run) return null
+    if (!this.deps.enabled() || !run || !this.mergeRequired(run)) return null
     const blocking: string[] = []
     const notes: string[] = []
     const plan = [...run.rounds].reverse().find((r) => r.plan)?.plan
@@ -219,7 +293,7 @@ export class Workflows {
     if (run.auto) {
       state = 'not-needed'
       notes.push('The app started this run from a commit, so there was no plan to approve.')
-    } else if (!this.deps.planGate() || (state === 'none' && this.deps.dial() === 'economy')) state = 'not-needed'
+    } else if (!this.planRequired(run) || (state === 'none' && this.deps.dial() === 'economy')) state = 'not-needed'
     else if (state === 'none') blocking.push('No plan was approved for this task.')
     else if (state === 'waiting') blocking.push('The plan is still waiting for your approval.')
     else if (state === 'changes') blocking.push('You asked for changes to the plan and no new plan was approved.')
@@ -232,6 +306,8 @@ export class Workflows {
       const unseen = audit.findings.filter((f) => !f.seen).length
       if (unseen) blocking.push(`${unseen} audit finding${unseen === 1 ? ' has' : 's have'} not been seen.`)
     }
+    // Steps the person must approve before landing: named, so they know which.
+    for (const w of this.states(run)) if (w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work')) blocking.push(`"${w.name}" has not been approved.`)
     const readback = this.planOf(run)
     return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, blocking, notes }
   }
@@ -242,6 +318,7 @@ export class Workflows {
   }
 
   private auditState(run: Run, head: string, auditable: boolean): MergeCheck['audit'] {
+    if (run.workflow && !run.workflow.steps.some((s) => s.kind === 'audit')) return { state: 'off', reason: 'workflow' }
     if (this.deps.dial() === 'economy') return { state: 'off', reason: 'economy' }
     if (!auditable) return { state: 'off', reason: 'provider' }
     if (!this.planOf(run)) return { state: 'off', reason: 'no-plan' }
@@ -254,7 +331,7 @@ export class Workflows {
   /** The audit of `head` against the agent's plan: one question to a model, its findings logged with what it cost. */
   runAudit(agentId: string, head: string, diff: string): Promise<void> {
     const run = this.mine(agentId)[0]
-    if (!run || !this.planOf(run) || this.deps.dial() === 'economy' || (run.audit?.head === head && run.audit.state === 'done')) return Promise.resolve()
+    if (!run || !this.planOf(run) || this.deps.dial() === 'economy' || (run.workflow && !run.workflow.steps.some((s) => s.kind === 'audit')) || (run.audit?.head === head && run.audit.state === 'done')) return Promise.resolve()
     const key = `${run.id} ${head}`
     const running = this.auditing.get(key)
     if (running) return running

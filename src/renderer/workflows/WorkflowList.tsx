@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { Run } from '../../shared/runs'
+import { workflowRuns } from '../../shared/runStats'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
 
 const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', merge: 'land' }
@@ -25,7 +27,7 @@ function StepRow({ step, chip }: { step: Step; chip: Chip }) {
 }
 
 /** The workflows a project can use, with the chosen one's steps beside the list; copying, deleting and choosing the default are here. */
-export function WorkflowList({ folder, switches, defaultId, onDefault }: { folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void }) {
+export function WorkflowList({ folder, runs, switches, defaultId, onDefault }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void }) {
   const [entries, setEntries] = useState<WorkflowEntry[] | null>(null)
   const [picked, setPicked] = useState('')
   const [asking, setAsking] = useState(false)
@@ -75,6 +77,7 @@ export function WorkflowList({ folder, switches, defaultId, onDefault }: { folde
                 {shown.id === defaultId && <span className="wf-tag flag">Default{folder ? ` for ${here}` : ''}</span>}
               </div>
               {wf.when && <p className="muted">When: {wf.when}</p>}
+              <p className="muted">{(() => { const n = workflowRuns(runs, shown.id, Date.now()); return n === 0 ? 'No runs this week.' : `${n} run${n === 1 ? '' : 's'} this week.` })()}</p>
               {shown.overrides && <p className="hint">This one is used instead of the {shown.overrides === 'built-in' ? 'built-in Standard' : 'one kept for everything'} with the same id.</p>}
               <ol className="wfl-steps" aria-label="Steps">
                 {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} />)}

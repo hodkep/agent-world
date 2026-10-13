@@ -1,11 +1,13 @@
 import type { Round, Run } from '../../shared/runs'
+import type { StepContext } from '../../shared/steps'
+import { RunStrip } from './RunStrip'
 import { type RunSpend, auditText, formatDuration, landedText, spendText } from '../../shared/runStats'
 
 const clock = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const PLAN_STATE = { submitted: 'waiting', approved: 'approved', changes: 'sent back', released: 'hold lifted' } as const
 
-function RoundCard({ run, round, spend }: { run: Run; round: Round; spend: RunSpend | undefined }) {
+function RoundCard({ run, round, spend, ctx }: { run: Run; round: Round; spend: RunSpend | undefined; ctx: StepContext }) {
   const now = Date.now()
   const mine = spend?.rounds[round.n - 1]
   return (
@@ -18,6 +20,7 @@ function RoundCard({ run, round, spend }: { run: Run; round: Round; spend: RunSp
         </span>
         <span className="wf-cost mono">{spendText(mine && spend ? { ...mine, known: spend.known } : undefined)}</span>
       </header>
+      <RunStrip run={run} round={round.n} ctx={ctx} />
       {round.plan && (
         <p className="wf-plan">
           <span className={`wf-tag ${round.plan.state === 'approved' || round.plan.state === 'released' ? '' : 'flag'}`}>Plan {PLAN_STATE[round.plan.state]}</span>
@@ -44,7 +47,7 @@ function RoundCard({ run, round, spend }: { run: Run; round: Round; spend: RunSp
 }
 
 /** One agent's runs, newest first, each round by round with its commits and what it cost. */
-export function WorkflowTab({ agentName, agentId, runs, spend }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend> }) {
+export function WorkflowTab({ agentName, agentId, runs, spend, ctx }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctx: StepContext }) {
   const mine = runs.filter((r) => r.agent === agentId).reverse()
   return (
     <div className="wf-tab">
@@ -60,12 +63,13 @@ export function WorkflowTab({ agentName, agentId, runs, spend }: { agentName: st
               <b>{r.title}</b>
               <span className="wf-chip">{r.status}</span>
               {r.auto && <span className="wf-chip">from a commit</span>}
+              {r.workflow && <span className="wf-chip" title={`Followed the workflow ${r.workflow.name}`}>{r.workflow.name}</span>}
               <span className="wf-cost mono">{spendText(spend[r.id])}</span>
             </header>
             {r.summary && <p className="wf-summary">{r.summary}</p>}
             {r.auto && <p className="hint">{agentName} did not announce this task, so the app started the run from its commit. Its start time and cost are unknown.</p>}
             {[auditText(r), landedText(r)].map((line) => line && <p key={line} className="wf-gate">{line}</p>)}
-            {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} />)}
+            {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} ctx={ctx} />)}
           </article>
         ))
       )}

@@ -17,7 +17,7 @@ export interface MergeCheck {
 }
 
 export type AuditState =
-  | { state: 'off'; reason: 'economy' | 'provider' | 'no-plan' }
+  | { state: 'off'; reason: 'economy' | 'provider' | 'no-plan' | 'workflow' }
   | { state: 'not-run' }
   | { state: 'running' }
   | { state: 'failed'; reason: string }

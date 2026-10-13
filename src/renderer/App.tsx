@@ -60,6 +60,8 @@ import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
 import { pendingPlans } from '../shared/runs'
+import { waitingSteps } from '../shared/steps'
+import { StepGate } from './workflows/StepGate'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -271,6 +273,9 @@ export function App() {
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
+  // The audit runs at every dial but economy; steps and plans waiting for the person are what the Workflows button counts.
+  const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true }
+  const needsYou = pendingPlans(wf.runs).length + waitingSteps(wf.runs, stepCtx).length
   const patchPrefs = (patch: Partial<Prefs>) => {
     const next = { ...prefsNow.current!, ...patch }
     prefsNow.current = next
@@ -635,7 +640,13 @@ export function App() {
   // The agent's plan, when it waits for the person: shown in its chat where the answer is given.
   const gateFor = (a: AgentRecord) => {
     const p = pendingPlans(wf.runs).find((x) => x.run.agent === a.id)
-    return p ? <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} /> : null
+    const w = waitingSteps(wf.runs.filter((r) => r.agent === a.id), stepCtx).at(0)
+    return (
+      <>
+        {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
+        {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
+      </>
+    )
   }
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView
@@ -1139,7 +1150,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} onClose={() => setReport(null)} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} onClose={() => setReport(null)} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1249,7 +1260,7 @@ export function App() {
           <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
         {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
-        {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup badge={pendingPlans(wf.runs).length || undefined} tip={pendingPlans(wf.runs).length ? `${pendingPlans(wf.runs).length} plan${pendingPlans(wf.runs).length === 1 ? '' : 's'} waiting for you` : windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}
+        {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup badge={needsYou || undefined} tip={needsYou ? `${needsYou} thing${needsYou === 1 ? '' : 's'} waiting for you` : windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}
         <IconButton icon="library" label={prefs?.libraryEnabled === false ? 'Library (off)' : 'Library'} dim={prefs?.libraryEnabled === false} onClick={() => setLibraryOpen(true)} haspopup tip={prefs?.libraryEnabled === false ? 'The library and playbook are turned off. Open to turn them on in Settings.' : 'Skills, instructions and the playbook that says what agents are told'} />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
@@ -1591,7 +1602,7 @@ export function App() {
             />
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
-          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} />}
+          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctx={stepCtx} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

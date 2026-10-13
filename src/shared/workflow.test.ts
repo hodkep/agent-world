@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STANDARD, parseWorkflow, stepChips } from './workflow'
+import { STANDARD, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -116,3 +116,22 @@ function parseOk(o: unknown) {
   if (!r.ok) throw new Error(r.problems.join('; '))
   return r.workflow
 }
+
+describe('the copy of a workflow a run keeps', () => {
+  it('has every step with a name (the kind\'s when the file gives none), and what the agent was told, and the hash of the file', () => {
+    const rw = toRunWorkflow(parseOk(BUG_FIX), 'abc123')
+    expect(rw).toEqual({
+      id: 'bug-fix',
+      name: 'Bug fix',
+      hash: 'abc123',
+      steps: [
+        { id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve', brief: 'Name the symptom and the likely cause.' },
+        { id: 'fix', kind: 'work', name: 'Fix, test first', skills: ['tdd'], brief: 'Write a failing test, then make it pass.' },
+        { id: 'tests', kind: 'check', name: 'Tests pass', gate: 'pass', run: 'npm test', retries: 3 },
+        { id: 'review', kind: 'audit', name: 'Audit' },
+        { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }
+      ]
+    })
+    expect(toRunWorkflow(STANDARD).hash).toBeUndefined()
+  })
+})
