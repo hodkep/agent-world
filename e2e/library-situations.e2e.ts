@@ -124,3 +124,44 @@ test('an agy agent is pointed at the skill when a tool result it got shows a con
     await shutdown()
   }
 })
+
+test('chat: a slip beside the message says the skill was pointed at because of a merge conflict met mid-run, then read', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-sitchat-'))
+  const args = join(home, 'args.log')
+  const lib = join(home, 'aw', 'library')
+  skill(join(lib, 'skills', 'resolving-merge-conflicts'), 'resolving-merge-conflicts', 'Resolve a git merge conflict.', '# Merge')
+  mkdirSync(join(lib, 'playbooks'), { recursive: true })
+  writeFileSync(join(lib, 'playbooks', 'global.json'), JSON.stringify({ rules: [{ id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium', also: ['merge-conflict'] }] }))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('merge the feature branch into main')
+    await box.press('Enter')
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await expect(log.locator('.msg.assistant').first()).toBeVisible()
+    await expect.poll(() => readFileSync(args, 'utf8').includes('--settings')).toBe(true)
+    const line = readFileSync(args, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
+    const hook = JSON.parse(readFileSync(line[line.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
+    const session_id = line[line.indexOf('--session-id') + 1]
+    const post = (body: object) => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id, ...body }) })
+    await page.waitForTimeout(800)
+    await post({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git merge feature' }, tool_response: { stdout: CONFLICT }, tool_use_id: 't1' })
+    await page.waitForTimeout(800)
+    const slips = log.getByLabel('What the library did here')
+    const note = slips.getByRole('button', { name: /resolving-merge-conflicts/ })
+    await expect(note).toContainText('pointed because of a merge conflict, 1 file, not read')
+    await post({ hook_event_name: 'PreToolUse', tool_name: 'Skill', tool_input: { skill: 'resolving-merge-conflicts' } })
+    await expect(note).toContainText('pointed because of a merge conflict, 1 file, then read')
+    await note.click()
+    await expect(log.getByRole('group', { name: 'resolving-merge-conflicts, the words' })).toContainText('merge conflict, 1 file was found')
+    await log.screenshot({ path: process.env.SHOT ?? join(home, 'slip.png') })
+  } finally {
+    await shutdown()
+  }
+})

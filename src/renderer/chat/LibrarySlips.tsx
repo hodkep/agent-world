@@ -35,6 +35,8 @@ function notes(slips: Slip[], starts: Use[], told: number, items: Map<string, Li
     out.push(
       s.state === 'read'
         ? { key: s.id, icon: 'book', tone: 'read', title, says: `${why(s)}, then read · ${gap(s.gapMs ?? 0)}`, words: s.words, description: it?.description }
+        : s.state === 'skipped'
+          ? { key: s.id, icon: 'tag', tone: 'mute', title, says: `${why(s)}, passed over: “${s.reason ?? ''}”`, words: s.words, description: it?.description }
         : s.state === 'pointed'
           ? { key: s.id, icon: 'tag', tone: 'mute', title, says: `${why(s)}, not read`, words: s.words, description: it?.description }
           : { key: s.id, icon: 'book', tone: 'point', title, says: 'read on its own, not pointed at', description: it?.description }
