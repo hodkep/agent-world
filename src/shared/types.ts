@@ -180,6 +180,8 @@ export interface AgentRecord {
   /** The agent that started this one as its subagent (through spawn_subagent), and what it asked. Such an agent is not drawn in the office: it shows in its parent's subagents. */
   parent?: string
   task?: string
+  /** The project's workflow builder: made by the office on first use, found again by this mark. */
+  builder?: boolean
   /** When it was hired (ms since 1970); older agents were hired before this was kept. */
   hiredAt?: number
   /** Milliseconds it has spent working, added up as it goes. */

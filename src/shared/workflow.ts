@@ -29,9 +29,9 @@ export interface Workflow {
 export type WorkflowResult = { ok: true; workflow: Workflow } | { ok: false; problems: string[] }
 
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
-const STEPS_MAX = 12
+export const STEPS_MAX = 12
 const STEP_ID_MAX = 30
-const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], merge: ['auto', 'approve'] }
+export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], merge: ['auto', 'approve'] }
 const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']
 const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
@@ -115,6 +115,8 @@ export const STANDARD: Workflow = {
 }
 
 const KIND_NAME: Record<StepKind, string> = { plan: 'Plan', work: 'Build', check: 'Check', audit: 'Audit', approve: 'Your approval', merge: 'Land' }
+/** What a step is called where a person reads it: its own name, else its kind's. */
+export const stepName = (s: Step) => s.name ?? KIND_NAME[s.kind]
 
 export interface Chip {
   id: string

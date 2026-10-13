@@ -60,6 +60,8 @@ import { Workflows } from './workflows/service'
 import { askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
+import { Builder, Proposals } from './workflows/builder'
+import { BUILDER_TOOLS, type SaveHow, builderAgent, builderName, builderOptions } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { stepReply } from '../shared/steps'
@@ -431,6 +433,9 @@ const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
 // The versions of project workflow files whose commands the person approved.
 const approvals = new Approvals(join(HOME, 'workflow-approvals.json'))
 /** Whether a run's workflow may run its commands: a project's file needs the person's approval of its exact content; any other needs none. */
+// The workflow builder: the agent the person talks to about workflows, and the drafts it hands in (only the person saves one).
+const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), now: Date.now })
+const BUILDER_ALLOWED = BUILDER_TOOLS.map((t) => `mcp__agent-world__${t}`)
 const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   run: (command, cwd) => runCheck(command, cwd, { env: checkEnv(process.env, loginShellPath() ?? process.env.PATH ?? '') }),
@@ -480,7 +485,8 @@ async function kickChecks(id: string, o: { fresh?: boolean } = {}) {
   }
 }
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
-const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
+// The builder never has a task of its own.
+const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
 async function syncRunCommits(a: AgentRecord) {
   // Switched on, every agent's commits are read (an agent that never announced a task still gets a run); switched off, only agents with runs.
@@ -836,7 +842,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1148,6 +1154,16 @@ async function main() {
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,
+    builder: {
+      offered: (id) => !!byId(id)?.builder,
+      list: (id) => builder.list(byId(id)?.repoPath ?? null),
+      get: (id, wf) => builder.get(byId(id)?.repoPath ?? null, wf),
+      propose: (id, file) => {
+        const said = builder.propose(id, byId(id)?.repoPath ?? null, file)
+        send('workflows')
+        return said
+      }
+    },
     workflows: {
       offered: workflowsFor,
       planInstruction: () => planInstruction(prefs.workflows.dial),
@@ -1600,6 +1616,32 @@ async function main() {
   ipcMain.handle('workflows:definitions', (_, project: unknown) => workflowStore.list(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
+  // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
+  ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string) => {
+    const folder = projectOf(project)
+    if (!folder) throw new Error('Open a project first.')
+    let a = builderAgent(agents, folder)
+    if (!a) {
+      const p = providers().find((x) => x.id === 'claude')
+      if (!p || (await p.detect(binFor(p))).state !== 'ready') throw new Error('The builder needs Claude, and it is not ready here. Connect it in Settings first.')
+      a = { id: randomUUID(), name: builderName(agents.map((x) => x.name)), sessionId: randomUUID(), repoPath: folder, cwd: folder, branch: null, base: null, provider: 'claude', started: false, hiredAt: Date.now(), builder: true, options: builderOptions() }
+      accountsSvc.assign(a, prefs.defaults.accounts.claude)
+      setWorkspaces(rememberWorkspace(workspaces, folder))
+      agents.push(a)
+      persist()
+    }
+    const text = typeof first === 'string' ? first.trim().slice(0, 4000) : ''
+    if (text) mailbox.fromPerson(a.id, text)
+    spawn(a, env)
+    return a
+  })
+  ipcMain.handle('workflows:proposal', (_, agent: string, project: unknown) => builder.view(String(agent), projectOf(project)))
+  ipcMain.handle('workflows:propose-save', (_, agent: string, project: unknown, how: SaveHow) => {
+    const entry = builder.save(String(agent), projectOf(project), how === 'global' || how === 'replace' || how === 'copy' ? how : 'project')
+    send('workflows')
+    return entry
+  })
+  ipcMain.handle('workflows:propose-discard', (_, agent: string) => (builder.discard(String(agent)), send('workflows')))
   // The person's answer to a step that waits for them (not the plan: that has its own); it is typed into the agent.
   ipcMain.handle('workflows:approve-step', (_, runId: string, step: string, decision: 'approved' | 'changes', note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)

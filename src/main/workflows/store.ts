@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { STANDARD, type Scope, type Workflow, type WorkflowEntry as Entry, isWorkflowId, parseWorkflow } from '../../shared/workflow'
 
@@ -72,6 +72,22 @@ export class WorkflowStore {
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, `${copy}.json`), JSON.stringify(workflow, null, 2) + '\n')
     return this.entryOf(dir, `${copy}.json`, to)
+  }
+
+  /** Writes a workflow as a file in the chosen place. It refuses to replace a file that is there unless told to, and a workflow the file check refuses. */
+  save(project: string | null, workflow: Workflow, to: 'global' | 'project', o: { replace?: boolean } = {}): Entry {
+    const text = JSON.stringify(workflow, null, 2) + '\n'
+    const checked = parseWorkflow(text)
+    if (!checked.ok) throw new Error(checked.problems.join(' '))
+    const dir = this.dirFor(project, to)
+    const name = `${workflow.id}.json`
+    if (!o.replace && existsSync(join(dir, name))) throw new Error(`There is already a workflow "${workflow.id}" in that place.`)
+    mkdirSync(dir, { recursive: true })
+    // Written beside the file and moved over it, so a reader never sees half of one.
+    const tmp = join(dir, `${name}.tmp`)
+    writeFileSync(tmp, text)
+    renameSync(tmp, join(dir, name))
+    return this.entryOf(dir, name, to)
   }
 
   /** Deletes the workflow's file from the chosen place. */

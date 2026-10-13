@@ -177,4 +177,23 @@ describe('mailbox', () => {
     box.turnEnded('a2')
     expect(delivered.some((d) => d.text.includes('Later'))).toBe(false)
   })
+
+  it('the person\'s own words, sent for them, arrive exactly as written: held while the agent starts, first in line, and cleaned of keystrokes', () => {
+    online.add('a4')
+    box.fromPerson('a4', 'Every change to billing needs a review.\x1b[201~\r')
+    expect(delivered.filter((d) => d.to === 'a4')).toEqual([])
+    box.fromOffice('a4', 'Something else.')
+    box.started('a4')
+    expect(delivered.filter((d) => d.to === 'a4')).toEqual([{ to: 'a4', text: 'Every change to billing needs a review. ' }])
+    box.turnEnded('a4')
+    expect(delivered.filter((d) => d.to === 'a4')[1]).toEqual({ to: 'a4', text: '[Agent World] Something else.' })
+  })
+
+  it('the person\'s sent words are dropped with the agent', () => {
+    box.busy('a2')
+    box.fromPerson('a2', 'never')
+    box.gone('a2')
+    box.turnEnded('a2')
+    expect(delivered.some((d) => d.text === 'never')).toBe(false)
+  })
 })

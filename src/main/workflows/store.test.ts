@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -116,5 +116,43 @@ describe('copying and deleting', () => {
       expect(() => s.store.remove(s.project, id, 'global')).toThrow('Not a valid workflow id.')
       expect(() => s.store.duplicate(s.project, id, 'global')).toThrow('Not a valid workflow id.')
     }
+  })
+})
+
+describe('saving a workflow the builder proposed', () => {
+  it('writes it as a file in the chosen place and gives back the entry the list would show', () => {
+    const s = setup()
+    const e = s.store.save(s.project, wf('billing-change', 'Billing change'), 'project')
+    expect(e).toMatchObject({ id: 'billing-change', scope: 'project', workflow: wf('billing-change', 'Billing change'), file: join(s.projectDir, 'billing-change.json') })
+    expect(e.hash).toMatch(/^[0-9a-f]{16}$/)
+    expect(readFileSync(e.file!, 'utf8')).toBe(JSON.stringify(wf('billing-change', 'Billing change'), null, 2) + '\n')
+    expect(s.store.list(s.project).find((x) => x.id === 'billing-change')).toEqual(e)
+    expect(s.store.save(s.project, wf('everywhere', 'Everywhere'), 'global').file).toBe(join(s.globalDir, 'everywhere.json'))
+  })
+
+  it('creates the folder when the project has none yet', () => {
+    const s = setup()
+    const bare = join(s.root, 'bare')
+    mkdirSync(bare)
+    expect(s.store.save(bare, wf('first', 'First'), 'project').file).toBe(join(bare, '.agent-world', 'workflows', 'first.json'))
+  })
+
+  it('does not overwrite a file unless told to, and then changes the content and its hash', () => {
+    const s = setup()
+    const first = s.store.save(s.project, wf('bug-fix', 'Bug fix'), 'project')
+    expect(() => s.store.save(s.project, wf('bug-fix', 'Other'), 'project')).toThrow('There is already a workflow "bug-fix" in that place.')
+    const second = s.store.save(s.project, wf('bug-fix', 'Other'), 'project', { replace: true })
+    expect(second.workflow!.name).toBe('Other')
+    expect(second.hash).not.toBe(first.hash)
+  })
+
+  it('refuses a workflow the file check refuses, a project scope without a project, and leaves no half-written file', () => {
+    const s = setup()
+    const bad = { ...wf('bad', 'Bad'), steps: [{ id: 'tests', kind: 'check' }] } as Workflow
+    expect(() => s.store.save(s.project, bad, 'project')).toThrow('a check step needs "run"')
+    expect(() => s.store.save(null, wf('x', 'X'), 'project')).toThrow('Open a project first.')
+    expect(readdirSync(s.projectDir)).toEqual([])
+    s.store.save(s.project, wf('good', 'Good'), 'project')
+    expect(readdirSync(s.projectDir)).toEqual(['good.json'])
   })
 })

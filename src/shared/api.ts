@@ -354,6 +354,14 @@ export interface AwApi {
     duplicate(project: string | null, id: string, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
     /** Deletes a workflow's file from the project or the global folder. */
     remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
+    /** The project's workflow builder, made on first use and woken if asleep. What the person typed is sent to it once it can take it. */
+    builder(project: string, first?: string): Promise<AgentRecord>
+    /** The builder's draft against what is saved; null when it has none. */
+    proposal(agentId: string, project: string | null): Promise<import('./builder').ProposalView | null>
+    /** Saves the draft where the person chose, approving its commands for that exact file; says the saved workflow. */
+    saveProposal(agentId: string, project: string | null, how: import('./builder').SaveHow): Promise<import('./workflow').WorkflowEntry>
+    /** Throws the draft away. */
+    discardProposal(agentId: string): Promise<void>
   }
   /** Fires when a run began, finished, got a commit or was stopped. */
   onWorkflows(cb: () => void): () => void

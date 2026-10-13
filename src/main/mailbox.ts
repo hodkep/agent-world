@@ -41,6 +41,8 @@ export class Mailbox {
   private readonly expects = new Map<string, boolean>()
   /** Messages from the office itself (an answer to a plan), by agent: they go before mail from agents. */
   private readonly office = new Map<string, string[]>()
+  /** What the person typed in the app for an agent that was not ready to take it (the first message to a new agent), by agent. */
+  private readonly person = new Map<string, string[]>()
   private readonly history: { pair: string; at: number }[] = []
 
   constructor(private readonly deps: Deps) {}
@@ -70,6 +72,12 @@ export class Mailbox {
   /** The office tells an agent something (the person's answer to its plan). No reply is asked for. */
   fromOffice(agentId: string, text: string) {
     this.office.set(agentId, [...(this.office.get(agentId) ?? []), text])
+    this.flush(agentId)
+  }
+
+  /** The person's own message, sent for them once the agent can take it, as they wrote it: no prefix, since it is their turn to speak. */
+  fromPerson(agentId: string, text: string) {
+    this.person.set(agentId, [...(this.person.get(agentId) ?? []), text])
     this.flush(agentId)
   }
 
@@ -112,11 +120,17 @@ export class Mailbox {
     for (const m of this.queues.get(agentId) ?? []) this.deps.notify({ ...m, status: 'dropped' })
     this.queues.delete(agentId)
     this.office.delete(agentId)
+    this.person.delete(agentId)
     this.state.set(agentId, 'starting')
   }
 
   private flush(agentId: string) {
     if ((this.state.get(agentId) ?? 'starting') !== 'idle') return
+    const said = this.person.get(agentId)?.shift()
+    if (said !== undefined) {
+      this.state.set(agentId, 'busy')
+      return this.deps.deliver(agentId, unsafe(said))
+    }
     const note = this.office.get(agentId)?.shift()
     if (note !== undefined) {
       this.state.set(agentId, 'busy')
