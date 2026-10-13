@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branches, changes, commitsSince, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 
 let tmp: string
@@ -363,5 +363,11 @@ describe('commits since a time', () => {
   })
   it('is empty outside a repository', async () => {
     expect(await commitsSince(tmp, 0)).toEqual({ commits: [], files: [] })
+  })
+  it('lists the files with changes not yet committed, edited or new, and none outside a repository', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'edited again\n')
+    writeFileSync(join(wt.path, 'brand-new.ts'), 'new\n')
+    expect((await uncommittedFiles(wt.path)).sort()).toEqual(['a.ts', 'brand-new.ts'])
+    expect(await uncommittedFiles(tmp)).toEqual([])
   })
 })

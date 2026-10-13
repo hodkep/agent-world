@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isWork, requestTitle } from '../../shared/todoTracking'
+import { isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
+import { areaOfFiles } from '../../shared/todoAreas'
+import { noReplyTail, parseAgentMail } from '../../shared/mail'
 import { askMessage, type AskMode } from '../../shared/todoAsk'
 import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
@@ -15,6 +17,8 @@ export interface TodoDeps {
   dir: string
   workspaceKey: (repoPath: string) => string
   agent: (id: string) => { id: string; name: string; provider: string; repoPath: string; /** For a subagent: the main agent it works for. */ forMain?: string } | undefined
+  /** The agent of a project with this name (who another agent's request came from). */
+  agentNamed?: (repoPath: string, name: string) => { id: string; name: string; provider: string } | undefined
   /** The message an agent most recently said, so a task can point back at it. */
   lastMessage: (agentId: string) => MessageLink | undefined
   /** The message the person just sent an agent (its words are given), so the task made for it points at it. */
@@ -27,6 +31,8 @@ export interface TodoDeps {
   ask?: (prompt: string) => Promise<string>
   /** Writes a line into the project's shared memory. */
   remember: (repoPath: string, text: string, by: string) => void
+  /** Waits (ms); tests give one that does not. */
+  pause?: (ms: number) => Promise<void>
   now?: () => number
   onChange: (workspace: string) => void
 }
@@ -45,9 +51,26 @@ export function createTodoService(d: TodoDeps) {
   /** A board made before tasks were sorted by area: what the app made for requests leaves "Requests" for the Inbox and is named by its own words; a task someone wrote keeps its list. */
   function tidy(b: TodoBoard, key: string): TodoBoard {
     const old = b.todos.filter((t) => t.auto && t.list === 'Requests')
-    if (!old.length) return b
-    const todos = b.todos.map((t) => (old.includes(t) ? { ...t, list: INBOX, title: t.createdLink?.excerpt ? requestTitle(t.createdLink.excerpt) : t.title } : t))
-    const lists = [...b.lists.filter((l) => l !== INBOX), INBOX]
+    // Tasks made for what the system sent (a background task finishing) were never requests; and a list that names no feature ("Application") is emptied: each task goes where its files are, else to the Inbox.
+    const noise = b.todos.filter((t) => t.auto && t.createdLink?.excerpt && isSystemMessage(t.createdLink.excerpt))
+    const catchAll = b.todos.filter((t) => t.list !== INBOX && t.list !== 'Requests' && isGenericList(t.list) && !noise.includes(t))
+    if (!old.length && !noise.length && !catchAll.length) return b
+    const refile = (t: Todo) => {
+      const area = areaOfFiles(t.doneFiles ?? [])
+      return area ? resolveList(lists, area) : INBOX
+    }
+    let lists = b.lists.filter((l) => l !== INBOX)
+    const kept = b.todos.filter((t) => !noise.includes(t))
+    const todos = kept.map((t) => {
+      if (old.includes(t)) return { ...t, list: INBOX, title: t.createdLink?.excerpt ? requestTitle(t.createdLink.excerpt) : t.title }
+      if (catchAll.includes(t)) {
+        const list = refile(t)
+        if (list !== INBOX && !lists.includes(list)) lists = [...lists, list]
+        return { ...t, list }
+      }
+      return t
+    })
+    lists = [...lists.filter((l) => todos.some((t) => t.list === l) || !isGenericList(l)), INBOX]
     const next = { ...b, todos, lists: lists.filter((l) => l !== 'Requests' || todos.some((t) => t.list === 'Requests')) }
     // Saved straight away, so this happens once; the change event is for open windows and there are none yet.
     try {
@@ -104,13 +127,24 @@ export function createTodoService(d: TodoDeps) {
     if (!t) return
     const p: Promise<void> = (async () => {
       let work: { commits: { sha: string; subject: string }[]; files: string[] } = { commits: [], files: [] }
-      try {
-        work = await d.workSince(a.id, sinceOf(t))
-      } catch {
-        /* not a repository, or git is not there: the task keeps what the agent said */
+      const look = async () => {
+        try {
+          work = await d.workSince(a.id, sinceOf(t))
+        } catch {
+          /* not a repository, or git is not there: the task keeps what the agent said */
+        }
+      }
+      await look()
+      // The chat's last tool calls reach the app a moment after the turn ends: before a request is called idle, look once more.
+      if (t.auto && t.closedAtTurnEnd && !t.named && !work.commits.length && !work.files.length) {
+        await (d.pause ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))))(1500)
+        await look()
       }
       const cur = load(key)
-      if (!cur.todos.some((x) => x.id === id)) return
+      const here = cur.todos.find((x) => x.id === id)
+      if (!here) return
+      // A request that was only talked about (nobody named it, and nothing was changed) was a question or chat, not work to keep: the board is for implementation and research.
+      if (here.auto && here.closedAtTurnEnd && !here.named && !work.commits.length && !work.files.length) return void save(key, removeTodo(cur, id))
       if (work.commits.length || work.files.length) save(key, attachWork(cur, id, work))
       await tidyOne(a.repoPath, id)
       const line = knowledgeLine(load(key).todos.find((x) => x.id === id)!)
@@ -132,8 +166,10 @@ export function createTodoService(d: TodoDeps) {
     if (!t || !t.auto || t.named) return false
     const lists = load(key).lists.filter((l) => l !== INBOX)
     let out: ReturnType<typeof parseTidy> = null
+    // The feature its files are in decides the list; the model is told it and only names the task (and sorts one that changed no files).
+    const area = areaOfFiles(t.doneFiles ?? [])
     try {
-      out = parseTidy(await d.ask(tidyPrompt({ request: t.createdLink?.excerpt ?? t.title, reply: t.doneLink?.excerpt ?? t.doneNote ?? '', commits: (t.doneCommits ?? []).map((c) => c.subject), lists })))
+      out = parseTidy(await d.ask(tidyPrompt({ request: t.createdLink?.excerpt ?? t.title, reply: t.doneLink?.excerpt ?? t.doneNote ?? '', commits: (t.doneCommits ?? []).map((c) => c.subject), lists, area })))
     } catch {
       /* no answer: the task keeps the words it has */
     }
@@ -141,11 +177,17 @@ export function createTodoService(d: TodoDeps) {
     const answer = out
     change(repoPath, (b) => {
       let list: string | undefined
-      try {
-        list = answer.list ? listFor(b, answer.list) : undefined
-      } catch {
-        list = answer.list ? resolveList(b.lists.filter((l) => l !== INBOX), answer.list) : undefined
-        if (list && !b.lists.includes(list)) list = undefined
+      if (area) {
+        // A feature named from its own files is a list even when the word would be a catch-all elsewhere ("Todos" in a project about todos); the cap still holds.
+        const areaList = resolveList(b.lists, area)
+        list = b.lists.includes(areaList) || b.lists.filter((l) => l !== INBOX).length < MAX_LISTS ? areaList : undefined
+      } else {
+        try {
+          list = answer.list ? listFor(b, answer.list) : undefined
+        } catch {
+          list = answer.list ? resolveList(b.lists.filter((l) => l !== INBOX), answer.list) : undefined
+          if (list && !b.lists.includes(list)) list = undefined
+        }
       }
       return { board: updateTodo(b, id, { title: answer.title, ...(list && { list }) }, APP, now()), out: undefined }
     })
@@ -225,12 +267,19 @@ export function createTodoService(d: TodoDeps) {
     /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
     trackRequest(agentId: string, prompt: string): Todo | undefined {
       const a = agentOf(agentId)
-      if (!isWork(prompt)) return undefined
-      const title = requestTitle(prompt)
+      if (isSystemMessage(prompt)) return undefined
+      // Another agent's message is a request from that agent, not from the person; its reply to a message of this agent's is no request at all.
+      const mail = parseAgentMail(prompt)
+      if (mail && prompt.includes(noReplyTail)) return undefined
+      const text = mail ? mail.body : prompt
+      if (!isWork(text)) return undefined
+      const title = requestTitle(text)
       const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
       if (same) return same
+      const from = mail ? d.agentNamed?.(a.repoPath, mail.from) : undefined
+      const creator: Actor = mail ? { kind: 'agent', name: mail.from, ...(from && { id: from.id, provider: from.provider }) } : YOU
       return change(a.repoPath, (b) => {
-        const made = addTodo(b, { title, list: INBOX, notes: prompt.trim().length > 120 ? prompt.trim().slice(0, 1000) : '', auto: true }, YOU, now(), d.lastRequest(a.id, prompt))
+        const made = addTodo(b, { title, list: INBOX, notes: text.trim().length > 120 ? text.trim().slice(0, 1000) : '', auto: true }, creator, now(), d.lastRequest(a.id, prompt))
         const board = claimTodo(made.board, made.todo.id, actor(a), now())
         return { board, out: lastTodo(board, made.todo.id) }
       })
@@ -256,6 +305,19 @@ export function createTodoService(d: TodoDeps) {
       }
       save(key, board)
       for (const t of open) recordWork(a, t.id)
+    },
+    /** Closes every request of this project that an agent left open and is not working on any more (its turn ended without the app being told); how many were closed. Run when the board is opened. */
+    sweep(repoPath: string): number {
+      const key = keyOf(repoPath)
+      const left = load(key).todos.filter((t) => t.auto && t.status === 'doing' && t.claimedBy?.id && !d.busy?.(t.claimedBy.id))
+      if (!left.length) return 0
+      let board = load(key)
+      for (const t of left) {
+        board = doneTodo(board, t.id, t.claimedBy!, 'Closed: its turn had ended', now())
+        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+      }
+      save(key, board)
+      return left.length
     },
     /** Names and sorts every task waiting in the Inbox that an agent left with the person's words; how many were named. */
     async tidyInbox(repoPath: string): Promise<number> {

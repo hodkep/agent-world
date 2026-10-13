@@ -330,7 +330,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
       description: 'Add a task to this project\'s todo board. Use needs_you for a step only the person can do (a key to paste, a login, an install). The task remembers the message you said it in.',
       inputSchema: {
         title: z.string().min(1).max(200).describe('What needs doing, in a line'),
-        list: z.string().max(60).optional().describe('The list for the part of the project it belongs to (Application, Canvas, Library…): an existing list that means it is used, a new one is made only when none fits. Leave it out to put the task in the Inbox.'),
+        list: z.string().max(60).optional().describe('The list for the part of the project it belongs to (Library, Chat, Settings…: a feature of the project, never the app itself): an existing list that means it is used, a new one is made only when none fits. Leave it out to put the task in the Inbox.'),
         notes: z.string().max(4000).optional().describe('Steps or detail'),
         needs_you: z.boolean().optional().describe('Only the person can do this')
       }
@@ -364,7 +364,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
       inputSchema: {
         id,
         title: z.string().min(1).max(200).optional().describe('A line that says what is being done (your words, not the person\'s)'),
-        list: z.string().max(60).optional().describe('Move it to the list for its area (Application, Canvas…); an existing list that means it is used'),
+        list: z.string().max(60).optional().describe('Move it to the list for its area (Library, Chat…); an existing list that means it is used'),
         notes: z.string().max(4000).optional(),
         needs_you: z.boolean().optional(),
         status: z.enum(['open', 'doing', 'blocked']).optional(),
