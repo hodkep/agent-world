@@ -57,17 +57,18 @@ import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
-import { askClaude } from './workflows/ask'
+import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
+import { blockText, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
-import { BUILDER_TOOLS, type SaveHow, builderAgent, builderName, builderOptions } from '../shared/builder'
+import { BUILDER_TOOLS, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { stepReply } from '../shared/steps'
 import { checkCommands, commandDiff, toRunWorkflow } from '../shared/workflow'
-import { auditModel, defaultWorkflow } from '../shared/workflows'
+import { askModel, auditModel, defaultWorkflow, pickAsker } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
@@ -431,6 +432,8 @@ const LIBRARY_DIR = join(HOME, 'library')
 // Where skills are looked for to import: the user's own folders (a test points it elsewhere).
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
 const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
+// Git's hooks for every agent: a commit is held while the plan hold is, whatever program the agent is (see commitGate).
+const GIT_HOOKS_DIR = join(HOME, 'git-hooks')
 // The versions of project workflow files whose commands the person approved.
 const approvals = new Approvals(join(HOME, 'workflow-approvals.json'))
 /** Whether a run's workflow may run its commands: a project's file needs the person's approval of its exact content; any other needs none. */
@@ -460,12 +463,18 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   planGate: () => prefs.workflows.planGate,
   mergeGate: () => prefs.workflows.mergeGate,
   dial: () => prefs.workflows.dial,
-  // The audit runs under the agent's own account, so what it costs lands where the agent's work does.
-  ask: (id, prompt, model) => {
+  // The audit and the intent check run on the agent's own program and account when it can answer, so what they cost lands where its work does; else on the first program that is ready.
+  ask: async (id, prompt, model) => {
     const a = byId(id)
-    if (!a) return Promise.reject(new Error('Unknown agent.'))
-    const p = providerOf(a)
-    return askClaude(resolveCommand(binFor(p)), model ?? auditModel(prefs.workflows.dial) ?? 'haiku', prompt, { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor(a.provider, a.configDir) })
+    if (!a) throw new Error('Unknown agent.')
+    const askerId = pickAsker(providerOf(a).id, await readyAskers())
+    if (!askerId) throw new Error('No model is ready to ask: connect Claude or agy.')
+    const p = providers().find((x) => x.id === askerId)!
+    const own = p.id === providerOf(a).id
+    const env = { ...p.env(process.env), PATH: loginShellPath(), ...(own ? accountsSvc.envFor(a.provider, a.configDir) : accountsSvc.envFor(p.id, undefined)) }
+    const dial = prefs.workflows.dial
+    if (p.id === 'agy') return askAgy(resolveCommand(binFor(p)), askModel('agy', dial, model, p.models.map((m) => m.value)) ?? 'gemini-3.8-flash-low', prompt, env)
+    return askClaude(resolveCommand(binFor(p)), askModel('claude', dial, model) ?? 'haiku', prompt, env)
   },
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
@@ -492,6 +501,14 @@ async function kickChecks(id: string, o: { fresh?: boolean } = {}) {
 }
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 // The builder never has a task of its own.
+// The programs that can answer a question of the app's own (Claude and agy have a headless mode), as last looked at; looking costs a process, so it is kept for a minute.
+let askersSeen: { at: number; ready: ProviderId[] } | undefined
+async function readyAskers(): Promise<ProviderId[]> {
+  if (askersSeen && Date.now() - askersSeen.at < 60_000) return askersSeen.ready
+  const ready = (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await p.detect(binFor(p))).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x)
+  askersSeen = { at: Date.now(), ready }
+  return ready
+}
 const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
 async function syncRunCommits(a: AgentRecord) {
@@ -646,7 +663,9 @@ function agentFiles(a: AgentRecord) {
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  return providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
+  const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
+  // Every program's agent can reach the office from its own processes (git's hook asks it whether a commit may go ahead), not only the ones that read it from here.
+  return { ...prepared, env: { AW_MCP_URL: office.mcpUrl, AW_AGENT_TOKEN: agentToken, ...prepared.env } }
 }
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
@@ -854,7 +873,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...accountsSvc.envFor(a.provider, a.configDir) } })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...gitEnv(env, GIT_HOOKS_DIR, originalHooks(a.cwd)), ...accountsSvc.envFor(a.provider, a.configDir) } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -1139,6 +1158,7 @@ async function main() {
   const clearOld = () => void Promise.all(staleChildren(agents, new Set(sessions.keys()), Date.now()).map((id) => removeAgent(id).catch(() => undefined)))
   setInterval(clearOld, 60_000)
   setTimeout(clearOld, 5_000)
+  writeGitHooks(GIT_HOOKS_DIR)
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -1157,8 +1177,23 @@ async function main() {
     hook: (id, event, payload) => {
       const a = byId(id)
       if (!a) return {}
+      // git's pre-commit hook asks whether this agent's commit may go ahead.
+      if (event === 'git-commit') {
+        const where = typeof payload.cwd === 'string' ? payload.cwd : ''
+        if (!where || !isInside(a.cwd, where)) return {}
+        const why = workflows.commitBlock(id, where, stagedFiles(where))
+        return why ? { block: blockText(why) } : {}
+      }
+      // git is about to move branches (a commit made with --no-verify gets here too): the agent's own branch is held like a commit.
+      if (event === 'git-ref') {
+        const where = typeof payload.cwd === 'string' ? payload.cwd : ''
+        const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
+        if (!where || !isInside(a.cwd, where) || !holdsBranch(a.branch, refs)) return {}
+        const why = workflows.commitBlock(id, where, stagedFiles(where))
+        return why ? { block: blockText(why) } : {}
+      }
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,
@@ -1211,7 +1246,7 @@ async function main() {
         const rel = relative(a.cwd, file)
         // At max a small model reads the person's request against the plan first, so its questions are in front of them from the start.
         const request = requestOf(chats.get(caller)?.items ?? [])
-        const check = providerOf(a).id === 'claude' && request ? await workflows.intentCheck(caller, text, request) : undefined
+        const check = (await readyAskers()).length > 0 && request ? await workflows.intentCheck(caller, text, request) : undefined
         const r = workflows.submitPlan(caller, rel, text, check)
         send('workflows')
         return r
@@ -1630,10 +1665,12 @@ async function main() {
     if (!folder) throw new Error('Open a project first.')
     let a = builderAgent(agents, folder)
     if (!a) {
-      const p = providers().find((x) => x.id === 'claude')
-      if (!p || (await p.detect(binFor(p))).state !== 'ready') throw new Error('The builder needs Claude, and it is not ready here. Connect it in Settings first.')
-      a = { id: randomUUID(), name: builderName(agents.map((x) => x.name)), sessionId: randomUUID(), repoPath: folder, cwd: folder, branch: null, base: null, provider: 'claude', started: false, hiredAt: Date.now(), builder: true, options: builderOptions() }
-      accountsSvc.assign(a, prefs.defaults.accounts.claude)
+      // The person's default program when it can use the office's tools (agy only once connected to the message box), else the first that can.
+      const usable = (await Promise.all(providers().filter((x) => x.id === 'claude' || x.id === 'agy').map(async (x) => ((await x.detect(binFor(x))).state === 'ready' && (x.id === 'claude' || ['yes', 'connected'].includes(mailState(x) as string)) ? (x.id as 'claude' | 'agy') : null)))).filter((x): x is 'claude' | 'agy' => !!x)
+      const program = builderProgram(prefs.setup.defaultProvider, usable)
+      if (!program) throw new Error('The builder needs Claude, or agy connected to the message box, and neither is ready here. Set one up in Settings first.')
+      a = { id: randomUUID(), name: builderName(agents.map((x) => x.name)), sessionId: randomUUID(), repoPath: folder, cwd: folder, branch: null, base: null, provider: program, started: false, hiredAt: Date.now(), builder: true, options: builderOptions(program) }
+      accountsSvc.assign(a, prefs.defaults.accounts[a.provider!])
       setWorkspaces(rememberWorkspace(workspaces, folder))
       agents.push(a)
       persist()
@@ -1755,7 +1792,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), relaunchModes: p.relaunchModes })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
@@ -1906,7 +1943,7 @@ async function main() {
   }
   const mergeOf = async (id: string, a: AgentRecord, base: string, ahead: number) => {
     const head = await git(a.cwd, 'rev-parse', a.branch!)
-    const auditable = providerOf(a).id === 'claude'
+    const auditable = (await readyAskers()).length > 0
     let check = workflows.mergeCheck(id, head, { auditable })
     if (check?.audit.state === 'not-run' && ahead > 0) {
       void startAudit(id, a, base, head).catch(() => undefined)

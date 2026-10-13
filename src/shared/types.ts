@@ -156,6 +156,8 @@ export interface ProviderInfo {
   autonomy: Record<AutonomyLevel, string | null>
   /** Whether it can use the office message box: always, once connected (and what that changes), or not at all. */
   mail: 'yes' | 'connected' | 'missing' | 'no'
+  /** Connected, but through a plugin that lacks a hook this app now uses: connecting again updates it. */
+  mailOutdated?: boolean
 }
 
 export interface AgentRecord {

@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { execFile } from 'node:child_process'
 import type { MailSetup } from '../ports'
 import { BRIDGE_SOURCE } from './bridge'
-import { PLUGIN_NAME, writeAgyPlugin } from './plugin'
+import { PLUGIN_NAME, PLUGIN_VERSION, writeAgyPlugin } from './plugin'
 
 /** agy has one list of servers for every Agent World on this machine, so each build's data folder names its own entry: ~/.agent-world is `agent-world`, ~/.agent-world-2 is `agent-world-2`. */
 export const entryFor = (home: string) => {
@@ -30,6 +30,13 @@ export function createAgyMail(d: Deps): Required<MailSetup> {
   const bridgeOf = () => join(home(), 'bin', 'aw-mcp-bridge.cjs')
   const pluginSrc = () => join(home(), 'agy-plugin')
   const add = () => ['mcp', 'add', '--env', 'ELECTRON_RUN_AS_NODE=1', entryFor(home()), '--', d.node, bridgeOf()]
+  const hasEntry = () => {
+    try {
+      return entryFor(home()) in ((JSON.parse(readFileSync(d.config, 'utf8')) as { mcpServers?: Record<string, unknown> }).mcpServers ?? {})
+    } catch {
+      return false
+    }
+  }
   const stale = () => {
     try {
       const list = (JSON.parse(readFileSync(d.config, 'utf8')) as { mcpServers?: Record<string, { command?: string; disabled?: boolean }> }).mcpServers ?? {}
@@ -41,7 +48,22 @@ export function createAgyMail(d: Deps): Required<MailSetup> {
       return []
     }
   }
+  // Version numbers compared part by part, so 0.1.10 is newer than 0.1.9.
+  const older = (a: string, b: string) => {
+    const x = a.split('.').map(Number)
+    const y = b.split('.').map(Number)
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0)
+    return false
+  }
   return {
+    outdated() {
+      try {
+        const v = (JSON.parse(readFileSync(join(d.plugins, PLUGIN_NAME, 'plugin.json'), 'utf8')) as { version?: unknown }).version
+        return typeof v === 'string' && /^\d+(\.\d+)*$/.test(v) && older(v, PLUGIN_VERSION)
+      } catch {
+        return false
+      }
+    },
     stale,
     async removeStale(bin, name) {
       if (!stale().some((s) => s.name === name)) throw new Error(`${name} is not one left behind by a removed build.`)
@@ -60,11 +82,13 @@ export function createAgyMail(d: Deps): Required<MailSetup> {
     plan: () => ({
       files: [bridgeOf(), join(pluginSrc(), 'hooks.json'), join(pluginSrc(), 'hook.sh')],
       commands: [`agy ${add().join(' ')}`, `agy plugin install ${pluginSrc()}`],
-      note: `Adds one entry named ${entryFor(home())} to agy\'s own list of MCP servers (agy writes it, and may tidy that file as it does), and installs one small plugin, ${PLUGIN_NAME}, whose two hooks let the office point an agent at the library and count what it uses. The hooks do nothing for an agy that the office did not start. Each agent reaches the office with a token of its own. Nothing else of agy is touched, and both can be removed again from here.`
+      note: `Adds one entry named ${entryFor(home())} to agy\'s own list of MCP servers (agy writes it, and may tidy that file as it does), and installs one small plugin, ${PLUGIN_NAME}, whose hooks let the office point an agent at the library, count what it uses, and hold an edit back while a plan waits for you. The hooks do nothing for an agy that the office did not start. Each agent reaches the office with a token of its own. Nothing else of agy is touched, and both can be removed again from here.`
     }),
     async connect(bin) {
       mkdirSync(dirname(bridgeOf()), { recursive: true })
       writeFileSync(bridgeOf(), BRIDGE_SOURCE, { mode: 0o700 })
+      // Adding an entry that is already there would be refused, as it is when this only updates the plugin.
+      if (hasEntry()) await d.run(bin, ['mcp', 'remove', entryFor(home())]).catch(() => undefined)
       await d.run(bin, add())
       writeAgyPlugin(pluginSrc())
       // Installing over an installed copy would fail, and the hook script may have changed since.

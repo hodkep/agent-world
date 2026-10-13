@@ -1,7 +1,8 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { dirname, relative, sep } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import { DEFAULT_RETRIES, checkFailed, checkGaveUp, checkRuns, stepStates } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
+import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
 import { auditPrompt, parseAudit } from '../../shared/audit'
 import { intentPrompt, parseIntent } from '../../shared/intent'
@@ -19,7 +20,7 @@ interface Deps {
   mergeGate: () => boolean
   dial: () => Dial
   /** One question to a model for the audit, under the agent's own account; the reply text and what it cost. */
-  ask: (agentId: string, prompt: string, model?: string) => Promise<{ text: string; cost?: number; model?: string }>
+  ask: (agentId: string, prompt: string, model?: string) => Promise<Asked>
   /** The workflow a new task follows: the one the agent asked for if there is such a workflow, else the project's default. Nothing when the app has none to offer. */
   pick: (agentId: string, requested?: string) => RunWorkflow | undefined
   /** Runs a check's command in a folder. */
@@ -37,7 +38,7 @@ interface Deps {
 }
 
 /** What the intent check found: questions to add to the plan, with what the call cost; or why it could not. */
-export type IntentResult = { questions: PlanQuestion[]; cost?: number; model?: string } | { failed: string }
+export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: number; model?: string } | { failed: string }
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
@@ -325,7 +326,7 @@ export class Workflows {
       const reply = await this.deps.ask(agentId, intentPrompt(request, parsed.plan).prompt, 'haiku')
       const gaps = parseIntent(reply.text)
       if (!gaps) return { failed: 'The reply was not a list of gaps.' }
-      return { questions: gaps, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.model && { model: reply.model }) }
+      return { questions: gaps, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.tokens !== undefined && { tokens: reply.tokens }), ...(reply.model && { model: reply.model }) }
     } catch (e) {
       return { failed: (e as Error).message }
     }
@@ -341,7 +342,7 @@ export class Workflows {
     const asked = new Set(parsed.plan.questions.map((q) => q.text.trim().toLowerCase()))
     const extra = check && 'questions' in check ? check.questions.filter((q) => !asked.has(q.text.trim().toLowerCase())) : []
     const readback = { ...parsed.plan, questions: [...parsed.plan.questions, ...extra] }
-    const recorded: PlanCheck | undefined = !check ? undefined : 'failed' in check ? { failed: check.failed } : { added: extra.length, ...(check.cost !== undefined && { cost: check.cost }), ...(check.model && { model: check.model }) }
+    const recorded: PlanCheck | undefined = !check ? undefined : 'failed' in check ? { failed: check.failed } : { added: extra.length, ...(check.cost !== undefined && { cost: check.cost }), ...(check.tokens !== undefined && { tokens: check.tokens }), ...(check.model && { model: check.model }) }
     this.append({ k: 'plan', t: this.deps.now(), run: open.id, round: open.rounds.length, state: 'submitted', path, readback, ...(recorded && { check: recorded }) })
     return { questions: readback.questions.length }
   }
@@ -373,6 +374,16 @@ export class Workflows {
     return plan.state === 'submitted'
       ? 'Not yet: your plan is waiting for the person to approve it.'
       : 'Not yet: the person asked for changes to your plan. Revise it and call plan_submit again.'
+  }
+
+  /**
+   * Why a commit of `files` (paths from the work tree's root) must wait, or null when it may go ahead: the same hold as an edit, seen from git,
+   * so it binds whatever program the agent is. A commit of the plan's own folder alone is never held.
+   */
+  commitBlock(agentId: string, cwd: string, files: string[]): string | null {
+    const code = files.filter((f) => f.split('/')[0] !== PLAN_DIR)
+    if (files.length > 0 && code.length === 0) return null
+    return this.editBlock(agentId, join(cwd, code[0] ?? 'commit'), cwd)
   }
 
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */
@@ -435,12 +446,12 @@ export class Workflows {
   private auditState(run: Run, head: string, auditable: boolean): MergeCheck['audit'] {
     if (run.workflow && !run.workflow.steps.some((s) => s.kind === 'audit')) return { state: 'off', reason: 'workflow' }
     if (this.deps.dial() === 'economy') return { state: 'off', reason: 'economy' }
-    if (!auditable) return { state: 'off', reason: 'provider' }
+    if (!auditable) return { state: 'off', reason: 'no-model' }
     if (!this.planOf(run)) return { state: 'off', reason: 'no-plan' }
     if (this.auditing.has(`${run.id} ${head}`)) return { state: 'running' }
     const a = run.audit
     if (a?.head !== head) return { state: 'not-run' }
-    return a.state === 'failed' ? { state: 'failed', reason: a.reason } : { state: 'done', findings: a.findings, files: a.files, lines: a.lines, truncated: a.truncated, ...(a.cost !== undefined && { cost: a.cost }), ...(a.model && { model: a.model }) }
+    return a.state === 'failed' ? { state: 'failed', reason: a.reason } : { state: 'done', findings: a.findings, files: a.files, lines: a.lines, truncated: a.truncated, ...(a.cost !== undefined && { cost: a.cost }), ...(a.tokens !== undefined && { tokens: a.tokens }), ...(a.model && { model: a.model }) }
   }
 
   /** The audit of `head` against the agent's plan: one question to a model, its findings logged with what it cost. */
@@ -467,7 +478,7 @@ export class Workflows {
     }
     const findings = parseAudit(reply.text)
     if (!findings) return failed('The reply was not a list of findings.')
-    this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'done', findings, files: shown.files, lines: shown.lines, truncated: shown.truncated, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.model && { model: reply.model }) })
+    this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'done', findings, files: shown.files, lines: shown.lines, truncated: shown.truncated, ...(reply.cost !== undefined && { cost: reply.cost }), ...(reply.tokens !== undefined && { tokens: reply.tokens }), ...(reply.model && { model: reply.model }) })
   }
 
   /** The person has looked at these findings (by position) of the audit of `head`. */

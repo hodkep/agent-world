@@ -20,6 +20,15 @@ if (args[0] === '-p' && args[1] === '/usage') {
   process.exit(0)
 }
 
+// A question the app asks of agy headlessly (the audit, the intent check): the prompt is the argument after -p, the answer is agy's JSON output.
+// FAKE_AUDIT is the reply text, FAKE_AUDIT_FAIL makes the call an error, FAKE_AUDIT_LOG=<file> keeps every prompt and the model asked.
+if (args[0] === '-p' && args.includes('--output-format')) {
+  if (process.env.FAKE_AUDIT_LOG) appendFileSync(process.env.FAKE_AUDIT_LOG, JSON.stringify({ prompt: args[1], model: args[args.indexOf('--model') + 1] }) + '\n')
+  const fail = process.env.FAKE_AUDIT_FAIL
+  console.log(JSON.stringify({ conversation_id: randomUUID(), status: fail ? 'ERROR' : 'SUCCESS', response: fail || '```json\n' + (process.env.FAKE_AUDIT ?? '{"findings":[]}') + '\n```\n', duration_seconds: 1, num_turns: 1, usage: { input_tokens: 16938, output_tokens: 10, total_tokens: 16948 } }))
+  process.exit(fail ? 1 : 0)
+}
+
 // agy keeps its MCP servers in one global list that its own `mcp add` and `mcp remove` edit.
 // Plugins are folders in one global place; `plugin install <dir>` copies the idea (a folder named by its plugin.json) and `uninstall` removes it.
 if (args[0] === 'plugin') {
@@ -64,7 +73,7 @@ const stamp = () => { const t = Date.now(); return msg(5, msg(1, varint(1, Math.
 
 // FAKE_ARGS and FAKE_ENV_FILE: log how this session was started, so a test can check it.
 if (process.env.FAKE_ARGS) appendFileSync(process.env.FAKE_ARGS, args.join(' ') + '\n')
-if (process.env.FAKE_ENV_FILE) appendFileSync(process.env.FAKE_ENV_FILE, JSON.stringify({ url: process.env.AW_MCP_URL ?? null, token: process.env.AW_AGENT_TOKEN ?? null }) + '\n')
+if (process.env.FAKE_ENV_FILE) appendFileSync(process.env.FAKE_ENV_FILE, JSON.stringify({ url: process.env.AW_MCP_URL ?? null, token: process.env.AW_AGENT_TOKEN ?? null, git: Object.fromEntries(Object.entries(process.env).filter(([k]) => /^GIT_CONFIG_|^AW_ORIG_HOOKS$/.test(k))) }) + '\n')
 let conv = args.includes('--conversation') ? args[args.indexOf('--conversation') + 1] : randomUUID()
 mkdirSync(join(home, 'conversations'), { recursive: true })
 let db = new DatabaseSync(join(home, 'conversations', `${conv}.db`))

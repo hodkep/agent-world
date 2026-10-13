@@ -1,6 +1,7 @@
 import { closeSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { LibraryHookIO } from '../ports'
+import { EDIT_TOOLS } from './plugin'
 import { agyHome } from './transcript'
 
 /** How much of the end of a conversation file is looked at: the last message is near it. */
@@ -46,8 +47,8 @@ function lastMessage(path: unknown): { step: number; text: string } | null {
 
 /**
  * What the app answers agy's hooks: before the first model call of a message, a library line to add (agy keeps it in the conversation, so it is
- * sent only when there is something to say); after a tool call, which skill file was read. Nothing else is touched: agy's permission
- * hooks are not used, since an answer from one would decide what agy may do.
+ * sent only when there is something to say); after a tool call, which skill file was read; before an edit, a denial while the plan hold is on.
+ * It answers nothing else, so agy's own permissions decide everything the office does not hold back.
  */
 export function agyLibraryHook(event: string, payload: Record<string, unknown>, io: LibraryHookIO): Record<string, unknown> {
   if (event === 'pre-inv') {
@@ -61,6 +62,16 @@ export function agyLibraryHook(event: string, payload: Record<string, unknown>, 
       if (line) lines.unshift(line)
     }
     return lines.length ? { injectSteps: lines.map((ephemeralMessage) => ({ ephemeralMessage })) } : {}
+  }
+  // Before an edit: deny it while the office holds it back. No answer otherwise, so agy's own permissions decide as they always did.
+  if (event === 'pre-tool') {
+    const call = payload.toolCall as { name?: string; args?: { TargetFile?: unknown } } | undefined
+    const file = call?.args?.TargetFile
+    if (call?.name && EDIT_TOOLS.includes(call.name) && typeof file === 'string' && file) {
+      const why = io.editBlock?.(file)
+      if (why) return { decision: 'deny', reason: why }
+    }
+    return {}
   }
   if (event === 'post-tool') {
     const call = payload.toolCall as { name?: string; args?: { AbsolutePath?: unknown } } | undefined

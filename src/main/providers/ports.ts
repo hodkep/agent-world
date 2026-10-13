@@ -237,6 +237,8 @@ export interface MailSetup {
   plan(): { files: string[]; commands: string[]; note: string }
   connect(bin: string): Promise<void>
   disconnect(bin: string): Promise<void>
+  /** The plugin it installed is older than the one this app writes, so it lacks a hook (connecting again replaces it). */
+  outdated?(): boolean
   /** Entries of ours the program still lists that start something no longer installed (a build that was removed), each of which makes it fail. */
   stale?(): { name: string; program: string }[]
   /** Takes one of those out, and only one of those. */
@@ -247,6 +249,8 @@ export interface MailSetup {
 export interface LibraryHookIO {
   remind(prompt: string): string
   used(path: string): void
+  /** Why an edit to this file must wait, or null when it may go ahead. */
+  editBlock?(file: string): string | null
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */

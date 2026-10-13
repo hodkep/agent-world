@@ -8,10 +8,11 @@ let home: string
 let transcript: string
 const user = (step: number, text: string) => JSON.stringify({ step_index: String(step), type: 'USER_INPUT', content: `<USER_REQUEST>\n${text}\n</USER_REQUEST>` }) + '\n'
 const payload = (conv = 'c1', over: Record<string, unknown> = {}) => ({ conversationId: conv, transcriptPath: transcript, ...over })
-const io = (reply = 'LINE') => {
+const io = (reply = 'LINE', hold: string | null = null) => {
   const asked: string[] = []
   const used: string[] = []
-  return { asked, used, io: { remind: (p: string) => (asked.push(p), reply), used: (p: string) => used.push(p) } }
+  const edits: string[] = []
+  return { asked, used, edits, io: { remind: (p: string) => (asked.push(p), reply), used: (p: string) => used.push(p), editBlock: (f: string) => (edits.push(f), hold) } }
 }
 
 beforeEach(() => {
@@ -68,6 +69,22 @@ describe("agy's hooks", () => {
     expect(agyLibraryHook('post-tool', payload('c1', { toolCall: { name: 'view_file', args: { AbsolutePath: '/lib/skills/pdf/SKILL.md' } } }), t.io)).toEqual({})
     agyLibraryHook('post-tool', payload('c1', { toolCall: { name: 'run_command', args: { CommandLine: 'ls' } } }), t.io)
     expect(t.used).toEqual(['/lib/skills/pdf/SKILL.md'])
+  })
+  it('deny an edit the office holds back, with its words, for each of agy\'s three editing tools', () => {
+    const t = io('LINE', 'Not yet: your plan is waiting for the person to approve it.')
+    for (const name of ['write_to_file', 'replace_file_content', 'multi_replace_file_content']) {
+      expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name, args: { TargetFile: '/w/src/a.ts' } } }), t.io)).toEqual({ decision: 'deny', reason: 'Not yet: your plan is waiting for the person to approve it.' })
+    }
+    expect(t.edits).toEqual(['/w/src/a.ts', '/w/src/a.ts', '/w/src/a.ts'])
+  })
+  it('say nothing about an edit that is not held, a tool that does not edit, or a call with no file, so agy decides as it always did', () => {
+    const open = io('LINE', null)
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'write_to_file', args: { TargetFile: '/w/src/a.ts' } } }), open.io)).toEqual({})
+    const held = io('LINE', 'Not yet.')
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'run_command', args: { CommandLine: 'ls' } } }), held.io)).toEqual({})
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'write_to_file', args: {} } }), held.io)).toEqual({})
+    expect(agyLibraryHook('pre-tool', payload('c1', {}), held.io)).toEqual({})
+    expect(held.edits).toEqual([])
   })
   it('answer an event it does not know with an empty object', () => {
     expect(agyLibraryHook('stop', payload(), io().io)).toEqual({})

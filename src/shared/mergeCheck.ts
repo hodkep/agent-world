@@ -20,11 +20,11 @@ export interface MergeCheck {
 }
 
 export type AuditState =
-  | { state: 'off'; reason: 'economy' | 'provider' | 'no-plan' | 'workflow' | 'gate' }
+  | { state: 'off'; reason: 'economy' | 'no-model' | 'no-plan' | 'workflow' | 'gate' }
   | { state: 'not-run' }
   | { state: 'running' }
   | { state: 'failed'; reason: string }
-  | { state: 'done'; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
+  | { state: 'done'; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; tokens?: number; model?: string }
 
 export interface CheckRow {
   id: string

@@ -1,6 +1,6 @@
 import type { FindingKind } from '../../shared/audit'
 import type { MergeCheck } from '../../shared/mergeCheck'
-import { formatCallCost } from '../../shared/runStats'
+import { callSpend } from '../../shared/runStats'
 
 const KIND: Record<FindingKind, string> = { 'out-of-scope': 'Out of scope', 'goal-unmet': 'Goal not met', 'guess-wrong': 'Guess wrong' }
 const PLAN_TAG: Record<MergeCheck['plan'], { text: string; tone: string }> = {
@@ -58,7 +58,7 @@ export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSee
           <span className="hint mg-cost">
             Audited {a.files} file{a.files === 1 ? '' : 's'}, {a.lines} lines{a.truncated ? ' (the diff was too big, so only the first files)' : ''}
             {a.model ? ` · ${a.model}` : ''}
-            {a.cost !== undefined && ` · ${formatCallCost(a.cost)}`}
+            {callSpend(a)}
           </span>
         </>
       )}

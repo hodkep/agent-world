@@ -1,6 +1,6 @@
 import { appendFileSync, writeFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
-import { askClaude } from '../src/main/workflows/ask'
+import { askAgy, askClaude } from '../src/main/workflows/ask'
 import { intentPrompt, parseIntent } from '../src/shared/intent'
 import type { PlanReadback } from '../src/shared/plan'
 
@@ -12,9 +12,11 @@ import type { PlanReadback } from '../src/shared/plan'
  * question matches words about the hidden gap.
  */
 const ON = !!process.env.PILOT
-const MODEL = process.env.PILOT_MODEL ?? 'haiku'
+// PILOT_PROGRAM=agy asks agy (PILOT_MODEL then names one of its models) instead of claude.
+const PROGRAM = process.env.PILOT_PROGRAM === 'agy' ? 'agy' : 'claude'
+const MODEL = process.env.PILOT_MODEL ?? (PROGRAM === 'agy' ? 'gemini-3.8-flash-low' : 'haiku')
 const REPS = Number(process.env.PILOT_REPS ?? 2)
-const REPORT = 'pilot-report-intent.txt'
+const REPORT = PROGRAM === 'agy' ? 'pilot-report-intent-agy.txt' : 'pilot-report-intent.txt'
 
 const plan = (goal: string, given: string[], out: string[] = []): PlanReadback => ({ goal, assumptions: given.map((text) => ({ kind: 'given' as const, text })), outOfScope: out, questions: [] })
 
@@ -49,7 +51,7 @@ describe.skipIf(!ON)('the intent check with a real model', () => {
     writeFileSync(REPORT, `model ${MODEL}, ${REPS} reps per request\n`)
     let spent = 0
     const ask = async (request: string, p: PlanReadback) => {
-      const r = await askClaude({ file: 'claude', prefix: [] }, MODEL, intentPrompt(request, p).prompt, { ...process.env })
+      const r = PROGRAM === 'agy' ? await askAgy({ file: 'agy', prefix: [] }, MODEL, intentPrompt(request, p).prompt, { ...process.env }) : await askClaude({ file: 'claude', prefix: [] }, MODEL, intentPrompt(request, p).prompt, { ...process.env })
       spent += r.cost ?? 0
       return parseIntent(r.text)
     }

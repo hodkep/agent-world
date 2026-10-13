@@ -7,7 +7,7 @@ import type { RunWorkflow } from '../../shared/runs'
 import { stepStates } from '../../shared/steps'
 import { Workflows } from './service'
 
-type Reply = { text: string; cost?: number; model?: string }
+type Reply = { text: string; cost?: number; tokens?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
   const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
@@ -250,6 +250,40 @@ describe('the plan gate', () => {
   })
 })
 
+describe('a commit follows the plan hold', () => {
+  const commit = (wf: Workflows, files: string[]) => wf.commitBlock('a1', '/w', files)
+
+  it('is held while an edit would be, with the same words, and let through once the plan is approved', () => {
+    const { wf } = make()
+    expect(commit(wf, ['src/a.ts'])).toBeNull()
+    wf.begin('a1', 'Add a toggle')
+    expect(commit(wf, ['src/a.ts'])).toMatch(/plan/i)
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    expect(commit(wf, ['src/a.ts'])).toBe(wf.editBlock('a1', '/w/src/a.ts', '/w'))
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    expect(commit(wf, ['src/a.ts'])).toBeNull()
+  })
+
+  it('lets through a commit of the plan\'s own folder alone, but not that folder along with code', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    expect(commit(wf, ['.agent-world/plan.md'])).toBeNull()
+    expect(commit(wf, ['.agent-world/plan.md', 'src/a.ts'])).toMatch(/plan/i)
+  })
+
+  it('is not held for another agent, with workflows off, at the economy dial for a task with no plan, or for a follow-up round', () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    expect(wf.commitBlock('a2', '/w', ['src/a.ts'])).toBeNull()
+    state.dial = 'economy'
+    expect(commit(wf, ['src/a.ts'])).toBeNull()
+    state.dial = 'balanced'
+    expect(commit(wf, ['src/a.ts'])).toMatch(/plan/i)
+    state.enabled = false
+    expect(commit(wf, ['src/a.ts'])).toBeNull()
+  })
+})
+
 describe('what the gate holds back', () => {
   const edit = (wf: Workflows, file = '/w/src/a.ts') => wf.editBlock('a1', file, '/w')
   it('from the task\'s start until its plan is approved, edits are refused, except to the plan\'s own folder', () => {
@@ -350,6 +384,18 @@ describe('the merge gate', () => {
     expect(one.wf.mergeCheck('a1', 'h1')!.notes).toEqual(['1 commit was made outside the task.'])
   })
 
+  it('keeps the tokens of an audit that a program reports in place of dollars, with the model that answered', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    state.reply = async () => ({ text: '{"findings":[]}', tokens: 16948, model: 'gemini-3.8-flash-low' })
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    const audit = wf.mergeCheck('a1', 'h1')!.audit
+    expect(audit).toMatchObject({ state: 'done', tokens: 16948, model: 'gemini-3.8-flash-low' })
+    expect('cost' in audit).toBe(false)
+  })
+
   it('audits the diff against the approved plan, shows the findings, and holds Land until each was seen', async () => {
     const { wf, state } = make()
     wf.begin('a1', 'Add a toggle')
@@ -381,7 +427,7 @@ describe('the merge gate', () => {
     expect(state.asked).toEqual([])
     expect(wf.mergeCheck('a1', 'h1')!.audit).toEqual({ state: 'off', reason: 'economy' })
     state.dial = 'max'
-    expect(wf.mergeCheck('a1', 'h1', { auditable: false })!.audit).toEqual({ state: 'off', reason: 'provider' })
+    expect(wf.mergeCheck('a1', 'h1', { auditable: false })!.audit).toEqual({ state: 'off', reason: 'no-model' })
     wf.begin('a2', 'Other')
     wf.decide(wf.runs()[1]!.id, 'released')
     await wf.runAudit('a2', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')

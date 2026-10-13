@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, workflowDiff } from './builder'
+import { BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, workflowDiff } from './builder'
 import type { AgentRecord } from './types'
 import { STEPS_MAX, STEP_KINDS, GATES, parseWorkflow, type Workflow } from './workflow'
 
@@ -140,9 +140,18 @@ describe('finding and making the builder', () => {
     expect(builderAgent([], '/shop')).toBeUndefined()
   })
 
-  it('is hired in the project folder itself, read-only, on Claude, with its instructions', () => {
-    const o = builderOptions()
-    expect(o).toEqual({ provider: 'claude', role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
+  it('is hired in the project folder itself, read-only, on the program chosen, with its instructions', () => {
+    expect(builderOptions('claude')).toEqual({ provider: 'claude', role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
+    expect(builderOptions('agy')).toEqual({ provider: 'agy', role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
+  })
+
+  it('runs on the person\'s default program when it can use the office\'s tools, else on the first that can, else on none', () => {
+    expect(builderProgram('agy', ['claude', 'agy'])).toBe('agy')
+    expect(builderProgram('claude', ['claude', 'agy'])).toBe('claude')
+    expect(builderProgram('agy', ['claude'])).toBe('claude')
+    expect(builderProgram('claude', ['agy'])).toBe('agy')
+    expect(builderProgram('', ['agy', 'claude'])).toBe('claude')
+    expect(builderProgram('claude', [])).toBeUndefined()
   })
 
   it('is called builder, or builder-2 and on when another project\'s agent has that name', () => {

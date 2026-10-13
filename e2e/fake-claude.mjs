@@ -33,6 +33,8 @@ if (args[0] === '-p' && args.includes('--output-format')) {
   console.log(JSON.stringify({ type: 'result', is_error: fail, result: fail ? process.env.FAKE_AUDIT_FAIL : (process.env.FAKE_AUDIT ?? '{"findings":[]}'), total_cost_usd: 0.004, modelUsage: { 'claude-haiku-5-5': { costUSD: 0.004 } } }))
   process.exit(fail ? 1 : 0)
 }
+// FAKE_ENV_FILE: log the office's address and token and git's configuration this session was started with, so a test can run git as the agent would.
+if (process.env.FAKE_ENV_FILE) (await import('node:fs')).appendFileSync(process.env.FAKE_ENV_FILE, JSON.stringify({ url: process.env.AW_MCP_URL ?? null, token: process.env.AW_AGENT_TOKEN ?? null, git: Object.fromEntries(Object.entries(process.env).filter(([k]) => /^GIT_CONFIG_|^AW_ORIG_HOOKS$/.test(k))) }) + '\n')
 // `claude -p "/usage"`: the app asks for limits this way; it is not a launch. FAKE_USAGE is what it prints.
 if (args[0] === '-p') {
   console.log(process.env.FAKE_USAGE ?? '')

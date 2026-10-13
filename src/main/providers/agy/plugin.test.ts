@@ -25,6 +25,17 @@ const run = (event: string, input: object, env: Record<string, string>) =>
     p.stdin!.end(JSON.stringify(input))
   })
 
+describe("agy's plugin hooks", () => {
+  it('ask the office before each of agy\'s editing tools, and only those, so an edit can be held back', () => {
+    const hooks = JSON.parse(readFileSync(join(dir, 'hooks.json'), 'utf8'))['aw-library']
+    expect(hooks.PreToolUse.map((h: { matcher: string }) => h.matcher).sort()).toEqual(['multi_replace_file_content', 'replace_file_content', 'write_to_file'])
+    for (const h of hooks.PreToolUse) expect(h.hooks).toEqual([{ type: 'command', command: './hook.sh pre-tool' }])
+  })
+  it('carry a newer version than the plugin that had no such hook, so connecting again replaces it', () => {
+    expect(JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')).version).toBe('0.1.2')
+  })
+})
+
 describe("agy's library plugin script", () => {
   it('carries the payload to the office with the agent\'s token and prints the office\'s answer', async () => {
     const seen: unknown[] = []

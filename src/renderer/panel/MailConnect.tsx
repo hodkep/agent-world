@@ -129,10 +129,36 @@ export function MailConnect({ provider, onChanged, onProgress, required }: { pro
     )
   }
 
+  const planView = plan && (
+    <div className="mc-plan" role="group" aria-label={`Connect ${provider.label} to the message box`}>
+      <p>{plan.note}</p>
+      <b>It writes</b>
+      {plan.files.map((f) => <code key={f}>{f}</code>)}
+      <b>It runs</b>
+      {plan.commands.map((c) => <code key={c}>{c}</code>)}
+      <div className="su-row">
+        <button className="primary" onClick={() => void connect()} disabled={busy} aria-busy={busy}>
+          {provider.mailOutdated ? 'Update' : 'Connect'}
+        </button>
+        {!required && <button onClick={() => setPlan(null)} disabled={busy}>Not now</button>}
+      </div>
+      {error && <span className="su-why">{error}</span>}
+    </div>
+  )
+
   if (provider.mail === 'connected')
     return (
       <div className="mc" data-state="connected">
         {leftBehind}
+        {provider.mailOutdated && !plan && (
+          <div className="mc-stale" role="alert">
+            <span>
+              {provider.label}'s plugin for the office is older than this app's. It cannot hold an edit back while a plan waits for you (commits are still held by git).
+            </span>
+            <button disabled={opening} onClick={() => (setOpening(true), void window.aw.mailPlan(provider.id).then(setPlan).finally(() => setOpening(false)))}>{opening ? 'Opening…' : 'Update the plugin…'}</button>
+          </div>
+        )}
+        {planView}
         <span className="hint">Its agents can message the others and share notes.</span>
         <button className="su-link" onClick={() => void disconnect()} disabled={busy} aria-busy={busy}>
           {busy ? <><span className="su-spin" aria-hidden="true" />Disconnecting…</> : 'Disconnect'}
@@ -153,20 +179,7 @@ export function MailConnect({ provider, onChanged, onProgress, required }: { pro
           </button>
         </>
       ) : (
-        <div className="mc-plan" role="group" aria-label={`Connect ${provider.label} to the message box`}>
-          <p>{plan.note}</p>
-          <b>It writes</b>
-          {plan.files.map((f) => <code key={f}>{f}</code>)}
-          <b>It runs</b>
-          {plan.commands.map((c) => <code key={c}>{c}</code>)}
-          <div className="su-row">
-            <button className="primary" onClick={() => void connect()} disabled={busy} aria-busy={busy}>
-              Connect
-            </button>
-            {!required && <button onClick={() => setPlan(null)} disabled={busy}>Not now</button>}
-          </div>
-          {error && <span className="su-why">{error}</span>}
-        </div>
+        planView
       )}
     </div>
   )

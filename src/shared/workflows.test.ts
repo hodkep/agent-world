@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, auditModel, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, askModel, auditModel, pickAsker, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs to the agent: five of 150 tokens, and makes no separate call', () => {
@@ -84,5 +84,33 @@ describe('which workflow a project uses by default', () => {
     expect(withDefault(w, '/p/other', 'quick-change').defaults).toEqual({ '/p/shop': 'bug-fix', '/p/other': 'quick-change' })
     expect(withDefault(w, '/p/shop', 'standard').defaults).toEqual({})
     expect(w.defaults).toEqual({ '/p/shop': 'bug-fix' })
+  })
+})
+
+describe('which model answers the app\'s own questions', () => {
+  it('is claude\'s haiku at balanced and sonnet at max, and the step\'s own choice when it names one', () => {
+    expect([askModel('claude', 'economy'), askModel('claude', 'balanced'), askModel('claude', 'max')]).toEqual([undefined, 'haiku', 'sonnet'])
+    expect(askModel('claude', 'balanced', 'opus')).toBe('opus')
+  })
+
+  it('is a small Gemini at balanced and a large one at max for agy, and a step\'s choice only when it is a model agy has', () => {
+    const has = ['gemini-3.8-flash-low', 'gemini-3.8-flash-high', 'gemini-3.1-pro-high']
+    expect([askModel('agy', 'economy', undefined, has), askModel('agy', 'balanced', undefined, has), askModel('agy', 'max', undefined, has)]).toEqual([undefined, 'gemini-3.8-flash-low', 'gemini-3.8-flash-high'])
+    expect(askModel('agy', 'balanced', 'gemini-3.1-pro-high', has)).toBe('gemini-3.1-pro-high')
+    expect(askModel('agy', 'balanced', 'haiku', has)).toBe('gemini-3.8-flash-low')
+  })
+
+  it('asks no model at economy, whoever the program is, even when a step names one', () => {
+    expect(askModel('agy', 'economy', 'gemini-3.1-pro-high', ['gemini-3.1-pro-high'])).toBeUndefined()
+    expect(askModel('claude', 'economy', 'opus')).toBeUndefined()
+  })
+})
+
+describe('which program asks', () => {
+  it('is the agent\'s own when it can, else the first ready one in the order claude, agy, else none', () => {
+    expect(pickAsker('agy', ['claude', 'agy'])).toBe('agy')
+    expect(pickAsker('agy', ['claude'])).toBe('claude')
+    expect(pickAsker('claude', ['agy'])).toBe('agy')
+    expect(pickAsker('claude', [])).toBeUndefined()
   })
 })
