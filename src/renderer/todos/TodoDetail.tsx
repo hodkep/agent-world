@@ -3,7 +3,7 @@ import type { MessageLink, Todo } from '../../shared/todos'
 import type { AskMode } from '../../shared/todoAsk'
 import { Markdown } from '../chat/markdown'
 import type { useConfirm } from '../panel/ConfirmDialog'
-import { activityOf, actorTag, agoLabel } from './todoView'
+import { activityOf, actorTag, agoLabel, autoClosed } from './todoView'
 
 export interface AskAgent {
   id: string
@@ -20,6 +20,14 @@ function Who({ a }: { a: Todo['createdBy'] }) {
 
 /** What the task is in one glance: open, who is on it, why it is stuck, or who finished it and how. */
 function Banner({ t }: { t: Todo }) {
+  if (t.status === 'done' && autoClosed(t)) {
+    return (
+      <div className="td-banner done auto" role="status">
+        <span className="td-big" aria-hidden="true">⚙</span>
+        <div><b>Closed by Agent World · {agoLabel(t.doneAt ?? t.updatedAt)}</b><div>{autoClosed(t) === 'stopped' ? `${t.doneBy?.name ?? 'The agent'} had stopped when the board was opened` : `${t.doneBy?.name ?? 'The agent'}'s turn ended`}, and nobody said it was done.</div></div>
+      </div>
+    )
+  }
   if (t.status === 'done') {
     return (
       <div className="td-banner done" role="status">
@@ -118,7 +126,7 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
       <section className="td-sec" aria-label="Activity">
         <h5>Activity</h5>
         <ul className="td-act">
-          {activity.map((a, i) => <li key={i} className={a.key ? 'k' : ''}>{a.text} <small>· {agoLabel(a.at)}</small></li>)}
+          {activity.map((a, i) => <li key={i} className={`${a.key ? 'k' : ''}${a.app ? ' app' : ''}`}>{a.text} <small>· {agoLabel(a.at)}</small></li>)}
         </ul>
       </section>
       <AskAgentBox t={t} agents={agents} onAsk={onAsk} folder={folder} act={act} />

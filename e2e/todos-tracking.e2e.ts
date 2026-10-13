@@ -58,9 +58,15 @@ test('todos: fully tracked mode makes a task of each request, keeps the ones an 
     const done = area.getByRole('button', { name: 'Open Fix the Safari login bug' })
     await expect(done).toBeVisible()
     await expect(done).not.toContainText('unfinished')
+    await expect(done).toContainText('auto-closed')
+    await expect(done).not.toContainText('done by')
+    if (process.env.SHOT) await board.screenshot({ path: `${process.env.SHOT}-auto.png` })
     await done.click()
     const detail = board.getByRole('complementary', { name: 'Task detail' })
-    await expect(detail).toContainText('Closed when its turn ended')
+    // The app closed it, and says so in its own words, not as the agent's "done".
+    await expect(detail).toContainText("Closed by Agent World")
+    if (process.env.SHOT) await board.screenshot({ path: `${process.env.SHOT}-auto-detail.png` })
+    await expect(detail.getByLabel('Activity')).toContainText("Closed by Agent World when ada's turn ended, nobody said it was done")
     // The words of the request are kept as where it came from.
     await expect(detail.getByLabel('Where it came from')).toContainText('please fix the login bug on Safari')
 

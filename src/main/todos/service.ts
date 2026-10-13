@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
 import { areaOfFiles } from '../../shared/todoAreas'
 import { noReplyTail, parseAgentMail } from '../../shared/mail'
+import { padPlan } from '../../shared/todoPad'
 import { askMessage, type AskMode } from '../../shared/todoAsk'
 import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
@@ -11,6 +12,9 @@ import {
   INBOX, MAX_LISTS, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
+
+/** What a person can do to several tasks at once. */
+export type BulkOp = { do: 'done' } | { do: 'reopen' } | { do: 'remove' } | { do: 'needsYou'; on: boolean } | { do: 'move'; list: string }
 
 export interface TodoDeps {
   /** Where the boards are kept: one file per project. */
@@ -105,6 +109,16 @@ export function createTodoService(d: TodoDeps) {
     d.onChange(key)
   }
   const keyOf = (repoPath: string) => d.workspaceKey(repoPath)
+  const padFile = (repoPath: string) => join(d.dir, `${keyOf(repoPath).replace(/[^a-zA-Z0-9._-]/g, '_')}.pad.md`)
+  const undoFile = (repoPath: string) => join(d.dir, `${keyOf(repoPath).replace(/[^a-zA-Z0-9._-]/g, '_')}.pad-undo.json`)
+  const padOf = (repoPath: string): string => {
+    try {
+      return readFileSync(padFile(repoPath), 'utf8')
+    } catch {
+      return ''
+    }
+  }
+  const writePad = (repoPath: string, text: string) => writeFileSync(padFile(repoPath), text)
   const agentOf = (id: string) => {
     const a = d.agent(id)
     if (!a) throw new Error('Only an agent in this office can use the todo board.')
@@ -229,6 +243,75 @@ export function createTodoService(d: TodoDeps) {
     reopenByPerson: (repoPath: string, id: string) => change(repoPath, (b) => ({ board: reopenTodo(b, id, YOU, now()), out: undefined })),
     moveByPerson: (repoPath: string, id: string, list: string, index: number) => change(repoPath, (b) => ({ board: moveTodo(b, id, list, index, YOU, now()), out: undefined })),
 
+    /** The person acts on several tasks at once; how many it changed (a task the action does not apply to, or that is gone, is left out). */
+    bulkByPerson(repoPath: string, ids: string[], op: BulkOp): number {
+      return change(repoPath, (b0) => {
+        let b = b0
+        let n = 0
+        for (const id of new Set(ids)) {
+          const t = b.todos.find((x) => x.id === id)
+          if (!t) continue
+          if (op.do === 'done' && t.status !== 'done') b = doneTodo(b, id, YOU, '', now())
+          else if (op.do === 'reopen' && t.status === 'done') b = reopenTodo(b, id, YOU, now())
+          else if (op.do === 'needsYou' && t.needsYou !== op.on) b = updateTodo(b, id, { needsYou: op.on }, YOU, now())
+          else if (op.do === 'move' && t.list !== op.list.trim() && op.list.trim()) b = moveTodo(b, id, resolveList(b.lists, op.list), Number.MAX_SAFE_INTEGER, YOU, now())
+          else if (op.do === 'remove') b = removeTodo(b, id)
+          else continue
+          n++
+        }
+        return { board: b, out: n }
+      })
+    },
+
+    /** The scratch pad of a project: markdown the person jots tasks in, kept in a file beside the board. */
+    pad: (repoPath: string): string => padOf(repoPath),
+    setPad: (repoPath: string, text: string): void => writePad(repoPath, String(text).slice(0, 100_000)),
+    /** Makes tasks of the pad's checklist lines (by the person), takes only those lines out of the pad, and keeps what is needed to undo it. The tasks made. */
+    padToTasks(repoPath: string): Todo[] {
+      const text = padOf(repoPath)
+      const plan = padPlan(text, load(keyOf(repoPath)).lists)
+      if (!plan.tasks.length) return []
+      const made = change(repoPath, (b0) => {
+        let b = b0
+        const out: Todo[] = []
+        for (const p of plan.tasks) {
+          const r = addTodo(b, { title: p.title, list: p.list ?? INBOX, notes: p.notes }, YOU, now())
+          b = p.done ? doneTodo(r.board, r.todo.id, YOU, '', now()) : r.board
+          out.push(lastTodo(b, r.todo.id))
+        }
+        return { board: b, out }
+      })
+      writePad(repoPath, plan.rest)
+      writeFileSync(undoFile(repoPath), JSON.stringify({ before: text, after: plan.rest, items: made.map((t, k) => ({ id: t.id, raw: plan.tasks[k]!.raw, list: plan.tasks[k]!.list })) }))
+      return made
+    },
+    /** Takes back the last conversion: the tasks it made that nobody has touched are removed and their lines go back in the pad. How many were removed. */
+    undoPad(repoPath: string): number {
+      let undo: { before: string; after: string; items: { id: string; raw: string; list?: string }[] }
+      try {
+        undo = JSON.parse(readFileSync(undoFile(repoPath), 'utf8'))
+      } catch {
+        return 0
+      }
+      const b = load(keyOf(repoPath))
+      const untouched = (id: string) => b.todos.find((t) => t.id === id)?.history.every((e) => e.what === 'created' || e.what === 'done')
+      const back = undo.items.filter((i) => untouched(i.id))
+      if (back.length) change(repoPath, (b0) => ({ board: back.reduce((acc, i) => removeTodo(acc, i.id), b0), out: undefined }))
+      if (back.length === undo.items.length && padOf(repoPath) === undo.after) writePad(repoPath, undo.before)
+      else if (back.length) {
+        let list: string | undefined
+        const lines: string[] = []
+        for (const i of back) {
+          if (i.list && i.list !== list) lines.push(`## ${i.list}`)
+          list = i.list
+          lines.push(i.raw)
+        }
+        writePad(repoPath, `${lines.join('\n')}\n${padOf(repoPath)}`)
+      }
+      rmSync(undoFile(repoPath), { force: true })
+      return back.length
+    },
+
     /** The person asks an agent about a task or puts it on one: the board records it and the message to send the agent is given back. */
     askAgent(repoPath: string, id: string, agentId: string, mode: AskMode, words: string): { message: string } {
       const a = agentOf(agentId)
@@ -301,7 +384,7 @@ export function createTodoService(d: TodoDeps) {
       let board = b
       for (const t of open) {
         board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt, 2000) })
-        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true, closedBy: 'turn' as const } : x)) }
       }
       save(key, board)
       for (const t of open) recordWork(a, t.id)
@@ -314,7 +397,7 @@ export function createTodoService(d: TodoDeps) {
       let board = load(key)
       for (const t of left) {
         board = doneTodo(board, t.id, t.claimedBy!, 'Closed: its turn had ended', now())
-        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+        board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true, closedBy: 'stopped' as const } : x)) }
       }
       save(key, board)
       return left.length
@@ -328,7 +411,7 @@ export function createTodoService(d: TodoDeps) {
         let board = load(key)
         for (const t of left) {
           board = doneTodo(board, t.id, t.claimedBy!, 'Closed: its turn had ended', now())
-          board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true } : x)) }
+          board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true, closedBy: 'stopped' as const } : x)) }
         }
         save(key, board)
       }
