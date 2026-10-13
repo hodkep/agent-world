@@ -1,8 +1,10 @@
 import { type Run, pendingPlans } from '../../shared/runs'
 import { type StepContext, checkPanels, waitingSteps } from '../../shared/steps'
 import { type RunSpend, agentCounts, formatCost, formatDuration, howRunsBegan, runStats, runsThisWeek, spendText } from '../../shared/runStats'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
+import type { AgentRecord } from '../../shared/types'
 import { Modal } from '../panel/Modal'
+import { BuilderSplit } from './BuilderSplit'
 import { WorkflowList } from './WorkflowList'
 
 /** A label, a bar as long as its share of the largest count, and the count. */
@@ -24,8 +26,10 @@ function Bars({ rows }: { rows: { label: string; n: number }[] }) {
 const timeOf = (r: Run, now: number) => (r.auto ? '—' : formatDuration(r.rounds.reduce((n, x) => n + Math.max(0, (x.endedAt ?? now) - x.startedAt), 0)))
 
 /** Every agent's workflow runs this week in one place: what ran, how many rounds and commits, what it cost and how long it took. */
-export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, ctx, ctxFor, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; ctx: StepContext; ctxFor: (r: Run) => StepContext; onClose: () => void }) {
+export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, ctx, ctxFor, chatOf, costOf, onBuilder, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; ctx: StepContext; ctxFor: (r: Run) => StepContext; /** The ordinary chat of an agent, to show beside the builder's draft. */ chatOf: (a: AgentRecord) => ReactNode; costOf: (agentId: string) => number; /** Told when the builder was made or woken, so the office lists it. */ onBuilder: (a: AgentRecord) => void; onClose: () => void }) {
   const [tab, setTab] = useState<'runs' | 'workflows'>('runs')
+  const [builder, setBuilder] = useState<{ agent: AgentRecord; editing?: string } | null>(null)
+  const [focus, setFocus] = useState('')
   const now = Date.now()
   const week = runsThisWeek(runs, now)
   const s = runStats(week, now)
@@ -48,8 +52,32 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
         <button role="tab" aria-selected={tab === 'runs'} className={tab === 'runs' ? 'on' : ''} onClick={() => setTab('runs')}>Runs</button>
         <button role="tab" aria-selected={tab === 'workflows'} className={tab === 'workflows' ? 'on' : ''} onClick={() => setTab('workflows')}>Workflows</button>
       </div>
-      {tab === 'workflows' ? (
-        <WorkflowList folder={folder} runs={runs} switches={switches} defaultId={defaultId} onDefault={onDefault} />
+      {tab === 'workflows' && builder ? (
+        <BuilderSplit
+          agentId={builder.agent.id}
+          folder={folder}
+          editing={builder.editing}
+          chat={chatOf(builder.agent)}
+          cost={costOf(builder.agent.id)}
+          switches={switches}
+          onBack={() => setBuilder(null)}
+          onSaved={(e) => (setFocus(`${e.scope}:${e.id}`), setBuilder(null))}
+        />
+      ) : tab === 'workflows' ? (
+        <WorkflowList
+          folder={folder}
+          runs={runs}
+          switches={switches}
+          defaultId={defaultId}
+          onDefault={onDefault}
+          initial={focus}
+          onBuilder={async (first, editing) => {
+            if (!folder) return
+            const agent = await window.aw.workflows.builder(folder, first)
+            onBuilder(agent)
+            setBuilder({ agent, ...(editing && { editing }) })
+          }}
+        />
       ) : runs.length === 0 ? (
         <div className="wf-empty">
           <b>No runs yet</b>

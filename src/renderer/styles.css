@@ -2986,6 +2986,32 @@ aside:not(.drawer) { flex: none; }
 .wfl-detail > .mono { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
 
+/* The describe box and the builder: its chat beside its draft. `.mono` and `.muted` are scoped, as above. */
+.wfl-describe { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 2px solid var(--ink); align-items: center; }
+.wfl-describe input { flex: 1; min-width: 0; }
+.bs-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.bs-bar { display: flex; gap: 10px; align-items: center; padding: 8px 20px; border-bottom: 1px solid var(--ink); }
+.bs-bar .muted, .bs .muted, .bs-draft .muted { color: var(--muted); }
+.bs .mono, .bs-bar .mono { font: 11px Menlo, Consolas, monospace; }
+.bs-cost { margin-left: auto; }
+.bs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); flex: 1; min-height: 0; overflow: hidden; }
+.bs-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 2px solid var(--ink); }
+.bs-side { min-height: 0; min-width: 0; overflow: auto; }
+.bs-draft { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.bs-draft p { margin: 0; }
+.bs-sub { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.bs-diff { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.bs-diff li { padding: 3px 8px; background: var(--well); }
+.bs-diff .add { box-shadow: inset 3px 0 var(--ok); }
+.bs-diff .chg { box-shadow: inset 3px 0 var(--accent); }
+.bs-diff .del { box-shadow: inset 3px 0 var(--danger-text); }
+.bs-diff .same { background: none; }
+.bs-note { padding: 8px 10px; background: var(--well); box-shadow: inset 3px 0 var(--accent); font-size: 12px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.bs-note ul { margin: 0; padding-left: 18px; }
+.bs-note.warn { color: var(--text); }
+.bs-empty { margin: 20px; padding: 28px 20px; border: 2px dashed var(--line); color: var(--muted); display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
+@media (max-width: 760px) { .bs { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); } .bs-chat { border-right: 0; border-bottom: 2px solid var(--ink); } }
+
 /* The steps of a run, drawn as a pipeline. */
 .wf-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; }
 .wf-strip .st { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); border-left: 3px solid var(--k, var(--dim)); font-size: 11px; white-space: nowrap; }

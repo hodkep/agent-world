@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import type { Run } from '../../shared/runs'
 import { workflowRuns } from '../../shared/runStats'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
@@ -8,7 +8,7 @@ const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'Th
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
 
 /** What a step does, in the words of its file, for the detail beside the list. */
-function StepRow({ step, chip }: { step: Step; chip: Chip }) {
+export function StepRow({ step, chip }: { step: Step; chip: Chip }) {
   return (
     <li className={`wfl-step k-${step.kind}`}>
       <span className="wfl-dot" aria-hidden="true" />
@@ -27,9 +27,11 @@ function StepRow({ step, chip }: { step: Step; chip: Chip }) {
 }
 
 /** The workflows a project can use, with the chosen one's steps beside the list; copying, deleting and choosing the default are here. */
-export function WorkflowList({ folder, runs, switches, defaultId, onDefault }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void }) {
+export function WorkflowList({ folder, runs, switches, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: string) => Promise<void> }) {
   const [entries, setEntries] = useState<WorkflowEntry[] | null>(null)
-  const [picked, setPicked] = useState('')
+  const [picked, setPicked] = useState(initial)
+  const [describe, setDescribe] = useState('')
+  const [starting, setStarting] = useState(false)
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(() => window.aw.workflows.definitions(folder).then((e) => (setEntries(e), setError('')), (e: Error) => setError(e.message)), [folder])
@@ -39,7 +41,25 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault }: {
   const run = (go: () => Promise<unknown>) => go().then(() => (setAsking(false), load()), (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
   const wf = shown?.workflow
   const here = folder ? base(folder) : ''
+  const start = (first: string | undefined, editing?: string) => {
+    setStarting(true)
+    setError('')
+    onBuilder(first, editing).then(
+      () => setStarting(false),
+      (e: Error) => (setStarting(false), setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
+    )
+  }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (describe.trim()) start(describe.trim())
+  }
   return (
+    <>
+    <form className="wfl-describe" onSubmit={submit}>
+      <input value={describe} onChange={(e) => setDescribe(e.target.value)} disabled={!folder || starting} placeholder={folder ? 'Describe a workflow to the builder, e.g. every change to billing needs a security review and a second approval' : 'Open a project to build a workflow'} aria-label="Describe a workflow" />
+      <button className="primary" type="submit" disabled={!folder || starting || !describe.trim()}>{starting ? 'Starting…' : 'Start with the builder'}</button>
+      <button type="button" disabled={!folder || starting} onClick={() => start(undefined)}>Open the builder</button>
+    </form>
     <div className="wfl" aria-label="Workflows">
       <ul className="wfl-side" role="listbox" aria-label="Workflow list">
         {list.map((e) => {
@@ -94,6 +114,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault }: {
                   {folder && shown.id !== defaultId && <button className="primary" onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
                   <button disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project'))}>Copy to {folder ? here : 'a project'}</button>
                   <button onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global'))}>Copy for everything</button>
+                  <button disabled={!folder || starting} title={folder ? '' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, wf.name)}>Edit with the builder</button>
                   {shown.scope !== 'built-in' && <button onClick={() => setAsking(true)}>Delete</button>}
                 </div>
               )}
@@ -102,5 +123,6 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault }: {
         )}
       </div>
     </div>
+    </>
   )
 }

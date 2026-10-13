@@ -20,13 +20,14 @@ afterEach(async () => {
 const notes: { caller: string; text: string }[] = []
 const sent: { from: string; to: string; message: string; expectsReply: boolean }[] = []
 
-async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos'], libraryOn?: () => boolean, workflows?: Parameters<typeof startMcpServer>[0]['workflows']) {
+async function setup(library?: Parameters<typeof startMcpServer>[0]['library'], todos?: Parameters<typeof startMcpServer>[0]['todos'], libraryOn?: () => boolean, workflows?: Parameters<typeof startMcpServer>[0]['workflows'], builder?: Parameters<typeof startMcpServer>[0]['builder']) {
   sent.length = 0
   server = await startMcpServer({
     library,
     libraryOn,
     todos,
     workflows,
+    builder,
     agentForToken: (t) => ({ 'tok-a1': 'a1', 'tok-a2': 'a2' })[t] ?? null,
     listAgents: (caller) => [{ name: 'linus', activity: 'idle', branch: 'aw/linus', you: caller === 'a2' }],
     send: (from, to, message, expectsReply) => {
@@ -389,5 +390,64 @@ describe('workflow tools', () => {
     expect(text(refused)).toContain('no step "nope"')
     expect(calls).toEqual(['a1 step ', 'a1 step fix', 'a1 step lint'])
     expect((await (await connect((await setup(undefined, undefined, undefined, wf)).url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('step_done')
+  })
+})
+
+describe('builder tools', () => {
+  const calls: string[] = []
+  const builder = {
+    offered: (c: string) => c === 'a1',
+    list: (c: string) => (calls.push(`list:${c}`), '- standard (built in): Standard'),
+    get: (c: string, id: string) => {
+      calls.push(`get:${c}:${id}`)
+      if (id === 'nope') throw new Error('No workflow "nope".')
+      return '{"id":"bug-fix"}'
+    },
+    propose: (c: string, file: string) => {
+      calls.push(`propose:${c}:${file}`)
+      if (file === 'bad') throw new Error('Nothing was proposed, because the file has problems.\n- "name" is required')
+      return 'Proposed "Bug fix".'
+    }
+  }
+  it('are offered only to the agent the office says is the builder', async () => {
+    const s = await setup(undefined, undefined, undefined, undefined, builder)
+    const names = async (agent: string) => (await (await connect(s.url, agent)).listTools()).tools.map((t) => t.name)
+    expect(await names('a1')).toEqual(expect.arrayContaining(['workflow_list', 'workflow_get', 'workflow_propose']))
+    const other = await names('a2')
+    expect(other).not.toContain('workflow_list')
+    expect(other).not.toContain('workflow_propose')
+  })
+
+  it('say they change nothing in the project, which is what lets a read-only (plan mode) agent call them', async () => {
+    const s = await setup(undefined, undefined, undefined, undefined, builder)
+    const tools = (await (await connect(s.url, 'a1')).listTools()).tools.filter((t) => t.name.startsWith('workflow_'))
+    expect(tools.map((t) => t.name).sort()).toEqual(['workflow_get', 'workflow_list', 'workflow_propose'])
+    for (const t of tools) expect(t.annotations?.readOnlyHint, t.name).toBe(true)
+  })
+
+  it('are not offered at all when the app has no builder', async () => {
+    const s = await setup()
+    expect((await (await connect(s.url, 'a1')).listTools()).tools.map((t) => t.name)).not.toContain('workflow_propose')
+  })
+
+  it('reach the office with the caller and what was asked, and answer in its words', async () => {
+    calls.length = 0
+    const s = await setup(undefined, undefined, undefined, undefined, builder)
+    const c = await connect(s.url, 'a1')
+    expect(text(await c.callTool({ name: 'workflow_list', arguments: {} }))).toBe('- standard (built in): Standard')
+    expect(text(await c.callTool({ name: 'workflow_get', arguments: { id: 'bug-fix' } }))).toBe('{"id":"bug-fix"}')
+    expect(text(await c.callTool({ name: 'workflow_propose', arguments: { file: '{"version":1}' } }))).toBe('Proposed "Bug fix".')
+    expect(calls).toEqual(['list:a1', 'get:a1:bug-fix', 'propose:a1:{"version":1}'])
+  })
+
+  it('send a refusal back as an error the agent can read, with every problem', async () => {
+    const s = await setup(undefined, undefined, undefined, undefined, builder)
+    const c = await connect(s.url, 'a1')
+    const bad = (await c.callTool({ name: 'workflow_propose', arguments: { file: 'bad' } })) as { isError?: boolean }
+    expect(bad.isError).toBe(true)
+    expect(text(bad)).toContain('"name" is required')
+    const none = (await c.callTool({ name: 'workflow_get', arguments: { id: 'nope' } })) as { isError?: boolean }
+    expect(none.isError).toBe(true)
+    expect(text(none)).toBe('No workflow "nope".')
   })
 })

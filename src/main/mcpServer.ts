@@ -54,6 +54,14 @@ interface Options {
     search: (callerId: string, query: string) => Promise<{ id: string; kind: string; description: string; tokens: number; mode: string; when: string }[]>
     skip: (callerId: string, id: string, reason: string) => void
   }
+  /** What the workflow builder agent may do: read the workflows and hand in drafts. `offered` says whether this caller is the builder. */
+  builder?: {
+    offered: (callerId: string) => boolean
+    list: (callerId: string) => string
+    get: (callerId: string, id: string) => string
+    /** Takes the file as the agent wrote it; throws every problem it has, so the agent can fix them all at once. */
+    propose: (callerId: string, file: string) => string
+  }
   /** Tasks agents report so the office can record them as workflow runs. `offered` says whether this caller gets the tools. */
   workflows?: {
     offered: (callerId: string) => boolean
@@ -207,6 +215,7 @@ function toolsFor(callerId: string, o: Options) {
   if (o.library && (o.libraryOn?.() ?? true)) addLibraryTools(server, callerId, o.library)
   if (o.todos) addTodoTools(server, callerId, o.todos)
   if (o.workflows?.offered(callerId)) addWorkflowTools(server, callerId, o.workflows)
+  if (o.builder?.offered(callerId)) addBuilderTools(server, callerId, o.builder)
   return server
 }
 
@@ -452,6 +461,51 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
       try {
         wf.done(callerId, summary)
         return { content: [{ type: 'text' as const, text: 'Task done.' }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+}
+
+// None of the builder's tools changes the project (a draft is the person's to save), and a read-only (plan mode) agent may call only tools that say so.
+const READ_ONLY = { readOnlyHint: true }
+type BuilderApi = NonNullable<Options['builder']>
+
+function addBuilderTools(server: McpServer, callerId: string, b: BuilderApi) {
+  const fail = (err: unknown) => ({ isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] })
+  server.registerTool(
+    'workflow_list',
+    { description: 'List the workflows this project can use, with where each is kept, when it fits and its steps.', inputSchema: {}, annotations: READ_ONLY },
+    async () => {
+      try {
+        return { content: [{ type: 'text' as const, text: b.list(callerId) }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'workflow_get',
+    { description: 'Read one workflow as its file.', inputSchema: { id: z.string().min(1).max(60).describe('The id from workflow_list') }, annotations: READ_ONLY },
+    async ({ id }) => {
+      try {
+        return { content: [{ type: 'text' as const, text: b.get(callerId, id) }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'workflow_propose',
+    {
+      description: 'Hand the person a workflow draft. It is not saved: the person sees it beside this chat and saves it themselves. Pass the whole file as JSON text. A file with problems is refused with every problem named, so fix them and call again.',
+      inputSchema: { file: z.string().min(2).max(40_000).describe('The workflow file, as JSON text') },
+      annotations: READ_ONLY
+    },
+    async ({ file }) => {
+      try {
+        return { content: [{ type: 'text' as const, text: b.propose(callerId, file) }] }
       } catch (err) {
         return fail(err)
       }
