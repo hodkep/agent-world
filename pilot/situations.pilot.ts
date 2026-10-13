@@ -56,7 +56,7 @@ describe.skipIf(!ON)('situations pilot with a real agent', () => {
     mkdirSync(work)
     svc = createLibraryService({ root: join(dir, 'library'), agent: (id) => (id === 'pilot' ? { id, name: 'pilot', repoPath: work, provider: 'claude' } : undefined), workspaceKey: () => 'pilot' })
     await svc.library.save({ kind: 'skill', name: 'resolving-merge-conflicts', description: 'Resolve a git merge conflict: keep both intents, run checks, sign the commit.', body: SKILL })
-    svc.playbooks.write({ workspace: 'pilot' }, [{ id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge or rebase stopped with conflict markers', strength: 'medium', also: ['merge-conflict'] }])
+    svc.playbooks.write({ workspace: 'pilot' }, [{ id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge or rebase stopped with conflict markers', strength: 'medium' }])
     core = svc.prepare('pilot', true, true).core
     mcp = await startMcpServer({
       agentForToken: (t) => (t === TOKEN ? 'pilot' : null),

@@ -11,13 +11,14 @@ const skill = (dir: string, name: string, desc: string, body: string) => {
 
 const CONFLICT = 'Auto-merging a.txt\nCONFLICT (content): Merge conflict in a.txt\nAutomatic merge failed; fix conflicts and then commit the result.'
 
-async function setup(extra: { rule?: object; agy?: boolean } = {}) {
+async function setup(extra: { rule?: object; rules?: object[] } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'aw-sit-'))
   const lib = join(home, 'aw', 'library')
   skill(join(lib, 'skills', 'resolving-merge-conflicts'), 'resolving-merge-conflicts', 'Resolve a git merge conflict.', '# Merge')
+  skill(join(lib, 'skills', 'pdf-split'), 'pdf-split', 'Split a pdf into pages.', '# Pdf')
   mkdirSync(join(lib, 'playbooks'), { recursive: true })
-  writeFileSync(join(lib, 'playbooks', 'global.json'), JSON.stringify({ rules: [
-    { id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium', also: ['merge-conflict'], ...extra.rule }
+  writeFileSync(join(lib, 'playbooks', 'global.json'), JSON.stringify({ rules: extra.rules ?? [
+    { id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium', ...extra.rule }
   ] }))
   const args = join(home, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: join(home, 'agy'), FAKE_ENV_FILE: join(home, 'env.log'), FAKE_ARGS: args, FAKE_DELAY_MS: '50', FAKE_CHAT: '1' }, home)
@@ -74,8 +75,8 @@ test('a merge conflict in the middle of a run points the agent at the skill once
   }
 })
 
-test('a rule that does not list the situation is left alone', async () => {
-  const { shutdown, tool } = await setup({ rule: { also: [] } })
+test('a rule whose "when" says nothing about the situation is left alone', async () => {
+  const { shutdown, tool } = await setup({ rules: [{ id: 'pdf-split', mode: 'on-demand', when: 'splitting a pdf into pages', strength: 'medium' }] })
   try {
     expect(await tool('git merge feature', CONFLICT)).toBe('')
   } finally {
@@ -84,7 +85,7 @@ test('a rule that does not list the situation is left alone', async () => {
 })
 
 test('failing checks are pointed at when the same red shows twice, not the first', async () => {
-  const { shutdown, tool } = await setup({ rule: { also: ['failing-checks'] } })
+  const { shutdown, tool } = await setup({ rule: { when: 'tests keep failing, or a type check shows errors' } })
   try {
     const red = ' Test Files  1 failed | 3 passed (4)\n      Tests  2 failed | 10 passed (12)'
     expect(await tool('pnpm test', red)).toBe('')
@@ -131,7 +132,7 @@ test('chat: a slip beside the message says the skill was pointed at because of a
   const lib = join(home, 'aw', 'library')
   skill(join(lib, 'skills', 'resolving-merge-conflicts'), 'resolving-merge-conflicts', 'Resolve a git merge conflict.', '# Merge')
   mkdirSync(join(lib, 'playbooks'), { recursive: true })
-  writeFileSync(join(lib, 'playbooks', 'global.json'), JSON.stringify({ rules: [{ id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium', also: ['merge-conflict'] }] }))
+  writeFileSync(join(lib, 'playbooks', 'global.json'), JSON.stringify({ rules: [{ id: 'resolving-merge-conflicts', mode: 'on-demand', when: 'a merge stopped with conflict markers', strength: 'medium' }] }))
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
   try {
     const page = await app.firstWindow()

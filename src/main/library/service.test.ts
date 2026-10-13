@@ -287,12 +287,12 @@ describe('the cost of the check before acting', () => {
 
 describe('a situation an agent meets in the middle of a run', () => {
   const CONFLICT = { stdout: 'CONFLICT (content): Merge conflict in a.txt\nAutomatic merge failed' }
-  const withRule = async (also: string[] = ['merge-conflict']) => {
+  const withRule = async (when = 'a merge stopped with conflict markers') => {
     const s = join(dir, 'src', 'rmc')
     mkdirSync(s, { recursive: true })
     writeFileSync(join(s, 'SKILL.md'), '---\nname: rmc\ndescription: Resolve a git merge conflict.\n---\n# Merge')
     await svc.library.addSkillFolder(s, 't')
-    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'rmc', mode: 'on-demand', when: 'a merge stopped', strength: 'medium', also }])
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'rmc', mode: 'on-demand', when, strength: 'medium' }])
     await svc.prepare('a1', true, true)
   }
   it('points at the rule that lists it, once, and logs why', async () => {
@@ -315,7 +315,7 @@ describe('a situation an agent meets in the middle of a run', () => {
     expect(svc.situation('a1', 'Bash', { command: 'git merge z' }, CONFLICT)).toBe('')
   })
   it('says failing checks only when the same red shows twice with nothing green between', async () => {
-    await withRule(['failing-checks'])
+    await withRule('tests keep failing, or a type check shows errors')
     const red = { stdout: ' Tests  2 failed | 10 passed (12)' }
     expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
     const line = svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)
@@ -327,8 +327,12 @@ describe('a situation an agent meets in the middle of a run', () => {
     expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
     expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).not.toBe('')
   })
-  it('is left alone when no rule lists it', async () => {
-    await withRule([])
+  it('works from a "when" with several statements, any one of which may be the situation', async () => {
+    await withRule('building a feature test first. A merge stopped with conflict markers; reviewing a pull request.')
+    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toContain('rmc')
+  })
+  it('is left alone when no rule says when it applies to it', async () => {
+    await withRule('splitting a pdf into pages')
     expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toBe('')
   })
 })

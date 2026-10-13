@@ -7,6 +7,12 @@ export interface Situation {
 /** What makes it trivial enough to pass over, in the line the agent gets. */
 export const TRIVIAL: Record<string, string> = { 'merge-conflict': 'one small hunk, nothing both sides changed', 'failing-checks': 'a typo or a one-line fix you already know' }
 
+/** What a situation says about itself in everyday words, matched against a rule's "when does it apply" like a message is, so one sentence there serves both. */
+export const SITUATION_WORDS: Record<string, string> = {
+  'merge-conflict': 'git merge stopped with conflict markers in files, a rebase or cherry-pick stopped, conflicts to resolve, unmerged paths',
+  'failing-checks': 'tests failing again, a failed test run repeated, type check errors, tsc errors, test failures'
+}
+
 /** What a situation is called to a person (the log and the cards say "because a merge conflict was found"). */
 export const SITUATIONS: Record<string, string> = { 'merge-conflict': 'merge conflict', 'failing-checks': 'failing test or type check' }
 
