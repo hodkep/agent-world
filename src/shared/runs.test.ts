@@ -8,7 +8,7 @@ describe('what a run is, read from its log', () => {
   it('a begun task is an open run with one round', () => {
     const [r] = reduceRuns([begin('r1', 100)])
     expect(r).toMatchObject({ id: 'r1', agent: 'a1', name: 'ada', title: 'Fix the login redirect', status: 'open', startedAt: 100 })
-    expect(r!.rounds).toEqual([{ n: 1, startedAt: 100, commits: [], steps: [] }])
+    expect(r!.rounds).toEqual([{ n: 1, startedAt: 100, commits: [], steps: [], checks: [] }])
   })
 
   it('done closes the run and its round, with the summary', () => {
@@ -154,5 +154,31 @@ describe('a run that follows a workflow', () => {
     expect(r!.rounds[0]!.steps).toEqual([{ step: 'fix', state: 'done', t: 200 }, { step: 'ok', state: 'approved', t: 250 }])
     expect(r!.rounds[1]!.steps).toEqual([{ step: 'fix', state: 'done', t: 600, implicit: true }])
     expect(r!.status).toBe('open')
+  })
+})
+
+describe('what a check adds to a round', () => {
+  const workflow = { id: 'f', name: 'F', steps: [{ id: 'tests', kind: 'check' as const, name: 'Tests pass', run: 'npm test' }] }
+  const result = (t: number, attempt: number, ok: boolean, head = 'h1'): Extract<RunEvent, { k: 'check' }> => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head, attempt, ok, exit: ok ? 0 : 1, timedOut: false, ms: 1200, tail: ok ? 'ok' : 'FAIL' })
+
+  it('each run of a check is kept in the round with how it ended, in order', () => {
+    const [r] = reduceRuns([{ ...begin('r1', 100), workflow }, result(200, 1, false), result(300, 2, true)])
+    expect(r!.rounds[0]!.checks).toEqual([
+      { step: 'tests', t: 200, head: 'h1', attempt: 1, ok: false, exit: 1, timedOut: false, ms: 1200, tail: 'FAIL' },
+      { step: 'tests', t: 300, head: 'h1', attempt: 2, ok: true, exit: 0, timedOut: false, ms: 1200, tail: 'ok' }
+    ])
+    expect(r!.status).toBe('open')
+  })
+
+  it('what the person did with a check (skipped it, declined its commands, asked for it again) goes in the step log, and a check for a round that does not exist is ignored', () => {
+    const [r] = reduceRuns([
+      { ...begin('r1', 100), workflow },
+      { k: 'step', t: 200, run: 'r1', round: 1, step: 'tests', state: 'declined' },
+      { k: 'step', t: 300, run: 'r1', round: 1, step: 'tests', state: 'rerun' },
+      { k: 'step', t: 400, run: 'r1', round: 1, step: 'tests', state: 'skipped' },
+      { ...result(500, 1, true), round: 7 }
+    ])
+    expect(r!.rounds[0]!.steps.map((s) => s.state)).toEqual(['declined', 'rerun', 'skipped'])
+    expect(r!.rounds[0]!.checks).toEqual([])
   })
 })

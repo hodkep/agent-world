@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { stepReply, stepStates, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, stepReply, stepStates, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -8,7 +8,7 @@ const begin = (workflow?: RunWorkflow): RunEvent => ({ k: 'begin', t: 100, run: 
 const readback = { goal: 'g', assumptions: [], outOfScope: [], questions: [] }
 const submitted = (t = 200): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback })
 const decided = (state: 'approved' | 'changes' | 'released', t = 300): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state })
-const step = (id: string, state: 'done' | 'approved' | 'changes', t = 400, round = 1): RunEvent => ({ k: 'step', t, run: 'r1', round, step: id, state })
+const step = (id: string, state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun', t = 400, round = 1): RunEvent => ({ k: 'step', t, run: 'r1', round, step: id, state })
 const states = (events: RunEvent[], ctx = { auditOn: true }) => stepStates(reduceRuns(events)[0]!, ctx).map((s) => `${s.id}:${s.state}`)
 
 describe('where a run stands in its workflow', () => {
@@ -122,5 +122,91 @@ describe('a plan the workflow does not ask for', () => {
     expect(first(flow(), false)).toEqual(['plan:skipped', 'build:running'])
     expect(first(flow(), true)).toEqual(['plan:running', 'build:pending'])
     expect(first(flow('approve'), false)).toEqual(['plan:running', 'build:pending'])
+  })
+})
+
+describe('a check step', () => {
+  const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const built: RunEvent[] = [begin(CHECKED), step('build', 'done', 300)]
+  const ran = (attempt: number, ok: boolean, t = 400 + attempt, head = 'h1'): RunEvent => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head, attempt, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail: 'x' })
+  const chk = (events: RunEvent[], ctx: { auditOn: boolean; planGate?: boolean; approved?: boolean; head?: string } = { auditOn: false }) => stepStates(reduceRuns(events)[0]!, ctx).find((s) => s.id === 'tests')!
+  const at = (events: RunEvent[], ctx?: { auditOn: boolean; approved?: boolean; head?: string }) => {
+    const s = chk(events, ctx)
+    return `${s.state}${s.tries ? ` after ${s.tries}` : ''}`
+  }
+
+  it('waits its turn until the work before it is done, then is running: the app runs it', () => {
+    expect(at([begin(CHECKED)])).toBe('pending')
+    expect(at(built)).toBe('running')
+  })
+
+  it('waits for the person when its file\'s commands are not approved, and does not run before', () => {
+    expect(at(built, { auditOn: false, approved: false })).toBe('waiting')
+    expect(at([...built, ran(1, true)], { auditOn: false, approved: false })).toBe('passed')
+  })
+
+  it('passed when the last run passed, however many tries it took', () => {
+    expect(at([...built, ran(1, false), ran(2, true)])).toBe('passed')
+  })
+
+  it('failed once or twice it is still the agent\'s to fix, and failed on every try it has failed', () => {
+    expect(at([...built, ran(1, false)])).toBe('running after 1')
+    expect(at([...built, ran(1, false), ran(2, false)])).toBe('running after 2')
+    expect(at([...built, ran(1, false), ran(2, false), ran(3, false)])).toBe('failed after 3')
+  })
+
+  it('a result for another head of the branch is stale: the check is due again', () => {
+    expect(at([...built, ran(1, true, 410, 'old')], { auditOn: false, head: 'new' })).toBe('running')
+    expect(at([...built, ran(1, true, 410, 'new')], { auditOn: false, head: 'new' })).toBe('passed')
+  })
+
+  it('the person can skip it, decline its commands (which is failed), or ask for it again, which gives it its tries back', () => {
+    expect(at([...built, ran(1, false), ran(2, false), ran(3, false), step('tests', 'skipped', 500)])).toBe('skipped')
+    expect(at([...built, step('tests', 'declined', 450)])).toBe('failed')
+    expect(at([...built, ran(1, false), ran(2, false), ran(3, false), step('tests', 'rerun', 500)])).toBe('running')
+    expect(at([...built, ran(1, false), ran(2, false), ran(3, false), step('tests', 'rerun', 500), ran(1, false, 510)])).toBe('running after 1')
+  })
+
+  it('a step after a check that has not passed waits for it, whether it is running, waiting or failed', () => {
+    const land = (events: RunEvent[]) => stepStates(reduceRuns(events)[0]!, { auditOn: false }).find((s) => s.id === 'land')!.state
+    expect([land(built), land([...built, ran(1, false), ran(2, false), ran(3, false)])]).toEqual(['pending', 'pending'])
+    expect(land([...built, ran(1, true)])).toBe('waiting')
+  })
+})
+
+describe('what the agent is told when a check fails', () => {
+  it('says which check, which try, what the command did and what it printed, and what to do next', () => {
+    expect(checkFailed({ name: 'Tests pass', run: 'npm test', try: 1, of: 3, result: { exit: 1, timedOut: false, tail: 'FAIL src/a.test.ts\n  expected 1', ms: 1200 } })).toBe(
+      'The check "Tests pass" failed (try 1 of 3): `npm test` exited with 1. What it printed last:\nFAIL src/a.test.ts\n  expected 1\nFix it, commit, then call step_done again. This is still the same task, so do not call task_begin again.'
+    )
+  })
+
+  it('says a command that did not finish in time was stopped, and that it printed nothing when it did not', () => {
+    expect(checkFailed({ name: 'Lint', run: 'npm run lint', try: 2, of: 3, result: { exit: null, timedOut: true, tail: '', ms: 300000 } })).toBe('The check "Lint" failed (try 2 of 3): `npm run lint` did not finish in 5 minutes and was stopped. It printed nothing.\nFix it, commit, then call step_done again. This is still the same task, so do not call task_begin again.')
+  })
+
+  it('when it will not be sent back again, says the person has been asked and that nothing more should change', () => {
+    expect(checkGaveUp({ name: 'Tests pass', tries: 3 })).toBe('The check "Tests pass" still fails after 3 tries. The person has been asked what to do; change nothing more until they answer.')
+  })
+})
+
+describe('the checks that need the person', () => {
+  const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', retries: 1 }] }
+  const ran = (attempt: number, ok: boolean, tail = 'FAIL'): RunEvent => ({ k: 'check', t: 400 + attempt, run: 'r1', round: 1, step: 'tests', head: 'h' + attempt, attempt, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail })
+  const base: RunEvent[] = [begin(CHECKED), step('build', 'done', 300)]
+  const panels = (events: RunEvent[], approved = true) => checkPanels(reduceRuns(events), () => ({ auditOn: false, approved })).map((p) => `${p.kind}:${p.step.id}${p.tail ? ` (${p.tail})` : ''}`)
+
+  it('are the commands that wait for approval, the commands that were declined, and a check that failed every try with what it printed last', () => {
+    expect(panels(base, false)).toEqual(['approval:tests'])
+    expect(panels([...base, step('tests', 'declined', 350)], false)).toEqual(['declined:tests'])
+    expect(panels([...base, ran(1, false, 'FAIL one'), ran(2, false, 'FAIL two')])).toEqual(['failed:tests (FAIL two)'])
+  })
+
+  it('are none while a check is running, still has tries, passed, was skipped, or the run was stopped', () => {
+    expect(panels(base)).toEqual([])
+    expect(panels([...base, ran(1, false)])).toEqual([])
+    expect(panels([...base, ran(1, true)])).toEqual([])
+    expect(panels([...base, ran(1, false), ran(2, false), step('tests', 'skipped', 500)])).toEqual([])
+    expect(panels([...base, ran(1, false), ran(2, false), { k: 'stop', t: 900, run: 'r1' }])).toEqual([])
   })
 })

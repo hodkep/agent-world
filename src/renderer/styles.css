@@ -2999,3 +2999,13 @@ aside:not(.drawer) { flex: none; }
 .wf-round .wf-strip { padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .wf-round .wf-strip li { flex-wrap: nowrap; padding: 2px 8px 2px 6px; border-top: 0; align-items: center; }
 .wf-round .wf-strip li > span:nth-child(2) { flex: 0 0 auto; }
+.wf-strip .is-failed { box-shadow: 0 0 0 1px var(--danger-text); }
+.wf-strip .is-failed .st-mark { color: var(--danger-text); }
+.wf-strip .st-tag.bad { background: var(--danger-text); }
+.pg-tag.bad { background: var(--danger-text); }
+.cg-tail, .cg-diff { margin: 0; background: var(--well); padding: 8px 10px; font: 11px/1.45 Menlo, Consolas, monospace; overflow: auto; max-height: 140px; color: var(--text); white-space: pre-wrap; }
+.cg-diff { display: flex; flex-direction: column; }
+.cg-diff .muted { color: var(--muted); }
+.cg-added { background: rgba(95, 158, 95, 0.22); }
+.cg-removed { background: rgba(224, 108, 108, 0.18); }
+.plan-gate .warn { color: var(--accent); }

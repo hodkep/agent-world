@@ -18,7 +18,7 @@ function StepRow({ step, chip }: { step: Step; chip: Chip }) {
         {step.gate === 'pass' && <span className="wf-tag">must pass</span>}
         <span className="mono muted"> {KIND_LABEL[step.kind]}</span>
         {step.skills?.length ? <span className="mono muted"> · skill: {step.skills.join(', ')}</span> : null}
-        {step.run && <span className="mono muted"> · runs: {step.run}{step.retries ? ` (up to ${step.retries} tries)` : ''}</span>}
+        {step.run && <span className="mono muted"> · runs: {step.run}{step.retries ? ` (sent back up to ${step.retries} time${step.retries === 1 ? '' : 's'})` : ''}</span>}
         {step.model && <span className="mono muted"> · {step.model}</span>}
         {step.brief && <div className="muted">{step.brief}</div>}
       </div>

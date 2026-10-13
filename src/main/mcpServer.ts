@@ -64,7 +64,7 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
-    stepDone: (callerId: string, step?: string) => { done: string; waiting?: string }
+    stepDone: (callerId: string, step?: string) => { done: string; waiting?: string; checking?: boolean }
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
@@ -436,7 +436,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     async ({ step }) => {
       try {
         const r = wf.stepDone(callerId, step)
-        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}` }] }
+        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}` }] }
       } catch (err) {
         return fail(err)
       }

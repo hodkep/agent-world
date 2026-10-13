@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STANDARD, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, checkCommands, commandDiff, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -133,5 +133,27 @@ describe('the copy of a workflow a run keeps', () => {
       ]
     })
     expect(toRunWorkflow(STANDARD).hash).toBeUndefined()
+  })
+})
+
+describe('the commands a workflow runs', () => {
+  it('are the run of each check step, in order, once each, and none for a workflow without checks', () => {
+    const rw = toRunWorkflow(parseOk({ ...BUG_FIX, steps: [{ id: 'a', kind: 'check', run: 'npm test' }, { id: 'b', kind: 'work' }, { id: 'c', kind: 'check', run: 'npm run lint' }, { id: 'd', kind: 'check', run: 'npm test' }] }), 'h', 'project')
+    expect(checkCommands(rw)).toEqual(['npm test', 'npm run lint'])
+    expect(checkCommands(toRunWorkflow(STANDARD))).toEqual([])
+  })
+
+  it('a run\'s copy says which place the file came from, so commands from the repository can be told from the rest', () => {
+    expect(toRunWorkflow(parseOk(BUG_FIX), 'abc', 'project').scope).toBe('project')
+    expect(toRunWorkflow(STANDARD).scope).toBeUndefined()
+  })
+
+  it('compared with an older version: what is new, what is gone and what stayed, new ones first', () => {
+    expect(commandDiff(['npm test', 'npm run lint'], ['npm test && ./up.sh', 'npm run lint'])).toEqual([
+      { change: 'added', text: 'npm test && ./up.sh' },
+      { change: 'removed', text: 'npm test' },
+      { change: 'same', text: 'npm run lint' }
+    ])
+    expect(commandDiff([], ['make'])).toEqual([{ change: 'added', text: 'make' }])
   })
 })

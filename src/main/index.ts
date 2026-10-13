@@ -59,9 +59,11 @@ import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
+import { Approvals } from './workflows/approvals'
+import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { stepReply } from '../shared/steps'
-import { toRunWorkflow } from '../shared/workflow'
+import { checkCommands, commandDiff, toRunWorkflow } from '../shared/workflow'
 import { auditModel, defaultWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
@@ -426,14 +428,21 @@ const LIBRARY_DIR = join(HOME, 'library')
 // Where skills are looked for to import: the user's own folders (a test points it elsewhere).
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
 const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
+// The versions of project workflow files whose commands the person approved.
+const approvals = new Approvals(join(HOME, 'workflow-approvals.json'))
+/** Whether a run's workflow may run its commands: a project's file needs the person's approval of its exact content; any other needs none. */
+const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
+  run: (command, cwd) => runCheck(command, cwd, { env: checkEnv(process.env, loginShellPath() ?? process.env.PATH ?? '') }),
+  approved: commandsApproved,
+  cwd: (id) => byId(id)?.cwd,
   // A new task follows the workflow it asked for, else its project's default, else Standard; the run keeps the file as it was then.
   pick: (id, requested) => {
     const a = byId(id)
     if (!a) return undefined
     const usable = workflowStore.list(a.repoPath).filter((e) => e.workflow)
     const chosen = usable.find((e) => e.id === requested) ?? usable.find((e) => e.id === defaultWorkflow(prefs.workflows, a.repoPath)) ?? usable.find((e) => e.id === 'standard')
-    return chosen ? toRunWorkflow(chosen.workflow!, chosen.hash) : undefined
+    return chosen ? toRunWorkflow(chosen.workflow!, chosen.hash, chosen.scope === 'built-in' ? undefined : chosen.scope) : undefined
   },
   enabled: () => prefs.workflows.enabled,
   since: () => prefs.workflows.since,
@@ -454,6 +463,22 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
     return a ? { name: a.name, project: a.repoPath } : undefined
   }
 })
+// Runs the checks of an agent's workflow that are due, and tells the agent what came of it: the output of one that failed, or that the person has been asked.
+// Called when the agent reports its work, when the person answers a check, and (for what is new) when Finish is opened.
+async function kickChecks(id: string, o: { fresh?: boolean } = {}) {
+  const a = byId(id)
+  if (!a) return
+  try {
+    const head = await git(a.cwd, 'rev-parse', 'HEAD')
+    const r = await workflows.runChecks(id, head, o)
+    if (r.ran > 0 || r.waitingApproval) send('workflows')
+    if (r.sendBack) mailbox.fromOffice(id, r.sendBack)
+    else if (r.gaveUp) mailbox.fromOffice(id, r.gaveUp)
+    else if (r.waitingApproval && !o.fresh) mailbox.fromOffice(id, `The check "${r.waitingApproval}" waits for the person to approve its commands; their answer arrives as your next message.`)
+  } catch {
+    // A check that cannot run (no such folder, git failed) is simply not run; the merge gate will say it has not run.
+  }
+}
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 const workflowsFor = (agentId: string) => prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open')
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
@@ -1137,10 +1162,11 @@ async function main() {
         const planFirst = run?.rounds.length === 1 && workflows.planWanted(caller)
         return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst }) }) }
       },
-      done: (caller, summary) => (workflows.done(caller, summary), send('workflows')),
+      done: (caller, summary) => (workflows.done(caller, summary), send('workflows'), void kickChecks(caller)),
       stepDone: (caller, step) => {
         const r = workflows.stepDone(caller, step)
         send('workflows')
+        if (r.checking) void kickChecks(caller)
         return r
       },
       submitPlan: async (caller, path) => {
@@ -1560,7 +1586,7 @@ async function main() {
   ipcMain.handle('workflows:summary', () => {
     const runs = workflows.runs()
     const now = Date.now()
-    return { runs, open: runs.filter((r) => r.status === 'open').length, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now)])) }
+    return { runs, open: runs.filter((r) => r.status === 'open').length, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now)])), unapproved: runs.filter((r) => r.workflow && checkCommands(r.workflow).length > 0 && !commandsApproved(r.workflow)).map((r) => r.id) }
   })
   ipcMain.handle('workflows:decide', (_, runId: string, state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: { question: string; answer: string }[] }) => {
     const run = workflows.runs().find((r) => r.id === runId)
@@ -1582,6 +1608,39 @@ async function main() {
     const name = run?.workflow?.steps.find((s) => s.id === step)?.name ?? String(step)
     if (run) mailbox.fromOffice(run.agent, stepReply(name, decision === 'changes' ? 'changes' : 'approved', text))
     send('workflows')
+  })
+  // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.
+  ipcMain.handle('workflows:check-approval', (_, runId: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const w = run?.workflow
+    if (!run || !w) throw new Error('No such run.')
+    const a = byId(run.agent)
+    const entry = a && workflowStore.list(a.repoPath).find((e) => e.id === w.id && e.hash === w.hash)
+    const commands = checkCommands(w)
+    const before = w.hash ? approvals.previous(w.id, w.hash) : undefined
+    return { workflow: w.name, file: entry?.file ?? '', hash: w.hash ?? '', commands, ...(before && { before: { hash: before.hash, at: before.at, diff: commandDiff(before.commands, commands) } }) }
+  })
+  ipcMain.handle('workflows:check-approve', (_, runId: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    if (!run?.workflow?.hash) throw new Error('No such run.')
+    approvals.approve(run.workflow.id, run.workflow.hash, checkCommands(run.workflow), Date.now())
+    workflows.commandsApproved(runId)
+    send('workflows')
+    void kickChecks(run.agent)
+  })
+  ipcMain.handle('workflows:check-decline', (_, runId: string) => (workflows.declineCommands(runId), send('workflows')))
+  ipcMain.handle('workflows:check-rerun', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    workflows.rerunCheck(runId, String(step))
+    send('workflows')
+    if (run) void kickChecks(run.agent)
+  })
+  ipcMain.handle('workflows:check-skip', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    workflows.skipCheck(runId, String(step))
+    send('workflows')
+    const name = run?.workflow?.steps.find((s) => s.id === step)?.name ?? String(step)
+    if (run) mailbox.fromOffice(run.agent, `The person skipped the check "${name}".`)
   })
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
   ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
@@ -1803,6 +1862,8 @@ async function main() {
       void startAudit(id, a, base, head).catch(() => undefined)
       check = workflows.mergeCheck(id, head, { auditable })
     }
+    // Checks that have not run for this branch are run now; ones that already did are left alone, so opening Finish never uses up their tries.
+    if (check?.checks.some((c) => c.state === 'running' || c.state === 'pending') && ahead > 0) void kickChecks(id, { fresh: true })
     return { head, auditable, check }
   }
   ipcMain.handle('finish:status', async (_, id: string) => {

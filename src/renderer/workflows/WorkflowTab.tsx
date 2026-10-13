@@ -47,7 +47,7 @@ function RoundCard({ run, round, spend, ctx }: { run: Run; round: Round; spend: 
 }
 
 /** One agent's runs, newest first, each round by round with its commits and what it cost. */
-export function WorkflowTab({ agentName, agentId, runs, spend, ctx }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctx: StepContext }) {
+export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext }) {
   const mine = runs.filter((r) => r.agent === agentId).reverse()
   return (
     <div className="wf-tab">
@@ -69,7 +69,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctx }: { agentNam
             {r.summary && <p className="wf-summary">{r.summary}</p>}
             {r.auto && <p className="hint">{agentName} did not announce this task, so the app started the run from its commit. Its start time and cost are unknown.</p>}
             {[auditText(r), landedText(r)].map((line) => line && <p key={line} className="wf-gate">{line}</p>)}
-            {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} ctx={ctx} />)}
+            {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} ctx={ctxFor(r)} />)}
           </article>
         ))
       )}

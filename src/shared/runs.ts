@@ -16,7 +16,8 @@ export type RunEvent =
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
-  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes'; note?: string; implicit?: boolean }
+  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun'; note?: string; implicit?: boolean }
+  | { k: 'check'; t: number; run: string; round: number; step: string; head: string; attempt: number; ok: boolean; exit: number | null; timedOut: boolean; ms: number; tail: string }
   | { k: 'commit'; t: number; run: string; sha: string; subject: string; flagged?: boolean; /** The round it was made in; the latest when not given. */ round?: number }
   /** A model's review of the branch head against the plan, or why it could not be done. */
   | { k: 'audit'; t: number; run: string; head: string; state: 'done'; findings: Finding[]; files: number; lines: number; truncated: boolean; cost?: number; model?: string }
@@ -31,6 +32,8 @@ export interface RunWorkflow {
   id: string
   name: string
   hash?: string
+  /** Where the file came from; a project's lives in its repository, so its commands are not the person's own. */
+  scope?: 'project' | 'global'
   steps: RunStep[]
 }
 /** A step as a run keeps it: the whole definition, with a name. */
@@ -48,11 +51,24 @@ export interface RunStep {
 /** What happened to one step in a round: the agent said it is done, or the person approved it or sent it back. */
 export interface StepLog {
   step: string
-  state: 'done' | 'approved' | 'changes'
+  state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun'
   t: number
   note?: string
   /** The app marked it done when the agent finished the task, because the agent never said so. */
   implicit?: boolean
+}
+
+/** One run of a check command: for which branch head, which try it was, and how it ended. */
+export interface CheckLog {
+  step: string
+  t: number
+  head: string
+  attempt: number
+  ok: boolean
+  exit: number | null
+  timedOut: boolean
+  ms: number
+  tail: string
 }
 
 export interface PlanAnswer {
@@ -84,6 +100,7 @@ export interface Round {
   commits: RunCommit[]
   plan?: RoundPlan
   steps: StepLog[]
+  checks: CheckLog[]
 }
 export type RunAudit =
   | { head: string; t: number; state: 'failed'; reason: string }
@@ -117,7 +134,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
   const runs = new Map<string, Run>()
   for (const e of events) {
     if (e.k === 'begin') {
-      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), ...(e.workflow && { workflow: e.workflow }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [], steps: [] }] })
+      runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), ...(e.workflow && { workflow: e.workflow }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [], steps: [], checks: [] }] })
       continue
     }
     const r = runs.get(e.run)
@@ -126,7 +143,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     if (e.k === 'round') {
       r.status = 'open'
       delete r.endedAt
-      r.rounds.push({ n: round.n + 1, startedAt: e.t, commits: [], steps: [] })
+      r.rounds.push({ n: round.n + 1, startedAt: e.t, commits: [], steps: [], checks: [] })
     } else if (e.k === 'plan') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (!into) continue
@@ -137,6 +154,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       }
     } else if (e.k === 'step') {
       r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })
+    } else if (e.k === 'check') {
+      r.rounds.find((x) => x.n === e.round)?.checks.push({ step: e.step, t: e.t, head: e.head, attempt: e.attempt, ok: e.ok, exit: e.exit, timedOut: e.timedOut, ms: e.ms, tail: e.tail })
     } else if (e.k === 'commit') {
       const into = (e.round !== undefined && r.rounds.find((x) => x.n === e.round)) || round
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import { mergeRows } from './mergeRows'
 
-const base: MergeCheck = { run: { id: 'r1', title: 'Add a toggle' }, plan: 'approved', planned: { goal: 'Add a toggle.', outOfScope: [] }, commits: 2, flagged: 0, audit: { state: 'done', findings: [], files: 3, lines: 40, truncated: false }, blocking: [], notes: [] }
+const base: MergeCheck = { run: { id: 'r1', title: 'Add a toggle' }, plan: 'approved', planned: { goal: 'Add a toggle.', outOfScope: [] }, commits: 2, flagged: 0, audit: { state: 'done', findings: [], files: 3, lines: 40, truncated: false }, checks: [], blocking: [], notes: [] }
 
 describe('the rows the Finish checklist gets from the merge check', () => {
   it('passed checks are ticks: the plan approved and an audit that found nothing', () => {
@@ -46,6 +46,23 @@ describe('the rows the Finish checklist gets from the merge check', () => {
       { ok: true, text: 'Plan approved' },
       { ok: null, text: 'This workflow has no audit step.' },
       { ok: false, text: '"Your review" has not been approved.' }
+    ])
+  })
+
+  it('a check that passed is a tick with how long it took, a skipped one a plain line, one that holds landing a cross in the server\'s words, and one that only reports is a plain line', () => {
+    const checks = [
+      { id: 'a', name: 'Tests pass', run: 'npm test', state: 'passed' as const, ms: 12_400 },
+      { id: 'b', name: 'Type check', run: 'tsc', state: 'skipped' as const },
+      { id: 'c', name: 'Lint', run: 'npm run lint', state: 'failed' as const, tries: 3, ms: 900 },
+      { id: 'd', name: 'Slow suite', run: 'make slow', state: 'running' as const, tries: 1, ms: 5000 }
+    ]
+    expect(mergeRows({ ...base, checks, blocking: ['"Lint" failed after 3 tries.'] })).toEqual([
+      { ok: true, text: 'Plan approved' },
+      { ok: true, text: 'Audit found nothing' },
+      { ok: true, text: 'Tests pass: npm test passed (12 s)' },
+      { ok: null, text: 'Type check: skipped' },
+      { ok: null, text: 'Slow suite: has not passed yet (it only reports, so it does not hold landing)' },
+      { ok: false, text: '"Lint" failed after 3 tries.' }
     ])
   })
 })
