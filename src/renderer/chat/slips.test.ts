@@ -16,6 +16,10 @@ describe('slipsFor', () => {
   it('keeps what the agent met that pointed it at the item', () => {
     expect(slipsFor([u({ t: 1000, because: 'merge conflict, 2 files' })], 500, 5000)[0]).toMatchObject({ state: 'pointed', because: 'merge conflict, 2 files' })
   })
+  it('says passed over, with what the agent said, when it declined the item it was pointed at', () => {
+    const s = slipsFor([u({ t: 1000, because: 'merge conflict, 1 file', words: 'w' }), u({ t: 1800, how: 'skipped', reason: 'one-line conflict, took ours' })], 500, 5000)
+    expect(s).toEqual([{ id: 'tdd', state: 'skipped', words: 'w', because: 'merge conflict, 1 file', reason: 'one-line conflict, took ours' }])
+  })
   it('keeps to its own window, one slip per item, and ignores starts and deliveries', () => {
     const s = slipsFor([u({ t: 100 }), u({ t: 1000, words: 'x' }), u({ t: 1100, words: 'x' }), u({ t: 6000 }), u({ t: 1200, how: 'started', id: '' }), u({ t: 1300, how: 'delivered', id: 'terse' })], 500, 5000)
     expect(s).toHaveLength(1)
