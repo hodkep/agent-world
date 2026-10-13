@@ -14,6 +14,9 @@ export function actorTag(a: Actor): ActorTag {
   return a.provider === 'agy' ? { tone: 'ag', label: `${a.name} · agy`, ...main } : { tone: 'cl', label: `${a.name} · ${a.provider === 'claude' || !a.provider ? 'Claude' : a.provider}`, ...main }
 }
 
+/** Why the app closed a task on its own, if it did (a task closed before this was recorded was closed when a turn ended). */
+export const autoClosed = (t: Todo): 'turn' | 'stopped' | undefined => t.closedBy ?? (t.closedAtTurnEnd ? 'turn' : undefined)
+
 export function agoLabel(t: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - t) / 1000))
   if (s < 60) return 'just now'
@@ -55,11 +58,14 @@ export interface ActivityLine {
   at: number
   /** Worth a coloured mark: something happened, not just an edit. */
   key: boolean
+  /** The app did it on its own, nobody said so: drawn with a dashed mark. */
+  app?: boolean
 }
 
 /** What happened to a task, in words, oldest first: the events that matter, with plain edits folded into one line ("Edited 3 times"). */
 export function activityOf(t: Todo): ActivityLine[] {
   const out: ActivityLine[] = []
+  const lastDone = [...t.history].reverse().find((e) => e.what === 'done')
   for (const e of t.history) {
     const by = e.by.name
     if (e.what === 'updated') {
@@ -75,13 +81,32 @@ export function activityOf(t: Todo): ActivityLine[] {
       : e.what === 'claimed' ? `Claimed by ${by}`
       : e.what === 'assigned' ? `${by} put ${e.note ?? 'an agent'} on it`
       : e.what === 'asked' ? `${by} asked ${e.note ?? ''}`.trim()
+      : e.what === 'done' && autoClosed(t) && e === lastDone ? (autoClosed(t) === 'stopped' ? `Closed by Agent World: ${by} had stopped, nobody said it was done` : `Closed by Agent World when ${by}'s turn ended, nobody said it was done`)
       : e.what === 'done' ? `Done by ${by}${e.note ? `: ${e.note}` : ''}`
       : e.what === 'reopened' ? `Reopened by ${by}`
       : `${by} moved it ${e.note ?? ''}`.trim()
-    out.push({ text, at: e.at, key: true })
+    out.push({ text, at: e.at, key: true, ...(e.what === 'done' && autoClosed(t) && e === lastDone && { app: true }) })
   }
   return out
 }
 
 /** The names of agents that made tasks here, for the filter chips. */
 export const makers = (b: TodoBoard): string[] => [...new Set(b.todos.filter((t) => t.createdBy.kind === 'agent').map((t) => t.createdBy.name))].sort()
+
+/** Shift-click: everything between the last task picked and this one (in the order they are drawn) is picked too. */
+export function pickRange(order: string[], anchor: string | undefined, id: string, picked: Set<string>): Set<string> {
+  const to = order.indexOf(id)
+  const from = anchor === undefined ? -1 : order.indexOf(anchor)
+  const out = new Set(picked)
+  if (from < 0 || to < 0) return out.add(id)
+  for (const k of order.slice(Math.min(from, to), Math.max(from, to) + 1)) out.add(k)
+  return out
+}
+
+/** The box at the top of a list: picks all of its tasks, or, when they are all picked already, lets go of them. */
+export function pickList(ids: string[], picked: Set<string>): Set<string> {
+  const out = new Set(picked)
+  if (ids.length && ids.every((i) => out.has(i))) for (const i of ids) out.delete(i)
+  else for (const i of ids) out.add(i)
+  return out
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, reopenTodo, updateTodo, type Actor } from '../../shared/todos'
-import { activityOf, actorTag, agoLabel, filterBoard, splitList } from './todoView'
+import { activityOf, actorTag, agoLabel, filterBoard, pickList, pickRange, splitList } from './todoView'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -82,6 +82,21 @@ describe('activityOf', () => {
     expect(a.map((x) => x.key)).toEqual([true, false, true, true])
     expect(a[1]!.at).toBe(4)
   })
+  it('says plainly when the app closed a task on its own, and why, so it never reads as the agent saying it was done', () => {
+    let b = addTodo(emptyBoard(), { title: 'Docs', auto: true }, you, 1).board
+    b = claimTodo(b, '1', ada, 2)
+    b = doneTodo(b, '1', ada, 'Closed when its turn ended', 3)
+    b = { ...b, todos: b.todos.map((t) => ({ ...t, closedAtTurnEnd: true, closedBy: 'turn' as const })) }
+    const a = activityOf(b.todos[0]!)
+    expect(a.at(-1)).toMatchObject({ text: "Closed by Agent World when ada's turn ended, nobody said it was done", app: true })
+    const stopped = { ...b.todos[0]!, closedBy: 'stopped' as const }
+    expect(activityOf(stopped).at(-1)!.text).toBe('Closed by Agent World: ada had stopped, nobody said it was done')
+    // an agent that did say it is done is still "Done by"
+    let c = addTodo(emptyBoard(), { title: 'Docs' }, you, 1).board
+    c = doneTodo(c, '1', ada, 'Wrote it', 3)
+    expect(activityOf(c.todos[0]!).at(-1)).toMatchObject({ text: 'Done by ada: Wrote it' })
+    expect(activityOf(c.todos[0]!).at(-1)!.app).toBeFalsy()
+  })
   it('says who asked whom, who put an agent on it, and a reopen', () => {
     let b = addTodo(emptyBoard(), { title: 'Docs' }, you, 1).board
     b = askedTodo(b, '1', ada, you, 2, 'Still needed?')
@@ -89,5 +104,22 @@ describe('activityOf', () => {
     b = doneTodo(b, '1', bob, '', 4)
     b = reopenTodo(b, '1', you, 5)
     expect(activityOf(b.todos[0]!).map((x) => x.text)).toEqual(['Made by you', 'you asked ada: Still needed?', 'you put bob on it', 'Done by bob', 'Reopened by you'])
+  })
+})
+
+describe('picking tasks', () => {
+  const order = ['1', '2', '3', '4', '5']
+  it('picks the tasks between the last one clicked and this one, in either direction, and keeps what was picked before', () => {
+    expect([...pickRange(order, '2', '4', new Set(['1']))].sort()).toEqual(['1', '2', '3', '4'])
+    expect([...pickRange(order, '4', '2', new Set())].sort()).toEqual(['2', '3', '4'])
+  })
+  it('picks just this one when nothing was clicked before, or the earlier one is not on screen', () => {
+    expect([...pickRange(order, undefined, '3', new Set())]).toEqual(['3'])
+    expect([...pickRange(order, 'gone', '3', new Set())]).toEqual(['3'])
+  })
+  it('picks a whole list, or lets go of it when all of it was picked', () => {
+    expect([...pickList(['1', '2', '3'], new Set(['9']))].sort()).toEqual(['1', '2', '3', '9'])
+    expect([...pickList(['1', '2', '3'], new Set(['1', '2', '3', '9']))]).toEqual(['9'])
+    expect([...pickList(['1', '2', '3'], new Set(['1']))].sort()).toEqual(['1', '2', '3'])
   })
 })

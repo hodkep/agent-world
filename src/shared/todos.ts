@@ -43,6 +43,8 @@ export interface Todo {
   named?: boolean
   /** Finished by the app when the agent's turn ended cleanly, not by the agent saying so. */
   closedAtTurnEnd?: boolean
+  /** What the app closed it for: the agent's turn ended cleanly, or the agent had stopped when the board was opened. */
+  closedBy?: 'turn' | 'stopped'
   /** Place within its list, lowest first. */
   order: number
   createdAt: number

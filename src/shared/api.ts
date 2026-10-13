@@ -313,6 +313,15 @@ export interface AwApi {
     removeList(folder: string, name: string): Promise<void>
     /** How many open tasks wait on the person, for the top bar. */
     needsYou(folder: string): Promise<number>
+    /** Does one thing to several tasks at once; how many it changed. */
+    bulk(folder: string, ids: string[], op: { do: 'done' } | { do: 'reopen' } | { do: 'remove' } | { do: 'needsYou'; on: boolean } | { do: 'move'; list: string }): Promise<number>
+    /** The scratch pad: markdown the person jots tasks in. */
+    padGet(folder: string): Promise<string>
+    padSet(folder: string, text: string): Promise<void>
+    /** Makes tasks of the pad's checklist lines and takes them out of the pad; how many. */
+    padMake(folder: string): Promise<number>
+    /** Takes back the last conversion; how many tasks were removed. */
+    padUndo(folder: string): Promise<number>
   }
   /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
   library: {

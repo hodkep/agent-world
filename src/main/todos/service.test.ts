@@ -234,7 +234,7 @@ describe('the todo service', () => {
     const a = svc.trackRequest('a1', 'please fix the login bug on Safari')!
     svc.turnEnded('a1')
     await svc.settled()
-    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true, doneBy: { id: 'a1' } })
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true, closedBy: 'turn', doneBy: { id: 'a1' } })
     expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)!.doneLink).toMatchObject({ agentId: 'a1' })
     const b = svc.trackRequest('a1', 'now add a health check endpoint to the server')!
     svc.turnEnded('a1', { interrupted: true })
@@ -386,7 +386,7 @@ describe('a board made before tasks were sorted by area', () => {
     const a = svc.trackRequest('a1', 'build the settings page for the accounts')!
     expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)!.status).toBe('doing')
     expect(svc.sweep('/work/shop')).toBe(1)
-    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true })
+    expect(svc.board('/work/shop').todos.find((t) => t.id === a.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true, closedBy: 'stopped' })
     // an agent still working keeps its task open
     const { svc: s2, busyAgents } = make()
     const b = s2.trackRequest('a1', 'build the settings page for the accounts')!
@@ -408,5 +408,53 @@ describe('a board made before tasks were sorted by area', () => {
     expect(got.todos.find((t) => t.title === 'Add situations')!.list).toBe('Library')
     expect(got.todos.find((t) => t.title === 'Explain things')!.list).toBe('Inbox')
     expect(got.todos.find((t) => t.title === 'bvw4cqgjx')).toBeUndefined()
+  })
+
+  it('acts on many tasks at once as the person: done, reopen, needs you, move, remove, and says how many changed', () => {
+    const { svc } = make()
+    const t = ['a', 'b', 'c', 'd'].map((title) => svc.addByPerson('/work/shop', { title, list: 'Library' }))
+    const ids = t.map((x) => x.id)
+    expect(svc.bulkByPerson('/work/shop', ids.slice(0, 3), { do: 'done' })).toBe(3)
+    expect(svc.board('/work/shop').todos.filter((x) => x.status === 'done').map((x) => x.title)).toEqual(['a', 'b', 'c'])
+    // done again changes nothing; reopen only touches finished ones
+    expect(svc.bulkByPerson('/work/shop', ids.slice(0, 3), { do: 'done' })).toBe(0)
+    expect(svc.bulkByPerson('/work/shop', ids, { do: 'reopen' })).toBe(3)
+    expect(svc.bulkByPerson('/work/shop', ids.slice(0, 2), { do: 'needsYou', on: true })).toBe(2)
+    expect(svc.board('/work/shop').todos.filter((x) => x.needsYou).map((x) => x.title)).toEqual(['a', 'b'])
+    expect(svc.bulkByPerson('/work/shop', ids.slice(1, 3), { do: 'move', list: 'Chat' })).toBe(2)
+    const b = svc.board('/work/shop')
+    expect(b.todos.filter((x) => x.list === 'Chat').map((x) => x.title)).toEqual(['b', 'c'])
+    expect(b.lists).toContain('Chat')
+    expect(svc.bulkByPerson('/work/shop', [ids[0]!, 'nope'], { do: 'remove' })).toBe(1)
+    expect(svc.board('/work/shop').todos.map((x) => x.title)).toEqual(['b', 'c', 'd'])
+  })
+
+  it('keeps a scratch pad per project in a file, makes tasks from its checklist lines, removes only those lines, and can undo', () => {
+    const { dir, svc } = make()
+    expect(svc.pad('/work/shop')).toBe('')
+    svc.setPad('/work/shop', '## Chat\n- [ ] show the slip\n  with a note\n- [x] already finished\nhalf a thought\n')
+    expect(readFileSync(join(dir, 'shop.pad.md'), 'utf8')).toContain('show the slip')
+    const made = svc.padToTasks('/work/shop')
+    expect(made).toHaveLength(2)
+    const b = svc.board('/work/shop')
+    expect(b.todos.map((t) => [t.title, t.list, t.status, t.notes, t.createdBy.name])).toEqual([['show the slip', 'Chat', 'open', 'with a note', 'you'], ['already finished', 'Chat', 'done', '', 'you']])
+    expect(svc.pad('/work/shop')).toBe('## Chat\nhalf a thought\n')
+    // another make finds nothing new
+    expect(svc.padToTasks('/work/shop')).toEqual([])
+    // undo removes what it made (untouched) and puts the lines back at the top of the pad
+    expect(svc.undoPad('/work/shop')).toBe(2)
+    expect(svc.board('/work/shop').todos).toHaveLength(0)
+    expect(svc.pad('/work/shop')).toBe('## Chat\n- [ ] show the slip\n  with a note\n- [x] already finished\nhalf a thought\n')
+    expect(svc.undoPad('/work/shop')).toBe(0)
+  })
+
+  it('does not undo a task someone has started working on', () => {
+    const { svc } = make()
+    svc.setPad('/work/shop', '- [ ] one\n- [ ] two\n')
+    const [one] = svc.padToTasks('/work/shop')
+    svc.claimByAgent('a1', one!.id)
+    expect(svc.undoPad('/work/shop')).toBe(1)
+    expect(svc.board('/work/shop').todos.map((t) => t.title)).toEqual(['one'])
+    expect(svc.pad('/work/shop')).toBe('- [ ] two\n')
   })
 })

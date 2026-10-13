@@ -1458,6 +1458,18 @@ async function main() {
   ipcMain.handle('todos:done', (_, folder: string, id: string) => todoService.doneByPerson(String(folder), String(id)))
   ipcMain.handle('todos:reopen', (_, folder: string, id: string) => todoService.reopenByPerson(String(folder), String(id)))
   ipcMain.handle('todos:move', (_, folder: string, id: string, list: string, index: number) => todoService.moveByPerson(String(folder), String(id), String(list), Number(index) || 0))
+  ipcMain.handle('todos:bulk', (_, folder: string, ids: string[], op: { do: string; on?: boolean; list?: string }) => {
+    const list = Array.isArray(ids) ? ids.map(String).slice(0, 500) : []
+    const kind = op?.do
+    if (kind === 'done' || kind === 'reopen' || kind === 'remove') return todoService.bulkByPerson(String(folder), list, { do: kind })
+    if (kind === 'needsYou') return todoService.bulkByPerson(String(folder), list, { do: 'needsYou', on: !!op.on })
+    if (kind === 'move') return todoService.bulkByPerson(String(folder), list, { do: 'move', list: String(op.list ?? '').slice(0, 60) })
+    return 0
+  })
+  ipcMain.handle('todos:pad-get', (_, folder: string) => todoService.pad(String(folder)))
+  ipcMain.handle('todos:pad-set', (_, folder: string, text: string) => todoService.setPad(String(folder), String(text ?? '')))
+  ipcMain.handle('todos:pad-make', (_, folder: string) => todoService.padToTasks(String(folder)).length)
+  ipcMain.handle('todos:pad-undo', (_, folder: string) => todoService.undoPad(String(folder)))
   ipcMain.handle('todos:add-list', (_, folder: string, name: string) => todoService.addList(String(folder), String(name)))
   ipcMain.handle('todos:rename-list', (_, folder: string, from: string, to: string) => todoService.renameList(String(folder), String(from), String(to)))
   ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))

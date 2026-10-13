@@ -125,7 +125,12 @@ const api: AwApi = {
     addList: (folder, name) => ipcRenderer.invoke('todos:add-list', folder, name),
     renameList: (folder, from, to) => ipcRenderer.invoke('todos:rename-list', folder, from, to),
     removeList: (folder, name) => ipcRenderer.invoke('todos:remove-list', folder, name),
-    needsYou: (folder) => ipcRenderer.invoke('todos:needs-you', folder)
+    needsYou: (folder) => ipcRenderer.invoke('todos:needs-you', folder),
+    bulk: (folder, ids, op) => ipcRenderer.invoke('todos:bulk', folder, ids, op),
+    padGet: (folder) => ipcRenderer.invoke('todos:pad-get', folder),
+    padSet: (folder, text) => ipcRenderer.invoke('todos:pad-set', folder, text),
+    padMake: (folder) => ipcRenderer.invoke('todos:pad-make', folder),
+    padUndo: (folder) => ipcRenderer.invoke('todos:pad-undo', folder)
   },
   library: {
     list: () => ipcRenderer.invoke('library:list'),
