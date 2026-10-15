@@ -942,6 +942,19 @@ describe('running a workflow\'s checks', () => {
     expect(state.ran).toEqual([])
   })
 
+  it('a second request for the same commit does not run a failing check again or use up another try, unless the person asks for it to run again', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'FAIL a' }, { exit: 1, tail: 'FAIL b' }]
+    expect((await wf.runChecks('a1', 'h1')).ran).toBe(1)
+    state.ran.length = 0
+    // The agent reports its step and the task in quick succession: both ask for the checks of the same commit.
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0 })
+    expect(state.ran).toEqual([])
+    const run = wf.runs()[0]!
+    wf.rerunCheck(run.id, 'tests')
+    expect((await wf.runChecks('a1', 'h1')).sendBack).toContain('(try 1 of 3)')
+  })
+
   it('does not run a project\'s commands the person has not approved, and says which check waits', async () => {
     const { wf, state } = started()
     state.approved = false
@@ -1039,8 +1052,8 @@ describe('running a workflow\'s checks', () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'FAIL a' }, { exit: 0 }, { exit: 0 }]
     await wf.runChecks('a1', 'h1')
-    await wf.runChecks('a1', 'h1')
-    const rows = wf.mergeCheck('a1', 'h1')!.checks
+    await wf.runChecks('a1', 'h2')
+    const rows = wf.mergeCheck('a1', 'h2')!.checks
     expect(rows).toEqual([
       { id: 'tests', name: 'Tests pass', run: 'npm test', state: 'passed', ms: 1200 },
       { id: 'lint', name: 'Lint', run: 'npm run lint', state: 'passed', ms: 1200 }

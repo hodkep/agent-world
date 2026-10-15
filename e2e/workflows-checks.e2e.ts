@@ -168,3 +168,24 @@ test('approving the commands of a check that passes tells the agent and the chat
     await s.shutdown()
   }
 })
+
+test('an agent that reports its step and then the task does not use a second try on the same commit', async () => {
+  const s = await session({ run: 'echo nope >&2; exit 1', retries: 2 })
+  try {
+    await s.call('task_begin', { title: 'Add a toggle' })
+    await s.call('step_done', { step: 'build' })
+    s.commit('toggle.ts')
+    await s.page.getByRole('region', { name: 'Commands from Checked' }).getByRole('button', { name: 'Approve and run' }).click()
+    await s.heard('failed (try 1 of 3)')
+    // The agent now says the task is done without a fix: the same commit is not checked again.
+    await s.call('task_done', { summary: 'done' })
+    await new Promise((r) => setTimeout(r, 2500))
+    await s.page.getByRole('tab', { name: 'Workflow' }).click()
+    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText(/Tests pass.*failed once/)
+    await s.page.getByRole('tab', { name: 'Chat' }).click()
+    expect(await s.log.innerText()).not.toContain('try 2 of 3')
+    await s.client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

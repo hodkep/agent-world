@@ -190,8 +190,9 @@ export class Workflows {
       const due = this.states(run, head).find((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting'))
       if (!due) return result({ ran })
       if (due.state === 'waiting') return result({ ran, waitingApproval: due.name })
-      // Asked only for what is new: a check that already ran for this very branch is left, so looking at it does not use up its tries.
-      if (o.fresh && checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return result({ ran })
+      // Asked only for what is new: a check that already ran for this very commit is left, so a second ask (the agent reports its step and
+      // its task together, or the person opens Finish) does not use up its tries. The person's "Run again" starts its results over.
+      if (checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return result({ ran })
       const key = `${run.id} ${due.id}`
       if (this.running.has(key)) return result({ ran })
       this.running.add(key)
