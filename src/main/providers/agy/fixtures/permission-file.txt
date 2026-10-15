@@ -1,0 +1,25 @@
+
+      ▄▀▀▄        Antigravity CLI 1.3.5
+     ▀▀▀▀▀▀       dev@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (Low)
+   ▄▀▀    ▀▀▄     /tmp/agy-cap/work
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Read the file /tmp/agy-cap/outside.txt and tell me its first line.
+
+● Explored 1 file (outside.txt) (ctrl+o to expand)
+
+File access
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Read: /private/tmp/agy-cap/outside.txt
+Reason: outside workspace
+
+Allow access to this file?
+> 1. Yes, allow access
+  2. Yes, and always allow non-workspace access
+  3. No, deny access
+
+  ↑/↓ Navigate
+esc to cancel                                                                                     Gemini 3.8 Flash · low

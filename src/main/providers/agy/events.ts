@@ -57,8 +57,8 @@ const same = (a: string, b: string) => {
   return a === b || real(a) === real(b)
 }
 
-/** What the question is about: a command, or a tool of a connected server (named in the question). */
-const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : 'Bash')
+/** What the question is about: a command, a tool of a connected server (named in the question), or a file ("Read: /path" names what is done to it). */
+const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : m.title === 'File access' ? /^(\w+):/.exec(m.context)?.[1] ?? 'File access' : 'Bash')
 
 interface Seen {
   /** A clone has been told to branch its conversation. */

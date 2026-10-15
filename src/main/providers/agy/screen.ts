@@ -11,7 +11,7 @@ const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
 
 const RULE = /^[─━]{8,}$/
 /** The only headings agy puts above the question; anything else above a rule is text, never a name the card may take. */
-const HEADINGS = new Set(['Command', 'MCP'])
+const HEADINGS = new Set(['Command', 'MCP', 'File access'])
 const FIRST_OPTION = /^>?\s*1\.\s/
 
 /** Numbered answers with agy's hint and footer under them: some question is open and typing now would answer it, whatever it says. */
