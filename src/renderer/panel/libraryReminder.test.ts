@@ -9,7 +9,7 @@ describe('the reminder as the Playbook shows it', () => {
     expect(t).toContain('Rules marked hard (b) are reminded on every message.')
   })
   it('says it comes only with a pointing message when no rule is hard, and nothing when there is no reminder', () => {
-    expect(describeReminder('Reminder: a (x).', [])).toBe('Reminder: a (x). Only on a message that points at something.')
+    expect(describeReminder('Reminder: a (x).', [])).toBe('Reminder: a (x). Medium rules are reminded on every third message; soft ones only in the opening text.')
     expect(describeReminder('', [])).toBe('')
   })
 })

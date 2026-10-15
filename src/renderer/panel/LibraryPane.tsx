@@ -21,7 +21,7 @@ const SECTIONS: ['shelf' | 'playbook' | 'reach', string][] = [['shelf', 'Shelf']
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 const CORE_BUDGET = 300
-const GROUP_LABEL: Record<RuleMode, string> = { always: 'Told every time', 'on-demand': 'Pointed at when a message matches', step: 'Put in by a workflow step', off: 'Off' }
+const GROUP_LABEL: Record<RuleMode, string> = { always: 'Told every time', 'on-demand': 'In the rulebook, the agent decides', step: 'Put in by a workflow step', off: 'Off' }
 const KIND_ICON: Record<LibraryKind, IconName> = { skill: 'book', instruction: 'flag', prompt: 'pencil' }
 // The box is a drawer below the shelves, not a shelf: forty books in no playbook would not fit in one view.
 const TIERS: { id: Tier; label: string; sub: string }[] = [
@@ -30,12 +30,12 @@ const TIERS: { id: Tier; label: string; sub: string }[] = [
 ]
 const GLOSSARY: [string, string][] = [
   ['Told every time', 'The words go into the opening text, so the agent knows them from its first message.'],
-  ['Pointed at', 'Only a line that says when it applies is in the opening text. When a message matches, the agent is pointed at the item and reads it then.'],
+  ['Pointed at', 'Only a line that says when it applies is in the opening text. The agent judges from it whether its work needs the item, and reads it then.'],
   ['By a step', 'A workflow step puts the item in when that step starts. It is not in the opening text.'],
-  ['Off', 'In the library, but in no opening text and never pointed at.'],
-  ['Strength', 'How firmly the agent is reminded: soft is a hint. Medium is reminded on a message that points at something. Hard is reminded on every message.'],
+  ['Off', 'In the library, but in no opening text and never put in front of an agent.'],
+  ['Strength', 'How often the rulebook line is put in front of the agent: soft only in the opening text, medium on every third message, hard on every message with a request to say which rules apply.'],
   ['Opening text', 'What an agent is given when it starts: the told items, the list of when-lines and how to read an item.'],
-  ['When it applies', 'One plain sentence. A message that sounds like it makes the agent point at the item.'],
+  ['When it applies', 'One plain sentence the agent reads and judges against its own work. The app does not match it to a message.'],
   ['Tokens', 'Roughly three quarters of a word. Opening text is capped at 300 so it stays cheap.'],
   ['Everywhere and project', 'Everywhere reaches every project. A project can add or switch off items for itself.']
 ]
@@ -62,8 +62,6 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [help, setHelp] = useState(false)
   const [tab, setTab] = useState<'shelf' | 'playbook' | 'reach'>('shelf')
   const [find, setFind] = useState('')
-  const [trial, setTrial] = useState('')
-  const [trialOut, setTrialOut] = useState<{ id: string; name: string }[] | null>(null)
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
   const stale = holders.filter((h) => h.stale)
   const [silent, setSilent] = useState<{ id: string; name: string }[]>([])
@@ -347,12 +345,6 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 <pre className="doc" aria-label="Opening text">{preview?.core
                   ? highlightOpening(preview.core, effective.filter((r) => r.mode === 'always').map((r) => byId.get(r.id)?.name ?? ''), effective.filter((r) => r.mode === 'on-demand').map((r) => r.when)).map((m, k) => m.kind ? <span key={k} className={m.kind}>{m.text}</span> : m.text)
                   : '(nothing: no rules apply here)'}</pre>
-                <h4>Try a message</h4>
-                <form className="lib-try" onSubmit={(e) => (e.preventDefault(), void window.aw.library.tryMessage(folder, trial).then(setTrialOut, () => setTrialOut(null)))}>
-                  <input aria-label="A message to try" value={trial} placeholder="split this pdf into pages" onChange={(e) => (setTrial(e.target.value), setTrialOut(null))} />
-                  <button type="submit" disabled={!trial.trim()}>Try it</button>
-                </form>
-                {trialOut && <p className="hint" role="status">{trialOut.length ? `It would point the agent at ${trialOut.map((m) => m.name).join(', ')}.` : 'It would point at nothing: no item\'s "when" sounds like it.'}</p>}
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
                 <h4>Reminder</h4>

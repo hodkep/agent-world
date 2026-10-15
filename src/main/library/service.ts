@@ -3,9 +3,7 @@ import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { Library, type Item } from './store'
 import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
-import { matchItems } from './match'
 import { buildCatalog } from './catalog'
-import { checksPassed, detectSituation, outputOf, REPEATS, SITUATION_WORDS, SITUATIONS, TRIVIAL } from './situations'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
@@ -45,14 +43,13 @@ export function createLibraryService(d: Deps) {
   const library = new Library(d.root)
   const playbooks = new Playbooks(d.root)
   const log = new UseLog(join(d.root, 'uses.jsonl'))
-  // Per agent: how many prompts it has had, whether it can fetch, its per-turn rule reminder, and whether the full catalog is due again.
-  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; catalogDue: boolean; /** The turn each item was last pointed at, and the items this agent has read since it last lost its context. */ pointed: Map<string, number>; read: Set<string>; /** The situations being worked on, each pointed at once until it is over, and how many times each has shown with nothing green between. */ open: Set<string>; streak: Map<string, number> }>()
+  // Per agent: how many prompts it has had, whether it can fetch, its rulebook lines, and whether the full catalog is due again; and the items it has read since it last lost its context.
+  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; hardIds: string[]; mediumIds: string[]; catalogDue: boolean; read: Set<string> }>()
   // When each agent's hook last called the office.
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
-  // An item pointed at is not pointed at again for this many turns, nor at all once the agent has read it: it is in its context until it loses it.
-  const POINT_GAP = 10
-  const MATCHES = 3
+  // The rulebook line carries a hard rule on every message and a medium one on the first and every third after; a soft one is only in the text at the start and the catalog. Nothing reads the message: the agent decides what applies.
+  const MEDIUM_EVERY = 3
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
   const itemsMap = () => new Map(library.listSync().map((i) => [i.id, i]))
@@ -105,7 +102,7 @@ export function createLibraryService(d: Deps) {
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
-      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, catalogDue: false, pointed: new Map(), read: new Set(), open: new Set(), streak: new Map() })
+      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, hardIds: compiled.hardIds, mediumIds: compiled.mediumIds, catalogDue: false, read: new Set() })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
@@ -114,74 +111,31 @@ export function createLibraryService(d: Deps) {
         const file = join(d.root, 'catalog', `${d.workspaceKey(a.repoPath)}.md`)
         mkdirSync(dirname(file), { recursive: true })
         writeFileSync(file, buildCatalog(entries) + '\n')
-        core += `${core ? '\n\n' : ''}If you cannot recall what the library holds, read ${file}. Items that match your task are pointed out as you go; use them.`
+        core += `${core ? '\n\n' : ''}If you cannot recall what the library holds, read ${file}. The rules above say when each applies: you decide which apply to your task, read the one that does before the work it covers, and say with library_skip when you pass one over.`
       }
       record(a.id, '', 'started', undefined, core)
       for (const e of entries) if (e.mode === 'always') record(a.id, e.id, 'delivered', e.mode)
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
-    /** Called at each prompt (Claude's hook): the rule reminder (all medium and hard rules when the prompt points at something, else the hard ones), the library items the prompt points at, and now and then the whole catalog. */
-    remind(agentId: string, prompt: string): string {
+    /** Called at each prompt (Claude's hook): the rulebook line (the hard rules on every message, the medium ones too on every third), and now and then the whole catalog. The message itself is not read: the agent decides which rule applies. */
+    remind(agentId: string, _prompt: string): string {
       const st = state.get(agentId)
       if (!st) return ''
       st.turn++
       const entries = indexSync(agentId)
-      const onDemand = entries.filter((e) => e.mode === 'on-demand')
-      const items = itemsMap()
-      const matched = matchItems(prompt, onDemand, MATCHES).filter((m) => !st.read.has(m.id) && st.turn - (st.pointed.get(m.id) ?? -Infinity) >= POINT_GAP)
-      // A message that points at nothing gets the reminder only for a hard rule; a medium one is not worth its tokens on every message.
-      const reminder = matched.length ? st.reminder : st.hardReminder
-      const parts = reminder ? [reminder] : []
-      for (const m of matched) {
-        // How to get it. Claude: the office's tool (allowed without a prompt), else the skill by name. Others: the skill's file by its path, which the library folder being in their workspace allows without a prompt (a tool of the office would ask each time).
-        const it = items.get(m.id)
-        const file = it?.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
-        const tool = `Read it with library_get('${m.id}')`
-        const way = st.native ? (st.canFetch ? tool : `Use the ${m.id} skill`) : file ? `Read ${file}` : st.canFetch ? tool : `Ask for ${m.id}`
-        // A word in common is not a need: the agent decides, so a plain question about a topic does not load its skill, while doing the work does.
-        const line = `Library: ${m.id} covers this kind of work (${m.description.slice(0, 100)}). If you are doing that work, not just answering a question about it: ${way} first.`
-        st.pointed.set(m.id, st.turn)
-        record(agentId, m.id, 'triggered', m.mode, line)
-        parts.push(line)
+      const withMedium = st.turn % MEDIUM_EVERY === 1
+      const parts = (withMedium ? st.reminder : st.hardReminder) ? [withMedium ? st.reminder : st.hardReminder] : []
+      // A rule the agent has read is in its context until it loses it, so it is not logged as put in front of it again.
+      for (const id of withMedium ? [...st.hardIds, ...st.mediumIds] : st.hardIds) {
+        const e = entries.find((x) => x.id === id)
+        if (e && !st.read.has(id)) record(agentId, id, 'triggered', e.mode, `${id} (${e.when || 'when it applies'})`)
       }
-      if (onDemand.length && (st.catalogDue || st.turn % CATALOG_EVERY === 0)) {
+      if (entries.some((e) => e.mode === 'on-demand') && (st.catalogDue || st.turn % CATALOG_EVERY === 0)) {
         st.catalogDue = false
         parts.push(buildCatalog(entries))
       }
       return parts.join('\n')
-    },
-
-    /** Called after each tool an agent used (Claude's hook): when what it returned shows a situation the playbook has an item for (a merge conflict), the line that points at it, once for as long as the situation lasts. */
-    situation(agentId: string, tool: string, input: Record<string, unknown>, response: unknown): string {
-      const st = state.get(agentId)
-      if (!st) return ''
-      // A commit or a continued merge ends the conflict being worked on, so the next one is new.
-      const cmd = typeof input.command === 'string' ? input.command : ''
-      // (agy's tool results do not carry the command, so git's own summary line of a commit, "[main 1a2b3c4] message", ends it too.)
-      if (/\bgit\s+(commit|(merge|rebase|cherry-pick)\s+--continue)\b/.test(cmd) || /^\[[^\]\n]+ [0-9a-f]{7,}\] /m.test(typeof response === 'string' ? response : (response as { stdout?: string } | null)?.stdout ?? '')) (st.open.delete('merge-conflict'), st.streak.delete('merge-conflict'))
-      if (checksPassed(outputOf(response))) (st.open.delete('failing-checks'), st.streak.delete('failing-checks'))
-      const found = detectSituation(tool, input, response)
-      if (!found) return ''
-      const times = (st.streak.get(found.kind) ?? 0) + (found.times ?? 1)
-      st.streak.set(found.kind, times)
-      if (st.open.has(found.kind) || times < (REPEATS[found.kind] ?? 1)) return ''
-      const entries = indexSync(agentId)
-      const items = itemsMap()
-      // The rule's own "when does it apply" is matched against the situation as it is against a message.
-      const rule = matchItems(SITUATION_WORDS[found.kind] ?? '', entries.filter((e) => e.mode === 'on-demand' && items.has(e.id)), 1)[0]
-      if (!rule || st.read.has(rule.id)) return ''
-      const it = items.get(rule.id)!
-      const file = it.kind === 'skill' && it.dir ? join(it.dir, 'SKILL.md') : ''
-      const tool_ = `library_get('${rule.id}')`
-      const way = st.native ? (st.canFetch ? `Read it with ${tool_}` : `Use the ${rule.id} skill`) : file ? `Read ${file}` : st.canFetch ? `Read it with ${tool_}` : `Ask for ${rule.id}`
-      const skip = st.canFetch ? ` If it is trivial (${TRIVIAL[found.kind] ?? 'nothing to learn from it'}) you may pass it over: say why with library_skip('${rule.id}', reason).` : ' If it is trivial you may pass it over.'
-      const because = `${SITUATIONS[found.kind] ?? found.kind}, ${found.detail}`
-      const line = `Library: a ${because} was found, and ${rule.id} covers it (${it.description.slice(0, 100)}). ${way} first, and do what it says.${skip}`
-      st.open.add(found.kind)
-      st.pointed.set(rule.id, st.turn)
-      record(agentId, rule.id, 'triggered', rule.mode, line, undefined, because)
-      return line
     },
 
     /** The agent says a library item it was pointed at does not apply; what it says is kept, so the playbook's wording can be tuned. */
@@ -195,7 +149,7 @@ export function createLibraryService(d: Deps) {
     /** The agent lost its earlier context (compaction): show it the catalog again at its next prompt. */
     refresh(agentId: string) {
       const st = state.get(agentId)
-      if (st) (st.catalogDue = true, st.pointed.clear(), st.read.clear())
+      if (st) (st.catalogDue = true, st.read.clear())
     },
 
     /** An agent used a library item without going through the tools (Claude's own Skill tool, or reading its file). */
@@ -235,11 +189,6 @@ export function createLibraryService(d: Deps) {
     async search(agentId: string, query: string): Promise<IndexEntry[]> {
       const words = query.toLowerCase().split(/\s+/).filter(Boolean)
       return (await index(agentId)).filter((e) => words.every((w) => `${e.id} ${e.name} ${e.description} ${e.when}`.toLowerCase().includes(w)))
-    },
-
-    /** Which on-demand items a message would point an agent of this workspace at, best first (the playbook's "Try a message"). */
-    async tryMessage(repoPath: string, text: string): Promise<{ id: string; name: string; score: number }[]> {
-      return matchItems(text, entriesFor(repoPath).filter((e) => e.mode === 'on-demand'), MATCHES).map((m) => ({ id: m.id, name: m.name, score: m.score }))
     },
 
     /** Every agent of a workspace that was given an opening text, with its program and whether that text is older than the playbook now: those keep what they were told until they restart. */

@@ -29,10 +29,13 @@ export interface Compiled {
   indexIds: string[]
   /** The skills Claude can load natively. */
   skills: Item[]
-  /** The line added to a message that points at something: every medium and hard rule. */
+  /** The line added to a message now and then: every medium and hard rule. */
   reminder: string
   /** The line added to every message, even one that matches nothing: the hard rules only. */
   hardReminder: string
+  /** The on-demand rules the rulebook line carries, by how hard they push: a hard one on every message, a medium one now and then, a soft one only in the text at the start. */
+  hardIds: string[]
+  mediumIds: string[]
   /** What the forced check adds to a message, in tokens (0 when no rule is hard); it is added only when the feature is on. */
   forcedCheckTokens: number
 }
@@ -67,7 +70,7 @@ export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: 
   const reminder = line(live.filter((r) => r.strength !== 'soft')) + (hard.length ? forced : '')
   const hardReminder = line(hard) + forced
   const coreTokens = tokens(core)
-  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder, hardReminder, forcedCheckTokens: tokens(check) }
+  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder, hardReminder, hardIds: onDemand.filter((r) => r.strength === 'hard').map((r) => r.id), mediumIds: onDemand.filter((r) => r.strength === 'medium').map((r) => r.id), forcedCheckTokens: tokens(check) }
 }
 
 export type Scope = 'global' | { workspace: string }
