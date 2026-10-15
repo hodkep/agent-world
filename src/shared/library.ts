@@ -47,7 +47,6 @@ export interface LibraryPreview {
   overBudget: boolean
   indexIds: string[]
   reminder: string
-  hardReminder: string
   rules: PlaybookRule[]
   /** What the forced check adds to a message that carries it (about, in tokens). */
   forcedCheckTokens: number
