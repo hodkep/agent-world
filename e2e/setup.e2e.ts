@@ -93,7 +93,8 @@ test('setup is one large fixed window: the same size on every step, inside a sho
     await content.evaluate((e) => (e.scrollTop = e.scrollHeight))
     await expect(setup.getByRole('button', { name: 'Back' })).toBeInViewport()
     await expect(setup.getByRole('button', { name: 'Continue' })).toBeInViewport()
-    await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toBeInViewport()
+    // The last thing on the step is the Workflows cost table; the todo one above it is on the same scrolled step.
+    await expect(setup.getByLabel('What workflows add per task')).toBeInViewport()
   } finally {
     await shutdown()
   }
