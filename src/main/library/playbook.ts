@@ -31,8 +31,6 @@ export interface Compiled {
   skills: Item[]
   /** The line added to a message now and then: every medium and hard rule. */
   reminder: string
-  /** The line added to every message, even one that matches nothing: the hard rules only. */
-  hardReminder: string
   /** The on-demand rules the rulebook line carries, by how hard they push: a hard one on every message, a medium one now and then, a soft one only in the text at the start. */
   hardIds: string[]
   mediumIds: string[]
@@ -68,9 +66,8 @@ export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: 
   const check = hard.length ? ` Before your first tool call, write one line: which of these apply to this request? If one does, read it first with library_get(${ids.length === 1 ? `'${ids[0]}'` : 'id'}). If you decide it does not apply, call library_skip(id, reason).` : ''
   const forced = o.canFetch ? check : ''
   const reminder = line(live.filter((r) => r.strength !== 'soft')) + (hard.length ? forced : '')
-  const hardReminder = line(hard) + forced
   const coreTokens = tokens(core)
-  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder, hardReminder, hardIds: onDemand.filter((r) => r.strength === 'hard').map((r) => r.id), mediumIds: onDemand.filter((r) => r.strength === 'medium').map((r) => r.id), forcedCheckTokens: tokens(check) }
+  return { core, coreTokens, overBudget: coreTokens > CORE_BUDGET, indexIds: live.map((r) => r.id), skills: live.map((r) => items.get(r.id)!).filter((i) => i.kind === 'skill'), reminder, hardIds: onDemand.filter((r) => r.strength === 'hard').map((r) => r.id), mediumIds: onDemand.filter((r) => r.strength === 'medium').map((r) => r.id), forcedCheckTokens: tokens(check) }
 }
 
 export type Scope = 'global' | { workspace: string }

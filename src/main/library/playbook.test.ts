@@ -55,12 +55,9 @@ describe('what an agent is told when it starts', () => {
     // the check is part of the playbook: always there for an agent that can call the tools, never for one that cannot
     expect(compile([rule('b', { strength: 'hard', when: 'x' })], items(item('b')), { canFetch: false }).reminder).toBe('Reminder: b (x).')
     expect(compile([rule('c')], items(item('c')), { canFetch: true }).reminder).toBe('')
-    // the line sent on every message holds the hard rules only
-    expect(c.hardReminder).toMatch(/^Reminder: b \(before a commit\)\. Before your first tool call/)
     // the on-demand rules a message may carry, by how hard they push (an always-on rule is not one: it is in the text itself)
     expect({ hard: c.hardIds, medium: c.mediumIds }).toEqual({ hard: ['b'], medium: [] })
     expect(compile([rule('m', { strength: 'medium', when: 'x' })], items(item('m')), { canFetch: true }).mediumIds).toEqual(['m'])
     expect(c.forcedCheckTokens).toBeGreaterThan(20)
-    expect(compile([rule('a', { mode: 'always', strength: 'medium' })], items(item('a')), { canFetch: true }).hardReminder).toBe('')
   })
 })

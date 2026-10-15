@@ -145,9 +145,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const hook = JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
     const prompt = async (text: string) =>
       (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }) })).text()) || ''
-    // The message is not read: three in a row, whatever they say, carry the medium rule's line once (which of the three is not fixed, as the agent may have had a message already), and nothing points at pdf.
+    // The message is not read: four in a row, whatever they say, carry the rulebook line once (which of the four is not fixed, as the agent may have had a message already), and nothing points at pdf.
     const answers: string[] = []
-    for (const text of ['please split this pdf into pages', 'rename the lamp post', 'split a pdf into pages']) answers.push(await prompt(text))
+    for (const text of ['please split this pdf into pages', 'rename the lamp post', 'split a pdf into pages', 'and again']) answers.push(await prompt(text))
     expect(answers.filter(Boolean)).toHaveLength(1)
     expect(JSON.parse(answers.find(Boolean)!).hookSpecificOutput.additionalContext).toBe('Reminder: terse (always).')
     const index = say(await client.callTool({ name: 'library_index', arguments: {} }))

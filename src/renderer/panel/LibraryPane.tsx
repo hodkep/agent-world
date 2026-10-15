@@ -33,7 +33,7 @@ const GLOSSARY: [string, string][] = [
   ['Pointed at', 'Only a line that says when it applies is in the opening text. The agent judges from it whether its work needs the item, and reads it then.'],
   ['By a step', 'A workflow step puts the item in when that step starts. It is not in the opening text.'],
   ['Off', 'In the library, but in no opening text and never put in front of an agent.'],
-  ['Strength', 'How often the rulebook line is put in front of the agent: soft only in the opening text, medium on every third message, hard on every message with a request to say which rules apply.'],
+  ['Strength', 'How firmly the rulebook line pushes: soft is only in the opening text. Medium and hard rules are in the line sent with the first message, every fourth one after, after a compaction and after a long pause. Hard adds a request to say which rules apply.'],
   ['Opening text', 'What an agent is given when it starts: the told items, the list of when-lines and how to read an item.'],
   ['When it applies', 'One plain sentence the agent reads and judges against its own work. The app does not match it to a message.'],
   ['Tokens', 'Roughly three quarters of a word. Opening text is capped at 300 so it stays cheap.'],
@@ -348,7 +348,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                 <h4>It can ask for</h4>
                 <p className="hint">{preview && preview.indexIds.length ? preview.indexIds.map((id) => byId.get(id)?.name ?? id).join(', ') : 'nothing'}</p>
                 <h4>Reminder</h4>
-                <p className="hint">{preview?.reminder ? describeReminder(preview.reminder, effective.filter((r) => r.strength === 'hard' && r.mode !== 'off').map((r) => r.id)) : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
+                <p className="hint">{preview?.reminder ? describeReminder(preview.reminder) : (who === 'claude' ? '(none: every rule is soft)' : '(agy has no per-turn reminder)')}</p>
                 {holders.length > 0 && (
                   <>
                     <h4>Who gets this</h4>

@@ -34,6 +34,8 @@ interface Deps {
   workspaceKey: (repoPath: string) => string
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
   onUse?: (agentId: string, how: How, item: string) => void
+  /** The clock (tests move it). */
+  now?: () => number
 }
 
 const MAX_FILE = 100 * 1024
@@ -44,12 +46,14 @@ export function createLibraryService(d: Deps) {
   const playbooks = new Playbooks(d.root)
   const log = new UseLog(join(d.root, 'uses.jsonl'))
   // Per agent: how many prompts it has had, whether it can fetch, its rulebook lines, and whether the full catalog is due again; and the items it has read since it last lost its context.
-  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardReminder: string; hardIds: string[]; mediumIds: string[]; catalogDue: boolean; read: Set<string> }>()
+  const state = new Map<string, { launch: number; turn: number; canFetch: boolean; native: boolean; reminder: string; hardIds: string[]; mediumIds: string[]; catalogDue: boolean; /** When the agent's last prompt came, to tell it is back after a long pause. */ lastAt: number; read: Set<string> }>()
   // When each agent's hook last called the office.
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
-  // The rulebook line carries a hard rule on every message and a medium one on the first and every third after; a soft one is only in the text at the start and the catalog. Nothing reads the message: the agent decides what applies.
-  const MEDIUM_EVERY = 3
+  // The rulebook line (every medium and hard rule) is sent with the first message, every few messages after, right after a compaction, and when the agent comes back after a long pause; a soft rule is only in the opening text and the catalog. Nothing reads the message: the agent decides what applies.
+  const RULEBOOK_EVERY = 4
+  const IDLE_MS = 30 * 60_000
+  const now = d.now ?? Date.now
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
   const itemsMap = () => new Map(library.listSync().map((i) => [i.id, i]))
@@ -102,7 +106,7 @@ export function createLibraryService(d: Deps) {
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
       const compiled = compileFor(a.repoPath, canFetch) as Compiled
-      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardReminder: compiled.hardReminder, hardIds: compiled.hardIds, mediumIds: compiled.mediumIds, catalogDue: false, read: new Set() })
+      state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardIds: compiled.hardIds, mediumIds: compiled.mediumIds, catalogDue: false, lastAt: now(), read: new Set() })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
@@ -118,16 +122,18 @@ export function createLibraryService(d: Deps) {
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
-    /** Called at each prompt (Claude's hook): the rulebook line (the hard rules on every message, the medium ones too on every third), and now and then the whole catalog. The message itself is not read: the agent decides which rule applies. */
+    /** Called at each prompt (Claude's hook): the rulebook line when it is due (the first message, every few after, after a compaction, after a long pause), and now and then the whole catalog. The message itself is not read: the agent decides which rule applies. */
     remind(agentId: string, _prompt: string): string {
       const st = state.get(agentId)
       if (!st) return ''
       st.turn++
+      const at = now()
+      const due = st.turn % RULEBOOK_EVERY === 1 || st.catalogDue || at - st.lastAt > IDLE_MS
+      st.lastAt = at
       const entries = indexSync(agentId)
-      const withMedium = st.turn % MEDIUM_EVERY === 1
-      const parts = (withMedium ? st.reminder : st.hardReminder) ? [withMedium ? st.reminder : st.hardReminder] : []
+      const parts = due && st.reminder ? [st.reminder] : []
       // A rule the agent has read is in its context until it loses it, so it is not logged as put in front of it again.
-      for (const id of withMedium ? [...st.hardIds, ...st.mediumIds] : st.hardIds) {
+      if (due) for (const id of [...st.hardIds, ...st.mediumIds]) {
         const e = entries.find((x) => x.id === id)
         if (e && !st.read.has(id)) record(agentId, id, 'triggered', e.mode, `${id} (${e.when || 'when it applies'})`)
       }

@@ -103,21 +103,41 @@ describe('what an agent is given from the library', () => {
       await svc.prepare('a1', true, true)
       expect(svc.remind('a1', 'rename the lamp post')).toBe(a)
     })
-    it('keeps a hard rule in front of the agent on every message, a medium one on every third, and a soft one only in the rulebook', async () => {
-      const shown = async (s: 'soft' | 'medium' | 'hard') => (rulebook(s), await svc.prepare('a1', true, true), Array.from({ length: 7 }, () => svc.remind('a1', 'x').includes('pdf (working with PDFs)')))
-      expect(await shown('hard')).toEqual([true, true, true, true, true, true, true])
-      expect(await shown('medium')).toEqual([true, false, false, true, false, false, true])
-      expect(await shown('soft')).toEqual([false, false, false, false, false, false, false])
+    it('sends the rulebook at the start and every fourth message, for a hard and a medium rule alike, and a soft rule only in the opening text', async () => {
+      const shown = async (s: 'soft' | 'medium' | 'hard') => (rulebook(s), await svc.prepare('a1', true, true), Array.from({ length: 9 }, () => svc.remind('a1', 'x').includes('pdf (working with PDFs)')))
+      const T = true
+      const F = false
+      expect(await shown('hard')).toEqual([T, F, F, F, T, F, F, F, T])
+      expect(await shown('medium')).toEqual([T, F, F, F, T, F, F, F, T])
+      expect(await shown('soft')).toEqual([F, F, F, F, F, F, F, F, F])
       expect((await svc.prepare('a1', true, true)).core).toContain('working with PDFs: pdf')
     })
-    it('logs a rule put in front of the agent as triggered, until the agent reads it, and again after it loses its context', async () => {
+    it('sends it again right after a compaction, and when the agent comes back after a long pause', async () => {
+      rulebook('hard')
+      let now = 1_000_000
+      svc = createLibraryService({ root: join(dir, 'library'), agent: (id) => ({ id, name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }), workspaceKey: (p) => p.split('/').pop()!, now: () => now })
+      await svc.prepare('a1', true, true)
+      const has = () => svc.remind('a1', 'x').includes('pdf (working with PDFs)')
+      // right after a compaction
+      expect([has(), has()]).toEqual([true, false])
+      svc.refresh('a1')
+      expect(has()).toBe(true)
+      expect(has()).toBe(false)
+      // after a long pause, once, and not after a short one
+      await svc.prepare('a1', true, true)
+      expect([has(), has()]).toEqual([true, false])
+      now += 5 * 60_000
+      expect(has()).toBe(false)
+      now += 31 * 60_000
+      expect(has()).toBe(true)
+    })
+    it('logs a rule as triggered each time the rulebook is sent, until the agent reads it, and again after it loses its context', async () => {
       rulebook('hard')
       await svc.prepare('a1', true, true)
-      svc.remind('a1', 'x')
-      svc.remind('a1', 'x')
+      for (let i = 0; i < 5; i++) svc.remind('a1', 'x')
       expect(svc.stats().items.pdf!.triggered).toBe(2)
       svc.record('a1', 'pdf', 'fetched')
-      svc.remind('a1', 'x')
+      for (let i = 0; i < 4; i++) svc.remind('a1', 'x')
       expect(svc.stats().items.pdf!.triggered).toBe(2)
       svc.refresh('a1')
       svc.remind('a1', 'x')
