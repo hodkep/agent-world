@@ -164,6 +164,15 @@ describe('agy asking permission', () => {
     t.src.tick()
     expect(t.settled).toEqual([t.asked[0]!.id])
   })
+  it('raises a card for a file outside the workspace too, named by what is done to it, and denies it with Esc', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission-file')
+    t.src.tick()
+    expect(t.asked).toHaveLength(1)
+    expect(t.asked[0]).toMatchObject({ agentId: 'a1', tool: 'Read', detail: 'Read: /private/tmp/agy-cap/outside.txt\nReason: outside workspace' })
+    t.src.handle.decide(t.asked[0]!.id, 'deny')
+    expect(t.written).toEqual(['\x1b'])
+  })
   it('answers allow by choosing the first option, and deny by cancelling', async () => {
     const t = setup({ agents: [agent(resolved)] })
     t.screens.a1 = fx('permission')

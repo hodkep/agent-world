@@ -17,6 +17,7 @@ import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
 import { OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
+import { nextZoom, wheelSteps } from './zoomSteps'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
@@ -244,7 +245,9 @@ export class OfficeWorld {
       (e) => {
         e.preventDefault()
         this.touched()
-        this.zoomBy(e.deltaY < 0 ? 1 : -1)
+        // A turn of the wheel or a swipe on a trackpad is a step or a few, not one for each event it sends.
+        const dir = this.wheel(e.deltaY, e.deltaMode, performance.now())
+        if (dir) this.zoomBy(dir)
       },
       { passive: false }
     )
@@ -296,11 +299,12 @@ export class OfficeWorld {
     return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.zoom ?? this.sceneScale()))
   }
 
-  /** One step in or out, to the next whole scale so art pixels stay even. */
+  private readonly wheel = wheelSteps()
+
+  /** One step in or out, about a quarter, to a whole scale so art pixels stay even. */
   zoomBy(dir: 1 | -1) {
     const now = this.deviceScale()
-    const next = dir > 0 ? Math.floor(now + 1e-6) + 1 : Math.ceil(now - 1e-6) - 1
-    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next))
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom(now, dir)))
     // Zooming about the middle of the view: the panned offset scales with the picture.
     this.pan.x *= clamped / now
     this.pan.y *= clamped / now
