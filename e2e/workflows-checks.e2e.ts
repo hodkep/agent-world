@@ -100,7 +100,9 @@ test('a project\'s check asks for approval of its commands, runs them, sends a f
     // The agent fixes it, reports again, and it passes; landing is then allowed.
     s.commit('ok.txt')
     expect((await s.call('step_done')).text).toContain('running the checks')
-    await expect(strip).toContainText('Tests pass (done)', { timeout: 20_000 })
+    await expect(strip).toContainText(/Tests pass.*\(done\)/, { timeout: 20_000 })
+    // It passed, and the strip still says it failed once on the way.
+    await expect(strip).toContainText(/Tests pass.*failed once/)
     expect(await s.land()).toBe('landed')
     expect(s.git(s.repo, 'log', '--format=%s', 'main')).toContain('add ok.txt')
 
@@ -203,7 +205,7 @@ test('an agent that closed the task before it heard its check had failed can sti
     s.commit('ok.txt')
     expect((await s.call('step_done', { step: 'build' })).text).toContain('running the checks')
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
-    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText('Tests pass (done)', { timeout: 20_000 })
+    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText(/Tests pass.*\(done\)/, { timeout: 20_000 })
     await s.client.close()
   } finally {
     await s.shutdown()

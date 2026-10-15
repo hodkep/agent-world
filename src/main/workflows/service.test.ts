@@ -1069,7 +1069,7 @@ describe('running a workflow\'s checks', () => {
     await wf.runChecks('a1', 'h2')
     const rows = wf.mergeCheck('a1', 'h2')!.checks
     expect(rows).toEqual([
-      { id: 'tests', name: 'Tests pass', run: 'npm test', state: 'passed', ms: 1200 },
+      { id: 'tests', name: 'Tests pass', run: 'npm test', state: 'passed', tries: 1, ms: 1200 },
       { id: 'lint', name: 'Lint', run: 'npm run lint', state: 'passed', ms: 1200 }
     ])
     const failed = started()
