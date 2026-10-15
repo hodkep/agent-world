@@ -914,6 +914,20 @@ describe('running a workflow\'s checks', () => {
     expect(() => wf.stepDone('a1', 'build')).toThrow('"build" is already done.')
   })
 
+  it('an agent that closed the task before it heard its check had failed can still report the fix: the task opens again', async () => {
+    const { wf, state } = started()
+    state.results = [{ exit: 1, tail: 'FAIL a' }]
+    await wf.runChecks('a1', 'h1')
+    wf.done('a1', 'all done')
+    expect(wf.runs()[0]!.status).toBe('done')
+    expect(wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
+    expect(wf.runs()[0]!.status).toBe('open')
+    // With nothing sent back, a closed task stays closed.
+    await wf.runChecks('a1', 'h2')
+    wf.done('a1')
+    expect(() => wf.stepDone('a1', 'build')).toThrow('No task is open.')
+  })
+
   it('the refusal of a step that is done says how to report a fix when a check was sent back, and names the step to use', async () => {
     const t = make()
     t.state.pick = () => ({ ...FLOW, steps: [{ id: 'first', kind: 'work', name: 'First' }, { id: 'build', kind: 'work', name: 'Build' }, ...FLOW.steps.slice(1)] })

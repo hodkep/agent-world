@@ -189,3 +189,23 @@ test('an agent that reports its step and then the task does not use a second try
     await s.shutdown()
   }
 })
+
+test('an agent that closed the task before it heard its check had failed can still report its fix, and the check passes', async () => {
+  const s = await session()
+  try {
+    await s.call('task_begin', { title: 'Add a toggle' })
+    await s.call('step_done', { step: 'build' })
+    s.commit('toggle.ts')
+    await s.page.getByRole('region', { name: 'Commands from Checked' }).getByRole('button', { name: 'Approve and run' }).click()
+    await s.heard('failed (try 1 of 2)')
+    // The agent said the task was done in the same turn, before the failure reached it.
+    await s.call('task_done', { summary: 'done' })
+    s.commit('ok.txt')
+    expect((await s.call('step_done', { step: 'build' })).text).toContain('running the checks')
+    await s.page.getByRole('tab', { name: 'Workflow' }).click()
+    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText('Tests pass (done)', { timeout: 20_000 })
+    await s.client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

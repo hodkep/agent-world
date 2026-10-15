@@ -241,6 +241,9 @@ export class Workflows {
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
   stepDone(agentId: string, step?: string): { done: string; waiting?: string; checking?: boolean } {
+    // An agent may close the task in the same turn that its check fails, before it is told: reporting the fix then opens the task again.
+    const closed = this.mine(agentId)[0]
+    if (!this.openRun(agentId) && closed?.status === 'done' && this.states(closed).some((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)) this.append({ k: 'reopen', t: this.deps.now(), run: closed.id })
     const run = this.openRun(agentId)
     if (!run) throw new Error('No task is open.')
     const flow = run.workflow
