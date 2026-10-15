@@ -45,6 +45,7 @@ colors:
   shadow-scrim: "#00000080"
   shadow-inset: "#00000066"
   bevel-light: "#ffffff59"
+  you-violet: "#b38bff"
 typography:
   wordmark:
     fontFamily: "agent-world 3x5 bitmap (procedural, pixelfont.ts)"
@@ -158,6 +159,7 @@ A night-dark neutral field with warm wood and brass, and a small set of state co
 - **Alarm Red** (alarm-red): permission requests. The blinking roster dot, the red/amber flashing monitor, the red bubble; the danger button (discard work).
 - **Work Green** (work-green): implementing, running, researching dots in the roster.
 - **Think Cyan** (think-cyan): thinking and delegating dots; also a trace colour on implementing and delegating screens.
+- **You Violet** (you-violet): what is yours: the dot on a todo you made, your messages in a mail thread, and work you scheduled. Never a state colour.
 
 ### Neutral
 - **Night** (night-bg): canvas and app background, the sky behind the office.

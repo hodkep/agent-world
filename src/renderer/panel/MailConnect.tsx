@@ -114,7 +114,7 @@ export function MailConnect({ provider, onChanged, onProgress, required }: { pro
           ))}
         </ol>
         <div className="mc-bar" role="progressbar" aria-label={`Connecting ${provider.label}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={st.percent}>
-          <i style={{ width: `${st.percent}%` }} />
+          <i style={{ transform: `scaleX(${st.percent / 100})` }} />
         </div>
         <span className={phase === 'ready' ? 'mc-done' : phase === 'failed' ? 'su-why' : 'hint'} role="status">{says}</span>
         {phase === 'ready' && <button className="su-link" onClick={() => void disconnect()} disabled={busy} aria-busy={busy}>{busy ? <><span className="su-spin" aria-hidden="true" />Disconnecting…</> : 'Disconnect'}</button>}
