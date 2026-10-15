@@ -25,6 +25,8 @@ import type { SubagentInfo } from '../../shared/chat'
 import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
 import { StepGroupView } from './StepGroupView'
+import { OfficeLine } from './OfficeLine'
+import { type OfficeGroup, groupOffice } from './officeCalls'
 import { type StepGroup, groupSteps } from './stepGroups'
 import { type ToolRun, ToolCard } from './ToolCard'
 import { WatchLine } from './WatchCards'
@@ -438,6 +440,13 @@ export function ChatView({
   const [asking, setAsking] = useState<string | null>(null)
   const askingRef = useRef(false)
   askingRef.current = asking !== null
+  // The words picked, as a range: focus in the little box stops the page drawing its own selection, so while it is open they are marked with a highlight of ours.
+  const pickRange = useRef<Range | null>(null)
+  useEffect(() => {
+    if (asking === null || !pickRange.current || typeof CSS === 'undefined' || !CSS.highlights) return
+    CSS.highlights.set('ask-selection', new Highlight(pickRange.current))
+    return () => void CSS.highlights.delete('ask-selection')
+  }, [asking === null])
   useEffect(() => {
     const look = () => {
       // Focusing the little box would otherwise read as the selection going away.
@@ -459,6 +468,7 @@ export function ChatView({
       }
       const text = range.toString().trim()
       if (!text) return setPick(null)
+      pickRange.current = range.cloneRange()
       const r = range.getBoundingClientRect()
       const c = root.getBoundingClientRect()
       const mid = r.left - c.left + r.width / 2
@@ -578,11 +588,12 @@ export function ChatView({
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
-        {(searching ? rows : groupSteps(rows) as (Row | StepGroup)[]).map((r, at, list) => {
-          const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
+        {(searching ? rows : groupOffice(groupSteps(rows)) as (Row | StepGroup | OfficeGroup)[]).map((r, at, list) => {
+          const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : r.kind === 'office' ? r.calls.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
           // A step with a note beside it gets the same wrapper as a message does: a margin for the note in a wide chat, the note under it in a narrow one.
           const withNote = (el: ReactElement) => (here.length ? <div key={r.id} className="turn step"><div className="turn-row">{el}</div><LibrarySlips slips={here} starts={[]} told={0} items={lib.items} /></div> : el)
           if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
+          if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
           const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
           if (!lb || (!lb.starts.length && !lb.slips.length)) return withNote(row)
