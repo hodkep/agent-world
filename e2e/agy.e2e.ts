@@ -125,7 +125,10 @@ test('agy is connected to the message box only after its change is shown and app
 
     await box.getByRole('button', { name: /Let agy/ }).click()
     await plan.getByRole('button', { name: 'Connect' }).click()
-    await expect(box.getByText('Its agents can message the others')).toBeVisible()
+    const card = box.getByRole('group', { name: 'Connecting agy' })
+    await expect(card).toContainText('Connected: agy')
+    await expect(card.locator('[data-step="done"]')).toHaveCount(3)
+    await expect(box.getByRole('button', { name: /Let agy .* message other agents/ })).toHaveCount(0)
     expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['agent-world'])
     expect(existsSync(join(home, 'aw', 'bin', 'aw-mcp-bridge.cjs'))).toBe(true)
     await settings.getByRole('button', { name: 'Close settings' }).click()
