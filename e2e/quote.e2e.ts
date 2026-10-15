@@ -59,8 +59,12 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     // Ask opens a small box where the button was; what is typed there lands under the quote, still editable.
     const here = page.getByRole('textbox', { name: 'Ask ada about the selection' })
     await expect(here).toBeFocused()
+    // Focus is in the little box, so the page's own selection is not drawn any more: the words stay marked while you type.
+    const marked = () => page.evaluate(() => [...(CSS.highlights.get('ask-selection') ?? [])].map((r) => r.toString()).join(''))
     await here.fill('is this right?')
+    await expect.poll(marked).toBe('rewrite')
     await here.press('Enter')
+    await expect.poll(marked).toBe('')
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite'])
     await expect(page.getByRole('textbox', { name: 'What to do about this quote' })).toHaveValue('is this right?')
     await expect(box).toHaveValue('')
