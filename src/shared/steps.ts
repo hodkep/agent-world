@@ -129,6 +129,10 @@ export function checkFailed(o: { name: string; run: string; try: number; of: num
   return `The check "${o.name}" failed (try ${o.try} of ${o.of}): \`${o.run}\` ${how}.${printed}\nFix it, commit, then call step_done again. This is still the same task, so do not call task_begin again.`
 }
 
+/** What the agent is told when the person approved a check's commands and it passed: it was told their answer would come, and this is it. */
+export const checkPassed = (o: { name: string; run: string; ms: number }) =>
+  `The person approved the commands and the check "${o.name}" passed (\`${o.run}\`, ${o.ms < 1000 ? `${o.ms} ms` : `${(o.ms / 1000).toFixed(1)} s`}). Nothing more is needed from you for it.`
+
 /** What the agent is told when a check will not be sent back again. */
 export const checkGaveUp = (o: { name: string; tries: number }) => `The check "${o.name}" still fails after ${o.tries} tries. The person has been asked what to do; change nothing more until they answer.`
 

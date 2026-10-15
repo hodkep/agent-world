@@ -66,7 +66,7 @@ import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
-import { stepReply } from '../shared/steps'
+import { checkPassed, stepReply } from '../shared/steps'
 import { checkCommands, commandDiff, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -485,7 +485,7 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
 })
 // Runs the checks of an agent's workflow that are due, and tells the agent what came of it: the output of one that failed, or that the person has been asked.
 // Called when the agent reports its work, when the person answers a check, and (for what is new) when Finish is opened.
-async function kickChecks(id: string, o: { fresh?: boolean } = {}) {
+async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean } = {}) {
   const a = byId(id)
   if (!a) return
   try {
@@ -494,6 +494,7 @@ async function kickChecks(id: string, o: { fresh?: boolean } = {}) {
     if (r.ran > 0 || r.waitingApproval) send('workflows')
     if (r.sendBack) mailbox.fromOffice(id, r.sendBack)
     else if (r.gaveUp) mailbox.fromOffice(id, r.gaveUp)
+    else if (o.answered && r.passed && !r.waitingApproval) mailbox.fromOffice(id, r.passed.map(checkPassed).join('\n'))
     else if (r.waitingApproval && !o.fresh) mailbox.fromOffice(id, `The check "${r.waitingApproval}" waits for the person to approve its commands; their answer arrives as your next message.`)
   } catch {
     // A check that cannot run (no such folder, git failed) is simply not run; the merge gate will say it has not run.
@@ -1713,14 +1714,14 @@ async function main() {
     approvals.approve(run.workflow.id, run.workflow.hash, checkCommands(run.workflow), Date.now())
     workflows.commandsApproved(runId)
     send('workflows')
-    void kickChecks(run.agent)
+    void kickChecks(run.agent, { answered: true })
   })
   ipcMain.handle('workflows:check-decline', (_, runId: string) => (workflows.declineCommands(runId), send('workflows')))
   ipcMain.handle('workflows:check-rerun', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     workflows.rerunCheck(runId, String(step))
     send('workflows')
-    if (run) void kickChecks(run.agent)
+    if (run) void kickChecks(run.agent, { answered: true })
   })
   ipcMain.handle('workflows:check-skip', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, stepReply, stepStates, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, stepReply, stepStates, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -187,6 +187,13 @@ describe('what the agent is told when a check fails', () => {
 
   it('when it will not be sent back again, says the person has been asked and that nothing more should change', () => {
     expect(checkGaveUp({ name: 'Tests pass', tries: 3 })).toBe('The check "Tests pass" still fails after 3 tries. The person has been asked what to do; change nothing more until they answer.')
+  })
+})
+
+describe('what the agent is told when the person approves a check and it passes', () => {
+  it('says the check passed, with its command and time, and that nothing more is needed for it', () => {
+    expect(checkPassed({ name: 'Tests pass', run: 'npm test', ms: 1234 })).toBe('The person approved the commands and the check "Tests pass" passed (`npm test`, 1.2 s). Nothing more is needed from you for it.')
+    expect(checkPassed({ name: 'Lint', run: 'npm run lint', ms: 23 })).toBe('The person approved the commands and the check "Lint" passed (`npm run lint`, 23 ms). Nothing more is needed from you for it.')
   })
 })
 

@@ -847,7 +847,7 @@ describe('running a workflow\'s checks', () => {
 
   it('runs each check that is due, in order and in the agent\'s worktree, and goes on to the next once one passes', async () => {
     const { wf, state } = started()
-    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 2 })
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 2, passed: [{ name: 'Tests pass', run: 'npm test', ms: 1200 }, { name: 'Lint', run: 'npm run lint', ms: 1200 }] })
     expect(state.ran).toEqual(['npm test @ /w', 'npm run lint @ /w'])
     expect([stateOf(wf, 'tests'), stateOf(wf, 'lint')]).toEqual(['passed', 'passed'])
     expect(wf.runs()[0]!.rounds[0]!.checks.map((c) => [c.step, c.attempt, c.ok, c.head])).toEqual([['tests', 1, true, 'h1'], ['lint', 1, true, 'h1']])
