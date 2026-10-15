@@ -7,26 +7,6 @@ import { agyHome } from './transcript'
 const TAIL = 256 * 1024
 // Per conversation: the message (by its step number) the library was last asked about, so the model calls after a tool do not ask again.
 const asked = new Map<string, number>()
-// Per conversation file: the last step whose tool result was looked at, so each result is looked at once.
-const scanned = new Map<string, number>()
-// What agy's tool steps are called here, in the words the playbook's situations know.
-const TOOLS: Record<string, string> = { RUN_COMMAND: 'run_command', VIEW_FILE: 'view_file' }
-
-interface Step { step: number; type: string; content: string }
-
-/** The tool results in the end of a conversation file, in order (the model's own words are not among them). */
-function steps(file: string): Step[] {
-  const out: Step[] = []
-  for (const l of tail(file).split('\n')) {
-    try {
-      const s = JSON.parse(l) as { step_index?: string; source?: string; type?: string; content?: string }
-      if (s.source === 'MODEL' && s.type && TOOLS[s.type] && typeof s.content === 'string') out.push({ step: Number(s.step_index), type: s.type, content: s.content })
-    } catch {
-      /* the first line of the tail may be cut in half */
-    }
-  }
-  return out
-}
 
 function tail(file: string): string {
   const fd = openSync(file, 'r')
@@ -75,17 +55,6 @@ export function agyLibraryHook(event: string, payload: Record<string, unknown>, 
     const m = lastMessage(payload.transcriptPath)
     if (!conv || !m) return {}
     const lines: string[] = []
-    // A tool result since the last model call may show a situation (a merge conflict) the playbook has something for. A conversation first seen is not read back: only what happens from now on.
-    if (io.met) {
-      const file = realpathSync(payload.transcriptPath as string)
-      const seen = scanned.get(file)
-      const all = steps(file)
-      scanned.set(file, Math.max(seen ?? -1, ...all.map((x) => x.step), m.step))
-      if (seen !== undefined) for (const x of all.filter((y) => y.step > seen)) {
-        const line = io.met(TOOLS[x.type]!, {}, x.content)
-        if (line) lines.push(line)
-      }
-    }
     if (asked.get(conv) !== m.step) {
       asked.set(conv, m.step)
       const line = io.remind(m.text)

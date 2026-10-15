@@ -30,6 +30,7 @@ beforeEach(async () => {
   svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'soft' }])
 })
 afterEach(() => rmSync(dir, { recursive: true, force: true }))
+const rulebook = (strength: 'soft' | 'medium' | 'hard') => svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength }])
 
 describe('what an agent is given from the library', () => {
   it('compiles the global playbook with its workspace\'s on top, and nothing from another workspace', async () => {
@@ -92,50 +93,42 @@ describe('what an agent is given from the library', () => {
       expect(readFileSync(file, 'utf8')).toContain('- pdf: working with PDFs')
       expect((await svc.prepare('a3', true)).core).not.toContain('catalog')
     })
-    it('does not point at the same item again at once, nor after the agent has read it, until it loses its context', async () => {
+    it('never reads the message: the same words come whatever is said, and none points at an item for a word in it', async () => {
+      rulebook('hard')
       await svc.prepare('a1', true, true)
-      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
-      expect(svc.remind('a1', 'start working on this pdf')).not.toContain("library_get('pdf')")
-      for (let i = 0; i < 10; i++) svc.remind('a1', 'rename the lamp post')
-      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
+      const a = svc.remind('a1', 'start working on this pdf')
+      expect(a).not.toMatch(/covers this kind of work/)
+      await svc.prepare('a3', true, true)
+      expect(svc.remind('a3', 'rename the lamp post')).not.toContain('pdf')
+      await svc.prepare('a1', true, true)
+      expect(svc.remind('a1', 'rename the lamp post')).toBe(a)
+    })
+    it('keeps a hard rule in front of the agent on every message, a medium one on every third, and a soft one only in the rulebook', async () => {
+      const shown = async (s: 'soft' | 'medium' | 'hard') => (rulebook(s), await svc.prepare('a1', true, true), Array.from({ length: 7 }, () => svc.remind('a1', 'x').includes('pdf (working with PDFs)')))
+      expect(await shown('hard')).toEqual([true, true, true, true, true, true, true])
+      expect(await shown('medium')).toEqual([true, false, false, true, false, false, true])
+      expect(await shown('soft')).toEqual([false, false, false, false, false, false, false])
+      expect((await svc.prepare('a1', true, true)).core).toContain('working with PDFs: pdf')
+    })
+    it('logs a rule put in front of the agent as triggered, until the agent reads it, and again after it loses its context', async () => {
+      rulebook('hard')
+      await svc.prepare('a1', true, true)
+      svc.remind('a1', 'x')
+      svc.remind('a1', 'x')
+      expect(svc.stats().items.pdf!.triggered).toBe(2)
       svc.record('a1', 'pdf', 'fetched')
-      for (let i = 0; i < 10; i++) svc.remind('a1', 'rename the lamp post')
-      expect(svc.remind('a1', 'start working on this pdf')).not.toContain("library_get('pdf')")
+      svc.remind('a1', 'x')
+      expect(svc.stats().items.pdf!.triggered).toBe(2)
       svc.refresh('a1')
-      expect(svc.remind('a1', 'start working on this pdf')).toContain("library_get('pdf')")
+      svc.remind('a1', 'x')
       expect(svc.stats().items.pdf!.triggered).toBe(3)
     })
-    it('points at the item a prompt matches, and logs it as triggered', async () => {
-      await svc.prepare('a1', true, true)
-      const r = svc.remind('a1', 'start working on this pdf')
-      expect(r).toContain("library_get('pdf')")
-      expect(svc.remind('a1', 'rename the lamp post')).not.toContain('pdf')
-      expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 0 })
-    })
-    it('sends the rule reminder only when the message matched something, or for a hard rule', async () => {
-      await svc.prepare('a1', true, true)
-      // terse is medium: reminded on a message that points at something, not on one that matches nothing
-      expect(svc.remind('a1', 'rename the lamp post')).toBe('')
-      expect(svc.remind('a1', 'start working on this pdf')).toContain('Reminder: terse (always).')
-      svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
-      await svc.prepare('a1', true, true)
-      // a hard rule is reminded on every message, and only the hard one when nothing matched
-      expect(svc.remind('a1', 'rename the lamp post')).toContain('Reminder: pdf (working with PDFs).')
-      expect(svc.remind('a1', 'start working on this pdf')).toContain('Reminder: terse (always); pdf (working with PDFs).')
-    })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
+      rulebook('hard')
       await svc.prepare('a1', true)
-      svc.remind('a1', 'start working on this pdf')
+      svc.remind('a1', 'x')
       await svc.get('a1', 'pdf')
       expect(svc.stats().items.pdf).toMatchObject({ triggered: 1, answered: 1, used: 1 })
-    })
-    it('names the skill where the program loads skills, and gives the file path where it does not (even if it could ask the office)', async () => {
-      await svc.prepare('a1', false, true)
-      expect(svc.remind('a1', 'start working on this pdf')).toContain('Use the pdf skill')
-      await svc.prepare('a1', false, false)
-      expect(svc.remind('a1', 'start working on this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
-      await svc.prepare('a1', true, false)
-      expect(svc.remind('a1', 'start working on this pdf')).toContain(join(dir, 'library', 'skills', 'pdf', 'SKILL.md'))
     })
     it('adds the whole catalog every tenth prompt and right after a compaction', async () => {
       await svc.prepare('a1', true)
@@ -156,23 +149,17 @@ describe('what an agent is given from the library', () => {
   })
 
   describe('what the screen is shown', () => {
-    it('keeps the exact words pointed at an agent and the opening text it started with, for that agent only', async () => {
+    it('keeps the exact words the rulebook gave an agent and the opening text it started with, for that agent only', async () => {
+      rulebook('hard')
       await svc.prepare('a1', true, true)
-      svc.remind('a1', 'start working on this pdf')
+      svc.remind('a1', 'x')
       await svc.get('a1', 'pdf')
       await svc.prepare('a3', true, true)
       const uses = svc.usesOf('a1')
       expect(uses.map((u) => u.how)).toEqual(['started', 'delivered', 'triggered', 'fetched'])
       expect(uses[0]!.words).toContain('Talk short.')
-      expect(uses.find((u) => u.how === 'triggered')!.words).toContain("pdf covers this kind of work")
+      expect(uses.find((u) => u.how === 'triggered')!.words).toContain('pdf (working with PDFs)')
       expect(uses.every((u) => u.agent === 'a1')).toBe(true)
-    })
-    it('leaves the choice to the agent: the line says it may not apply and what to do then', async () => {
-      await svc.prepare('a1', true, true)
-      const line = svc.remind('a1', 'start working on this pdf')
-      expect(line).toContain('pdf covers this kind of work')
-      expect(line).toMatch(/not just answering a question/i)
-      expect(line).toMatch(/if you are doing that work/i)
     })
     it('tells the app which item an agent used, so the office can say what it is reading', async () => {
       await svc.prepare('a1', true)
@@ -181,8 +168,9 @@ describe('what an agent is given from the library', () => {
       expect(pushedItems.at(-1)).toBe('pdf')
     })
     it('tells the app when an agent has a new entry, and does not count a start as a use', async () => {
+      rulebook('hard')
       await svc.prepare('a1', true)
-      svc.remind('a1', 'start working on this pdf')
+      svc.remind('a1', 'x')
       expect(pushed).toContain('a1:triggered')
       expect(svc.stats().items.terse).toMatchObject({ delivered: 1, used: 0 })
       expect(Object.keys(svc.stats().items)).not.toContain('')
@@ -211,14 +199,6 @@ describe('what an agent is given from the library', () => {
     })
   })
 
-  describe('trying a message against a playbook', () => {
-    it('says which on-demand items a message would point at for a workspace, and none for one that matches nothing', async () => {
-      expect((await svc.tryMessage('/work/shop', 'please start working on this pdf')).map((m) => m.id)).toEqual(['pdf'])
-      expect(await svc.tryMessage('/work/shop', 'rename the lamp post')).toEqual([])
-      expect(await svc.tryMessage('/work/other', 'please start working on this pdf')).toEqual([])
-    })
-  })
-
   describe('a program whose hooks never reach the office', () => {
     it('names an agent that worked after it started and never called the office, and clears once it does', async () => {
       await svc.prepare('a2', false)
@@ -242,7 +222,7 @@ describe('the forced check on a hard rule', () => {
   it('asks the agent to say which rules apply, read the one that does, and report one it passes over', async () => {
     await svc.prepare('a1', true)
     const r = svc.remind('a1', 'rename the lamp post')
-    expect(r).toContain('Reminder: pdf (working with PDFs).')
+    expect(r).toContain('pdf (working with PDFs).')
     expect(r).toMatch(/before your first tool call.*one line.*which of these apply/i)
     expect(r).toContain("library_get('pdf')")
     expect(r).toContain('library_skip')
@@ -253,7 +233,7 @@ describe('the forced check on a hard rule', () => {
     expect(svc.remind('a1', 'split this pdf into pages')).not.toContain('library_skip')
     svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'hard' }])
     await svc.prepare('a2', false)
-    expect(svc.remind('a2', 'rename the lamp post')).toBe('Reminder: pdf (working with PDFs).')
+    expect(svc.remind('a2', 'rename the lamp post')).toBe('Reminder: terse (always); pdf (working with PDFs).')
   })
   it('is always there for a hard rule, and says what it costs', async () => {
     await svc.prepare('a1', true)
@@ -282,61 +262,5 @@ describe('the cost of the check before acting', () => {
   it('is near the measured text', async () => {
     svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'ui work', strength: 'hard' }])
     expect(Math.abs(svc.compileFor('/work/shop', true).forcedCheckTokens - FORCED_CHECK_TOKENS)).toBeLessThanOrEqual(12)
-  })
-})
-
-describe('a situation an agent meets in the middle of a run', () => {
-  const CONFLICT = { stdout: 'CONFLICT (content): Merge conflict in a.txt\nAutomatic merge failed' }
-  const withRule = async (when = 'a merge stopped with conflict markers') => {
-    const s = join(dir, 'src', 'rmc')
-    mkdirSync(s, { recursive: true })
-    writeFileSync(join(s, 'SKILL.md'), '---\nname: rmc\ndescription: Resolve a git merge conflict.\n---\n# Merge')
-    await svc.library.addSkillFolder(s, 't')
-    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'rmc', mode: 'on-demand', when, strength: 'medium' }])
-    await svc.prepare('a1', true, true)
-  }
-  it('points at the rule that lists it, once, and logs why', async () => {
-    await withRule()
-    expect(svc.situation('a1', 'Bash', { command: 'git status' }, { stdout: 'clean' })).toBe('')
-    const line = svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)
-    expect(line).toContain('merge conflict, 1 file')
-    expect(line).toContain("library_get('rmc')")
-    expect(line).toContain("library_skip('rmc'")
-    expect(svc.situation('a1', 'Bash', { command: 'git status' }, { stdout: 'Unmerged paths:\n  both modified: a.txt' })).toBe('')
-    expect(svc.usesOf('a1').filter((u) => u.how === 'triggered')).toMatchObject([{ id: 'rmc', because: 'merge conflict, 1 file' }])
-  })
-  it('is new again after the conflict was committed, and not repeated once the item was read', async () => {
-    await withRule()
-    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).not.toBe('')
-    svc.situation('a1', 'Bash', { command: 'git commit -am done' }, { stdout: '[main abc] done' })
-    expect(svc.situation('a1', 'Bash', { command: 'git merge y' }, CONFLICT)).not.toBe('')
-    svc.situation('a1', 'Bash', { command: 'git commit -am done' }, { stdout: '[main abc] done' })
-    svc.record('a1', 'rmc', 'fetched')
-    expect(svc.situation('a1', 'Bash', { command: 'git merge z' }, CONFLICT)).toBe('')
-  })
-  it('says failing checks only when the same red shows twice with nothing green between', async () => {
-    await withRule('tests keep failing, or a type check shows errors')
-    const red = { stdout: ' Tests  2 failed | 10 passed (12)' }
-    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
-    const line = svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)
-    expect(line).toContain('failing test or type check, tests failed')
-    expect(line).toContain('typo or a one-line fix')
-    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
-    // green ends it; the next red starts counting again
-    svc.situation('a1', 'Bash', { command: 'pnpm test' }, { stdout: ' Tests  12 passed (12)' })
-    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).toBe('')
-    expect(svc.situation('a1', 'Bash', { command: 'pnpm test' }, red)).not.toBe('')
-  })
-  it('works from a "when" with several statements, any one of which may be the situation', async () => {
-    await withRule('building a feature test first. A merge stopped with conflict markers; reviewing a pull request.')
-    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toContain('rmc')
-  })
-  it('counts two identical reds in one command as the same red twice', async () => {
-    await withRule('tests keep failing, or a type check shows errors')
-    expect(svc.situation('a1', 'Bash', { command: './fail.sh; ./fail.sh' }, { stdout: 'Tests 2 failed\nexit=1\nTests 2 failed\nexit=1' })).toContain('failing test or type check')
-  })
-  it('is left alone when no rule says when it applies to it', async () => {
-    await withRule('splitting a pdf into pages')
-    expect(svc.situation('a1', 'Bash', { command: 'git merge x' }, CONFLICT)).toBe('')
   })
 })

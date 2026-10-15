@@ -34,7 +34,7 @@ export function LibraryRule({ rule, item, onChange, onRemove }: { rule: Playbook
       <span className={`lr-icon ${rule.mode}`}>{item ? <PixelIcon name={ICON[item.kind]} scale={2} /> : null}</span>
       <div className="lr-name">
         <b title={item?.description}>{item?.name ?? `${rule.id} (missing)`}</b>
-        {rule.mode === 'on-demand' && <textarea ref={when} rows={1} aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply? a request, or something it meets: a merge conflict, failing tests" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} onChange={(e) => onChange({ when: e.target.value.replace(/\s*\n\s*/g, ' ') })} />}
+        {rule.mode === 'on-demand' && <textarea ref={when} rows={1} aria-label={`When to use ${rule.id}`} value={rule.when} placeholder="when does it apply? plain words the agent can judge: a research task, a merge conflict, failing tests" onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()} onChange={(e) => onChange({ when: e.target.value.replace(/\s*\n\s*/g, ' ') })} />}
       </div>
       {rule.mode !== 'off' && (
         <div className="lr-gauge" role="radiogroup" aria-label={`Firmness of ${rule.id}`}>

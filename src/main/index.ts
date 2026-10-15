@@ -508,14 +508,6 @@ const noteEdit = (id: string, tool: string, input: Record<string, unknown>) => {
   log.push({ kind: 'tool', id: `edit-${log.length}`, at: Date.now(), toolUseId: '', name: tool, input })
   editLog.set(id, log.slice(-200))
 }
-// What an agent met in the middle of a run (a merge conflict) that the playbook has an item for: said right after the tool that showed it.
-const librarySituation = (id: string, tool: string, input: Record<string, unknown>, response: unknown) => {
-  try {
-    return prefs.libraryEnabled ? libraryService.situation(id, tool, input, response) || null : null
-  } catch {
-    return null
-  }
-}
 // A Claude agent used a library item through its own tools: the Skill tool (plain or plugin-prefixed name), or reading a file of the library.
 const noteLibraryUse = (id: string, tool: string, input: Record<string, unknown>) => {
   try {
@@ -969,7 +961,6 @@ async function main() {
     },
     onStatus: onStats,
     reminderFor: libraryRemind,
-    situationFor: librarySituation,
     onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
     onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
@@ -1081,7 +1072,7 @@ async function main() {
       const a = byId(id)
       if (!a) return {}
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), met: (tool, input, output) => librarySituation(id, tool, input, output) ?? '' }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }) }) ?? {}
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,
@@ -1479,7 +1470,6 @@ async function main() {
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
   ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
   ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
-  ipcMain.handle('library:try', (_, folder: string, text: string) => libraryService.tryMessage(String(folder), String(text ?? '').slice(0, 2000)))
   ipcMain.handle('library:stats', () => libraryService.stats())
   ipcMain.handle('library:save', (_, i: { id?: string; kind: 'skill' | 'instruction' | 'prompt'; name: string; description: string; body: string }) => libraryService.library.save({ id: i.id, kind: i.kind, name: String(i.name ?? '').slice(0, 100), description: String(i.description ?? '').slice(0, 500), body: String(i.body ?? '').slice(0, 200_000) }))
   ipcMain.handle('library:remove', (_, id: string) => libraryService.library.remove(String(id)))

@@ -15,11 +15,11 @@ test('chat: margin notes under a message say what the library did for it, and op
     const page = await app.firstWindow()
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
-    // One item pointed at when a message is about PDFs, and one told every time.
+    // One item in the rulebook for PDFs (hard, so it is put in front of the agent on every message), and one told every time.
     await page.evaluate(async (folder) => {
       const pdf = await window.aw.library.save({ kind: 'prompt', name: 'pdf', description: 'Work with PDFs.', body: 'Split with the helper.' })
       const terse = await window.aw.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
-      await window.aw.library.setPlaybook(folder, [{ id: pdf.id, mode: 'on-demand', when: 'split a pdf into pages', strength: 'soft' }, { id: terse.id, mode: 'always', when: '', strength: 'soft' }])
+      await window.aw.library.setPlaybook(folder, [{ id: pdf.id, mode: 'on-demand', when: 'split a pdf into pages', strength: 'hard' }, { id: terse.id, mode: 'always', when: '', strength: 'soft' }])
     }, home)
     await hire(page)
     await page.getByRole('tab', { name: 'Chat' }).click()
@@ -46,7 +46,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     const note = slips.getByRole('button', { name: /pdf/ })
     await expect(note).toContainText('pointed, then read')
     await note.click()
-    await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('pdf covers this kind of work')
+    await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('pdf (split a pdf into pages)')
     await note.click()
     await expect(log.getByRole('group', { name: 'pdf, the words' })).toHaveCount(0)
 
@@ -70,7 +70,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     // Changing the playbook now leaves ada on the older text, which the pane says, and one click restarts her on the new one.
     await expect(dialog.getByLabel('Who has this text')).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('up to date')
-    await dialog.getByRole('radiogroup', { name: 'Firmness of pdf' }).getByRole('radio', { name: 'hard' }).click()
+    await dialog.getByRole('radiogroup', { name: 'Firmness of pdf' }).getByRole('radio', { name: 'medium' }).click()
     const stale = dialog.getByRole('note').filter({ hasText: 'before you changed this playbook' })
     await expect(stale).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('started on an older text')

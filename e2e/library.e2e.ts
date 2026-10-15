@@ -107,13 +107,6 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByLabel('When to use pdf').fill('split a pdf into pages')
     // What an agent sees, for each program: Claude is told how to fetch; agy is not connected to the message box yet, so it only gets what can be put in the text.
     const sees = pane.getByRole('group', { name: 'What an agent is told' })
-    // Trying a message says what it would point an agent at.
-    await sees.getByLabel('A message to try').fill('please split this pdf into pages')
-    await sees.getByRole('button', { name: 'Try it' }).click()
-    await expect(sees.getByRole('status')).toContainText('point the agent at pdf')
-    await sees.getByLabel('A message to try').fill('rename the lamp post')
-    await sees.getByRole('button', { name: 'Try it' }).click()
-    await expect(sees.getByRole('status')).toContainText('point at nothing')
     await expect(sees.getByLabel('Opening text')).toContainText('Talk short and plain.')
     await expect(sees.getByLabel('Opening text')).toContainText('split a pdf into pages: pdf')
     await expect(sees).toContainText('Reminder: terse (always).')
@@ -148,16 +141,15 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
     const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
-    // Each message it is sent is answered through its hook with a line for the library items the message points at, and none for one that points at nothing.
+    // Each message it is sent is answered through its hook with the rulebook line for the rules that push (the message is not read), and the first one carries the medium rules too.
     const hook = JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
     const prompt = async (text: string) =>
       (await (await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt: text }) })).text()) || ''
-    const nudged = JSON.parse(await prompt('please split this pdf into pages')).hookSpecificOutput.additionalContext as string
-    expect(nudged).toContain("Library: pdf covers this kind of work")
-    expect(nudged).toContain("library_get('pdf')")
-    expect(nudged).toContain('Reminder: terse (always).')
-    // terse is medium, so a message that points at nothing gets no reminder either
-    expect(await prompt('rename the lamp post')).toBe('')
+    // The message is not read: three in a row, whatever they say, carry the medium rule's line once (which of the three is not fixed, as the agent may have had a message already), and nothing points at pdf.
+    const answers: string[] = []
+    for (const text of ['please split this pdf into pages', 'rename the lamp post', 'split a pdf into pages']) answers.push(await prompt(text))
+    expect(answers.filter(Boolean)).toHaveLength(1)
+    expect(JSON.parse(answers.find(Boolean)!).hookSpecificOutput.additionalContext).toBe('Reminder: terse (always).')
     const index = say(await client.callTool({ name: 'library_index', arguments: {} }))
     expect(index).toContain('- terse')
     expect(index).toContain('- pdf')
@@ -177,7 +169,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await tool('Skill', { skill: 'agent-world-library:pdf' })
     await tool('Skill', { skill: 'something-else' })
     const uses = read(join(home, 'aw', 'library', 'uses.jsonl')).trim().split('\n').map((l) => JSON.parse(l) as { id: string; how: string })
-    expect(uses.filter((u) => u.id === 'pdf' && u.how === 'triggered')).toHaveLength(1)
+    expect(uses.filter((u) => u.id === 'pdf' && u.how === 'triggered')).toHaveLength(0)
     expect(uses.filter((u) => u.id === 'pdf' && u.how === 'skill')).toHaveLength(1)
     expect(uses.some((u) => u.id === 'something-else')).toBe(false)
     expect(uses.some((u) => u.id === 'terse' && u.how === 'delivered')).toBe(true)
@@ -204,7 +196,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
       (await fetch(started.url.replace(/\/mcp$/, `/hook/${event}`), { method: 'POST', headers: { authorization: `Bearer ${started.token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) })).json() as Promise<Record<string, unknown>>
     const skillFile = join(home, 'aw', 'library', 'skills', 'pdf', 'SKILL.md')
     const injected = (await call('pre-inv', { conversationId: 'conv-1', transcriptPath: transcript })) as { injectSteps: { ephemeralMessage: string }[] }
-    expect(injected.injectSteps[0]!.ephemeralMessage).toContain(`Read ${skillFile}`)
+    expect(injected.injectSteps[0]!.ephemeralMessage).toContain('Reminder: terse (always).')
     expect(await call('pre-inv', { conversationId: 'conv-1', transcriptPath: transcript })).toEqual({})
     expect(await call('post-tool', { conversationId: 'conv-1', toolCall: { name: 'view_file', args: { AbsolutePath: skillFile } } })).toEqual({})
     const after = await page.evaluate(() => window.aw.library.list().then((l) => l.usage))
