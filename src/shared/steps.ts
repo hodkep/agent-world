@@ -45,7 +45,8 @@ function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepCon
   if (decided) return { own: decided.state === 'skipped' ? 'skipped' : 'failed', tries: 0 }
   const { results, failed } = checkRuns(round, step.id)
   const last = results.at(-1)
-  if (last?.ok && (ctx.head === undefined || last.head === ctx.head)) return { own: 'passed', tries: 0 }
+  // A check that passed keeps how often it failed on the way, so the strip can still say so.
+  if (last?.ok && (ctx.head === undefined || last.head === ctx.head)) return { own: 'passed', tries: failed }
   if (last && !last.ok && results.length >= (step.retries ?? DEFAULT_RETRIES) + 1) return { own: 'failed', tries: failed }
   if (!last && ctx.approved === false) return { own: 'waiting', tries: 0 }
   return { own: 'open', tries: failed }

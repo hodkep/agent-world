@@ -15,7 +15,7 @@ export function RunStrip({ run, round, ctx }: { run: Run; round: number; ctx: St
           <span className="st-mark" aria-hidden="true">{MARK[s.state]}</span>
           <span>{s.name}</span>
           {s.state === 'waiting' && <b className="st-tag">waiting</b>}
-          {s.tries ? <b className="st-tag bad">{s.tries === 1 ? 'failed once' : `failed ${s.tries} times`}</b> : null}
+          {s.tries ? <b className={`st-tag${s.state === 'passed' ? '' : ' bad'}`}>{s.tries === 1 ? 'failed once' : `failed ${s.tries} times`}</b> : null}
           <span className="sr-only"> ({WORD[s.state]})</span>
         </li>
       ))}

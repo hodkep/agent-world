@@ -145,8 +145,10 @@ describe('a check step', () => {
     expect(at([...built, ran(1, true)], { auditOn: false, approved: false })).toBe('passed')
   })
 
-  it('passed when the last run passed, however many tries it took', () => {
-    expect(at([...built, ran(1, false), ran(2, true)])).toBe('passed')
+  it('passed when the last run passed, however many tries it took, and keeps how often it failed on the way', () => {
+    expect(at([...built, ran(1, false), ran(2, true)])).toBe('passed after 1')
+    expect(at([...built, ran(1, false), ran(2, false), ran(3, true)])).toBe('passed after 2')
+    expect(at([...built, ran(1, true)])).toBe('passed')
   })
 
   it('failed once or twice it is still the agent\'s to fix, and failed on every try it has failed', () => {
