@@ -153,3 +153,18 @@ test('a check that never passes runs out of tries, the person is asked, can skip
     await s.shutdown()
   }
 })
+
+test('approving the commands of a check that passes tells the agent and the chat, so the person is not left with no sign', async () => {
+  const s = await session({ run: 'echo fine' })
+  try {
+    await s.call('task_begin', { title: 'Add a toggle' })
+    await s.call('step_done', { step: 'build' })
+    await s.heard('waits for the person to approve its commands')
+    await s.page.getByRole('region', { name: 'Commands from Checked' }).getByRole('button', { name: 'Approve and run' }).click()
+    await s.heard('The person approved the commands and the check "Tests pass" passed (echo fine')
+    await expect(s.page.getByRole('region', { name: 'Commands from Checked' })).toHaveCount(0)
+    await s.client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

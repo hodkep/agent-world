@@ -179,19 +179,21 @@ export class Workflows {
    * Runs the checks of the agent's workflow that are due, in order, in its worktree, stopping at the first that fails or waits for the
    * person's approval of its commands. Says how many ran, and what to tell the agent when one failed and may be tried again or has run out of tries.
    */
-  async runChecks(agentId: string, head: string, o: { fresh?: boolean } = {}): Promise<{ ran: number; sendBack?: string; gaveUp?: string; waitingApproval?: string }> {
+  async runChecks(agentId: string, head: string, o: { fresh?: boolean } = {}): Promise<{ ran: number; passed?: { name: string; run: string; ms: number }[]; sendBack?: string; gaveUp?: string; waitingApproval?: string }> {
     let ran = 0
+    const passed: { name: string; run: string; ms: number }[] = []
+    const result = <T extends object>(x: T) => ({ ...x, ...(passed.length > 0 && { passed }) })
     for (;;) {
       const run = this.mine(agentId)[0]
       const cwd = this.deps.cwd(agentId)
-      if (!run?.workflow || run.status === 'stopped' || !cwd) return { ran }
+      if (!run?.workflow || run.status === 'stopped' || !cwd) return result({ ran })
       const due = this.states(run, head).find((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting'))
-      if (!due) return { ran }
-      if (due.state === 'waiting') return { ran, waitingApproval: due.name }
+      if (!due) return result({ ran })
+      if (due.state === 'waiting') return result({ ran, waitingApproval: due.name })
       // Asked only for what is new: a check that already ran for this very branch is left, so looking at it does not use up its tries.
-      if (o.fresh && checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return { ran }
+      if (o.fresh && checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return result({ ran })
       const key = `${run.id} ${due.id}`
-      if (this.running.has(key)) return { ran }
+      if (this.running.has(key)) return result({ ran })
       this.running.add(key)
       try {
         const step = run.workflow.steps.find((s) => s.id === due.id)!
@@ -200,11 +202,14 @@ export class Workflows {
         const r = await this.deps.run(step.run ?? '', cwd)
         this.append({ k: 'check', t: this.deps.now(), run: run.id, round: round.n, step: step.id, head, attempt, ok: r.exit === 0, exit: r.exit, timedOut: r.timedOut, ms: r.ms, tail: r.tail })
         ran++
-        if (r.exit === 0) continue
+        if (r.exit === 0) {
+          passed.push({ name: step.name, run: step.run ?? '', ms: r.ms })
+          continue
+        }
         const of = (step.retries ?? DEFAULT_RETRIES) + 1
         // The agent may have said the task was done before its checks ran: the work coming back makes it open again, so the fix can be reported.
         if (this.runs().find((x) => x.id === run.id)?.status === 'done') this.append({ k: 'reopen', t: this.deps.now(), run: run.id })
-        return attempt < of ? { ran, sendBack: checkFailed({ name: step.name, run: step.run ?? '', try: attempt, of, result: r }) } : { ran, gaveUp: checkGaveUp({ name: step.name, tries: attempt }) }
+        return attempt < of ? result({ ran, sendBack: checkFailed({ name: step.name, run: step.run ?? '', try: attempt, of, result: r }) }) : result({ ran, gaveUp: checkGaveUp({ name: step.name, tries: attempt }) })
       } finally {
         this.running.delete(key)
       }
