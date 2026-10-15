@@ -1140,7 +1140,7 @@ export function App() {
           folder={folder}
           onPick={pick}
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
-          onRescan={() => void scanProviders()}
+          onRescan={() => scanProviders()}
           onHire={async (options, name, crew) => {
             // Closed before the hire lands: the crew list changes under it as agents arrive, and a late close must not undo a reopening.
             setSetupAgain(false)
@@ -1193,7 +1193,7 @@ export function App() {
         />
       )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
-      {settings && prefs && <Settings initialPane={settingsPane} providers={providers ?? []} onProviders={() => void scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {settings && prefs && <Settings initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next

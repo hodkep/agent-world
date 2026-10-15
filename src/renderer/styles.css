@@ -1563,6 +1563,21 @@ code a.file-link { font: inherit; }
 
 /* ---- Connecting a provider to the message box ---- */
 .mc { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mc-prog { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--think); min-width: 260px; }
+.mc-prog[data-state='ready'] { box-shadow: 0 0 0 2px var(--ok); }
+.mc-prog[data-state='failed'] { box-shadow: 0 0 0 2px var(--danger-text); }
+.mc-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.mc-steps li { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.mc-steps li[data-step='doing'], .mc-steps li[data-step='done'] { color: var(--text); }
+.mc-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--dim); flex: none; display: inline-block; }
+li[data-step='done'] .mc-dot { background: var(--ok); border-color: var(--ok); }
+li[data-step='doing'] .mc-dot { border-color: var(--think); border-right-color: transparent; animation: su-spin 0.7s linear infinite; }
+li[data-step='failed'] .mc-dot { border-color: var(--danger-text); background: var(--danger-text); }
+.mc-bar { height: 6px; background: var(--well); border: 1px solid var(--ink); }
+.mc-bar i { display: block; height: 100%; background: var(--think); transition: width 0.3s ease; }
+.mc-prog[data-state='ready'] .mc-bar i { background: var(--ok); }
+.mc-prog[data-state='failed'] .mc-bar i { background: var(--danger-text); }
+@media (prefers-reduced-motion: reduce) { li[data-step='doing'] .mc-dot { animation: none; } .mc-bar i { transition: none; } }
 .mc-plan { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); min-width: 0; width: 100%; }
 .mc-plan p { margin: 0; color: var(--muted); font-size: 12px; max-width: 70ch; }
 .mc-plan b { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }

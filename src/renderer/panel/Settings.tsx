@@ -73,7 +73,7 @@ const PANES = [
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void> }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
