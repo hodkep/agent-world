@@ -103,7 +103,7 @@ describe('a round\'s plan', () => {
       { k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback },
       { k: 'plan', t: 300, run: 'r1', round: 1, state: 'changes', note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] }
     ])
-    expect(r!.rounds[0]!.plan).toEqual({ state: 'changes', path: '.agent-world/plan.md', readback, submittedAt: 200, decidedAt: 300, sentBack: 1, note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] })
+    expect(r!.rounds[0]!.plan).toEqual({ state: 'changes', path: '.agent-world/plan.md', readback, submittedAt: 200, decidedAt: 300, waitedMs: 100, sentBack: 1, note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] })
   })
 
   it('a resubmitted plan replaces the old one and is waiting again; approving ends the wait', () => {
@@ -124,6 +124,14 @@ describe('a round\'s plan', () => {
     expect(twice!.rounds[0]!.plan).toMatchObject({ state: 'approved', sentBack: 2 })
     const [clean] = reduceRuns([begin('r1', 100), sub(200), { k: 'plan', t: 300, run: 'r1', round: 1, state: 'approved' }])
     expect(clean!.rounds[0]!.plan!.sentBack).toBeUndefined()
+  })
+
+  it('adds up how long the person was waited on, each time the plan was sent to them, and keeps the sum when it is submitted again', () => {
+    const sub = (t: number): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback })
+    const [r] = reduceRuns([begin('r1', 0), sub(1000), { k: 'plan', t: 4000, run: 'r1', round: 1, state: 'changes', note: 'x' }, sub(5000), { k: 'plan', t: 5500, run: 'r1', round: 1, state: 'approved' }])
+    expect(r!.rounds[0]!.plan).toMatchObject({ state: 'approved', submittedAt: 5000, decidedAt: 5500, waitedMs: 3500 })
+    // Still waiting: nothing is added until the person decides.
+    expect(reduceRuns([begin('r1', 0), sub(1000)])[0]!.rounds[0]!.plan!.waitedMs).toBeUndefined()
   })
 
   it('a decision with no submitted plan before it is ignored, except a release, which lifts the block even then', () => {

@@ -90,6 +90,8 @@ export interface RoundPlan {
   answers?: PlanAnswer[]
   /** How often the person sent it back for changes before this version; kept when it is submitted again. */
   sentBack?: number
+  /** How long the person was waited on in all: each time the plan was sent to them, until they decided. Not counting a plan still waiting. */
+  waitedMs?: number
 }
 export interface RunCommit {
   sha: string
@@ -160,10 +162,10 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     } else if (e.k === 'plan') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (!into) continue
-      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, ...(e.check && { check: e.check }), submittedAt: e.t, ...(into.plan?.sentBack && { sentBack: into.plan.sentBack }) }
+      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, ...(e.check && { check: e.check }), submittedAt: e.t, ...(into.plan?.sentBack && { sentBack: into.plan.sentBack }), ...(into.plan?.waitedMs && { waitedMs: into.plan.waitedMs }) }
       else if (e.state === 'released' && !into.plan) into.plan = { state: 'released', path: '', readback: { goal: '', assumptions: [], outOfScope: [], questions: [] }, submittedAt: e.t, decidedAt: e.t }
       else if (into.plan) {
-        into.plan = { ...into.plan, state: e.state, decidedAt: e.t, ...(e.state === 'changes' && { sentBack: (into.plan.sentBack ?? 0) + 1 }), ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
+        into.plan = { ...into.plan, state: e.state, decidedAt: e.t, waitedMs: (into.plan.waitedMs ?? 0) + Math.max(0, e.t - into.plan.submittedAt), ...(e.state === 'changes' && { sentBack: (into.plan.sentBack ?? 0) + 1 }), ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
       }
     } else if (e.k === 'step') {
       r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })
