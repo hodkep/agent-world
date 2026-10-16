@@ -4,10 +4,12 @@
 
 1. Pick the file for your Mac: `Agent World-<version>-arm64.dmg` for Apple silicon (M1 and later), `…-x64.dmg` for Intel. (Apple menu > About This Mac shows which you have.)
 2. Open the dmg and drag **Agent World** into **Applications**.
-3. The app is not signed with an Apple Developer ID, so macOS blocks the first launch. Either:
-   - right-click the app in Applications, choose **Open**, then **Open** again; or
-   - run `xattr -dr com.apple.quarantine "/Applications/Agent World.app"` in a terminal, then open it normally.
-   This is needed once.
+3. The app is not signed with an Apple Developer ID, so macOS blocks the first launch ("Agent World" cannot be opened because Apple cannot check it for malicious software). This is needed once. Either:
+   - **macOS 15 (Sequoia) and later:** try to open the app once, then go to **System Settings > Privacy & Security**, scroll down to the Security section, and press **Open Anyway** next to "Agent World was blocked", then confirm with your password. Right-click > Open no longer works on these versions.
+   - **macOS 14 and earlier:** right-click the app in Applications, choose **Open**, then **Open** again.
+   - **Any version:** run `xattr -dr com.apple.quarantine "/Applications/Agent World.app"` in a terminal, then open it normally.
+
+   Because the app is not signed, it cannot replace itself when a new version comes out. It tells you when one is available and opens its page on GitHub, and you download and install it the same way.
 4. Choose a project folder, click **+ Agent**, and the character walks in.
 
 ## Building the installers yourself

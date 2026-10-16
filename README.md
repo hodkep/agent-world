@@ -23,7 +23,7 @@ Not affiliated with Anthropic or Google. See [NOTICE.md](NOTICE.md).
 
 ## Install
 
-Download an installer from the [releases page](../../releases) and follow [INSTALL.md](INSTALL.md) (the app is not signed with an Apple Developer ID yet, so macOS asks you to approve the first launch).
+Download an installer from the [releases page](../../releases) and follow [INSTALL.md](INSTALL.md). The app is not signed with an Apple Developer ID yet, so macOS blocks the first launch: on macOS 15 and later approve it in System Settings > Privacy & Security > **Open Anyway** (right-click > Open no longer works there), or run `xattr -dr com.apple.quarantine "/Applications/Agent World.app"`. Until it is signed, a new version is announced in the app and downloaded from its release page.
 
 ## Build from source
 
