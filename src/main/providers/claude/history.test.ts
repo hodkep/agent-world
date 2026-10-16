@@ -9,7 +9,7 @@ const user = (content: unknown) => line({ type: 'user', message: { role: 'user',
 
 describe('project slug', () => {
   it("matches the folder name Claude keeps a project's sessions in", () => {
-    expect(projectSlug('/Users/dev/my.repo/app')).toBe('-Users-pratik-my-repo-app')
+    expect(projectSlug('/Users/dev/my.repo/app')).toBe('-Users-dev-my-repo-app')
   })
 })
 
