@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { updateFeed } from './updateFeed'
 
 export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string }
 
@@ -6,16 +7,18 @@ let current: UpdateState = { state: 'off' }
 let started = false
 
 /**
- * Looks for a newer build at the address given in Settings (a folder that serves the files electron-builder produces).
- * Nothing runs for a development build or without an address: there is no built-in update server.
+ * Looks for a newer build: at the address given in Settings (a folder that serves the files electron-builder produces) when there is one,
+ * and otherwise in the releases of the project on GitHub, which the build bakes into the installed app (its publish setting).
+ * Nothing runs for a development build. An address cleared in Settings takes effect after a restart.
  */
 export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState) => void): Promise<UpdateState> {
   const set = (s: UpdateState) => ((current = s), onState(s), s)
-  if (!app.isPackaged || !/^https?:\/\//.test(feedUrl)) return set({ state: 'off', detail: app.isPackaged ? 'Enter an update address in Settings.' : 'Updates only work in the installed app.' })
+  const feed = updateFeed(feedUrl, app.isPackaged)
+  if (feed.kind === 'off') return set({ state: 'off', detail: feed.detail })
   try {
     const { autoUpdater } = await import('electron-updater')
     autoUpdater.autoDownload = true
-    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl })
+    if (feed.kind === 'generic') autoUpdater.setFeedURL({ provider: 'generic', url: feed.url })
     if (!started) {
       started = true
       autoUpdater.on('update-available', (i) => set({ state: 'available', detail: `Downloading ${i.version}…` }))
