@@ -13,21 +13,15 @@ import { claudeCalls } from './toolTable'
 import { parseClaudeUsage } from './usage'
 import { claudeAccounts } from './accounts'
 import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
+import { detectClaude } from './signin'
 
 export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
   capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true, nativeSkills: true },
-  async detect(bin, run) {
-    try {
-      const out = await (run ?? defaultRun)(bin, ['--version'])
-      const version = /\d+\.\d+\.\d+/.exec(out)?.[0]
-      return { state: 'ready', version, path: bin }
-    } catch {
-      return { state: 'not-installed', hint: 'Not found on your PATH or the usual places. Install it, or set where it is in Settings.', install: 'curl -fsSL https://claude.ai/install.sh | bash' }
-    }
-  },
+  // Whether it runs, and whether someone is signed in and its first questions were answered: setup does that in a terminal, so the chat never meets it.
+  detect: (bin, run) => detectClaude(bin, { run: run ?? defaultRun }),
   // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
   accounts: claudeAccounts,
   limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },

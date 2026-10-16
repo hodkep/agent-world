@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -195,6 +195,50 @@ test('an installer that stops without installing says so, changes nothing, and c
     await expect(claude.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expect(claude.locator('.su-howto')).toContainText('claude.ai/install')
     await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a Claude Code nobody is signed in to is Needs sign-in, with what it will ask, and holds the step until it is signed in', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-signedout-'))
+  const { app, shutdown } = await open(home, fake, { FAKE_SIGNED_OUT: '1' })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await expect(claude).toContainText('Needs sign-in')
+    await expect(claude).toContainText('not signed in')
+    await expect(claude).toContainText('text style')
+    await expect(claude.getByRole('button', { name: 'Open a terminal to sign in' })).toBeVisible()
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a signed-in Claude Code whose first questions were never answered is Needs sign-in until they are, and is read, never written', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-onboarding-'))
+  const cfg = join(home, 'claude-config')
+  mkdirSync(cfg)
+  const file = join(cfg, '.claude.json')
+  writeFileSync(file, '{"oauthAccount":{"emailAddress":"dev@example.com"}}')
+  const { app, shutdown } = await open(home, fake, { FAKE_CONFIG_DIR: cfg })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await expect(claude).toContainText('Needs sign-in')
+    await expect(claude).toContainText('first-run questions')
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    // Claude Code writes that they were answered; looking again finds it ready. The app has not touched the file.
+    writeFileSync(file, '{"oauthAccount":{"emailAddress":"dev@example.com"},"hasCompletedOnboarding":true}')
+    await setup.getByRole('button', { name: 'Re-scan' }).click()
+    await expect(claude).toContainText('Ready')
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled()
+    expect(readFileSync(file, 'utf8')).toBe('{"oauthAccount":{"emailAddress":"dev@example.com"},"hasCompletedOnboarding":true}')
   } finally {
     await shutdown()
   }
