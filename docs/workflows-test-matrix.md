@@ -52,7 +52,7 @@ How the specs run:
 | Builder | Close and reopen the window: the same builder; a second project's own | yes | n/a | `workflows-walkthrough` |
 | Builder | The builder follows the default program; agy needs the message box connected | n/a | yes | `workflows-providers` |
 | Builder | A real builder, from a sentence to a saved valid file | real (49 s) | not tried | `real/builder.real.ts` |
-| Chat | The office's calls are stamps; the calls that move a run leave the chat; a failed one stays a card | yes | n/a | `workflows-chat`, unit `officeCalls.test`, `glyphs.test` |
+| Chat | The office's calls are a row for each area (workflow, todos, library, notes), each opening to a line per call and what it brought back; the calls that move a run leave the chat; a failed one is a red count on its row | yes | n/a | `workflows-chat`, `office-calls`, `todo-cards`, unit `officeCalls.test` |
 | Track | Where the open run stands: a bubble while the plan waits, met, retried and failed stations, none once landed; above the chat and in the agent's tab | yes | n/a | `workflows-chat`, `workflows-runs-view`, unit `runTrack.test` |
 | Runs | A bar for each run (the person waited on, the agent, checks, what failed), the week in sentences, a run that opens line by line | yes | n/a | `workflows-runs-view`, `workflows-views`, unit `insights.test` |
 | Insights | A tile for every gate of every run, the numbers under each column, the red row and the amber column, 7 or 30 days | yes | n/a | `workflows-runs-view`, unit `insights.test` |

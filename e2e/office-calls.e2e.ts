@@ -22,26 +22,25 @@ test('chat: the office\'s library calls are one folded line, and one click on it
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
 
-    // Level one: a stamp for each call, and the line says what was done in words for anyone who cannot see them.
-    const fold = log.locator('.of-head')
-    await expect(fold).toHaveAttribute('aria-label', /Library skipped tdd · read house-research/)
-    await expect(fold).toHaveAttribute('aria-label', /Notes recalled/)
-    const stamps = fold.locator('.stamp')
-    await expect(stamps).toHaveCount(3)
-    await expect(stamps.nth(0)).toHaveAttribute('title', 'Skipped tdd · no code is written here')
-    await expect(stamps.nth(1)).toContainText('house-research')
-    expect((await fold.boundingBox())!.height).toBeLessThan(30)
+    // Level one: a row for each area, each saying in words what was done there; the library and the notes are not one thing.
+    const areas = log.locator('.of-head')
+    await expect(areas).toHaveCount(2)
+    await expect(areas.nth(0)).toHaveAttribute('aria-label', /Library: skipped tdd · read house-research/)
+    await expect(areas.nth(1)).toHaveAttribute('aria-label', /Notes: recalled/)
+    expect((await areas.nth(0).boundingBox())!.height).toBeLessThan(30)
     await expect(log.locator('.of-row')).toHaveCount(0)
 
-    // After one click: a line for each call, with the reason and what was read.
-    await fold.click()
+    // After one click on the library row: a line for each of its calls, with the reason and what was read; the notes stay shut.
+    await areas.nth(0).click()
     const rows = log.locator('.of-row')
-    await expect(rows).toHaveCount(3)
+    await expect(rows).toHaveCount(2)
     await expect(rows.nth(0)).toContainText('no code is written here')
     await expect(rows.nth(1)).toContainText('3 lines')
 
-    // A click on a line shows the call's own card under it, and another folds it again.
+    // A click on a line shows what the call brought back, and one more on "Call details" shows its own card; another click on the line folds it again.
     await rows.nth(1).click()
+    await expect(log.locator('.of-out')).toHaveCount(1)
+    await log.locator('.of-details').click()
     await expect(log.locator('.of-card .tc')).toHaveCount(1)
     await expect(log.locator('.of-card')).toContainText('house-research')
     await rows.nth(1).click()

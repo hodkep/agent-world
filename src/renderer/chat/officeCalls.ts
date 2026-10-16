@@ -66,6 +66,8 @@ export interface Whisper {
   why: string
 }
 
+/** What each call that moves a run says in a line: a run is the workflow's word, a task is a todo's. */
+const RUN_WORDS: Record<string, string> = { task_begin: 'began run', plan_submit: 'plan sent', step_done: 'step reported', task_done: 'run finished' }
 const str = (v: unknown) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : v === undefined || v === null ? '' : String(v))
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t)
 const lines = (t?: string) => (t && t.split('\n').length > 1 ? `${t.split('\n').length} lines` : '')
@@ -96,10 +98,10 @@ function said(run: ToolRun): Whisper {
     case 'todo_list': return { kind: 'todo', icon: '✓', bold: 'Looked through', rest: 'todos', why: '' }
     case 'remember': return { kind: 'note', icon: '✎', bold: 'Noted', rest: clip(str(i.text) || str(i.note), 120), why: '' }
     case 'recall': return { kind: 'note', icon: '⌕', bold: 'Recalled', rest: clip(str(i.query), 80), why: '' }
-    case 'task_begin': return { kind: 'workflow', icon: '⚑', bold: 'Began', rest: clip(str(i.title), 90), why: '' }
+    case 'task_begin': return { kind: 'workflow', icon: '⚑', bold: 'Began run', rest: clip(str(i.title), 90), why: '' }
     case 'plan_submit': return { kind: 'workflow', icon: '⚑', bold: 'Sent', rest: 'the plan', why: '' }
-    case 'step_done': return { kind: 'workflow', icon: '⚑', bold: 'Reported', rest: str(i.step) ? `step ${str(i.step)}` : 'a step', why: '' }
-    case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished', rest: '', why: clip(str(i.summary), 120) }
+    case 'step_done': return { kind: 'workflow', icon: '⚑', bold: 'Reported step', rest: str(i.step), why: '' }
+    case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished run', rest: '', why: clip(str(i.summary), 120) }
     case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
     case 'workflow_propose': return { kind: 'workflow', icon: '⚑', bold: 'Proposed', rest: proposedId(i.file), why: '' }
@@ -142,7 +144,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: tool === 'remember' ? 'noted' : 'recalled', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
-  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, task_begin: 'task', task_done: 'done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
+  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
   return { kind: 'flag', label: flagged[tool] ?? clip(humanize(tool), 14), tip, state }
 }
 
@@ -167,7 +169,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     if (tool === 'library_skip') (seen('Library'), skipped.push(str(i.id)))
     else if (tool === 'library_get') (seen('Library'), !read.includes(str(i.id)) && read.push(str(i.id)))
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
-    else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(humanize(tool).toLowerCase()))
+    else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
     else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' ? 'read' : 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
@@ -193,7 +195,56 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
   if (calls.length === 1 && parts[0]) {
     const w = whisperOf(calls[0]!.run)
     const extra = w.kind === 'note' ? w.rest : w.why
-    if (extra) parts[0] = { ...parts[0], text: `${parts[0].text} · ${extra}` }
+    if (extra && !parts[0].text.includes(extra)) parts[0] = { ...parts[0], text: `${parts[0].text} · ${extra}` }
   }
   return parts
+}
+
+export type FoldArea = 'Workflow' | 'Todos' | 'Library' | 'Notes' | 'Other'
+export interface AreaRow {
+  area: FoldArea
+  /** What was done there, in words. */
+  text: string
+  calls: Call[]
+  /** How many of the calls failed. */
+  bad: number
+  /** Whether a call is still running. */
+  running: boolean
+}
+
+function areaOfCall(c: Call): FoldArea {
+  const tool = agentWorldTool(c.run.name) ?? ''
+  if (tool.startsWith('library_')) return 'Library'
+  if (tool.startsWith('todo_')) return 'Todos'
+  if (tool === 'remember' || tool === 'recall') return 'Notes'
+  if (RUN_TOOLS.has(tool) || tool.startsWith('workflow_')) return 'Workflow'
+  return 'Other'
+}
+
+/** The fold as a row for each area, in the order the areas first appear, so a todo and a workflow call are never told as one thing. */
+export function areasOf(calls: Call[], working = false): AreaRow[] {
+  const buckets = new Map<FoldArea, Call[]>()
+  for (const c of calls) {
+    const area = areaOfCall(c)
+    buckets.set(area, [...(buckets.get(area) ?? []), c])
+  }
+  return [...buckets].map(([area, cs]) => ({
+    area,
+    text: area === 'Other' ? [...new Set(cs.map((c) => humanize(agentWorldTool(c.run.name) ?? '')))].join(' · ') : (summaryOf(cs)[0]?.text ?? ''),
+    calls: cs,
+    bad: cs.filter((c) => c.run.result?.isError).length,
+    running: working && cs.some((c) => !c.run.result)
+  }))
+}
+
+const OUTCOME_LINES = 4
+const OUTCOME_WIDTH = 240
+
+/** What a call brought back, for its opened row: the first few lines of the result and how many more there are; nothing for a failed call, whose reason the row already has. */
+export function outcomeOf(run: ToolRun): { text: string; more: number } | null {
+  if (!run.result || run.result.isError) return null
+  const all = (run.result.text ?? '').split('\n').map((l) => l.trimEnd())
+  const lines = all.filter((l) => l.trim())
+  if (lines.length === 0) return null
+  return { text: lines.slice(0, OUTCOME_LINES).map((l) => clip(l, OUTCOME_WIDTH)).join('\n'), more: Math.max(0, lines.length - OUTCOME_LINES) }
 }
