@@ -33,7 +33,7 @@ const GLOSSARY: [string, string][] = [
   ['Pointed at', 'Only a line that says when it applies is in the opening text. The agent judges from it whether its work needs the item, and reads it then.'],
   ['By a step', 'A workflow step puts the item in when that step starts. It is not in the opening text.'],
   ['Off', 'In the library, but in no opening text and never put in front of an agent.'],
-  ['Strength', 'How firmly the rulebook line pushes: soft is only in the opening text. Medium and hard rules are in the line sent with the first message, every fourth one after, after a compaction and after a long pause. Hard adds a request to say which rules apply.'],
+  ['Strength', 'How firmly the rulebook line pushes: soft is only in the opening text. Medium and hard rules are in the line sent with the first message, every sixth one after, after a compaction and after a long pause. Hard adds a request to say which rules apply.'],
   ['Opening text', 'What an agent is given when it starts: the told items, the list of when-lines and how to read an item.'],
   ['When it applies', 'One plain sentence the agent reads and judges against its own work. The app does not match it to a message.'],
   ['Tokens', 'Roughly three quarters of a word. Opening text is capped at 300 so it stays cheap.'],

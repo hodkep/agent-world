@@ -30,7 +30,7 @@ export interface PlaybookRule {
 }
 
 /** What the forced check adds to a message, in tokens, as shown to people before it is on (a test keeps it near the real sentence). */
-export const FORCED_CHECK_TOKENS = 55
+export const FORCED_CHECK_TOKENS = 62
 
 /** A skill folder found on this computer that can be copied into the library. */
 export interface LibraryCandidate {

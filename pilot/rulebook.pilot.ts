@@ -81,7 +81,7 @@ describe.skipIf(!ON)('rulebook pilot with a real agent', () => {
     const core = svc.prepare('pilot', true, true).core
     const tools = ['--allowedTools', 'Bash', 'Read', 'Edit', 'Write', 'mcp__agent-world__library_index', 'mcp__agent-world__library_get', 'mcp__agent-world__library_search', 'mcp__agent-world__library_skip']
     const out = await sh('claude', ['-p', CASES[kind].prompt, '--model', 'haiku', '--output-format', 'json', '--max-turns', '12', '--append-system-prompt', core, '--mcp-config', mcpFile, '--settings', settingsFile, ...tools], { env: agentEnv(process.env), cwd })
-    const j = JSON.parse(out) as { total_cost_usd?: number }
+    const j = JSON.parse(out) as { total_cost_usd?: number; result?: string }
     spent += j.total_cost_usd ?? 0
     const uses = svc.usesOf('pilot').filter((u) => u.t >= t0)
     const shown = uses.some((u) => u.how === 'triggered')
@@ -90,8 +90,10 @@ describe.skipIf(!ON)('rulebook pilot with a real agent', () => {
     let code = ''
     try { code = readFileSync(join(cwd, CASES[kind].file), 'utf8') } catch { /* no file */ }
     const followed = code.includes(PHRASE)
-    appendFileSync(REPORT, `[${strength} ${kind} #${n}] shown=${shown} read=${read} skipped=${skipped ? JSON.stringify(skipped.reason) : 'no'} followed=${followed} $${(j.total_cost_usd ?? 0).toFixed(3)}\n`)
-    return { strength, kind, shown, read, followed }
+    // Did the agent talk about the check in its reply, which a person did not ask for?
+    const mentioned = /\b(rulebook|library_skip|library_get|house[- ]rule|which of these apply|does not apply|doesn't apply|rules? (apply|applies))\b/i.test(j.result ?? '')
+    appendFileSync(REPORT, `[${strength} ${kind} #${n}] shown=${shown} read=${read} skipped=${skipped ? JSON.stringify(skipped.reason) : 'no'} followed=${followed} mentioned=${mentioned} $${(j.total_cost_usd ?? 0).toFixed(3)}\n   said: ${JSON.stringify((j.result ?? '').slice(0, 140))}\n`)
+    return { strength, kind, shown, read, followed, mentioned }
   }
 
   it('measures how often a real agent reads a rule it needs, and one it does not, at each strength', async () => {

@@ -2,7 +2,7 @@ import { FORCED_CHECK_TOKENS } from '../../shared/library'
 
 /** A guess at what one library_skip call and its answer add to the conversation, in tokens. */
 const SKIP_TOKENS = 80
-/** Sessions to price the check against: the check rides on every message while a rule is hard. */
+/** Sessions to price the check against: the check rides on the rulebook line, which is sent with the first message and every sixth one after while a rule is hard. */
 const SCENARIOS = [
   { label: 'A short task', messages: 10 },
   { label: 'A normal session', messages: 50 },
@@ -11,7 +11,7 @@ const SCENARIOS = [
 
 /** What the check before acting adds, on assumptions people can read: tokens per message, per sample session, and per rule an agent passes over. */
 export function checkCost() {
-  return { perMessage: FORCED_CHECK_TOKENS, perSkip: SKIP_TOKENS, scenarios: SCENARIOS.map((s) => ({ ...s, tokens: s.messages * FORCED_CHECK_TOKENS })) }
+  return { perMessage: FORCED_CHECK_TOKENS, perSkip: SKIP_TOKENS, scenarios: SCENARIOS.map((s) => ({ ...s, tokens: Math.ceil(s.messages / 6) * FORCED_CHECK_TOKENS })) }
 }
 
 export const groupTokens = (n: number) => n.toLocaleString('en-US')

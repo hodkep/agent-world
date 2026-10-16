@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LibraryItem, Use } from '../../shared/library'
 import { PixelIcon, type IconName } from './PixelIcon'
-import type { Slip } from './slips'
+import type { Refresh, Slip } from './slips'
 
 /** What the library did for an agent, and the items it knows by name, kept fresh as the agent works. */
 export function useLibraryUses(agentId: string): { uses: Use[]; items: Map<string, LibraryItem> } {
@@ -46,12 +46,27 @@ function notes(slips: Slip[], starts: Use[], told: number, items: Map<string, Li
 }
 
 /** Slips beside a message: one per library item or opening text. A slip opens to the exact words the agent was given. */
-export function LibrarySlips({ slips, starts, told, items }: { slips: Slip[]; starts: Use[]; told: number; items: Map<string, LibraryItem> }) {
+export function LibrarySlips({ slips, starts, told, items, refresh }: { slips: Slip[]; starts: Use[]; told: number; items: Map<string, LibraryItem>; /** The rulebook sent with this message: a small mark, not a card for each rule. */ refresh?: Refresh | null }) {
   const [open, setOpen] = useState<string | null>(null)
   const list = notes(slips, starts, told, items)
-  if (!list.length) return null
+  if (!list.length && !refresh) return null
+  const names = refresh?.items.map((i) => items.get(i.id)?.name ?? i.id) ?? []
   return (
     <div className="slips" aria-label="What the library did here">
+      {refresh && (
+        <div className="slip-wrap">
+          <button className={`slip-mark${open === 'refresh' ? ' open' : ''}`} aria-expanded={open === 'refresh'} aria-label={`The rulebook was sent with this message: ${names.join(', ')}`} title={`The rulebook was sent with this message: ${names.join(', ')}. ${refresh.items.length === 1 ? 'The agent decides if it applies.' : 'The agent decides which apply.'}`} onClick={() => setOpen(open === 'refresh' ? null : 'refresh')}>
+            <span className="slip-ic point"><PixelIcon name="book" scale={2} /></span>
+            <span className="slip-n">{refresh.items.length}</span>
+          </button>
+          {open === 'refresh' && (
+            <div className="paper" role="group" aria-label="The rulebook sent with this message">
+              <p className="paper-w">{refresh.items.map((i) => i.words ?? i.id).join('\n')}</p>
+              <p className="paper-f">Sent to keep the rules fresh. The agent decides which apply: it reads one, passes it over, or ignores it.</p>
+            </div>
+          )}
+        </div>
+      )}
       {list.map((n) => (
         <div key={n.key} className="slip-wrap">
           <button className={`slip ${n.tone}${open === n.key ? ' open' : ''}`} aria-expanded={open === n.key} onClick={() => setOpen(open === n.key ? null : n.key)}>

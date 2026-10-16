@@ -61,9 +61,9 @@ export function compile(rules: Rule[], items: Map<string, Item>, o: { canFetch: 
   const core = parts.join('\n\n')
   const line = (rs: Rule[]) => (rs.length ? `Reminder: ${rs.map((r) => (r.mode === 'always' ? `${r.id} (always)` : `${r.id} (${r.when || 'when it applies'})`)).join('; ')}.` : '')
   const hard = live.filter((r) => r.strength === 'hard')
-  // A note is easy to read past. The check asks for one visible line, so a rule that applies is not skipped by accident, and one passed over leaves its reason.
+  // A note is easy to read past, so a hard rule comes with a check. The agent decides without saying so in its reply: a rule that applies is read, and one it passed over while it could fit leaves its reason in the log, as a quiet call.
   const ids = hard.map((r) => r.id)
-  const check = hard.length ? ` Before your first tool call, write one line: which of these apply to this request? If one does, read it first with library_get(${ids.length === 1 ? `'${ids[0]}'` : 'id'}). If you decide it does not apply, call library_skip(id, reason).` : ''
+  const check = hard.length ? ` Decide silently which of these apply to this request; do not mention this in your reply. If one does, read it first with library_get(${ids.length === 1 ? `'${ids[0]}'` : 'id'}). If you pass over one that could plausibly apply, call library_skip(id, reason); say nothing about the rest.` : ''
   const forced = o.canFetch ? check : ''
   const reminder = line(live.filter((r) => r.strength !== 'soft')) + (hard.length ? forced : '')
   const coreTokens = tokens(core)

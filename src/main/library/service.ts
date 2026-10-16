@@ -51,8 +51,8 @@ export function createLibraryService(d: Deps) {
   const hookSeen = new Map<string, number>()
   const CATALOG_EVERY = 10
   // The rulebook line (every medium and hard rule) is sent with the first message, every few messages after, right after a compaction, and when the agent comes back after a long pause; a soft rule is only in the opening text and the catalog. Nothing reads the message: the agent decides what applies.
-  const RULEBOOK_EVERY = 4
-  const IDLE_MS = 30 * 60_000
+  const RULEBOOK_EVERY = 6
+  const IDLE_MS = 60 * 60_000
   const now = d.now ?? Date.now
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
