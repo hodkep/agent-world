@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { type GateName, type Tile, type TileKind, columnRates, gateTiles, runsWithin, says } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import type { StepContext } from '../../shared/steps'
-import { PixelIcon } from '../chat/PixelIcon'
+import { OutlineIcon } from '../panel/IconButton'
 
 const GATES: { gate: GateName; label: string }[] = [{ gate: 'plan', label: 'Plan' }, { gate: 'check', label: 'Check' }, { gate: 'review', label: 'Review' }, { gate: 'land', label: 'Land' }, { gate: 'told', label: 'Told' }]
 const WORD: Record<TileKind, string> = { ok: 'met first time', trouble: 'met after trouble', bad: 'missed or overridden', na: 'not asked', wait: 'waiting' }
@@ -12,7 +12,7 @@ function TileView({ tile }: { tile: Tile }) {
   const label = `${GATES.find((g) => g.gate === tile.gate)!.label}: ${WORD[tile.kind]}${tile.kind === 'trouble' && tile.n ? ` (${tile.n})` : ''}`
   return (
     <span role="cell" className="mo-c" aria-label={label} title={label}>
-      <i className={`mo-t ${tile.kind}`}>{tile.kind === 'trouble' && tile.n ? tile.n : tile.kind === 'bad' ? <PixelIcon name="x" scale={1} /> : null}</i>
+      <i className={`mo-t ${tile.kind}`}>{tile.kind === 'trouble' && tile.n ? tile.n : tile.kind === 'bad' ? <OutlineIcon name="cross" size={12} /> : null}</i>
     </span>
   )
 }

@@ -3,7 +3,7 @@ import { type RunBar, columnRates, gateTiles, headline, runBar, timelineOf, week
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, runStats, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
-import { PixelIcon } from '../chat/PixelIcon'
+import { OutlineIcon } from '../panel/IconButton'
 
 const SEG_WORD = { you: 'waiting on you', work: 'the agent working', check: 'checks', fail: 'a check that failed' } as const
 const barLabel = (b: RunBar) => b.segments.map((s) => `${SEG_WORD[s.kind]} ${formatDuration(s.ms)}`).join(', ')
@@ -18,24 +18,25 @@ export function BarLegend() {
       <span><i className="rb-seg check" />checks</span>
       <span><i className="rb-seg fail" />a check failed</span>
       <span><i className="rb-seg review" />review</span>
-      <span>flag at the end: landed (green), landed anyway (red)</span>
+      <span>flag: landed (green), landed anyway (red)</span>
+      <span>each bar is one whole run; its time is on the right</span>
     </div>
   )
 }
 
-/** One run's time as a bar, as long as it took next to the longest run shown; the colours say where it went, the marks say when the review ended and how it landed. */
-function Bar({ bar, of }: { bar: RunBar; of: number }) {
+/** One run's time as a bar, drawn full width whatever it took (its length in time is the number beside it), so the colours say where it went and a short run is as readable as a long one; the marks say when the review ended and how it landed. */
+function Bar({ bar }: { bar: RunBar }) {
   const total = Math.max(1, bar.totalMs)
   const landed = bar.marks.find((m) => m.kind === 'landed' || m.kind === 'anyway')
   return (
     <span className="rb-trk">
-      <span className="rb-bar" role="img" aria-label={barLabel(bar)} style={{ width: `${(100 * bar.totalMs) / of}%` }}>
+      <span className="rb-bar" role="img" aria-label={barLabel(bar)}>
         {bar.segments.map((s, i) => <i key={i} className={`rb-seg ${s.kind}`} style={{ flexGrow: s.ms }} />)}
         {bar.marks.filter((m) => m.kind !== 'landed' && m.kind !== 'anyway').map((m, i) => <i key={i} className={`rb-mark ${m.kind}`} style={{ left: `${(100 * m.at) / total}%` }} title={{ review: 'The review ended', lifted: 'You lifted the plan hold', round: 'A follow-up round began' }[m.kind as 'review' | 'lifted' | 'round']} />)}
       </span>
       {landed && (
-        <span className={`rb-flag ${landed.kind}`} style={{ left: `${(100 * bar.totalMs) / of}%` }} title={landed.kind === 'anyway' ? 'Landed anyway' : 'Landed'}>
-          <PixelIcon name="flag" />
+        <span className={`rb-flag ${landed.kind}`} title={landed.kind === 'anyway' ? 'Landed anyway' : 'Landed'}>
+          <OutlineIcon name="flag" size={12} />
         </span>
       )}
     </span>
@@ -46,7 +47,6 @@ function Bar({ bar, of }: { bar: RunBar; of: number }) {
 export function RunBars({ runs, spend, ctxFor, now, initial }: { runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; now: number; /** A run to show opened, when the window was opened on it. */ initial?: string }) {
   const [openId, setOpenId] = useState<string | null>(initial ?? null)
   const rows = [...runs].reverse().map((run) => ({ run, bar: runBar(run, now) }))
-  const of = Math.max(1, ...rows.map((r) => r.bar?.totalMs ?? 0))
   const tiles = runs.map((r) => gateTiles(r, ctxFor(r)))
   const sentences = weekSentences(headline(runs, ctxFor, now), columnRates(tiles))
   const usd = runs.reduce((n, r) => n + (spend[r.id]?.usd ?? 0), 0)
@@ -68,7 +68,7 @@ export function RunBars({ runs, spend, ctxFor, now, initial }: { runs: Run[]; sp
             <div key={run.id} role="listitem" className={`rb-item ${open ? 'is-open' : ''}`}>
               <button className="rb-row" aria-expanded={open} aria-label={`${run.name}: ${run.title}`} onClick={() => setOpenId(open ? null : run.id)}>
                 <span className="rb-t"><b>{run.name} · {run.title}</b><small>{meta}</small></span>
-                {bar ? <Bar bar={bar} of={of} /> : <span className="rb-none">started from a commit: no times were recorded</span>}
+                {bar ? <Bar bar={bar} /> : <span className="rb-none">started from a commit: no times were recorded</span>}
                 <span className="rb-dur mono">{bar ? formatDuration(bar.totalMs) : '—'}</span>
               </button>
               {open && (

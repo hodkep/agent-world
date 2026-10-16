@@ -47,6 +47,8 @@ const ICONS = {
   plug: <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
   file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
+  tick: <path d="M5 12.5l4.5 4.5L19 7" />,
+  cross: <path d="M6 6l12 12M18 6L6 18" />,
   // The Preview's browser bar.
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   forward: <path d="M5 12h14M13 6l6 6-6 6" />,
