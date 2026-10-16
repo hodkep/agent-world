@@ -12,6 +12,20 @@ A release is a tag. Pushing a tag that starts with `v` builds the installers on 
    - Linux: the AppImage, the `.deb` and `latest-linux.yml`.
 4. The release is created as a **draft**. When all three systems have finished uploading, open it on GitHub and press **Publish release**. The updater only sees published releases, so nobody is offered a half-uploaded one.
 
+## Check a build before you tag it
+
+`pnpm run pack` builds the app folder for this computer (it downloads the git that is bundled with the app first, see below). Start it the way Finder does, with a bare path and a home folder of its own, and the bundled git forced on:
+
+```
+PACKED_APP="dist/mac-arm64/Agent World.app/Contents/MacOS/Agent World" pnpm exec playwright test e2e/packed.e2e.ts
+```
+
+It checks that the app finds its own git inside its resources and uses it to make an agent's worktree. For the real test, install the dmg on a Mac that has never had the command line tools, Claude Code or Homebrew, and walk the setup screens.
+
+## The git inside the app
+
+A new Mac has no `git` until Apple's command line tools are installed, and running the stub at `/usr/bin/git` opens Apple's installer instead of working. So the app carries its own: `scripts/fetch-git.mjs` downloads the git of the [dugite-native](https://github.com/desktop/dugite-native) release pinned in `scripts/git-archives.json` (with its sha256) for each kind of processor, and electron-builder copies the one for the processor being built into the app's resources (`extraResources` in `electron-builder.yml`). The app uses the computer's own git when it has a working one, and its own otherwise. To move to a newer git, change the five lines in `scripts/git-archives.json` (copy them from `script/embedded-git.json` of a newer `dugite` package).
+
 ## Signing the Mac build
 
 An app signed only ad hoc installs (the first launch needs a right-click and Open, see [INSTALL.md](INSTALL.md)) but **cannot update itself**: macOS refuses to replace it with an update that is not signed by the same identity. To update, the build must be signed with a Developer ID certificate and notarised, which needs an Apple Developer Program membership (paid, yearly).
