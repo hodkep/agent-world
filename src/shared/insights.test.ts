@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type TileKind, columnRates, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays, weekSentences } from './insights'
+import { type Tile, type TileKind, columnRates, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -164,23 +164,6 @@ describe('the count on a tile that met its gate with trouble', () => {
   })
 })
 
-describe('the week in a few sentences', () => {
-  const h = { runs: 8, finished: 6, metEvery: 5, withTrouble: 2, landedAnyway: 1, fromCommit: 1, waiting: 1, youMs: 41 * MIN }
-  const rates = { plan: { good: 1, of: 3 }, check: { good: 2, of: 4 }, review: { good: 2, of: 3 }, land: { good: 5, of: 6 }, told: { good: 7, of: 8 } }
-  it('says what matters first, and leaves out what is zero', () => {
-    expect(weekSentences(h, rates)).toEqual([
-      { tone: 'plain', text: '8 runs this week.' },
-      { tone: 'good', text: '5 of 6 finished runs met every gate.' },
-      { tone: 'you', text: 'Agents spent 41m waiting on you.' },
-      { tone: 'warn', text: 'Checks failed the first time in 2 of 4 runs.' },
-      { tone: 'bad', text: '1 landing went ahead anyway.' },
-      { tone: 'plain', text: '1 began from a commit.' },
-      { tone: 'you', text: '1 waiting on you now.' }
-    ])
-    expect(weekSentences({ runs: 1, finished: 0, metEvery: 0, withTrouble: 0, landedAnyway: 0, fromCommit: 0, waiting: 0, youMs: 0 }, { ...rates, check: { good: 0, of: 0 } })).toEqual([{ tone: 'plain', text: '1 run this week.' }])
-  })
-})
-
 describe('what stands out in a grid of runs', () => {
   const row = (title: string, kinds: string[]) => ({ title, tiles: (['plan', 'check', 'review', 'land', 'told'] as const).map((gate, i) => ({ gate, kind: kinds[i] as 'ok' })) })
   it('names the red row and what went wrong in it, and the amber column with what it may mean', () => {
@@ -270,5 +253,132 @@ describe('the week, day by day', () => {
     const days = weekDays([old, stuck], () => ctx, at(16, 12))
     expect(days[0]!.runs.map((r) => r.title)).toEqual(['Stuck'])
     expect(days.flatMap((d) => d.runs)).toHaveLength(1)
+  })
+})
+
+describe('how well each stage was followed', () => {
+  const t = (gate: Tile['gate'], kind: TileKind): Tile => ({ gate, kind })
+  it('counts the runs that met each stage first time, after trouble, or not at all, leaving out what was not asked or is still waiting', () => {
+    const rows: Tile[][] = [
+      [t('plan', 'ok'), t('check', 'ok'), t('review', 'ok'), t('land', 'ok'), t('told', 'ok')],
+      [t('plan', 'trouble'), t('check', 'trouble'), t('review', 'trouble'), t('land', 'bad'), t('told', 'ok')],
+      [t('plan', 'bad'), t('check', 'bad'), t('review', 'bad'), t('land', 'wait'), t('told', 'bad')],
+      [t('plan', 'na'), t('check', 'wait'), t('review', 'na'), t('land', 'na'), t('told', 'ok')]
+    ]
+    expect(stageCounts(rows)).toEqual({
+      plan: { ok: 1, trouble: 1, bad: 1 },
+      check: { ok: 1, trouble: 1, bad: 1 },
+      review: { ok: 1, trouble: 1, bad: 1 },
+      land: { ok: 1, trouble: 0, bad: 1 }
+    })
+  })
+  it('is all zeros when there are no runs', () => {
+    expect(stageCounts([]).plan).toEqual({ ok: 0, trouble: 0, bad: 0 })
+  })
+})
+
+describe('how often each workflow was invoked', () => {
+  const DAY = 24 * 60 * MIN
+  const now = new Date(2026, 9, 16, 12, 0, 0).getTime()
+  const runs = reduceRuns([
+    begin(now - 1 * MIN, JOURNEY, {}, 'a'),
+    begin(now - 2 * MIN, JOURNEY, {}, 'b'),
+    begin(now - DAY, QUICK, {}, 'c'),
+    begin(now - 3 * DAY, JOURNEY, {}, 'd'),
+    begin(now - 20 * DAY, JOURNEY, {}, 'e'),
+    begin(now - 2 * DAY, null, { auto: true }, 'f')
+  ])
+  it('counts the runs of each workflow, most used first, and the runs the app started from a commit apart', () => {
+    const inv = invocations(runs, 7, now)
+    expect(inv.byWorkflow).toEqual([{ name: 'Journey', runs: 4 }, { name: 'Quick change', runs: 1 }])
+    expect(inv.fromCommit).toBe(1)
+    expect(inv.total).toBe(5)
+  })
+  it('counts the runs begun each day, oldest day first and today last, with a run begun before the window on its first day', () => {
+    const inv = invocations(runs, 7, now)
+    expect(inv.perDay).toHaveLength(7)
+    expect(inv.perDay).toEqual([1, 0, 0, 1, 0, 1, 2])
+  })
+  it('has a day for each of 30 days when asked for a month', () => {
+    expect(invocations(runs, 30, now).perDay).toHaveLength(30)
+    expect(invocations(runs, 30, now).perDay.at(-1)).toBe(2)
+    expect(invocations(runs, 30, now).perDay.at(-21)).toBe(1)
+  })
+})
+
+describe('the runs grouped by what to do about them', () => {
+  const stop = (t: number, run: string): RunEvent => ({ k: 'stop', t, run })
+  const landedClean = (id: string, t0: number, retried = false): RunEvent[] => [begin(t0, JOURNEY, {}, id), plan(t0 + 1, 'submitted', id), plan(t0 + 2, 'approved', id), stepDone(t0 + 3, 'build', id), ...(retried ? [check(t0 + 4, 1, false, 1000, id)] : []), check(t0 + 5, retried ? 2 : 1, true, 1000, id), audit(t0 + 6, [], id), merge(t0 + 7, 'checked', id), done(t0 + 8, id)]
+  const events: RunEvent[] = [
+    ...landedClean('clean-old', 1000),
+    ...landedClean('clean-retried', 2000, true),
+    begin(3000, JOURNEY, {}, 'trouble'), plan(3001, 'submitted', 'trouble'), plan(3002, 'approved', 'trouble'), check(3003, 1, true, 1000, 'trouble'), audit(3004, [finding], 'trouble'), merge(3005, 'anyway', 'trouble'), done(3006, 'trouble'),
+    begin(4000, JOURNEY, {}, 'needs'), plan(4001, 'submitted', 'needs'),
+    begin(5000, JOURNEY, {}, 'open'), plan(5001, 'submitted', 'open'), plan(5002, 'approved', 'open'), stepDone(5003, 'build', 'open'),
+    begin(6000, JOURNEY, {}, 'stopped'), stop(6001, 'stopped'),
+    ...landedClean('clean-new', 7000)
+  ]
+  const runs = reduceRuns(events)
+  const groups = groupRuns(runs, () => ctx)
+  it('puts first what waits on the person, then what is still going, then what landed with trouble or clean, and last what was stopped', () => {
+    expect(groups.map((g) => g.key)).toEqual(['needs', 'open', 'trouble', 'clean', 'stopped'])
+    expect(groups.map((g) => g.title)).toEqual(['Needs you', 'Still open', 'Landed with trouble', 'Landed clean', 'Stopped'])
+  })
+  it('lists the newest run first inside a group', () => {
+    expect(groups.find((g) => g.key === 'clean')!.runs.map((r) => r.id)).toEqual(['clean-new', 'clean-retried', 'clean-old'])
+  })
+  it('puts a run that landed anyway or missed a gate under trouble, and one that needed a second try among the clean, counted', () => {
+    expect(groups.find((g) => g.key === 'trouble')!.runs.map((r) => r.id)).toEqual(['trouble'])
+    expect(groups.find((g) => g.key === 'clean')!.note).toBe('1 needed a second try')
+  })
+  it('leaves out a group with no runs, and says nothing in a note that has nothing to say', () => {
+    const only = groupRuns(reduceRuns(landedClean('x', 0)), () => ctx)
+    expect(only.map((g) => g.key)).toEqual(['clean'])
+    expect(only[0]!.note).toBe('')
+  })
+  it('does not call a run the app started from a commit trouble just because it was never announced', () => {
+    const auto = reduceRuns([begin(0, null, { auto: true }, 'c'), done(1, 'c')])
+    expect(groupRuns(auto, () => ctx).map((g) => g.key)).toEqual(['clean'])
+  })
+})
+
+describe('what the ledger says about a run', () => {
+  const commit = (t: number, sha: string, run = 'r1'): RunEvent => ({ k: 'commit', t, run, sha, subject: 's' })
+  const row = (events: RunEvent[], now = 100 * MIN) => {
+    const r = run(events)
+    return ledgerRow(r, gateTiles(r, ctx), runBar(r, now))
+  }
+  it('has the wall time, the wait on the person, the commits, and how the checks and the review went', () => {
+    const r = row([begin(), plan(3 * MIN, 'submitted'), plan(7 * MIN, 'approved'), stepDone(10 * MIN, 'build'), check(11 * MIN, 1, true, 2000), audit(12 * MIN), commit(13 * MIN, 'a1'), commit(14 * MIN, 'a2'), merge(15 * MIN, 'checked'), done(15 * MIN)])
+    expect(r).toEqual({ finished: true, wallMs: 15 * MIN, youMs: 4 * MIN, checks: { kind: 'first', tries: 0 }, review: { kind: 'clean', n: 0 }, commits: 2 })
+  })
+  it('says a check passed on a later try, and a review whose findings were seen', () => {
+    const r = row([begin(), plan(1, 'submitted'), plan(2, 'approved'), stepDone(MIN, 'build'), check(2 * MIN, 1, false), check(3 * MIN, 2, true), audit(4 * MIN, [finding]), seen(5 * MIN, [0]), merge(6 * MIN, 'checked'), done(6 * MIN)])
+    expect(r.checks).toEqual({ kind: 'retried', tries: 1 })
+    expect(r.review).toEqual({ kind: 'seen', n: 1 })
+  })
+  it('says a review with findings nobody looked at, and a check that ran out of tries', () => {
+    const r = row([begin(), plan(1, 'submitted'), plan(2, 'approved'), stepDone(MIN, 'build'), check(2 * MIN, 1, false), check(3 * MIN, 2, false), check(4 * MIN, 3, false), audit(5 * MIN, [finding])])
+    expect(r.checks.kind).toBe('failed')
+    expect(r.review).toEqual({ kind: 'unseen', n: 1 })
+  })
+  it('says a check not reached yet and no review asked for, and has no wall time for a run the app started from a commit', () => {
+    const r = row([begin(), plan(1, 'submitted')])
+    expect(r).toMatchObject({ finished: false, checks: { kind: 'none' }, review: { kind: 'none' } })
+    const auto = ledgerRow(run([begin(0, null, { auto: true }), done(1)]), gateTiles(run([begin(0, null, { auto: true }), done(1)]), ctx), undefined)
+    expect(auto.wallMs).toBeNull()
+  })
+  it('totals a set of rows: the median wall time of the runs that finished, the wait on the person, and how often checks passed first time and a review found something', () => {
+    const rows = [
+      { finished: true, wallMs: 1 * MIN, youMs: 0, checks: { kind: 'first' as const, tries: 0 }, review: { kind: 'clean' as const, n: 0 }, commits: 1 },
+      { finished: true, wallMs: 3 * MIN, youMs: 2 * MIN, checks: { kind: 'retried' as const, tries: 1 }, review: { kind: 'seen' as const, n: 1 }, commits: 1 },
+      { finished: true, wallMs: 100 * MIN, youMs: 1 * MIN, checks: { kind: 'failed' as const, tries: 3 }, review: { kind: 'none' as const, n: 0 }, commits: 1 },
+      { finished: false, wallMs: 25 * 60 * MIN, youMs: 0, checks: { kind: 'none' as const, tries: 0 }, review: { kind: 'none' as const, n: 0 }, commits: 0 },
+      { finished: true, wallMs: null, youMs: 0, checks: { kind: 'first' as const, tries: 0 }, review: { kind: 'clean' as const, n: 0 }, commits: 0 }
+    ]
+    expect(ledgerTotals(rows)).toEqual({ medianWallMs: 3 * MIN, youMs: 3 * MIN, checks: { first: 2, of: 4 }, review: { found: 1, of: 3 } })
+  })
+  it('has no median when no run finished with a time', () => {
+    expect(ledgerTotals([]).medianWallMs).toBeNull()
   })
 })

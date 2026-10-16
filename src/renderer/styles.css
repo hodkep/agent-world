@@ -3032,37 +3032,53 @@ svg.pxg { display: block; flex: none; }
 .track .st:first-child .rt-bubble::before { left: 16px; margin-left: 0; }
 .track .st:first-child .rt-bubble::after { left: 18px; margin-left: 0; }
 
-/* ---- The Runs tab: a bar for each run, where its time went ---- */
-.rb { display: flex; flex-direction: column; gap: 8px; }
-.rb-sum { margin: 0; font-size: 13px; color: var(--text); line-height: 1.5; max-width: none; }
-.rb-sum .s-plain { color: var(--muted); } .rb-sum .s-good { color: var(--ok-text); } .rb-sum .s-warn { color: var(--accent); } .rb-sum .s-bad { color: var(--danger-text); } .rb-sum .s-you { color: var(--violet); }
-.rb-sum span:first-child { color: var(--text); font-weight: 700; }
-.rb-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
-.rb-legend span { display: inline-flex; gap: 6px; align-items: center; }
-.rb-legend .rb-seg { display: inline-block; flex: none; width: 14px; height: 10px; min-width: 0; box-shadow: 0 0 0 1px var(--ink); }
-.rb-list { display: flex; flex-direction: column; }
-.rb-item { border-top: 1px solid var(--line); }
-.rb-item.is-open { background: var(--panel-3); }
-.rb-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: minmax(150px, 230px) 1fr 56px; gap: 14px; align-items: center; width: 100%; padding: 7px 6px; cursor: pointer; font-size: 12px; }
-.rb-row:hover { background: var(--panel-3); }
-.rb-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.rb-t { min-width: 0; display: flex; flex-direction: column; }
-.rb-t b { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ---- The Runs tab: two charts, then a ledger of the runs grouped by what to do about them ---- */
+.rb { display: flex; flex-direction: column; gap: 12px; }
+.rb-charts { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
+.rb-chart { min-width: 0; }
+.rb-cap { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font: 600 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; max-width: none; }
+.rb-cap em { font: 400 11px ui-sans-serif, system-ui, sans-serif; font-style: normal; letter-spacing: 0; text-transform: none; color: var(--dim); }
+.rb-inv, .rb-st { display: grid; grid-template-columns: 96px minmax(0, 1fr) 62px; gap: 10px; align-items: center; margin: 0 0 7px; font-size: 12px; }
+.rb-inv > span:first-child, .rb-st > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.rb-n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rb-barline { position: relative; display: flex; height: 8px; background: var(--well); }
+.rb-inv .rb-barline b { display: block; height: 100%; background: var(--muted); opacity: 0.7; }
+.rb-st .rb-barline { height: 10px; }
+.rb-st .rb-barline b { display: block; height: 100%; }
+.rb-barline b.ok, .rb-key i.ok { background: color-mix(in srgb, var(--ok) 80%, var(--panel)); }
+.rb-barline b.trouble, .rb-key i.trouble { background: color-mix(in srgb, var(--accent) 75%, var(--panel)); }
+.rb-barline b.bad, .rb-key i.bad { background: color-mix(in srgb, var(--danger) 80%, var(--panel)); }
+.rb-days { display: grid; gap: 4px; align-items: end; height: 48px; margin-top: 12px; }
+.rb-days span { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.rb-days i { display: block; background: var(--muted); opacity: 0.7; min-height: 1px; }
+.rb-dl { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--dim); }
+.rb-dl span { flex: 1; text-align: center; }
+.rb-dl span:first-child:nth-last-child(2) { text-align: left; } .rb-dl span:last-child:nth-child(2) { text-align: right; }
+.rb-key { display: flex; gap: 14px; margin-top: 2px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.rb-key span { display: inline-flex; gap: 6px; align-items: center; }
+.rb-key i { width: 10px; height: 8px; display: inline-block; }
+.rb-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rb-tab th { padding: 8px; text-align: left; font-weight: 500; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; background: none; }
+.rb-tab th small { display: block; margin-top: 1px; font-size: 10px; font-weight: 400; color: var(--dim); }
+.rb-tab th.r, .rb-tab td.r { text-align: right; }
+.rb-tab td { padding: 7px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); white-space: nowrap; color: var(--text); }
+.rb-tab .num { font-variant-numeric: tabular-nums; }
+.rb-tab td.dim { color: var(--dim); } .rb-tab td.warn { color: var(--accent); } .rb-tab td.bad { color: var(--danger-text); } .rb-tab td.you { color: var(--violet); }
+.rb-tab th.rb-grp, .rb-grp th { padding: 14px 8px 4px; border: 0; color: var(--muted); font: 600 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; }
+.rb-grp em { margin-left: 8px; font: 400 11px ui-sans-serif, system-ui, sans-serif; font-style: normal; letter-spacing: 0; text-transform: none; color: var(--dim); }
+.rb-run { cursor: pointer; }
+.rb-run:hover td, .rb-run.is-open td { background: var(--panel-3); }
+.rb-dot { display: inline-block; width: 7px; height: 7px; background: var(--dim); }
+.rb-dot.needs { background: var(--violet); } .rb-dot.open { background: var(--think); } .rb-dot.trouble { background: var(--danger); } .rb-dot.clean { background: var(--ok); }
+.rb-t { white-space: normal; max-width: 330px; }
+.rb-t button { all: unset; display: flex; flex-direction: column; cursor: pointer; max-width: 100%; }
+.rb-t button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rb-t b { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rb-t small { color: var(--muted); font-size: 11px; }
-.rb-dur { color: var(--muted); text-align: right; font-size: 11px; }
-.rb-trk { position: relative; display: block; width: 100%; height: 14px; }
-.rb-bar { position: relative; display: flex; height: 14px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); min-width: 4px; }
-.rb-seg { display: block; height: 100%; min-width: 2px; flex-basis: 0; }
-.rb-seg.you { background: repeating-linear-gradient(135deg, var(--violet) 0 3px, color-mix(in srgb, var(--violet) 62%, var(--ink)) 3px 6px); }
-.rb-seg.work { background: var(--think); } .rb-seg.check { background: var(--ok); } .rb-seg.fail { background: var(--danger); min-width: 3px; } .rb-seg.review { background: var(--trim); }
-.rb-mark { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; }
-.rb-mark.review { background: var(--trim); box-shadow: 0 0 0 1px var(--ink); }
-.rb-mark.round { background: var(--panel-3); width: 2px; }
-.rb-mark.lifted { top: -4px; bottom: auto; width: 7px; height: 7px; margin-left: -3px; background: var(--violet); box-shadow: 0 0 0 1px var(--ink); }
-.rb-flag { position: absolute; top: -9px; right: 0; line-height: 0; }
-.rb-flag.landed { color: var(--ok-text); } .rb-flag.anyway { color: var(--danger-text); }
-.rb-none { height: 14px; box-shadow: 0 0 0 1px var(--dim); display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: var(--muted); font-style: italic; }
-.rb-sheet { background: var(--well); box-shadow: 0 0 0 2px var(--ink); margin: 2px 6px 8px 244px; padding: 8px 14px; font-size: 12px; color: var(--muted); }
+.rb-share { display: inline-block; position: relative; width: 34px; height: 3px; margin-left: 8px; vertical-align: middle; background: var(--well); }
+.rb-share i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--violet); }
+.rb-sheetrow td { padding: 0 0 8px; border-bottom: 0; white-space: normal; }
+.rb-sheet { background: var(--well); box-shadow: 0 0 0 2px var(--ink); margin: 2px 8px 4px 30px; padding: 8px 14px; font-size: 12px; color: var(--muted); }
 .rb-facts { margin: 0 0 6px; font-size: 11px; color: var(--muted); max-width: none; }
 .rb-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rb-tl li { display: grid; grid-template-columns: 54px 10px 1fr; gap: 8px; align-items: baseline; color: var(--text); }

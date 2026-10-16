@@ -203,24 +203,7 @@ export function headline(runs: Run[], ctxFor: (run: Run) => StepContext, now: nu
   return h
 }
 
-export interface Sentence {
-  tone: 'plain' | 'good' | 'warn' | 'bad' | 'you'
-  text: string
-}
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-
-/** What the week says, in the few sentences that matter, in the order they matter; whatever is zero is left out. */
-export function weekSentences(h: Headline, rates: Record<GateName, Rate>, span = 'this week'): Sentence[] {
-  const out: Sentence[] = [{ tone: 'plain', text: `${plural(h.runs, 'run', 'runs')} ${span}.` }]
-  if (h.finished > 0) out.push({ tone: 'good', text: `${h.metEvery} of ${h.finished} finished ${h.finished === 1 ? 'run' : 'runs'} met every gate.` })
-  if (h.youMs >= 60_000) out.push({ tone: 'you', text: `Agents spent ${formatDuration(h.youMs)} waiting on you.` })
-  const c = rates.check
-  if (c.of > 0 && c.good < c.of) out.push({ tone: 'warn', text: `Checks failed the first time in ${c.of - c.good} of ${c.of} runs.` })
-  if (h.landedAnyway > 0) out.push({ tone: 'bad', text: `${h.landedAnyway} ${h.landedAnyway === 1 ? 'landing' : 'landings'} went ahead anyway.` })
-  if (h.fromCommit > 0) out.push({ tone: 'plain', text: `${h.fromCommit} began from a commit.` })
-  if (h.waiting > 0) out.push({ tone: 'you', text: `${h.waiting} waiting on you now.` })
-  return out
-}
 
 const WRONG: Record<GateName, string> = { plan: 'the plan hold was lifted', check: 'a check was skipped or ran out of tries', review: 'a finding was not seen', land: 'it landed anyway', told: 'it began from a commit' }
 const MEANS: Record<'plan' | 'check' | 'review', (t: number, of: number) => string> = {
@@ -293,6 +276,141 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
 const DAY = 24 * 60 * 60_000
 /** The runs that ended, or are still going, within the last `days` days. */
 export const runsWithin = (runs: Run[], days: number, now: number) => runs.filter((r) => (r.endedAt ?? now) >= now - days * DAY)
+
+export type StageName = 'plan' | 'check' | 'review' | 'land'
+export interface StageCount {
+  /** Met first time. */
+  ok: number
+  /** Met after trouble: a plan sent back, a check retried, findings seen. */
+  trouble: number
+  /** Missed or overridden. */
+  bad: number
+}
+/** For each stage over a set of runs: how many met it first time, after trouble, or not at all. A run that was not asked for the stage, or has not reached it, is left out. */
+export function stageCounts(rows: Tile[][]): Record<StageName, StageCount> {
+  const counts: Record<StageName, StageCount> = { plan: { ok: 0, trouble: 0, bad: 0 }, check: { ok: 0, trouble: 0, bad: 0 }, review: { ok: 0, trouble: 0, bad: 0 }, land: { ok: 0, trouble: 0, bad: 0 } }
+  for (const row of rows)
+    for (const t of row) {
+      if (t.gate === 'told' || t.kind === 'na' || t.kind === 'wait') continue
+      counts[t.gate][t.kind]++
+    }
+  return counts
+}
+
+export interface Invocations {
+  /** Runs of each workflow, most used first. */
+  byWorkflow: { name: string; runs: number }[]
+  /** Runs of any workflow. */
+  total: number
+  /** Runs the app started from a commit, because the agent never announced the task: not an invocation of a workflow. */
+  fromCommit: number
+  /** Runs of a workflow begun on each day, oldest day first and today last; one begun before the window is counted on its first day. */
+  perDay: number[]
+}
+const startOfDay = (t: number) => new Date(new Date(t).setHours(0, 0, 0, 0)).getTime()
+
+/** How often each workflow was invoked over the runs of the last `days` days, and on which days. */
+export function invocations(runs: Run[], days: number, now: number): Invocations {
+  const by = new Map<string, number>()
+  const perDay = Array.from({ length: days }, () => 0)
+  let fromCommit = 0
+  const today = startOfDay(now)
+  for (const r of runs) {
+    if (!r.workflow) {
+      if (r.auto) fromCommit++
+      continue
+    }
+    by.set(r.workflow.name, (by.get(r.workflow.name) ?? 0) + 1)
+    const ago = Math.round((today - startOfDay(r.startedAt)) / DAY)
+    perDay[Math.min(days - 1, Math.max(0, days - 1 - ago))]!++
+  }
+  const byWorkflow = [...by].map(([name, n]) => ({ name, runs: n })).sort((x, y) => y.runs - x.runs)
+  return { byWorkflow, total: byWorkflow.reduce((n, w) => n + w.runs, 0), fromCommit, perDay }
+}
+
+export type GroupKey = 'needs' | 'open' | 'trouble' | 'clean' | 'stopped'
+export interface RunGroup {
+  key: GroupKey
+  title: string
+  /** A few words under the title, or none. */
+  note: string
+  /** Newest first. */
+  runs: Run[]
+}
+const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Still open', trouble: 'Landed with trouble', clean: 'Landed clean', stopped: 'Stopped' }
+
+/**
+ * The runs by what there is to do about them: those held for the person, those still going, those that finished with a gate missed or overridden, those that finished clean
+ * (a retried check or a plan sent back is still clean), and those stopped. A run the app started from a commit is not trouble for never having been announced.
+ */
+export function groupRuns(runs: Run[], ctxFor: (run: Run) => StepContext): RunGroup[] {
+  const buckets: Record<GroupKey, Run[]> = { needs: [], open: [], trouble: [], clean: [], stopped: [] }
+  let retried = 0
+  for (const r of [...runs].sort((a, b) => b.startedAt - a.startedAt)) {
+    const tiles = gateTiles(r, ctxFor(r))
+    if (r.status === 'stopped') buckets.stopped.push(r)
+    else if (tiles.some((t) => t.kind === 'wait')) buckets.needs.push(r)
+    else if (r.status === 'open') buckets.open.push(r)
+    else if (tiles.some((t) => t.gate !== 'told' && t.kind === 'bad')) buckets.trouble.push(r)
+    else {
+      buckets.clean.push(r)
+      if (tiles.some((t) => t.kind === 'trouble')) retried++
+    }
+  }
+  const notes: Record<GroupKey, string> = { needs: '', open: '', trouble: 'went ahead past a gate', clean: retried > 0 ? `${retried} needed a second try` : '', stopped: '' }
+  return (['needs', 'open', 'trouble', 'clean', 'stopped'] as const).filter((k) => buckets[k].length > 0).map((key) => ({ key, title: GROUP_TITLES[key], note: notes[key], runs: buckets[key] }))
+}
+
+export interface LedgerRow {
+  finished: boolean
+  /** The run's whole time, or none for a run the app started from a commit (its start was never announced). */
+  wallMs: number | null
+  /** How long the person was waited on. */
+  youMs: number
+  /** `first`: passed first time; `retried`: passed after `tries` failures; `failed`: out of tries or skipped; `pending`: held for the person; `none`: not reached or not asked. */
+  checks: { kind: 'first' | 'retried' | 'failed' | 'pending' | 'none'; tries: number }
+  /** `clean`: nothing found; `seen`: `n` findings, all looked at; `unseen`: `n` findings, some not; `none`: no review. */
+  review: { kind: 'clean' | 'seen' | 'unseen' | 'none'; n: number }
+  commits: number
+}
+
+/** What the Runs ledger says about one run, as values for the tab to word. */
+export function ledgerRow(run: Run, tiles: Tile[], bar: RunBar | undefined): LedgerRow {
+  const check = tiles.find((t) => t.gate === 'check')
+  const review = tiles.find((t) => t.gate === 'review')
+  const found = run.audit?.state === 'done' ? run.audit.findings.length : 0
+  return {
+    finished: run.status === 'done',
+    wallMs: bar ? bar.totalMs : null,
+    youMs: bar ? bar.segments.filter((s) => s.kind === 'you').reduce((n, s) => n + s.ms, 0) : 0,
+    checks: check?.kind === 'ok' ? { kind: 'first', tries: 0 } : check?.kind === 'trouble' ? { kind: 'retried', tries: check.tries ?? check.n ?? 1 } : check?.kind === 'bad' ? { kind: 'failed', tries: 0 } : check?.kind === 'wait' ? { kind: 'pending', tries: 0 } : { kind: 'none', tries: 0 },
+    review: review?.kind === 'ok' ? { kind: 'clean', n: 0 } : review?.kind === 'trouble' ? { kind: 'seen', n: found } : review?.kind === 'bad' ? { kind: 'unseen', n: found } : { kind: 'none', n: 0 },
+    commits: run.rounds.reduce((n, r) => n + r.commits.length, 0)
+  }
+}
+
+export interface LedgerTotals {
+  /** The middle run time of the runs that finished, or none. */
+  medianWallMs: number | null
+  youMs: number
+  checks: { first: number; of: number }
+  /** How many reviews found something, of those that ran. */
+  review: { found: number; of: number }
+}
+
+/** The line under each column heading: the middle time of the finished runs, the wait on the person in all, how often checks passed first time, how often a review found something. */
+export function ledgerTotals(rows: LedgerRow[]): LedgerTotals {
+  const times = rows.filter((r) => r.finished && r.wallMs !== null).map((r) => r.wallMs!).sort((a, b) => a - b)
+  const mid = Math.floor(times.length / 2)
+  const checked = rows.filter((r) => ['first', 'retried', 'failed'].includes(r.checks.kind))
+  const reviewed = rows.filter((r) => r.review.kind !== 'none')
+  return {
+    medianWallMs: times.length === 0 ? null : times.length % 2 ? times[mid]! : (times[mid - 1]! + times[mid]!) / 2,
+    youMs: rows.reduce((n, r) => n + r.youMs, 0),
+    checks: { first: checked.filter((r) => r.checks.kind === 'first').length, of: checked.length },
+    review: { found: reviewed.filter((r) => r.review.kind !== 'clean').length, of: reviewed.length }
+  }
+}
 
 /** One tile for a whole run: the worst that happened (a gate missed, then one still waiting, then trouble on the way), else met. */
 export function runVerdict(tiles: Tile[]): TileKind {
