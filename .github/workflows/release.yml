@@ -20,6 +20,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test
+      # The git the app carries for a computer that has none, for every kind of processor of this system.
+      - run: node scripts/fetch-git.mjs --platform
       - run: pnpm exec electron-vite build
       # With the Apple secrets set, the Mac build is signed with the Developer ID certificate and notarised; without them it is signed ad hoc (see electron-builder.yml),
       # which installs but cannot be updated by the app. Windows is unsigned. The owner and repository are given here, so the update address baked into the app
