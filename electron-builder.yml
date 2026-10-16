@@ -28,4 +28,4 @@ win:
 linux:
   target: [AppImage, deb]
   category: Development
-  maintainer: Agent World
+  maintainer: Pratik <agentworld.app@gmail.com>

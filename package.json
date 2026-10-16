@@ -58,5 +58,6 @@
     "zod": "^4.6.5"
   },
   "description": "Watch and direct your Claude Code agents as characters in a pixel-art office",
-  "author": "Agent World"
+  "author": "Pratik <agentworld.app@gmail.com>",
+  "license": "MIT"
 }
