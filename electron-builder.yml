@@ -14,6 +14,8 @@ mac:
   category: public.app-category.developer-tools
   target:
     - { target: dmg, arch: [arm64, x64] }
+    # electron-updater on macOS installs the zip that latest-mac.yml points at; the dmg is what people download.
+    - { target: zip, arch: [arm64, x64] }
   # Signed with an ad-hoc identity so it runs on other Macs after right-click > Open. A Developer ID
   # certificate (CSC_LINK / CSC_KEY_PASSWORD, APPLE_* for notarisation) replaces this when there is one.
   identity: "-"
