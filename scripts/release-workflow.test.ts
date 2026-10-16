@@ -17,6 +17,9 @@ describe('the release workflow', () => {
     const inside = wf.slice(guard, wf.indexOf('\n          else', guard))
     expect(inside).toContain('--config.mac.identity=null')
     expect(inside).toContain('--config.mac.notarize=true')
+    // only a signed build says so about itself
+    expect(inside).toContain('--config.extraMetadata.awSigned=true')
+    expect(wf.replace(inside, '')).not.toContain('awSigned=true')
     expect(wf.replace(inside, '')).not.toContain('identity=null')
   })
   it('runs on a version tag and publishes to the releases', () => {
