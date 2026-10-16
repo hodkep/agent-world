@@ -1,0 +1,28 @@
+name: release
+# A tag like v0.1.0 builds the installers on each system and publishes them to the GitHub release of that tag.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm test
+      - run: pnpm exec electron-vite build
+      # No signing certificates are set, so the Mac build is signed ad hoc (see electron-builder.yml) and Windows is unsigned.
+      # The owner and repository are given here, so the update address baked into the app is this repository whatever the git remote is called.
+      - run: pnpm exec electron-builder --publish always --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
