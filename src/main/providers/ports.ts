@@ -27,6 +27,10 @@ export interface GenericMenu {
   highlighted: number
   /** The key hint under the options ("Esc to cancel · Tab to amend"). */
   hint: string
+  /** False when Esc does nothing on this screen (a new Claude Code's first questions), so a Cancel would be dead. */
+  cancellable?: boolean
+  /** The screen takes typing or a browser and can only be finished in the terminal. */
+  terminalOnly?: boolean
 }
 
 export interface RewindList {

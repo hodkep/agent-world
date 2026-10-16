@@ -15,6 +15,13 @@ if (args[0] === '--version') {
   console.log('2.1.289 (Claude Code)')
   process.exit(0)
 }
+// What `claude auth status` prints: signed in, so the app does not hold hiring back for a sign-in.
+// FAKE_SIGNED_OUT=1 says nobody is signed in; FAKE_CONFIG_DIR is the folder it names as its configuration (the app reads its .claude.json, read only).
+if (args[0] === 'auth' && args[1] === 'status') {
+  const out = process.env.FAKE_SIGNED_OUT ? { loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' } : { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', email: 'dev@example.com' }
+  console.log(JSON.stringify({ ...out, configDirectory: process.env.FAKE_CONFIG_DIR ?? '/nonexistent/fake-claude-config' }, null, 2))
+  process.exit(out.loggedIn ? 0 : 1)
+}
 if (args[0] === 'mcp') {
   console.log('Checking MCP server health…\n\nfake-docs: https://docs.example/mcp - ✔ Connected\nfake-db: npx fake-db - ✗ Failed to connect\nplugin:productivity:asana: https://mcp.asana.com/v2/mcp (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration')
   process.exit(0)
@@ -317,7 +324,30 @@ if (process.env.FAKE_CHAT) {
   const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
   let mode = 0
   let inMenu = false
-  if (process.env.FAKE_DIALOG) {
+  if (process.env.FAKE_ONBOARDING) {
+    // FAKE_ONBOARDING=1: the first questions of a new Claude Code, as 2.1.302 drew them: the text style list (no numbers), how to log in, the page that waits for a code.
+    inMenu = true
+    const draw = (t) => process.stdout.write(`\x1b[2J\x1b[H${t.replace(/\n/g, '\r\n')}`)
+    const THEMES = ['Auto (match terminal)', 'Dark mode', 'Light mode', 'Dark mode (colorblind-friendly)']
+    const LOGINS = ['Claude account with subscription · Pro, Max, Team, or Enterprise', 'Anthropic Console account · API usage billing', '3rd-party platform · Amazon Bedrock, Microsoft Foundry, Google Vertex AI']
+    let at = 1
+    let screen = 'theme'
+    const paint = () => {
+      if (screen === 'theme') draw(`Welcome to Claude Code v2.1.302\n..........................\n\n Let's get started.\n\n Choose the text style that looks best with your terminal\n To change this later, run /theme\n\n${THEMES.map((t, i) => `${i === at ? ' ❯' : '  '} ${t}`).join('\n')}\n\n ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n  Syntax theme: Monokai Extended (ctrl+t to disable)`)
+      else if (screen === 'login') draw(`Welcome to Claude Code v2.1.302\n..........................\n\n Claude Code can be used with your Claude subscription or billed based on API usage through your Console account.\n\n Select login method:\n\n${LOGINS.map((t, i) => `${i === at ? ' ❯' : '  '} ${i + 1}. ${t}`).join('\n')}`)
+      else draw(`Welcome to Claude Code v2.1.302\n..........................\n\n Browser didn't open? Use the url below to sign in (c to copy)\n\nhttps://claude.com/cai/oauth/authorize?code=true&client_id=fake\n\n\n Paste code here if prompted >`)
+    }
+    paint()
+    process.stdin.on('data', (d) => {
+      const k = String(d)
+      const n = screen === 'theme' ? THEMES.length : LOGINS.length
+      if (screen === 'oauth') return
+      if (k === '\x1b[B') (at = Math.min(n - 1, at + 1), paint())
+      else if (k === '\x1b[A') (at = Math.max(0, at - 1), paint())
+      else if (k === '\r') ((screen = screen === 'theme' ? 'login' : 'oauth'), (at = 0), paint())
+      // Esc does nothing on these screens, as on the real ones.
+    })
+  } else if (process.env.FAKE_DIALOG) {
     // FAKE_DIALOG=1: a first-run notice with no numbered options, like the Chrome one a new account shows; Enter confirms it, Esc cancels it.
     inMenu = true
     process.stdout.write(`\x1b[2J\x1b[H${'─'.repeat(40)}\r\n  Claude in Chrome\r\n\r\n  Works with the Chrome extension to control your browser.\r\n\r\n  Enter to confirm · Esc to cancel\r\n`)

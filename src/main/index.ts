@@ -26,6 +26,7 @@ import { isWebUrl } from './webUrl'
 import { packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
 import { installCommand, installLaunch } from './installRun'
+import { createMenuTracker } from './menuTracker'
 import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
@@ -386,9 +387,8 @@ const noteRunning = () => {
 // Choice menus Claude shows in its own terminal that no other part of the app handles (see genericMenu), once they have stayed put.
 // A rewind in progress: after Claude's confirmation is answered, its restored prompt is moved into the chat's composer.
 const rewinding = new Map<string, { text: string; at: number }>()
-const termMenuSeen = new Map<string, { sig: string; since: number }>()
-const termMenuSent = new Map<string, string>()
 const MENU_STABLE_MS = 800
+const termMenus = createMenuTracker({ stableMs: MENU_STABLE_MS, now: Date.now })
 const pendingPermissions = new Map<string, PermissionRequest>()
 // For a permission a subagent asked: the agent above it, whose card it is on.
 const childAsks = new Map<string, string>()
@@ -810,32 +810,25 @@ function trackTurns(e: AgentEvent) {
 function surfaceTerminalMenu(id: string, text: string) {
   const menu = ui(id).genericMenu(text)
   const covered = trustOpen.has(id) || planOpen.has(id) || questionOpen.has(id) || !!eventsOf(id)?.hasPending(id)
-  const sig = menu && !covered ? JSON.stringify([menu.title, menu.context, menu.options]) : ''
-  if (!sig) {
-    termMenuSeen.delete(id)
-    if (termMenuSent.get(id)) {
-      termMenuSent.set(id, '')
-      send('terminal-menu', id, null)
-      if (rewinding.has(id)) setTimeout(() => finishRewind(id), 1500)
-      // The menu was the reason for waiting; whatever Claude does next, it is working again.
-      const a = byId(id)
-      if (a && lastActivity.get(id) === 'permission') {
-        lastActivity.set(id, 'thinking')
-        send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
-      }
+  const step = termMenus.update(id, menu, covered)
+  if (!step) return
+  if ('clear' in step) {
+    send('terminal-menu', id, null)
+    if (rewinding.has(id)) setTimeout(() => finishRewind(id), 1500)
+    // The menu was the reason for waiting; whatever Claude does next, it is working again.
+    const a = byId(id)
+    if (a && lastActivity.get(id) === 'permission') {
+      lastActivity.set(id, 'thinking')
+      send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
     }
     return
   }
-  const seen = termMenuSeen.get(id)
-  if (seen?.sig !== sig) return void termMenuSeen.set(id, { sig, since: Date.now() })
-  if (Date.now() - seen.since >= MENU_STABLE_MS && termMenuSent.get(id) !== sig) {
-    termMenuSent.set(id, sig)
-    send('terminal-menu', id, { title: menu!.title, context: menu!.context, options: menu!.options, hint: menu!.hint })
-    const a = byId(id)
-    if (a) {
-      lastActivity.set(id, 'permission')
-      send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'permission', detail: menu!.title })
-    }
+  const m = step.send
+  send('terminal-menu', id, { title: m.title, context: m.context, options: m.options, hint: m.hint, ...(m.cancellable === false && { cancellable: false }), ...(m.terminalOnly && { terminalOnly: true }) })
+  const a = byId(id)
+  if (a) {
+    lastActivity.set(id, 'permission')
+    send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'permission', detail: m.title })
   }
 }
 
@@ -1417,8 +1410,7 @@ async function main() {
     }
     for (const id of trustOpen) send('trust-prompt', id, byId(id)?.cwd ?? '')
     // Terminal menus and side questions are re-read from the screen within a moment.
-    termMenuSent.clear()
-    termMenuSeen.clear()
+    termMenus.forgetAll()
     btwSent.clear()
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
   })
@@ -2190,9 +2182,11 @@ async function main() {
       return m ? { highlighted: m.highlighted } : null
     }
     if (!ui(id).genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
+    termMenus.pressed(id)
     if (!(await ui(id).answerMenu(ioFor(id), detect, index))) throw new Error('Could not pick that option. Finish it in the Terminal tab.')
   })
-  ipcMain.handle('menu:cancel', (_, id: string) => void sessions.get(id)?.write(keysOf(id).cancel))
+  // A key pressed for a menu that is still there afterwards (Esc on a screen it does nothing on) brings its card back, instead of leaving the chat with nothing.
+  ipcMain.handle('menu:cancel', (_, id: string) => (sessions.get(id)?.write(keysOf(id).cancel), void termMenus.pressed(id)))
   // /rewind lists your earlier prompts; go to the one asked for. Claude's own "restore what?" menu then shows in the chat.
   ipcMain.handle('rewind-to', async (_, id: string, promptText: string) => {
     const p = sessions.get(id)
