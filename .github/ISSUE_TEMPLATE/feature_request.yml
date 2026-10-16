@@ -1,0 +1,20 @@
+name: Feature request
+description: An idea for something Agent World should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you are trying to do
+      description: The situation first, before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like to see
+      description: A sketch or a screenshot of something similar is welcome.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead

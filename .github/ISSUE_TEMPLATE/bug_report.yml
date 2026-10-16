@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in Agent World does not work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: For a security problem, do not file it here: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Hire an agent in a git project\n2. Send it …\n3. …"
+  - type: input
+    id: version
+    attributes:
+      label: Agent World version
+      description: From Settings, or the name of the installer you used.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: program
+    attributes:
+      label: Agent program and its version
+      description: Claude Code or Antigravity (agy), and the output of `claude --version` or `agy --version`.
