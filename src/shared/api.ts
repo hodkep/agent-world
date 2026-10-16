@@ -242,8 +242,10 @@ export interface AwApi {
   landingHolds(): Promise<LandingHold[]>
   /** The person allows the held branch of this agent to land anyway; the agent's next try goes through. */
   landingAllow(agentId: string): Promise<void>
-  /** The person says not yet: the held merge is dropped from the list. */
-  landingDismiss(agentId: string): Promise<void>
+  /** The person says not yet: the band is put away and the marker on the run's track stays. */
+  landingDecline(agentId: string): Promise<void>
+  /** The person opens the band again from the marker. */
+  landingReopen(agentId: string): Promise<void>
   /** The person has seen these findings (by position) of the audit of the branch as it is now. */
   finishSeen(agentId: string, which: number[]): Promise<void>
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
@@ -426,9 +428,10 @@ export interface AwApi {
   code: CodeApi
 }
 
-/** A merge into the base branch that git held back: which agent, which commit of its branch, and what holds it. */
+/** A merge into the base branch that git held back: which agent, which commit of its branch, what holds it, and whether the person said not yet (the band is put away, the marker stays). */
 export interface LandingHold {
   agentId: string
   head: string
   held: string[]
+  declined: boolean
 }

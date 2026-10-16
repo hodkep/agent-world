@@ -3032,6 +3032,26 @@ svg.pxg { display: block; flex: none; }
 .track .st:first-child .rt-bubble::before { left: 16px; margin-left: 0; }
 .track .st:first-child .rt-bubble::after { left: 18px; margin-left: 0; }
 
+/* ---- A merge git held: the marker on the track, and the band under it where the person decides ---- */
+.run-track.bar .pill.land { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; background: color-mix(in srgb, var(--accent) 14%, var(--panel-3)); color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--ink)); border: 0; padding: 1px 8px; }
+.run-track.bar .pill.land.notyet { background: var(--panel-3); color: var(--muted); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.run-track.bar .pill.land.notyet:hover { color: var(--text); background: var(--panel-hover); }
+.land-band { margin: 0 12px 8px; padding: 10px 12px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--accent-dim), 0 0 0 3px var(--ink); font-size: 12px; color: var(--muted); }
+.land-band h3 { margin: 0 0 2px; display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; color: var(--text); }
+.land-band .tag { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.land-band p { margin: 0 0 8px; max-width: none; }
+.lb-find { list-style: none; margin: 0 0 4px; padding: 0; }
+.lb-find li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 5px 0; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); color: var(--text); }
+.lb-find small { display: block; margin-top: 1px; font-size: 11px; color: var(--muted); }
+.lb-tick { all: unset; box-sizing: border-box; width: 14px; height: 14px; margin-top: 2px; display: grid; place-items: center; cursor: pointer; box-shadow: 0 0 0 1px var(--muted); color: var(--ink); }
+.lb-tick.on { background: var(--ok-text); box-shadow: none; cursor: default; }
+.lb-tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lb-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.lb-go { background: var(--accent); color: var(--ink); font-weight: 700; }
+.lb-go:hover { background: var(--accent-hot); }
+.lb-ghost { background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--muted); }
+.lb-why { margin-left: auto; font-size: 11px; color: var(--muted); max-width: 220px; text-align: right; }
+.lb-note { font-style: italic; }
 /* ---- The Runs tab: two charts, then a ledger of the runs grouped by what to do about them ---- */
 .rb { display: flex; flex-direction: column; gap: 12px; }
 .rb-charts { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; padding: 4px 0 14px; border-bottom: 1px solid var(--line); }

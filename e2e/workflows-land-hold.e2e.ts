@@ -7,6 +7,8 @@ import { hire, launchApp } from './launch'
 
 const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key.' }, { kind: 'guess-wrong', text: 'Saved in localStorage.' }] })
 
+const JOURNEY = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }] }
+
 async function office(name: string) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), `aw-${name}-`)))
   const repo = join(tmp, 'shop')
@@ -38,7 +40,7 @@ async function office(name: string) {
   const log = join(home, 'runs.jsonl')
   const t = Date.now()
   appendFileSync(log, [
-    { k: 'begin', t: t - 5000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a dark-mode toggle' },
+    { k: 'begin', t: t - 5000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a dark-mode toggle', workflow: JOURNEY },
     { k: 'plan', t: t - 4000, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a dark-mode toggle to Settings.', assumptions: [], outOfScope: ['A theme per project.'], questions: [] } },
     { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' }
   ].map((e) => JSON.stringify(e)).join('\n') + '\n')
@@ -83,6 +85,45 @@ test('the same merge goes through with no say from the person once the findings 
     expect((await o.merge()).ok).toBe(true)
     await expect.poll(o.landed).toMatchObject({ how: 'checked', held: [] })
     expect(await o.page.evaluate(() => window.aw.landingHolds())).toEqual([])
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a held merge shows in the agent\'s chat as a marker on the run track with the band under it, where the findings are ticked and the person says Land anyway or Not yet, and in the agent\'s Workflow tab as the same status', async () => {
+  const o = await office('wfland3')
+  try {
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.merge()
+    await expect.poll(async () => (await o.merge()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.')
+    const track = o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).first()
+    const band = o.page.getByRole('region', { name: "ada's merge is held" })
+    // The marker is on the track and the band sits right under it, with what holds the merge and the findings to tick.
+    await expect(track.getByText('Land held', { exact: true })).toBeVisible()
+    await expect(band).toBeVisible()
+    await expect(band).toContainText('2 audit findings have not been seen.')
+    await expect(band.getByRole('list', { name: 'What the review found' })).toContainText('Adds a project key')
+    const [t, b] = [await track.boundingBox(), await band.boundingBox()]
+    expect(b!.y).toBeGreaterThanOrEqual(t!.y + t!.height - 1)
+    // Ticking a finding changes what holds it.
+    await band.getByRole('checkbox', { name: 'Seen: Adds a project key' }).click()
+    await expect(band).toContainText('1 audit finding has not been seen.')
+    // Not yet puts the band away and leaves the marker, which brings it back.
+    await band.getByRole('button', { name: 'Not yet' }).click()
+    await expect(band).toHaveCount(0)
+    await expect(track.getByRole('button', { name: 'Land held · not yet' })).toBeVisible()
+    // The agent's Workflow tab says the same.
+    await o.page.getByRole('tab', { name: /^Workflow/ }).click()
+    await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).last()).toContainText('Land held · not yet')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await track.getByRole('button', { name: 'Land held · not yet' }).click()
+    await expect(band).toBeVisible()
+    // The agent's next try after Land anyway goes through, and the band and marker go.
+    await band.getByRole('button', { name: 'Land anyway' }).click()
+    await expect(band).toHaveCount(0)
+    expect((await o.merge()).ok).toBe(true)
+    await expect(track.getByText(/Land held/)).toHaveCount(0)
+    await expect.poll(o.landed).toMatchObject({ how: 'anyway' })
   } finally {
     await o.shutdown()
   }

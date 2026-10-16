@@ -26,13 +26,16 @@ export interface Track {
   note?: string
 }
 
+/** The landing is the agent's to do when the person asks it in the chat; the office holds it until its gates are met. */
+const LAND_ASK = 'ready to land: ask the agent'
+
 function waitingFor(kind: StepKind, state: string, runDone: boolean): string | undefined {
   if (kind === 'plan' && state === 'waiting') return 'needs your approval'
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
   if (kind === 'check' && state === 'waiting') return 'its commands need your approval'
   if (kind === 'check' && state === 'failed') return 'out of tries: your call'
-  if (kind === 'audit' && runDone) return 'ready at Finish'
-  if (kind === 'merge' && state === 'waiting') return 'ready to land'
+  if (kind === 'audit' && runDone) return LAND_ASK
+  if (kind === 'merge' && state === 'waiting') return LAND_ASK
   return undefined
 }
 
@@ -58,4 +61,12 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   const waiting = waitingFor(here.kind, here.state, run.status === 'done')
   const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
   return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
+}
+
+export type LandingPill = { kind: 'held' | 'notyet'; text: string }
+
+/** The marker on a run's track when git held the agent's merge into the base branch: held while the band asks the person, and "not yet" once they put the band away. */
+export function landingPill(hold: { declined: boolean } | undefined): LandingPill | null {
+  if (!hold) return null
+  return hold.declined ? { kind: 'notyet', text: 'Land held · not yet' } : { kind: 'held', text: 'Land held' }
 }

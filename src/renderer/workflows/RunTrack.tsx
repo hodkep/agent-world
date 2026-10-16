@@ -1,6 +1,6 @@
 import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 import { Sprite } from '../pixel/Pixels'
-import type { Station, Track } from '../../shared/runTrack'
+import type { LandingPill, Station, Track } from '../../shared/runTrack'
 
 const ICON: Record<Station['kind'], HeaderIconName> = { plan: 'file', work: 'terminal', approve: 'tick', check: 'tick', audit: 'search', merge: 'flag' }
 const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'not asked' }
@@ -9,7 +9,8 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  * Where one open run stands: its steps as stations on a rail, the agent standing on the one it is at, and a speech bubble when it waits on the person.
  * Shown above the agent's chat while a task is open (and again in its Workflow tab), so the calls that move the run need no lines in the conversation.
  */
-export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar' }) {
+export function RunTrack({ track, seed, agentName, variant = 'full', landing, onReopen }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar'; /** Git held the agent's merge: the marker that says so, in place of what the run waits for. */ landing?: LandingPill | null; /** The person opens the band again from a marker they had said not yet to. */ onReopen?: () => void }) {
+  const said = landing?.text ?? track.waiting ?? track.note
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
   const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : ICON[s.kind])
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
@@ -30,7 +31,14 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
             </li>
           ))}
         </ol>
-        {(track.waiting ?? track.note) && <span className="pill" role="status" title={track.waiting ?? track.note}>{track.waiting ?? track.note}</span>}
+        {landing ? (
+          <button className={`pill land ${landing.kind}`} title={landing.kind === 'notyet' ? 'Open the held merge again' : 'The merge into the base branch is held: decide below'} onClick={landing.kind === 'notyet' ? onReopen : undefined}>
+            <OutlineIcon name="flag" size={12} />
+            {landing.text}
+          </button>
+        ) : (
+          said && <span className="pill" role="status" title={said}>{said}</span>
+        )}
       </div>
     )
   return (
@@ -40,13 +48,13 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
         <span>{track.workflow}</span>
         {track.round > 1 && <em>round {track.round}</em>}
       </div>
-      <ol className={`track ${track.waiting ?? track.note ? 'hb' : ''}`}>
+      <ol className={`track ${said ? 'hb' : ''}`}>
         {track.stations.map((s, i) => {
           return (
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`}>
               {i === track.at && (
                 <span className="agent">
-                  {(track.waiting ?? track.note) && <span className="rt-bubble" role="status">{track.waiting ?? track.note}</span>}
+                  {said && <span className="rt-bubble" role="status">{said}</span>}
                   <Sprite seed={seed} />
                 </span>
               )}
