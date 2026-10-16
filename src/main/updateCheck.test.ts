@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { buildInfo, isNewer, latestRelease, parseRepo, updateMode } from './updateCheck'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { buildInfo, isNewer, latestRelease, parseRepo, startChecks, updateMode } from './updateCheck'
 
 describe('the repository an installed app takes its releases from', () => {
   it('reads it from the repository field of package.json in the forms npm allows', () => {
@@ -46,6 +46,43 @@ describe('whether an installed app can install an update itself', () => {
   })
   it('does nothing for a build that is not installed', () => {
     expect(updateMode({ packaged: false, platform: 'darwin', signed: false })).toBe('off')
+  })
+})
+
+describe('when the app looks for a new version by itself', () => {
+  afterEach(() => vi.useRealTimers())
+  it('looks once a little after it starts, and again every six hours while it is open', async () => {
+    vi.useFakeTimers()
+    const run = vi.fn(async () => undefined)
+    const stop = startChecks(run)
+    expect(run).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(run).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(6 * 3600_000 - 21_000)
+    expect(run).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(run).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(6 * 3600_000)
+    expect(run).toHaveBeenCalledTimes(3)
+    stop()
+    await vi.advanceTimersByTimeAsync(24 * 3600_000)
+    expect(run).toHaveBeenCalledTimes(3)
+  })
+  it('keeps going after a look that failed, and does not start a look while the last one is still running', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    const run = vi.fn(async () => {
+      calls++
+      if (calls === 1) throw new Error('offline')
+      await new Promise((r) => setTimeout(r, 7 * 3600_000))
+    })
+    startChecks(run)
+    await vi.advanceTimersByTimeAsync(20_000)
+    await vi.advanceTimersByTimeAsync(6 * 3600_000)
+    expect(run).toHaveBeenCalledTimes(2)
+    // the second look is still waiting when the third time comes round
+    await vi.advanceTimersByTimeAsync(6 * 3600_000 - 5_000)
+    expect(run).toHaveBeenCalledTimes(2)
   })
 })
 

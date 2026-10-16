@@ -96,6 +96,7 @@ const api: AwApi = {
   saveNotes: (id) => ipcRenderer.invoke('notes:save', id),
   resync: () => ipcRenderer.invoke('resync'),
   checkUpdates: () => ipcRenderer.invoke('updates:check'),
+  updateState: () => ipcRenderer.invoke('updates:state'),
   onUpdateState: on('update-state'),
   getPrefs: () => ipcRenderer.invoke('prefs:get'),
   setPrefs: (p) => ipcRenderer.invoke('prefs:set', p),
