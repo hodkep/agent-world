@@ -1,15 +1,26 @@
 import type { Row } from './format'
-import { parseMcpName } from './mcp'
+import { humanize, parseMcpName } from './mcp'
 import type { ToolRun } from './ToolCard'
 import type { StepGroup } from './stepGroups'
 
-/** The office's own bookkeeping: library skips and reads, todo changes, shared notes. They are not the agent's work on a project, so a run of them folds into one quiet line. */
-const OFFICE_TOOLS = new Set(['library_skip', 'library_get', 'library_index', 'library_search', 'todo_add', 'todo_update', 'todo_done', 'todo_claim', 'todo_get', 'todo_list', 'todo_search', 'remember', 'recall'])
 const OFFICE_SERVER = 'agent-world'
+/** The office's tools that have a card of their own (messages and subagents): they are the agent's dealings with others, not bookkeeping. */
+const OWN_CARD = new Set(['send_message', 'list_agents', 'spawn_subagent', 'await_subagents', 'stop_subagent'])
+/** The calls that move a run along: the track above the chat shows them, so the chat does not. */
+const RUN_TOOLS = new Set(['task_begin', 'task_done', 'step_done', 'plan_submit'])
 
+export function runCall(name: string): boolean {
+  const m = parseMcpName(name)
+  return !!m && m.server === OFFICE_SERVER && RUN_TOOLS.has(m.tool)
+}
+
+/**
+ * The office's own bookkeeping: every tool of its server except those with a card of their own and the calls that move a run (library skips and reads, todo
+ * changes, notes, the builder's workflow tools, and any the office adds later). They are not the agent's work on a project, so a run of them folds into one quiet line.
+ */
 export function officeTool(name: string): string | null {
   const m = parseMcpName(name)
-  return m && m.server === OFFICE_SERVER && OFFICE_TOOLS.has(m.tool) ? m.tool : null
+  return m && m.server === OFFICE_SERVER && !OWN_CARD.has(m.tool) && !RUN_TOOLS.has(m.tool) ? m.tool : null
 }
 
 type Call = Extract<Row, { kind: 'tool' }>
@@ -20,7 +31,10 @@ export interface OfficeGroup {
   calls: Call[]
 }
 
-/** Runs of office calls between other rows become one group, a single call too. A failed call is left as its own card, so it is not missed. */
+/**
+ * Runs of office calls between other rows become one group, a single call too. A failed call is left as its own card, so it is not missed. The calls that move a run
+ * leave the chat altogether (the track shows them), unless one failed.
+ */
 export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | OfficeGroup)[] {
   const out: (Row | StepGroup | OfficeGroup)[] = []
   let run: Call[] = []
@@ -29,6 +43,7 @@ export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | Offic
     run = []
   }
   for (const r of rows) {
+    if (r.kind === 'tool' && runCall(r.run.name) && !r.run.result?.isError) continue
     if (r.kind === 'tool' && officeTool(r.run.name) && !r.run.result?.isError) run.push(r)
     else (flush(), out.push(r))
   }
@@ -36,7 +51,7 @@ export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | Offic
   return out
 }
 
-export type WhisperKind = 'skip' | 'read' | 'todo' | 'note'
+export type WhisperKind = 'skip' | 'read' | 'todo' | 'note' | 'workflow' | 'other'
 export interface Whisper {
   kind: WhisperKind
   icon: string
@@ -66,14 +81,54 @@ export function whisperOf(run: ToolRun): Whisper {
     case 'todo_claim': return { kind: 'todo', icon: '✓', bold: task, rest: '', why: 'claimed' }
     case 'todo_get': return { kind: 'todo', icon: '✓', bold: task, rest: '', why: 'looked at' }
     case 'todo_search': return { kind: 'todo', icon: '✓', bold: 'Searched', rest: 'todos', why: clip(str(i.query), 80) }
+    case 'todo_list': return { kind: 'todo', icon: '✓', bold: 'Looked through', rest: 'todos', why: '' }
     case 'remember': return { kind: 'note', icon: '✎', bold: 'Noted', rest: clip(str(i.text) || str(i.note), 120), why: '' }
     case 'recall': return { kind: 'note', icon: '⌕', bold: 'Recalled', rest: clip(str(i.query), 80), why: '' }
-    default: return { kind: 'todo', icon: '✓', bold: 'Looked through', rest: 'todos', why: '' }
+    case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
+    case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
+    case 'workflow_propose': return { kind: 'workflow', icon: '⚑', bold: 'Proposed', rest: proposedId(i.file), why: '' }
+    default: return { kind: 'other', icon: '·', bold: humanize(tool), rest: '', why: '' }
   }
 }
 
+/** The id inside a proposed workflow file, or a plain word when the text is not a workflow. */
+function proposedId(file: unknown): string {
+  try {
+    const id = (JSON.parse(typeof file === 'string' ? file : '') as { id?: unknown }).id
+    return typeof id === 'string' && id ? id : 'a workflow'
+  } catch {
+    return 'a workflow'
+  }
+}
+
+export type StampKind = 'library' | 'todo' | 'note' | 'flag' | 'plan'
+export interface Stamp {
+  kind: StampKind
+  /** The few words beside the picture; none when the picture says it. */
+  label: string
+  /** What the call was, for the tip over the stamp. */
+  tip: string
+  /** `skip`: a library rule passed over, shown quieter; `wait`: the call is still running. */
+  state: '' | 'skip' | 'wait'
+}
+
+/** One office call as a stamp: a picture for its area, a few words, and the whole sentence for the tip. */
+export function stampOf(run: ToolRun, working = false): Stamp {
+  const tool = officeTool(run.name) ?? ''
+  const i = run.input as Record<string, unknown>
+  const w = whisperOf(run)
+  const tip = `${[w.bold, w.rest].filter(Boolean).join(' ')}${w.why ? ` · ${w.why}` : ''}`
+  const state: Stamp['state'] = tool === 'library_skip' ? 'skip' : !run.result && working ? 'wait' : ''
+  if (tool.startsWith('library_')) return { kind: 'library', label: tool === 'library_skip' ? `skip ${str(i.id)}` : tool === 'library_get' ? str(i.id) : '', tip, state }
+  if (tool === 'todo_add') return { kind: 'todo', label: clip(str(i.title), 14), tip, state }
+  if (tool.startsWith('todo_')) return { kind: 'todo', label: str(i.id) ? `#${str(i.id)}` : '', tip, state }
+  if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: '', tip, state }
+  if (tool === 'workflow_propose') return { kind: 'plan', label: '', tip, state }
+  return { kind: 'flag', label: '', tip, state }
+}
+
 export interface SummaryPart {
-  area: 'Library' | 'Todo' | 'Notes'
+  area: 'Library' | 'Todo' | 'Notes' | 'Workflow'
   text: string
 }
 
@@ -84,6 +139,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
   let looked = false
   const tasks = new Map<string, string[]>()
   const notes = new Set<string>()
+  const flows = new Set<string>()
   const order: SummaryPart['area'][] = []
   const seen = (a: SummaryPart['area']) => order.includes(a) || order.push(a)
   for (const c of calls) {
@@ -92,6 +148,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     if (tool === 'library_skip') (seen('Library'), skipped.push(str(i.id)))
     else if (tool === 'library_get') (seen('Library'), !read.includes(str(i.id)) && read.push(str(i.id)))
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
+    else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' ? 'read' : 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
     else if (tool.startsWith('todo_')) {
@@ -109,7 +166,8 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
       parts.push({ area, text: bits.join(' · ') })
     } else if (area === 'Todo') {
       parts.push({ area, text: [...tasks].map(([k, v]) => `${k ? `${k} ` : ''}${v.join(', ')}`).join('; ') })
-    } else parts.push({ area, text: [...notes].join(' · ') })
+    } else if (area === 'Workflow') parts.push({ area, text: [...flows].join(' · ') })
+    else parts.push({ area, text: [...notes].join(' · ') })
   }
   // One call says its reason or title as well.
   if (calls.length === 1 && parts[0]) {

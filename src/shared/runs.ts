@@ -88,6 +88,8 @@ export interface RoundPlan {
   decidedAt?: number
   note?: string
   answers?: PlanAnswer[]
+  /** How often the person sent it back for changes before this version; kept when it is submitted again. */
+  sentBack?: number
 }
 export interface RunCommit {
   sha: string
@@ -126,6 +128,8 @@ export interface Run {
   endedAt?: number
   summary?: string
   rounds: Round[]
+  /** How often work was sent back to it after it said it was done (a check that failed, or the person's changes). */
+  reopened?: number
   /** The audit of the branch head the person last looked at, if one ran. */
   audit?: RunAudit
   landed?: Landed
@@ -145,6 +149,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     if (e.k === 'reopen') {
       if (r.status !== 'done') continue
       r.status = 'open'
+      r.reopened = (r.reopened ?? 0) + 1
       delete r.endedAt
       delete r.summary
       delete round.endedAt
@@ -155,10 +160,10 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     } else if (e.k === 'plan') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (!into) continue
-      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, ...(e.check && { check: e.check }), submittedAt: e.t }
+      if (e.state === 'submitted') into.plan = { state: 'submitted', path: e.path, readback: e.readback, ...(e.check && { check: e.check }), submittedAt: e.t, ...(into.plan?.sentBack && { sentBack: into.plan.sentBack }) }
       else if (e.state === 'released' && !into.plan) into.plan = { state: 'released', path: '', readback: { goal: '', assumptions: [], outOfScope: [], questions: [] }, submittedAt: e.t, decidedAt: e.t }
       else if (into.plan) {
-        into.plan = { ...into.plan, state: e.state, decidedAt: e.t, ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
+        into.plan = { ...into.plan, state: e.state, decidedAt: e.t, ...(e.state === 'changes' && { sentBack: (into.plan.sentBack ?? 0) + 1 }), ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
       }
     } else if (e.k === 'step') {
       r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })

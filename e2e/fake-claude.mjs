@@ -465,6 +465,17 @@ if (process.env.FAKE_CHAT) {
       done(d, 'Marked todo#14 done.')
       say('All set: todo#14 is finished and `todo#99` stays code. See todo #9 too.')
     }
+    // FAKE_RUNCALLS=1: the calls that move a workflow run, a library read, and one step report that failed.
+    if (process.env.FAKE_RUNCALLS) {
+      const t = 'mcp__agent-world__'
+      done(use(`${t}task_begin`, { title: 'Add wordCount' }), 'Task begun: Add wordCount')
+      done(use(`${t}plan_submit`, { path: '.agent-world/plan.md' }), 'Plan submitted.')
+      done(use(`${t}library_get`, { id: 'tdd' }), '# tdd\nRed, green.')
+      done(use(`${t}step_done`, { step: 'build' }), 'Step "build" reported done.')
+      done(use(`${t}step_done`, { step: 'build' }), 'No task is open.', true)
+      done(use(`${t}task_done`, { summary: 'wordCount added' }), 'Task done.')
+      say('Done with wordCount.')
+    }
     // FAKE_FILES=1: the agent makes a few files and names them in its reply, as a real one does.
     if (process.env.FAKE_FILES) {
       const fs = await import('node:fs')

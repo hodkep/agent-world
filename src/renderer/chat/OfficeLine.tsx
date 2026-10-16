@@ -1,29 +1,40 @@
 import { useState } from 'react'
 import type { PictureSet } from './gallery'
-import { type OfficeGroup, summaryOf, whisperOf } from './officeCalls'
+import { Glyph } from '../pixel/Pixels'
+import { type OfficeGroup, type Stamp, stampOf, summaryOf, whisperOf } from './officeCalls'
 import { ToolCard } from './ToolCard'
 
+const MAX_STAMPS = 10
+
+/** One office call as a small picture with a few words; the tip says the whole of it. */
+function StampView({ stamp }: { stamp: Stamp }) {
+  return (
+    <span className={`stamp stamp-${stamp.kind} ${stamp.state}`} title={stamp.tip}>
+      <Glyph name={stamp.kind} />
+      {stamp.label && <b>{stamp.label}</b>}
+    </span>
+  )
+}
+
 /**
- * The office's own calls (library skips and reads, todo changes, notes) as one quiet line: what was done, counted. A click opens a line for each call, and a click on one of those
- * opens the same card as any tool call has. A call still running shows a spinner; a failed call is not here at all, it is a card of its own.
+ * The office's own calls (library skips and reads, todo changes, notes, the builder's workflow tools) as a short row of stamps, one picture for each. A click opens a line for each
+ * call, and a click on one of those opens the same card as any tool call has. A call still running has a brass rim and a spinner; a failed call is not here at all, it is a card of its own.
  */
 export function OfficeLine({ group, working, onImage }: { group: OfficeGroup; working: boolean; onImage: (src: string, set?: PictureSet) => void }) {
   const [open, setOpen] = useState(false)
   const [cards, setCards] = useState<ReadonlySet<string>>(new Set())
   const flip = (id: string) => setCards((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const parts = summaryOf(group.calls)
+  const said = parts.map((p) => `${p.area} ${p.text}`).join(', ')
   const running = working && group.calls.some((c) => !c.run.result)
+  const stamps = group.calls.map((c) => stampOf(c.run, working))
   return (
     <div className={`of ${open ? 'is-open' : ''}`}>
-      <button className="of-head" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button className="of-head" aria-expanded={open} aria-label={`Office: ${said}`} onClick={() => setOpen(!open)}>
         <span className="of-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
-        <span className="of-sum">
-          {parts.map((p, i) => (
-            <span key={p.area}>
-              {i > 0 && <span className="of-sep"> · </span>}
-              <b>{p.area}</b> {p.text}
-            </span>
-          ))}
+        <span className="strip">
+          {stamps.slice(0, MAX_STAMPS).map((s, i) => <StampView key={i} stamp={s} />)}
+          {stamps.length > MAX_STAMPS && <span className="more">+{stamps.length - MAX_STAMPS}</span>}
         </span>
         {running && <span className="su-spin of-spin" role="status" aria-label="Working" />}
       </button>

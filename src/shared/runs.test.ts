@@ -67,6 +67,13 @@ describe('a run that is opened again because work was sent back', () => {
     expect(r!.rounds[0]!.commits).toHaveLength(1)
   })
 
+  it('counts how often work was sent back to it; a run never reopened has no count', () => {
+    const [twice] = reduceRuns([begin('r1', 1000), { k: 'done', t: 2000, run: 'r1' }, { k: 'reopen', t: 3000, run: 'r1' }, { k: 'done', t: 4000, run: 'r1' }, { k: 'reopen', t: 5000, run: 'r1' }])
+    expect(twice!.reopened).toBe(2)
+    expect(reduceRuns([begin('r1', 1000), { k: 'done', t: 2000, run: 'r1' }])[0]!.reopened).toBeUndefined()
+    expect(reduceRuns([begin('r1', 1000), { k: 'reopen', t: 3000, run: 'r1' }])[0]!.reopened).toBeUndefined()
+  })
+
   it('does not reopen a run that was stopped, or one that is already open', () => {
     expect(reduceRuns([begin('r1', 1000), { k: 'stop', t: 2000, run: 'r1' }, { k: 'reopen', t: 3000, run: 'r1' }])[0]!.status).toBe('stopped')
     expect(reduceRuns([begin('r1', 1000), { k: 'reopen', t: 3000, run: 'r1' }])[0]!.status).toBe('open')
@@ -96,7 +103,7 @@ describe('a round\'s plan', () => {
       { k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback },
       { k: 'plan', t: 300, run: 'r1', round: 1, state: 'changes', note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] }
     ])
-    expect(r!.rounds[0]!.plan).toEqual({ state: 'changes', path: '.agent-world/plan.md', readback, submittedAt: 200, decidedAt: 300, note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] })
+    expect(r!.rounds[0]!.plan).toEqual({ state: 'changes', path: '.agent-world/plan.md', readback, submittedAt: 200, decidedAt: 300, sentBack: 1, note: 'Also cover the settings page.', answers: [{ question: 'Every window?', answer: 'Every window' }] })
   })
 
   it('a resubmitted plan replaces the old one and is waiting again; approving ends the wait', () => {
@@ -108,6 +115,15 @@ describe('a round\'s plan', () => {
     const approved = reduceRuns([...base, { k: 'plan', t: 500, run: 'r1', round: 1, state: 'approved' }])
     expect(approved[0]!.rounds[0]!.plan).toMatchObject({ state: 'approved', decidedAt: 500 })
     expect(pendingPlans(approved)).toEqual([])
+  })
+
+  it('counts how often it was sent back, and keeps the count when it is submitted again; a plan never sent back has none', () => {
+    const sub = (t: number): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback })
+    const back = (t: number): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state: 'changes', note: 'again' })
+    const [twice] = reduceRuns([begin('r1', 100), sub(200), back(300), sub(400), back(500), sub(600), { k: 'plan', t: 700, run: 'r1', round: 1, state: 'approved' }])
+    expect(twice!.rounds[0]!.plan).toMatchObject({ state: 'approved', sentBack: 2 })
+    const [clean] = reduceRuns([begin('r1', 100), sub(200), { k: 'plan', t: 300, run: 'r1', round: 1, state: 'approved' }])
+    expect(clean!.rounds[0]!.plan!.sentBack).toBeUndefined()
   })
 
   it('a decision with no submitted plan before it is ignored, except a release, which lifts the block even then', () => {

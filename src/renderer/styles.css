@@ -2877,9 +2877,6 @@ aside:not(.drawer) { flex: none; }
 .of-head:hover { background: var(--panel-3); color: var(--text); }
 .of-head:focus-visible, .of-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .of-caret { width: 10px; flex: none; text-align: center; }
-.of-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.of-sum b { color: #c9c8d8; font-weight: 600; }
-.of-sep { color: var(--dim); }
 .of-spin { margin: 0; flex: none; }
 .of-list { margin: 2px 0 2px 14px; display: flex; flex-direction: column; gap: 1px; }
 .of-row { all: unset; box-sizing: border-box; display: flex; align-items: baseline; gap: 7px; padding: 1px 4px 1px 8px; border-left: 2px solid var(--dim); cursor: pointer; min-width: 0; line-height: 1.5; }
@@ -3047,3 +3044,40 @@ aside:not(.drawer) { flex: none; }
 .cg-added { background: rgba(95, 158, 95, 0.22); }
 .cg-removed { background: color-mix(in srgb, var(--danger-text) 18%, transparent); }
 .plan-gate .warn { color: var(--accent); }
+
+/* ---- The office's small pictures: stamps in the chat, the track of a run ---- */
+svg.pxg { display: block; flex: none; }
+.px-x { fill: currentColor; }
+.px-o { fill: var(--paper); }
+.of .strip { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.of .more { font: 11px Menlo, Consolas, monospace; color: var(--dim); }
+.stamp { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 5px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; color: var(--muted); }
+.stamp b { font-weight: 600; color: var(--text); font-size: 11px; }
+.stamp-library { color: var(--think); } .stamp-todo { color: var(--ok); } .stamp-note { color: var(--paper); } .stamp-flag, .stamp-plan { color: var(--accent); }
+.stamp.skip { opacity: 0.6; }
+.stamp.wait { box-shadow: 0 0 0 1px var(--accent), inset 0 2px 0 rgb(255 255 255 / 0.05); }
+.run-track { flex: none; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); box-shadow: 0 2px 0 var(--ink); padding: 8px 14px 6px; }
+.run-track .rt-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; min-width: 0; }
+.run-track .rt-head b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-track .rt-head span, .run-track .rt-head em { color: var(--muted); font-style: normal; flex: none; }
+.track { list-style: none; margin: 0; padding: 30px 6px 2px; display: flex; align-items: flex-end; }
+.track.hb { padding-top: 50px; }
+.track .st { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.track .st:not(:first-child)::before { content: ''; position: absolute; left: -50%; width: 100%; top: 8px; height: 4px; background: var(--dim); box-shadow: 0 0 0 1px var(--ink); }
+.track .st.rail-on::before { background: var(--ok); }
+.track .sq { position: relative; width: 20px; height: 20px; display: grid; place-items: center; background: var(--well); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--dim); color: var(--muted); }
+.track .st.done .sq, .track .st.trouble .sq, .track .st.failed .sq, .track .st.now .sq { color: var(--ink); box-shadow: 0 0 0 2px var(--ink); }
+.track .st.done .sq { background: var(--ok); }
+.track .st.trouble .sq, .track .st.now .sq { background: var(--accent); }
+.track .st.failed .sq { background: var(--danger); }
+.track .st.now .sq { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim); }
+.track .nm { font-size: 11px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track .st.now .nm { color: var(--text); font-weight: 700; }
+.track .agent { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.track .agent svg { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
+.bubble { position: relative; margin-bottom: 7px; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 600; padding: 1px 7px; box-shadow: 0 0 0 2px var(--ink); }
+.bubble::before { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -3px; border: 3px solid transparent; border-top-color: var(--paper); border-bottom: 0; }
+.track .st:first-child .bubble { left: 46px; }
+.track .st:first-child .bubble::before { left: 16px; margin-left: 0; }
+.track .st:first-child .bubble::after { left: 18px; margin-left: 0; }
