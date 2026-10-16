@@ -54,7 +54,7 @@ export function NeedPanel({ need, actions, onFinishInTerminal, hint, onProgress 
         {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
         {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
         {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
-        {need.kind === 'menu' && <TerminalChoice menu={need} onPick={(i) => attempt(() => actions.menu(i))} onCancel={() => attempt(actions.cancelMenu)} />}
+        {need.kind === 'menu' && <TerminalChoice menu={need} onPick={(i) => attempt(() => actions.menu(i))} onCancel={() => attempt(actions.cancelMenu)} onTerminal={onFinishInTerminal} />}
       </div>
       {error && (
         <div className="dialog-error" role="alert">
@@ -411,7 +411,7 @@ function Questions({
 }
 
 /** One of Claude's own menus, answered here: what it is about, then each option as a button. */
-function TerminalChoice({ menu, onPick, onCancel }: { menu: TerminalMenu; onPick: (i: number) => Promise<void>; onCancel: () => Promise<void> }) {
+function TerminalChoice({ menu, onPick, onCancel, onTerminal }: { menu: TerminalMenu; onPick: (i: number) => Promise<void>; onCancel: () => Promise<void>; onTerminal: () => void }) {
   const [busy, setBusy] = useState(false)
   const go = async (f: () => Promise<void>) => {
     setBusy(true)
@@ -423,14 +423,23 @@ function TerminalChoice({ menu, onPick, onCancel }: { menu: TerminalMenu; onPick
       <p className="dialog-line">{menu.title}</p>
       {menu.context && <pre className="dialog-code">{menu.context}</pre>}
       <div className="dialog-actions choice-buttons">
+        {/* A screen that takes a code from the browser or typing can only be finished in the terminal. */}
+        {menu.terminalOnly && (
+          <button className="primary" onClick={onTerminal}>
+            Open terminal
+          </button>
+        )}
         {menu.options.map((o, i) => (
           <button key={o} className={i === 0 ? 'primary' : ''} disabled={busy} onClick={() => void go(() => onPick(i))}>
             {o}
           </button>
         ))}
-        <button disabled={busy} onClick={() => void go(onCancel)} title={menu.hint}>
-          Cancel
-        </button>
+        {/* Esc does nothing on a new Claude Code's first questions, so a Cancel there would do nothing either. */}
+        {!menu.terminalOnly && menu.cancellable !== false && (
+          <button disabled={busy} onClick={() => void go(onCancel)} title={menu.hint}>
+            Cancel
+          </button>
+        )}
       </div>
     </>
   )

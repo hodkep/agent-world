@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { Menu, TerminalIO, TrustPrompt } from '../ports'
 import { inputBoxAfter } from './box'
+import { firstRunScreen } from './firstRun'
 
 const YES = 'Yes, I trust this folder'
 const CONFIRM = 'Enter to confirm'
@@ -23,7 +24,7 @@ export function trustPrompt(screen: string): TrustPrompt | null {
 
 /** Claude's input box (a `❯` line between rules) is on screen and no menu is in the way. */
 export function inputReady(screen: string): boolean {
-  if (trustPrompt(screen)) return false
+  if (trustPrompt(screen) || firstRunScreen(screen)) return false
   const lines = screen.split('\n').map((l) => l.trimStart())
   return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯([ \u00a0]|$)/.test(l))
 }
@@ -64,7 +65,7 @@ export function promptDialog(screen: string): { title: string; context: string; 
 
 /** Any of Claude's terminal menus is open (trust, plan, permission...): typing now would answer it. */
 export function anyMenu(screen: string): boolean {
-  if (trustPrompt(screen) || promptDialog(screen)) return true
+  if (trustPrompt(screen) || firstRunScreen(screen) || promptDialog(screen)) return true
   const lines = stripVTControlCharacters(screen).split('\n')
   const at = lines.findLastIndex((l) => /^\s*❯\s*\d+\.\s/.test(l))
   return at >= 0 && !inputBoxAfter(lines, at)

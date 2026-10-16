@@ -2,6 +2,7 @@ import { stripVTControlCharacters } from 'node:util'
 import { anyMenu, inputReady, promptDialog } from './prompts'
 import type { GenericMenu, RewindList, TerminalIO } from '../ports'
 import { inputBoxAfter } from './box'
+import { firstRunScreen } from './firstRun'
 
 const RULE = /^\s*[─▔━═]{8,}/
 const OPTION = /^\s*(❯)?\s*(\d+)\.\s+(\S.*?)\s*$/
@@ -11,6 +12,9 @@ const OPTION = /^\s*(❯)?\s*(\d+)\.\s+(\S.*?)\s*$/
  * confirmation, a model picker… One `❯` cursor sits on one of a run of options numbered from 1.
  */
 export function genericMenu(screen: string): GenericMenu | null {
+  // The first questions of a new Claude Code are drawn with no rule above them and some of them with no numbers, so they are read on their own.
+  const first = firstRunScreen(screen)
+  if (first) return { title: first.title, context: first.context, options: first.options, highlighted: first.highlighted, hint: first.hint, cancellable: first.cancellable, terminalOnly: first.terminalOnly }
   const lines = stripVTControlCharacters(screen).split('\n')
   // The last run of consecutively numbered options that carries the cursor.
   for (let end = lines.length - 1; end >= 0; end--) {

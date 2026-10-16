@@ -253,6 +253,10 @@ export interface TerminalMenu {
   context: string
   options: string[]
   hint: string
+  /** False when Esc does nothing on this screen, so the card has no Cancel. */
+  cancellable?: boolean
+  /** The screen takes typing or a browser, so the card says to finish it in the terminal and has no choices. */
+  terminalOnly?: boolean
 }
 
 /** Changes to the MCP servers and plugins an agent's Claude uses. */
