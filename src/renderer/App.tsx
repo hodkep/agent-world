@@ -661,7 +661,7 @@ export function App() {
   const trackFor = (a: AgentRecord) => {
     const run = wf.runs.filter((r) => r.agent === a.id).at(-1)
     const t = run && prefs && workflowsShown(prefs.workflows.enabled, wf.open) ? trackOf(run, ctxFor(run)) : undefined
-    return t && <RunTrack track={t} seed={a.id} agentName={a.name} />
+    return t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" />
   }
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView

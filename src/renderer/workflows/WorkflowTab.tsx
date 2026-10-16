@@ -38,7 +38,9 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
           <div key={d.label} role="listitem" aria-label={d.label} className={`wt-day ${d.today ? 'today' : ''}`}>
             <small>{d.label}</small>
             {d.runs.map((r) => (
-              <button key={r.id} className={`mo-t ${r.kind}`} aria-label={`${r.title}: ${VERDICT[r.kind]}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)} />
+              <button key={r.id} className={`wt-tile ${r.kind}`} aria-label={`${r.title}: ${VERDICT[r.kind]}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)}>
+                <span>{r.title}</span>
+              </button>
             ))}
           </div>
         ))}

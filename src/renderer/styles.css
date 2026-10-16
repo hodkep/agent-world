@@ -3020,9 +3020,11 @@ aside:not(.drawer) { flex: none; }
 svg.pxg { display: block; flex: none; }
 .px-x { fill: currentColor; }
 .px-o { fill: var(--paper); }
-.of .strip { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.px-k { fill: var(--ink); }
+.of .strip { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; align-items: center; min-width: 0; }
 .of .more { font: 11px Menlo, Consolas, monospace; color: var(--dim); }
-.stamp { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 5px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; color: var(--muted); }
+.stamp svg { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
+.stamp { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 5px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; color: var(--muted); }
 .stamp b { font-weight: 600; color: var(--text); font-size: 11px; }
 .stamp-library { color: var(--think); } .stamp-todo { color: var(--ok); } .stamp-note { color: var(--paper); } .stamp-flag, .stamp-plan { color: var(--accent); }
 .stamp.skip { opacity: 0.6; }
@@ -3114,10 +3116,33 @@ svg.pxg { display: block; flex: none; }
 .wt-day { background: var(--well); box-shadow: 0 0 0 1px var(--ink); min-height: 62px; padding: 3px; display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
 .wt-day small { font: 10px Menlo, Consolas, monospace; color: var(--dim); text-align: center; }
 .wt-day.today { box-shadow: 0 0 0 1px var(--accent); }
-.wt-day .mo-t { width: 100%; height: 12px; border: 0; padding: 0; cursor: pointer; }
-.wt-day .mo-t:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.wt-tile { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 3px 5px; background: var(--ok); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); font-size: 11px; font-weight: 600; line-height: 1.25; cursor: pointer; overflow: hidden; }
+.wt-tile span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-tile.trouble { background: var(--accent); } .wt-tile.bad { background: var(--danger); color: var(--paper); } .wt-tile.na { background: var(--well); color: var(--muted); box-shadow: 0 0 0 1px var(--dim); }
+.wt-tile.wait { background: var(--panel-2); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.wt-tile:hover { filter: brightness(1.12); }
+.wt-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wt-line { margin: 0; font-size: 11px; color: var(--muted); max-width: none; }
 .rb-commits { list-style: none; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
 .rb-commits li { display: flex; gap: 8px; align-items: baseline; color: var(--text); }
 .rb-commits .mono { color: var(--muted); font-size: 11px; }
 .rb-commits .chipw { font-size: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; color: var(--muted); }
+/* ---- The run track as one thin row above the chat ---- */
+.run-track.bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
+.run-track.bar .rt-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 140px; }
+.run-track.bar .rt-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: none; }
+.run-track.bar .pxg.spr { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
+.bar-st { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; flex: none; }
+.bar-st .st { position: relative; display: flex; align-items: center; gap: 6px; }
+.bar-st .st:not(:first-child) { margin-left: 12px; }
+.bar-st .st:not(:first-child)::before { content: ''; position: absolute; left: -12px; width: 12px; top: 50%; height: 3px; margin-top: -1px; background: var(--dim); }
+.bar-st .st.rail-on::before { background: var(--ok); }
+.bar-st .sq { position: relative; width: 18px; height: 18px; display: grid; place-items: center; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--dim); color: var(--muted); }
+.bar-st .st.done .sq, .bar-st .st.trouble .sq, .bar-st .st.failed .sq, .bar-st .st.now .sq { color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.bar-st .st.done .sq { background: var(--ok); } .bar-st .st.trouble .sq, .bar-st .st.now .sq { background: var(--accent); } .bar-st .st.failed .sq { background: var(--danger); }
+.bar-st .st.now .sq { box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px var(--accent-dim); }
+.bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
+.bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
