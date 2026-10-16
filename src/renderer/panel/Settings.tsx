@@ -274,7 +274,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
           {pane === 'updates' && (
             <>
               <legend>Updates</legend>
-              <p className="set-lead">A folder on the web holding the files the build step produces. Leave empty to never check.</p>
+              <p className="set-lead">Where to look for a newer version. Leave it empty to use this project's releases on GitHub, or give a folder on the web that holds the files the build step produces.</p>
               <label>
                 Update address
                 <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => url.trim() !== prefs.updateUrl && set({ updateUrl: url.trim() })} placeholder="https://example.com/agent-world/" />
