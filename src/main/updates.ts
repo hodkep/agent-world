@@ -1,7 +1,11 @@
 import { app } from 'electron'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { buildInfo, latestRelease, updateMode } from './updateCheck'
 import { updateFeed } from './updateFeed'
 
-export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string }
+/** `latest` and `url` are set when a newer version is out but this build cannot install it itself: the page of its release is what the person is pointed to. */
+export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }
 
 let current: UpdateState = { state: 'off' }
 let started = false
@@ -15,6 +19,19 @@ export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState)
   const set = (s: UpdateState) => ((current = s), onState(s), s)
   const feed = updateFeed(feedUrl, app.isPackaged)
   if (feed.kind === 'off') return set({ state: 'off', detail: feed.detail })
+  // A Mac build signed only ad hoc cannot be replaced by an update (macOS refuses), so it is told a newer one exists and where to get it.
+  let pkg: unknown = null
+  try {
+    pkg = JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8'))
+  } catch {
+    /* no package.json to read: the build says nothing about itself */
+  }
+  const info = buildInfo(pkg)
+  if (feed.kind === 'github' && updateMode({ packaged: app.isPackaged, platform: process.platform, signed: info.signed }) === 'tell') {
+    if (!info.repo) return set({ state: 'off', detail: 'This build does not say where its releases are.' })
+    set({ state: 'checking' })
+    return set(await latestRelease(app.getVersion(), info.repo, (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } })))
+  }
   try {
     const { autoUpdater } = await import('electron-updater')
     autoUpdater.autoDownload = true

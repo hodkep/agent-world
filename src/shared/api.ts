@@ -269,8 +269,8 @@ export interface AwApi {
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
-  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string }>
-  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string }) => void): () => void
+  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }>
+  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void

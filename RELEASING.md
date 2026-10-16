@@ -28,7 +28,7 @@ A new Mac has no `git` until Apple's command line tools are installed, and runni
 
 ## Signing the Mac build
 
-An app signed only ad hoc installs (the first launch needs a right-click and Open, see [INSTALL.md](INSTALL.md)) but **cannot update itself**: macOS refuses to replace it with an update that is not signed by the same identity. To update, the build must be signed with a Developer ID certificate and notarised, which needs an Apple Developer Program membership (paid, yearly).
+An app signed only ad hoc installs (the first launch needs Open Anyway in System Settings, see [INSTALL.md](INSTALL.md)) but **cannot update itself**: macOS refuses to replace it with an update that is not signed by the same identity. Such a build still checks: it asks GitHub for the latest release, and when that is newer it says so and points to the release page. The workflow marks a signed build (`awSigned` in the `package.json` inside the app) so the app knows it can install updates by itself. To update, the build must be signed with a Developer ID certificate and notarised, which needs an Apple Developer Program membership (paid, yearly).
 
 The workflow signs and notarises when these five repository secrets exist (Settings, Secrets and variables, Actions), and builds ad hoc without them:
 
