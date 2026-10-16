@@ -19,7 +19,8 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, extname, isAbsolute, join, relative, sep } from 'node:path'
-import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
+import { isWebUrl } from './webUrl'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -852,14 +853,6 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
 }
 
-const isLocalHttp = (u: string) => {
-  try {
-    const x = new URL(u)
-    return x.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(x.hostname)
-  } catch {
-    return false
-  }
-}
 // Electron draws no right-click menu by itself; give the app's pages and the preview panes the system's own.
 const rightClick = (contents: Electron.WebContents) =>
   contents.on('context-menu', (_e, params) => {
@@ -894,7 +887,7 @@ function createWindow() {
     prefs.nodeIntegration = false
     prefs.contextIsolation = true
     prefs.sandbox = true
-    if (!isLocalHttp(params.src ?? '')) e.preventDefault()
+    if (!isWebUrl(params.src ?? '')) e.preventDefault()
   })
   w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   w.webContents.on('will-navigate', (e) => e.preventDefault())
@@ -1939,12 +1932,19 @@ async function main() {
     )
   })
 
-  // The preview panes are <webview>s: each may only ever show local dev servers, with no access to the app.
+  // The preview panes are <webview>s: each shows a web page (a dev server on this computer, or a site on the internet the person allowed) with no access to the app,
+  // in a session of its own that keeps nothing between runs, and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
+  const preview = session.fromPartition('preview')
+  preview.setPermissionRequestHandler((_wc, _permission, done) => done(false))
+  preview.setPermissionCheckHandler(() => false)
+  preview.on('will-download', (e) => e.preventDefault())
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return
     rightClick(contents)
-    contents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    contents.on('will-navigate', (e, url) => !isLocalHttp(url) && e.preventDefault())
+    // A link that asks for a new window is followed in the same pane; the pane never opens windows of its own.
+    contents.setWindowOpenHandler(({ url }) => (isWebUrl(url) && void contents.loadURL(url).catch(() => {}), { action: 'deny' }))
+    contents.on('will-navigate', (e, url) => !isWebUrl(url) && e.preventDefault())
+    contents.on('will-redirect', (e, url) => !isWebUrl(url) && e.preventDefault())
   })
   createWindow()
   ready = true

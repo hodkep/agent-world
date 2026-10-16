@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('a local link in the chat opens in the Preview tab, ⌘/Ctrl-click opens the browser, and web links always do', async () => {
+test('a local link in the chat opens in the Preview tab, ⌘/Ctrl-click opens the browser, and a link to the internet opens there too, after the site is allowed', async () => {
   const site = createServer((req, res) => res.writeHead(200, { 'content-type': 'text/html' }).end(`<main><h1>Test site</h1><p id="where">${req.url}</p></main>`))
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', r))
   const port = (site.address() as AddressInfo).port
@@ -49,8 +49,15 @@ test('a local link in the chat opens in the Preview tab, ⌘/Ctrl-click opens th
     await expect.poll(opened).toEqual([`http://127.0.0.1:${port}/docs/start`])
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
 
-    // An address on the internet is never loaded in the Preview tab.
+    // A link to a site on the internet opens in the Preview tab too, which asks once before it loads the site; ⌘-click goes to the browser.
+    await page.getByRole('tab', { name: 'Chat' }).click()
     await log.getByRole('link', { name: 'the web' }).click()
+    await expect(page.getByRole('tab', { name: /Preview/, selected: true })).toBeVisible()
+    await expect(page.getByRole('group', { name: 'Open this site here?' })).toContainText('example.com')
+    await expect(page.locator('webview')).toHaveCount(0)
+    expect(await opened()).toEqual([`http://127.0.0.1:${port}/docs/start`])
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await log.getByRole('link', { name: 'the web' }).click({ modifiers: ['ControlOrMeta'] })
     await expect.poll(opened).toEqual([`http://127.0.0.1:${port}/docs/start`, 'https://example.com/page'])
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
 

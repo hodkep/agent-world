@@ -6,7 +6,8 @@ import { MAX_VISITS, addVisit, ago, completion, forget, suggest, type Visit } fr
 import { OutlineIcon } from './IconButton'
 import { pageLabels, pagePaths } from '../files/context'
 import { pagePath } from '../../shared/pagePath'
-import { PREVIEW_EVENT, isPreviewable, localAddress } from '../links'
+import { PREVIEW_EVENT, isPreviewable, isWebUrl, webAddress } from '../links'
+import { allowSite, forgetSite, hostOf, loadSites, needsAsking } from './previewSites'
 
 // The subset of the <webview> element used here.
 interface WebviewEl extends HTMLElement {
@@ -39,7 +40,7 @@ function loadHistory(folder: string): Visit[] {
  * The address bar: shows where the page is, and typing in it opens another address. A list under it offers the dev servers
  * running now and the pages opened before, narrowed as you type, with the best match completed in grey (Tab or → takes it).
  */
-function AddressField({ agentId, shown, state, live, history, onForget }: { agentId: string; shown: string; state?: 'up' | 'down'; live: { url: string; title: string }[]; history: Visit[]; onForget: (url: string) => void }) {
+function AddressField({ agentId, shown, state, web, live, history, onForget }: { agentId: string; shown: string; state?: 'up' | 'down'; /** A page on the internet: waiting to be allowed, loading, shown, or not loaded. */ web?: 'asking' | 'loading' | 'loaded' | 'failed'; live: { url: string; title: string }[]; history: Visit[]; onForget: (url: string) => void }) {
   const [typed, setTyped] = useState<string | null>(null)
   const [bad, setBad] = useState(false)
   const [open, setOpen] = useState(false)
@@ -67,7 +68,7 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
       )
       return
     }
-    const url = localAddress(raw)
+    const url = webAddress(raw)
     setBad(!url)
     if (!url) return
     // The same path a link in the chat takes, so a server already listed is switched to and anything else is shown by its own address.
@@ -91,7 +92,9 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
     </div>
   )
   return (
-    <div className="pa">
+    <div className={`pa ${web ? 'has-tag' : ''}`}>
+      {web && <span className={`preview-state web ${web}`} role="status" title={{ asking: 'Not opened yet', loading: 'The page is loading', loaded: 'A page on the internet', failed: 'The page did not load' }[web]}><span className="sr-only">{{ asking: 'waiting', loading: 'loading', loaded: 'web page', failed: 'not loaded' }[web]}</span></span>}
+      {web && <span className="pa-tag" aria-hidden="true">web</span>}
       {state && <span className={`preview-state ${state}`} role="status" title={state === 'up' ? 'The page is running' : 'Nothing is answering at this address'}><span className="sr-only">{state === 'up' ? 'running' : 'not answering'}</span></span>}
       <div className="pa-ghost" aria-hidden="true"><i>{typed ?? ''}</i>{rest}</div>
       <input
@@ -112,7 +115,7 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
             else if (rows[at]) go(rows[at]!.url)
           } else if (e.key === 'Escape' && (open || typed !== null)) (e.preventDefault(), e.stopPropagation(), close(), e.currentTarget.blur())
         }}
-        placeholder="Open a local address, like 5287 or localhost:3000/app, or a page like ~/design/index.html"
+        placeholder="Open an address, like 5287, localhost:3000/app or example.com, or a page like ~/design/index.html"
         aria-label="Local address to preview"
         aria-invalid={bad}
         aria-expanded={open}
@@ -131,7 +134,7 @@ function AddressField({ agentId, shown, state, live, history, onForget }: { agen
           <p className="pa-keys"><span>↑↓ choose</span><span>Tab complete</span><span>Enter open</span><span>Esc close</span></p>
         </div>
       )}
-      {bad && <span className="preview-bad" role="alert">Only addresses on this computer, like localhost:3000.</span>}
+      {bad && <span className="preview-bad" role="alert">That is not an address I can open. Try 5287, example.com or a page like ~/design/index.html.</span>}
     </div>
   )
 }
@@ -219,10 +222,16 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   }, [folder, history])
   const currentUrl = useRef('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  // The sites on the internet this Preview was told it may show.
+  const [sites, setSites] = useState(() => loadSites())
   // A link clicked in the chat opens here, whether or not the agent started that server.
   const [opened, setOpened] = useState<string | null>(null)
-  const known = opened ? servers.find((s) => new URL(opened).port === String(s.port)) : undefined
-  const askedPort = opened && !known ? Number(new URL(opened).port) || 80 : null
+  // A page on the internet is not a dev server: nothing is watched for it, and it is shown once its site is allowed.
+  const web = opened && !isPreviewable(opened) ? opened : null
+  const ask = web !== null && needsAsking(web, sites)
+  const known = opened && !web ? servers.find((s) => new URL(opened).port === String(s.port)) : undefined
+  const askedPort = opened && !known && !web ? Number(new URL(opened).port) || 80 : null
   // An address that was typed or clicked is not one the app has been watching, so it is looked at here: is anything answering?
   const [askedUp, setAskedUp] = useState(true)
   useEffect(() => {
@@ -236,16 +245,17 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       clearInterval(t)
     }
   }, [askedPort])
-  const asked: DevServer | undefined = opened && askedPort !== null ? { port: askedPort, url: opened, alive: askedUp } : undefined
+  const asked: DevServer | undefined = web ? { port: 0, url: web, alive: true } : opened && askedPort !== null ? { port: askedPort, url: opened, alive: askedUp } : undefined
   const current = asked ?? servers.find((s) => s.port === port) ?? servers.find((s) => s.alive) ?? servers[0]
   currentUrl.current = current?.url ?? ''
   const shown = current && shownAt.base === current.url ? shownAt.url : ''
   // Each screen size is a page of its own: a page given its size when it is made is the way to be sure the page sees that size.
-  const frameKey = `${current?.url}|${dev.kind}|${dev.preset}|${dev.rotated}`
+  // A site that is not allowed yet has no page, so the page that comes when it is allowed is a new one too.
+  const frameKey = `${current?.url}|${dev.kind}|${dev.preset}|${dev.rotated}|${ask}`
   useEffect(() => {
-    if (!target || !isPreviewable(target.url)) return
+    if (!target || !isWebUrl(target.url)) return
     const u = new URL(target.url)
-    const match = servers.find((s) => String(s.port) === u.port)
+    const match = isPreviewable(target.url) ? servers.find((s) => String(s.port) === u.port) : undefined
     // Another page on a server already shown: go there in place. Anything else is shown by its own address.
     if (match) {
       setOpened(null)
@@ -288,6 +298,9 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       }
     }
     const up = () => ((ready.current = true), look())
+    const start = () => setLoading(true)
+    // A page that was moved on has its place to go back to once it has stopped loading.
+    const stop = () => (setLoading(false), look())
     // A page opened or followed here is remembered, and its title is added when it arrives.
     const visited = (e: Event) => {
       const ev = e as Event & { url?: string; isMainFrame?: boolean }
@@ -308,6 +321,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
     el.addEventListener('dom-ready', up)
     el.addEventListener('did-fail-load', fail)
     el.addEventListener('did-finish-load', ok)
+    el.addEventListener('did-start-loading', start)
+    el.addEventListener('did-stop-loading', stop)
     el.addEventListener('did-navigate', visited)
     el.addEventListener('did-navigate-in-page', visited)
     el.addEventListener('page-title-updated', titled)
@@ -315,6 +330,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       el.removeEventListener('dom-ready', up)
       el.removeEventListener('did-fail-load', fail)
       el.removeEventListener('did-finish-load', ok)
+      el.removeEventListener('did-start-loading', start)
+      el.removeEventListener('did-stop-loading', stop)
       el.removeEventListener('did-navigate', visited)
       el.removeEventListener('did-navigate-in-page', visited)
       el.removeEventListener('page-title-updated', titled)
@@ -375,14 +392,15 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
     if (picking) setPicking(false)
   }
 
-  const forgetVisit = (url: string) => setHistory((h) => forget(h, url))
+  // Forgetting a page of a site on the internet also forgets that it was allowed, so the next visit asks again.
+  const forgetVisit = (url: string) => (setHistory((h) => forget(h, url)), !isPreviewable(url) && setSites(forgetSite(localStorage, hostOf(url))))
   const live = servers.filter((s) => s.alive).map((s) => ({ url: s.url, title: '' }))
 
   if (!current)
     return (
       <div className="preview empty">
         <p className="hint">
-          When {agentName} starts a dev server (Vite, Next, a Python or Node app…), its page appears here. Ask it to run the project and preview it, or open an address yourself.
+          When {agentName} starts a dev server (Vite, Next, a Python or Node app…), its page appears here. Ask it to run the project and preview it, or open an address yourself: a local one, a page file, or a site on the internet.
         </p>
         <div className="preview-nav">
           <AddressField agentId={agentId} shown="" live={live} history={history} onForget={forgetVisit} />
@@ -406,7 +424,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         <button onClick={() => view.current?.reload()} aria-label="Reload" title="Reload the page">
           <OutlineIcon name="reload" />
         </button>
-        <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={current.alive ? 'up' : 'down'} live={live} history={history} onForget={forgetVisit} />
+        <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={web ? undefined : current.alive ? 'up' : 'down'} web={web ? (ask ? 'asking' : error ? 'failed' : loading ? 'loading' : 'loaded') : undefined} live={live} history={history} onForget={forgetVisit} />
         <span className="preview-dev" ref={devWrap}>
           <button className="dev-btn" aria-haspopup="menu" aria-expanded={devMenu} aria-label={`Screen size: ${DEVICES[dev.kind].label}`} title="Screen size: see the page as it looks on a tablet or phone" onClick={() => setDevMenu((o) => !o)}>
             <OutlineIcon name={DEVICE_ICON[dev.kind]} />
@@ -427,26 +445,41 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         <button className={picking ? 'primary' : ''} aria-pressed={picking} onClick={togglePick} aria-label={picking ? 'Click an element…' : 'Select element'} title={picking ? 'Click an element on the page… (Esc cancels)' : 'Select element: point at something on the page to send it to the agent as context (Esc cancels)'}>
           <OutlineIcon name="pointer" />
         </button>
-        <button onClick={() => void window.aw.openExternal(current.url)} aria-label="Open in browser" title="Open in your browser">
+        <button onClick={() => void window.aw.openExternal(shown || current.url)} aria-label="Open in browser" title="Open in your browser">
           <OutlineIcon name="external" />
         </button>
       </div>
       {/* Nothing answering, or a page that would not load: say so here instead of showing a blank white page. */}
-      {(!current.alive || error) && (
+      {/* A site on the internet that was not allowed yet is not loaded: the person says where it opens. */}
+      {ask && web && (
+        <div className="preview-ask" role="group" aria-label="Open this site here?">
+          <span>
+            <b>{hostOf(web)}</b> is on the internet. In the Preview it has no access to your files or to Agent World.{web.startsWith('http:') ? ' The connection is not encrypted.' : ''}
+          </span>
+          <button className="primary" onClick={() => setSites(allowSite(localStorage, hostOf(web)))}>Open here</button>
+          <button onClick={() => (void window.aw.openExternal(web), setOpened(null))}>In my browser</button>
+        </div>
+      )}
+      {!ask && (!current.alive || error) && (
         <div className="preview-down" role="status">
           <b>{!current.alive ? `Nothing is answering at ${new URL(current.url).host}` : 'The page did not load'}</b>
           <p>
             {!current.alive
               ? `Start the dev server there, or ask ${agentName} to run the project. The page appears here on its own as soon as something answers.`
-              : `${error}. The server answered but the page could not be shown.`}
+              : web
+                ? `${error}. Check the address, or open it in your browser.`
+                : `${error}. The server answered but the page could not be shown.`}
           </p>
           {current.alive && (
-            <button onClick={() => (setError(null), view.current?.reload())}>Try again</button>
+            <span className="su-row">
+              <button onClick={() => (setError(null), view.current?.reload())}>Try again</button>
+              {web && <button onClick={() => void window.aw.openExternal(shown || current.url)}>Open in your browser</button>}
+            </span>
           )}
         </div>
       )}
       {/* The caption names a tablet or phone, its size and how much it is shrunk; there is none for desktop, so it takes no room there. */}
-      {current.alive && !error && size && (
+      {!ask && current.alive && !error && size && (
         <div className="preview-cap">
           <span className="cap-name">{DEVICES[dev.kind].label}</span>
           <select value={dev.preset} aria-label="Device" onChange={(e) => setDev({ ...dev, preset: e.target.value })}>
@@ -463,7 +496,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         </div>
       )}
       {/* Keyed by address so each server gets a fresh, isolated page; it is only there while something answers. */}
-      {current.alive && (
+      {!ask && current.alive && (
         <div className="preview-holder" ref={holder} style={error ? { display: 'none' } : undefined}>
           <div className={`device-frame is-${dev.kind}`} style={frame}>
             <Frame key={frameKey} url={shown || current.url} ua={dev.kind === 'desktop' ? undefined : USER_AGENT[dev.kind]} viewRef={view} />

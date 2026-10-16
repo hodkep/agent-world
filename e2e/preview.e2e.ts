@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { mkdtempSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -95,10 +96,10 @@ test('an address typed into the Preview bar opens even though the agent never pr
     await hire(page)
     await page.getByRole('tab', { name: /Preview/ }).click()
     const bar = page.getByRole('combobox', { name: 'Local address to preview' })
-    // Nothing but a local address is accepted.
-    await bar.fill('example.com')
+    // Something that is not an address is refused, and says what is accepted.
+    await bar.fill('not an address')
     await bar.press('Enter')
-    await expect(page.getByRole('alert')).toContainText('on this computer')
+    await expect(page.getByRole('alert')).toContainText('not an address I can open')
     // A bare port is enough.
     await bar.fill(String(port))
     await bar.press('Enter')
@@ -183,5 +184,67 @@ test('an address nothing answers on says so, not a blank page, and the page appe
   } finally {
     await shutdown()
     dev?.close()
+  }
+})
+
+test('a page on another address is shown after the site is allowed once, with the same toolbar, and is not asked about again', async () => {
+  const lan = Object.values(networkInterfaces()).flat().find((i) => i && i.family === 'IPv4' && !i.internal)?.address
+  test.skip(!lan, 'no network address on this computer to stand in for a site on the internet')
+  const site = createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' })
+    res.end(req.url === '/two' ? '<h1>second page</h1>' : '<main><h1>hello from the site</h1><a id="next" href="/two">next</a><button id="cta">Sign up</button></main>')
+  })
+  await new Promise<void>((r) => site.listen(0, '0.0.0.0', r))
+  const address = `http://${lan}:${(site.address() as AddressInfo).port}/`
+  const home = mkdtempSync(join(tmpdir(), 'aw-web-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const bar = page.getByRole('combobox', { name: 'Local address to preview' })
+    await bar.fill(address)
+    await bar.press('Enter')
+    // A site that is not this computer's is not loaded until it is allowed: the strip says where it would open.
+    const ask = page.getByRole('group', { name: 'Open this site here?' })
+    await expect(ask).toContainText(new URL(address).host)
+    await expect(ask).toContainText('no access to your files')
+    await expect(page.locator('webview')).toHaveCount(0)
+    await ask.getByRole('button', { name: 'Open here' }).click()
+    // With a user gesture, as a click by a person is: the page's own link then adds a place to go back to.
+    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string, gesture?: boolean): Promise<unknown> } | null)?.executeJavaScript(c, true).catch(() => '') ?? '', code)
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('hello from the site')
+    await expect(ask).toHaveCount(0)
+    await expect(page.locator('.pa .pa-tag')).toHaveText('web')
+    await expect(page.locator('.preview-state.web')).toHaveText('web page')
+    // A link inside the page stays in the tab, and back and forward work.
+    await run("document.querySelector('#next').click()")
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('second page')
+    await expect(page.getByRole('button', { name: 'Back' })).toBeEnabled()
+    await page.getByRole('button', { name: 'Back' }).click()
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('hello from the site')
+    // Select element works on it, as on a local page.
+    await page.getByRole('button', { name: 'Select element' }).click()
+    await expect(page.getByRole('button', { name: 'Click an element…' })).toBeVisible()
+    await page.getByRole('button', { name: 'Click an element…' }).click()
+    // The page cannot reach anything that is not a web page: a file address stays where it is.
+    await run("location.href = 'file:///etc/hosts'")
+    await page.waitForTimeout(500)
+    expect(await run('location.protocol')).toBe('http:')
+    // It was allowed once, so it opens at once the next time.
+    await page.reload()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    await expect(page.getByRole('combobox', { name: 'Local address to preview' })).toBeVisible()
+    await page.getByRole('combobox', { name: 'Local address to preview' }).fill(address)
+    await page.getByRole('combobox', { name: 'Local address to preview' }).press('Enter')
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('hello from the site')
+    await expect(page.getByRole('group', { name: 'Open this site here?' })).toHaveCount(0)
+  } finally {
+    await shutdown()
+    site.closeAllConnections()
+    site.close()
   }
 })
