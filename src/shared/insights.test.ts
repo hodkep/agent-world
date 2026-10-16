@@ -211,6 +211,10 @@ describe('how one run went, line by line', () => {
     const clean = run([begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])
     expect(timelineOf(clean, 99 * MIN).map((e) => `${e.kind}: ${e.text}`)).toEqual(['ok: Began by the agent · Journey', 'ok: Plan approved after 1m', 'ok: Check passed first time', 'ok: Review found nothing', 'ok: Landed after the checks'])
   })
+  it('says when the review could not run, and why', () => {
+    const failed: RunEvent = { k: 'audit', t: 7 * MIN, run: 'r1', head: 'h1', state: 'failed', reason: 'Credit balance is too low' }
+    expect(timelineOf(run([begin(), failed, done(8 * MIN)]), 99 * MIN)).toContainEqual({ at: 7 * MIN, kind: 'trouble', text: 'Review could not run: Credit balance is too low' })
+  })
   it('marks a follow-up round, and a run begun from a commit', () => {
     const r = run([begin(), done(10 * MIN), { k: 'round', t: 20 * MIN, run: 'r1' }, done(30 * MIN)])
     expect(timelineOf(r, 99 * MIN).map((e) => e.text)).toContain('Follow-up round 2 began')
