@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { columnRates, gateTiles, headline, runBar } from './insights'
+import { columnRates, gateTiles, headline, runBar, runsWithin, says, timelineOf, weekSentences } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -118,6 +118,11 @@ describe('which gates a run met', () => {
     expect(tiles([begin(0, null, { auto: true }), done(0)])).toEqual(['plan:na', 'check:na', 'review:na', 'land:na', 'told:bad'])
   })
 
+  it('are judged on the latest round that has anything logged, so a follow-up round that has not run its checks yet does not undo the first round\'s', () => {
+    const events = [begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), done(7 * MIN), { k: 'round', t: 20 * MIN, run: 'r1' } as RunEvent, { k: 'commit', t: 21 * MIN, run: 'r1', sha: 'abc', subject: 'fix' } as RunEvent, done(22 * MIN)]
+    expect(tiles(events).slice(0, 2)).toEqual(['plan:ok', 'check:ok'])
+  })
+
   it('count a review that found nothing as met, and one that could not run as not asked', () => {
     expect(tiles([begin(), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])[2]).toBe('review:ok')
     const failed: RunEvent = { k: 'audit', t: 7 * MIN, run: 'r1', head: 'h1', state: 'failed', reason: 'no model' }
@@ -145,9 +150,82 @@ describe('the numbers over a set of runs', () => {
   })
 
   it('say the week in a few counts: runs, those that met every gate (and with trouble), landed anyway, from a commit, waiting, and the time the person was waited on', () => {
-    const h = headline(all, ctx, 100 * MIN)
+    const h = headline(all, () => ctx, 100 * MIN)
     expect(h).toMatchObject({ runs: 5, finished: 3, metEvery: 2, withTrouble: 1, landedAnyway: 1, fromCommit: 1, waiting: 1 })
     // clean: 1 min; trouble: 1 + 2 min; anyway: 1 min until the hold was lifted; open: 95 min still waiting.
     expect(h.youMs).toBe((1 + 3 + 1 + 95) * MIN)
+  })
+})
+
+describe('the count on a tile that met its gate with trouble', () => {
+  it('is how often the plan was sent back, the check failed, or the review found things', () => {
+    const events = [begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'changes'), plan(3 * MIN, 'submitted'), plan(4 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, false), check(7 * MIN, 2, false), check(8 * MIN, 3, true), audit(9 * MIN, [finding, finding]), seen(10 * MIN, [0, 1]), merge(11 * MIN, 'checked'), done(11 * MIN)]
+    expect(gateTiles(run(events), ctx).map((t) => t.n)).toEqual([1, 2, 2, undefined, undefined])
+  })
+})
+
+describe('the week in a few sentences', () => {
+  const h = { runs: 8, finished: 6, metEvery: 5, withTrouble: 2, landedAnyway: 1, fromCommit: 1, waiting: 1, youMs: 41 * MIN }
+  const rates = { plan: { good: 1, of: 3 }, check: { good: 2, of: 4 }, review: { good: 2, of: 3 }, land: { good: 5, of: 6 }, told: { good: 7, of: 8 } }
+  it('says what matters first, and leaves out what is zero', () => {
+    expect(weekSentences(h, rates)).toEqual([
+      { tone: 'plain', text: '8 runs this week.' },
+      { tone: 'good', text: '5 of 6 finished runs met every gate.' },
+      { tone: 'you', text: 'Agents spent 41m waiting on you.' },
+      { tone: 'warn', text: 'Checks failed the first time in 2 of 4 runs.' },
+      { tone: 'bad', text: '1 landing went ahead anyway.' },
+      { tone: 'plain', text: '1 began from a commit.' },
+      { tone: 'you', text: '1 waiting on you now.' }
+    ])
+    expect(weekSentences({ runs: 1, finished: 0, metEvery: 0, withTrouble: 0, landedAnyway: 0, fromCommit: 0, waiting: 0, youMs: 0 }, { ...rates, check: { good: 0, of: 0 } })).toEqual([{ tone: 'plain', text: '1 run this week.' }])
+  })
+})
+
+describe('what stands out in a grid of runs', () => {
+  const row = (title: string, kinds: string[]) => ({ title, tiles: (['plan', 'check', 'review', 'land', 'told'] as const).map((gate, i) => ({ gate, kind: kinds[i] as 'ok' })) })
+  it('names the red row and what went wrong in it, and the amber column with what it may mean', () => {
+    const rows = [row('Add titleCase', ['ok', 'ok', 'na', 'na', 'ok']), row('Billing export', ['bad', 'trouble', 'bad', 'bad', 'ok']), row('Fix login', ['na', 'ok', 'na', 'ok', 'ok']), row('Add wordCount', ['trouble', 'ok', 'ok', 'ok', 'ok']), row('Dark mode', ['ok', 'trouble', 'trouble', 'ok', 'ok'])]
+    expect(says(rows)).toEqual([
+      'Billing export is the red row: the plan hold was lifted, a finding was not seen, it landed anyway.',
+      'Check is the amber column: 2 of 5 runs needed more than one try. The check may be stricter than the request.'
+    ])
+  })
+  it('says nothing when nothing stands out', () => {
+    expect(says([row('A', ['ok', 'ok', 'ok', 'ok', 'ok']), row('B', ['ok', 'trouble', 'ok', 'ok', 'ok'])])).toEqual([])
+  })
+})
+
+describe('how one run went, line by line', () => {
+  it('tells the plan, the check, the review and the landing, each as met, with trouble, or missed, with the time since the start', () => {
+    const r = run([begin(), plan(5 * MIN, 'submitted'), plan(30 * MIN, 'released'), stepDone(60 * MIN, 'build'), check(62 * MIN, 1, false, 4000), check(80 * MIN, 2, true), audit(85 * MIN, [finding]), merge(90 * MIN, 'anyway'), done(90 * MIN)])
+    expect(timelineOf(r, 99 * MIN)).toEqual([
+      { at: 0, kind: 'ok', text: 'Began by the agent · Journey' },
+      { at: 30 * MIN, kind: 'bad', text: 'Plan sent, then you lifted the hold after 25m without approving it' },
+      { at: 80 * MIN, kind: 'trouble', text: 'Check failed once, passed on try 2' },
+      { at: 85 * MIN, kind: 'bad', text: 'Review found 1 thing you did not look at: “Renamed a token.”' },
+      { at: 90 * MIN, kind: 'bad', text: 'Landed anyway, with review still holding it' }
+    ])
+  })
+  it('says a plan still waiting is waiting for the person, and a clean run as met', () => {
+    expect(timelineOf(run([begin(), plan(5 * MIN, 'submitted')]), 26 * MIN).at(-1)).toEqual({ at: 5 * MIN, kind: 'you', text: 'Plan sent 21m ago: waiting for you' })
+    const clean = run([begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])
+    expect(timelineOf(clean, 99 * MIN).map((e) => `${e.kind}: ${e.text}`)).toEqual(['ok: Began by the agent · Journey', 'ok: Plan approved after 1m', 'ok: Check passed first time', 'ok: Review found nothing', 'ok: Landed after the checks'])
+  })
+  it('marks a follow-up round, and a run begun from a commit', () => {
+    const r = run([begin(), done(10 * MIN), { k: 'round', t: 20 * MIN, run: 'r1' }, done(30 * MIN)])
+    expect(timelineOf(r, 99 * MIN).map((e) => e.text)).toContain('Follow-up round 2 began')
+    expect(timelineOf(run([begin(0, null, { auto: true }), done(0)]), 99 * MIN)[0]).toEqual({ at: 0, kind: 'bad', text: 'Began from a commit: the agent never said it had started the task' })
+  })
+})
+
+describe('the runs of the last days', () => {
+  it('are those that ended or are still going within that many days', () => {
+    const DAY = 24 * 60 * MIN
+    const old = run([begin(0, JOURNEY, {}, 'old'), done(1 * MIN, 'old')])
+    const mid = run([begin(20 * DAY, JOURNEY, {}, 'mid'), done(20 * DAY + MIN, 'mid')])
+    const open = run([begin(39 * DAY, JOURNEY, {}, 'open')])
+    const now = 40 * DAY
+    expect(runsWithin([old, mid, open], 7, now).map((r) => r.id)).toEqual(['open'])
+    expect(runsWithin([old, mid, open], 30, now).map((r) => r.id)).toEqual(['mid', 'open'])
   })
 })
