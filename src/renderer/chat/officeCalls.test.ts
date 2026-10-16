@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Row } from './format'
-import { groupOffice, officeTool, runCall, stampOf, summaryOf, whisperOf } from './officeCalls'
+import { areasOf, groupOffice, outcomeOf, officeTool, runCall, stampOf, summaryOf, whisperOf } from './officeCalls'
 
 const call = (id: string, tool: string, input: Record<string, unknown> = {}, text?: string, isError = false): Extract<Row, { kind: 'tool' }> => ({
   kind: 'tool', id, run: { name: `mcp__agent-world__${tool}`, input, result: text === undefined ? undefined : { text, isError }, at: 1, id } as never
@@ -67,9 +67,9 @@ describe('what one office call says as a stamp', () => {
     expect(stamp('step_done', { step: 'build' }, 'No task is open.\nTry task_begin.', false, true)).toEqual({ kind: 'flag', label: 'step build', tip: 'Reported step build · failed: No task is open.', state: 'bad' })
     expect(stamp('plan_submit', { path: 'p.md' }, 'The plan needs fixing', false, true)).toMatchObject({ kind: 'plan', label: 'plan', tip: 'Sent the plan · failed: The plan needs fixing', state: 'bad' })
     expect(stamp('todo_done', { id: '9' }, 'No todo 9', false, true)).toMatchObject({ kind: 'todo', label: '#9', state: 'bad' })
-    expect(stamp('task_begin', { title: 'Add wordCount' })).toMatchObject({ label: 'task', tip: 'Began Add wordCount' })
-    expect(stamp('task_done', { summary: 'x' }).label).toBe('done')
-    expect(stamp('task_done', { summary: 'wordCount added' }).tip).toBe('Finished · wordCount added')
+    expect(stamp('task_begin', { title: 'Add wordCount' })).toMatchObject({ label: 'run', tip: 'Began run Add wordCount' })
+    expect(stamp('task_done', { summary: 'x' }).label).toBe('run done')
+    expect(stamp('task_done', { summary: 'wordCount added' }).tip).toBe('Finished run · wordCount added')
   })
   it('shows a call that is still running as waiting', () => {
     expect(stamp('library_get', { id: 'tdd' }, null, true).state).toBe('wait')
@@ -105,7 +105,7 @@ describe('what each call says', () => {
 
 describe('the one line over a run of calls', () => {
   it('names a run call that failed, under Workflow', () => {
-    expect(summaryOf([call('a', 'step_done', { step: 'build' }, 'No task is open.', true)])).toEqual([{ area: 'Workflow', text: 'step done · failed: No task is open.' }])
+    expect(summaryOf([call('a', 'step_done', { step: 'build' }, 'No task is open.', true)])).toEqual([{ area: 'Workflow', text: 'step reported · failed: No task is open.' }])
   })
   it('counts skips, names what was read, and says what happened to each task', () => {
     const calls = [call('a', 'library_skip', { id: 'tdd', reason: 'x' }, 'ok'), call('b', 'library_skip', { id: 'code-review', reason: 'y' }, 'ok'), call('c', 'library_get', { id: 'tdd' }, 'ok'), call('d', 'todo_update', { id: '95', title: 't' }, 'ok'), call('e', 'todo_done', { id: '95' }, 'ok')]
@@ -118,5 +118,50 @@ describe('the one line over a run of calls', () => {
     expect(summaryOf([call('a', 'library_get', { id: 'a' }), call('b', 'library_get', { id: 'b' }), call('c', 'library_get', { id: 'c' })])).toEqual([{ area: 'Library', text: 'read 3' }])
     expect(summaryOf([call('a', 'todo_update', { id: '1', title: 'x' }), call('b', 'todo_update', { id: '2', title: 'y' }), call('c', 'remember', { text: 'z' }), call('d', 'recall', { query: 'q' })]))
       .toEqual([{ area: 'Todo', text: '#1 updated; #2 updated' }, { area: 'Notes', text: 'noted · recalled' }])
+  })
+})
+
+describe('the fold as a row for each area', () => {
+  it('has a row for each area in the order they first appear, each saying in words what was done there', () => {
+    const calls = [call('a', 'library_skip', { id: 'tdd', reason: 'x' }, 'ok'), call('b', 'todo_claim', { id: '14' }, 'ok'), call('c', 'library_get', { id: 'house-research' }, 'a\nb\nc'), call('d', 'recall', { query: 'how to test' }, 'ok')]
+    expect(areasOf(calls).map((a) => [a.area, a.text, a.calls.length])).toEqual([['Library', 'skipped tdd · read house-research', 2], ['Todos', '#14 claimed', 1], ['Notes', 'recalled · how to test', 1]])
+  })
+  it('keeps the workflow tools and the run calls that failed together under Workflow, apart from the todos', () => {
+    const calls = [call('a', 'todo_done', { id: '9' }, 'ok'), call('b', 'step_done', { step: 'build' }, 'No task is open.', true), call('c', 'workflow_list', {}, 'ok')]
+    const rows = areasOf(calls)
+    expect(rows.map((a) => a.area)).toEqual(['Todos', 'Workflow'])
+    expect(rows[1]!.calls.map((c) => c.id)).toEqual(['b', 'c'])
+  })
+  it('counts the calls that failed and says when one is still running', () => {
+    const rows = areasOf([call('a', 'todo_done', { id: '9' }, 'No todo 9', true), call('b', 'todo_get', { id: '1' }, 'ok'), call('c', 'library_get', { id: 'x' })], true)
+    expect(rows.map((a) => [a.area, a.bad, a.running])).toEqual([['Todos', 1, false], ['Library', 0, true]])
+    expect(areasOf([call('c', 'library_get', { id: 'x' })], false)[0]!.running).toBe(false)
+  })
+  it('gives a call it has no area for a row of its own, named by what it is', () => {
+    expect(areasOf([call('a', 'something_new', {}, 'ok')]).map((a) => [a.area, a.text])).toEqual([['Other', 'Something new']])
+  })
+})
+
+describe('the workflow says run where a todo says task', () => {
+  it('words the calls that move a run as a run, never as a task', () => {
+    const rows = areasOf([call('a', 'task_begin', { title: 'x' }, 'ok'), call('b', 'plan_submit', { path: 'p' }, 'ok'), call('c', 'step_done', { step: 'build' }, 'ok'), call('d', 'task_done', { summary: 's' }, 'ok')])
+    expect(rows[0]!.text).toBe('began run · plan sent · step reported · run finished')
+    expect(whisperOf(call('e', 'step_done', { step: 'build' }, 'ok').run)).toMatchObject({ bold: 'Reported step', rest: 'build' })
+    expect(whisperOf(call('f', 'task_done', { summary: 's' }, 'ok').run)).toMatchObject({ bold: 'Finished run', why: 's' })
+  })
+})
+
+describe('what a call brought back, shown in its opened row', () => {
+  it('is the first few lines of the result, with how many more there are', () => {
+    expect(outcomeOf(call('a', 'recall', { query: 'q' }, 'one\ntwo\nthree\nfour\nfive\nsix').run)).toEqual({ text: 'one\ntwo\nthree\nfour', more: 2 })
+    expect(outcomeOf(call('b', 'recall', { query: 'q' }, 'Slugify drops a trailing dash.').run)).toEqual({ text: 'Slugify drops a trailing dash.', more: 0 })
+  })
+  it('keeps a long line short, and is nothing when there is no result or it is empty', () => {
+    expect(outcomeOf(call('c', 'recall', {}, 'x'.repeat(400)).run)!.text).toHaveLength(240)
+    expect(outcomeOf(call('d', 'recall', {}).run)).toBeNull()
+    expect(outcomeOf(call('e', 'recall', {}, '  \n ').run)).toBeNull()
+  })
+  it('is nothing for a call that failed, since its reason is already in the row', () => {
+    expect(outcomeOf(call('f', 'todo_done', { id: '9' }, 'No todo 9', true).run)).toBeNull()
   })
 })

@@ -2874,10 +2874,6 @@ aside:not(.drawer) { flex: none; }
 
 /* The office's own calls (library, todos, notes) as one quiet line, opening to a line per call. */
 .of { display: flex; flex-direction: column; min-width: 0; font-size: 12px; color: var(--muted); }
-.of-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 3px 8px; cursor: pointer; min-width: 0; }
-.of-head:hover { background: var(--panel-3); color: var(--text); }
-.of-head:focus-visible, .of-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.of-caret { width: 10px; flex: none; text-align: center; }
 .of-spin { margin: 0; flex: none; }
 
 /* Workflows: the cost table's dial and its pick, and the window before any run exists. */
@@ -3010,8 +3006,6 @@ aside:not(.drawer) { flex: none; }
 
 /* ---- The office's small pictures: stamps in the chat, the track of a run ---- */
 svg.pxg { display: block; flex: none; }
-.of .strip { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
-.of .more { font: 11px Menlo, Consolas, monospace; color: var(--dim); }
 .run-track { flex: none; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); box-shadow: 0 2px 0 var(--ink); padding: 8px 14px 6px; }
 .run-track .rt-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; min-width: 0; }
 .run-track .rt-head b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3129,18 +3123,24 @@ svg.pxg { display: block; flex: none; }
 .bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
 .bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
-/* ---- Stamps: tinted by their area (library cyan, todo green, notes orange, workflow brass), a picture and a few words ---- */
-.stamp { --hue: var(--muted); display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 7px 0 5px; color: var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--panel-3)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 45%, var(--ink)), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; }
-.stamp b { font-weight: 600; color: var(--text); font-size: 11px; white-space: nowrap; }
-.stamp-library { --hue: var(--think); } .stamp-todo { --hue: var(--ok-text); } .stamp-note { --hue: var(--claude); } .stamp-flag, .stamp-plan { --hue: var(--accent); }
-.stamp.skip { opacity: 0.65; }
-.stamp.bad { --hue: var(--danger-text); }
-.stamp.wait { box-shadow: 0 0 0 1px var(--accent), inset 0 2px 0 rgb(255 255 255 / 0.05); }
-/* ---- The opened list: a panel with a coloured picture for each call ---- */
-.of-list { margin: 4px 0 4px 16px; padding: 3px; display: flex; flex-direction: column; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); }
+/* ---- The fold: a row for each area (workflow, todos, library, notes), each opening to a line for each call ---- */
+.of-area { --hue: var(--muted); }
+.of-workflow { --hue: var(--accent); } .of-todos { --hue: var(--ok-text); } .of-library { --hue: var(--think); } .of-notes { --hue: var(--claude); }
+.of-area.bad { --hue: var(--danger-text); }
+.of-head { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 92px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; width: 100%; padding: 3px 8px; cursor: pointer; }
+.of-head:hover { background: var(--panel-3); color: var(--text); }
+.of-head:focus-visible, .of-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.of-nm { color: var(--hue); font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.09em; text-transform: uppercase; display: flex; gap: 5px; align-items: center; }
+.of-caret { width: 10px; text-align: center; color: var(--muted); font-size: 10px; }
+.of-sum { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--hue); }
+.of-sum svg { flex: none; }
+.of-line { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.4; color: var(--text); }
+.of-fail { color: var(--danger-text); font-size: 11px; }
+.of-list { margin: 2px 0 6px 100px; padding: 3px; display: flex; flex-direction: column; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); }
 .of-item { --hue: var(--muted); }
 .of-item.stamp-library { --hue: var(--think); } .of-item.stamp-todo { --hue: var(--ok-text); } .of-item.stamp-note { --hue: var(--claude); } .of-item.stamp-flag, .of-item.stamp-plan { --hue: var(--accent); }
 .of-item.bad { --hue: var(--danger-text); }
+.of-item.skip .of-txt { opacity: 0.7; }
 .of-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: center; width: 100%; padding: 4px 6px; cursor: pointer; line-height: 1.4; }
 .of-row:hover { background: color-mix(in srgb, var(--hue) 10%, var(--panel-2)); }
 .of-ic { display: grid; place-items: center; width: 22px; height: 22px; color: var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--panel-3)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 45%, var(--ink)); }
@@ -3148,6 +3148,8 @@ svg.pxg { display: block; flex: none; }
 .of-txt b { font-weight: 600; }
 .of-why { color: var(--muted); }
 .of-item.bad .of-why { color: var(--danger-text); }
-.of-card { margin: 2px 6px 6px 34px; }
-.of-card .tc { background: var(--well); border: 0; box-shadow: 0 0 0 1px var(--ink); padding: 6px 8px; }
+.of-card { margin: 2px 6px 6px 34px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 6px 8px; }
+.of-out { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 11.5px; line-height: 1.5; max-width: none; }
+.of-details { padding: 1px 8px; font-size: 11px; color: var(--muted); background: var(--panel-2); }
+.of-card .tc { background: none; border: 0; box-shadow: none; padding: 0; }
 .of-card .tc-head { display: none; }

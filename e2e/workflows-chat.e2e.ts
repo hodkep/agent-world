@@ -38,11 +38,12 @@ test('chat: the calls that move a run leave the conversation, the office\'s own 
 
     // The track's own speech bubble must not restyle the person's message: it keeps the text colour of the chat, not the dark ink of a paper bubble.
     await expect(log.locator('.msg.user .bubble').first()).toHaveCSS('color', 'rgb(228, 228, 238)')
-    // The library read is a stamp, with the sentence in its tip; the step report that failed is a red stamp in the same line, with why in its tip.
-    const stamps = log.locator('.of-head .stamp')
-    await expect(stamps).toHaveCount(2)
-    await expect(stamps.first()).toHaveAttribute('title', 'Read tdd · 2 lines')
-    await expect(log.locator('.of-head .stamp.bad')).toHaveAttribute('title', 'Reported step build · failed: No task is open.')
+    // The library read and the workflow call are rows of their own; the step report that failed is a red count on the Workflow row, with why in its line.
+    const heads = log.locator('.of-head')
+    await expect(heads).toHaveCount(2)
+    await expect(heads.nth(0)).toHaveAttribute('aria-label', 'Library: read tdd · 2 lines')
+    await expect(heads.nth(1)).toHaveAttribute('aria-label', 'Workflow: step reported · failed: No task is open., 1 failed')
+    await expect(log.locator('.of-area.bad .of-fail')).toHaveText('1 failed')
     // Beginning, planning, reporting a step and finishing are not in the conversation, and no failed call is a card either.
     await expect(log.getByText('Task begun')).toHaveCount(0)
     await expect(log.getByText('Plan submitted')).toHaveCount(0)

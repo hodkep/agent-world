@@ -24,16 +24,18 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
 
     // The office's own calls are one quiet line, counted; a click opens a line for each call, and a click on one opens its card.
     const fold = log.locator('.of-head')
-    await expect(fold).toHaveAttribute('aria-label', /Todo/)
+    await expect(fold).toHaveCount(1)
+    await expect(fold).toHaveAttribute('aria-label', /Todos/)
     await expect(fold).toHaveAttribute('aria-label', /#9 claimed, blocked/)
     await expect(fold).toHaveAttribute('aria-label', /#14 done/)
-    await expect(fold.locator('.stamp')).toHaveCount(5)
     await expect(log.locator('[data-todo-card]')).toHaveCount(0)
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
-    expect((await fold.boundingBox())!.height).toBeLessThan(30)
+    expect((await fold.boundingBox())!.height).toBeLessThan(46) // a long line of todos wraps to two lines, no more
     await fold.click()
     await expect(log.locator('.of-row')).toHaveCount(5)
     for (const row of await log.locator('.of-row').all()) await row.click()
+    // Each button goes once it is used, so the first one left is always the next.
+    for (let n = await log.locator('.of-details').count(); n > 0; n--) await log.locator('.of-details').first().click()
     const card = (kind: string) => log.locator(`[data-todo-card="${kind}"]`)
     await expect(card('add')).toContainText('Added todo')
     await expect(card('add')).toContainText('todo#14')
