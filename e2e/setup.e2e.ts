@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
 
 const fake = resolve(__dirname, 'fake-claude.mjs')
-const open = (home: string, bin: string) => launchApp({ AW_HOME: home, AW_CLAUDE_BIN: bin, AW_NO_SETUP: '', FAKE_DELAY_MS: '50' }, home)
+const open = (home: string, bin: string, env: Record<string, string> = {}) => launchApp({ AW_HOME: home, AW_CLAUDE_BIN: bin, AW_NO_SETUP: '', FAKE_DELAY_MS: '50', ...env }, home)
 
 test('a first run walks through setup, hires the first agent with the chosen defaults, and does not open again', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-setup-'))
@@ -146,8 +146,75 @@ test('with no agent tool on this computer, setup cannot be passed and says how t
     await expect(claude).toContainText('Not installed')
     await expect(setup.getByText('Install or sign in to one agent tool to continue.')).toBeVisible()
     await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
-    await claude.getByRole('button', { name: 'How to install' }).click()
+    // The command to run is on the card, and Install runs it for you.
+    await expect(claude.getByRole('button', { name: 'Install Claude Code' })).toBeVisible()
     await expect(claude.locator('.su-howto')).toContainText('claude.ai/install')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('Install Claude Code runs the installer in a terminal in the step, looks again when it ends, and the tool is then found', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-install-'))
+  const target = join(home, 'bin-claude')
+  // A stand-in installer: puts a working claude where the app looks for it.
+  const { app, shutdown } = await open(home, target, { AW_INSTALL_COMMAND: `echo Installing && cp "${fake}" "${target}" && chmod +x "${target}" && echo Done` })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await expect(claude).toContainText('Not installed')
+    // The command is always on the card, to copy.
+    await expect(claude.locator('.su-howto')).toContainText('claude.ai/install')
+    await expect(claude.getByRole('button', { name: 'Copy' })).toBeVisible()
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    await claude.getByRole('button', { name: 'Install Claude Code' }).click()
+    await expect(claude).toContainText('Installing')
+    await expect(claude.getByRole('status')).toContainText('installer')
+    // When the installer ends the app looks again by itself: the card is ready, with no press of Re-scan.
+    await expect(claude).toContainText('Ready', { timeout: 20_000 })
+    await expect(claude.getByRole('button', { name: 'Install Claude Code' })).toHaveCount(0)
+    await expect(claude.locator('.su-install-term')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an installer that stops without installing says so, changes nothing, and can be run again', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-install-fail-'))
+  const { app, shutdown } = await open(home, join(home, 'no-such-claude'), { AW_INSTALL_COMMAND: 'echo no network; exit 3' })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await claude.getByRole('button', { name: 'Install Claude Code' }).click()
+    await expect(claude.getByRole('alert')).toContainText('still not found', { timeout: 20_000 })
+    await expect(claude).toContainText('Not installed')
+    await expect(claude.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(claude.locator('.su-howto')).toContainText('claude.ai/install')
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the step says which git the app and its agents use', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-git-'))
+  const { app, shutdown } = await open(home, fake)
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const git = setup.locator('[data-provider="git"]')
+    await expect(git).toContainText('Git')
+    await expect(git).toContainText('Ready')
+    await expect(git).toContainText("your computer's git")
+    await expect(git).toContainText(/v\d+\.\d+\.\d+/)
+    // Information only: it has no button, and it never holds the step up.
+    await expect(git.getByRole('button')).toHaveCount(0)
+    await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled()
   } finally {
     await shutdown()
   }

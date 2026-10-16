@@ -75,6 +75,11 @@ export function bundledEnv(gitDir: string, platform: NodeJS.Platform, _path: str
   return env
 }
 
+/** The number of the version `git --version` printed ("git version 2.39.5 (Apple Git-154)"). */
+export function parseGitVersion(out: string): string | undefined {
+  return /git version (\d+\.\d+\.\d+)/.exec(out)?.[1]
+}
+
 /** The git to use: the computer's own when it has one that works, and otherwise the one bundled with the app; null when there is neither. */
 export function resolveGit(o: Where & { env?: Record<string, string | undefined> }): GitProgram | null {
   const m = pathMod(o.platform)

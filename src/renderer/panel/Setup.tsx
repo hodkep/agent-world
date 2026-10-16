@@ -25,7 +25,7 @@ const LEVELS: { id: AutonomyLevel; label: string; blurb: string }[] = [
   { id: 'full', label: 'Full auto', blurb: 'Does everything without asking. Use on throwaway branches.' }
 ]
 
-const STATE_LABEL = { ready: 'Ready', 'needs-sign-in': 'Needs sign-in', 'not-installed': 'Not installed', unsupported: 'Not supported' } as const
+const STATE_LABEL = { ready: 'Ready', 'needs-sign-in': 'Needs sign-in', 'not-installed': 'Not installed', unsupported: 'Not supported', installing: 'Installing' } as const
 
 interface Props {
   providers: ProviderInfo[]
@@ -54,12 +54,40 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const [name, setName] = useState('')
   const [crew, setCrew] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [howto, setHowto] = useState<string | null>(null)
+  // The installer of a tool that was not found runs in a terminal in the step; when it ends the app looks again by itself, and says so if the tool is still not there.
+  const [install, setInstall] = useState<{ provider: ProviderId; pty: string } | null>(null)
+  const [installNote, setInstallNote] = useState<{ provider: ProviderId; text: string } | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [git, setGit] = useState<{ source: 'system' | 'bundled'; bin: string; version?: string } | null | undefined>(undefined)
+  useEffect(() => void window.aw.gitInfo().then(setGit, () => setGit(null)), [])
   // The terminal where a provider's own sign-in runs, opened on request and shown right in the step.
   const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
   const openSignIn = async (provider: ProviderId) => {
     if (signIn) window.aw.closeShell(signIn.pty)
     setSignIn({ provider, pty: await window.aw.openSignIn(provider) })
+  }
+  const runInstall = async (p: ProviderInfo) => {
+    setInstallNote(null)
+    try {
+      setInstall({ provider: p.id, pty: await window.aw.installProvider(p.id) })
+    } catch (err) {
+      setInstallNote({ provider: p.id, text: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
+    }
+  }
+  const installPty = install?.pty
+  useEffect(() => {
+    if (!install) return
+    const { provider, pty } = install
+    return window.aw.onPtyExit((id) => {
+      if (id !== pty) return
+      setInstall(null)
+      // Look again; the card then says what was found, or that the tool is still not there.
+      void Promise.resolve(onRescan()).then(() => setInstallNote({ provider, text: '' }))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installPty])
+  const copy = (text: string, key: string) => {
+    void navigator.clipboard.writeText(text).then(() => (setCopied(key), setTimeout(() => setCopied((c) => (c === key ? null : c)), 1200)))
   }
   const doneSigningIn = () => {
     if (signIn) window.aw.closeShell(signIn.pty)
@@ -115,8 +143,11 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const eyebrow = `Step ${step + 1} of ${STEPS.length}`
 
   const providerRow = (p: ProviderInfo) => {
-    const st = p.detection.state
+    const installing = install?.provider === p.id
+    const st = installing ? 'installing' : p.detection.state
     const on = st === 'ready' && chosen?.id === p.id
+    // The installer ended and the tool is still not there.
+    const stillMissing = !installing && st === 'not-installed' && installNote?.provider === p.id && installNote.text === ''
     return (
       <div key={p.id} className={`su-prov ${on ? 'pick' : ''}`} data-provider={p.id}>
         <span className="su-mark"><ProviderLogo id={p.id} /></span>
@@ -134,16 +165,29 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
             <button className="primary" onClick={() => void openSignIn(p.id)}>
               Open a terminal to sign in
             </button>
-          ) : st === 'not-installed' ? (
-            <button onClick={() => setHowto(howto === p.id ? null : p.id)} aria-expanded={howto === p.id}>
-              How to install
+          ) : st === 'not-installed' && p.detection.install ? (
+            <button className="primary" disabled={!!install} onClick={() => void runInstall(p)}>
+              {stillMissing || installNote?.provider === p.id ? 'Try again' : `Install ${p.label}`}
             </button>
           ) : null}
         </div>
         <div className="su-sub">{p.detection.version ? `v${p.detection.version}${p.detection.path ? ` · ${p.detection.path}` : ''}` : 'not found'}</div>
         <div className="su-extra">
           {p.detection.hint && <span className="hint">{p.detection.hint}</span>}
-          {howto === p.id && p.detection.install && <code className="su-howto">{p.detection.install}</code>}
+          {st === 'not-installed' && p.detection.install && (
+            <div className="su-cmd">
+              <code className="su-howto">{p.detection.install}</code>
+              <button className="su-link" onClick={() => copy(p.detection.install!, p.id)}>{copied === p.id ? 'Copied' : 'Copy'}</button>
+            </div>
+          )}
+          {stillMissing && <span className="su-why" role="alert">The installer stopped and {p.label} is still not found. Nothing was changed. Try again, or copy the command into a terminal.</span>}
+          {installNote?.provider === p.id && installNote.text !== '' && <span className="su-why" role="alert">{installNote.text}</span>}
+          {installing && (
+            <div className="su-signin su-install-term">
+              <div className="su-term"><TerminalView ptyId={install!.pty} visible focusTick={0} /></div>
+              <span className="hint" role="status"><span className="su-spin" aria-hidden="true" />Running {p.label}'s installer. It looks again by itself when it ends.</span>
+            </div>
+          )}
           {st === 'ready' && <MailConnect provider={p} onChanged={onRescan} onProgress={setLinking} required />}
           {signIn?.provider === p.id && (
             <div className="su-signin">
@@ -200,6 +244,26 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
               </div>
               <div className="su-content">
                 {providers.map(providerRow)}
+                {git !== undefined && (
+                  <div className="su-prov" data-provider="git">
+                    <span className="su-mark su-git" aria-hidden="true">⎇</span>
+                    <div className="su-name">
+                      Git
+                      <span className={`su-state ${git ? 'ready' : 'not-installed'}`}>{git ? 'Ready' : 'Not found'}</span>
+                    </div>
+                    <div className="su-act" />
+                    <div className="su-sub">{git ? `${git.source === 'bundled' ? 'bundled with Agent World' : "your computer's git"}${git.version ? ` · v${git.version}` : ''} · ${git.bin}` : 'not found'}</div>
+                    <div className="su-extra">
+                      <span className="hint">
+                        {git?.source === 'bundled'
+                          ? 'This computer has no git yet, so the app and your agents use the one that comes with it. Nothing to install.'
+                          : git
+                            ? 'Agents work in their own git branches; the app and your agents use this git.'
+                            : 'No git on this computer and none comes with this build. Agents need it for their branches: install it with xcode-select --install.'}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {ready.length === 0 ? (
                   <div className="su-note"><b>Nothing is ready yet.</b> Install or sign in to at least one of them, then press Re-scan. You cannot hire an agent until then.</div>
                 ) : ready.length === 1 && providers.length > 1 ? (
