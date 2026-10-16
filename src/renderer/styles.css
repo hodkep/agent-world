@@ -2873,20 +2873,12 @@ aside:not(.drawer) { flex: none; }
 .td-tile span { font-size: 11.5px; }
 
 /* The office's own calls (library, todos, notes) as one quiet line, opening to a line per call. */
-.of { display: flex; flex-direction: column; min-width: 0; border-left: 2px solid var(--dim); font-size: 12px; color: var(--muted); }
+.of { display: flex; flex-direction: column; min-width: 0; font-size: 12px; color: var(--muted); }
 .of-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 3px 8px; cursor: pointer; min-width: 0; }
 .of-head:hover { background: var(--panel-3); color: var(--text); }
 .of-head:focus-visible, .of-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .of-caret { width: 10px; flex: none; text-align: center; }
 .of-spin { margin: 0; flex: none; }
-.of-list { margin: 2px 0 2px 14px; display: flex; flex-direction: column; gap: 1px; }
-.of-row { all: unset; box-sizing: border-box; display: flex; align-items: baseline; gap: 7px; padding: 1px 4px 1px 8px; border-left: 2px solid var(--dim); cursor: pointer; min-width: 0; line-height: 1.5; }
-.of-row:hover { background: var(--panel-3); color: var(--text); }
-.of-row.skip { border-left-color: var(--accent-dim); } .of-row.read { border-left-color: var(--mail-rim); } .of-row.todo { border-left-color: color-mix(in srgb, var(--ok) 70%, var(--ink)); } .of-row.note { border-left-color: color-mix(in srgb, var(--violet) 45%, var(--ink)); }
-.of-ic { width: 12px; text-align: center; flex: none; color: var(--dim); }
-.of-row b { color: #c9c8d8; font-weight: 600; flex: none; }
-.of-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
-.of-card { margin: 3px 0 4px 8px; }
 
 /* Workflows: the cost table's dial and its pick, and the window before any run exists. */
 .wf-dial { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
@@ -3018,14 +3010,8 @@ aside:not(.drawer) { flex: none; }
 
 /* ---- The office's small pictures: stamps in the chat, the track of a run ---- */
 svg.pxg { display: block; flex: none; }
-.of .strip { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; align-items: center; min-width: 0; }
+.of .strip { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
 .of .more { font: 11px Menlo, Consolas, monospace; color: var(--dim); }
-.stamp { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 5px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; color: var(--muted); }
-.stamp b { font-weight: 600; color: var(--text); font-size: 11px; }
-.stamp-library { color: var(--think); } .stamp-todo { color: var(--ok); } .stamp-note { color: var(--paper); } .stamp-flag, .stamp-plan { color: var(--accent); }
-.stamp.skip { opacity: 0.6; }
-.stamp.bad { box-shadow: 0 0 0 1px var(--danger), inset 0 2px 0 rgb(255 255 255 / 0.05); color: var(--danger-text); }
-.stamp.wait { box-shadow: 0 0 0 1px var(--accent), inset 0 2px 0 rgb(255 255 255 / 0.05); }
 .run-track { flex: none; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); box-shadow: 0 2px 0 var(--ink); padding: 8px 14px 6px; }
 .run-track .rt-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; min-width: 0; }
 .run-track .rt-head b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3079,7 +3065,7 @@ svg.pxg { display: block; flex: none; }
 .rb-mark.review { background: var(--trim); box-shadow: 0 0 0 1px var(--ink); }
 .rb-mark.round { background: var(--panel-3); width: 2px; }
 .rb-mark.lifted { top: -4px; bottom: auto; width: 7px; height: 7px; margin-left: -3px; background: var(--violet); box-shadow: 0 0 0 1px var(--ink); }
-.rb-flag { position: absolute; top: -3px; margin-left: -3px; }
+.rb-flag { position: absolute; top: -9px; right: 0; line-height: 0; }
 .rb-flag.landed { color: var(--ok-text); } .rb-flag.anyway { color: var(--danger-text); }
 .rb-none { height: 14px; box-shadow: 0 0 0 1px var(--dim); display: flex; align-items: center; padding-left: 8px; font-size: 11px; color: var(--muted); font-style: italic; }
 .rb-sheet { background: var(--well); box-shadow: 0 0 0 2px var(--ink); margin: 2px 6px 8px 244px; padding: 8px 14px; font-size: 12px; color: var(--muted); }
@@ -3143,3 +3129,25 @@ svg.pxg { display: block; flex: none; }
 .bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
 .bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
+/* ---- Stamps: tinted by their area (library cyan, todo green, notes orange, workflow brass), a picture and a few words ---- */
+.stamp { --hue: var(--muted); display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 7px 0 5px; color: var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--panel-3)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 45%, var(--ink)), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; }
+.stamp b { font-weight: 600; color: var(--text); font-size: 11px; white-space: nowrap; }
+.stamp-library { --hue: var(--think); } .stamp-todo { --hue: var(--ok-text); } .stamp-note { --hue: var(--claude); } .stamp-flag, .stamp-plan { --hue: var(--accent); }
+.stamp.skip { opacity: 0.65; }
+.stamp.bad { --hue: var(--danger-text); }
+.stamp.wait { box-shadow: 0 0 0 1px var(--accent), inset 0 2px 0 rgb(255 255 255 / 0.05); }
+/* ---- The opened list: a panel with a coloured picture for each call ---- */
+.of-list { margin: 4px 0 4px 16px; padding: 3px; display: flex; flex-direction: column; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); }
+.of-item { --hue: var(--muted); }
+.of-item.stamp-library { --hue: var(--think); } .of-item.stamp-todo { --hue: var(--ok-text); } .of-item.stamp-note { --hue: var(--claude); } .of-item.stamp-flag, .of-item.stamp-plan { --hue: var(--accent); }
+.of-item.bad { --hue: var(--danger-text); }
+.of-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: center; width: 100%; padding: 4px 6px; cursor: pointer; line-height: 1.4; }
+.of-row:hover { background: color-mix(in srgb, var(--hue) 10%, var(--panel-2)); }
+.of-ic { display: grid; place-items: center; width: 22px; height: 22px; color: var(--hue); background: color-mix(in srgb, var(--hue) 14%, var(--panel-3)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hue) 45%, var(--ink)); }
+.of-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.of-txt b { font-weight: 600; }
+.of-why { color: var(--muted); }
+.of-item.bad .of-why { color: var(--danger-text); }
+.of-card { margin: 2px 6px 6px 34px; }
+.of-card .tc { background: var(--well); border: 0; box-shadow: 0 0 0 1px var(--ink); padding: 6px 8px; }
+.of-card .tc-head { display: none; }

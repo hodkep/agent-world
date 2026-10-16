@@ -1,8 +1,8 @@
-import { type IconName, PixelIcon } from '../chat/PixelIcon'
+import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 import { Sprite } from '../pixel/Pixels'
 import type { Station, Track } from '../../shared/runTrack'
 
-const ICON: Record<Station['kind'], IconName> = { plan: 'pencil', work: 'tools', approve: 'check', check: 'check', audit: 'review', merge: 'flag' }
+const ICON: Record<Station['kind'], HeaderIconName> = { plan: 'file', work: 'terminal', approve: 'tick', check: 'tick', audit: 'search', merge: 'flag' }
 const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'not asked' }
 
 /**
@@ -11,7 +11,7 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  */
 export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar' }) {
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
-  const mark = (s: Station): IconName => (s.state === 'done' || s.state === 'trouble' ? 'check' : s.state === 'failed' ? 'x' : ICON[s.kind])
+  const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : ICON[s.kind])
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
   if (variant === 'bar')
     return (
@@ -22,7 +22,7 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
           {track.stations.map((s, i) => (
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`} title={`${s.name}: ${word(s)}`}>
               <i className="sq">
-                <PixelIcon name={mark(s)} />
+                <OutlineIcon name={mark(s)} size={12} />
                 {s.tries ? <b className="tn">{s.tries}</b> : null}
               </i>
               <span className="nm">{s.name}</span>
@@ -51,7 +51,7 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
                 </span>
               )}
               <i className="sq">
-                <PixelIcon name={mark(s)} />
+                <OutlineIcon name={mark(s)} size={14} />
                 {s.tries ? <b className="tn">{s.tries}</b> : null}
               </i>
               <span className="nm" title={s.name}>{s.name}</span>

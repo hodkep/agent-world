@@ -135,12 +135,15 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   const w = whisperOf(run)
   const tip = `${[w.bold, w.rest].filter(Boolean).join(' ')}${w.why ? ` · ${w.why}` : ''}`
   const state: Stamp['state'] = run.result?.isError ? 'bad' : tool === 'library_skip' ? 'skip' : !run.result && working ? 'wait' : ''
-  if (tool.startsWith('library_')) return { kind: 'library', label: tool === 'library_skip' ? `skip ${str(i.id)}` : tool === 'library_get' ? str(i.id) : '', tip, state }
+  const id = str(i.id)
+  if (tool.startsWith('library_')) return { kind: 'library', label: { library_skip: `skip ${id}`, library_get: id, library_index: 'library', library_search: 'searched' }[tool] ?? '', tip, state }
   if (tool === 'todo_add') return { kind: 'todo', label: clip(str(i.title), 14), tip, state }
-  if (tool.startsWith('todo_')) return { kind: 'todo', label: str(i.id) ? `#${str(i.id)}` : '', tip, state }
-  if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: '', tip, state }
-  if (tool === 'workflow_propose' || tool === 'plan_submit') return { kind: 'plan', label: '', tip, state }
-  return { kind: 'flag', label: '', tip, state }
+  if (tool.startsWith('todo_')) return { kind: 'todo', label: id ? `#${id}` : 'todos', tip, state }
+  if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: tool === 'remember' ? 'noted' : 'recalled', tip, state }
+  if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
+  if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
+  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, task_begin: 'task', task_done: 'done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
+  return { kind: 'flag', label: flagged[tool] ?? clip(humanize(tool), 14), tip, state }
 }
 
 export interface SummaryPart {

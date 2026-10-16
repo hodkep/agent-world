@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { PictureSet } from './gallery'
-import { PixelIcon } from './PixelIcon'
+import { OutlineIcon } from '../panel/IconButton'
 import { type OfficeGroup, type Stamp, stampOf, summaryOf, whisperOf } from './officeCalls'
 import { STAMP_ICON } from './stampIcons'
 import { ToolCard } from './ToolCard'
@@ -11,7 +11,7 @@ const MAX_STAMPS = 10
 function StampView({ stamp }: { stamp: Stamp }) {
   return (
     <span className={`stamp stamp-${stamp.kind} ${stamp.state}`} title={stamp.tip}>
-      <PixelIcon name={STAMP_ICON[stamp.kind]} />
+      <OutlineIcon name={STAMP_ICON[stamp.kind]} size={14} />
       {stamp.label && <b>{stamp.label}</b>}
     </span>
   )
@@ -43,13 +43,16 @@ export function OfficeLine({ group, working, onImage }: { group: OfficeGroup; wo
         <div className="of-list">
           {group.calls.map((c) => {
             const w = whisperOf(c.run)
+            const st = stampOf(c.run)
             return (
-              <div key={c.id}>
-                <button className={`of-row ${w.kind}`} aria-expanded={cards.has(c.id)} onClick={() => flip(c.id)}>
-                  <span className="of-ic" aria-hidden="true">{w.icon}</span>
-                  <b>{w.bold}</b>
-                  {w.rest && <span>{w.rest}</span>}
-                  {w.why && <span className="of-why">· {w.why}</span>}
+              <div key={c.id} className={`of-item stamp-${st.kind} ${st.state}`}>
+                <button className="of-row" aria-expanded={cards.has(c.id)} onClick={() => flip(c.id)}>
+                  <span className="of-ic" aria-hidden="true"><OutlineIcon name={STAMP_ICON[st.kind]} size={14} /></span>
+                  <span className="of-txt">
+                    <b>{w.bold}</b>
+                    {w.rest && <span> {w.rest}</span>}
+                    {w.why && <span className="of-why"> · {w.why}</span>}
+                  </span>
                 </button>
                 {cards.has(c.id) && <div className="of-card"><ToolCard run={c.run} working={false} onImage={onImage} /></div>}
               </div>
