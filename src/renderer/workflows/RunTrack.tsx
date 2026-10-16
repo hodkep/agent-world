@@ -28,9 +28,12 @@ export function RunTrack({ track, seed, agentName }: { track: Track; seed: strin
                   <Sprite seed={seed} />
                 </span>
               )}
-              <i className="sq"><Glyph name={mark} cell={2} /></i>
+              <i className="sq">
+                <Glyph name={mark} cell={2} />
+                {s.tries ? <b className="tn">{s.tries}</b> : null}
+              </i>
               <span className="nm" title={s.name}>{s.name}</span>
-              <span className="sr-only"> ({WORD[s.state]})</span>
+              <span className="sr-only"> ({WORD[s.state]}{s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''})</span>
             </li>
           )
         })}

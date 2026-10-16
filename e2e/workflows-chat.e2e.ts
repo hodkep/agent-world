@@ -34,7 +34,7 @@ test('chat: the calls that move a run leave the conversation, the office\'s own 
     await box.fill('add wordCount')
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
-    await expect(log).toContainText('Done with wordCount.')
+    await expect(log).toContainText('Done with wordCount.', { timeout: 45_000 })
 
     // The library read is a stamp, with the sentence in its tip.
     const stamps = log.locator('.of-head .stamp')

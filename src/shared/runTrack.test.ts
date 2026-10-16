@@ -48,6 +48,17 @@ describe('where a run is on its track', () => {
     expect(states([...base, ran(1, true)])![2]).toBe('tests:done')
   })
 
+  it('keeps how often a check failed on its station, while it is retried and after it passed', () => {
+    const base = [submitted(), planned('approved'), done('build')]
+    expect(track([...base, ran(1, false)])!.stations[2]).toMatchObject({ state: 'now', tries: 1 })
+    expect(track([...base, ran(1, false), ran(2, false), ran(3, true)])!.stations[2]).toMatchObject({ state: 'trouble', tries: 2 })
+    expect(track([...base, ran(1, true)])!.stations[2]!.tries).toBeUndefined()
+  })
+
+  it('keeps how often the plan was sent back on its station', () => {
+    expect(track([submitted(), planned('changes'), submitted(400), planned('approved', 500)])!.stations[0]).toMatchObject({ state: 'trouble', tries: 1 })
+  })
+
   it('stands on a check that ran out of tries and says it is the person\'s call', () => {
     const t = track([submitted(), planned('approved'), done('build'), ran(1, false), ran(2, false), ran(3, false)])!
     expect(t.stations[2]).toMatchObject({ id: 'tests', state: 'failed' })

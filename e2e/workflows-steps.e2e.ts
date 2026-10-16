@@ -74,19 +74,21 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     expect(begun.text).not.toContain('plan_submit')
     expect(await edit()).toBe('')
 
-    // The strip in the agent's Workflow tab: the plan was not needed, the build is in progress.
+    // The track in the agent's Workflow tab: the plan was not needed, the build is in progress.
     await page.getByRole('tab', { name: 'Workflow' }).click()
-    const strip = page.getByRole('list', { name: /Steps of Reviewed, round 1/ })
-    await expect(strip).toContainText('Build (in progress)')
-    await expect(strip).toContainText('Your review (not yet)')
-    await expect(page.getByRole('article', { name: 'Add a toggle' })).toContainText('Reviewed')
+    const track = page.getByRole('region', { name: 'Add a toggle: where ada is' }).first()
+    const station = (name: string) => track.locator('.st', { hasText: name })
+    await expect(station('Build')).toContainText('here now')
+    await expect(station('Your review')).toContainText('not yet')
+    await expect(track).toContainText('Reviewed')
 
     // A step that is not the agent's to report is refused; its own is accepted and then waits for the person.
     expect((await call('step_done', { step: 'land' })).error).toBe(true)
     const reported = await call('step_done', { step: 'build' })
     expect(reported.text).toContain('"Your review" now waits for the person')
     await post({ hook_event_name: 'Stop' })
-    await expect(strip).toContainText(/Your review.*\(waiting for you\)/)
+    await expect(station('Your review')).toContainText('here now')
+    await expect(track.getByRole('status')).toHaveText('needs your approval')
     await expect(page.locator('header').getByRole('button', { name: /Workflows/ })).toHaveAttribute('data-badge', '1').catch(() => undefined)
 
     // Landing is refused, in words, while the step is not approved.
@@ -113,7 +115,7 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     await panel.getByRole('button', { name: 'Approve' }).click()
     await expect(log).toContainText('Your step "Your review" was approved.', { timeout: 15_000 })
     await page.getByRole('tab', { name: 'Workflow' }).click()
-    await expect(strip).toContainText('Your review (done)')
+    await expect(station('Your review')).toContainText('met')
     expect(await land()).toBe('landed')
     expect(git(repo, 'log', '--format=%s', 'main')).toContain('add toggle')
     await client.close()

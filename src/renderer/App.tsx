@@ -139,6 +139,8 @@ export function App() {
   const [crewOpen, setCrewOpen] = useState(false)
   const wf = useWorkflows()
   const [report, setReport] = useState<'usage' | 'rewind' | 'workflows' | null>(null)
+  // A run the Workflows window was opened on, from a tile in an agent's tab.
+  const [runFocus, setRunFocus] = useState<string | null>(null)
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
   const [cardOpen, setCardOpen] = useState(false)
   // The terminals drawer under the office: shown or hidden, how tall, and how many terminals the project has.
@@ -1164,7 +1166,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setAgents((xs) => (xs.some((x) => x.id === a.id) ? xs : [...xs, a])), setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} onClose={() => setReport(null)} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setAgents((xs) => (xs.some((x) => x.id === a.id) ? xs : [...xs, a])), setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1616,7 +1618,7 @@ export function App() {
             />
           )}
           {current && view === 'preview' && <PreviewView key={current.id} folder={current.repoPath} servers={servers[current.id] ?? []} agentName={current.name} agentId={current.id} target={previewTarget[current.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
-          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} />}
+          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} onOpenRun={(id) => (setRunFocus(id ?? null), setReport('workflows'))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

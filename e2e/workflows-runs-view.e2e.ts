@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 import { seedWeek } from './workflowsWeek'
 
-async function week(old = false) {
+async function week(old = false, openWindow = true) {
   const home = mkdtempSync(join(tmpdir(), 'aw-runsview-'))
   const project = join(home, 'project')
   mkdirSync(project)
@@ -20,7 +20,7 @@ async function week(old = false) {
   const [ada] = await page.evaluate(() => window.aw.listAgents())
   seedWeek(join(home, 'aw'), { ada: ada!.id, project, old })
   await page.reload()
-  await page.locator('header').getByRole('button', { name: 'Workflows' }).click()
+  if (openWindow) await page.locator('header').getByRole('button', { name: 'Workflows' }).click()
   return { page, shutdown, win: page.getByRole('dialog', { name: 'Workflows' }) }
 }
 
@@ -86,6 +86,30 @@ test('the Insights tab is a tile for every gate of every run, with the numbers u
     await expect(grid).toContainText('Old export')
     await win.getByRole('radio', { name: '7 days' }).click()
     await expect(grid).not.toContainText('Old export')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the agent\'s tab is the track of its open run and its week as a tile for each run; a tile or the link opens the window on it', async () => {
+  const { page, shutdown, win } = await week(false, false)
+  try {
+    await page.getByRole('tab', { name: /^Workflow/ }).click()
+    const track = page.getByRole('region', { name: 'Add a slug length limit: where ada is' }).first()
+    await expect(track).toBeVisible()
+    await expect(track.locator('.st.now')).toContainText('Plan')
+    await expect(track.getByRole('status')).toHaveText('needs your approval')
+    await expect(page.getByText(/This week · \d+ runs?/)).toBeVisible()
+    const days = page.getByRole('list', { name: 'This week' })
+    await expect(days.getByRole('listitem')).toHaveCount(7)
+    // The open run's tile is waiting, and a tile opens that run in the window.
+    await days.getByRole('button', { name: 'Add a slug length limit: waiting' }).click()
+    await expect(win.getByRole('region', { name: 'How Add a slug length limit went' })).toContainText('waiting for you')
+    await win.getByRole('button', { name: 'Close' }).click()
+    // The link opens the window on its runs, with none opened.
+    await page.getByRole('button', { name: /All of ada's runs in Workflows/ }).click()
+    await expect(win.getByRole('list', { name: 'Runs' })).toBeVisible()
+    await expect(win.getByRole('region', { name: /^How .* went$/ })).toHaveCount(0)
   } finally {
     await shutdown()
   }

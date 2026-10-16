@@ -1,3 +1,4 @@
+import { weekStartOf } from './ledger'
 import type { Run, RunWorkflow } from './runs'
 import { formatDuration } from './runStats'
 import { type StepContext, stepStates } from './steps'
@@ -291,3 +292,29 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
 const DAY = 24 * 60 * 60_000
 /** The runs that ended, or are still going, within the last `days` days. */
 export const runsWithin = (runs: Run[], days: number, now: number) => runs.filter((r) => (r.endedAt ?? now) >= now - days * DAY)
+
+/** One tile for a whole run: the worst that happened (a gate missed, then one still waiting, then trouble on the way), else met. */
+export function runVerdict(tiles: Tile[]): TileKind {
+  const kinds = tiles.map((t) => t.kind)
+  for (const k of ['bad', 'wait', 'trouble', 'ok'] as const) if (kinds.includes(k)) return k
+  return 'na'
+}
+
+export interface WeekDay {
+  label: string
+  today: boolean
+  runs: { id: string; title: string; kind: TileKind }[]
+}
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const dayOf = (t: number) => (new Date(t).getDay() + 6) % 7
+
+/** This week, Monday to Sunday, with each run on the day it began (a run still going from before the week on Monday), oldest first, as one verdict each. */
+export function weekDays(runs: Run[], ctxFor: (run: Run) => StepContext, now: number): WeekDay[] {
+  const start = weekStartOf(now)
+  const days: WeekDay[] = DAY_LABELS.map((label, i) => ({ label, today: i === dayOf(now), runs: [] }))
+  for (const r of runs) {
+    if ((r.endedAt ?? now) < start) continue
+    days[r.startedAt < start ? 0 : dayOf(r.startedAt)]!.runs.push({ id: r.id, title: r.title, kind: runVerdict(gateTiles(r, ctxFor(r))) })
+  }
+  return days
+}

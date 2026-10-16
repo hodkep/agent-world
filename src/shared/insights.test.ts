@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { columnRates, gateTiles, headline, runBar, runsWithin, says, timelineOf, weekSentences } from './insights'
+import { type TileKind, columnRates, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays, weekSentences } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -227,5 +227,44 @@ describe('the runs of the last days', () => {
     const now = 40 * DAY
     expect(runsWithin([old, mid, open], 7, now).map((r) => r.id)).toEqual(['open'])
     expect(runsWithin([old, mid, open], 30, now).map((r) => r.id)).toEqual(['mid', 'open'])
+  })
+})
+
+describe('one tile for a whole run', () => {
+  const tiles = (...kinds: TileKind[]) => kinds.map((kind, i) => ({ gate: (['plan', 'check', 'review', 'land', 'told'] as const)[i % 5]!, kind }))
+  it('is the worst that happened: missed, then waiting, then trouble, then met', () => {
+    expect(runVerdict(tiles('ok', 'ok', 'na', 'na', 'ok'))).toBe('ok')
+    expect(runVerdict(tiles('ok', 'trouble', 'na', 'na', 'ok'))).toBe('trouble')
+    expect(runVerdict(tiles('wait', 'trouble', 'na', 'na', 'ok'))).toBe('wait')
+    expect(runVerdict(tiles('trouble', 'wait', 'bad', 'ok', 'ok'))).toBe('bad')
+    expect(runVerdict(tiles('na', 'na', 'na', 'na', 'na'))).toBe('na')
+  })
+})
+
+describe('the week, day by day', () => {
+  // Oct 14 to 16, 2026 are a Wednesday to a Friday; the week began on Monday the 12th.
+  const at = (day: number, hour: number, min = 0) => new Date(2026, 9, day, hour, min).getTime()
+  const sub = (t: number, run: string): RunEvent => ({ k: 'plan', t, run, round: 1, state: 'submitted', path: 'p.md', readback })
+  const plans = (run: string, d: number, hour: number, sentBack: boolean): RunEvent[] => [...(sentBack ? [sub(at(d, hour, 1), run), { k: 'plan', t: at(d, hour, 2), run, round: 1, state: 'changes' } as RunEvent] : []), sub(at(d, hour, 3), run), { k: 'plan', t: at(d, hour, 4), run, round: 1, state: 'approved' } as RunEvent]
+  const finish = (run: string, d: number, hour: number): RunEvent[] => [stepDone(at(d, hour, 10), 'build', run), check(at(d, hour, 11), 1, true, 1000, run), audit(at(d, hour, 12), [], run), merge(at(d, hour, 13), 'checked', run), done(at(d, hour, 13), run)]
+  const runs = [
+    run([begin(at(14, 10), JOURNEY, { title: 'Dark mode' }, 'w'), ...plans('w', 14, 10, true), ...finish('w', 14, 10)]),
+    run([begin(at(15, 10), JOURNEY, { title: 'Word count' }, 't'), ...plans('t', 15, 10, false), stepDone(at(15, 10, 10), 'build', 't'), check(at(15, 10, 11), 1, false, 1000, 't'), check(at(15, 10, 12), 2, true, 1000, 't'), audit(at(15, 10, 13), [], 't'), merge(at(15, 10, 14), 'checked', 't'), done(at(15, 10, 14), 't')]),
+    run([begin(at(16, 9), QUICK, { title: 'README' }, 'f1'), stepDone(at(16, 9, 5), 'quick', 'f1'), merge(at(16, 9, 6), 'checked', 'f1'), done(at(16, 9, 6), 'f1')]),
+    run([begin(at(16, 11), JOURNEY, { title: 'Slug limit' }, 'f2'), sub(at(16, 11, 5), 'f2')])
+  ]
+  it('puts each run on the day it began, oldest first, with one verdict each, and marks today', () => {
+    const days = weekDays(runs, () => ctx, at(16, 12))
+    expect(days.map((d) => d.label)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+    expect(days.map((d) => d.today)).toEqual([false, false, false, false, true, false, false])
+    expect(days.map((d) => d.runs.map((r) => r.kind))).toEqual([[], [], ['trouble'], ['trouble'], ['ok', 'wait'], [], []])
+    expect(days[4]!.runs.map((r) => r.title)).toEqual(['README', 'Slug limit'])
+  })
+  it('puts a run from before the week that is still going on Monday, and leaves out one that ended before it', () => {
+    const old = run([begin(at(5, 10), JOURNEY, { title: 'Old' }, 'o'), done(at(5, 11), 'o')])
+    const stuck = run([begin(at(5, 10), JOURNEY, { title: 'Stuck' }, 's')])
+    const days = weekDays([old, stuck], () => ctx, at(16, 12))
+    expect(days[0]!.runs.map((r) => r.title)).toEqual(['Stuck'])
+    expect(days.flatMap((d) => d.runs)).toHaveLength(1)
   })
 })
