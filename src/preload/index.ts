@@ -38,6 +38,7 @@ const api: AwApi = {
   listProviders: () => ipcRenderer.invoke('list-providers'),
   gitInfo: () => ipcRenderer.invoke('git:info'),
   openSignIn: (id, account) => ipcRenderer.invoke('provider:sign-in', id, account),
+  installProvider: (id) => ipcRenderer.invoke('provider:install', id),
   listAccounts: () => ipcRenderer.invoke('accounts:list'),
   addAccount: (provider, name) => ipcRenderer.invoke('accounts:add', provider, name),
   removeAccount: (id) => ipcRenderer.invoke('accounts:remove', id),

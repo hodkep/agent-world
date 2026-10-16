@@ -186,9 +186,11 @@ export interface AwApi {
   /** Every provider the app knows, with whether it is ready on this machine. */
   listProviders(): Promise<ProviderInfo[]>
   /** Which git the app and its agents use: the computer's own, or the one bundled with the app; null when there is neither. */
-  gitInfo(): Promise<{ source: 'system' | 'bundled'; bin: string } | null>
+  gitInfo(): Promise<{ source: 'system' | 'bundled'; bin: string; version?: string } | null>
   /** A shell in the home folder with the provider's own program started, so the user can sign in; gives its terminal id. */
   openSignIn(provider: ProviderId, account?: string): Promise<string>
+  /** Runs the installer of a program that was not found in a terminal (its id is returned, and `onPtyExit` says when it ended). */
+  installProvider(provider: ProviderId): Promise<string>
   /** Claude accounts: this computer's own login first (id ''), then the ones added. */
   listAccounts(): Promise<AccountInfo[]>
   /** Makes the account's folder; returns its id. Sign-in follows with openSignIn. */

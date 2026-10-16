@@ -15,6 +15,7 @@ import { AccountService } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
+import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
@@ -22,8 +23,9 @@ import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep 
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
 import { packagedPath, parseLoginPath } from './appPath'
-import { resolveGit, withGitOnPath } from './gitBinary'
-import { gitProgram, useGit } from './gitProgram'
+import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
+import { installCommand, installLaunch } from './installRun'
+import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -1858,9 +1860,36 @@ async function main() {
     return sid
   })
   // Which git the app and its agents use, for the setup screen.
-  ipcMain.handle('git:info', () => {
+  ipcMain.handle('git:info', async () => {
     const g = gitProgram()
-    return g ? { source: g.source, bin: g.bin } : null
+    if (!g) return null
+    let version: string | undefined
+    try {
+      version = parseGitVersion((await promisify(execFile)(g.bin, ['--version'], { env: gitProcessEnv(), timeout: 5000 })).stdout)
+    } catch {
+      /* it runs, or it would not have been chosen; the number is only for show */
+    }
+    return { source: g.source, bin: g.bin, ...(version && { version }) }
+  })
+  // The installer of a program that was not found, run in a terminal the step shows; the terminal ends when the installer does.
+  ipcMain.handle('provider:install', async (_, id: string) => {
+    const p = providers().find((x) => x.id === id)
+    if (!p) throw new Error('Unknown provider.')
+    const command = installCommand(await p.detect(binFor(p)), process.env)
+    if (!command) throw new Error(`${p.label} is not missing, or has no installer to run.`)
+    const launch = installLaunch(command, process.platform, process.env.SHELL)
+    if (!launch) throw new Error(`Copy the command and run it in PowerShell: ${command}`)
+    const sid = `term:${randomUUID()}`
+    const pt = pty.spawn(launch.file, launch.args, { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: env as Record<string, string> })
+    shells.set(sid, pt)
+    pt.onData((d) => {
+      const b = buffers.get(sid) ?? { text: '', end: 0 }
+      const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
+      buffers.set(sid, next)
+      send('pty-data', sid, d, next.end)
+    })
+    pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
+    return sid
   })
   ipcMain.handle('list-providers', () =>
     Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))

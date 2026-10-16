@@ -1510,6 +1510,11 @@ code a.file-link { font: inherit; }
 .su-state { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 7px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--muted); }
 .su-state.ready { color: var(--ok-text); }
 .su-state.needs-sign-in { color: var(--accent); }
+.su-state.installing { color: var(--accent); }
+.su-state.not-installed { color: var(--danger-text); }
+.su-mark.su-git { background: #e8e8f0; color: #c0392b; }
+.su-cmd { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.su-install-term .hint { display: flex; align-items: center; }
 .su-note { background: var(--danger-well); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); padding: 8px 12px; color: var(--text); font-size: 12px; }
 .su-note.ok { background: var(--selected); }
 .su-howto { font: 12px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 6px 10px; color: var(--text); user-select: all; }
