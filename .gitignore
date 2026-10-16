@@ -11,3 +11,6 @@ dist
 excalidraw.log
 
 pilot-*report.txt
+*.log
+.env*
+coverage/
