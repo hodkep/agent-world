@@ -72,7 +72,7 @@ export function HireForm({
   const [chrome, setChrome] = useState(false)
   const [inPlace, setInPlace] = useState(defaults.inPlace)
   // The branch the agent starts from and lands on: the folder's own unless another is chosen. Nothing is offered outside a git repo.
-  const [repo, setRepo] = useState({ current: '', branches: [] as BranchList['branches'] })
+  const [repo, setRepo] = useState<BranchList>({ current: '', branches: [] })
   const [base, setBase] = useState('')
   useEffect(() => {
     void window.aw.repoBranches(folder).then(setRepo, () => undefined)
@@ -260,9 +260,14 @@ export function HireForm({
           </label>
         )}
         <label className="check" title="No worktree and no aw/ branch: the agent edits your folder directly, so other agents on it can overwrite each other">
-          <input type="checkbox" checked={inPlace} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
+          <input type="checkbox" checked={inPlace || !!repo.unborn} disabled={!!repo.unborn} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>
       </div>
+      {repo.unborn && (
+        <p className="hint" role="note" aria-label="No commits yet">
+          This repository has no commits yet, so the agent works in the folder itself. Once it has a first commit, new agents get a branch of their own.
+        </p>
+      )}
       {!inPlace && repo.branches.length > 0 && (
         <div className="hire-row hire-base">
           <span>Branch from</span>

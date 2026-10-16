@@ -59,6 +59,8 @@ export interface Branch {
 export interface BranchList {
   current: string
   branches: Branch[]
+  /** A repository with no commits yet: nothing to branch from, so an agent hired there works in the folder itself. */
+  unborn?: boolean
 }
 
 export interface PaletteCommand {

@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DirtyWorktreeError, createWorktree, isGitRepo, nameTaken, removeWorktree } from './worktree'
+import { DirtyWorktreeError, NoCommitsError, createWorktree, checkedOutBranch, hasCommits, isGitRepo, nameTaken, plainGitError, removeWorktree, worktreeFor } from './worktree'
+import { repoInfo } from './gitops'
 
 let tmp: string
 let repo: string
@@ -79,5 +80,82 @@ describe('worktrees', () => {
     writeFileSync(join(wt.path, 'new.txt'), 'wip\n')
     await removeWorktree({ repoPath: repo, path: wt.path, force: true })
     expect(existsSync(wt.path)).toBe(false)
+  })
+})
+
+describe('a repository with no commits yet', () => {
+  let fresh: string
+  beforeEach(() => {
+    fresh = join(tmp, 'fresh')
+    execFileSync('mkdir', [fresh])
+    git(fresh, 'init', '-q', '-b', 'main')
+  })
+
+  it('is a repository, with no commit to work from', async () => {
+    expect(await isGitRepo(fresh)).toBe(true)
+    expect(await hasCommits(fresh)).toBe(false)
+    expect(await hasCommits(repo)).toBe(true)
+    expect(await hasCommits(tmp)).toBe(false)
+  })
+
+  it('has no branch to start from, and says so as an empty name instead of a git error', async () => {
+    expect(await checkedOutBranch(fresh)).toBe('')
+    expect(await checkedOutBranch(repo)).toBe('main')
+    expect(await checkedOutBranch(tmp)).toBe('')
+  })
+
+  it('cannot have a worktree made, and the reason is in plain words, not a git command', async () => {
+    const err = await createWorktree({ repoPath: fresh, name: 'ada', rootDir: root }).then(() => null, (e: Error) => e)
+    expect(err).toBeInstanceOf(NoCommitsError)
+    expect(err!.message).toBe('This repository has no commits yet, so there is nothing to start a branch from.')
+    expect(err!.message).not.toMatch(/Command failed|fatal|HEAD/)
+    expect(existsSync(join(root))).toBe(false)
+  })
+
+  it('can have one once the first commit is made', async () => {
+    writeFileSync(join(fresh, 'a.txt'), 'a\n')
+    git(fresh, 'add', '.')
+    git(fresh, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'first')
+    expect(await hasCommits(fresh)).toBe(true)
+    const wt = await createWorktree({ repoPath: fresh, name: 'ada', rootDir: root })
+    expect(wt).toMatchObject({ branch: 'aw/ada', base: 'main' })
+  })
+
+  it('is described for the hire form: no current branch, no branches, and that it has no commits', async () => {
+    expect(await repoInfo(fresh)).toEqual({ current: '', branches: [], unborn: true })
+    expect(await repoInfo(tmp)).toEqual({ current: '', branches: [] })
+    expect(await repoInfo(repo)).toMatchObject({ current: 'main', branches: [{ name: 'main', kind: 'local', checkedOut: true }] })
+    expect((await repoInfo(repo)).unborn).toBeUndefined()
+  })
+})
+
+describe('what git says when it fails, as a person sees it', () => {
+  it('is its own sentence, without the command that was run', () => {
+    const raw = new Error("Command failed: /usr/bin/git rev-parse --abbrev-ref HEAD\nfatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions")
+    expect(plainGitError(raw)).toBe("git said: ambiguous argument 'HEAD': unknown revision or path not in the working tree.")
+    expect(plainGitError(new Error('A branch named aw/ada exists.'))).toBe('A branch named aw/ada exists.')
+    expect(plainGitError('odd')).toBe('odd')
+  })
+})
+
+describe('the folder an agent is hired into', () => {
+  it('is its own worktree on its own branch in a repository that has commits', async () => {
+    const wt = await worktreeFor({ repoPath: repo, name: 'ada', rootDir: root })
+    expect(wt).toMatchObject({ branch: 'aw/ada', base: 'main' })
+  })
+  it('is no worktree, and no branch, when the person asked to work in the folder itself, in a folder that is not a repository, and in a repository with no commits', async () => {
+    const fresh = join(tmp, 'fresh')
+    execFileSync('mkdir', [fresh])
+    git(fresh, 'init', '-q', '-b', 'main')
+    expect(await worktreeFor({ repoPath: repo, name: 'ada', rootDir: root, inPlace: true })).toBeNull()
+    expect(await worktreeFor({ repoPath: tmp, name: 'ada', rootDir: root })).toBeNull()
+    expect(await worktreeFor({ repoPath: fresh, name: 'ada', rootDir: root })).toBeNull()
+    expect(git(fresh, 'branch', '--list')).toBe('')
+  })
+  it('says why in a sentence when git cannot make it, never with the command it ran', async () => {
+    const err = await worktreeFor({ repoPath: repo, name: 'ada', rootDir: root, base: 'no-such-branch' }).then(() => null, (e: Error) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err!.message).toMatch(/^git said: /)
+    expect(err!.message).not.toMatch(/Command failed|\/usr\/bin\/git/)
   })
 })
