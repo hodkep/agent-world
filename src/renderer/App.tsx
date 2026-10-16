@@ -59,6 +59,8 @@ import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
+import { RunTrack } from './workflows/RunTrack'
+import { trackOf } from '../shared/runTrack'
 import { pendingPlans } from '../shared/runs'
 import { checkPanels, waitingSteps } from '../shared/steps'
 import { CheckGate } from './workflows/CheckGate'
@@ -653,6 +655,12 @@ export function App() {
       </>
     )
   }
+  // Where the agent's latest run stands, above its conversation, while it is not finished.
+  const trackFor = (a: AgentRecord) => {
+    const run = wf.runs.filter((r) => r.agent === a.id).at(-1)
+    const t = run && prefs && workflowsShown(prefs.workflows.enabled, wf.open) ? trackOf(run, ctxFor(run)) : undefined
+    return t && <RunTrack track={t} seed={a.id} agentName={a.name} />
+  }
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView
       key={key}
@@ -664,6 +672,7 @@ export function App() {
       asleep={(world[a.id]?.activity ?? 'asleep') === 'asleep'}
       need={needsOf(a.id)[0] ?? null}
       gate={gateFor(a)}
+      track={trackFor(a)}
       moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
       needActions={needActions(a.id)}
       visible={visible}

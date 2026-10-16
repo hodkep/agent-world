@@ -100,6 +100,7 @@ export function ChatView({
   asleep,
   need,
   gate,
+  track,
   moreNeeds,
   needActions,
   visible,
@@ -128,6 +129,8 @@ export function ChatView({
   need: Need | null
   /** The workflow's plan gate, when this agent's plan waits for the person. */
   gate?: ReactNode
+  /** Where this agent's open run stands, shown above the conversation. */
+  track?: ReactNode
   moreNeeds: number
   needActions: NeedActions
   visible: boolean
@@ -574,6 +577,7 @@ export function ChatView({
         </div>
       )}
       <ChatMenu agentId={agentId} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
+      {track}
       <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">

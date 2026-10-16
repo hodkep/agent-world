@@ -22,10 +22,14 @@ test('chat: the office\'s library calls are one folded line, and one click on it
     await box.press('Enter')
     const log = page.getByRole('log', { name: 'Conversation with ada' })
 
-    // Level one: the line says what was done, in a few words.
+    // Level one: a stamp for each call, and the line says what was done in words for anyone who cannot see them.
     const fold = log.locator('.of-head')
-    await expect(fold).toContainText('Library skipped tdd · read house-research')
-    await expect(fold).toContainText('Notes recalled')
+    await expect(fold).toHaveAttribute('aria-label', /Library skipped tdd · read house-research/)
+    await expect(fold).toHaveAttribute('aria-label', /Notes recalled/)
+    const stamps = fold.locator('.stamp')
+    await expect(stamps).toHaveCount(3)
+    await expect(stamps.nth(0)).toHaveAttribute('title', 'Skipped tdd · no code is written here')
+    await expect(stamps.nth(1)).toContainText('house-research')
     expect((await fold.boundingBox())!.height).toBeLessThan(30)
     await expect(log.locator('.of-row')).toHaveCount(0)
 
