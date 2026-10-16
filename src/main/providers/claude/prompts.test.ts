@@ -101,6 +101,17 @@ describe('plan approval menu', () => {
   })
 })
 
+describe('answering one menu when another follows it', () => {
+  it('stops once the question has changed, and never presses a key on the next one', async () => {
+    const writes: string[] = []
+    let screen = 'theme'
+    const io = { screen: () => screen, write: (k: string) => { writes.push(k); if (k === '\r') screen = 'login' }, sleep: async () => {} }
+    const detect = (s: string) => (s === 'theme' ? { highlighted: 0, key: 'theme' } : s === 'login' ? { highlighted: 0, key: 'login' } : null)
+    expect(await answerMenu(io, detect, 0)).toBe(true)
+    expect(writes).toEqual(['\r'])
+  })
+})
+
 describe('any open menu', () => {
   it('is a numbered option under the cursor: plan, trust and permission prompts alike', () => {
     expect(anyMenu(PLAN_MENU)).toBe(true)

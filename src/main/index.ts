@@ -2179,7 +2179,7 @@ async function main() {
   ipcMain.handle('menu:answer', async (_, id: string, index: number) => {
     const detect = (screen: string) => {
       const m = ui(id).genericMenu(screen)
-      return m ? { highlighted: m.highlighted } : null
+      return m ? { highlighted: m.highlighted, key: `${m.title}\n${m.options.join('\n')}` } : null
     }
     if (!ui(id).genericMenu(screens.get(id)?.text() ?? '')) throw new Error('That menu is gone.')
     termMenus.pressed(id)
