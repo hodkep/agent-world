@@ -40,7 +40,7 @@ test('an agent that commits without announcing a task still gets a run, started 
     expect(run!.rounds[0]!.commits.map((c) => c.subject)).toEqual(['add health check'])
 
     await page.locator('header').getByRole('button', { name: 'Workflows' }).click()
-    await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('table', { name: 'Runs' })).toContainText('add health check')
+    await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('list', { name: 'Runs' })).toContainText('add health check')
     await expect(page.getByRole('dialog', { name: 'Workflows' })).toContainText('from a commit')
   } finally {
     await shutdown()

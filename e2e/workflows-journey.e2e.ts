@@ -142,8 +142,9 @@ test('two agents of different programs in one project are held and let go separa
       await mcp.call('plan_submit')
     }
     const win = await openWorkflows(s.page, 'Runs')
-    await expect(win).toContainText('ada: Task of ada, waiting for approval')
-    await expect(win).toContainText('bo: Task of bo, waiting for approval')
+    await expect(win.getByLabel('This week')).toContainText('2 waiting on you now.')
+    await expect(win.getByRole('list', { name: 'Runs' })).toContainText('ada · Task of ada')
+    await expect(win.getByRole('list', { name: 'Runs' })).toContainText('bo · Task of bo')
     await shot(s.page, 'two-1-both-waiting')
     // Only ada's plan is approved.
     const runs = (await s.page.evaluate(() => window.aw.workflows.summary())).runs

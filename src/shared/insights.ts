@@ -1,4 +1,5 @@
 import type { Run, RunWorkflow } from './runs'
+import { formatDuration } from './runStats'
 import { type StepContext, stepStates } from './steps'
 
 /** One stretch of a run's time: the agent working, the person being waited on, a check that ran, or one that failed. */
@@ -103,13 +104,17 @@ export interface Tile {
   kind: TileKind
   /** For a check met after trouble: how often it failed. */
   tries?: number
+  /** For a tile met with trouble: the count it shows (plans sent back, checks failed, findings seen). */
+  n?: number
 }
 
 const has = (wf: RunWorkflow | undefined, kind: RunWorkflow['steps'][number]['kind']) => !!wf?.steps.some((s) => s.kind === kind)
 
 /** Whether a run met each gate its workflow asked for: plan, check, review, landing, and whether the agent said it began the task. */
 export function gateTiles(run: Run, ctx: StepContext): Tile[] {
-  const states = stepStates(run, ctx)
+  // The latest round with anything logged: a follow-up that has not got as far as its checks yet leaves the first round's standing.
+  const active = [...run.rounds].reverse().find((r) => r.steps.length > 0 || r.checks.length > 0 || r.plan) ?? run.rounds.at(-1)
+  const states = stepStates(run, ctx, active?.n)
   const wf = run.workflow
   const plan = (): TileKind => {
     if (!has(wf, 'plan') || states.find((s) => s.kind === 'plan')?.state === 'skipped') return 'na'
@@ -119,6 +124,7 @@ export function gateTiles(run: Run, ctx: StepContext): Tile[] {
     if (p.state === 'approved') return p.sentBack ? 'trouble' : 'ok'
     return 'wait'
   }
+  const planN = run.rounds[0]?.plan?.sentBack
   const checks = states.filter((s) => s.kind === 'check')
   const check = (): Tile => {
     if (checks.length === 0) return { gate: 'check', kind: 'na' }
@@ -126,7 +132,7 @@ export function gateTiles(run: Run, ctx: StepContext): Tile[] {
     if (checks.some((s) => s.state === 'waiting' || (s.state === 'running' && s.tries))) return { gate: 'check', kind: 'wait' }
     if (checks.every((s) => s.state === 'passed')) {
       const tries = Math.max(0, ...checks.map((s) => s.tries ?? 0))
-      return tries > 0 ? { gate: 'check', kind: 'trouble', tries } : { gate: 'check', kind: 'ok' }
+      return tries > 0 ? { gate: 'check', kind: 'trouble', tries, n: tries } : { gate: 'check', kind: 'ok' }
     }
     return { gate: 'check', kind: 'na' }
   }
@@ -136,12 +142,14 @@ export function gateTiles(run: Run, ctx: StepContext): Tile[] {
     if (a.findings.length === 0) return 'ok'
     return a.findings.every((f) => f.seen) ? 'trouble' : 'bad'
   }
+  const reviewN = run.audit?.state === 'done' ? run.audit.findings.length : undefined
   const land = (): TileKind => {
     if (!has(wf, 'merge') || run.status === 'stopped') return 'na'
     if (run.landed) return run.landed.how === 'checked' ? 'ok' : 'bad'
     return run.status === 'done' ? 'wait' : 'na'
   }
-  return [{ gate: 'plan', kind: plan() }, check(), { gate: 'review', kind: review() }, { gate: 'land', kind: land() }, { gate: 'told', kind: run.auto ? 'bad' : 'ok' }]
+  const counted = (gate: GateName, kind: TileKind, n: number | undefined): Tile => ({ gate, kind, ...(kind === 'trouble' && n ? { n } : {}) })
+  return [counted('plan', plan(), planN), check(), counted('review', review(), reviewN), { gate: 'land', kind: land() }, { gate: 'told', kind: run.auto ? 'bad' : 'ok' }]
 }
 
 export interface Rate {
@@ -175,10 +183,10 @@ export interface Headline {
   youMs: number
 }
 
-export function headline(runs: Run[], ctx: StepContext, now: number): Headline {
+export function headline(runs: Run[], ctxFor: (run: Run) => StepContext, now: number): Headline {
   const h: Headline = { runs: runs.length, finished: 0, metEvery: 0, withTrouble: 0, landedAnyway: 0, fromCommit: 0, waiting: 0, youMs: 0 }
   for (const r of runs) {
-    const tiles = gateTiles(r, ctx)
+    const tiles = gateTiles(r, ctxFor(r))
     if (r.auto) h.fromCommit++
     if (tiles.find((t) => t.gate === 'land')?.kind === 'bad') h.landedAnyway++
     if (r.status === 'open' && tiles.some((t) => t.kind === 'wait')) h.waiting++
@@ -193,3 +201,93 @@ export function headline(runs: Run[], ctx: StepContext, now: number): Headline {
   }
   return h
 }
+
+export interface Sentence {
+  tone: 'plain' | 'good' | 'warn' | 'bad' | 'you'
+  text: string
+}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/** What the week says, in the few sentences that matter, in the order they matter; whatever is zero is left out. */
+export function weekSentences(h: Headline, rates: Record<GateName, Rate>, span = 'this week'): Sentence[] {
+  const out: Sentence[] = [{ tone: 'plain', text: `${plural(h.runs, 'run', 'runs')} ${span}.` }]
+  if (h.finished > 0) out.push({ tone: 'good', text: `${h.metEvery} of ${h.finished} finished ${h.finished === 1 ? 'run' : 'runs'} met every gate.` })
+  if (h.youMs >= 60_000) out.push({ tone: 'you', text: `Agents spent ${formatDuration(h.youMs)} waiting on you.` })
+  const c = rates.check
+  if (c.of > 0 && c.good < c.of) out.push({ tone: 'warn', text: `Checks failed the first time in ${c.of - c.good} of ${c.of} runs.` })
+  if (h.landedAnyway > 0) out.push({ tone: 'bad', text: `${h.landedAnyway} ${h.landedAnyway === 1 ? 'landing' : 'landings'} went ahead anyway.` })
+  if (h.fromCommit > 0) out.push({ tone: 'plain', text: `${h.fromCommit} began from a commit.` })
+  if (h.waiting > 0) out.push({ tone: 'you', text: `${h.waiting} waiting on you now.` })
+  return out
+}
+
+const WRONG: Record<GateName, string> = { plan: 'the plan hold was lifted', check: 'a check was skipped or ran out of tries', review: 'a finding was not seen', land: 'it landed anyway', told: 'it began from a commit' }
+const MEANS: Record<'plan' | 'check' | 'review', (t: number, of: number) => string> = {
+  plan: (t, of) => `${t} of ${of} plans were sent back. The request may need more detail up front.`,
+  check: (t, of) => `${t} of ${of} runs needed more than one try. The check may be stricter than the request.`,
+  review: (t, of) => `${t} of ${of} runs had findings. The scope may be too loose.`
+}
+
+/** What stands out in a grid of runs (newest first): the row with the most missed gates and why, and the column where trouble keeps happening and what it may mean. */
+export function says(rows: { title: string; tiles: Tile[] }[]): string[] {
+  const out: string[] = []
+  const bad = (r: { tiles: Tile[] }) => r.tiles.filter((t) => t.kind === 'bad').length
+  const red = rows.reduce<{ title: string; tiles: Tile[] } | undefined>((best, r) => (bad(r) > (best ? bad(best) : 0) ? r : best), undefined)
+  if (red) out.push(`${red.title} is the red row: ${red.tiles.filter((t) => t.kind === 'bad').map((t) => WRONG[t.gate]).join(', ')}.`)
+  let amber: { gate: 'plan' | 'check' | 'review'; t: number; of: number } | undefined
+  for (const gate of ['plan', 'check', 'review'] as const) {
+    const col = rows.map((r) => r.tiles.find((t) => t.gate === gate)?.kind).filter((k) => k === 'ok' || k === 'trouble' || k === 'bad')
+    const t = col.filter((k) => k === 'trouble').length
+    if (t >= 2 && t / col.length >= 0.3 && (!amber || t > amber.t)) amber = { gate, t, of: col.length }
+  }
+  if (amber) out.push(`${amber.gate[0]!.toUpperCase()}${amber.gate.slice(1)} is the amber column: ${MEANS[amber.gate](amber.t, amber.of)}`)
+  return out
+}
+
+export interface TimelineEntry {
+  /** Milliseconds since the run began. */
+  at: number
+  kind: 'ok' | 'trouble' | 'bad' | 'you'
+  text: string
+}
+const times = (n: number) => (n === 1 ? 'once' : `${n} times`)
+const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t)
+
+/** How one run went, line by line: began, plan, checks, review, landing, and each follow-up round, with when each happened. */
+export function timelineOf(run: Run, now: number): TimelineEntry[] {
+  const start = run.startedAt
+  const out: TimelineEntry[] = []
+  out.push(run.auto ? { at: 0, kind: 'bad', text: 'Began from a commit: the agent never said it had started the task' } : { at: 0, kind: 'ok', text: `Began by the agent${run.workflow ? ` · ${run.workflow.name}` : ''}` })
+  for (const round of run.rounds) if (round.n > 1) out.push({ at: round.startedAt - start, kind: 'ok', text: `Follow-up round ${round.n} began` })
+  const p = run.rounds[0]?.plan
+  if (p) {
+    const waited = formatDuration(p.waitedMs ?? 0)
+    if (p.state === 'approved') out.push({ at: (p.decidedAt ?? p.submittedAt) - start, kind: p.sentBack ? 'trouble' : 'ok', text: `Plan approved after ${waited}${p.sentBack ? `, sent back ${times(p.sentBack)}` : ''}` })
+    else if (p.state === 'released') out.push({ at: (p.decidedAt ?? p.submittedAt) - start, kind: 'bad', text: `Plan sent, then you lifted the hold after ${waited} without approving it` })
+    else if (p.state === 'changes') out.push({ at: (p.decidedAt ?? p.submittedAt) - start, kind: 'trouble', text: `Plan sent back ${times(p.sentBack ?? 1)}: waiting for the agent` })
+    else out.push({ at: p.submittedAt - start, kind: 'you', text: `Plan sent ${formatDuration(now - p.submittedAt)} ago: waiting for you` })
+  }
+  const checkSteps = run.workflow?.steps.filter((s) => s.kind === 'check') ?? []
+  for (const step of checkSteps) {
+    const results = run.rounds.flatMap((r) => r.checks).filter((c) => c.step === step.id)
+    const last = results.at(-1)
+    if (!last) continue
+    const failed = results.filter((c) => !c.ok).length
+    const label = checkSteps.length > 1 ? step.name : 'Check'
+    const skipped = run.rounds.some((r) => r.steps.some((l) => l.step === step.id && l.state === 'skipped'))
+    const [kind, text]: [TimelineEntry['kind'], string] = last.ok ? (failed === 0 ? ['ok', `${label} passed first time`] : ['trouble', `${label} failed ${times(failed)}, passed on try ${results.length}`]) : ['bad', `${label} failed ${times(failed)}${skipped ? ', then you skipped it' : ''}`]
+    out.push({ at: last.t - start, kind, text })
+  }
+  const a = run.audit
+  if (a?.state === 'done') {
+    const unseen = a.findings.filter((f) => !f.seen)
+    const text = a.findings.length === 0 ? 'Review found nothing' : unseen.length === 0 ? `Review found ${plural(a.findings.length, 'thing', 'things')}, all seen` : `Review found ${plural(unseen.length, 'thing', 'things')} you did not look at: “${clip(unseen[0]!.text, 80)}”`
+    out.push({ at: a.t - start, kind: a.findings.length === 0 ? 'ok' : unseen.length === 0 ? 'trouble' : 'bad', text })
+  }
+  if (run.landed) out.push({ at: run.landed.t - start, kind: run.landed.how === 'checked' ? 'ok' : 'bad', text: run.landed.how === 'checked' ? 'Landed after the checks' : `Landed anyway, with ${run.landed.held.join(' and ') || 'a gate'} still holding it` })
+  return out.sort((x, y) => x.at - y.at)
+}
+
+const DAY = 24 * 60 * 60_000
+/** The runs that ended, or are still going, within the last `days` days. */
+export const runsWithin = (runs: Run[], days: number, now: number) => runs.filter((r) => (r.endedAt ?? now) >= now - days * DAY)
