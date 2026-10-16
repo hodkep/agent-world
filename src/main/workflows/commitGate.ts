@@ -33,21 +33,22 @@ const ASK = `if [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
 fi
 `
 // git runs this before it moves any reference, and `--no-verify` does not skip it: a commit cannot reach the agent's own branch while the office holds it.
-// Only the first step ("prepared") of an update to a branch asks; the repository's own hook of this name then gets what git sent.
+// Only the first step ("prepared") of an update to a branch asks, and its last ("committed") tells the office it happened; the repository's own hook of this name then gets what git sent.
 const REF_SCRIPT = `#!/bin/sh
 # Part of Agent World. Safe to delete: git then runs the repository's own hooks again.
 state="$1"
 input=$(cat)
-if [ "$state" = prepared ] && [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
+if { [ "$state" = prepared ] || [ "$state" = committed ]; } && [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
   refs=$(printf '%s\\n' "$input" | awk 'substr($3,1,11)=="refs/heads/" { print $3 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
   if [ -n "$refs" ]; then
     case "$AW_MCP_URL" in
       http://127.0.0.1:*|http://localhost:*|http://\\[::1\\]:*)
         tok=$(printf '%s' "$AW_AGENT_TOKEN" | tr -cd 'A-Za-z0-9._~+/=-')
         here=$(pwd | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
-        out=$(printf 'header = "Authorization: Bearer %s"\\n' "$tok" | curl -s --max-time 5 -X POST -K - -H "Content-Type: application/json" --data "{\\"cwd\\":\\"$here\\",\\"refs\\":[$refs]}" "\${AW_MCP_URL%/mcp}/hook/git-ref" 2>/dev/null)
+        if [ "$state" = committed ]; then event=git-landed; else event=git-ref; fi
+        out=$(printf 'header = "Authorization: Bearer %s"\\n' "$tok" | curl -s --max-time 5 -X POST -K - -H "Content-Type: application/json" --data "{\\"cwd\\":\\"$here\\",\\"refs\\":[$refs]}" "\${AW_MCP_URL%/mcp}/hook/$event" 2>/dev/null)
         reason=$(printf '%s' "$out" | sed -n 's/.*"block":"\\([^"]*\\)".*/\\1/p')
-        if [ -n "$reason" ]; then
+        if [ "$state" = prepared ] && [ -n "$reason" ]; then
           printf 'Agent World: this change to a branch is held. %s\\n' "$reason" >&2
           exit 1
         fi ;;
@@ -124,3 +125,9 @@ export function isInside(base: string, path: string): boolean {
 
 /** Whether an update of these references moves the agent's own branch (an agent working in the folder itself has none). */
 export const holdsBranch = (branch: string | null, refs: string[]): boolean => !!branch && refs.includes(`refs/heads/${branch}`)
+
+/** Whether an update of these references moves the base branch the agent's work lands on (an agent with no base of its own lands nothing). */
+export const movesBase = (base: string | null, refs: string[]): boolean => !!base && refs.includes(`refs/heads/${base}`)
+
+/** The commit a branch points at, or null when there is no such branch (or `cwd` is not a repository). */
+export const branchHead = (cwd: string, branch: string): string | null => git(cwd, 'rev-parse', '--verify', '-q', `refs/heads/${branch}`) || null

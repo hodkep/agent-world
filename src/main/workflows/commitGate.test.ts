@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HOOK_NAMES, blockText, currentBranch, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
+import { HOOK_NAMES, blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
 
 const dirs: string[] = []
 const servers: Server[] = []
@@ -237,6 +237,63 @@ describe('the branch an agent working in the folder itself is on', () => {
     await run(work, {}, 'checkout', '-q', '--detach')
     expect(currentBranch(work)).toBeNull()
     expect(currentBranch(tmp())).toBeNull()
+  })
+})
+
+describe('a merge into the base branch with the office\'s hooks in place', () => {
+  const feature = async (work: string) => {
+    await run(work, {}, 'checkout', '-q', '-b', 'feat')
+    writeFileSync(join(work, 'f.txt'), 'f\n')
+    await run(work, {}, 'add', '-A')
+    await run(work, {}, 'commit', '-qm', 'feat')
+    await run(work, {}, 'checkout', '-q', 'main')
+  }
+  it('is refused with the office\'s words, whatever way git merges (a fast-forward, a merge commit, update-ref), and main does not move', async () => {
+    const { work, root } = await repo()
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    await feature(work)
+    const office = await stub({}, { block: 'Not yet: 1 audit finding has not been seen.' })
+    const env = agentEnv(hooks, office.url)
+    for (const args of [['merge', '--ff-only', 'feat'], ['merge', '--no-ff', '-m', 'm', 'feat'], ['update-ref', 'refs/heads/main', 'feat']]) {
+      const r = await run(work, env, ...args)
+      expect(r.ok).toBe(false)
+      expect(r.out).toContain('Agent World: this change to a branch is held. Not yet: 1 audit finding has not been seen.')
+    }
+    expect((await run(work, {}, 'log', '--format=%s', 'main')).out.trim()).toBe('init')
+    expect(office.seen.filter((x) => x.url === '/hook/git-landed')).toHaveLength(0)
+  })
+
+  it('tells the office once the branch has moved, with which, so a landing is recorded however it came about; and not when it was held', async () => {
+    const { work, root } = await repo()
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    await feature(work)
+    const office = await stub({}, {})
+    expect((await run(work, agentEnv(hooks, office.url), 'merge', '--ff-only', 'feat')).ok).toBe(true)
+    const told = office.seen.filter((x) => x.url === '/hook/git-landed')
+    expect(told).toHaveLength(1)
+    expect(JSON.parse(told[0]!.body!)).toEqual({ cwd: work, refs: ['refs/heads/main'] })
+    expect(told[0]!.auth).toBe('Bearer tok-1')
+  })
+})
+
+describe('where a branch stands', () => {
+  it('is the commit it points at, from any folder of the repository, and nothing for a branch that is not there or a folder that is not a repository', async () => {
+    const { work, root } = await repo()
+    const sha = (await run(work, {}, 'rev-parse', 'main')).out.trim()
+    expect(branchHead(work, 'main')).toBe(sha)
+    expect(branchHead(work, 'nope')).toBeNull()
+    expect(branchHead(root, 'main')).toBeNull()
+  })
+})
+
+describe('whether an update moves the base branch', () => {
+  it('is yes for the base branch among the references, and no for any other, or when the agent has no base', () => {
+    expect(movesBase('main', ['refs/heads/main'])).toBe(true)
+    expect(movesBase('main', ['refs/heads/aw/ada', 'refs/heads/main'])).toBe(true)
+    expect(movesBase('main', ['refs/heads/aw/ada', 'refs/heads/main-2', 'refs/tags/main'])).toBe(false)
+    expect(movesBase(null, ['refs/heads/main'])).toBe(false)
   })
 })
 
