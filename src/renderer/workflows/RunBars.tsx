@@ -3,7 +3,7 @@ import { type RunBar, columnRates, gateTiles, headline, runBar, timelineOf, week
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, runStats, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
-import { Glyph } from '../pixel/Pixels'
+import { PixelIcon } from '../chat/PixelIcon'
 
 const SEG_WORD = { you: 'waiting on you', work: 'the agent working', check: 'checks', fail: 'a check that failed' } as const
 const barLabel = (b: RunBar) => b.segments.map((s) => `${SEG_WORD[s.kind]} ${formatDuration(s.ms)}`).join(', ')
@@ -35,7 +35,7 @@ function Bar({ bar, of }: { bar: RunBar; of: number }) {
       </span>
       {landed && (
         <span className={`rb-flag ${landed.kind}`} style={{ left: `${(100 * bar.totalMs) / of}%` }} title={landed.kind === 'anyway' ? 'Landed anyway' : 'Landed'}>
-          <Glyph name="flag" />
+          <PixelIcon name="flag" />
         </span>
       )}
     </span>

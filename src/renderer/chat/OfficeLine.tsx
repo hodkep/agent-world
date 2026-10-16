@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { PictureSet } from './gallery'
-import { Glyph } from '../pixel/Pixels'
+import { PixelIcon } from './PixelIcon'
 import { type OfficeGroup, type Stamp, stampOf, summaryOf, whisperOf } from './officeCalls'
+import { STAMP_ICON } from './stampIcons'
 import { ToolCard } from './ToolCard'
 
 const MAX_STAMPS = 10
@@ -10,7 +11,7 @@ const MAX_STAMPS = 10
 function StampView({ stamp }: { stamp: Stamp }) {
   return (
     <span className={`stamp stamp-${stamp.kind} ${stamp.state}`} title={stamp.tip}>
-      <Glyph name={stamp.kind} />
+      <PixelIcon name={STAMP_ICON[stamp.kind]} />
       {stamp.label && <b>{stamp.label}</b>}
     </span>
   )

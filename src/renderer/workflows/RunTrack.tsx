@@ -1,8 +1,8 @@
-import { Glyph, Sprite } from '../pixel/Pixels'
-import type { GlyphName } from '../pixel/glyphs'
+import { type IconName, PixelIcon } from '../chat/PixelIcon'
+import { Sprite } from '../pixel/Pixels'
 import type { Station, Track } from '../../shared/runTrack'
 
-const GLYPH: Record<Station['kind'], GlyphName> = { plan: 'plan', work: 'flag', approve: 'check', check: 'check', audit: 'review', merge: 'land' }
+const ICON: Record<Station['kind'], IconName> = { plan: 'pencil', work: 'tools', approve: 'check', check: 'check', audit: 'review', merge: 'flag' }
 const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'not asked' }
 
 /**
@@ -11,7 +11,7 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  */
 export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar' }) {
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
-  const mark = (s: Station): GlyphName => (s.state === 'done' || s.state === 'trouble' ? 'check' : s.state === 'failed' ? 'cross' : GLYPH[s.kind])
+  const mark = (s: Station): IconName => (s.state === 'done' || s.state === 'trouble' ? 'check' : s.state === 'failed' ? 'x' : ICON[s.kind])
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
   if (variant === 'bar')
     return (
@@ -22,7 +22,7 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
           {track.stations.map((s, i) => (
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`} title={`${s.name}: ${word(s)}`}>
               <i className="sq">
-                <Glyph name={mark(s)} cell={1} />
+                <PixelIcon name={mark(s)} />
                 {s.tries ? <b className="tn">{s.tries}</b> : null}
               </i>
               <span className="nm">{s.name}</span>
@@ -46,12 +46,12 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`}>
               {i === track.at && (
                 <span className="agent">
-                  {(track.waiting ?? track.note) && <span className="bubble" role="status">{track.waiting ?? track.note}</span>}
+                  {(track.waiting ?? track.note) && <span className="rt-bubble" role="status">{track.waiting ?? track.note}</span>}
                   <Sprite seed={seed} />
                 </span>
               )}
               <i className="sq">
-                <Glyph name={mark(s)} cell={2} />
+                <PixelIcon name={mark(s)} />
                 {s.tries ? <b className="tn">{s.tries}</b> : null}
               </i>
               <span className="nm" title={s.name}>{s.name}</span>

@@ -3018,16 +3018,13 @@ aside:not(.drawer) { flex: none; }
 
 /* ---- The office's small pictures: stamps in the chat, the track of a run ---- */
 svg.pxg { display: block; flex: none; }
-.px-x { fill: currentColor; }
-.px-o { fill: var(--paper); }
-.px-k { fill: var(--ink); }
 .of .strip { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; align-items: center; min-width: 0; }
 .of .more { font: 11px Menlo, Consolas, monospace; color: var(--dim); }
-.stamp svg { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
 .stamp { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 22px; padding: 0 5px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.05); font-size: 11px; color: var(--muted); }
 .stamp b { font-weight: 600; color: var(--text); font-size: 11px; }
 .stamp-library { color: var(--think); } .stamp-todo { color: var(--ok); } .stamp-note { color: var(--paper); } .stamp-flag, .stamp-plan { color: var(--accent); }
 .stamp.skip { opacity: 0.6; }
+.stamp.bad { box-shadow: 0 0 0 1px var(--danger), inset 0 2px 0 rgb(255 255 255 / 0.05); color: var(--danger-text); }
 .stamp.wait { box-shadow: 0 0 0 1px var(--accent), inset 0 2px 0 rgb(255 255 255 / 0.05); }
 .run-track { flex: none; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); box-shadow: 0 2px 0 var(--ink); padding: 8px 14px 6px; }
 .run-track .rt-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; min-width: 0; }
@@ -3048,12 +3045,12 @@ svg.pxg { display: block; flex: none; }
 .track .st.now .nm { color: var(--text); font-weight: 700; }
 .track .agent { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
 .track .agent svg { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
-.bubble { position: relative; margin-bottom: 7px; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 600; padding: 1px 7px; box-shadow: 0 0 0 2px var(--ink); }
-.bubble::before { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
-.bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -3px; border: 3px solid transparent; border-top-color: var(--paper); border-bottom: 0; }
-.track .st:first-child .bubble { left: 46px; }
-.track .st:first-child .bubble::before { left: 16px; margin-left: 0; }
-.track .st:first-child .bubble::after { left: 18px; margin-left: 0; }
+.rt-bubble { position: relative; margin-bottom: 7px; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 600; padding: 1px 7px; box-shadow: 0 0 0 2px var(--ink); }
+.rt-bubble::before { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+.rt-bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -3px; border: 3px solid transparent; border-top-color: var(--paper); border-bottom: 0; }
+.track .st:first-child .rt-bubble { left: 46px; }
+.track .st:first-child .rt-bubble::before { left: 16px; margin-left: 0; }
+.track .st:first-child .rt-bubble::after { left: 18px; margin-left: 0; }
 
 /* ---- The Runs tab: a bar for each run, where its time went ---- */
 .rb { display: flex; flex-direction: column; gap: 8px; }
@@ -3130,9 +3127,9 @@ svg.pxg { display: block; flex: none; }
 .rb-commits .chipw { font-size: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; color: var(--muted); }
 /* ---- The run track as one thin row above the chat ---- */
 .run-track.bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
-.run-track.bar .rt-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 140px; }
+.run-track.bar .rt-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 80px; }
 .run-track.bar .rt-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: none; }
+.run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-track.bar .pxg.spr { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
 .bar-st { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; flex: none; }
 .bar-st .st { position: relative; display: flex; align-items: center; gap: 6px; }
