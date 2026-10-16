@@ -2877,7 +2877,3 @@ aside:not(.drawer) { flex: none; }
 .of-row b { color: #c9c8d8; font-weight: 600; flex: none; }
 .of-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .of-card { margin: 3px 0 4px 8px; }
-.of-own { margin-left: 0; }
-.of-detail { margin: 2px 0 4px 20px; padding: 6px 8px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.of-detail .kv { margin: 0; }
-.of-out { margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px Menlo, Consolas, monospace; color: var(--muted); }
