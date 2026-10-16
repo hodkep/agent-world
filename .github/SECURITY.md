@@ -4,7 +4,7 @@ Agent World starts shells and the command line programs of your coding agents (C
 
 ## Reporting a problem
 
-**Do not open a public issue.** Use GitHub's private reporting: on the repository's **Security** tab, choose **Report a vulnerability**. Say what you found, how to reproduce it, and what it lets someone do. You will get an answer as soon as a maintainer can read it, and we will tell you when it is fixed.
+**Do not open a public issue.** Use GitHub's private reporting: on the repository's **Security** tab, choose **Report a vulnerability**. Say what you found, how to reproduce it, and what it lets someone do. If you cannot use that, write to agentworld.app@gmail.com. You will get an answer as soon as a maintainer can read it, and we will tell you when it is fixed.
 
 ## What is in scope
 

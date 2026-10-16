@@ -63,5 +63,8 @@
   },
   "description": "Watch and direct your Claude Code agents as characters in a pixel-art office",
   "author": "Pratik <agentworld.app@gmail.com>",
+  "repository": "github:hodkep/agent-world",
+  "homepage": "https://github.com/hodkep/agent-world#readme",
+  "bugs": "https://github.com/hodkep/agent-world/issues",
   "license": "MIT"
 }
