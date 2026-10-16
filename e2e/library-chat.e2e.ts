@@ -43,7 +43,14 @@ test('chat: margin notes under a message say what the library did for it, and op
 
     const slips = log.getByLabel('What the library did here')
     await expect(slips.getByRole('button', { name: /Told at the start/ })).toBeVisible()
-    const note = slips.getByRole('button', { name: /pdf/ })
+    // The rulebook sent with the message is a small mark, not a card for each rule; a card is for what the agent did about one.
+    const mark = slips.getByRole('button', { name: /The rulebook was sent with this message: pdf/ })
+    await expect(mark).toBeVisible()
+    await expect(slips.locator('button.slip', { hasText: 'not read' })).toHaveCount(0)
+    await mark.click()
+    await expect(slips.getByRole('group', { name: 'The rulebook sent with this message' })).toContainText('pdf (split a pdf into pages)')
+    await mark.click()
+    const note = slips.locator('button.slip', { hasText: 'pdf' })
     await expect(note).toContainText('pointed, then read')
     await note.click()
     await expect(log.getByRole('group', { name: 'pdf, the words' })).toContainText('pdf (split a pdf into pages)')

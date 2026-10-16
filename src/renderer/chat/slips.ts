@@ -32,15 +32,28 @@ export function slipsFor(uses: Use[], from: number, to: number): Slip[] {
       else if (have.state === 'pointed') (have.state = 'read'), (have.gapMs = x.t - have.at)
     }
   }
-  return [...out.values()].map(({ at, ...s }) => (s.because ? { ...s, at } : s))
+  // A rule only put in front of the agent, with nothing done about it, is not a card: the refresh is marked on its own (see refreshFor). A situation met mid-run still is one.
+  return [...out.values()].filter((s) => s.state !== 'pointed' || s.because).map(({ at, ...s }) => (s.because ? { ...s, at } : s))
 }
 
-/** The opening texts agents were started with, each above the first message sent after it (by that message's place). */
+export interface Refresh {
+  items: { id: string; words?: string }[]
+}
+
+/** The rules the rulebook put in front of the agent with a message (between your messages, `from` inclusive, `to` exclusive), once each; null when it was not sent. */
+export function refreshFor(uses: Use[], from: number, to: number): Refresh | null {
+  const seen = new Map<string, { id: string; words?: string }>()
+  for (const x of uses.filter((x) => x.how === 'triggered' && !x.because && x.t >= from && x.t < to).sort((a, b) => a.t - b.t)) if (!seen.has(x.id)) seen.set(x.id, { id: x.id, ...(x.words && { words: x.words }) })
+  return seen.size ? { items: [...seen.values()] } : null
+}
+
+/** The opening text agents were started with, above the first message sent after it (by that message's place): one for each message, the last when there were several. */
 export function startsBefore(uses: Use[], userAts: number[]): Map<number, Use[]> {
   const out = new Map<number, Use[]>()
+  // Starts that came before the same message are one: the opening text the agent works with is the last.
   for (const x of uses.filter((x) => x.how === 'started')) {
     const k = userAts.findIndex((at) => at >= x.t)
-    if (k >= 0) out.set(k, [...(out.get(k) ?? []), x])
+    if (k >= 0) out.set(k, [x])
   }
   return out
 }

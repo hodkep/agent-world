@@ -51,7 +51,7 @@ describe('what an agent is told when it starts', () => {
   })
   it('adds a reminder line for medium and hard rules only', () => {
     const c = compile([rule('a', { mode: 'always', strength: 'medium', when: '' }), rule('b', { strength: 'hard', when: 'before a commit' }), rule('c', { strength: 'soft' })], items(item('a'), item('b'), item('c')), { canFetch: true })
-    expect(c.reminder).toMatch(/^Reminder: a \(always\); b \(before a commit\)\. Before your first tool call/)
+    expect(c.reminder).toMatch(/^Reminder: a \(always\); b \(before a commit\)\. Decide silently which of these apply/)
     // the check is part of the playbook: always there for an agent that can call the tools, never for one that cannot
     expect(compile([rule('b', { strength: 'hard', when: 'x' })], items(item('b')), { canFetch: false }).reminder).toBe('Reminder: b (x).')
     expect(compile([rule('c')], items(item('c')), { canFetch: true }).reminder).toBe('')

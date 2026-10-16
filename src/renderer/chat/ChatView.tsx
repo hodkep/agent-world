@@ -35,7 +35,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
 import { hint, keysOf } from '../shortcuts'
-import { placeInline, slipsFor, startsBefore, type Slip } from './slips'
+import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import type { UsageLimits } from '../../shared/usage'
 
@@ -259,7 +259,7 @@ export function ChatView({
       const tools = allRows.flatMap((x) => (x.kind === 'tool' && x.run.at !== undefined && x.run.at >= from && x.run.at < to ? [{ id: x.id, at: x.run.at }] : []))
       const placed = placeInline(tools, slipsFor(lib.uses, from, to))
       for (const [id, v] of placed.inline) inline.set(id, v)
-      return [r.id, { slips: placed.rest, starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]
+      return [r.id, { slips: placed.rest, refresh: refreshFor(lib.uses, from, to), starts: starts.get(k) ?? [], told: told(starts.get(k)?.[0]?.launch) }]
     }))
     return { byUser, inline }
   }, [allRows, lib.uses])
@@ -596,13 +596,13 @@ export function ChatView({
           if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
           const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
-          if (!lb || (!lb.starts.length && !lb.slips.length)) return withNote(row)
+          if (!lb || (!lb.starts.length && !lb.slips.length && !lb.refresh)) return withNote(row)
           // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
             <div key={r.id} className="turn">
               {lb.starts.length > 0 && <LibrarySlips slips={[]} starts={lb.starts} told={lb.told} items={lib.items} />}
               {row}
-              {lb.slips.length > 0 && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} />}
+              {(lb.slips.length > 0 || lb.refresh) && <LibrarySlips slips={lb.slips} starts={[]} told={0} items={lib.items} refresh={lb.refresh} />}
             </div>
           )
         })}
@@ -1072,8 +1072,8 @@ function HookStrip({ hook, agentName }: { hook: HookInfo; agentName: string }) {
       <div className="hook-row">
         <OutlineIcon name="flag" />
         <span className="hook-sub">
-          {agentName.charAt(0).toUpperCase() + agentName.slice(1)} replied after {hook.source ? <b>{hook.source}</b> : 'a'} {hook.source ? '· ' : ''}
-          {hook.event} hook{verdict ? ` · ${verdict}` : ''}
+          {hook.kind === 'rulebook' ? 'The rulebook was added to this message, to keep the rules fresh. The agent decides which apply.' : <>{agentName.charAt(0).toUpperCase() + agentName.slice(1)} replied after {hook.source ? <b>{hook.source}</b> : 'a'} {hook.source ? '· ' : ''}
+          {hook.event} hook{verdict ? ` · ${verdict}` : ''}</>}
         </span>
         <button className="hook-toggle" aria-expanded={open} aria-label={open ? 'Hide details' : 'Show details'} title={open ? 'Hide details' : 'Show details'} onClick={() => setOpen(!open)}>
           <OutlineIcon name="chevron" />

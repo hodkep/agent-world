@@ -2199,6 +2199,9 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .slip-h { display: flex; gap: 6px; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
 .slip.mute .slip-h { color: var(--muted); }
 .slip-ic { display: inline-flex; flex: none; }
+.slip-mark { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; background: var(--panel-3); border: 0; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
+.slip-mark:hover, .slip-mark.open { color: var(--text); background: var(--panel-2); }
+.slip-n { font: 700 11px Menlo, Consolas, monospace; }
 .slip-ic.told { color: var(--accent); }
 .slip-ic.read { color: var(--ok-text); }
 .slip-ic.point { color: var(--think); }

@@ -41,7 +41,7 @@ test('the check before acting is part of the playbook, and what agents said when
     await expect(dialog.getByRole('switch', { name: 'Check before acting' })).toHaveCount(0)
     const reminder = dialog.locator('h4', { hasText: 'Reminder' }).locator('xpath=following-sibling::p[1]')
     await expect(reminder).toContainText('library_skip')
-    expect((await reminder.textContent())!.match(/Before your first tool call/g)).toHaveLength(1)
+    expect((await reminder.textContent())!.match(/Decide silently/g)).toHaveLength(1)
 
     // Reached for: the numbers say how many said no; opening the row lists what they said, grouped, with advice.
     await dialog.getByRole('tab', { name: 'Reached for' }).click()
