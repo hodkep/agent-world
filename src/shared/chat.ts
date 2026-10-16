@@ -8,8 +8,6 @@ export interface HookInfo {
   /** What it is about, without the count. */
   title: string
   issues?: number
-  /** The playbook's own reminder of its rules, which the strip names in plain words. */
-  kind?: 'rulebook'
   /** One per "- L12 [rule] text" line; empty when the hook words things its own way. */
   findings: { ref: string; rule: string; text: string }[]
 }

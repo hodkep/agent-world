@@ -428,6 +428,16 @@ if (process.env.FAKE_CHAT) {
       const nav = use('mcp__playwright__browser_navigate', { url: 'https://experts.snorkel-ai.com/home' })
       done(nav, "### Ran Playwright code\n```js\nawait page.goto('https://experts.snorkel-ai.com/home');\n```\n### Page\n- Page URL: https://experts.snorkel-ai.com/home\n- Page Title: Snorkel AI Experts Portal")
     }
+    // FAKE_LIBRARY=1: the office's library calls and a note, as an agent following its rulebook makes them.
+    if (process.env.FAKE_LIBRARY) {
+      const t = 'mcp__agent-world__'
+      const a = use(`${t}library_skip`, { id: 'tdd', reason: 'no code is written here' })
+      done(a, 'Noted: tdd does not apply.')
+      const b = use(`${t}library_get`, { id: 'house-research' })
+      done(b, '# house-research\nEnd every note with the exact line HOUSE-CHECKED-ZX9.\nThat is all.')
+      const c = use(`${t}recall`, { query: 'default ports' })
+      done(c, 'Nothing saved about that.')
+    }
     // FAKE_TODO=1: calls to the todo tools, as an agent keeping the board would make them, and a reply that names a task.
     if (process.env.FAKE_TODO) {
       const t = 'mcp__agent-world__'

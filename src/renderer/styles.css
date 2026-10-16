@@ -2199,9 +2199,11 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .slip-h { display: flex; gap: 6px; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
 .slip.mute .slip-h { color: var(--muted); }
 .slip-ic { display: inline-flex; flex: none; }
-.slip-mark { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; background: var(--panel-3); border: 0; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
+.slip-mark { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 8px; text-align: left; background: var(--panel-3); border: 0; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 12px; min-width: 0; }
 .slip-mark:hover, .slip-mark.open { color: var(--text); background: var(--panel-2); }
-.slip-n { font: 700 11px Menlo, Consolas, monospace; }
+.slip-mark b { color: var(--text); font-weight: 600; flex: none; }
+.slip-names { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slip-caret { flex: none; color: var(--muted); }
 .slip-ic.told { color: var(--accent); }
 .slip-ic.read { color: var(--ok-text); }
 .slip-ic.point { color: var(--think); }
@@ -2876,3 +2878,6 @@ aside:not(.drawer) { flex: none; }
 .of-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .of-card { margin: 3px 0 4px 8px; }
 .of-own { margin-left: 0; }
+.of-detail { margin: 2px 0 4px 20px; padding: 6px 8px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.of-detail .kv { margin: 0; }
+.of-out { margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px Menlo, Consolas, monospace; color: var(--muted); }
