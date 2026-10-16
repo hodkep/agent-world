@@ -21,8 +21,23 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm exec electron-vite build
-      # No signing certificates are set, so the Mac build is signed ad hoc (see electron-builder.yml) and Windows is unsigned.
-      # The owner and repository are given here, so the update address baked into the app is this repository whatever the git remote is called.
-      - run: pnpm exec electron-builder --publish always --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}
+      # With the Apple secrets set, the Mac build is signed with the Developer ID certificate and notarised; without them it is signed ad hoc (see electron-builder.yml),
+      # which installs but cannot be updated by the app. Windows is unsigned. The owner and repository are given here, so the update address baked into the app
+      # is this repository whatever the git remote is called. The release is made as a draft: publish it on GitHub once all three systems have uploaded (see RELEASING.md).
+      - name: Build and upload the installers
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          args="--publish always --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}"
+          if [ "$RUNNER_OS" = "macOS" ] && [ -n "$CSC_LINK" ]; then
+            args="$args --config.mac.identity=null --config.mac.notarize=true"
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          fi
+          pnpm exec electron-builder $args
