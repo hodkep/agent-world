@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
+import { gitBin, gitProcessEnv } from '../gitProgram'
 
 /**
  * Where a commit is held back for every program alike. Git is started with the office's folder of hooks (set through its own environment
@@ -82,7 +83,7 @@ export function gitEnv(env: NodeJS.ProcessEnv, hooksDir: string, orig: string): 
 
 const git = (cwd: string, ...args: string[]): string => {
   try {
-    return execFileSync('git', args, { cwd, timeout: 5000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync(gitBin(), args, { cwd, env: gitProcessEnv(), timeout: 5000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
   } catch {
     return ''
   }

@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
+import { gitBin, gitProcessEnv } from './gitProgram'
 
 const run = promisify(execFile)
-export const git = async (cwd: string, ...args: string[]) => (await run('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 })).stdout.trim()
+export const git = async (cwd: string, ...args: string[]) => (await run(gitBin(), args, { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024 })).stdout.trim()
 
 export class DirtyWorktreeError extends Error {
   constructor(readonly path: string, readonly status: string) {

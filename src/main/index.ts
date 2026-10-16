@@ -18,10 +18,12 @@ import { execFile, execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
 import { packagedPath, parseLoginPath } from './appPath'
+import { resolveGit, withGitOnPath } from './gitBinary'
+import { gitProgram, useGit } from './gitProgram'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -1016,8 +1018,33 @@ function createWindow() {
   return w
 }
 
+// The git the app runs: the computer's own when it has one that works, and otherwise the one bundled with the app (a fresh Mac has none until Apple's tools are installed).
+// A build that is not packaged looks in build/git (node scripts/fetch-git.mjs), and AW_GIT=bundled tries the bundled one first.
+function chooseGit() {
+  const xcodeSelectOk = () => {
+    try {
+      execFileSync('/usr/bin/xcode-select', ['-p'], { stdio: 'ignore', timeout: 3000 })
+      return true
+    } catch {
+      return false
+    }
+  }
+  return resolveGit({
+    resourcesPath: process.resourcesPath,
+    gitDir: app.isPackaged ? undefined : join(app.getAppPath(), 'build', 'git', `${process.platform}-${process.arch}`),
+    platform: process.platform,
+    arch: process.arch,
+    path: process.env.PATH ?? '',
+    exists: existsSync,
+    xcodeSelectOk,
+    prefer: process.env.AW_GIT === 'bundled' ? 'bundled' : 'system',
+    env: process.env
+  })
+}
+
 async function main() {
   await app.whenReady()
+  useGit(chooseGit())
   // The packaged app has its icon built in; a development run needs it set.
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   mkdirSync(HOME, { recursive: true })
@@ -1027,7 +1054,8 @@ async function main() {
   loadPrices()
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
-  const env = { ...providerOf({}).env(process.env), PATH: loginShellPath() }
+  // The terminals of the agents get the bundled git first on their path, so the agent's own git and the commit hook run it.
+  const env = withGitOnPath({ ...providerOf({}).env(process.env), PATH: loginShellPath() }, gitProgram(), delimiter)
 
   const eventOptions = (p: Provider): EventSourceOptions => ({
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -1828,6 +1856,11 @@ async function main() {
     // The shell draws its prompt first; the program is typed after it, quoted so a path with spaces still runs.
     setTimeout(() => pt.write(`"${binFor(p).replace(/"/g, '')}"${login.args.map((x) => ` ${x}`).join('')}\r`), 900)
     return sid
+  })
+  // Which git the app and its agents use, for the setup screen.
+  ipcMain.handle('git:info', () => {
+    const g = gitProgram()
+    return g ? { source: g.source, bin: g.bin } : null
   })
   ipcMain.handle('list-providers', () =>
     Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))

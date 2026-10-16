@@ -4,6 +4,7 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
 import { git } from './worktree'
+import { gitBin, gitProcessEnv } from './gitProgram'
 
 /** The commits made in a checkout after a time (newest first, at most 20) and the files they touched: what an agent did while it worked on something. Empty when this is not a repository. */
 export async function commitsSince(cwd: string, sinceMs: number): Promise<{ commits: { sha: string; subject: string }[]; files: string[] }> {
@@ -59,7 +60,7 @@ export async function changes(cwd: string, base: string): Promise<Change[]> {
 export async function originalContent(cwd: string, base: string, path: string) {
   const from = await mergeBase(cwd, base)
   try {
-    return (await promisify(execFile)('git', ['show', `${from}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 })).stdout
+    return (await promisify(execFile)(gitBin(), ['show', `${from}:${path}`], { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024 })).stdout
   } catch {
     return ''
   }
