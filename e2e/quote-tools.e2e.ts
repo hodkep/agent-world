@@ -41,7 +41,7 @@ test('words selected in a tool card (a command and what it printed) can be asked
     await log.getByText('git blame').first().click()
     const output = log.getByText('e25bb26c (Ada)')
     await expect(output).toBeVisible()
-    await select(page, 'Pratik')
+    await select(page, 'Ada')
     const ask = page.getByRole('button', { name: 'Ask ada' })
     await expect(ask).toBeVisible()
     await ask.click()
