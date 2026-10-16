@@ -59,8 +59,10 @@ import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
+import { LandBand } from './workflows/LandBand'
 import { RunTrack } from './workflows/RunTrack'
-import { trackOf } from '../shared/runTrack'
+import { useLandingHolds } from './workflows/useLandingHolds'
+import { landingPill, trackOf } from '../shared/runTrack'
 import { pendingPlans } from '../shared/runs'
 import { checkPanels, waitingSteps } from '../shared/steps'
 import { CheckGate } from './workflows/CheckGate'
@@ -138,6 +140,7 @@ export function App() {
   const [history, setHistory] = useState(false)
   const [crewOpen, setCrewOpen] = useState(false)
   const wf = useWorkflows()
+  const landingHolds = useLandingHolds()
   const [report, setReport] = useState<'usage' | 'rewind' | 'workflows' | null>(null)
   // A run the Workflows window was opened on, from a tile in an agent's tab.
   const [runFocus, setRunFocus] = useState<string | null>(null)
@@ -661,7 +664,16 @@ export function App() {
   const trackFor = (a: AgentRecord) => {
     const run = wf.runs.filter((r) => r.agent === a.id).at(-1)
     const t = run && prefs && workflowsShown(prefs.workflows.enabled, wf.open) ? trackOf(run, ctxFor(run)) : undefined
-    return t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" />
+    const hold = landingHolds.find((h) => h.agentId === a.id)
+    // Git holds the agent's merge: the marker is on the track, and the band that asks the person sits right under it.
+    return (
+      (t || hold) && (
+        <>
+          {t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" landing={landingPill(hold)} onReopen={() => void window.aw.landingReopen(a.id)} />}
+          {hold && !hold.declined && <LandBand hold={hold} agentName={a.name} />}
+        </>
+      )
+    )
   }
   const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
     <ChatView

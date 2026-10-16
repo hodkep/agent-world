@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { trackOf } from './runTrack'
+import { landingPill, trackOf } from './runTrack'
 
 const JOURNEY: RunWorkflow = {
   id: 'journey',
@@ -79,12 +79,12 @@ describe('where a run is on its track', () => {
     expect(states([submitted(), planned('approved'), done('build'), ran(1, false), ran(2, false), ran(3, false), skip])![2]).toBe('tests:skipped')
   })
 
-  it('waits at Finish once the work is done: the review is ready and then the landing', () => {
+  it('waits for the landing once the work is done, which the person asks the agent for in the chat', () => {
     const work = [submitted(), planned('approved'), done('build'), ran(1, true), { k: 'done', t: 700, run: 'r1' } as RunEvent]
     const t = track(work)!
     expect(t.stations.map((s) => s.state).slice(0, 3)).toEqual(['done', 'done', 'done'])
     expect(t.at).toBe(3)
-    expect(t.waiting).toBe('ready at Finish')
+    expect(t.waiting).toBe('ready to land: ask the agent')
   })
 
   it('has no track for a run that landed, was stopped, follows no workflow, or has nothing left to do', () => {
@@ -93,5 +93,15 @@ describe('where a run is on its track', () => {
     expect(track([submitted(), { k: 'stop', t: 300, run: 'r1' }])).toBeUndefined()
     const plain = reduceRuns([{ ...begin, workflow: undefined }])[0]!
     expect(trackOf(plain, ctx)).toBeUndefined()
+  })
+})
+
+describe('the marker that a merge was held', () => {
+  it('says the merge is held, and stays with the person\'s answer not yet while the band is put away', () => {
+    expect(landingPill({ declined: false })).toEqual({ kind: 'held', text: 'Land held' })
+    expect(landingPill({ declined: true })).toEqual({ kind: 'notyet', text: 'Land held · not yet' })
+  })
+  it('is nothing when no merge was held', () => {
+    expect(landingPill(undefined)).toBeNull()
   })
 })

@@ -1,9 +1,10 @@
 import { type TileKind, headline, weekDays } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
-import { trackOf } from '../../shared/runTrack'
+import { landingPill, trackOf } from '../../shared/runTrack'
 import type { StepContext } from '../../shared/steps'
 import { RunTrack } from './RunTrack'
+import { useLandingHolds } from './useLandingHolds'
 
 const VERDICT: Record<TileKind, string> = { ok: 'met every gate', trouble: 'met its gates, with trouble on the way', bad: 'a gate was missed or overridden', wait: 'waiting', na: 'no gates asked' }
 
@@ -13,6 +14,7 @@ const VERDICT: Record<TileKind, string> = { ok: 'met every gate', trouble: 'met 
  */
 export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; /** Open the window on this run, or on its Runs when none is given. */ onOpenRun: (runId?: string) => void }) {
   const now = Date.now()
+  const hold = useLandingHolds().find((h) => h.agentId === agentId)
   const mine = runs.filter((r) => r.agent === agentId)
   if (mine.length === 0)
     return (
@@ -31,7 +33,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
   return (
     <div className="wf-tab">
-      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
+      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold)} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
       <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
       <div className="wt-week" role="list" aria-label="This week">
         {weekDays(week, ctxFor, now).map((d) => (
