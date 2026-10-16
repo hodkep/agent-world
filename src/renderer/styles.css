@@ -2025,6 +2025,16 @@ dialog.handoff { width: min(640px, 94vw); }
 .pa-ghost i { font-style: normal; color: transparent; }
 .pa .preview-state { position: absolute; left: 8px; z-index: 2; width: 8px; height: 8px; padding: 0; box-shadow: none; background: var(--ok); }
 .pa .preview-state.down { background: var(--danger); }
+.pa .preview-state.web { background: var(--think); }
+.pa .preview-state.web.asking { background: var(--dim); }
+.pa .preview-state.web.failed { background: var(--danger); }
+.pa .preview-state.web.loading { background: none; border: 2px solid var(--think); border-right-color: transparent; border-radius: 50%; width: 10px; height: 10px; left: 7px; animation: su-spin 0.7s linear infinite; }
+.pa-tag { position: absolute; right: 8px; z-index: 2; font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 5px; background: color-mix(in srgb, var(--think) 20%, var(--well)); color: var(--think); pointer-events: none; }
+.pa.has-tag .pa-input { padding-right: 42px; }
+.preview-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 10px; background: color-mix(in srgb, var(--think) 12%, var(--panel)); border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); font-size: 12px; }
+.preview-ask > span { flex: 1 1 260px; line-height: 1.45; }
+.preview-ask b { color: var(--think); }
+@media (prefers-reduced-motion: reduce) { .pa .preview-state.web.loading { animation: none; } }
 .pa-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px rgb(0 0 0 / 0.65); padding: 4px; max-height: 300px; overflow: auto; }
 .pa-list h5 { margin: 6px 8px 2px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .pa-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; cursor: pointer; font-size: 12px; min-width: 0; }
