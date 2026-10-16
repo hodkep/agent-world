@@ -280,6 +280,7 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
     out.push({ at: last.t - start, kind, text })
   }
   const a = run.audit
+  if (a?.state === 'failed') out.push({ at: a.t - start, kind: 'trouble', text: `Review could not run: ${a.reason}` })
   if (a?.state === 'done') {
     const unseen = a.findings.filter((f) => !f.seen)
     const text = a.findings.length === 0 ? 'Review found nothing' : unseen.length === 0 ? `Review found ${plural(a.findings.length, 'thing', 'things')}, all seen` : `Review found ${plural(unseen.length, 'thing', 'things')} you did not look at: “${clip(unseen[0]!.text, 80)}”`

@@ -22,6 +22,8 @@ export interface Track {
   at: number
   /** What the run waits for from the person, when it does. */
   waiting?: string
+  /** What stands out when it is the agent's turn: a plan the person sent back, being revised. */
+  note?: string
 }
 
 function waitingFor(kind: StepKind, state: string, runDone: boolean): string | undefined {
@@ -54,5 +56,6 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   })
   const here = steps[at]!
   const waiting = waitingFor(here.kind, here.state, run.status === 'done')
-  return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }) }
+  const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
+  return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }

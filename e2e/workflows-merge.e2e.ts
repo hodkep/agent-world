@@ -130,9 +130,10 @@ test('an audit that fails says why, never holds Land, and can be run again', asy
     await dialog.getByRole('button', { name: 'Run the audit again' }).click()
     await expect.poll(() => readFileSync(o.auditLog, 'utf8').trim().split('\n').length).toBe(2)
     await dialog.getByRole('button', { name: 'Close' }).click()
-    // The agent's Workflow tab keeps the line.
+    // The run, opened from the agent's Workflow tab, keeps the line.
     await o.page.getByRole('tab', { name: 'Workflow' }).click()
-    await expect(o.page.getByRole('article', { name: 'Add a dark-mode toggle' })).toContainText('Audit failed: Credit balance is too low')
+    await o.page.getByRole('list', { name: 'This week' }).getByRole('button', { name: /Add a dark-mode toggle/ }).click()
+    await expect(o.page.getByRole('dialog', { name: 'Workflows' }).getByRole('region', { name: 'How Add a dark-mode toggle went' })).toContainText('Review could not run: Credit balance is too low')
   } finally {
     await o.shutdown()
   }

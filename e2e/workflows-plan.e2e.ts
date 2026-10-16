@@ -141,7 +141,7 @@ test('the hold can be lifted without approving, and a plan sent back keeps the h
     writeFileSync(
       join(tmp, 'home', 'runs.jsonl'),
       [
-        line({ k: 'begin', t, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a toggle' }),
+        line({ k: 'begin', t, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a toggle', workflow: { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }] } }),
         line({ k: 'plan', t: t + 1, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a toggle.', assumptions: [], outOfScope: [], questions: [] } })
       ].join('\n') + '\n'
     )
@@ -156,7 +156,7 @@ test('the hold can be lifted without approving, and a plan sent back keeps the h
     await expect(panel).toBeHidden()
     expect((await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.rounds[0]!.plan).toMatchObject({ state: 'changes', note: 'Also cover the settings page.' })
     await page.getByRole('tab', { name: /^Workflow/ }).click()
-    await expect(page.getByRole('region', { name: 'Round 1' })).toContainText('Plan sent back')
+    await expect(page.getByRole('region', { name: /where ada is/ }).first()).toContainText('plan sent back: being revised')
     // The hold can always be lifted from the app: a release needs no waiting plan.
     await page.evaluate(() => window.aw.workflows.decide('r1', 'released'))
     expect((await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.rounds[0]!.plan).toMatchObject({ state: 'released' })

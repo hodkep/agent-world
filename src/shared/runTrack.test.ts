@@ -55,6 +55,14 @@ describe('where a run is on its track', () => {
     expect(track([...base, ran(1, true)])!.stations[2]!.tries).toBeUndefined()
   })
 
+  it('says a plan the person sent back is being revised: the agent has it, so nothing waits on the person', () => {
+    const t = track([submitted(), planned('changes')])!
+    expect(t.at).toBe(0)
+    expect(t.waiting).toBeUndefined()
+    expect(t.note).toBe('plan sent back: being revised')
+    expect(track([submitted(), planned('changes'), submitted(400)])!.note).toBeUndefined()
+  })
+
   it('keeps how often the plan was sent back on its station', () => {
     expect(track([submitted(), planned('changes'), submitted(400), planned('approved', 500)])!.stations[0]).toMatchObject({ state: 'trouble', tries: 1 })
   })

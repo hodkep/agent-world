@@ -30,7 +30,7 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
             </li>
           ))}
         </ol>
-        {track.waiting && <span className="pill" role="status" title={track.waiting}>{track.waiting}</span>}
+        {(track.waiting ?? track.note) && <span className="pill" role="status" title={track.waiting ?? track.note}>{track.waiting ?? track.note}</span>}
       </div>
     )
   return (
@@ -40,13 +40,13 @@ export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: 
         <span>{track.workflow}</span>
         {track.round > 1 && <em>round {track.round}</em>}
       </div>
-      <ol className={`track ${track.waiting ? 'hb' : ''}`}>
+      <ol className={`track ${track.waiting ?? track.note ? 'hb' : ''}`}>
         {track.stations.map((s, i) => {
           return (
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`}>
               {i === track.at && (
                 <span className="agent">
-                  {track.waiting && <span className="bubble" role="status">{track.waiting}</span>}
+                  {(track.waiting ?? track.note) && <span className="bubble" role="status">{track.waiting ?? track.note}</span>}
                   <Sprite seed={seed} />
                 </span>
               )}
