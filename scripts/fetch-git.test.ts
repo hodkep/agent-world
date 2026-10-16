@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error the script is plain JavaScript that runs under Node on its own
-import { archiveFor, keyFor, verifySha256 } from './fetch-git.mjs'
+import { archiveFor, keyFor, keysToFetch, verifySha256 } from './fetch-git.mjs'
 import archives from './git-archives.json'
 
 describe('the git that is bundled with the app', () => {
@@ -22,6 +22,11 @@ describe('the git that is bundled with the app', () => {
     expect(keyFor('win32', 'x64')).toBe('win32-x64')
     expect(archiveFor('darwin-x64', archives).url).toContain('macOS-x64')
     expect(() => archiveFor('freebsd-x64', archives)).toThrow(/No git is pinned for freebsd-x64/)
+  })
+  it('is fetched for this computer by default, or for every kind of processor of its system with --platform, or for the ones named', () => {
+    expect(keysToFetch([], archives, 'darwin', 'arm64')).toEqual(['darwin-arm64'])
+    expect(keysToFetch(['--platform'], archives, 'darwin', 'arm64').sort()).toEqual(['darwin-arm64', 'darwin-x64'])
+    expect(keysToFetch(['linux-x64', 'win32-x64'], archives, 'darwin', 'arm64')).toEqual(['linux-x64', 'win32-x64'])
   })
   it('is only used if what was downloaded is what was pinned', async () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-git-')), 'a.tar.gz')

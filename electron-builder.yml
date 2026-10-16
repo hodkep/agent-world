@@ -22,13 +22,20 @@ mac:
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # The git the app uses when the computer has none (a fresh Mac has none until Apple's tools are installed): the one for the processor being built, from scripts/fetch-git.mjs.
+  extraResources:
+    - { from: "build/git/darwin-${arch}", to: git }
 dmg:
   title: "Agent World"
 artifactName: "${productName}-${version}-${arch}.${ext}"
 win:
   target: [nsis]
+  extraResources:
+    - { from: "build/git/win32-${arch}", to: git }
 linux:
   target: [AppImage, deb]
+  extraResources:
+    - { from: "build/git/linux-${arch}", to: git }
   category: Development
   maintainer: Pratik <agentworld.app@gmail.com>
 # Installers are published to the project's GitHub releases by the release workflow; the installed app looks there for updates unless Settings gives another address.

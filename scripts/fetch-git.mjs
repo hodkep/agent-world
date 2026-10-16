@@ -2,6 +2,7 @@
 // Downloads the git that is bundled with the app, for each system and kind of processor it is built for, into build/git/<system>-<arch>/.
 // The archives are dugite-native's (the git GitHub Desktop ships), pinned with their sha256 in scripts/git-archives.json.
 //   node scripts/fetch-git.mjs                       the one for this computer
+//   node scripts/fetch-git.mjs --platform            every kind of processor of this system (both Macs)
 //   node scripts/fetch-git.mjs darwin-arm64 darwin-x64
 // electron-builder copies the folder of the system it builds for into the app (see extraResources in electron-builder.yml). One folder for each
 // processor is why this is a script and not the dugite package: that package downloads only the git of the computer it is installed on, so an
@@ -22,6 +23,12 @@ export function archiveFor(key, archives) {
   const a = archives[key]
   if (!a) throw new Error(`No git is pinned for ${key}. Add it to scripts/git-archives.json.`)
   return a
+}
+
+/** What to download for the arguments given: nothing named is this computer's, `--platform` is every pinned processor of this system, else what was named. */
+export function keysToFetch(args, archives, platform, arch) {
+  if (args.includes('--platform')) return Object.keys(archives).filter((k) => k.startsWith(`${platform}-`))
+  return args.length ? args : [keyFor(platform, arch)]
 }
 
 export async function verifySha256(file, expected) {
@@ -54,7 +61,7 @@ async function fetchOne(key, root) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const keys = process.argv.slice(2).length ? process.argv.slice(2) : [keyFor(process.platform, process.arch)]
+  const keys = keysToFetch(process.argv.slice(2), JSON.parse(readFileSync(join(here, 'git-archives.json'), 'utf8')), process.platform, process.arch)
   const root = resolve(here, '..', 'build', 'git')
   mkdirSync(root, { recursive: true })
   for (const key of keys) await fetchOne(key, root)
