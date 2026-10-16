@@ -1,12 +1,12 @@
 import type { Run } from '../../shared/runs'
 import type { StepContext } from '../../shared/steps'
-import { type RunSpend, runsThisWeek } from '../../shared/runStats'
+import type { RunSpend } from '../../shared/runStats'
 import { type ReactNode, useState } from 'react'
 import type { AgentRecord } from '../../shared/types'
 import { Modal } from '../panel/Modal'
 import { BuilderSplit } from './BuilderSplit'
 import { Insights } from './Insights'
-import { RunBars } from './RunBars'
+import { RunsLedger } from './RunsLedger'
 import { WorkflowList } from './WorkflowList'
 
 /** Every agent's workflow runs in one place: the week as a bar for each run, the insights over them, and the workflows themselves. */
@@ -15,7 +15,6 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
   const [builder, setBuilder] = useState<{ agent: AgentRecord; editing?: string } | null>(null)
   const [focus, setFocus] = useState('')
   const now = Date.now()
-  const week = runsThisWeek(runs, now)
   return (
     <Modal label="Workflows" className="library-modal wf-window" onClose={onClose}>
       <header className="settings-head">
@@ -66,13 +65,8 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
           <b>No runs yet</b>
           <p>A run appears here when an agent starts a task, or commits work it never announced. You can switch Workflows off in Settings, under Features.</p>
         </div>
-      ) : week.length === 0 ? (
-        <div className="wf-empty">
-          <b>No runs this week</b>
-          <p>Earlier runs are in Insights, under 30 days.</p>
-        </div>
       ) : (
-        <div className="wf-body"><RunBars runs={week} spend={spend} ctxFor={ctxFor} now={now} initial={focusRun} /></div>
+        <div className="wf-body"><RunsLedger runs={runs} spend={spend} ctxFor={ctxFor} now={now} initial={focusRun} /></div>
       )}
     </Modal>
   )

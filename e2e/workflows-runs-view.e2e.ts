@@ -24,36 +24,43 @@ async function week(old = false, openWindow = true) {
   return { page, shutdown, win: page.getByRole('dialog', { name: 'Workflows' }) }
 }
 
-test('the Runs tab says the week in a few sentences and draws each run as a bar that opens to say how it went', async () => {
-  const { win, shutdown } = await week()
+test('the Runs tab is two charts (how often each workflow ran, how well each stage was followed) over a ledger of runs grouped by what to do about them, over 7 or 30 days', async () => {
+  const { win, shutdown } = await week(true)
   try {
-    const sum = win.getByLabel('This week')
-    await expect(sum).toContainText('8 runs this week.')
-    await expect(sum).toContainText('5 of 6 finished runs met every gate.')
-    await expect(sum).toContainText(/Agents spent (58|59|60)m waiting on you\./)
-    await expect(sum).toContainText('Checks failed the first time in 2 of 5 runs.')
-    await expect(sum).toContainText('1 landing went ahead anyway.')
-    await expect(sum).toContainText('1 began from a commit.')
-    await expect(sum).toContainText('1 waiting on you now.')
+    // The charts say their numbers in words as well.
+    await expect(win.getByRole('img', { name: 'Workflows invoked: Journey 5, Bug fix 1, Quick change 1' })).toBeVisible()
+    await expect(win.getByRole('img', { name: 'Stages followed: Plan 3 of 4, Checks 5 of 5, Review 2 of 3, Landing 4 of 5' })).toBeVisible()
 
-    const runs = win.getByRole('list', { name: 'Runs' })
-    await expect(runs.getByRole('listitem')).toHaveCount(8)
-    // A bar for a run that has times; none for the run begun from a commit.
-    const billing = runs.getByRole('listitem').filter({ hasText: 'Billing export' })
-    await expect(billing.getByRole('img')).toHaveAttribute('aria-label', /waiting on you 25m.*checks/)
-    await expect(runs.getByRole('listitem').filter({ hasText: 'add csv import' })).toContainText('no times were recorded')
-    await expect(billing.locator('.rb-flag.anyway')).toBeVisible()
+    // The ledger: the run that waits on the person first, then what landed with trouble, then what landed clean, with how many each.
+    const ledger = win.getByRole('table', { name: 'Runs' })
+    await expect(ledger.locator('.rb-grp')).toHaveText([/Needs you.*2/, /Landed with trouble.*1/, /Landed clean.*5.*2 needed a second try/])
+    await expect(ledger.getByRole('row').filter({ hasText: 'add csv import' })).toContainText('—')
+    const billing = ledger.getByRole('row').filter({ hasText: 'Billing export' })
+    await expect(billing).toContainText('1 h 30 m')
+    await expect(billing).toContainText('25m')
+    await expect(billing).toContainText('try 2')
+    await expect(billing).toContainText('1 finding not seen · landed anyway')
+    await expect(ledger.getByRole('row').filter({ hasText: 'Old export' })).toHaveCount(0)
+
+    // The heading of a column carries the week's total for it.
+    await expect(ledger.getByRole('columnheader', { name: /Checks/ })).toContainText('3 of 5 first try')
+    await expect(ledger.getByRole('columnheader', { name: /Review/ })).toContainText('2 of 3 found something')
 
     // A click opens the run in place: line by line, what met its gate, what went with trouble and what was missed.
-    await billing.getByRole('button').click()
-    const sheet = billing.getByRole('region', { name: 'How Billing export went' })
+    await billing.getByRole('button', { name: /Billing export/ }).click()
+    const sheet = win.getByRole('region', { name: 'How Billing export went' })
     await expect(sheet).toContainText('Plan sent, then you lifted the hold after 25m without approving it')
     await expect(sheet).toContainText('Check failed once, passed on try 2')
     await expect(sheet).toContainText('Review found 1 thing you did not look at: “No test for empty export.”')
     await expect(sheet).toContainText('Landed anyway, with review still holding it')
     await expect(sheet.locator('li.bad')).toHaveCount(3)
-    await billing.getByRole('button').click()
+    await billing.getByRole('button', { name: /Billing export/ }).click()
     await expect(sheet).toHaveCount(0)
+
+    // 30 days brings the older run into the charts and the ledger.
+    await win.getByRole('radio', { name: '30 days' }).click()
+    await expect(win.getByRole('img', { name: /Workflows invoked: Journey 6,/ })).toBeVisible()
+    await expect(ledger.getByRole('row').filter({ hasText: 'Old export' })).toHaveCount(1)
   } finally {
     await shutdown()
   }
@@ -108,7 +115,7 @@ test('the agent\'s tab is the track of its open run and its week as a tile for e
     await win.getByRole('button', { name: 'Close' }).click()
     // The link opens the window on its runs, with none opened.
     await page.getByRole('button', { name: /All of ada's runs in Workflows/ }).click()
-    await expect(win.getByRole('list', { name: 'Runs' })).toBeVisible()
+    await expect(win.getByRole('table', { name: 'Runs' })).toBeVisible()
     await expect(win.getByRole('region', { name: /^How .* went$/ })).toHaveCount(0)
   } finally {
     await shutdown()

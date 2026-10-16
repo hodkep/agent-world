@@ -37,8 +37,8 @@ test('a restart in the middle of work loses nothing: the plan still waits, the b
 
     const second = await start(w)
     const runs = await openWorkflows(second.page, 'Runs')
-    await expect(runs.getByLabel('This week')).toContainText('1 waiting on you now.')
-    await expect(runs.getByRole('list', { name: 'Runs' })).toContainText('Add a toggle')
+    await expect(runs.getByRole('table', { name: 'Runs' }).locator('.rb-grp')).toHaveText([/Needs you.*1/])
+    await expect(runs.getByRole('table', { name: 'Runs' })).toContainText('Add a toggle')
     await shot(second.page, 'restart-2-runs-after')
     await runs.getByRole('tab', { name: 'Workflows' }).click()
     await runs.getByRole('button', { name: 'Open the builder' }).click()

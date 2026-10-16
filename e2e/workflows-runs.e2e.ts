@@ -32,7 +32,7 @@ test('turning workflows off with runs open: the confirm lists them, "let them fi
     const win = page.getByRole('dialog', { name: 'Workflows' })
     await expect(win).toContainText('Winding down')
     await expect(win).toContainText('2 runs are still open')
-    await expect(win.getByRole('list', { name: 'Runs' })).toContainText('Add a dark-mode toggle')
+    await expect(win.getByRole('table', { name: 'Runs' })).toContainText('Add a dark-mode toggle')
     await win.getByRole('button', { name: 'Close' }).click()
 
     // On, then off again: the confirm names the open runs, and cancelling keeps it on.
