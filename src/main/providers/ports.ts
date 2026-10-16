@@ -16,7 +16,8 @@ export interface TerminalIO {
 }
 
 /** Reads which option of a menu is highlighted from a rendered screen; null when the menu is not showing. */
-export type Menu = (screen: string) => { highlighted: number } | null
+/** `key` names the question on screen, so a different one after a key press is told from the same one still there. */
+export type Menu = (screen: string) => { highlighted: number; key?: string } | null
 
 export interface GenericMenu {
   /** The first line of the block the menu belongs to ("Bash command", "Rewind"…). */

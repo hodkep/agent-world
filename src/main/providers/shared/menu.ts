@@ -12,13 +12,18 @@ const UP = '\x1b[A'
  * could pick "No, exit" and close the agent, so nothing is ever pressed without looking first.
  */
 export async function answerMenu(io: TerminalIO, detect: Menu, want: number): Promise<boolean> {
+  let asked: string | undefined
   for (let step = 0; step < MAX_STEPS; step++) {
     const state = detect(io.screen())
     if (!state) return true
+    // A first-run question is followed at once by the next one: that is the answer taken, not a menu left to answer.
+    if (asked !== undefined && state.key !== undefined && state.key !== asked) return true
+    asked ??= state.key
     if (state.highlighted === want) {
       io.write('\r')
       await io.sleep(CONFIRM_SETTLE_MS)
-      if (!detect(io.screen())) return true
+      const after = detect(io.screen())
+      if (!after || (asked !== undefined && after.key !== undefined && after.key !== asked)) return true
       continue
     }
     io.write(state.highlighted < want ? DOWN : UP)
