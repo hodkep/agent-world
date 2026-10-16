@@ -1,6 +1,6 @@
 # Installing Agent World (macOS)
 
-**Before you start:** install the Claude Code CLI and sign in once by running `claude` in a terminal. Agent World runs your own `claude`; it never handles your login.
+**Before you start:** nothing needs installing first. Agent World carries its own `git`, and its setup screen installs the Claude Code CLI for you (press **Install Claude Code**) and Antigravity if you want it. You sign in once with your own account in a terminal inside the setup screen. Agent World runs your own `claude`; it never handles your login.
 
 1. Pick the file for your Mac: `Agent World-<version>-arm64.dmg` for Apple silicon (M1 and later), `…-x64.dmg` for Intel. (Apple menu > About This Mac shows which you have.)
 2. Open the dmg and drag **Agent World** into **Applications**.
@@ -10,7 +10,7 @@
    - **Any version:** run `xattr -dr com.apple.quarantine "/Applications/Agent World.app"` in a terminal, then open it normally.
 
    Because the app is not signed, it cannot replace itself when a new version comes out. It tells you when one is available and opens its page on GitHub, and you download and install it the same way.
-4. Choose a project folder, click **+ Agent**, and the character walks in.
+4. Follow the setup screens: install and sign in to Claude Code, choose a project folder, click **+ Agent**, and the character walks in.
 
 ## Building the installers yourself
 

@@ -17,9 +17,9 @@ Not affiliated with Anthropic or Google. See [NOTICE.md](NOTICE.md).
 ## What you need
 
 - A computer running macOS, Windows or Linux.
-- The **Claude Code CLI**, installed and signed in (run `claude` once in a terminal). Agent World runs your own `claude` and never handles your credentials.
+- The **Claude Code CLI**, signed in. The setup screen can install it for you (it runs Anthropic's installer in a terminal inside the app), and you sign in once there. Agent World runs your own `claude` and never handles your credentials.
 - Optional: the **Antigravity CLI** (`agy`), signed in, to hire agy agents beside Claude's.
-- For a project with git, `git` on your path (agents work in their own worktrees on branches `aw/<name>`).
+- Nothing else: the app uses the computer's `git` when it has one and carries its own when it does not (agents work in their own worktrees on branches `aw/<name>`).
 
 ## Install
 
