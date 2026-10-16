@@ -32,7 +32,7 @@ function resultText(content: unknown): string {
 const resultImages = (content: unknown): string[] => (Array.isArray(content) ? content.filter((b) => obj(b).type === 'image').map((b) => imageSrc(obj(b))) : [])
 
 /** A hook's message to the agent as a one-line note (who, and what it is about) with the full text behind a button. */
-/** What the playbook adds to a message: the rulebook line ("Reminder: tdd (when …); …") or the whole catalog of items. */
+/** What the playbook adds to a message: the rulebook line ("Reminder: tdd (when …); …") or the whole catalog of items. It is not shown as a note: the mark under the message says it. */
 const RULEBOOK = /^Reminder: [\w.-]+ \([^)]*\)(; [\w.-]+ \([^)]*\))*\./
 const isRulebook = (detail: string) => RULEBOOK.test(detail) || detail.startsWith('Library items and when each applies')
 
@@ -42,7 +42,7 @@ function hookNote(id: string, at: number, a: Obj): ChatItem[] {
   if (event.startsWith('SessionStart')) return []
   const detail = (Array.isArray(a.content) ? a.content.map(str) : [str(a.content)]).join('\n\n').trim()
   if (!detail) return []
-  if (event.startsWith('UserPromptSubmit') && isRulebook(detail)) return [{ kind: 'note', id, at, text: 'Rulebook reminder', detail, detailLabel: 'details', hook: { event, title: 'Rulebook reminder', kind: 'rulebook', findings: [] }, event: 'hook' }]
+  if (event.startsWith('UserPromptSubmit') && isRulebook(detail)) return []
   const from = /^\[([^\]]+)\]\s*/.exec(detail)
   const first = detail.slice(from?.[0].length ?? 0).split('\n')[0]!.trim().replace(/[:.]$/, '')
   const gist = first.length > 110 ? `${first.slice(0, 109)}…` : first

@@ -61,12 +61,11 @@ describe('reading Claude\'s transcript for the chat view', () => {
     expect(parseTranscriptLine(hook('PostToolUse:Edit', ['[lint] 2 problems']))).toMatchObject([{ hook: { source: 'lint', title: '2 problems', findings: [] } }])
     // No source in brackets: the hook's own name is all there is.
     expect(parseTranscriptLine(hook('UserPromptSubmit', ['remember the budget']))).toMatchObject([{ text: 'UserPromptSubmit hook: remember the budget', detail: 'remember the budget' }])
-    // The playbook's rulebook reminder is told apart, so the chat can say what it is in plain words.
-    const rulebook = parseTranscriptLine(hook('UserPromptSubmit', ['Reminder: tdd (building a feature, test first); research (looking something up). Decide silently which of these apply to this request; do not mention this in your reply.']))
-    expect(rulebook).toMatchObject([{ text: 'Rulebook reminder', hook: { kind: 'rulebook', event: 'UserPromptSubmit' } }])
-    expect(parseTranscriptLine(hook('UserPromptSubmit', ['Library items and when each applies. Read one with library_get(id) before the task it covers.\n- tdd: implementing new behaviour']))).toMatchObject([{ hook: { kind: 'rulebook' } }])
+    // The playbook's rulebook reminder is not a note: the mark under the message already says it was sent, and what it said.
+    expect(parseTranscriptLine(hook('UserPromptSubmit', ['Reminder: tdd (building a feature, test first); research (looking something up). Decide silently which of these apply to this request; do not mention this in your reply.']))).toEqual([])
+    expect(parseTranscriptLine(hook('UserPromptSubmit', ['Library items and when each applies. Read one with library_get(id) before the task it covers.\n- tdd: implementing new behaviour']))).toEqual([])
+    // Someone else's reminder is still shown.
     expect(parseTranscriptLine(hook('UserPromptSubmit', ['Reminder: bring the budget to the meeting']))).toMatchObject([{ hook: { findings: [] } }])
-    expect(parseTranscriptLine(hook('UserPromptSubmit', ['Reminder: bring the budget to the meeting']))[0]).not.toHaveProperty('hook.kind')
     // What a session starts with is the user's own setup, not news.
     expect(parseTranscriptLine(hook('SessionStart', ['CAVEMAN MODE ACTIVE']))).toEqual([])
     expect(parseTranscriptLine(hook('Stop', ['  ']))).toEqual([])

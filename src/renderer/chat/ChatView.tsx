@@ -1072,8 +1072,8 @@ function HookStrip({ hook, agentName }: { hook: HookInfo; agentName: string }) {
       <div className="hook-row">
         <OutlineIcon name="flag" />
         <span className="hook-sub">
-          {hook.kind === 'rulebook' ? 'The rulebook was added to this message, to keep the rules fresh. The agent decides which apply.' : <>{agentName.charAt(0).toUpperCase() + agentName.slice(1)} replied after {hook.source ? <b>{hook.source}</b> : 'a'} {hook.source ? '· ' : ''}
-          {hook.event} hook{verdict ? ` · ${verdict}` : ''}</>}
+          {agentName.charAt(0).toUpperCase() + agentName.slice(1)} replied after {hook.source ? <b>{hook.source}</b> : 'a'} {hook.source ? '· ' : ''}
+          {hook.event} hook{verdict ? ` · ${verdict}` : ''}
         </span>
         <button className="hook-toggle" aria-expanded={open} aria-label={open ? 'Hide details' : 'Show details'} title={open ? 'Hide details' : 'Show details'} onClick={() => setOpen(!open)}>
           <OutlineIcon name="chevron" />

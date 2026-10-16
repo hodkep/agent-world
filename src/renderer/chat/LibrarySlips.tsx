@@ -39,7 +39,7 @@ function notes(slips: Slip[], starts: Use[], told: number, items: Map<string, Li
           ? { key: s.id, icon: 'tag', tone: 'mute', title, says: `${why(s)}, passed over: “${s.reason ?? ''}”`, words: s.words, description: it?.description }
         : s.state === 'pointed'
           ? { key: s.id, icon: 'tag', tone: 'mute', title, says: `${why(s)}, not read`, words: s.words, description: it?.description }
-          : { key: s.id, icon: 'book', tone: 'point', title, says: 'read on its own, not pointed at', description: it?.description }
+          : { key: s.id, icon: 'book', tone: 'point', title, says: 'read when the work needed it', description: it?.description }
     )
   }
   return out
@@ -57,7 +57,9 @@ export function LibrarySlips({ slips, starts, told, items, refresh }: { slips: S
         <div className="slip-wrap">
           <button className={`slip-mark${open === 'refresh' ? ' open' : ''}`} aria-expanded={open === 'refresh'} aria-label={`The rulebook was sent with this message: ${names.join(', ')}`} title={`The rulebook was sent with this message: ${names.join(', ')}. ${refresh.items.length === 1 ? 'The agent decides if it applies.' : 'The agent decides which apply.'}`} onClick={() => setOpen(open === 'refresh' ? null : 'refresh')}>
             <span className="slip-ic point"><PixelIcon name="book" scale={2} /></span>
-            <span className="slip-n">{refresh.items.length}</span>
+            <b>Rulebook sent</b>
+            <span className="slip-names">{names.join(', ')}</span>
+            <span className="slip-caret" aria-hidden="true">{open === 'refresh' ? '▾' : '▸'}</span>
           </button>
           {open === 'refresh' && (
             <div className="paper" role="group" aria-label="The rulebook sent with this message">
@@ -76,7 +78,7 @@ export function LibrarySlips({ slips, starts, told, items, refresh }: { slips: S
           {open === n.key && (
             <div className="paper" role="group" aria-label={`${n.title}, the words`}>
               <p className="paper-w">{n.words ?? n.description ?? ''}</p>
-              <p className="paper-f">{n.words ? `about ${tokens(n.words)} tokens, as the agent was given them` : 'No words were sent: the agent reached for it itself.'}</p>
+              <p className="paper-f">{n.words ? `about ${tokens(n.words)} tokens, as the agent was given them` : 'The agent read it from the rulebook it was given, when its work needed it.'}</p>
             </div>
           )}
         </div>

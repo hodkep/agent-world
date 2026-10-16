@@ -27,7 +27,7 @@ export function timeline(uses: Use[], name: (id: string) => string): Step[] {
       out.push({ t: x.t, tone: read ? 'point' : 'mute', title: `Pointed at ${name(x.id)}`, note: read ? 'matched what you asked' : 'not read: the agent carried on without it' })
     } else if (USED.has(x.how)) {
       const at = pointed.get(x.id)
-      out.push({ t: x.t, tone: 'read', title: `Read ${name(x.id)}`, note: at === undefined ? 'on its own, not pointed at' : `${secs(x.t - at)} after it was pointed out` })
+      out.push({ t: x.t, tone: 'read', title: `Read ${name(x.id)}`, note: at === undefined ? 'when the work needed it' : `${secs(x.t - at)} after it was pointed out` })
       pointed.delete(x.id)
     }
   }

@@ -25,7 +25,7 @@ describe('timeline', () => {
     ])
     expect(s[2]!.note).toBe('1.9s after it was pointed out')
     expect(s[3]!.note).toBe('not read: the agent carried on without it')
-    expect(s[4]!.note).toBe('on its own, not pointed at')
+    expect(s[4]!.note).toBe('when the work needed it')
   })
   it('counts the same pointing twice as one', () => {
     expect(timeline([u({ t: 100 }), u({ t: 300 })], name)).toHaveLength(1)
