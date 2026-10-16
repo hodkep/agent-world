@@ -17,7 +17,7 @@ const JOURNEY = {
   ]
 }
 
-test('chat: the calls that move a run leave the conversation, the office\'s own calls are stamps, and a failed call stays a card', async () => {
+test('chat: the calls that move a run leave the conversation, the office\'s own calls are stamps, and a failed call is a red stamp in the line', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-wfchat-'))
   const { app, shutdown } = await launchApp(
     { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_RUNCALLS: '1' },
@@ -36,16 +36,17 @@ test('chat: the calls that move a run leave the conversation, the office\'s own 
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await expect(log).toContainText('Done with wordCount.', { timeout: 45_000 })
 
-    // The library read is a stamp, with the sentence in its tip.
+    // The track's own speech bubble must not restyle the person's message: it keeps the text colour of the chat, not the dark ink of a paper bubble.
+    await expect(log.locator('.msg.user .bubble').first()).toHaveCSS('color', 'rgb(228, 228, 238)')
+    // The library read is a stamp, with the sentence in its tip; the step report that failed is a red stamp in the same line, with why in its tip.
     const stamps = log.locator('.of-head .stamp')
-    await expect(stamps).toHaveCount(1)
+    await expect(stamps).toHaveCount(2)
     await expect(stamps.first()).toHaveAttribute('title', 'Read tdd · 2 lines')
-    // Beginning, planning, reporting a step and finishing are not in the conversation; the one report that failed is, as a card.
+    await expect(log.locator('.of-head .stamp.bad')).toHaveAttribute('title', 'Reported step build · failed: No task is open.')
+    // Beginning, planning, reporting a step and finishing are not in the conversation, and no failed call is a card either.
     await expect(log.getByText('Task begun')).toHaveCount(0)
     await expect(log.getByText('Plan submitted')).toHaveCount(0)
-    const report = log.locator('.tc', { hasText: 'Step done' })
-    await expect(report).toHaveCount(1)
-    await expect(report).toContainText('failed')
+    await expect(log.locator('.tc', { hasText: 'Step done' })).toHaveCount(0)
     await expect(log.locator('.tc', { hasText: 'Task done' })).toHaveCount(0)
   } finally {
     await shutdown()

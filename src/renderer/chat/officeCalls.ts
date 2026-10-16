@@ -19,8 +19,14 @@ export function runCall(name: string): boolean {
  * changes, notes, the builder's workflow tools, and any the office adds later). They are not the agent's work on a project, so a run of them folds into one quiet line.
  */
 export function officeTool(name: string): string | null {
+  const tool = agentWorldTool(name)
+  return tool && !RUN_TOOLS.has(tool) ? tool : null
+}
+
+/** Any tool of the office's server except those with a card of their own: the office's bookkeeping, and the calls that move a run. */
+function agentWorldTool(name: string): string | null {
   const m = parseMcpName(name)
-  return m && m.server === OFFICE_SERVER && !OWN_CARD.has(m.tool) && !RUN_TOOLS.has(m.tool) ? m.tool : null
+  return m && m.server === OFFICE_SERVER && !OWN_CARD.has(m.tool) ? m.tool : null
 }
 
 type Call = Extract<Row, { kind: 'tool' }>
@@ -32,8 +38,8 @@ export interface OfficeGroup {
 }
 
 /**
- * Runs of office calls between other rows become one group, a single call too. A failed call is left as its own card, so it is not missed. The calls that move a run
- * leave the chat altogether (the track shows them), unless one failed.
+ * Runs of office calls between other rows become one group, a single call too. A failed call is in the group as a red stamp, with its reason in the tip and its card
+ * one click away. The calls that move a run leave the chat altogether (the track shows them), unless one failed.
  */
 export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | OfficeGroup)[] {
   const out: (Row | StepGroup | OfficeGroup)[] = []
@@ -44,7 +50,7 @@ export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | Offic
   }
   for (const r of rows) {
     if (r.kind === 'tool' && runCall(r.run.name) && !r.run.result?.isError) continue
-    if (r.kind === 'tool' && officeTool(r.run.name) && !r.run.result?.isError) run.push(r)
+    if (r.kind === 'tool' && agentWorldTool(r.run.name)) run.push(r)
     else (flush(), out.push(r))
   }
   flush()
@@ -66,7 +72,13 @@ const lines = (t?: string) => (t && t.split('\n').length > 1 ? `${t.split('\n').
 
 /** What one call says in a line: what it did, to what, and the thing worth keeping (the reason for a skip, a task's title). */
 export function whisperOf(run: ToolRun): Whisper {
-  const tool = officeTool(run.name) ?? ''
+  const w = said(run)
+  const why = run.result?.isError ? `failed: ${(run.result.text ?? '').split('\n')[0]!.trim()}` : ''
+  return why ? { ...w, why: clip(why, 140) } : w
+}
+
+function said(run: ToolRun): Whisper {
+  const tool = agentWorldTool(run.name) ?? ''
   const i = run.input as Record<string, unknown>
   const out = run.result?.text
   const task = `todo#${str(i.id)}`
@@ -84,6 +96,10 @@ export function whisperOf(run: ToolRun): Whisper {
     case 'todo_list': return { kind: 'todo', icon: '✓', bold: 'Looked through', rest: 'todos', why: '' }
     case 'remember': return { kind: 'note', icon: '✎', bold: 'Noted', rest: clip(str(i.text) || str(i.note), 120), why: '' }
     case 'recall': return { kind: 'note', icon: '⌕', bold: 'Recalled', rest: clip(str(i.query), 80), why: '' }
+    case 'task_begin': return { kind: 'workflow', icon: '⚑', bold: 'Began', rest: clip(str(i.title), 90), why: '' }
+    case 'plan_submit': return { kind: 'workflow', icon: '⚑', bold: 'Sent', rest: 'the plan', why: '' }
+    case 'step_done': return { kind: 'workflow', icon: '⚑', bold: 'Reported', rest: str(i.step) ? `step ${str(i.step)}` : 'a step', why: '' }
+    case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished', rest: '', why: clip(str(i.summary), 120) }
     case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
     case 'workflow_propose': return { kind: 'workflow', icon: '⚑', bold: 'Proposed', rest: proposedId(i.file), why: '' }
@@ -108,22 +124,22 @@ export interface Stamp {
   label: string
   /** What the call was, for the tip over the stamp. */
   tip: string
-  /** `skip`: a library rule passed over, shown quieter; `wait`: the call is still running. */
-  state: '' | 'skip' | 'wait'
+  /** `skip`: a library rule passed over, shown quieter; `wait`: the call is still running; `bad`: the call failed. */
+  state: '' | 'skip' | 'wait' | 'bad'
 }
 
 /** One office call as a stamp: a picture for its area, a few words, and the whole sentence for the tip. */
 export function stampOf(run: ToolRun, working = false): Stamp {
-  const tool = officeTool(run.name) ?? ''
+  const tool = agentWorldTool(run.name) ?? ''
   const i = run.input as Record<string, unknown>
   const w = whisperOf(run)
   const tip = `${[w.bold, w.rest].filter(Boolean).join(' ')}${w.why ? ` · ${w.why}` : ''}`
-  const state: Stamp['state'] = tool === 'library_skip' ? 'skip' : !run.result && working ? 'wait' : ''
+  const state: Stamp['state'] = run.result?.isError ? 'bad' : tool === 'library_skip' ? 'skip' : !run.result && working ? 'wait' : ''
   if (tool.startsWith('library_')) return { kind: 'library', label: tool === 'library_skip' ? `skip ${str(i.id)}` : tool === 'library_get' ? str(i.id) : '', tip, state }
   if (tool === 'todo_add') return { kind: 'todo', label: clip(str(i.title), 14), tip, state }
   if (tool.startsWith('todo_')) return { kind: 'todo', label: str(i.id) ? `#${str(i.id)}` : '', tip, state }
   if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: '', tip, state }
-  if (tool === 'workflow_propose') return { kind: 'plan', label: '', tip, state }
+  if (tool === 'workflow_propose' || tool === 'plan_submit') return { kind: 'plan', label: '', tip, state }
   return { kind: 'flag', label: '', tip, state }
 }
 
@@ -143,11 +159,12 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
   const order: SummaryPart['area'][] = []
   const seen = (a: SummaryPart['area']) => order.includes(a) || order.push(a)
   for (const c of calls) {
-    const tool = officeTool(c.run.name) ?? ''
+    const tool = agentWorldTool(c.run.name) ?? ''
     const i = c.run.input as Record<string, unknown>
     if (tool === 'library_skip') (seen('Library'), skipped.push(str(i.id)))
     else if (tool === 'library_get') (seen('Library'), !read.includes(str(i.id)) && read.push(str(i.id)))
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
+    else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(humanize(tool).toLowerCase()))
     else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' ? 'read' : 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))

@@ -26,16 +26,18 @@ describe('which tool calls are the office keeping its books', () => {
 })
 
 describe('calls that move a run', () => {
-  it('leave the chat, since the track shows them, unless one failed: that stays a card', () => {
-    const rows = [call('a', 'task_begin', { title: 'x' }, 'ok'), call('b', 'step_done', { step: 'build' }, 'ok'), call('c', 'step_done', {}, 'No task is open.', true), call('d', 'plan_submit', { path: 'p.md' }, 'ok')]
-    const out = groupOffice(rows)
-    expect(out.map((r) => r.kind)).toEqual(['tool'])
-    expect((out[0] as { id: string }).id).toBe('c')
+  it('leave the chat, since the track shows them', () => {
+    expect(groupOffice([call('a', 'task_begin', { title: 'x' }, 'ok'), call('b', 'step_done', { step: 'build' }, 'ok'), call('d', 'plan_submit', { path: 'p.md' }, 'ok')])).toEqual([])
+  })
+  it('stay as red stamps in the fold when they failed, since the person may need to know, but not as cards', () => {
+    const out = groupOffice([call('a', 'task_begin', { title: 'x' }, 'ok'), call('c', 'step_done', { step: 'build' }, 'No task is open.', true), call('d', 'plan_submit', { path: 'p.md' }, 'The plan needs fixing', true)])
+    expect(out.map((r) => r.kind)).toEqual(['office'])
+    expect((out[0] as { calls: { id: string }[] }).calls.map((c) => c.id)).toEqual(['c', 'd'])
   })
 })
 
 describe('what one office call says as a stamp', () => {
-  const stamp = (tool: string, input: Record<string, unknown> = {}, text: string | null = 'ok', working = false) => stampOf(call('a', tool, input, text ?? undefined).run, working)
+  const stamp = (tool: string, input: Record<string, unknown> = {}, text: string | null = 'ok', working = false, failed = false) => stampOf(call('a', tool, input, text ?? undefined, failed).run, working)
   it('is a book for the library, with the id and what it was; a skip is marked as one', () => {
     expect(stamp('library_get', { id: 'tdd' }, 'a\nb\nc')).toEqual({ kind: 'library', label: 'tdd', tip: 'Read tdd · 3 lines', state: '' })
     expect(stamp('library_skip', { id: 'tdd', reason: 'no code written yet' })).toEqual({ kind: 'library', label: 'skip tdd', tip: 'Skipped tdd · no code written yet', state: 'skip' })
@@ -57,6 +59,13 @@ describe('what one office call says as a stamp', () => {
     expect(stamp('workflow_propose', { file: 'not json' })).toMatchObject({ kind: 'plan', tip: 'Proposed a workflow' })
     expect(stamp('something_new')).toMatchObject({ kind: 'flag', tip: 'Something new' })
   })
+  it('shows a failed call with a red rim, and says why in its tip', () => {
+    expect(stamp('step_done', { step: 'build' }, 'No task is open.\nTry task_begin.', false, true)).toEqual({ kind: 'flag', label: '', tip: 'Reported step build · failed: No task is open.', state: 'bad' })
+    expect(stamp('plan_submit', { path: 'p.md' }, 'The plan needs fixing', false, true)).toMatchObject({ kind: 'plan', tip: 'Sent the plan · failed: The plan needs fixing', state: 'bad' })
+    expect(stamp('todo_done', { id: '9' }, 'No todo 9', false, true)).toMatchObject({ kind: 'todo', label: '#9', state: 'bad' })
+    expect(stamp('task_begin', { title: 'Add wordCount' }).tip).toBe('Began Add wordCount')
+    expect(stamp('task_done', { summary: 'wordCount added' }).tip).toBe('Finished · wordCount added')
+  })
   it('shows a call that is still running as waiting', () => {
     expect(stamp('library_get', { id: 'tdd' }, null, true).state).toBe('wait')
     expect(stamp('library_get', { id: 'tdd' }, null, false).state).toBe('')
@@ -72,9 +81,10 @@ describe('calls in a row become one line', () => {
     expect((out[1] as { calls: unknown[] }).calls).toHaveLength(2)
     expect((out[1] as { id: string }).id).toBe('a')
   })
-  it('keeps a failed call out of the fold so it stays loud', () => {
+  it('folds a failed call with the rest: it is a red stamp in the line, not a card of its own', () => {
     const out = groupOffice([call('a', 'library_skip', { id: 'x', reason: 'y' }, 'ok'), call('b', 'todo_done', { id: '1' }, 'no such task', true), call('c', 'library_get', { id: 'x' }, 'ok')])
-    expect(out.map((r) => r.kind)).toEqual(['office', 'tool', 'office'])
+    expect(out.map((r) => r.kind)).toEqual(['office'])
+    expect((out[0] as { calls: unknown[] }).calls).toHaveLength(3)
   })
 })
 
@@ -89,6 +99,9 @@ describe('what each call says', () => {
 })
 
 describe('the one line over a run of calls', () => {
+  it('names a run call that failed, under Workflow', () => {
+    expect(summaryOf([call('a', 'step_done', { step: 'build' }, 'No task is open.', true)])).toEqual([{ area: 'Workflow', text: 'step done · failed: No task is open.' }])
+  })
   it('counts skips, names what was read, and says what happened to each task', () => {
     const calls = [call('a', 'library_skip', { id: 'tdd', reason: 'x' }, 'ok'), call('b', 'library_skip', { id: 'code-review', reason: 'y' }, 'ok'), call('c', 'library_get', { id: 'tdd' }, 'ok'), call('d', 'todo_update', { id: '95', title: 't' }, 'ok'), call('e', 'todo_done', { id: '95' }, 'ok')]
     expect(summaryOf(calls)).toEqual([{ area: 'Library', text: 'skipped 2 · read tdd' }, { area: 'Todo', text: '#95 updated, done' }])
