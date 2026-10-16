@@ -14,3 +14,4 @@ pilot-*report.txt
 *.log
 .env*
 coverage/
+build/git/
