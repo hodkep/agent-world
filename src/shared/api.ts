@@ -238,6 +238,12 @@ export interface AwApi {
   finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
   /** Run the audit of the branch again (after one failed). */
   finishAudit(agentId: string): Promise<void>
+  /** The merges into the base branch that git held for want of the person's say, by agent, until they land or the person says not yet. */
+  landingHolds(): Promise<LandingHold[]>
+  /** The person allows the held branch of this agent to land anyway; the agent's next try goes through. */
+  landingAllow(agentId: string): Promise<void>
+  /** The person says not yet: the held merge is dropped from the list. */
+  landingDismiss(agentId: string): Promise<void>
   /** The person has seen these findings (by position) of the audit of the branch as it is now. */
   finishSeen(agentId: string, which: number[]): Promise<void>
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
@@ -365,6 +371,7 @@ export interface AwApi {
   }
   /** Fires when a run began, finished, got a commit or was stopped. */
   onWorkflows(cb: () => void): () => void
+  onLanding(cb: () => void): () => void
   library: {
     list(): Promise<{ items: LibraryItem[]; usage: Record<string, { claude: number; agy: number; total: number }> }>
     /** What the library did for one agent, oldest first: what it started with, what was pointed at, what it read. */
@@ -417,4 +424,11 @@ export interface AwApi {
   /** A notification was clicked: bring that agent up. */
   onSelectAgent(cb: (agentId: string) => void): () => void
   code: CodeApi
+}
+
+/** A merge into the base branch that git held back: which agent, which commit of its branch, and what holds it. */
+export interface LandingHold {
+  agentId: string
+  head: string
+  held: string[]
 }

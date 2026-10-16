@@ -417,6 +417,27 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual([])
   })
 
+  it('holds the base branch while the review has not run or is still running, and then for the findings not seen, but not for a review that failed or cannot run', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    expect(wf.landingHold('a1', 'h1')).toEqual(['The review has not run for this branch yet.'])
+    expect(wf.landingHold('a1', 'h1', { auditable: false })).toBeNull()
+    let release!: () => void
+    state.reply = () => new Promise((r) => (release = () => r({ text: '{"findings":[{"kind":"guess-wrong","text":"Saved in localStorage."}]}' })))
+    const audit = wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.landingHold('a1', 'h1')).toEqual(['The review is still running.'])
+    release()
+    await audit
+    expect(wf.landingHold('a1', 'h1')).toEqual(['1 audit finding has not been seen.'])
+    wf.seen('a1', 'h1', [0])
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+    state.reply = async () => ({ text: 'not json' })
+    await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
+    expect(wf.landingHold('a1', 'h2')).toBeNull()
+  })
+
   it('runs no audit at the economy dial, for a provider that cannot, or when there is no plan to audit against, and says which', async () => {
     const { wf, state } = make()
     wf.begin('a1', 'Add a toggle')
@@ -484,6 +505,33 @@ describe('the merge gate', () => {
     state.mergeGate = false
     expect(() => wf.landing('a1', 'h3')).not.toThrow()
     expect(wf.runs()[0]!.landed!.head).toBe('h2')
+  })
+
+  it('holds the base branch for git itself, for the reasons that hold Land, until the person allows that head and no other', () => {
+    const { wf, state } = make()
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+    wf.begin('a1', 'Add a toggle')
+    expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
+    wf.allowLanding('a1', 'h1')
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+    expect(wf.landingHold('a1', 'h2')).toEqual(['No plan was approved for this task.'])
+    state.mergeGate = false
+    expect(wf.landingHold('a1', 'h2')).toBeNull()
+  })
+
+  it('lets the base branch move once the plan was approved, with nothing for the person to allow', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.decide(wf.runs()[0]!.id, 'released')
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+  })
+
+  it('forgets the allowance once the branch has landed, so the next head is held again', () => {
+    const { wf } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.allowLanding('a1', 'h1')
+    wf.landing('a1', 'h1', { anyway: true })
+    expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
   })
 
   it('says the audit is running while the model has not answered, so a second look does not start another', async () => {

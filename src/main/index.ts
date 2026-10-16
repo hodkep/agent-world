@@ -23,7 +23,7 @@ import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, pow
 import { isWebUrl } from './webUrl'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
-import type { RemoveResult } from '../shared/api'
+import type { LandingHold, RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
@@ -61,7 +61,7 @@ import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
-import { blockText, currentBranch, gitEnv, holdsBranch, isInside, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
+import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
@@ -1160,6 +1160,8 @@ async function main() {
   setInterval(clearOld, 60_000)
   setTimeout(clearOld, 5_000)
   writeGitHooks(GIT_HOOKS_DIR)
+  // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
+  const landingHeld = new Map<string, LandingHold>()
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -1185,13 +1187,46 @@ async function main() {
         const why = workflows.commitBlock(id, where, stagedFiles(where))
         return why ? { block: blockText(why) } : {}
       }
-      // git is about to move branches (a commit made with --no-verify gets here too): the agent's own branch is held like a commit.
+      // git is about to move branches (a commit made with --no-verify gets here too): the agent's own branch is held like a commit, and the base
+      // branch is held like Land: nothing the agent says or runs changes that, because git itself asks the office before it moves either.
       if (event === 'git-ref') {
         const where = typeof payload.cwd === 'string' ? payload.cwd : ''
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
-        if (!where || !isInside(a.cwd, where) || !holdsBranch(a.branch ?? currentBranch(a.cwd), refs)) return {}
-        const why = workflows.commitBlock(id, where, stagedFiles(where))
-        return why ? { block: blockText(why) } : {}
+        if (!where) return {}
+        if (isInside(a.cwd, where) && holdsBranch(a.branch ?? currentBranch(a.cwd), refs)) {
+          const why = workflows.commitBlock(id, where, stagedFiles(where))
+          if (why) return { block: blockText(why) }
+        }
+        if (a.branch && movesBase(a.base ?? null, refs) && (isInside(a.cwd, where) || isInside(a.repoPath, where))) {
+          const head = branchHead(a.cwd, a.branch)
+          const held = head ? workflows.landingHold(id, head) : null
+          if (head && held) {
+            // The review is started now when it has not run, so the person has its findings to look at.
+            if (held.some((h) => h.startsWith('The review has not run'))) void startAudit(id, a, a.base!, head).catch(() => undefined)
+            landingHeld.set(id, { agentId: id, head, held })
+            send('landing')
+            return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it lands anyway; tell them what holds it and ask.`) }
+          }
+        }
+        return {}
+      }
+      // git moved the base branch: the landing is logged, as landed anyway when something still held it (it was allowed, or got past the hold).
+      if (event === 'git-landed') {
+        const where = typeof payload.cwd === 'string' ? payload.cwd : ''
+        const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
+        if (!a.branch || !movesBase(a.base ?? null, refs) || !where || !(isInside(a.cwd, where) || isInside(a.repoPath, where))) return {}
+        const head = branchHead(a.cwd, a.branch)
+        if (head) {
+          try {
+            workflows.landing(id, head, { anyway: true })
+          } catch {
+            // Only an unknown agent throws here; there is nothing to log for it.
+          }
+          landingHeld.delete(id)
+          send('workflows')
+          send('landing')
+        }
+        return {}
       }
       libraryService.hookCalled(id)
       return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
@@ -1930,6 +1965,18 @@ async function main() {
   })
   ipcMain.handle('code:commit-detail', async (_, id: string, hash: string) => commitDetail((await worktreeOf(id)).a.cwd, hash))
   ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string) => commitDiff((await worktreeOf(id)).a.cwd, hash, path))
+  ipcMain.handle('landing:holds', () => [...landingHeld.values()])
+  ipcMain.handle('landing:allow', (_, id: string) => {
+    const held = landingHeld.get(id)
+    if (!held) return
+    workflows.allowLanding(id, held.head)
+    landingHeld.delete(id)
+    send('landing')
+  })
+  ipcMain.handle('landing:dismiss', (_, id: string) => {
+    landingHeld.delete(id)
+    send('landing')
+  })
   ipcMain.handle('code:merge', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
     await mergeInto(a.repoPath, a.branch!, base)

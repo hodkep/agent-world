@@ -504,11 +504,30 @@ export class Workflows {
     this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
   }
 
+  /** The heads the person allowed to land with something still holding them, by agent: one allowance serves one head, and landing it uses it up. */
+  private allowed = new Map<string, string>()
+
+  /** The person said this head may land although something holds it, in answer to a held merge. */
+  allowLanding(agentId: string, head: string) {
+    this.allowed.set(agentId, head)
+  }
+
+  /** What holds git from moving the base branch to `head`, for the agent whose branch it is, or null when it may: the same rules as Land, unless the person allowed this head. */
+  landingHold(agentId: string, head: string, o: { auditable?: boolean } = {}): string[] | null {
+    const check = this.mergeCheck(agentId, head, o)
+    if (!check || this.allowed.get(agentId) === head) return null
+    // A review that was expected and has not answered holds the branch too: the person would be letting it land unseen.
+    const reviewing = check.audit.state === 'not-run' ? ['The review has not run for this branch yet.'] : check.audit.state === 'running' ? ['The review is still running.'] : []
+    const held = [...check.blocking, ...reviewing]
+    return held.length ? held : null
+  }
+
   /** Land is about to happen: refused while the check holds it, unless the person chose to land anyway; either way the choice is logged. */
   landing(agentId: string, head: string, o: { anyway?: boolean; auditable?: boolean } = {}) {
     const check = this.mergeCheck(agentId, head, o)
     if (!check) return
     if (check.blocking.length && !o.anyway) throw new Error(`Not ready to land:\n${check.blocking.map((b) => `- ${b}`).join('\n')}`)
+    this.allowed.delete(agentId)
     this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: check.blocking.length ? 'anyway' : 'checked', held: check.blocking })
   }
 }
