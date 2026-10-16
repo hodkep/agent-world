@@ -3194,3 +3194,7 @@ svg.pxg { display: block; flex: none; }
 .of-details { padding: 1px 8px; font-size: 11px; color: var(--muted); background: var(--panel-2); }
 .of-card .tc { background: none; border: 0; box-shadow: none; padding: 0; }
 .of-card .tc-head { display: none; }
+
+/* The newest version, when this build cannot install it itself: a brass chip in the top bar that opens its release page. */
+.update-chip { align-self: center; background: var(--accent); color: var(--ink); font: 700 11px Menlo, Consolas, monospace; padding: 4px 8px; border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent-dim); cursor: pointer; white-space: nowrap; }
+.update-chip:hover { background: var(--accent-hot); }

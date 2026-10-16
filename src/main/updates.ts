@@ -8,6 +8,9 @@ import { updateFeed } from './updateFeed'
 export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }
 
 let current: UpdateState = { state: 'off' }
+
+/** What the last look found, for a window opened after it. */
+export const updateState = (): UpdateState => current
 let started = false
 
 /**

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useUpdateInfo } from './UpdateChip'
 import type { Role } from '../../shared/roles'
 import type { Prefs, ProviderInfo } from '../../shared/types'
 import { MailConnect } from './MailConnect'
@@ -89,8 +90,10 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
     if (open === 0) return setWorkflows(false)
     setAsking(runs.filter((r) => r.status === 'open'))
   }
-  const [update, setUpdate] = useState('')
-  useEffect(() => window.aw.onUpdateState((s) => s.detail && setUpdate(s.detail)), [])
+  // What the app last found about a newer version, said as it looks (and a page to open when this build cannot install it itself).
+  const found = useUpdateInfo()
+  const update = found.detail ?? { off: '', checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.' }[found.state]
+  const updatePage = found.state === 'available' && found.url ? found.url : ''
   useEffect(() => dialog.current?.showModal(), [])
   const set = (patch: Partial<Prefs>) => onChange(patch)
   const setRoleModel = (title: string, model: string) => {
@@ -280,9 +283,11 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                 <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => url.trim() !== prefs.updateUrl && set({ updateUrl: url.trim() })} placeholder="https://example.com/agent-world/" />
               </label>
               <div className="settings-row">
-                <button onClick={() => void window.aw.checkUpdates().then((s) => setUpdate(s.detail ?? ({ checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.', off: '' }[s.state])))}>Check now</button>
+                <button onClick={() => void window.aw.checkUpdates()}>Check now</button>
                 <span className="hint" role="status">{update}</span>
+                {updatePage && <button className="primary" onClick={() => void window.aw.openExternal(updatePage).catch(() => undefined)}>Open the release page</button>}
               </div>
+              {updatePage && <p className="hint">This build is not signed with an Apple Developer ID, so it cannot install the new version itself: download it from the page and install it as before.</p>}
             </>
           )}
           {pane === 'setup' && (

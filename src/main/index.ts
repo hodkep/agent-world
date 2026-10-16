@@ -10,7 +10,8 @@ import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
-import { checkForUpdates } from './updates'
+import { checkForUpdates, updateState } from './updates'
+import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
@@ -1423,6 +1424,9 @@ async function main() {
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
   })
   ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
+  ipcMain.handle('updates:state', () => updateState())
+  // An installed app looks by itself once at the start and every six hours; a build that is not installed has nothing to look for.
+  if (app.isPackaged) startChecks(() => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   // Automated runs have no one to walk through setup, so they start as if it was done.
   ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))
   ipcMain.handle('prefs:set', (_, next: unknown) => {
