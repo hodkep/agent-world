@@ -2872,3 +2872,4 @@ aside:not(.drawer) { flex: none; }
 .of-row b { color: #c9c8d8; font-weight: 600; flex: none; }
 .of-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .of-card { margin: 3px 0 4px 8px; }
+.of-own { margin-left: 0; }
