@@ -2,10 +2,11 @@ import { useState } from 'react'
 import type { PictureSet } from './gallery'
 import { type OfficeGroup, summaryOf, whisperOf } from './officeCalls'
 import { ToolCard } from './ToolCard'
+import { toolCardFor } from './cards/registry'
 
 /**
  * The office's own calls (library skips and reads, todo changes, notes) as one quiet line: what was done, counted. A click opens a line for each call, and a click on one of those
- * opens the same card as any tool call has. A call still running shows a spinner; a failed call is not here at all, it is a card of its own.
+ * opens the same card as any tool call has; a call that has a card of its own (a todo) shows it at once. A call still running shows a spinner; a failed call is not here at all, it is a card of its own.
  */
 export function OfficeLine({ group, working, onImage }: { group: OfficeGroup; working: boolean; onImage: (src: string, set?: PictureSet) => void }) {
   const [open, setOpen] = useState(false)
@@ -30,6 +31,8 @@ export function OfficeLine({ group, working, onImage }: { group: OfficeGroup; wo
       {open && (
         <div className="of-list">
           {group.calls.map((c) => {
+            // A call with a card of its own (a todo) shows that card, which says more than a line could: one click on the folded line, not two.
+            if (toolCardFor({ name: c.run.name, input: c.run.input })) return <div key={c.id} className="of-card of-own"><ToolCard run={c.run} working={false} onImage={onImage} /></div>
             const w = whisperOf(c.run)
             return (
               <div key={c.id}>

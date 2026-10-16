@@ -30,9 +30,10 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     await expect(log.locator('[data-todo-card]')).toHaveCount(0)
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
     expect((await fold.boundingBox())!.height).toBeLessThan(30)
+    // One click on the line shows the todo cards themselves, with no line to open for each: two levels, not three.
     await fold.click()
-    await expect(log.locator('.of-row')).toHaveCount(5)
-    for (const row of await log.locator('.of-row').all()) await row.click()
+    await expect(log.locator('[data-todo-card]')).toHaveCount(5)
+    await expect(log.locator('.of-row')).toHaveCount(0)
     const card = (kind: string) => log.locator(`[data-todo-card="${kind}"]`)
     await expect(card('add')).toContainText('Added todo')
     await expect(card('add')).toContainText('todo#14')
