@@ -185,6 +185,8 @@ export interface AwApi {
   listHistory(folder: string): Promise<PastSession[]>
   /** Every provider the app knows, with whether it is ready on this machine. */
   listProviders(): Promise<ProviderInfo[]>
+  /** Which git the app and its agents use: the computer's own, or the one bundled with the app; null when there is neither. */
+  gitInfo(): Promise<{ source: 'system' | 'bundled'; bin: string } | null>
   /** A shell in the home folder with the provider's own program started, so the user can sign in; gives its terminal id. */
   openSignIn(provider: ProviderId, account?: string): Promise<string>
   /** Claude accounts: this computer's own login first (id ''), then the ones added. */

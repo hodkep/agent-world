@@ -36,6 +36,7 @@ const api: AwApi = {
   cloneAgent: (id, model) => ipcRenderer.invoke('clone-agent', id, model),
   listHistory: (folder) => ipcRenderer.invoke('list-history', folder),
   listProviders: () => ipcRenderer.invoke('list-providers'),
+  gitInfo: () => ipcRenderer.invoke('git:info'),
   openSignIn: (id, account) => ipcRenderer.invoke('provider:sign-in', id, account),
   listAccounts: () => ipcRenderer.invoke('accounts:list'),
   addAccount: (provider, name) => ipcRenderer.invoke('accounts:add', provider, name),
