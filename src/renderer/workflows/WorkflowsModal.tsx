@@ -10,7 +10,7 @@ import { RunBars } from './RunBars'
 import { WorkflowList } from './WorkflowList'
 
 /** Every agent's workflow runs in one place: the week as a bar for each run, the insights over them, and the workflows themselves. */
-export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, ctxFor, chatOf, costOf, onBuilder, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; ctx: StepContext; ctxFor: (r: Run) => StepContext; /** The ordinary chat of an agent, to show beside the builder's draft. */ chatOf: (a: AgentRecord) => ReactNode; costOf: (agentId: string) => number; /** Told when the builder was made or woken, so the office lists it. */ onBuilder: (a: AgentRecord) => void; onClose: () => void }) {
+export function WorkflowsModal({ runs, spend, open, windingDown, folder, switches, defaultId, onDefault, ctxFor, focusRun, chatOf, costOf, onBuilder, onClose }: { runs: Run[]; spend: Record<string, RunSpend>; open: number; windingDown: boolean; folder: string | null; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; ctx: StepContext; ctxFor: (r: Run) => StepContext; /** A run to show opened in the Runs tab. */ focusRun?: string; /** The ordinary chat of an agent, to show beside the builder's draft. */ chatOf: (a: AgentRecord) => ReactNode; costOf: (agentId: string) => number; /** Told when the builder was made or woken, so the office lists it. */ onBuilder: (a: AgentRecord) => void; onClose: () => void }) {
   const [tab, setTab] = useState<'runs' | 'insights' | 'workflows'>('runs')
   const [builder, setBuilder] = useState<{ agent: AgentRecord; editing?: string } | null>(null)
   const [focus, setFocus] = useState('')
@@ -72,7 +72,7 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
           <p>Earlier runs are in Insights, under 30 days.</p>
         </div>
       ) : (
-        <div className="wf-body"><RunBars runs={week} spend={spend} ctxFor={ctxFor} now={now} /></div>
+        <div className="wf-body"><RunBars runs={week} spend={spend} ctxFor={ctxFor} now={now} initial={focusRun} /></div>
       )}
     </Modal>
   )

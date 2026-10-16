@@ -93,16 +93,16 @@ test('a project\'s check asks for approval of its commands, runs them, sends a f
     await s.heard('test -f ok.txt exited with 1.')
     await s.heard('Fix it, commit, then call step_done again.')
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
-    const strip = s.page.getByRole('list', { name: /Steps of Checked, round 1/ })
-    await expect(strip).toContainText(/Tests pass.*failed once/)
+    const tests = s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })
+    await expect(tests).toContainText('failed once')
     expect(await s.land()).toContain('"Tests pass" has not passed for the branch as it is now.')
 
     // The agent fixes it, reports again, and it passes; landing is then allowed.
     s.commit('ok.txt')
     expect((await s.call('step_done')).text).toContain('running the checks')
-    await expect(strip).toContainText(/Tests pass.*\(done\)/, { timeout: 20_000 })
-    // It passed, and the strip still says it failed once on the way.
-    await expect(strip).toContainText(/Tests pass.*failed once/)
+    await expect(tests).toContainText('met after trouble', { timeout: 20_000 })
+    // It passed, and the track still says it failed once on the way.
+    await expect(tests).toContainText('failed once')
     expect(await s.land()).toBe('landed')
     expect(s.git(s.repo, 'log', '--format=%s', 'main')).toContain('add ok.txt')
 
@@ -183,7 +183,7 @@ test('an agent that reports its step and then the task does not use a second try
     await s.call('task_done', { summary: 'done' })
     await new Promise((r) => setTimeout(r, 2500))
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
-    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText(/Tests pass.*failed once/)
+    await expect(s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })).toContainText('failed once')
     await s.page.getByRole('tab', { name: 'Chat' }).click()
     expect(await s.log.innerText()).not.toContain('try 2 of 3')
     await s.client.close()
@@ -205,7 +205,7 @@ test('an agent that closed the task before it heard its check had failed can sti
     s.commit('ok.txt')
     expect((await s.call('step_done', { step: 'build' })).text).toContain('running the checks')
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
-    await expect(s.page.getByRole('list', { name: /Steps of Checked, round 1/ })).toContainText(/Tests pass.*\(done\)/, { timeout: 20_000 })
+    await expect(s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })).toContainText('met after trouble', { timeout: 20_000 })
     await s.client.close()
   } finally {
     await s.shutdown()

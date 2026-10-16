@@ -1,78 +1,51 @@
-import type { Round, Run } from '../../shared/runs'
+import { type TileKind, headline, weekDays } from '../../shared/insights'
+import type { Run } from '../../shared/runs'
+import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
+import { trackOf } from '../../shared/runTrack'
 import type { StepContext } from '../../shared/steps'
-import { RunStrip } from './RunStrip'
-import { type RunSpend, auditText, formatDuration, landedText, spendText } from '../../shared/runStats'
+import { RunTrack } from './RunTrack'
 
-const clock = (t: number) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const VERDICT: Record<TileKind, string> = { ok: 'met every gate', trouble: 'met its gates, with trouble on the way', bad: 'a gate was missed or overridden', wait: 'waiting', na: 'no gates asked' }
 
-const PLAN_STATE = { submitted: 'waiting', approved: 'approved', changes: 'sent back', released: 'hold lifted' } as const
-
-function RoundCard({ run, round, spend, ctx }: { run: Run; round: Round; spend: RunSpend | undefined; ctx: StepContext }) {
+/**
+ * One agent's Workflow tab: where its latest run stands now (the track, with the agent on its station), then its week as a tile for each run, by the day it began.
+ * A tile opens that run in the Workflows window, and so does the link under them; the window is where a run's history is told.
+ */
+export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; /** Open the window on this run, or on its Runs when none is given. */ onOpenRun: (runId?: string) => void }) {
   const now = Date.now()
-  const mine = spend?.rounds[round.n - 1]
-  return (
-    <section className="wf-round" aria-label={`Round ${round.n}`}>
-      <header>
-        <b>Round {round.n}</b>
-        <span className="muted">
-          {round.endedAt === undefined ? 'open' : 'done'} · {round.commits.length} commit{round.commits.length === 1 ? '' : 's'}
-          {!run.auto && <> · {formatDuration((round.endedAt ?? now) - round.startedAt)}</>}
-        </span>
-        <span className="wf-cost mono">{spendText(mine && spend ? { ...mine, known: spend.known } : undefined)}</span>
-      </header>
-      <RunStrip run={run} round={round.n} ctx={ctx} />
-      {round.plan && (
-        <p className="wf-plan">
-          <span className={`wf-tag ${round.plan.state === 'approved' || round.plan.state === 'released' ? '' : 'flag'}`}>Plan {PLAN_STATE[round.plan.state]}</span>
-          {round.plan.readback.goal && <span>{round.plan.readback.goal}</span>}
-          {round.plan.note && <span className="muted">Asked for: {round.plan.note}</span>}
-        </p>
-      )}
-      {round.commits.length === 0 ? (
-        <p className="hint">No commits in this round yet.</p>
-      ) : (
-        <ul>
-          {round.commits.map((c) => (
-            <li key={c.sha} className={c.flagged ? 'flagged' : ''}>
-              <span className="mono sha">{c.sha.slice(0, 7)}</span>
-              <span>{c.subject}</span>
-              {c.flagged && <span className="wf-tag flag" title="Made with no task open, so it was attached to the nearest run.">no open task</span>}
-              <span className="muted">{clock(c.t)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  )
-}
-
-/** One agent's runs, newest first, each round by round with its commits and what it cost. */
-export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext }) {
-  const mine = runs.filter((r) => r.agent === agentId).reverse()
-  return (
-    <div className="wf-tab">
-      {mine.length === 0 ? (
+  const mine = runs.filter((r) => r.agent === agentId)
+  if (mine.length === 0)
+    return (
+      <div className="wf-tab">
         <div className="wf-empty">
           <b>No runs for {agentName} yet</b>
           <p>A run appears when {agentName} starts a task, or commits work it did not announce.</p>
         </div>
-      ) : (
-        mine.map((r) => (
-          <article key={r.id} className="wf-run" aria-label={r.title}>
-            <header>
-              <b>{r.title}</b>
-              <span className="wf-chip">{r.status}</span>
-              {r.auto && <span className="wf-chip">from a commit</span>}
-              {r.workflow && <span className="wf-chip" title={`Followed the workflow ${r.workflow.name}`}>{r.workflow.name}</span>}
-              <span className="wf-cost mono">{spendText(spend[r.id])}</span>
-            </header>
-            {r.summary && <p className="wf-summary">{r.summary}</p>}
-            {r.auto && <p className="hint">{agentName} did not announce this task, so the app started the run from its commit. Its start time and cost are unknown.</p>}
-            {[auditText(r), landedText(r)].map((line) => line && <p key={line} className="wf-gate">{line}</p>)}
-            {[...r.rounds].reverse().map((round) => <RoundCard key={round.n} run={r} round={round} spend={spend[r.id]} ctx={ctxFor(r)} />)}
-          </article>
-        ))
-      )}
+      </div>
+    )
+  const latest = mine[mine.length - 1]!
+  const track = trackOf(latest, ctxFor(latest))
+  const week = runsThisWeek(mine, now)
+  const h = headline(week, ctxFor, now)
+  const usd = week.reduce((n, r) => n + (spend[r.id]?.usd ?? 0), 0)
+  const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
+  return (
+    <div className="wf-tab">
+      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
+      <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
+      <div className="wt-week" role="list" aria-label="This week">
+        {weekDays(week, ctxFor, now).map((d) => (
+          <div key={d.label} role="listitem" aria-label={d.label} className={`wt-day ${d.today ? 'today' : ''}`}>
+            <small>{d.label}</small>
+            {d.runs.map((r) => (
+              <button key={r.id} className={`mo-t ${r.kind}`} aria-label={`${r.title}: ${VERDICT[r.kind]}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)} />
+            ))}
+          </div>
+        ))}
+      </div>
+      <p className="wt-line">
+        {verdict} {formatCost(usd)}. <button className="su-link" onClick={() => onOpenRun()}>All of {agentName}'s runs in Workflows ↗</button>
+      </p>
     </div>
   )
 }

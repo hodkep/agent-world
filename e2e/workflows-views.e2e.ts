@@ -94,15 +94,18 @@ test('an agent\'s Workflow tab shows its runs round by round with their commits,
     )
     await page.reload()
     await page.getByRole('tab', { name: /^Workflow/ }).click()
-    const run = page.getByRole('article', { name: 'Add a dark-mode toggle' })
-    await expect(run).toContainText('Toggle added to Settings.')
-    const r2 = run.getByRole('region', { name: 'Round 2' })
-    await expect(r2).toContainText('open')
-    await expect(r2).toContainText('3c0aa18')
-    await expect(r2).toContainText('no open task')
-    const r1 = run.getByRole('region', { name: 'Round 1' })
-    await expect(r1).toContainText('done · 1 commit')
-    await expect(r1).toContainText('a41f9c2')
+    // The run follows no workflow, so there is no track; the week is a tile for it, and the tile opens it in the window.
+    await expect(page.getByText('Nothing is running for ada')).toBeVisible()
+    const tile = page.getByRole('list', { name: 'This week' }).getByRole('button', { name: /Add a dark-mode toggle/ })
+    await expect(tile).toBeVisible()
+    await tile.click()
+    const sheet = page.getByRole('dialog', { name: 'Workflows' }).getByRole('region', { name: 'How Add a dark-mode toggle went' })
+    await expect(sheet).toContainText('Follow-up round 2 began')
+    const commits = sheet.getByLabel('Commits')
+    await expect(commits).toContainText('a41f9c2')
+    await expect(commits).toContainText('3c0aa18')
+    await expect(commits).toContainText('no open task')
+    await page.getByRole('dialog', { name: 'Workflows' }).getByRole('button', { name: 'Close' }).click()
 
     // Off with nothing open hides the tab again.
     await page.evaluate(async () => {

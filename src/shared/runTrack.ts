@@ -9,6 +9,8 @@ export interface Station {
   kind: StepKind
   /** `trouble`: met, but a check was retried or the plan was sent back on the way. `skipped`: not asked, or set aside by the person. */
   state: 'done' | 'trouble' | 'failed' | 'now' | 'next' | 'skipped'
+  /** How often a check failed, or the plan was sent back, on the way to this station. */
+  tries?: number
 }
 
 export interface Track {
@@ -43,8 +45,9 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   if (at < 0) return undefined
   const round = run.rounds[run.rounds.length - 1]!
   const stations = steps.map((s, i): Station => {
-    const base = { id: s.id, name: s.name, kind: s.kind }
-    if (s.state === 'passed') return { ...base, state: (s.kind === 'check' && s.tries) || (s.kind === 'plan' && round.plan?.sentBack) ? 'trouble' : 'done' }
+    const n = s.kind === 'check' ? s.tries : s.kind === 'plan' ? round.plan?.sentBack : undefined
+    const base = { id: s.id, name: s.name, kind: s.kind, ...(n && { tries: n }) }
+    if (s.state === 'passed') return { ...base, state: n ? 'trouble' : 'done' }
     if (s.state === 'skipped') return { ...base, state: 'skipped' }
     if (s.state === 'failed') return { ...base, state: 'failed' }
     return { ...base, state: i === at ? 'now' : 'next' }

@@ -43,8 +43,8 @@ function Bar({ bar, of }: { bar: RunBar; of: number }) {
 }
 
 /** The Runs tab: the week in a few sentences, then a bar for each run that opens in place to say how it went, line by line. */
-export function RunBars({ runs, spend, ctxFor, now }: { runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; now: number }) {
-  const [openId, setOpenId] = useState<string | null>(null)
+export function RunBars({ runs, spend, ctxFor, now, initial }: { runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; now: number; /** A run to show opened, when the window was opened on it. */ initial?: string }) {
+  const [openId, setOpenId] = useState<string | null>(initial ?? null)
   const rows = [...runs].reverse().map((run) => ({ run, bar: runBar(run, now) }))
   const of = Math.max(1, ...rows.map((r) => r.bar?.totalMs ?? 0))
   const tiles = runs.map((r) => gateTiles(r, ctxFor(r)))
@@ -83,6 +83,17 @@ export function RunBars({ runs, spend, ctxFor, now }: { runs: Run[]; spend: Reco
                       </li>
                     ))}
                   </ol>
+                  {commits > 0 && (
+                    <ul className="rb-commits" aria-label="Commits">
+                      {run.rounds.flatMap((x) => x.commits).map((c) => (
+                        <li key={c.sha}>
+                          <span className="mono">{c.sha.slice(0, 7)}</span>
+                          <span>{c.subject}</span>
+                          {c.flagged && <span className="chipw">no open task</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>
