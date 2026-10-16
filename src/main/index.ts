@@ -21,6 +21,7 @@ import { homedir, tmpdir } from 'node:os'
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
+import { packagedPath, parseLoginPath } from './appPath'
 import { contextItems } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
@@ -113,7 +114,7 @@ function loginShellPath() {
   if (process.platform === 'win32') return process.env.PATH
   try {
     const out = execFileSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', 'printf "__AW__%s__AW__" "$PATH"'], { encoding: 'utf8', timeout: 5000 })
-    return /__AW__(.*)__AW__/.exec(out)?.[1] ?? process.env.PATH
+    return parseLoginPath(out) ?? process.env.PATH
   } catch {
     return process.env.PATH
   }
@@ -121,7 +122,7 @@ function loginShellPath() {
 
 // A packaged app has to find claude and agy itself: its own PATH is bare, so it uses the login shell's plus the usual install folders.
 if (app.isPackaged && process.platform !== 'win32') {
-  process.env.PATH = [loginShellPath(), join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].join(':')
+  process.env.PATH = packagedPath(loginShellPath(), homedir())
 }
 
 // Several windows share this one process (and so one set of agents); each shows its own project.
