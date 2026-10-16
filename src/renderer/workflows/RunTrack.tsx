@@ -9,7 +9,30 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  * Where one open run stands: its steps as stations on a rail, the agent standing on the one it is at, and a speech bubble when it waits on the person.
  * Shown above the agent's chat while a task is open (and again in its Workflow tab), so the calls that move the run need no lines in the conversation.
  */
-export function RunTrack({ track, seed, agentName }: { track: Track; seed: string; agentName: string }) {
+export function RunTrack({ track, seed, agentName, variant = 'full' }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar' }) {
+  const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
+  const mark = (s: Station): GlyphName => (s.state === 'done' || s.state === 'trouble' ? 'check' : s.state === 'failed' ? 'cross' : GLYPH[s.kind])
+  const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
+  if (variant === 'bar')
+    return (
+      <div className="run-track bar" role="region" aria-label={`${track.title}: where ${agentName} is`}>
+        <Sprite seed={seed} cell={2} />
+        <span className="rt-title"><b>{track.title}</b><small>{track.workflow}{track.round > 1 ? ` · round ${track.round}` : ''}</small></span>
+        <ol className="bar-st">
+          {track.stations.map((s, i) => (
+            <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`} title={`${s.name}: ${word(s)}`}>
+              <i className="sq">
+                <Glyph name={mark(s)} cell={1} />
+                {s.tries ? <b className="tn">{s.tries}</b> : null}
+              </i>
+              <span className="nm">{s.name}</span>
+              <span className="sr-only"> ({word(s)})</span>
+            </li>
+          ))}
+        </ol>
+        {track.waiting && <span className="pill" role="status" title={track.waiting}>{track.waiting}</span>}
+      </div>
+    )
   return (
     <div className="run-track" role="region" aria-label={`${track.title}: where ${agentName} is`}>
       <div className="rt-head">
@@ -19,9 +42,8 @@ export function RunTrack({ track, seed, agentName }: { track: Track; seed: strin
       </div>
       <ol className={`track ${track.waiting ? 'hb' : ''}`}>
         {track.stations.map((s, i) => {
-          const mark = s.state === 'done' || s.state === 'trouble' ? 'check' : s.state === 'failed' ? 'cross' : GLYPH[s.kind]
           return (
-            <li key={s.id} className={`st ${s.state} ${i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state) ? 'rail-on' : ''}`}>
+            <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`}>
               {i === track.at && (
                 <span className="agent">
                   {track.waiting && <span className="bubble" role="status">{track.waiting}</span>}
@@ -29,11 +51,11 @@ export function RunTrack({ track, seed, agentName }: { track: Track; seed: strin
                 </span>
               )}
               <i className="sq">
-                <Glyph name={mark} cell={2} />
+                <Glyph name={mark(s)} cell={2} />
                 {s.tries ? <b className="tn">{s.tries}</b> : null}
               </i>
               <span className="nm" title={s.name}>{s.name}</span>
-              <span className="sr-only"> ({WORD[s.state]}{s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''})</span>
+              <span className="sr-only"> ({word(s)})</span>
             </li>
           )
         })}

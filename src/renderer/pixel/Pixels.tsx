@@ -6,7 +6,7 @@ export function Glyph({ name, cell = 2 }: { name: GlyphName; cell?: number }) {
   const rows = GLYPHS[name]
   return (
     <svg className="pxg" width={rows[0].length * cell} height={rows.length * cell} viewBox={`0 0 ${rows[0].length} ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
-      {rows.flatMap((r, y) => [...r].map((c, x) => (c === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} className={c === 'X' ? 'px-x' : 'px-o'} />)))}
+      {rows.flatMap((r, y) => [...r].map((c, x) => (c === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} className={c === 'X' ? 'px-x' : c === 'k' ? 'px-k' : 'px-o'} />)))}
     </svg>
   )
 }
