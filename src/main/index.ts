@@ -84,8 +84,8 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branchDiff, branches, changes, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
-import { DirtyWorktreeError, createWorktree, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug } from './worktree'
+import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { DirtyWorktreeError, createWorktree, checkedOutBranch, git, isGitRepo, nameTaken, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
 const HIDDEN = process.env.AW_HIDDEN === '1'
@@ -1159,8 +1159,7 @@ async function main() {
       const wanted = i.branch ? cleanName(i.branch.replace(/^aw\//, '')) : ''
       const name = wanted ? checkName(wanted, agents.map((a) => a.name)) : await nextName(parent.repoPath)
       if (wanted && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
-      const own = i.worktree !== false && (await isGitRepo(parent.repoPath))
-      const wt = own ? await createWorktree({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), ...(parent.branch && { from: parent.branch }) }) : null
+      const wt = await worktreeFor({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), inPlace: i.worktree === false, ...(parent.branch && { from: parent.branch }) })
       // It works the way its parent does (full autonomy only if the parent has it); one that only reads cannot change anything. When it stops to ask, the question comes up on its parent's card.
       const mode = !wt ? p.autonomy.plan : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
       const child: AgentRecord = {
@@ -1571,7 +1570,7 @@ async function main() {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
-    const wt = !options.inPlace && (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), ...(base && (await assertBranch(folder, base), { base })) }) : null
+    const wt = await worktreeFor({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), inPlace: options.inPlace, ...(base && (await assertBranch(folder, base), { base })) })
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
@@ -1910,7 +1909,7 @@ async function main() {
     const busy = agents.find((a) => a.sessionId === sessionId)
     if (busy) throw new Error(`${busy.name} is already running that session.`)
     const name = await nextName(folder)
-    const wt = (await isGitRepo(folder)) ? await createWorktree({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }) : null
+    const wt = await worktreeFor({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const a: AgentRecord = { id: randomUUID(), name, sessionId, repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, started: true, hiredAt: Date.now() }
     agents.push(a)
@@ -1987,7 +1986,7 @@ async function main() {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     if (!a.branch) throw new Error(`${a.name} works directly in ${a.cwd}, not in a git worktree.`)
-    return { a, base: a.base ?? (await git(a.repoPath, 'rev-parse', '--abbrev-ref', 'HEAD')) }
+    return { a, base: a.base ?? (await checkedOutBranch(a.repoPath)) }
   }
   ipcMain.handle('code:changes', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
@@ -2005,7 +2004,7 @@ async function main() {
     a.base = base
     persist()
   })
-  ipcMain.handle('repo:branches', async (_, folder: string) => ((await isGitRepo(folder)) ? { current: await git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), branches: await branches(folder) } : { current: '', branches: [] }))
+  ipcMain.handle('repo:branches', (_, folder: string) => repoInfo(folder))
   ipcMain.handle('code:diff', async (_, id: string, path: string) => {
     const { a, base } = await worktreeOf(id)
     const current = await readWorktreeFile(a.cwd, path).catch(() => '')

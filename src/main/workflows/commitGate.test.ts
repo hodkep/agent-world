@@ -173,6 +173,26 @@ describe('a commit with the office\'s hooks in place', () => {
   })
 })
 
+describe('the first commit of a repository that has none yet', () => {
+  it('is let through with the office\'s hooks in place, and the branch is the one git named, though nothing is on it', async () => {
+    const root = tmp()
+    const work = join(root, 'work')
+    mkdirSync(work)
+    await run(work, {}, 'init', '-q', '-b', 'main')
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    const office = await stub({})
+    expect(currentBranch(work)).toBe('main')
+    expect(branchHead(work, 'main')).toBeNull()
+    writeFileSync(join(work, 'a.txt'), 'a\n')
+    await run(work, {}, 'add', '-A')
+    const r = await run(work, agentEnv(hooks, office.url), 'commit', '-qm', 'first')
+    expect(r.ok).toBe(true)
+    expect(office.seen.filter((x) => x.url === '/hook/git-commit')).toHaveLength(1)
+    expect(branchHead(work, 'main')).toMatch(/^[0-9a-f]{40}$/)
+  })
+})
+
 describe('a branch update with the office\'s hooks in place', () => {
   it('is refused even when the commit skips its hooks (--no-verify), because git asks the office before it moves a branch', async () => {
     const { work, root } = await repo()

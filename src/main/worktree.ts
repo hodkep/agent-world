@@ -8,6 +8,39 @@ import { gitBin, gitProcessEnv } from './gitProgram'
 const run = promisify(execFile)
 export const git = async (cwd: string, ...args: string[]) => (await run(gitBin(), args, { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024 })).stdout.trim()
 
+/** A repository with nothing committed yet: it has no branch to start another from, and an agent there works in the folder itself. */
+export class NoCommitsError extends Error {
+  constructor() {
+    super('This repository has no commits yet, so there is nothing to start a branch from.')
+  }
+}
+
+/** Whether `dir` is a repository that has at least one commit (HEAD is a commit, not yet unborn). */
+export async function hasCommits(dir: string): Promise<boolean> {
+  try {
+    await git(dir, 'rev-parse', '--verify', '-q', 'HEAD')
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The branch checked out in `repo` ('HEAD' for a detached one), or an empty name when there is none to speak of: no commits yet, or not a repository. */
+export async function checkedOutBranch(repo: string): Promise<string> {
+  try {
+    return await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
+  } catch {
+    return ''
+  }
+}
+
+/** What git failed with as a sentence for a person: the command that was run is left out, and so is the advice that follows git's message. */
+export function plainGitError(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err)
+  const fatal = /^fatal: (.+)$/m.exec(text)?.[1]
+  return fatal ? `git said: ${fatal}` : text.replace(/^Command failed: [^\n]*\n?/, '').split('\n')[0]!.trim() || text
+}
+
 export class DirtyWorktreeError extends Error {
   constructor(readonly path: string, readonly status: string) {
     super(`Worktree ${path} has uncommitted changes`)
@@ -27,6 +60,7 @@ export const slug = (repoPath: string) => `${basename(repoPath)}-${createHash('s
 
 /** `from` starts the branch at another branch (a clone) instead of HEAD; the base stays the repo's current branch unless `base` names another to start from and land on. */
 export async function createWorktree(o: { repoPath: string; name: string; rootDir: string; from?: string; base?: string }) {
+  if (!(await hasCommits(o.repoPath))) throw new NoCommitsError()
   const branch = `aw/${o.name}`
   const path = join(o.rootDir, slug(o.repoPath), o.name)
   // The branch the agent starts from is what its diff is measured against and where it merges back.
@@ -34,6 +68,19 @@ export async function createWorktree(o: { repoPath: string; name: string; rootDi
   const start = o.from ?? o.base
   await git(o.repoPath, 'worktree', 'add', '-b', branch, path, ...(start ? [start] : []))
   return { path, branch, base }
+}
+
+/**
+ * The worktree an agent is hired into, or null when it works in the folder itself: the person asked for that, the folder is not a repository, or it is a
+ * repository with nothing committed (no branch to start from). When git cannot make one the reason comes back as a sentence, not as the command that failed.
+ */
+export async function worktreeFor(o: { repoPath: string; name: string; rootDir: string; from?: string; base?: string; inPlace?: boolean }) {
+  if (o.inPlace || !(await isGitRepo(o.repoPath)) || !(await hasCommits(o.repoPath))) return null
+  try {
+    return await createWorktree(o)
+  } catch (err) {
+    throw new Error(plainGitError(err))
+  }
 }
 
 /** Is `aw/<name>` already a branch in this repo, or its worktree folder already there? (An earlier agent may have left either.) */

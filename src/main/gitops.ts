@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
-import { git } from './worktree'
+import { checkedOutBranch, git, hasCommits, isGitRepo } from './worktree'
 import { gitBin, gitProcessEnv } from './gitProgram'
 
 /** The commits made in a checkout after a time (newest first, at most 20) and the files they touched: what an agent did while it worked on something. Empty when this is not a repository. */
@@ -265,7 +265,7 @@ export async function commitDiff(cwd: string, hash: string, path: string) {
  * branch or has uncommitted work, and backs out completely on conflict, so the user's tree is never left half-merged.
  */
 export async function mergeInto(repo: string, branch: string, base: string, o: { squash?: boolean; message?: string } = {}) {
-  const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
+  const current = await checkedOutBranch(repo)
   if (current !== base) throw new Error(`${base} is not checked out in ${repo} (it is on ${current}); switch to ${base} first.`)
   if (await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK)) throw new Error(`${repo} has uncommitted changes; commit or stash them before merging.`)
   try {
@@ -296,7 +296,7 @@ export interface Readiness {
 export async function finishReadiness(repo: string, cwd: string, branch: string, base: string): Promise<Readiness> {
   const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
   const uncommitted = lines(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK)).length
-  const baseReady = (await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')) === base && !(await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK))
+  const baseReady = (await checkedOutBranch(repo)) === base && !(await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK))
   let conflicts: string[] = []
   if (ahead > 0) {
     try {
@@ -332,13 +332,20 @@ export interface Branch {
 
 /** The repo's branches to pick a base from: local first, then remote. Agents' own branches (`aw/…`) are never offered. */
 export async function branches(repo: string): Promise<Branch[]> {
-  const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').catch(() => '')
+  const current = await checkedOutBranch(repo)
   const of = async (ref: string, kind: Branch['kind']) =>
     lines(await git(repo, 'for-each-ref', '--format=%(refname:short)', ref))
       .filter((n) => !n.startsWith('aw/') && !/^[^/]+\/(HEAD|aw\/)/.test(n) && n !== 'origin')
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ name, kind, checkedOut: kind === 'local' && name === current }))
   return [...(await of('refs/heads', 'local')), ...(await of('refs/remotes', 'remote'))]
+}
+
+/** What the hire form needs to know about a folder: its branch and branches, and `unborn` when it is a repository with no commits yet (nothing to branch from). */
+export async function repoInfo(folder: string): Promise<{ current: string; branches: Branch[]; unborn?: true }> {
+  if (!(await isGitRepo(folder))) return { current: '', branches: [] }
+  if (!(await hasCommits(folder))) return { current: '', branches: [], unborn: true }
+  return { current: await checkedOutBranch(folder), branches: await branches(folder) }
 }
 
 /** A base must be something git can resolve to a commit. */
@@ -356,8 +363,8 @@ export async function assertBranch(repo: string, name: string): Promise<void> {
  */
 export async function staleHint(repo: string, cwd: string, base: string, files: number): Promise<{ branch: string; files: number } | null> {
   try {
-    const current = await git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')
-    if (current === base || current === 'HEAD') return null
+    const current = await checkedOutBranch(repo)
+    if (!current || current === base || current === 'HEAD') return null
     const n = (await changes(cwd, current)).length
     return files - n >= 5 && n * 2 <= files ? { branch: current, files: n } : null
   } catch {
