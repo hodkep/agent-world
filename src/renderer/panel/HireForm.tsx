@@ -148,11 +148,14 @@ export function HireForm({
     >
       <div className="hire-hero">
         <span className="hire-avatar"><PixelSprite name={look} role="senior" scale={3} /></span>
-        <label className="grow">
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="auto" autoFocus maxLength={20} />
+        {/* The summary sits beside the label, not in it: it names the model, and a label that says "Model" is the Model field's. */}
+        <div className="hire-name">
+          <label>
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="auto" autoFocus maxLength={20} />
+          </label>
           <span className="hint">{chosen?.label} · {modelLabel} · {modeChosen.label}</span>
-        </label>
+        </div>
       </div>
       {providers.length > 1 && (
         <fieldset className="hire-pick">

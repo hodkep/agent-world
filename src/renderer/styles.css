@@ -1399,6 +1399,8 @@ code a.file-link { font: inherit; }
    close under its field, and the room goes between the label and the field instead. */
 .hire .hint { padding: 0; line-height: 1.4; }
 .hire label { gap: 6px; }
+.hire .hire-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.hire .hire-name .hint { margin-top: -2px; }
 .hire label .hint { margin-top: -2px; }
 .hire-dialog .hire { gap: 16px; padding: 18px 20px 20px; }
 .hire-dialog .hire-row { gap: 14px; }

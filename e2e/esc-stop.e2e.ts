@@ -30,7 +30,8 @@ test('Esc interrupts a working agent from anywhere in the conversation, but not 
     await expect(page.getByRole('status').filter({ hasText: 'Stopping ada' })).toHaveCount(0)
 
     // With the list of completions open, the first Esc closes the list and the second stops the agent.
-    await box.click()
+    // An interrupted message comes back into the box, so it is emptied first.
+    await box.fill('')
     await box.pressSequentially('/he')
     await expect(page.getByRole('listbox', { name: 'Suggestions' })).toBeVisible()
     await page.keyboard.press('Escape')
