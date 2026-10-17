@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { SPRITE } from '../src/renderer/pixel/glyphs.ts'
 import { GLYPHS, textPixels } from '../src/renderer/world/pixelfont.ts'
 
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'images')
+// README_ART_OUT: where to write (a test points it at a temp folder).
+const OUT = process.env.README_ART_OUT ?? join(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'images')
 
 // The palette of DESIGN.md.
 const C = {

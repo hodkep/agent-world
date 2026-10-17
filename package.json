@@ -15,6 +15,7 @@
     "pilot:library": "PILOT=1 vitest run -c vitest.pilot.config.ts",
     "test:e2e": "electron-vite build && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "shots": "node scripts/shots.mjs",
     "readme:art": "node --experimental-strip-types --no-warnings scripts/readme-art.mjs",
     "postinstall": "electron-rebuild -f -w node-pty",
     "pack": "node scripts/fetch-git.mjs --platform && electron-vite build && electron-builder --dir; electron-rebuild -f -w node-pty",
