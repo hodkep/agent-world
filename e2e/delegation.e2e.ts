@@ -37,7 +37,7 @@ test('subagents started in one reply are one card, with a row for each, its call
     await card.getByRole('button', { name: 'Show 3 results' }).click()
     await expect(rows).toHaveCount(3)
     // A row opens to every call it made, and its answer.
-    await rows.nth(0).getByRole('button').click()
+    await rows.nth(0).getByRole('button', { name: 'Details' }).click()
     const open = rows.nth(0).locator('.dg-open')
     await expect(open.locator('.dg-call')).toHaveCount(3)
     await expect(open).toContainText('Grep')
@@ -69,7 +69,7 @@ test('subagents that report by hand-back finish the card and leave a report card
     // Handing the report back is the end: the card says done, and the hand-back call is not listed as work.
     await expect(card).toContainText('3 done', { timeout: 30_000 })
     await card.getByRole('button', { name: 'Show 3 results' }).click()
-    await card.locator('.dg-row').nth(0).getByRole('button').click()
+    await card.locator('.dg-row').nth(0).getByRole('button', { name: 'Details' }).click()
     await expect(card.locator('.dg-open .dg-call')).toHaveCount(3)
     await expect(card.locator('.dg-open')).not.toContainText('SubagentHandback')
     await expect(card.locator('.dg-open')).toContainText('Part 1 is fine.')

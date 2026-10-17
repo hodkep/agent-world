@@ -51,10 +51,11 @@ test('the project you worked in is saved, offered first on the next launch, and 
     await page.getByRole('menuitem', { name: /shop-api/ }).click()
     await expect(page.locator('.ws-button')).toContainText('shop-api')
 
-    // Forgetting drops it from the list without touching the folder.
+    // Forgetting drops it from the saved list without touching the folder; a project an agent still works in stays listed, with nothing left to forget.
     await page.locator('.ws-button').click()
     await page.getByRole('button', { name: 'Forget shop-api' }).click()
-    await expect(page.getByRole('menu', { name: 'Projects' })).not.toContainText('shop-api')
+    await expect(page.getByRole('button', { name: 'Forget shop-api' })).toHaveCount(0)
+    await expect(page.getByRole('menu', { name: 'Projects' })).toContainText('1 agent')
     await second.shutdown()
   } finally {
     rmSync(tmp, { recursive: true, force: true })

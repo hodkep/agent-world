@@ -17,7 +17,8 @@ if (args[0] === '--version') {
 }
 // What `claude auth status` prints: signed in, so the app does not hold hiring back for a sign-in.
 // FAKE_SIGNED_OUT=1 says nobody is signed in; FAKE_CONFIG_DIR is the folder it names as its configuration (the app reads its .claude.json, read only).
-if (args[0] === 'auth' && args[1] === 'status') {
+// An account the app made (in its own home) keeps its sign-in in a file (below), so only the computer's own login is answered here.
+if (args[0] === 'auth' && args[1] === 'status' && (process.env.FAKE_SIGNED_OUT || !(process.env.AW_HOME && process.env.CLAUDE_CONFIG_DIR?.startsWith(`${process.env.AW_HOME}/accounts/`)))) {
   const out = process.env.FAKE_SIGNED_OUT ? { loggedIn: false, authMethod: 'none', apiProvider: 'firstParty' } : { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', email: 'dev@example.com' }
   console.log(JSON.stringify({ ...out, configDirectory: process.env.FAKE_CONFIG_DIR ?? '/nonexistent/fake-claude-config' }, null, 2))
   process.exit(out.loggedIn ? 0 : 1)
