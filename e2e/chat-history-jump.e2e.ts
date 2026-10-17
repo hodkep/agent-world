@@ -27,6 +27,9 @@ test('↑ ↓ walk back through what was sent with the draft kept, and each mess
       await expect(log.locator('.msg.user', { hasText: m })).toBeVisible({ timeout: 15_000 })
       await expect(box).toHaveValue('')
     }
+    // The messages are the saved ones (they have Rewind), not still the rows shown while sending: when the transcript has them the rows are drawn again as new elements,
+    // and the arrows of a new element know nothing until the pointer enters it, which on a slow machine happens in the middle of the walk below.
+    await expect(log.locator('.msg.user').getByRole('button', { name: 'Rewind' })).toHaveCount(3, { timeout: 30_000 })
 
     // A draft is typed, then ↑ goes back through what was sent, ↓ comes forward, and the draft is still there at the end.
     await box.fill('my half-written draft')
