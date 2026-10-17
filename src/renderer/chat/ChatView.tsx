@@ -12,7 +12,8 @@ import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { EventChips } from './EventChips'
-import { fromView, lastJump, neighbour, place, show } from './userJump'
+import { READER_MS, followsEnd } from './followEnd'
+import { JUMPED, SETTLED, fromView, lastJump, neighbour, place, show } from './userJump'
 import { back, fresh, newer, older, onFirstLine, onLastLine, type Recall } from './historyNav'
 import { pickedMessage, type ViewInfo } from '../panel/picker'
 import { Lightbox, Picture } from './Images'
@@ -387,7 +388,7 @@ export function ChatView({
 
   // Follow the conversation while the reader is at the bottom; leave them alone once they scroll up.
   // Rows grow after they are added (markdown, pictures, a streaming reply), so staying at the end is a standing job:
-  // watch the newest rows and pin again whenever one changes height.
+  // watch the rows and pin again whenever one changes height.
   useEffect(() => {
     const el = log.current
     if (!el) return
@@ -396,7 +397,8 @@ export function ChatView({
     }
     pin()
     const watch = new ResizeObserver(pin)
-    for (const c of [...el.children].slice(-12)) watch.observe(c)
+    // Every row, not only the newest: an earlier reply that was not drawn yet grows when it comes into view, and pushes the end away just the same.
+    for (const c of el.children) watch.observe(c)
     const raf = requestAnimationFrame(() => requestAnimationFrame(pin))
     return () => {
       watch.disconnect()
@@ -404,11 +406,34 @@ export function ChatView({
     }
   }, [rows, busy, waiting, visible])
 
+  // A scroll is the reader's when the wheel, a key or the pointer (the scrollbar) was just used; the rest is layout moving things.
+  const readerAt = useRef(0)
+  const pointerHeld = useRef(false)
+  const reader = () => (readerAt.current = performance.now())
+  useEffect(() => {
+    const up = () => (pointerHeld.current = false)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => (window.removeEventListener('pointerup', up), window.removeEventListener('pointercancel', up))
+  }, [])
+  // Going to one of your messages is leaving the end on purpose (see show): the rows that grow while it settles must not pull the view back down.
+  // While it settles, the end being near (a jump to the last message) must not turn following on, or the next row to grow would pull the view down off the message.
+  const jumping = useRef(false)
+  useEffect(() => {
+    const el = log.current
+    const left = () => ((jumping.current = true), (stick.current = false), setAway(true))
+    const settled = () => (jumping.current = false)
+    el?.addEventListener(JUMPED, left)
+    el?.addEventListener(SETTLED, settled)
+    return () => (el?.removeEventListener(JUMPED, left), el?.removeEventListener(SETTLED, settled))
+  }, [])
   const onScroll = () => {
     const el = log.current!
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-    stick.current = near
-    setAway(!near)
+    const now = { gap: el.scrollHeight - el.scrollTop - el.clientHeight }
+    const byReader = pointerHeld.current || performance.now() - readerAt.current < READER_MS
+    const follow = jumping.current && !byReader ? false : followsEnd({ gap: now.gap, byReader, was: stick.current })
+    stick.current = follow
+    setAway(!follow)
   }
 
   const send = useCallback(
@@ -510,13 +535,14 @@ export function ChatView({
       // Focusable, so a click anywhere in the conversation puts the keyboard here and Esc works without clicking the box first.
       tabIndex={-1}
       onKeyDown={(e) => {
+        if (['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) reader()
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
         // Alt+↑ / Alt+↓ jump between the messages you sent, from the one last jumped to or else from what is on screen.
         else if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && log.current) {
           e.preventDefault()
           const dir = e.key === 'ArrowUp' ? -1 : 1
           const here = lastJump(log.current)
-          const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir)
+          const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir, stick.current)
           if (to) show(to)
         }
         // With a question open the first Esc closes its card (the agent keeps waiting) and the next one stops the agent, as with the list of completions.
@@ -578,7 +604,7 @@ export function ChatView({
       )}
       <ChatMenu agentId={agentId} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
       {track}
-      <div className="chat-log" ref={log} onScroll={onScroll} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
+      <div className="chat-log" ref={log} onScroll={onScroll} onWheel={reader} onTouchMove={reader} onPointerDown={() => ((pointerHeld.current = true), reader())} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">
             { asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}

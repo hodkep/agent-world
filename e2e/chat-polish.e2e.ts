@@ -51,7 +51,13 @@ test('the Latest button rides on the top edge of the message box, however tall t
     await page.getByRole('tab', { name: 'Chat' }).click()
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await expect(log.getByText('old message 119')).toBeVisible({ timeout: 10_000 })
-    await log.evaluate((el) => (el.scrollTop = 0))
+    // To the top the way a reader goes: with the wheel. A script moving the view is not the reader leaving the end, and the conversation keeps following its end through that.
+    const box = (await log.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await expect.poll(async () => {
+      await page.mouse.wheel(0, -100_000)
+      return log.evaluate((l) => l.scrollTop)
+    }).toBe(0)
     const latest = page.getByRole('button', { name: 'Latest' })
     await expect(latest).toBeVisible()
     const composer = page.locator('.composer')
