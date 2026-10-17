@@ -34,7 +34,7 @@ More in the [user guide](#user-guide).
 
 ### <img src="docs/images/icons/office.svg" width="24" height="24" alt=""> The office
 
-Each agent sits at a desk, and what the character does is what the agent does: thinking, researching, implementing, running, delegating, waiting for you, or asleep. Click a character or its row to open its chat.
+Each agent works at a desk, and what the character does is what the agent does: thinking, researching, implementing, running, delegating or waiting for you. An agent that is asleep leaves the floor and stays in the list. Click a character or its row to open its chat.
 
 ![The office with eight agents, one in each activity](docs/images/office-activities.png)
 
