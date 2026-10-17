@@ -11,6 +11,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
   const r = plan.readback
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [asking, setAsking] = useState(false)
+  const [noting, setNoting] = useState(false)
   const [note, setNote] = useState('')
   const open = unanswered(r, answers)
   const given = answersOf(r, answers)
@@ -45,16 +46,21 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
             </div>
           </div>
         ))}
-        {asking && (
+        {r.questions.length === 0 && (
+          <div className="pg-row"><span className="pg-k open">Open</span><span className="pg-none">{agentName} asked no questions.</span></div>
+        )}
+        {(asking || noting) ? (
           <label className="pg-note">
-            What should change?
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+            {asking ? 'What should change?' : `A note for ${agentName}`}
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder={asking ? undefined : `Anything ${agentName} should know before it builds`} />
           </label>
+        ) : (
+          <button className="su-link pg-add" onClick={() => setNoting(true)}>＋ Add a note for {agentName}</button>
         )}
         <div className="pg-acts">
           {!asking ? (
             <>
-              <button className="primary" disabled={open.length > 0} onClick={() => onDecide('approved', { answers: given })}>Approve plan</button>
+              <button className="primary" disabled={open.length > 0} onClick={() => onDecide('approved', { ...(note.trim() && { note: note.trim() }), answers: given })}>Approve plan</button>
               <button onClick={() => setAsking(true)}>Request changes</button>
             </>
           ) : (

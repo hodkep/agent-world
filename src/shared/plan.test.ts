@@ -83,6 +83,12 @@ describe('what the person\'s answer says to the agent', () => {
   it('approved with answers still passes them on', () => {
     expect(planReply('approved', { answers: [{ question: 'Q?', answer: 'A' }] })).toContain('Q? A')
   })
+  it('approved with a note passes the note on, after the go-ahead and before any answers', () => {
+    const t = planReply('approved', { note: 'Keep it behind a flag.', answers: [{ question: 'Q?', answer: 'A' }] })
+    expect(t).toBe('Your plan was approved. Go ahead and build it.\nTheir note: Keep it behind a flag.\nTheir answers:\n- Q? A')
+    expect(planReply('approved', { note: 'Keep it behind a flag.' })).toBe('Your plan was approved. Go ahead and build it.\nTheir note: Keep it behind a flag.')
+    expect(planReply('approved', { note: '   ' })).toBe('Your plan was approved. Go ahead and build it.')
+  })
   it('released: the hold is lifted without approval', () => {
     expect(planReply('released', {})).toContain('lifted the hold')
   })

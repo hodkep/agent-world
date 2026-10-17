@@ -3220,3 +3220,7 @@ svg.pxg { display: block; flex: none; }
 .set-cards { display: flex; flex-direction: column; gap: 14px; }
 .set-card { display: flex; flex-direction: column; gap: 8px; }
 .set-path { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+
+/* ---- The plan gate: the plain line when the agent asked nothing, and the way to add a note ---- */
+.pg-none { color: var(--muted); font-style: italic; }
+.pg-add { align-self: flex-start; padding: 0; }
