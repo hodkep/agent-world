@@ -6,14 +6,11 @@ import { join, resolve } from 'node:path'
 // Set AW_SHOW=1 to watch one: AW_SHOW=1 npx playwright test e2e/chat.e2e.ts
 const hidden: Record<string, string> = process.env.AW_SHOW ? {} : { AW_HIDDEN: '1' }
 
+// What a developer's shell or agent tool hands down (their Claude login folder, an office address and token, git settings) is not part of what a spec sets up; leaving it in changes which account runs and what the fake sees.
+const inherited = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(AW_|GIT_CONFIG_|CLAUDE_CONFIG_DIR$)/.test(k))) as Record<string, string>
+
 // Every launch gets a guaranteed teardown: a main-process error dialog blocks a normal close,
 // so we kill the process ourselves and always remove the test's temp dir.
-// A developer's own Claude login folder is not part of what a spec sets up; leaving it in would change which account the app runs on.
-const inherited = () => {
-  const { CLAUDE_CONFIG_DIR: _own, ...rest } = process.env
-  return rest as Record<string, string>
-}
-
 export async function launchApp(env: Record<string, string>, tmp: string) {
   const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...inherited(), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...hidden, ...env } })
   // The agent list starts folded away for real users; tests that are not about that keep it open, as most of them click rows in it.
