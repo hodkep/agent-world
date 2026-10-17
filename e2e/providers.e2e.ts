@@ -25,9 +25,16 @@ test('an installer terminal is tall enough to read, and the program in it is tol
     await claude.getByRole('button', { name: 'Install Claude Code' }).click()
     const rows = claude.locator('.xterm-rows > div')
     await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(22)
-    const shown = await rows.count()
-    // `stty size` prints "rows columns" as the program sees them.
-    await expect(claude.locator('.xterm-rows')).toContainText(new RegExp(`\\b${shown} \\d+\\b`), { timeout: 15_000 })
+    // `stty size` prints "rows columns" as the program sees them: the rows it names are the rows now shown (the terminal fits itself to its box, so the count is read again, not once).
+    await expect
+      .poll(
+        async () => {
+          const told = /\b(\d+) (\d+)\b/.exec((await claude.locator('.xterm-rows').textContent()) ?? '')
+          return told ? Number(told[1]) === (await rows.count()) : false
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(true)
     const box = await claude.locator('.su-term').boundingBox()
     expect(box!.height).toBeGreaterThanOrEqual(380)
     expect(box!.width).toBeGreaterThanOrEqual(600)

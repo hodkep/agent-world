@@ -116,16 +116,23 @@ test('selected code goes into the message as a chip, from the Files tab and from
     // The diff names its file and what changed, as the Files view does, and the tree has no marker for open files.
     await expect(page.locator('.fcrumb')).toContainText('src/cart.ts')
     await expect(page.locator('.fcrumb')).toContainText('changed vs main')
-    // Dragged across the changed line, as a person would (the line may be wider than the editor, so by the editor's own edges).
+    // Dragged across the words of the changed line, as a person would. The drag stays inside what the editor shows: past its right edge the editor scrolls sideways (the line is wider than it), and a scroll takes the Ask button away again.
     const changed = page.locator('.diff .view-line', { hasText: '1.2' }).last()
     await expect(changed).toBeVisible()
-    const line = (await changed.boundingBox())!
-    const editor = (await page.locator('.diff').boundingBox())!
-    await page.mouse.move(editor.x + 70, line.y + line.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(editor.x + editor.width - 40, line.y + line.height / 2, { steps: 6 })
-    await page.mouse.up()
-    await page.getByRole('button', { name: /^Ask ada/ }).click()
+    // The editor draws its lines again as the diff settles, so the line is found anew, and the drag done again, until the button for the selection is there.
+    await expect(async () => {
+      const line = await changed.boundingBox()
+      expect(line).not.toBeNull()
+      const editor = (await page.locator('.diff').boundingBox())!
+      const from = line!.x + 10
+      const to = Math.min(from + 200, editor.x + editor.width - 60)
+      await page.mouse.move(from, line!.y + line!.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(to, line!.y + line!.height / 2, { steps: 6 })
+      await page.mouse.up()
+      await expect(ask).toBeVisible({ timeout: 2000 })
+    }).toPass({ timeout: 20_000 })
+    await ask.click()
     await expect(tray.locator('.ctx-chip')).toHaveCount(3)
     if (process.env.AW_SHOTS) {
       await page.waitForTimeout(3200)
