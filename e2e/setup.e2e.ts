@@ -359,3 +359,42 @@ test('an agy that is installed but signed out can be signed in from setup, in a 
     await shutdown()
   }
 })
+
+test('while an installer terminal is open the card looks again by itself, so an installer that finished but left its terminal up still turns the card over', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-poll-install-'))
+  const target = join(home, 'bin-claude')
+  const { app, shutdown } = await open(home, target, { AW_INSTALL_COMMAND: `cp "${fake}" "${target}" && chmod +x "${target}" && echo Done; sleep 300` })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await claude.getByRole('button', { name: 'Install Claude Code' }).click()
+    await expect(claude).toContainText('Ready', { timeout: 20_000 })
+    await expect(claude.locator('.su-install-term')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('while a sign-in terminal is open the card looks again by itself, and closes the terminal once the tool is ready', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-setup-poll-signin-'))
+  const cfg = join(home, 'claude-config')
+  mkdirSync(cfg)
+  const file = join(cfg, '.claude.json')
+  writeFileSync(file, '{"oauthAccount":{"emailAddress":"dev@example.com"}}')
+  const { app, shutdown } = await open(home, fake, { FAKE_CONFIG_DIR: cfg })
+  try {
+    const page = await app.firstWindow()
+    const setup = page.getByRole('dialog', { name: 'First-run setup' })
+    await setup.getByRole('button', { name: 'Continue' }).click()
+    const claude = setup.locator('[data-provider="claude"]')
+    await claude.getByRole('button', { name: 'Open a terminal to sign in' }).click()
+    await expect(claude.locator('.su-signin')).toBeVisible()
+    writeFileSync(file, '{"oauthAccount":{"emailAddress":"dev@example.com"},"hasCompletedOnboarding":true}')
+    await expect(claude).toContainText('Ready', { timeout: 20_000 })
+    await expect(claude.locator('.su-signin')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
