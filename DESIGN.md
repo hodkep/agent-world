@@ -211,7 +211,7 @@ Shell spacing is small and dense: 4px gaps in the roster, 8px between controls, 
 
 **The Integer Pixel Rule.** Scale is an integer in device pixels, divided by devicePixelRatio for layout; textures use nearest filtering and antialias is off. Never fractional-scale the art.
 
-**The Place Is State Rule.** Activity picks the spot (`purposeFor` in World.ts): running goes to the server consoles; interns work at the meeting-table laptops; waiting goes to the coffee machine; idle and asleep go to the lounge sofas; delegating stands at the head of the meeting table; everything else (thinking, researching, implementing, permission) sits at the agent's own CRT desk. Desk and intern seats are permanent homes; other spots are borrowed and released. New agents enter through the front door; leaving agents walk out of it.
+**The Place Is State Rule.** Activity picks the spot (`placeFor` in worldState.ts): interns work at the meeting-table laptops; an asleep agent leaves the office (it stays in the agent list); idle, waiting and blocked go to the lounge sofas; an agent reading from the library stops at the bookshelf for a moment; an agent in plan mode stands at the whiteboard; everything else (thinking, researching, implementing, running, delegating, permission) sits at the agent's own CRT desk. Desk and intern seats are permanent homes; other spots are borrowed and released. New agents enter through the front door; leaving agents walk out of it.
 
 ## Elevation & Depth
 
