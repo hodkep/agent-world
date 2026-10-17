@@ -51,6 +51,10 @@ test('in the terminal, Cmd+F finds text, Cmd+Up jumps to the previous command, C
     await page.keyboard.type('seq 1 120')
     await page.keyboard.press('Enter')
     await expect(term.locator('.xterm-rows')).toContainText('120')
+    // The shell has given its prompt back after the long output, so the prompts that Cmd+Up goes between are all marked: the last line is a prompt, not output still arriving.
+    await expect
+      .poll(() => term.locator('.xterm-rows > div').evaluateAll((rows) => rows.map((r) => r.textContent ?? '').filter((t) => t.trim() !== '').at(-1) ?? ''), { timeout: 20_000 })
+      .toMatch(/[$#%][\s\u00a0]*$/)
 
     // The prompt before the long output is what Cmd+Up scrolls to.
     await page.keyboard.press('Meta+ArrowUp')
