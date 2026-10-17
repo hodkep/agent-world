@@ -25,18 +25,18 @@ Existing pixel visualizers (Pixel Agents, claude-office) only watch; existing or
 - The user signs in to their own unmodified `claude` CLI (their subscription or API key). The app never handles Claude credentials.
 - Agents launched by the app get hooks through a per-session `--settings` file; nothing global in `~/.claude` is changed.
 - Worktrees live in `~/.agent-world/worktrees/<repo-slug>/<agent>` on branch `aw/<agent>`. A quick fix can skip the worktree ("Work in my folder directly"), and non-git folders always work in place; several agents sharing a folder can overwrite each other. Removing an agent deletes its worktree only when nothing is uncommitted (or on an explicit discard), and its branch only when nothing on it is unmerged.
-- Every agent is the user's own interactive `claude` running in a terminal the app owns. The chat view is built on Claude's saved transcript plus that terminal; the app never uses the Agent SDK or `claude -p`, so usage stays on the subscription's normal limits.
+- Every agent is the user's own interactive `claude` or `agy` running in a terminal the app owns. The chat view is built on the program's saved transcript plus that terminal; the app never uses the Agent SDK. The agents' own work is never run headless. The app makes only short headless calls on the user's own account: `claude -p` for the usage limits, and, when workflows are on, `claude -p` or `agy -p` for the branch review and, at the Max dial, the intent check. Usage stays on the account's normal limits.
 - Preferences (notifications, keep-awake, new-agent defaults, where `claude` is, update address) are kept in `~/.agent-world/preferences.json`.
 - Permission requests are decided in the world; after 5 minutes they fall back to Claude's own terminal dialog.
 - On restart agents are asleep; clicking one resumes its session.
 
 ## Capabilities and Constraints
 
-- Claude Code only in v1; other agent CLIs later.
+- Claude Code and Antigravity (`agy`) are supported; more agent CLIs can be added behind one seam ([docs/providers-design.md](docs/providers-design.md)).
 - Interfaces per agent: the office (state at a glance), Chat (conversation, tool cards, pictures, `!` shell mode, permission modes, rewind, `/btw` side questions, Ctrl+R history, queued messages), Terminal, Code (files and diffs), Tools (MCP servers and plugins: add, remove, enable), Preview (a dev server the agent started) and History (resume an earlier session).
 - Anything Claude asks the user (tool approval, plan, folder trust, questions, its own menus) appears in an 8-bit dialog or inline in the chat, and comes back after a window reload.
 - Agents are hired from roles (built-in, saved, or a project's `.claude/agents`), can be grouped, cloned, and handed to another agent for review; commands started by an agent can be listed and stopped from the chat.
-- Usage limits (5-hour, weekly) are shown as the power plant in the office and as chips in the header.
+- Usage limits (5-hour, weekly) are shown as the tanks of the power plant on the back lawn of the office; the top bar's Usage button opens the full picture and counts the limits running low.
 - Shipping: installers for macOS, Windows and Linux through electron-builder (unsigned until signing certificates are provided), update checks against an address set in Settings, and a three-platform CI workflow. Windows and Linux runs are covered by that workflow, not yet by hand.
 - Roles are dynamic: an agent is a senior; while it has live subagents it is the boss; subagents are interns.
 - Activities shown: idle, thinking, researching, implementing, running, delegating, waiting, permission, asleep.
