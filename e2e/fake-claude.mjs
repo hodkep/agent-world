@@ -453,6 +453,17 @@ if (process.env.FAKE_CHAT) {
       turn = false
       return void process.stdout.write(`\x1b[19;1H\x1b[2K\x1b[22;1H❯\u00a0${prompt}`)
     }
+    // FAKE_WORK_UNTIL_ESC=1: a turn that really goes on, spinner and all, until an Esc reaches it (an Esc the app keeps for itself, to close a menu, never does).
+    if (process.env.FAKE_WORK_UNTIL_ESC) {
+      await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x' } })
+      await new Promise((resolve) => {
+        const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), resolve())
+        process.stdin.on('data', onKey)
+      })
+      turn = false
+      process.stdout.write('\x1b[19;1H\x1b[2K')
+      return void transcript({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+    }
     // FAKE_HANG=1: the turn is interrupted (Esc) and Claude, like the real one, never sends a Stop hook.
     if (process.env.FAKE_HANG) {
       await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'x' } })
