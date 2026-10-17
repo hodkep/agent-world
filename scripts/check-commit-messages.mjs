@@ -18,9 +18,37 @@ export function attributionLines(message) {
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
 
-function commitsIn(range) {
+const resolves = (rev) => {
+  try {
+    git('rev-parse', '--verify', '--quiet', `${rev}^{commit}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// What to log for "<from>..<to>". A <from> of zeros (a first push) or one that is gone (a force push replaced it, and a clone no longer has it)
+// cannot be compared with, so the commits the branch has that the main branch does not are checked instead, and on main itself the last commit.
+function logArgs(range) {
   const [from, to] = range.split('..')
-  const args = !to ? ['-1', from] : /^0+$/.test(from) ? ['-1', to] : [range]
+  if (!to) return ['-1', from]
+  if (!/^0+$/.test(from) && resolves(from)) return [range]
+  const base = ['origin/main', 'main', 'origin/master', 'master'].find(resolves)
+  const branchOnly = base && to !== base && !isAncestor(to, base)
+  return branchOnly ? [`${base}..${to}`] : ['-1', to]
+}
+
+const isAncestor = (a, b) => {
+  try {
+    git('merge-base', '--is-ancestor', a, b)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function commitsIn(range) {
+  const args = logArgs(range)
   return git('log', ...args, '--format=%h%x1f%B%x1e')
     .split('\x1e')
     .map((c) => c.replace(/^\n/, ''))

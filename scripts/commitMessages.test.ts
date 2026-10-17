@@ -76,6 +76,33 @@ describe('the check command', () => {
     expect(check(cwd, '--file', bad).status).toBe(0)
   })
 
+  describe('after a force push, when the commit the push replaced is gone', () => {
+    const gone = 'deadbeef00000000000000000000000000000000'
+    const branchRepo = (...messages: string[]) => {
+      const cwd = repoWith('feat(a): on main')
+      git(cwd, 'switch', '-q', '-c', 'topic')
+      for (const m of messages) git(cwd, 'commit', '-q', '--allow-empty', '-m', m)
+      return cwd
+    }
+
+    it('still checks every commit the branch has that main does not, and passes clean ones', () => {
+      const cwd = branchRepo('fix(b): one', 'fix(b): two')
+      expect(check(cwd, `${gone}..HEAD`).status).toBe(0)
+    })
+
+    it('fails when one of those commits is credited, even if it is not the last', () => {
+      const cwd = branchRepo(`fix(b): one\n\n${claudeTrailer}`, 'fix(b): two')
+      const r = check(cwd, `${gone}..HEAD`)
+      expect(r.status).toBe(1)
+      expect(r.stderr).toContain(claudeTrailer)
+    })
+
+    it('checks the last commit alone when the branch is main itself, which has nothing to compare with', () => {
+      const cwd = repoWith(`old\n\n${claudeTrailer}`, 'feat(a): clean')
+      expect(check(cwd, `${gone}..HEAD`).status).toBe(0)
+    })
+  })
+
   it('checks only the last commit when asked for a range that cannot exist (a first push has no earlier state)', () => {
     const cwd = repoWith(`old\n\n${claudeTrailer}`, 'feat(a): clean')
     expect(check(cwd, '0000000000000000000000000000000000000000..HEAD').status).toBe(0)
