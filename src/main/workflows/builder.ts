@@ -13,6 +13,8 @@ interface Base {
 }
 interface Draft {
   workflow: Workflow
+  /** The workflow as the builder proposed it, so the person's edits can be counted and undone. */
+  origin?: Workflow
   base: Base | null
   at: number
 }
@@ -58,6 +60,13 @@ interface Deps {
   proposals: Proposals
   skills: SkillSource
   now: () => number
+}
+
+/** How many things the person changed in the builder's draft: steps added, removed, changed or moved, and the name or the "when". */
+function editedCount(r: Draft): number {
+  if (!r.origin) return 0
+  const d = workflowDiff(r.origin, r.workflow)
+  return d.added.length + d.removed.length + d.changed.length + (d.reordered ? 1 : 0) + (d.name ? 1 : 0) + (d.when ? 1 : 0)
 }
 
 /** The builder agent's side of the office: what it may read, the drafts it hands in, and the saving that only the person does. */
@@ -106,20 +115,24 @@ export class Builder {
     return `${note}${JSON.stringify(e.workflow, null, 2)}`
   }
 
+  /** One line for each skill a step names that the library has not got, with the skills there are. */
+  private unknownSkills(w: Workflow, project: string | null): string[] {
+    const gone = goneSkills(skillStates(w, this.deps.skills.items(), this.deps.skills.playbook(project)))
+    if (!gone.length) return []
+    const known = skillList(this.deps.skills.items(), this.deps.skills.playbook(project)).ids.slice(0, 40).join(', ')
+    return w.steps.flatMap((st, i) => (st.skills ?? []).filter((id) => gone.includes(id)).map((id) => `- Step ${i + 1} ("${st.id}"): there is no skill "${id}" in the library. Skills you can name: ${known || 'none'}.`))
+  }
+
   /** Takes the builder's file as its draft. A file with problems is refused with every problem named; the earlier draft stays. */
   propose(agent: string, project: string | null, text: string): string {
     if (text.length > FILE_MAX) throw new Error(`The file is too long (over ${FILE_MAX / 1000} thousand characters). Make the workflow shorter.`)
     const parsed = parseWorkflow(text)
     if (!parsed.ok) throw new Error(`Nothing was proposed, because the file has problems. Fix all of them and call workflow_propose again:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
-    const gone = goneSkills(skillStates(parsed.workflow, this.deps.skills.items(), this.deps.skills.playbook(project)))
-    if (gone.length) {
-      const known = skillList(this.deps.skills.items(), this.deps.skills.playbook(project)).ids.slice(0, 40).join(', ')
-      const lines = parsed.workflow.steps.flatMap((st, i) => (st.skills ?? []).filter((id) => gone.includes(id)).map((id) => `- Step ${i + 1} ("${st.id}"): there is no skill "${id}" in the library. Skills you can name: ${known || 'none'}.`))
-      throw new Error(`Nothing was proposed, because the file has problems. Fix all of them and call workflow_propose again:\n${lines.join('\n')}`)
-    }
+    const unknown = this.unknownSkills(parsed.workflow, project)
+    if (unknown.length) throw new Error(`Nothing was proposed, because the file has problems. Fix all of them and call workflow_propose again:\n${unknown.join('\n')}`)
     const saved = this.saved(project, parsed.workflow.id)
     if (saved && workflowDiff(saved.workflow, parsed.workflow).same) return `"${parsed.workflow.name}" is the saved workflow unchanged, so there is nothing to propose.`
-    this.deps.proposals.set(agent, { workflow: parsed.workflow, base: this.baseOf(saved), at: this.deps.now() })
+    this.deps.proposals.set(agent, { workflow: parsed.workflow, origin: parsed.workflow, base: this.baseOf(saved), at: this.deps.now() })
     const w = parsed.workflow
     return `Proposed "${w.name}" (${saved ? 'a change to the saved one' : 'new'}, ${w.steps.length} step${w.steps.length === 1 ? '' : 's'}). The person sees it beside this chat; only the person saves it, from a button there. Tell them in a sentence what it does.`
   }
@@ -139,8 +152,33 @@ export class Builder {
       stale,
       skills: skillStates(r.workflow, this.deps.skills.items(), this.deps.skills.playbook(project)),
       commands: checkCommands(toRunWorkflow(r.workflow)).map((text) => ({ text, known: before.has(text) })),
+      ...(editedCount(r) > 0 && { edited: editedCount(r) }),
       at: r.at
     }
+  }
+
+  /**
+   * The person's edit of the draft: the whole workflow as they have it now. It goes through the same checker as a file, so a bad edit comes back with every problem
+   * named and the draft stays as it was. The id cannot change (it names the file).
+   */
+  edit(agent: string, project: string | null, input: unknown): ProposalView {
+    const r = this.deps.proposals.get(agent)
+    if (!r) throw new Error('Nothing is proposed.')
+    const parsed = parseWorkflow(JSON.stringify(input))
+    if (!parsed.ok) throw new Error(`The edit has problems:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
+    if (parsed.workflow.id !== r.workflow.id) throw new Error('The id cannot change: it names the file. Use Save as a new workflow for another id.')
+    const unknown = this.unknownSkills(parsed.workflow, project)
+    if (unknown.length) throw new Error(`The edit has problems:\n${unknown.join('\n')}`)
+    this.deps.proposals.set(agent, { ...r, workflow: parsed.workflow, origin: r.origin ?? r.workflow, at: this.deps.now() })
+    return this.view(agent, project)!
+  }
+
+  /** Back to what the builder proposed. */
+  undoEdits(agent: string, project: string | null): ProposalView {
+    const r = this.deps.proposals.get(agent)
+    if (!r) throw new Error('Nothing is proposed.')
+    this.deps.proposals.set(agent, { ...r, workflow: r.origin ?? r.workflow, at: this.deps.now() })
+    return this.view(agent, project)!
   }
 
   discard(agent: string) {

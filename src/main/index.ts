@@ -1756,6 +1756,17 @@ async function main() {
     send('workflows')
     return entry
   })
+  // The person edits the draft in place: it is checked like a file, and a bad edit comes back as every problem.
+  ipcMain.handle('workflows:propose-edit', (_, agent: string, project: unknown, workflow: unknown) => {
+    const view = builder.edit(String(agent), projectOf(project), workflow)
+    send('workflows')
+    return view
+  })
+  ipcMain.handle('workflows:propose-undo', (_, agent: string, project: unknown) => {
+    const view = builder.undoEdits(String(agent), projectOf(project))
+    send('workflows')
+    return view
+  })
   ipcMain.handle('workflows:propose-discard', (_, agent: string) => (builder.discard(String(agent)), send('workflows')))
   // The person's answer to a step that waits for them (not the plan: that has its own); it is typed into the agent.
   ipcMain.handle('workflows:approve-step', (_, runId: string, step: string, decision: 'approved' | 'changes', note?: string) => {
