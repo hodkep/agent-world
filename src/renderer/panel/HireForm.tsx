@@ -29,6 +29,8 @@ export const EFFORTS: { value: Effort | ''; label: string }[] = [
 /** Everything Claude lets you choose at launch, before the agent walks in. */
 export function HireForm({
   providers,
+  unready,
+  onSetUp,
   defaultProvider,
   roles,
   defaults,
@@ -41,6 +43,9 @@ export function HireForm({
 }: {
   /** The programs that are ready here; the choice shows only when there is more than one. */
   providers: ProviderInfo[]
+  /** The programs that are not ready (not installed, or not signed in): shown greyed, each with a way to set it up. */
+  unready: ProviderInfo[]
+  onSetUp: (id: ProviderId) => void
   defaultProvider: ProviderId | ''
   roles: Role[]
   /** From Settings: what a new agent starts with. */
@@ -157,7 +162,7 @@ export function HireForm({
           <span className="hint">{chosen?.label} · {modelLabel} · {modeChosen.label}</span>
         </div>
       </div>
-      {providers.length > 1 && (
+      {providers.length + unready.length > 1 && (
         <fieldset className="hire-pick">
           <legend>Provider <em>what runs the agent</em></legend>
           <div className="hire-opts">
@@ -166,6 +171,14 @@ export function HireForm({
                 <input type="radio" name="provider" value={p.id} checked={chosen?.id === p.id} onChange={() => (setProvider(p.id), setModel(''), setMode(''))} />
                 <b><i className="dot" />{p.label}</b>
                 <span className="hint">{p.detection.version ? `ready · ${p.detection.version}` : 'ready'}</span>
+              </label>
+            ))}
+            {unready.map((p) => (
+              <label key={p.id} className="hire-opt locked" data-on={false} style={{ ['--c' as string]: cssColor(p.id) }}>
+                <input type="radio" name="provider" value={p.id} disabled checked={false} readOnly />
+                <b><i className="dot" />{p.label}</b>
+                <span className="hint">{p.detection.state === 'needs-sign-in' ? 'not signed in' : 'not installed'}</span>
+                <button type="button" className="su-link" onClick={() => onSetUp(p.id)}>Set up {p.label.split(' ')[0]} →</button>
               </label>
             ))}
           </div>

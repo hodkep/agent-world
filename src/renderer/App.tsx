@@ -1,7 +1,7 @@
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { BRAND } from '../shared/brand'
 import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderInfo, TerminalMenu } from '../shared/types'
+import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderId, ProviderInfo, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -212,6 +212,8 @@ export function App() {
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [setupAgain, setSetupAgain] = useState(false)
+  // A provider the hire form sent to setup: its install or sign-in starts as setup opens.
+  const [setupFor, setSetupFor] = useState<ProviderId | null>(null)
   const [handoffFrom, setHandoffFrom] = useState<string | null>(null)
   // How many allowances (of any provider) are nearly used up: the Usage button says so.
   const [lowLimits, setLowLimits] = useState(0)
@@ -1202,8 +1204,9 @@ export function App() {
             await hire(options, name)
             if (crew) await hireCrew()
           }}
-          onClose={() => setSetupAgain(false)}
+          onClose={() => (setSetupAgain(false), setSetupFor(null))}
           reopened={setupAgain}
+          startWith={setupFor}
         />
       )}
       {handoffFrom && providers && agents.find((a) => a.id === handoffFrom) && (
@@ -1433,7 +1436,7 @@ export function App() {
           {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
           {hiring && (
             <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+              <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} unready={(providers ?? []).filter((p) => p.detection.state !== 'ready')} onSetUp={(id) => (setHiring(false), setSetupFor(id), setSetupAgain(true))} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
             </Modal>
           )}
           {agents.length > 0 && (

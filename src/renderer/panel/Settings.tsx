@@ -6,6 +6,8 @@ import { MailConnect } from './MailConnect'
 import { parsePick, pickValue, storePick } from '../../shared/modelPick'
 import { closeOnBackdrop } from './Modal'
 import { ProviderTag } from './ProviderTag'
+import { ProviderCard } from './ProviderCard'
+import { useProviderSetup } from './useProviderSetup'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
@@ -33,23 +35,15 @@ function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: str
   )
 }
 
-/** One program: whether it works here, and where it is when the app cannot find it on its own. */
-function ProgramCard({ provider, saved, onSave, onRescan }: { provider: ProviderInfo; saved: string; onSave: (path: string) => void; onRescan: () => void }) {
+/** Where a program is when the app cannot find it on its own. */
+function ProgramPath({ provider, saved, onSave }: { provider: ProviderInfo; saved: string; onSave: (path: string) => void }) {
   const [path, setPath] = useState(saved)
-  const d = provider.detection
   return (
-    <div className="set-prog" style={{ ['--c' as string]: cssColor(provider.id) }}>
-      <div className="top">
-        <ProviderTag id={provider.id} label={provider.label} />
-        <small data-state={d.state}>{d.state === 'ready' ? `● ready${d.version ? ` · ${d.version}` : ''}` : d.state === 'needs-sign-in' ? '● not signed in' : '● not found'}</small>
-      </div>
-      <label>
-        Location
-        <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== saved && onSave(path.trim())} placeholder={`${d.path ?? provider.id} (found on your PATH)`} />
-        <span className="hint">Only needed when the app cannot find it. Applies to agents started after this.</span>
-      </label>
-      <div className="settings-row"><button onClick={onRescan}>Re-scan</button></div>
-    </div>
+    <label className="set-path">
+      Location of {provider.label}
+      <input value={path} onChange={(e) => setPath(e.target.value)} onBlur={() => path.trim() !== saved && onSave(path.trim())} placeholder={`${provider.detection.path ?? provider.id} (found on your PATH)`} />
+      <span className="hint">Only needed when the app cannot find it. Applies to agents started after this.</span>
+    </label>
   )
 }
 
@@ -103,6 +97,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const setDefaults = (patch: Partial<Prefs['defaults']>) => set({ defaults: { ...prefs.defaults, ...patch } })
   const setSubagents = (patch: Partial<Prefs['subagents']>) => set({ subagents: { ...prefs.subagents, ...patch } })
   const ready = providers.filter((p) => p.detection.state === 'ready')
+  const setup = useProviderSetup(providers, onProviders)
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   const [pane, setPane] = useState<Pane>(PANES.some((p) => p.id === initialPane) ? (initialPane as Pane) : 'general')
@@ -240,9 +235,13 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
             <>
               <legend>Providers</legend>
               <p className="set-lead">The programs agents can run: whether each works here, and where it is.</p>
-              <div className="set-progs">
+              <div className="settings-row"><button onClick={() => void onProviders()}>Re-scan</button></div>
+              <div className="set-cards">
                 {providers.map((p) => (
-                  <ProgramCard key={p.id} provider={p} saved={prefs.providers[p.id]?.path ?? ''} onSave={(path) => set({ providers: { ...prefs.providers, [p.id]: { path } } })} onRescan={onProviders} />
+                  <div key={p.id} className="set-card">
+                    <ProviderCard provider={p} setup={setup} isDefault={startWith?.id === p.id} onMakeDefault={() => set({ setup: { ...prefs.setup, defaultProvider: p.id }, defaults: { ...prefs.defaults, provider: p.id } })} />
+                    <ProgramPath provider={p} saved={prefs.providers[p.id]?.path ?? ''} onSave={(path) => set({ providers: { ...prefs.providers, [p.id]: { path } } })} />
+                  </div>
                 ))}
               </div>
             </>

@@ -1634,7 +1634,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .ho-told summary { cursor: pointer; }
 .ho-told pre { margin: 6px 0 0; font: 11px/1.5 Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--well); padding: 6px 8px; }
 .su-signin { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; width: 100%; }
-.su-term { height: 230px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); padding: 6px; overflow: hidden; }
+.su-term { height: 440px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--line); padding: 6px; overflow: hidden; }
 .su-term > * { height: 100%; }
 .handoff-card.out { align-self: flex-end; }
 .ho-status { color: var(--think); }
@@ -3200,3 +3200,23 @@ svg.pxg { display: block; flex: none; }
 /* The newest version, when this build cannot install it itself: a brass chip in the top bar that opens its release page. */
 .update-chip { align-self: center; background: var(--accent); color: var(--ink); font: 700 11px Menlo, Consolas, monospace; padding: 4px 8px; border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent-dim); cursor: pointer; white-space: nowrap; }
 .update-chip:hover { background: var(--accent-hot); }
+
+/* The steps a provider is set up in: install, sign in, ready. The one to do now is marked. */
+.su-steps { width: 100%; min-width: 0; display: flex; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
+.su-steps li { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--muted); font-size: 12px; line-height: 1.4; }
+.su-steps li b { display: block; color: var(--text); }
+.su-steps li .n { flex: none; width: 20px; height: 20px; display: grid; place-items: center; background: var(--panel); box-shadow: 0 0 0 1px var(--ink); font-weight: 700; }
+.su-steps li[data-done='true'] .n { background: #2f5d34; color: #cfeccf; }
+.su-steps li[aria-current='step'] { box-shadow: 0 0 0 2px var(--accent); background: var(--selected); }
+.su-steps li[aria-current='step'] .n { background: var(--accent); color: var(--ink); }
+
+/* A provider that is not set up shows in the hire form, greyed, with its way to set it up above the tile's own click area. */
+.hire .hire-opt.locked { opacity: 0.6; cursor: default; }
+.hire .hire-opt.locked b { color: var(--muted); }
+.hire .hire-opt.locked .su-link { position: relative; z-index: 1; align-self: flex-start; font-size: 11px; }
+.hire .hire-opt.locked:hover { opacity: 0.9; }
+
+/* Settings, Providers: a provider's card, and where it lives under it. */
+.set-cards { display: flex; flex-direction: column; gap: 14px; }
+.set-card { display: flex; flex-direction: column; gap: 8px; }
+.set-path { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }

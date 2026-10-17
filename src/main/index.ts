@@ -1844,7 +1844,7 @@ async function main() {
     // Claude asks once whether to trust the folder it starts in, and trusting a person's whole home folder is far too much: it starts in a folder of the app's own.
     const neutral = join(HOME, 'sign-in')
     mkdirSync(neutral, { recursive: true })
-    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: neutral, env: { ...env, ...login.env } as Record<string, string> })
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 100, rows: 24, cwd: neutral, env: { ...env, ...login.env } as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
@@ -1878,7 +1878,7 @@ async function main() {
     const launch = installLaunch(command, process.platform, process.env.SHELL)
     if (!launch) throw new Error(`Copy the command and run it in PowerShell: ${command}`)
     const sid = `term:${randomUUID()}`
-    const pt = pty.spawn(launch.file, launch.args, { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: env as Record<string, string> })
+    const pt = pty.spawn(launch.file, launch.args, { name: 'xterm-256color', cols: 100, rows: 24, cwd: homedir(), env: env as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
