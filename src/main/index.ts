@@ -69,6 +69,7 @@ import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
 import { HeldMerges } from './workflows/heldMerges'
+import { WaitNotices } from './workflows/waitNotice'
 import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
@@ -492,9 +493,12 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
 })
 // Runs the checks of an agent's workflow that are due, and tells the agent what came of it: the output of one that failed, or that the person has been asked.
 // Called when the agent reports its work, when the person answers a check, and (for what is new) when Finish is opened.
+// Told once for each check and file version that waits for the person, not on every step report.
+const waitNotices = new WaitNotices()
 async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean } = {}) {
   const a = byId(id)
   if (!a) return
+  if (o.answered) waitNotices.answered(id)
   try {
     const head = await git(a.cwd, 'rev-parse', 'HEAD')
     const r = await workflows.runChecks(id, head, o)
@@ -502,7 +506,8 @@ async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean }
     if (r.sendBack) mailbox.fromOffice(id, r.sendBack)
     else if (r.gaveUp) mailbox.fromOffice(id, r.gaveUp)
     else if (o.answered && r.passed && !r.waitingApproval) mailbox.fromOffice(id, r.passed.map(checkPassed).join('\n'))
-    else if (r.waitingApproval && !o.fresh) mailbox.fromOffice(id, `The check "${r.waitingApproval}" waits for the person to approve its commands; their answer arrives as your next message.`)
+    else if (r.waitingApproval && !o.fresh && waitNotices.firstTime(id, `${r.waitingApproval}|${workflows.runs().findLast((x) => x.agent === id && x.status !== 'stopped')?.workflow?.hash ?? ''}`))
+      mailbox.fromOffice(id, `The check "${r.waitingApproval}" waits for the person to approve its commands; their answer arrives as your next message.`)
   } catch {
     // A check that cannot run (no such folder, git failed) is simply not run; the merge gate will say it has not run.
   }
