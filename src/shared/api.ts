@@ -375,6 +375,10 @@ export interface AwApi {
     proposal(agentId: string, project: string | null): Promise<import('./builder').ProposalView | null>
     /** Saves the draft where the person chose, approving its commands for that exact file; says the saved workflow. */
     saveProposal(agentId: string, project: string | null, how: import('./builder').SaveHow): Promise<import('./workflow').WorkflowEntry>
+    /** The person's edit of the draft: the whole workflow as they have it. Checked like a file; a bad edit is refused with every problem named. */
+    editProposal(agentId: string, project: string | null, workflow: import('./workflow').Workflow): Promise<import('./builder').ProposalView>
+    /** Back to what the builder proposed. */
+    undoProposalEdits(agentId: string, project: string | null): Promise<import('./builder').ProposalView>
     /** Throws the draft away. */
     discardProposal(agentId: string): Promise<void>
   }

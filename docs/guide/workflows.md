@@ -1,6 +1,6 @@
 # Workflows
 
-A pipeline an agent follows for each task (plan, build, checks, review, land), with gates that stop for you and a record of how each run went.
+A pipeline an agent follows for each task (plan, build, checks, review, land), with gates that stop for you.
 
 ## Turn workflows on
 
@@ -10,8 +10,6 @@ Workflows is off until you turn it on: **Settings** (the gear), then **Features*
 - **Plan gate** (on by default): an agent waits for your approval of its plan before it edits.
 - **Merge gate** (on by default): landing waits for an approved plan and seen review findings.
 - The dial (**Economy**, **Balanced** by default, **Max**) sets how much care each task takes. See [The three dials](#the-three-dials).
-
-Turning it off with runs open asks **Let them finish, then hide**, **Stop them now** or **Cancel**.
 
 ## What an agent does with a workflow
 
@@ -57,9 +55,9 @@ While a run is open, a track sits above the agent's chat: its steps as stations,
 To land a branch, ask the agent to merge it. If the gate holds the merge, git refuses it, the agent is told to tell you why, and a band headed **Merge held** appears under the run track with a **Land held** marker. It lists what holds the merge, such as the plan not approved or **N audit findings have not been seen**. Then either:
 
 - Tick each review finding as seen. When nothing holds the merge, ask the agent to merge again; no other word is needed.
-- Click **Land anyway**. The branch as it is now lands once on the agent's next try.
+- Click **Land anyway**. The branch lands once, on the agent's next try.
 
-**Not yet** puts the band away; the marker reads **Land held · not yet**, and clicking it brings the band back. **Finish this branch** shows the same rows.
+**Not yet** puts the band away; the marker reads **Land held · not yet**, and clicking it brings the band back.
 
 ![The run track with the Land held marker and the Merge held band](../images/merge-held.png)
 
@@ -71,9 +69,9 @@ Click **Workflows** in the top bar. **Runs**: **7 days** or **30 days**. Two cha
 
 ![The Runs tab: two charts over the ledger](../images/runs.png)
 
-**Insights**: a tile for each gate of each run, with the numbers under each column.
+**Insights**: a tile for each gate of each run.
 
-**Workflows**: the project's workflows with the chosen one's steps. To make one from a sentence, open a project, type it in **Describe a workflow to the builder** and click **Start with the builder**. The builder can only propose: its draft appears beside its chat, and you save it with **Save to** the project or **Save for everything**. File format and design: [docs/workflows-design.md](../workflows-design.md).
+**Workflows**: the project's workflows with the chosen one's steps. To make one from a sentence, open a project, type it in **Describe a workflow to the builder** and click **Start with the builder**. The builder can only propose: its draft appears beside its chat as steps you can edit in place (rename, brief, skills, a check's command, **▲ ▼ ✕**, **＋ Add step**; **Undo edits** goes back to its proposal), and you save it with **Save to** the project or **Save for everything**. File format and design: [docs/workflows-design.md](../workflows-design.md).
 
 ## The three dials
 

@@ -25,7 +25,7 @@ export function BuilderSplit({ agentId, folder, editing, chat, cost, switches, o
         <div className="bs-chat">{chat}</div>
         <div className="bs-side">
           {view ? (
-            <Proposal key={`${view.workflow.id}-${view.at}`} agentId={agentId} folder={folder} view={view} switches={switches} onSaved={onSaved} onGone={load} />
+            <Proposal key={view.workflow.id} agentId={agentId} folder={folder} view={view} switches={switches} onSaved={onSaved} onGone={load} onChanged={load} />
           ) : (
             <div className="bs-empty">
               <b>Nothing proposed yet</b>

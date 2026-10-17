@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { ProposalView, SaveHow } from '../../shared/builder'
-import { type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
-import { SkillChips, StepRow } from './WorkflowList'
+import type { Step, WorkflowEntry } from '../../shared/workflow'
+import { StepEditor } from './StepEditor'
+import { SkillChips } from './WorkflowList'
 
 const SCOPE_WORDS = { 'built-in': 'the built-in one', global: 'the one kept for everything', project: 'the one in this project' } as const
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -22,15 +23,15 @@ function Detail({ step }: { step: Step | undefined }) {
  * The builder's draft, as the person reviews it: what it is, what it changes in the saved one, the commands it would run, and the
  * buttons that save it. Nothing here is saved until one of them is pressed.
  */
-export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: { agentId: string; folder: string | null; view: ProposalView; switches: { planGate: boolean; mergeGate: boolean }; onSaved: (e: WorkflowEntry) => void; onGone: () => void }) {
+export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onChanged }: { agentId: string; folder: string | null; view: ProposalView; switches: { planGate: boolean; mergeGate: boolean }; onSaved: (e: WorkflowEntry) => void; onGone: () => void; /** The draft was edited: read it again. */ onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [problem, setProblem] = useState(false)
   const wf = view.workflow
   const d = view.diff
   const here = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
   const replaces = !!view.saved && view.saved.scope !== 'built-in'
   const step = (id: string) => wf.steps.find((s) => s.id === id)
-  const chips = stepChips(wf, switches)
   const go = (how: SaveHow) => {
     setBusy(true)
     setError('')
@@ -56,13 +57,10 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
           The saved workflow changed after this was proposed. Ask the builder to look at it again; saving is off until it does.
         </p>
       )}
+      <StepEditor agentId={agentId} folder={folder} workflow={wf} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
       {d.same ? (
         <p className="muted">Nothing differs from the saved one.</p>
-      ) : d.isNew || !view.saved ? (
-        <ol className="wfl-steps" aria-label="Steps">
-          {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={chips[i]!} skills={view.skills} />)}
-        </ol>
-      ) : (
+      ) : d.isNew || !view.saved ? null : (
         <>
           <span className="bs-sub">What changes</span>
           <ul className="bs-diff" aria-label="What changes">
@@ -74,15 +72,6 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
             {d.reordered && <li className="chg">~ The steps are in a different order</li>}
             {d.unchanged.length > 0 && <li className="same muted">{plural(d.unchanged.length, 'step')} unchanged: {d.unchanged.join(', ')}</li>}
           </ul>
-          <span className="bs-sub">After saving</span>
-          <ol className="wf-strip" aria-label="Steps after saving">
-            {chips.map((c) => (
-              <li key={c.id} className={`st k-${c.kind}`}>
-                <span>{c.label}</span>
-                {c.stops && <b className="st-tag">you approve</b>}
-              </li>
-            ))}
-          </ol>
         </>
       )}
       {granted.length > 0 && (
@@ -113,17 +102,17 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone }: {
       <div className="wfl-acts">
         {replaces ? (
           <>
-            <button className="primary" disabled={busy || view.stale} onClick={() => go('replace')}>
+            <button className="primary" disabled={busy || view.stale || problem} onClick={() => go('replace')}>
               Replace {wf.name} {view.saved!.scope === 'global' ? 'for everything' : `in ${here || 'the project'}`}
             </button>
-            <button disabled={busy || view.stale} onClick={() => go('copy')}>Save as a new workflow</button>
+            <button disabled={busy || view.stale || problem} onClick={() => go('copy')}>Save as a new workflow</button>
           </>
         ) : (
           <>
-            <button className="primary" disabled={busy || view.stale || !folder} title={folder ? '' : 'Open a project first'} onClick={() => go('project')}>
+            <button className="primary" disabled={busy || view.stale || problem || !folder} title={folder ? '' : 'Open a project first'} onClick={() => go('project')}>
               Save to {here || 'a project'}
             </button>
-            <button disabled={busy || view.stale} onClick={() => go('global')}>Save for everything</button>
+            <button disabled={busy || view.stale || problem} onClick={() => go('global')}>Save for everything</button>
           </>
         )}
         <button disabled={busy} onClick={discard}>Discard</button>

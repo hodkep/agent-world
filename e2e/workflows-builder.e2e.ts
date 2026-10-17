@@ -125,7 +125,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft).toContainText('Billing change')
     await expect(draft).toContainText('new · not saved')
-    await expect(draft.getByRole('list', { name: 'Steps' })).toContainText('Security audit')
+    await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
     await expect(draft.getByLabel('Commands')).toContainText('2 commands would run on your computer')
     await expect(draft.getByLabel('Commands')).toContainText('npm run lint')
     await expect(draft.getByLabel('Commands')).toContainText('Saving approves exactly these commands')
@@ -212,6 +212,53 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     expect((JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as { name: string }).name).toBe('Edited by hand')
     await win.getByRole('button', { name: 'Discard' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    await client.close()
+  } finally {
+    await s.shutdown()
+  }
+})
+
+test('the person edits the builder\'s draft in place: a rename, a step added with its command, one removed; a problem blocks saving, undo goes back to the proposal, and what is saved is what they edited', async () => {
+  const s = await start()
+  try {
+    const { page, repo, argsLog } = s
+    const win = await openWorkflows(page)
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    const { client, call } = await asAgent(launches(argsLog)[0]!)
+    await call('workflow_propose', { file: JSON.stringify(BILLING) })
+    const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
+    await expect(draft).not.toContainText('You edited')
+
+    // A rename is an edit, counted, and it can be undone.
+    await draft.getByLabel('Name of step 5').fill('Security review')
+    await expect(draft).toContainText('You edited 1 thing.')
+    await draft.getByRole('button', { name: 'Undo edits' }).click()
+    await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
+    await expect(draft).not.toContainText('You edited')
+
+    // A step added before the landing step has no command yet: the checker says so, and saving waits until it has one.
+    await draft.getByLabel('Name of step 5').fill('Security review')
+    await draft.getByLabel('Add a step').selectOption('check')
+    await expect(draft.getByRole('alert')).toContainText('needs "run"')
+    await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeDisabled()
+    await draft.getByLabel('Command of step 6').fill('npm run typecheck')
+    await expect(draft.getByRole('alert')).toHaveCount(0)
+    await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeEnabled()
+    await expect(draft.getByLabel('Commands')).toContainText('npm run typecheck')
+
+    // Lint goes; what is saved is exactly this.
+    await draft.getByRole('button', { name: 'Remove step 4' }).click()
+    await expect(draft.getByLabel('Name of step 4')).toHaveValue('Security review')
+    await expect(draft).toContainText('You edited 3 things.')
+    await draft.getByRole('button', { name: 'Save to shop' }).click()
+    const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
+    await expect.poll(() => existsSync(file)).toBe(true)
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
+    expect(saved.steps.map((x) => x.id)).toEqual(['plan', 'build', 'tests', 'review', 'check', 'land'])
+    expect(saved.steps[3]).toMatchObject({ kind: 'audit', name: 'Security review' })
+    expect(saved.steps[4]).toMatchObject({ kind: 'check', run: 'npm run typecheck' })
     await client.close()
   } finally {
     await s.shutdown()

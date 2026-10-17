@@ -3224,3 +3224,25 @@ svg.pxg { display: block; flex: none; }
 /* ---- The plan gate: the plain line when the agent asked nothing, and the way to add a note ---- */
 .pg-none { color: var(--muted); font-style: italic; }
 .pg-add { align-self: flex-start; padding: 0; }
+
+/* ---- The builder's draft, edited in place: a card for each step ---- */
+.se { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.se-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+.se-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.se-step { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--ink); min-width: 0; }
+.se-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.se-n { color: var(--muted); font-size: 10px; font-weight: 700; flex: none; }
+.se-name { flex: 1 1 100px; min-width: 0; }
+.se-kind { color: var(--think); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; flex: none; }
+.se-ico { width: 22px; height: 22px; padding: 0; display: inline-grid; place-items: center; font-size: 10px; color: var(--muted); background: var(--panel-3); flex: none; }
+.se-ico:disabled { opacity: 0.35; }
+.se-brief, .se-run { width: 100%; resize: none; font: inherit; }
+.se-run { font-family: Menlo, Consolas, monospace; font-size: 12px; }
+.se-opts { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 11px; }
+.se .se-opts label { display: inline-flex; flex-direction: row; gap: 6px; align-items: center; margin: 0; }
+.se-opts input[type='number'] { width: 52px; }
+.se-skills { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.se-skills .sk button { all: unset; cursor: pointer; margin-left: 5px; color: var(--muted); font-size: 10px; }
+.se-skills .sk button:hover { color: var(--text); }
+.se-add { align-self: flex-start; }
+.se-problem { margin: 0; font-size: 12px; white-space: pre-line; }

@@ -145,6 +145,8 @@ export interface ProposalView {
   /** How each skill the draft names stands in this project. */
   skills: Record<string, SkillState>
   commands: ProposedCommand[]
+  /** How many things the person changed in the builder's draft; none when they changed nothing. */
+  edited?: number
   at: number
 }
 

@@ -144,6 +144,64 @@ describe('a proposal', () => {
   })
 })
 
+describe('the person editing a proposal', () => {
+  const edited = (w: Workflow, f: (steps: Workflow['steps']) => Workflow['steps']): Workflow => ({ ...w, steps: f(w.steps.map((x) => ({ ...x }))) })
+
+  it('replaces the draft with the edited workflow, keeps what it was made against, and says how many steps were edited', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    expect(s.builder.view('a1', s.project)!.edited).toBeUndefined()
+    const next = edited(billing, (st) => [...st.slice(0, 3), { id: 'security', kind: 'approve', name: 'Security review' }, st[3]!])
+    const v = s.builder.edit('a1', s.project, next)
+    expect(v.workflow).toEqual(next)
+    expect(v.edited).toBe(1)
+    expect(s.builder.view('a1', s.project)!.workflow).toEqual(next)
+    next.steps[1]!.run = 'npm run test:unit'
+    expect(s.builder.edit('a1', s.project, next).edited).toBe(2)
+  })
+
+  it('is refused with every problem named, and the draft stays as it was', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    const bad = edited(billing, (st) => st.map((x) => (x.id === 'tests' ? { id: 'tests', kind: 'check' as const } : x.id === 'lint' ? { ...x, retries: 9 } : x)))
+    expect(() => s.builder.edit('a1', s.project, bad)).toThrow(/a check step needs "run"[\s\S]*"retries" must be a whole number/)
+    expect(s.builder.view('a1', s.project)!.workflow).toEqual(billing)
+  })
+
+  it('may not change the id, name a skill the library has not got, or edit when nothing is proposed', () => {
+    const s = setup()
+    expect(() => s.builder.edit('a1', s.project, billing)).toThrow('Nothing is proposed.')
+    s.builder.propose('a1', s.project, json(billing))
+    expect(() => s.builder.edit('a1', s.project, { ...billing, id: 'other' })).toThrow('The id cannot change')
+    const withSkill = edited(wf('billing-change', 'Billing change', [{ id: 'build', kind: 'work' }]), (st) => st.map((x) => ({ ...x, skills: ['no-such-skill'] })))
+    s.builder.propose('a2', s.project, json(wf('billing-change', 'Billing change', [{ id: 'build', kind: 'work' }])))
+    expect(() => s.builder.edit('a2', s.project, withSkill)).toThrow(/no skill "no-such-skill"/)
+    expect(s.builder.edit('a2', s.project, edited(withSkill, (st) => st.map((x) => ({ ...x, skills: ['tdd'] })))).workflow.steps[0]!.skills).toEqual(['tdd'])
+  })
+
+  it('can be undone, back to what the builder proposed, and a new proposal from the builder starts over', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    s.builder.edit('a1', s.project, edited(billing, (st) => st.slice(0, 2)))
+    expect(s.builder.undoEdits('a1', s.project).workflow).toEqual(billing)
+    expect(s.builder.view('a1', s.project)!.edited).toBeUndefined()
+    s.builder.edit('a1', s.project, edited(billing, (st) => st.slice(0, 2)))
+    const other = wf('billing-change', 'Billing change', [{ id: 'build', kind: 'work' }])
+    s.builder.propose('a1', s.project, json(other))
+    expect(s.builder.undoEdits('a1', s.project).workflow).toEqual(other)
+  })
+
+  it('is what is saved: saving writes the edited workflow, and the edits survive a restart', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    const next = edited(billing, (st) => st.slice(0, 3))
+    s.builder.edit('a1', s.project, next)
+    expect(s.make().view('a1', s.project)!.workflow).toEqual(next)
+    const entry = s.builder.save('a1', s.project, 'project')
+    expect(entry.workflow!.steps.map((x) => x.id)).toEqual(['plan', 'tests', 'lint'])
+  })
+})
+
 describe('saving a proposal', () => {
   it('to the project writes the file, approves its commands for that exact version, and clears the draft', () => {
     const s = setup()
