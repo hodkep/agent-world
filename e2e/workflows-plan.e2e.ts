@@ -215,3 +215,52 @@ test('the dial changes what task_begin tells the agent: at economy a small chang
     await shutdown()
   }
 })
+
+test('a plan with no open questions says so, and the person can still add a note, which reaches the agent with the approval', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-wfplan-note-')))
+  const repo = join(tmp, 'shop')
+  mkdirSync(repo)
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' }).trim()
+  git(repo, 'init', '-q', '-b', 'main')
+  writeFileSync(join(repo, 'README.md'), '# shop\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'init')
+  mkdirSync(join(tmp, 'home'), { recursive: true })
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  const argsLog = join(tmp, 'args.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    await expect.poll(() => readFileSync(argsLog, 'utf8').includes('--settings')).toBe(true)
+    const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
+    const flag = (f: string) => launch[launch.indexOf(f) + 1]!
+    const mcpCfg = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
+    const hook = JSON.parse(readFileSync(flag('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0] as { url: string; headers: Record<string, string> }
+    const client = new Client({ name: 'test', version: '1' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(mcpCfg.url), { requestInit: { headers: mcpCfg.headers } }))
+    await client.callTool({ name: 'task_begin', arguments: { title: 'Add a dark-mode toggle' } })
+    mkdirSync(join(ada!.cwd, '.agent-world'), { recursive: true })
+    writeFileSync(join(ada!.cwd, '.agent-world', 'plan.md'), GOOD.replace(/## Open questions[\s\S]*## Steps/, '## Open questions\nnone\n\n## Steps'))
+    await client.callTool({ name: 'plan_submit', arguments: {} })
+    await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada!.cwd, hook_event_name: 'Stop' }) })
+
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const panel = page.getByRole('region', { name: 'Plan from ada' })
+    await expect(panel).toContainText('ada asked no questions.')
+    await panel.getByRole('button', { name: '＋ Add a note for ada' }).click()
+    await panel.getByLabel('A note for ada').fill('Keep it behind a flag.')
+    await panel.getByRole('button', { name: 'Approve plan' }).click()
+    await expect(panel).toBeHidden()
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await expect(log).toContainText('Your plan was approved', { timeout: 15_000 })
+    await expect(log).toContainText('Their note: Keep it behind a flag.')
+    await client.close()
+  } finally {
+    await shutdown()
+  }
+})

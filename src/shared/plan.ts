@@ -90,7 +90,7 @@ export function parsePlan(md: string): PlanResult {
 export function planReply(state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: { question: string; answer: string }[] }): string {
   const answers = o.answers?.length ? `\nTheir answers:\n${o.answers.map((a) => `- ${a.question} ${a.answer}`).join('\n')}` : ''
   if (state === 'released') return 'The person lifted the hold on your edits without approving the plan. Go ahead.'
-  if (state === 'approved') return `Your plan was approved. Go ahead and build it.${answers}`
+  if (state === 'approved') return `Your plan was approved. Go ahead and build it.${o.note?.trim() ? `\nTheir note: ${o.note.trim()}` : ''}${answers}`
   return `The person asked for changes to your plan.${o.note ? `\n${o.note}` : ''}${answers}\nRevise .agent-world/plan.md and call plan_submit again. Do not edit yet.`
 }
 

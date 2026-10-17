@@ -48,7 +48,7 @@ While a run is open, a track sits above the agent's chat: its steps as stations,
 
 ## Approve a plan, checks and steps
 
-- A **Plan gate** panel opens in the chat. Answer the open questions, then **Approve plan**, or **Request changes** and **Send back**. **Let name edit without approval** lifts the hold, and the run records it.
+- A **Plan gate** panel opens in the chat. Answer the open questions (a plan with none says the agent asked no questions), optionally click **＋ Add a note for name** to write the agent a note, then **Approve plan**, or **Request changes** and **Send back**. **Let name edit without approval** lifts the hold, and the run records it.
 - A **check** step is a command the app runs in the agent's worktree, with a 5 minute limit. A project's commands first need **Approve and run** (or **Don't run**), and again after the file changes. A failing check goes back to the agent, up to two retries by default, then **Run again** or **Skip this check**.
 - A **your approval** step waits for **Approve** or **Send back**.
 
