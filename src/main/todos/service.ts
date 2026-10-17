@@ -9,7 +9,7 @@ import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  INBOX, MAX_LISTS, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, MAX_LISTS, currentTodoOf, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -448,6 +448,24 @@ export function createTodoService(d: TodoDeps) {
         const board = claimTodo(b, id, actor(a), now())
         return { board, out: lastTodo(board, id) }
       })
+    },
+    /** The id of the task the agent is on, if any: the one it claimed last that is not finished. */
+    currentOf(agentId: string): string | undefined {
+      const a = d.agent(agentId)
+      return a ? currentTodoOf(load(keyOf(a.repoPath)), agentId)?.id : undefined
+    },
+    /** A workflow run ended: the tasks it belongs to that are still the agent's and in hand are finished with it, so the agent need not say so twice. Others are left as they are. */
+    finishLinked(agentId: string, ids: string[], summary: string) {
+      const a = d.agent(agentId)
+      if (!a || ids.length === 0) return
+      const key = keyOf(a.repoPath)
+      const open = load(key).todos.filter((t) => ids.includes(t.id) && t.status === 'doing' && t.claimedBy?.id === agentId)
+      if (!open.length) return
+      const l = d.lastMessage(a.id)
+      let board = load(key)
+      for (const t of open) board = doneTodo(board, t.id, actor(agentOf(agentId)), `Finished with its run${summary ? `: ${summary}` : ''}`, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) })
+      save(key, board)
+      for (const t of open) recordWork(agentOf(agentId), t.id)
     },
     doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }): Todo {
       const a = agentOf(agentId)

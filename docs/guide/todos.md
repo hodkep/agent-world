@@ -30,6 +30,7 @@ Click a task to open its panel; click it again to close it. In the panel you can
 - Edit the title and **Notes**, and tick **Needs you**.
 - Click **Open the message it was made in**, or on a finished task **Open the message it was finished in**. The chat of that agent opens at the message.
 - Read **How it was done** (the approach, commits and files) and **Activity**.
+- See **Workflow run**, when the agent began a workflow run while on this task: it says how the run stands, and a click opens it in **Workflows**. Finishing the run finishes the task if the agent has not. The task also shows as a `todo#N` chip on the run's row in the **Runs** ledger.
 - Under **Ask an agent**, choose an agent, then **Ask a question** or **Work on it**, and click **Send to name**. **Work on it** also puts the agent on the task.
 - Click **Mark done** (or **Reopen**), or **Remove**. Remove deletes the task for you and for the agents.
 

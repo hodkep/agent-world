@@ -271,3 +271,8 @@ export function moveTodo(b: TodoBoard, id: string, list: string, index: number, 
 
 /** How many open tasks are waiting on the person. */
 export const needsYou = (b: TodoBoard): number => b.todos.filter((t) => t.needsYou && t.status !== 'done').length
+
+/** The task an agent is on: the one it claimed last that is not finished. A workflow run begun while it is on one is linked to it. */
+export function currentTodoOf(b: TodoBoard, agentId: string): Todo | undefined {
+  return b.todos.filter((t) => t.status === 'doing' && t.claimedBy?.id === agentId).sort((x, y) => y.updatedAt - x.updatedAt || Number(y.id) - Number(x.id))[0]
+}

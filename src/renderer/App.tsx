@@ -63,6 +63,7 @@ import { PlanGate } from './workflows/PlanGate'
 import { LandBand } from './workflows/LandBand'
 import { RunTrack } from './workflows/RunTrack'
 import { useLandingHolds } from './workflows/useLandingHolds'
+import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
 import { landingPill, trackOf } from '../shared/runTrack'
 import { pendingPlans } from '../shared/runs'
 import { checkPanels, waitingSteps } from '../shared/steps'
@@ -1246,6 +1247,8 @@ export function App() {
               setView('chat')
             }
           }}
+          runsOf={(id) => wf.runs.filter((r) => r.todos?.includes(id)).map((r) => ({ id: r.id, workflow: r.workflow?.name ?? 'Run', stands: GROUP_STANDS[groupKeyOf(r, gateTiles(r, ctxFor(r)))] }))}
+          onOpenRun={(id) => (setTodoOpen(false), setTodoFocus(null), setRunFocus(id), setReport('workflows'))}
           onClose={() => (setTodoOpen(false), setTodoFocus(null))}
           onOpenMessage={(l) => (setTodoOpen(false), openMsg(l))}
         />

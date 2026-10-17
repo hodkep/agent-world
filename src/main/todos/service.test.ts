@@ -106,6 +106,28 @@ describe('the todo service', () => {
     expect(svc.board('/work/shop').todos[0]!.stale).toBeUndefined()
   })
 
+  it('knows the task an agent is on, the one it claimed last that is not finished', () => {
+    const { svc } = make()
+    expect(svc.currentOf('a1')).toBeUndefined()
+    const first = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    expect(svc.currentOf('a1')).toBe(first.id)
+    expect(svc.currentOf('b1')).toBeUndefined()
+    svc.doneByAgent('a1', first.id, 'fixed')
+    expect(svc.currentOf('a1')).toBeUndefined()
+  })
+
+  it('finishes the tasks of a run that are still the agent\'s and in hand when the run ends, and leaves the others alone', () => {
+    const { svc } = make()
+    const mine = svc.trackRequest('a1', 'please fix the login bug on Safari')!
+    const theirs = svc.trackRequest('b1', 'please build a settings page for the accounts')!
+    svc.finishLinked('a1', [mine.id, theirs.id, '999'], 'Redirect keeps the query string.')
+    const board = svc.board('/work/shop').todos
+    expect(board.find((t) => t.id === mine.id)).toMatchObject({ status: 'done', doneNote: 'Finished with its run: Redirect keeps the query string.' })
+    expect(board.find((t) => t.id === theirs.id)!.status).toBe('doing')
+    svc.finishLinked('a1', [mine.id], 'again')
+    expect(svc.board('/work/shop').todos.find((t) => t.id === mine.id)!.doneNote).toBe('Finished with its run: Redirect keeps the query string.')
+  })
+
   it('does not make a task for small talk, and finishes the one it made when the agent says so', () => {
     const { svc } = make()
     expect(svc.trackRequest('a1', 'thanks')).toBeUndefined()

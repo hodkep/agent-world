@@ -343,19 +343,24 @@ const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Stil
  * The runs by what there is to do about them: those held for the person, those still going, those that finished with a gate missed or overridden, those that finished clean
  * (a retried check or a plan sent back is still clean), and those stopped. A run the app started from a commit is not trouble for never having been announced.
  */
+export function groupKeyOf(r: Run, tiles: Tile[]): GroupKey {
+  if (r.status === 'stopped') return 'stopped'
+  if (tiles.some((t) => t.kind === 'wait')) return 'needs'
+  if (r.status === 'open') return 'open'
+  return tiles.some((t) => t.gate !== 'told' && t.kind === 'bad') ? 'trouble' : 'clean'
+}
+
+/** How a run is said to stand, in the words of its group. */
+export const GROUP_STANDS: Record<GroupKey, string> = { needs: 'needs you', open: 'still open', trouble: 'landed with trouble', clean: 'landed clean', stopped: 'stopped' }
+
 export function groupRuns(runs: Run[], ctxFor: (run: Run) => StepContext): RunGroup[] {
   const buckets: Record<GroupKey, Run[]> = { needs: [], open: [], trouble: [], clean: [], stopped: [] }
   let retried = 0
   for (const r of [...runs].sort((a, b) => b.startedAt - a.startedAt)) {
     const tiles = gateTiles(r, ctxFor(r))
-    if (r.status === 'stopped') buckets.stopped.push(r)
-    else if (tiles.some((t) => t.kind === 'wait')) buckets.needs.push(r)
-    else if (r.status === 'open') buckets.open.push(r)
-    else if (tiles.some((t) => t.gate !== 'told' && t.kind === 'bad')) buckets.trouble.push(r)
-    else {
-      buckets.clean.push(r)
-      if (tiles.some((t) => t.kind === 'trouble')) retried++
-    }
+    const key = groupKeyOf(r, tiles)
+    buckets[key].push(r)
+    if (key === 'clean' && tiles.some((t) => t.kind === 'trouble')) retried++
   }
   const notes: Record<GroupKey, string> = { needs: '', open: '', trouble: 'went ahead past a gate', clean: retried > 0 ? `${retried} needed a second try` : '', stopped: '' }
   return (['needs', 'open', 'trouble', 'clean', 'stopped'] as const).filter((k) => buckets[k].length > 0).map((key) => ({ key, title: GROUP_TITLES[key], note: notes[key], runs: buckets[key] }))

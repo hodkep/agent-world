@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INBOX, MAX_LISTS, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
+import { INBOX, MAX_LISTS, currentTodoOf, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -238,5 +238,22 @@ describe('moving a task by list name through an update', () => {
     expect(b.lists).toContain('Application')
     expect(b.todos[0]).toMatchObject({ list: 'Application', title: 'Wire the Anthropic key' })
     expect(b.todos[0]!.history.at(-1)).toMatchObject({ what: 'moved', note: 'Inbox → Application' })
+  })
+})
+
+describe('the task an agent is on', () => {
+  const tasks = () => {
+    let b = emptyBoard()
+    b = claimTodo(addTodo(b, { title: 'older', list: INBOX }, you, 100).board, '1', ada, 110)
+    b = claimTodo(addTodo(b, { title: 'newer', list: INBOX }, you, 200).board, '2', ada, 210)
+    return b
+  }
+  it('is the one it claimed last that it has not finished', () => {
+    expect(currentTodoOf(tasks(), 'a1')!.id).toBe('2')
+    expect(currentTodoOf(doneTodo(tasks(), '2', ada, 'ok', 300), 'a1')!.id).toBe('1')
+  })
+  it('is nothing for an agent that is on none, or another agent\'s task', () => {
+    expect(currentTodoOf(tasks(), 'someone-else')).toBeUndefined()
+    expect(currentTodoOf(addTodo(emptyBoard(), { title: 'open', list: INBOX }, you, 1).board, 'a1')).toBeUndefined()
   })
 })

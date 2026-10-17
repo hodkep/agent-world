@@ -1,7 +1,7 @@
 import type { Run } from '../../shared/runs'
 import type { StepContext } from '../../shared/steps'
 import type { RunSpend } from '../../shared/runStats'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import type { AgentRecord } from '../../shared/types'
 import { Modal } from '../panel/Modal'
 import { BuilderSplit } from './BuilderSplit'
@@ -14,6 +14,10 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
   const [tab, setTab] = useState<'runs' | 'insights' | 'workflows'>('runs')
   const [builder, setBuilder] = useState<{ agent: AgentRecord; editing?: string; editingId?: string } | null>(null)
   const [focus, setFocus] = useState('')
+  // Pointed at a run (from a task's link, or the agent's tab): the Runs tab is where it opens.
+  useEffect(() => {
+    if (focusRun) setTab('runs')
+  }, [focusRun])
   const now = Date.now()
   return (
     <Modal label="Workflows" className="library-modal wf-window" onClose={onClose}>

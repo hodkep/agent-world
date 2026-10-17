@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -326,6 +326,11 @@ describe('the runs grouped by what to do about them', () => {
   })
   it('lists the newest run first inside a group', () => {
     expect(groups.find((g) => g.key === 'clean')!.runs.map((r) => r.id)).toEqual(['clean-new', 'clean-retried', 'clean-old'])
+  })
+  it('says which group one run is in, the way the ledger groups them, so the todo board can say how a task\'s run went', () => {
+    const byId = (id: string) => runs.find((r) => r.id === id)!
+    const key = (id: string) => groupKeyOf(byId(id), gateTiles(byId(id), ctx))
+    expect([key('needs'), key('open'), key('trouble'), key('clean-old'), key('stopped')]).toEqual(['needs', 'open', 'trouble', 'clean', 'stopped'])
   })
   it('puts a run that landed anyway or missed a gate under trouble, and one that needed a second try among the clean, counted', () => {
     expect(groups.find((g) => g.key === 'trouble')!.runs.map((r) => r.id)).toEqual(['trouble'])
