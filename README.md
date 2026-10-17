@@ -58,7 +58,7 @@ Each agent works on its own branch (`aw/<name>`) in its own git worktree, and th
 
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
-A workflow is a plan you approve, checks that run, a review of the branch against the plan, and landing. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them.
+A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and landing. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
 
 ![The Runs tab: two charts and a ledger of runs grouped by outcome](docs/images/runs.png)
 
@@ -96,7 +96,7 @@ Short, task-shaped pages, one for each area, each with a picture.
 | [The office](docs/guide/the-office.md) | Reading the office, hiring, waking, answering requests |
 | [Chat and dialogs](docs/guide/chat-and-dialogs.md) | Talking to an agent and answering what it asks |
 | [Code and preview](docs/guide/code-and-preview.md) | Changes, files, the terminal, tools, preview, finishing a branch |
-| [Workflows](docs/guide/workflows.md) | Plans, checks, review, landing, Runs and Insights |
+| [Workflows](docs/guide/workflows.md) | Plans, checks, review, landing, Runs, Insights, the builder, and runs on the todo board |
 | [Library and playbook](docs/guide/library-and-playbook.md) | Skills, instructions, prompts and when agents use them |
 | [Todos](docs/guide/todos.md) | The shared board |
 | [Settings and updates](docs/guide/settings-and-updates.md) | Preferences, accounts, providers, updates |
