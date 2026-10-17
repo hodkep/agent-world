@@ -14,7 +14,7 @@ The first public release.
 - Hiring agents from roles, groups, clones, hand-offs for review, and subagents shown as interns.
 - A shared library of skills, instructions and prompts, and a playbook that says when an agent should reach for each of them. The rulebook is given to the agent, which decides what applies; what it read and passed over is shown.
 - Workflows, with checks, an audit and a run track, a todo board the agents and you share, and usage limits shown as the power plant.
-- Installers for macOS, Windows and Linux, and update checks against the project's GitHub releases (or an address set in Settings).
+- Installers for macOS, experimental Windows and Linux builds that have not been run by hand, and update checks against the project's GitHub releases (or an address set in Settings).
 
 ### Notes
 

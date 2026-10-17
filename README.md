@@ -5,7 +5,7 @@
 <p align="center">
   <img alt="release v0.1.0" src="https://img.shields.io/badge/release-v0.1.0-f2c230?style=flat-square&labelColor=12101a">
   <img alt="licence MIT" src="https://img.shields.io/badge/licence-MIT-f2c230?style=flat-square&labelColor=12101a">
-  <img alt="platforms macOS, Windows, Linux" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-f2c230?style=flat-square&labelColor=12101a">
+  <img alt="platform: macOS, with Windows and Linux builds that are experimental" src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20and%20Linux%20experimental-f2c230?style=flat-square&labelColor=12101a">
   <img alt="Node 22 or newer" src="https://img.shields.io/badge/node-22%2B-f2c230?style=flat-square&labelColor=12101a">
 </p>
 
@@ -126,7 +126,7 @@ flowchart LR
 This is the first public release, **v0.1.0**.
 
 - **macOS** is the platform it has been used on. The Mac app is not signed with an Apple Developer ID yet, so the first launch needs **Open Anyway**, and the app tells you when a newer version is out but cannot install it itself. The release workflow signs and notarises the build once the Apple signing secrets are set.
-- **Windows and Linux** installers are built and tested by the CI workflow. They have not been tried by hand yet.
+- **Windows and Linux** installers are built by the release workflow but have not been run by hand, so treat them as experimental. Setup's Install button runs a shell installer meant for macOS and Linux, and it has not been tried on Windows.
 - **Programs:** Claude Code and Antigravity (`agy`).
 - **Next:** signed Mac builds, more agent programs behind the same seam ([docs/providers-design.md](docs/providers-design.md)), and further looks for the office.
 

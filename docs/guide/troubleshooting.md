@@ -74,6 +74,6 @@ When you restart the app, every agent is asleep. Its chat says "<name> is asleep
 
 ## Windows and Linux
 
-Installers for Windows and Linux are built and covered by the project's automated build, but have not been tried by hand. The Windows build is not signed, so Windows shows its SmartScreen warning on first run. For problems on either system, use the issue templates described in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Installers for Windows and Linux are built by the release workflow but have not been tried by hand, so they are experimental. The Windows build is not signed, so Windows shows its SmartScreen warning on first run. For problems on either system, use the issue templates described in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 Next: [Getting started](getting-started.md)
