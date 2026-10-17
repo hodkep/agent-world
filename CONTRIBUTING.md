@@ -32,6 +32,18 @@ PILOT=1 PILOT_RUNS=3 PILOT_MAX_USD=2 pnpm exec vitest run -c vitest.pilot.config
 
 Each file says at the top what it measures and what it costs.
 
+## Pictures for the README and the guide
+
+Every picture in `docs/images/` is taken from the real app, driven by fake agents, so it costs no tokens and needs no sign-in. One command takes them all again, including the hero GIF:
+
+```
+pnpm shots
+```
+
+It builds the app, runs `e2e/shots.e2e.ts` (skipped in a normal test run, switched on by `AW_SHOTS=1`) and then redraws the banner and the pixel icons. The hero GIF needs [ffmpeg](https://ffmpeg.org) (`brew install ffmpeg`). Each picture is one test in that file; `e2e/shotsKit.ts` makes the app and the project, and `e2e/shots-claude.mjs` is the scripted stand-in for `claude` that gives each named agent its activity (idle, thinking, running, permission, asleep and so on). To retake one picture: `AW_SHOTS=1 pnpm exec playwright test e2e/shots.e2e.ts -g "permission"` after `pnpm build`.
+
+Keep every picture under 1 MB and the GIF under 5 MB (the test fails above that for the GIF). The banner and the small icons beside the README's headings are drawn as SVG by `scripts/readme-art.mjs` from the app's own pixel lettering, figure and palette (`pnpm readme:art`); nothing is downloaded and no font is used.
+
 ## Changes
 
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`, with a subject that says what the change does for someone using the app (`fix(chat): …`, `feat(library): …`). Types are feat, fix, docs, style, refactor, perf, test, build, ci, chore and revert. Keep a change in one commit when it is one idea, and say why in the body only when the subject cannot.

@@ -282,3 +282,30 @@ test('hero: hire, the character walks in, works, asks permission, approved from 
     await o.shutdown()
   }
 })
+
+test('settings: the dialog with its tabs', async () => {
+  const o = await shotApp({ size: { width: 1400, height: 760 } })
+  try {
+    await o.page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const dialog = o.page.getByRole('dialog', { name: 'Settings' })
+    await expect(dialog).toBeVisible()
+    await o.page.waitForTimeout(700)
+    await shootElement(dialog, 'settings')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('first run: the first questions of a new Claude Code, answered in the chat', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1', FAKE_ONBOARDING: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    const card = o.page.getByRole('region', { name: 'ada is waiting for you' })
+    await expect(card).toContainText('Choose the text style', { timeout: 20_000 })
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'first-run')
+  } finally {
+    await o.shutdown()
+  }
+})
