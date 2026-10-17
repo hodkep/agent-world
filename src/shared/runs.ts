@@ -10,6 +10,8 @@ export type RunEvent =
   | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string; /** Started by the app from a commit, because the agent never announced the task. */ auto?: boolean; /** The workflow the task follows, as its file was when the task began. */ workflow?: RunWorkflow }
   /** A follow-up after the run finished: the same run, round n + 1. */
   | { k: 'round'; t: number; run: string }
+  /** The run belongs to this task of the todo board: the agent was on it when the run began or a follow-up round began. */
+  | { k: 'todo'; t: number; run: string; todo: string }
   /** The workflow file changed since the run took its copy and a follow-up round began: the run takes the new copy, so its commands are asked about again. */
   | { k: 'workflow'; t: number; run: string; workflow: RunWorkflow }
   | { k: 'done'; t: number; run: string; summary?: string }
@@ -132,6 +134,8 @@ export interface Run {
   endedAt?: number
   summary?: string
   rounds: Round[]
+  /** The tasks of the todo board the run belongs to (ids), in the order they were linked. */
+  todos?: string[]
   /** How often work was sent back to it after it said it was done (a check that failed, or the person's changes). */
   reopened?: number
   /** The audit of the branch head the person last looked at, if one ran. */
@@ -157,6 +161,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       delete r.endedAt
       delete r.summary
       delete round.endedAt
+    } else if (e.k === 'todo') {
+      if (!r.todos?.includes(e.todo)) r.todos = [...(r.todos ?? []), e.todo]
     } else if (e.k === 'workflow') {
       r.workflow = e.workflow
     } else if (e.k === 'round') {

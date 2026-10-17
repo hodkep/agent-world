@@ -54,6 +54,12 @@ describe('what a run is, read from its log', () => {
     expect(r!.rounds).toHaveLength(2)
   })
 
+  it('a todo linked to the run is kept with it, once however often it is said, in the order they were linked', () => {
+    const [r] = reduceRuns([begin('r1', 100), { k: 'todo', t: 110, run: 'r1', todo: '14' }, { k: 'todo', t: 120, run: 'r1', todo: '14' }, { k: 'todo', t: 130, run: 'r1', todo: '15' }])
+    expect(r!.todos).toEqual(['14', '15'])
+    expect(reduceRuns([begin('r2', 100)])[0]!.todos).toBeUndefined()
+  })
+
   it('a stopped run is closed as stopped, and runs come out oldest first', () => {
     const rs = reduceRuns([begin('r1', 100), begin('r2', 150, 'Import CSV', 'a2'), { k: 'stop', t: 300, run: 'r2' }])
     expect(rs.map((r) => [r.id, r.status])).toEqual([['r1', 'open'], ['r2', 'stopped']])

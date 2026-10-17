@@ -487,6 +487,8 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   },
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
+  // A run begun while the agent is on a task of the todo board belongs to it.
+  todoOf: (id) => todoService.currentOf(id),
   who: (id) => {
     const a = byId(id)
     return a ? { name: a.name, project: a.repoPath } : undefined
@@ -602,7 +604,8 @@ const todoService = createTodoService({
 const todoRemind = (id: string, prompt: string): string => {
   try {
     const a = byId(id)
-    if (!a || a.parent) return ''
+    // Not for the workflow builder either: its chats are the app's own, not requests of the person's.
+    if (!a || a.parent || a.builder) return ''
     // A finished task that looks like this request is pointed at, whichever mode: it costs a line only when one matches.
     const similar = similarLine(todoService.similarDone(id, prompt))
     if (prefs.todoTracking !== 'full') return [reminderLine('deferred', prompt), similar].filter(Boolean).join('\n')
@@ -1291,7 +1294,13 @@ async function main() {
         const planFirst = run?.rounds.length === 1 && workflows.planWanted(caller)
         return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst, skills: skillStates(run.workflow, skillSource.items(), skillSource.playbook(a?.repoPath ?? null)) }) }) }
       },
-      done: (caller, summary) => (workflows.done(caller, summary), send('workflows'), void kickChecks(caller)),
+      done: (caller, summary) => {
+        workflows.done(caller, summary)
+        // The tasks of the board this run belongs to are finished with it, if the agent has not said so itself.
+        todoService.finishLinked(caller, workflows.runs().findLast((r) => r.agent === caller)?.todos ?? [], summary ?? '')
+        send('workflows')
+        void kickChecks(caller)
+      },
       stepDone: (caller, step) => {
         const r = workflows.stepDone(caller, step)
         send('workflows')

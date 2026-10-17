@@ -10,7 +10,7 @@ import { Workflows } from './service'
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
@@ -30,6 +30,7 @@ function make(opts: { enabled?: boolean } = {}) {
       ask: (agent, prompt, model) => (state.askedFor.push(agent), state.asked.push(prompt), state.models.push(model ?? ''), state.reply(prompt)),
       now: () => (state.t += 10),
       newId: () => `r${++state.n}`,
+      todoOf: (id) => state.todoOf(id),
       who: (id) => (id === 'a1' ? { name: 'ada', project: '/p' } : id === 'a2' ? { name: 'bo', project: '/p' } : undefined)
     })
   return { state, open, wf: open() }
@@ -130,6 +131,30 @@ describe('follow-ups', () => {
     expect(wf.runs()[0]!.rounds).toHaveLength(1)
     const fresh = wf.begin('a2', 'Brand new', { followUp: true })
     expect(wf.runs().find((r) => r.id === fresh)).toMatchObject({ agent: 'a2', title: 'Brand new' })
+  })
+})
+
+describe('the todo a run belongs to', () => {
+  it('is linked when a task begins while the agent is on a todo, and a follow-up on the same run links the todo it is on then', () => {
+    const { wf, state } = make()
+    state.todoOf = () => '14'
+    wf.begin('a1', 'Add a dark-mode toggle')
+    expect(wf.runs()[0]!.todos).toEqual(['14'])
+    wf.done('a1')
+    state.todoOf = () => '15'
+    wf.begin('a1', 'Missed the settings page', { followUp: true })
+    expect(wf.runs()[0]!.todos).toEqual(['14', '15'])
+    wf.begin('a1', 'More', { followUp: true })
+    expect(wf.runs()[0]!.todos).toEqual(['14', '15'])
+  })
+
+  it('is nothing when the agent is on no todo, and the link survives a restart', () => {
+    const { wf, state, open } = make()
+    wf.begin('a1', 'No todo')
+    expect(wf.runs()[0]!.todos).toBeUndefined()
+    state.todoOf = () => '9'
+    wf.begin('a2', 'With one')
+    expect(open().runs().find((r) => r.agent === 'a2')!.todos).toEqual(['9'])
   })
 })
 

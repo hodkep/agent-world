@@ -1,8 +1,9 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { type Invocations, type LedgerRow, type StageCount, type StageName, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stageCounts, timelineOf } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
+import { openTodo } from '../todos/todoStore'
 
 const STAGES: { stage: StageName; label: string }[] = [{ stage: 'plan', label: 'Plan' }, { stage: 'check', label: 'Checks' }, { stage: 'review', label: 'Review' }, { stage: 'land', label: 'Landing' }]
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' })
@@ -86,6 +87,10 @@ function reviewCell(r: LedgerRow, anyway: boolean): { text: string; tone: string
 export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; now: number; /** A run to show opened, when the window was opened on it. */ initial?: string }) {
   const [days, setDays] = useState<7 | 30>(7)
   const [openId, setOpenId] = useState<string | null>(initial ?? null)
+  // The window was already open when another part of the app pointed at a run (a task's link): open that one.
+  useEffect(() => {
+    if (initial) setOpenId(initial)
+  }, [initial])
   const shown = runsWithin(runs, days, now)
   const tiles = new Map(shown.map((r) => [r.id, gateTiles(r, ctxFor(r))]))
   const rows = new Map(shown.map((r) => [r.id, ledgerRow(r, tiles.get(r.id)!, runBar(r, now))]))
@@ -136,7 +141,10 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                       <Fragment key={run.id}>
                         <tr className={`rb-run ${g.key} ${open ? 'is-open' : ''}`} onClick={() => setOpenId(open ? null : run.id)}>
                           <td><i className={`rb-dot ${g.key}`} aria-hidden="true" /></td>
-                          <td className="rb-t"><button aria-expanded={open} aria-label={`${run.name}: ${run.title}`}><b>{run.name} · {run.title}</b><small>{meta}</small></button></td>
+                          <td className="rb-t">
+                            <button aria-expanded={open} aria-label={`${run.name}: ${run.title}`}><b>{run.name} · {run.title}</b><small>{meta}</small></button>
+                            {run.todos?.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={(e) => (e.stopPropagation(), openTodo(id))}>todo#{id}</button>)}
+                          </td>
                           <td className={`r num ${run.status === 'open' ? 'dim' : ''}`}>{row.wallMs === null ? '—' : formatDuration(row.wallMs)}</td>
                           <td className={`r num ${share >= 0.25 ? 'you' : ''}`}>{row.youMs === 0 ? '0' : formatDuration(row.youMs)}{share >= 0.25 && <span className="rb-share" aria-hidden="true"><i style={{ width: `${Math.round(100 * share)}%` }} /></span>}</td>
                           <td className={checks.tone}>{checks.text}</td>

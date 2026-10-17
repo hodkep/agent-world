@@ -80,10 +80,20 @@ function Grow({ value, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaEleme
   return <textarea ref={el} value={value} {...rest} />
 }
 
-export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onAsk, confirm }: {
+/** A workflow run a task belongs to, and how it stands. */
+export interface TodoRun {
+  id: string
+  workflow: string
+  stands: string
+}
+
+export function TodoDetail({ t, folder, agents, runs = [], onOpenRun, onClose, act, onOpenMessage, onAsk, confirm }: {
   t: Todo
   folder: string
   agents: AskAgent[]
+  /** The workflow runs this task belongs to. */
+  runs?: TodoRun[]
+  onOpenRun?: (runId: string) => void
   onClose: () => void
   act: (p: Promise<unknown>) => void
   onOpenMessage: (l: MessageLink) => void
@@ -107,6 +117,14 @@ export function TodoDetail({ t, folder, agents, onClose, act, onOpenMessage, onA
         <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
         <div className="td-by">Made by <Who a={t.createdBy} /> · {agoLabel(t.createdAt)}{t.auto ? ' · from your message' : ''}</div>
       </section>
+      {runs.length > 0 && (
+        <section className="td-sec" aria-label="Workflow runs">
+          <h5>{runs.length === 1 ? 'Workflow run' : 'Workflow runs'}</h5>
+          {runs.map((r) => (
+            <button key={r.id} className="su-link td-run" onClick={() => onOpenRun?.(r.id)}>{r.workflow} · {r.stands} ↗</button>
+          ))}
+        </section>
+      )}
       {t.createdLink && <Source label="Where it came from" link={t.createdLink} open="Open the message it was made in" onOpen={onOpenMessage} />}
       {done && t.doneLink && <Source label="Where it was finished" link={t.doneLink} open="Open the message it was finished in" onOpen={onOpenMessage} />}
       {done && (t.doneHow || t.doneFiles?.length || t.doneCommits?.length) && (

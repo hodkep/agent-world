@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { INBOX, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
 import { useConfirm } from '../panel/ConfirmDialog'
-import { TodoDetail, type AskAgent } from './TodoDetail'
+import { TodoDetail, type AskAgent, type TodoRun } from './TodoDetail'
 import { Modal } from '../panel/Modal'
 import { TodoPad } from './TodoPad'
 import { actorTag, agoLabel, autoClosed, filterBoard, listGroups, makers, pickList, pickRange, splitList } from './todoView'
@@ -14,7 +14,7 @@ function Who({ a }: { a: Todo['createdBy'] }) {
 }
 
 /** The todo board of the open project in a large window: every list side by side, the person's tasks and the agents' together. */
-export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage, onAsk }: { folder: string; agents: AskAgent[]; focusId?: string | null; onClose: () => void; onOpenMessage: (link: MessageLink) => void; onAsk: (agentId: string, message: string, openChat: boolean) => Promise<void> }) {
+export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onClose, onOpenMessage, onAsk }: { folder: string; agents: AskAgent[]; focusId?: string | null; /** The workflow runs a task belongs to. */ runsOf?: (todoId: string) => TodoRun[]; onOpenRun?: (runId: string) => void; onClose: () => void; onOpenMessage: (link: MessageLink) => void; onAsk: (agentId: string, message: string, openChat: boolean) => Promise<void> }) {
   const [board, setBoard] = useState<TodoBoard>({ lists: [], todos: [], next: 1 })
   const [who, setWho] = useState('all')
   const [query, setQuery] = useState('')
@@ -198,7 +198,7 @@ export function TodoBoardModal({ folder, agents, focusId, onClose, onOpenMessage
             <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) (setWas((w) => new Map(w).set(newList.trim(), true)), act(window.aw.todos.addList(folder, newList))); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
           )}
         </div>
-        {open && <TodoDetail key={open.id} t={open} folder={folder} agents={agents} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
+        {open && <TodoDetail key={open.id} t={open} folder={folder} agents={agents} runs={runsOf?.(open.id)} onOpenRun={onOpenRun} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
         {picked.size > 0 && <BulkBar ids={[...picked]} board={board} lists={board.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))} menu={moveMenu} setMenu={setMoveMenu} moveTo={moveTo} setMoveTo={setMoveTo} onClear={() => setPicked(new Set())} onDo={bulk} confirm={ask} />}
       </div>}
       {confirmNode}

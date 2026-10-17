@@ -33,6 +33,8 @@ interface Deps {
   since: () => number
   now: () => number
   newId: () => string
+  /** The id of the task the agent is on, if any: a run begun then belongs to it. */
+  todoOf?: (agentId: string) => string | undefined
   /** Who an agent is, for the run's label; nothing for an agent the office no longer knows. */
   who: (agentId: string) => { name: string; project: string } | undefined
 }
@@ -42,7 +44,7 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: 
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'workflow', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -112,6 +114,7 @@ export class Workflows {
         const now = last.workflow ? this.deps.pick(agentId, last.workflow.id) : undefined
         if (now && last.workflow && now.id === last.workflow.id && now.hash !== last.workflow.hash) this.append({ k: 'workflow', t: this.deps.now(), run: last.id, workflow: now })
       }
+      this.link(last.id, agentId, last.todos)
       return last.id
     }
     // An agent that starts another task has moved on from the one it had open.
@@ -120,7 +123,14 @@ export class Workflows {
     const run = this.deps.newId()
     const workflow = this.deps.pick(agentId, opts.workflow)
     this.append({ k: 'begin', t: this.deps.now(), run, agent: agentId, name: who.name, project: who.project, title, ...(workflow && { workflow }) })
+    this.link(run, agentId)
     return run
+  }
+
+  /** The run belongs to the task the agent is on, if there is one and the run does not have it yet. */
+  private link(run: string, agentId: string, have: string[] = []) {
+    const todo = this.deps.todoOf?.(agentId)
+    if (todo && !have.includes(todo)) this.append({ k: 'todo', t: this.deps.now(), run, todo })
   }
 
   done(agentId: string, summary?: string) {

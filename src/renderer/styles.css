@@ -3250,3 +3250,7 @@ svg.pxg { display: block; flex: none; }
 .bs-history { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .bs-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .bs-history li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }
+
+.rb-tab .rb-todo { align-self: flex-start; margin-top: 2px; padding: 0 6px; font: 11px Menlo, Consolas, monospace; color: var(--ok-text); background: transparent; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok-text) 40%, var(--ink)); }
+.rb-tab .rb-todo:hover { background: color-mix(in srgb, var(--ok-text) 12%, var(--panel-3)); }
+.td-run { text-align: left; padding: 0; }
