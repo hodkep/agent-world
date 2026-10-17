@@ -27,7 +27,13 @@
       "electron",
       "esbuild",
       "node-pty"
-    ]
+    ],
+    "overrides": {
+      "dompurify": "^3.4.17",
+      "katex": "^0.18.10",
+      "lodash-es": "^4.18.1",
+      "source-map-js": "^1.2.2"
+    }
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
