@@ -7,8 +7,6 @@ import { hire, launchApp } from './launch'
 
 test('jumping between your messages lands each one in the middle, even past tall replies that were not drawn yet', async () => {
   test.setTimeout(120_000)
-  // On GitHub's macOS runner the jump lands a message early or a few dozen pixels off the middle about half the time (it passes alone, and under three workers on a laptop at a pixel ratio of 1, even with the CPU slowed): the scrolling settles as rows not drawn yet are measured, and on that runner it does not settle where it does elsewhere. Open question for the app, tracked as a todo; the spec still runs everywhere else.
-  test.skip(!!process.env.CI, 'the settle position is not stable on the CI runner; see the comment')
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-settle-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -33,7 +31,21 @@ test('jumping between your messages lands each one in the middle, even past tall
       await page.waitForTimeout(i % 3 === 0 ? 1500 : 350)
     }
     await expect(log.locator('.msg.user', { hasText: `msg ${N}` })).toBeVisible({ timeout: 20_000 })
-    await page.waitForTimeout(2000)
+    // The reply to the last message is in and the conversation has stopped growing: a slow machine answers late, and until then the last message cannot be put in the middle because there is hardly anything below it.
+    await expect(log.locator('.msg.assistant').last()).toContainText(`msg ${N}`, { timeout: 60_000 })
+    let height = -1
+    let steady = 0
+    await expect
+      .poll(
+        async () => {
+          const now = await log.evaluate((l) => l.scrollHeight)
+          steady = now === height ? steady + 1 : 0
+          height = now
+          return steady
+        },
+        { timeout: 30_000, intervals: [250] }
+      )
+      .toBeGreaterThanOrEqual(6)
 
     // Which of your messages is in the middle once the scrolling has stopped, and how far from the middle.
     const middle = async () => {
@@ -49,21 +61,23 @@ test('jumping between your messages lands each one in the middle, even past tall
         const mine = [...l.querySelectorAll<HTMLElement>('[data-user-msg]')]
         const off = mine.map((m) => Math.abs((m.getBoundingClientRect().top + m.getBoundingClientRect().bottom) / 2 - mid))
         const at = off.indexOf(Math.min(...off))
-        return { at, off: Math.round(off[at]!) }
+        // At the very end of the log nothing can be scrolled further: the last message cannot be put in the middle when there is less than half a screen under it.
+        return { at, off: Math.round(off[at]!), atEnd: l.scrollHeight - l.scrollTop - l.clientHeight < 2 }
       })
     }
     await box.press('Alt+ArrowUp')
     expect((await middle()).at).toBe(N - 1)
     for (let want = N - 2; want >= 0; want--) {
       await log.press('Alt+ArrowUp')
-      expect(await middle(), `going up to message ${want + 1}`).toEqual({ at: want, off: expect.any(Number) })
-      expect((await middle()).off).toBeLessThan(6)
+      expect(await middle(), `going up to message ${want + 1}`).toMatchObject({ at: want })
+      const settled = await middle()
+      expect(settled.off < 6 || settled.atEnd, `message ${want + 1} is ${settled.off}px off the middle`).toBe(true)
     }
     for (let want = 1; want < N; want++) {
       await log.press('Alt+ArrowDown')
       const m = await middle()
       expect(m.at, `going down to message ${want + 1}`).toBe(want)
-      expect(m.off).toBeLessThan(6)
+      expect(m.off < 6 || m.atEnd, `message ${want + 1} is ${m.off}px off the middle`).toBe(true)
     }
   } finally {
     await shutdown()
