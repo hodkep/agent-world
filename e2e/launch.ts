@@ -11,8 +11,9 @@ const inherited = () => Object.fromEntries(Object.entries(process.env).filter(([
 
 // Every launch gets a guaranteed teardown: a main-process error dialog blocks a normal close,
 // so we kill the process ourselves and always remove the test's temp dir.
+// AW_DPR1=1 runs the app at a pixel ratio of 1, as on a CI runner's screen (a laptop's is 2): some layouts and zoom steps differ.
 export async function launchApp(env: Record<string, string>, tmp: string) {
-  const app = await electron.launch({ args: [resolve(__dirname, '..')], env: { ...inherited(), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...hidden, ...env } })
+  const app = await electron.launch({ args: [resolve(__dirname, '..'), ...(process.env.AW_DPR1 ? ['--force-device-scale-factor=1'] : [])], env: { ...inherited(), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...hidden, ...env } })
   // The agent list starts folded away for real users; tests that are not about that keep it open, as most of them click rows in it.
   if (!env.AW_DEFAULT_LAYOUT) await app.context().addInitScript(() => localStorage.getItem('aw.compact') === null && localStorage.setItem('aw.compact', '0'))
   const proc = app.process()
