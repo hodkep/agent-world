@@ -1,6 +1,6 @@
 // The pictures of the README and the user guide, taken from the real app driven by fake agents (no tokens, no sign-in).
 // Not part of the normal run: `pnpm shots` runs it and saves under docs/images. Each test is one picture.
-import { statSync, writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -196,6 +196,64 @@ test('workflows: a merge held by git, as the band under the run track, and the a
     await o.page.getByRole('tab', { name: /^Workflow/ }).click()
     await o.page.waitForTimeout(600)
     await shoot(o.page, 'workflow-tab')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('workflows: the builder\'s draft, edited in place before it is saved', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' }, size: { width: 1400, height: 900 } })
+  try {
+    await o.page.locator('header').getByRole('button', { name: 'Workflows' }).click()
+    const win = o.page.getByRole('dialog', { name: 'Workflows' })
+    await win.getByRole('tab', { name: 'Workflows' }).click()
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => exists(o.argsLog) && readFileSync(o.argsLog, 'utf8').includes('--mcp-config')).toBe(true)
+    const tools = await officeTools(o.argsLog)
+    const draft = {
+      version: 1, id: 'billing-change', name: 'Billing change', when: 'A change touching src/billing/, including its tests.',
+      steps: [
+        { id: 'plan', kind: 'plan', gate: 'approve', brief: 'Say which billing code changes.' },
+        { id: 'build', kind: 'work', name: 'Build' },
+        { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass' },
+        { id: 'review', kind: 'audit', name: 'Security audit' },
+        { id: 'land', kind: 'merge' }
+      ]
+    }
+    await tools.call('workflow_propose', { file: JSON.stringify(draft) })
+    const proposal = win.getByRole('region', { name: 'Workflow proposal' })
+    await expect(proposal.getByLabel('Name of step 4')).toHaveValue('Security audit')
+    // One edit made by hand, so the picture shows the count and Undo edits.
+    await proposal.getByLabel('Name of step 4').fill('Security review')
+    await expect(proposal).toContainText('You edited 1 thing.')
+    await o.page.waitForTimeout(800)
+    await shootElement(win, 'workflow-builder')
+    await tools.close()
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('todos: a task shows how its workflow run stands and opens it', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' }, size: { width: 1400, height: 720 } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await expect.poll(() => exists(o.argsLog)).toBe(true)
+    await expect.poll(async () => (await o.page.evaluate(() => window.aw.listAgents())).length).toBe(1)
+    const tools = await officeTools(o.argsLog)
+    await tools.call('todo_add', { title: 'Charts: how often each stage was followed', list: 'Workflows' })
+    await tools.call('todo_add', { title: 'Add a dark-mode toggle', list: 'Workflows' })
+    await tools.call('todo_add', { title: 'Paste the Anthropic key in Settings', list: 'Setup', needs_you: true })
+    await tools.call('todo_claim', { id: '2' })
+    await tools.call('task_begin', { title: 'Add a dark-mode toggle' })
+    await o.page.locator('header').getByRole('button', { name: /^Todos/ }).click()
+    const board = o.page.getByRole('dialog', { name: 'Todos' })
+    await board.getByText('Add a dark-mode toggle').first().click()
+    await expect(board.getByRole('region', { name: 'Workflow runs' })).toBeVisible()
+    await o.page.waitForTimeout(800)
+    await shootElement(board, 'todo-run')
+    await tools.close()
   } finally {
     await o.shutdown()
   }
