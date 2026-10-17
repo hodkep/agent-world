@@ -42,7 +42,7 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: 
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const SAME_WORK_MS = 10 * 60_000
-const KINDS = ['begin', 'round', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'workflow', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -106,7 +106,12 @@ export class Workflows {
     if (!who) throw new Error('Unknown agent.')
     const last = this.mine(agentId)[0]
     if (opts.followUp && last) {
-      if (last.status !== 'open') this.append({ k: 'round', t: this.deps.now(), run: last.id })
+      if (last.status !== 'open') {
+        this.append({ k: 'round', t: this.deps.now(), run: last.id })
+        // The workflow file may have been edited since the run began: read it again, and take the new copy when its version changed (its commands are then asked about again).
+        const now = last.workflow ? this.deps.pick(agentId, last.workflow.id) : undefined
+        if (now && last.workflow && now.id === last.workflow.id && now.hash !== last.workflow.hash) this.append({ k: 'workflow', t: this.deps.now(), run: last.id, workflow: now })
+      }
       return last.id
     }
     // An agent that starts another task has moved on from the one it had open.

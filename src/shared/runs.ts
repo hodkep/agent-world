@@ -10,6 +10,8 @@ export type RunEvent =
   | { k: 'begin'; t: number; run: string; agent: string; name: string; project: string; title: string; /** Started by the app from a commit, because the agent never announced the task. */ auto?: boolean; /** The workflow the task follows, as its file was when the task began. */ workflow?: RunWorkflow }
   /** A follow-up after the run finished: the same run, round n + 1. */
   | { k: 'round'; t: number; run: string }
+  /** The workflow file changed since the run took its copy and a follow-up round began: the run takes the new copy, so its commands are asked about again. */
+  | { k: 'workflow'; t: number; run: string; workflow: RunWorkflow }
   | { k: 'done'; t: number; run: string; summary?: string }
   /** A finished task's work was sent back (a check failed, or the person asked for changes): it is open again, in the same round. */
   | { k: 'reopen'; t: number; run: string }
@@ -155,6 +157,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       delete r.endedAt
       delete r.summary
       delete round.endedAt
+    } else if (e.k === 'workflow') {
+      r.workflow = e.workflow
     } else if (e.k === 'round') {
       r.status = 'open'
       delete r.endedAt
