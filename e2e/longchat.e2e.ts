@@ -22,7 +22,13 @@ test('a long conversation shows its latest messages and loads earlier ones on re
     const rendered = await log.locator('.msg').count()
     expect(rendered).toBeLessThan(300)
     // Scrolled to the top, where the button is, the message being read stays exactly where it is when older ones load above it.
-    await log.evaluate((l) => (l.scrollTop = 0))
+    // To the top the way a reader goes: with the wheel. A script moving the view is not the reader leaving the end, and the conversation keeps following its end through that.
+    const box = (await log.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await expect.poll(async () => {
+      await page.mouse.wheel(0, -100_000)
+      return log.evaluate((l) => l.scrollTop)
+    }).toBe(0)
     const topOf = (word: string) => log.evaluate((l, w) => {
       const m = [...l.querySelectorAll<HTMLElement>('.msg')].find((x) => x.textContent?.includes(w))
       return m ? Math.round(m.getBoundingClientRect().top - l.getBoundingClientRect().top) : null
