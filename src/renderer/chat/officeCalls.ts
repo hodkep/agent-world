@@ -104,6 +104,7 @@ function said(run: ToolRun): Whisper {
     case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished run', rest: '', why: clip(str(i.summary), 120) }
     case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
+    case 'workflow_history': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `the history of workflow ${str(i.id)}`, why: '' }
     case 'workflow_propose': return { kind: 'workflow', icon: '⚑', bold: 'Proposed', rest: proposedId(i.file), why: '' }
     default: return { kind: 'other', icon: '·', bold: humanize(tool), rest: '', why: '' }
   }
@@ -144,7 +145,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: tool === 'remember' ? 'noted' : 'recalled', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
-  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
+  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
   return { kind: 'flag', label: flagged[tool] ?? clip(humanize(tool), 14), tip, state }
 }
 
@@ -170,7 +171,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     else if (tool === 'library_get') (seen('Library'), !read.includes(str(i.id)) && read.push(str(i.id)))
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
     else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
-    else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' ? 'read' : 'looked'))
+    else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' || tool === 'workflow_history' ? 'read' : 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
     else if (tool.startsWith('todo_')) {

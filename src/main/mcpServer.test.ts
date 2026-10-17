@@ -403,6 +403,10 @@ describe('builder tools', () => {
       if (id === 'nope') throw new Error('No workflow "nope".')
       return '{"id":"bug-fix"}'
     },
+    history: (c: string, id: string) => {
+      calls.push(`history:${c}:${id}`)
+      return '2026-10-17 10:00 · replaced the saved one · added Lint'
+    },
     propose: (c: string, file: string) => {
       calls.push(`propose:${c}:${file}`)
       if (file === 'bad') throw new Error('Nothing was proposed, because the file has problems.\n- "name" is required')
@@ -421,7 +425,7 @@ describe('builder tools', () => {
   it('say they change nothing in the project, which is what lets a read-only (plan mode) agent call them', async () => {
     const s = await setup(undefined, undefined, undefined, undefined, builder)
     const tools = (await (await connect(s.url, 'a1')).listTools()).tools.filter((t) => t.name.startsWith('workflow_'))
-    expect(tools.map((t) => t.name).sort()).toEqual(['workflow_get', 'workflow_list', 'workflow_propose'])
+    expect(tools.map((t) => t.name).sort()).toEqual(['workflow_get', 'workflow_history', 'workflow_list', 'workflow_propose'])
     for (const t of tools) expect(t.annotations?.readOnlyHint, t.name).toBe(true)
   })
 
@@ -436,8 +440,9 @@ describe('builder tools', () => {
     const c = await connect(s.url, 'a1')
     expect(text(await c.callTool({ name: 'workflow_list', arguments: {} }))).toBe('- standard (built in): Standard')
     expect(text(await c.callTool({ name: 'workflow_get', arguments: { id: 'bug-fix' } }))).toBe('{"id":"bug-fix"}')
+    expect(text(await c.callTool({ name: 'workflow_history', arguments: { id: 'bug-fix' } }))).toBe('2026-10-17 10:00 · replaced the saved one · added Lint')
     expect(text(await c.callTool({ name: 'workflow_propose', arguments: { file: '{"version":1}' } }))).toBe('Proposed "Bug fix".')
-    expect(calls).toEqual(['list:a1', 'get:a1:bug-fix', 'propose:a1:{"version":1}'])
+    expect(calls).toEqual(['list:a1', 'get:a1:bug-fix', 'history:a1:bug-fix', 'propose:a1:{"version":1}'])
   })
 
   it('send a refusal back as an error the agent can read, with every problem', async () => {

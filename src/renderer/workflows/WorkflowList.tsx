@@ -3,13 +3,14 @@ import type { Run } from '../../shared/runs'
 import { workflowRuns } from '../../shared/runStats'
 import { type SkillState, goneSkills } from '../../shared/skills'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
+import { History } from './History'
 
 const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', merge: 'land' }
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
 
 /** What a step does, in the words of its file, for the detail beside the list. */
-const SKILL_WORDS: Record<SkillState, string> = { ready: '', granted: "this step grants it: not in the project's playbook", gone: 'not in the library' }
+export const SKILL_WORDS: Record<SkillState, string> = { ready: '', granted: "this step grants it: not in the project's playbook", gone: 'not in the library' }
 
 /** What a work step's skills are here: ready, granted by the step, or not in the library. */
 export function SkillChips({ ids, states }: { ids: string[]; states?: Record<string, SkillState> }) {
@@ -47,7 +48,7 @@ export function StepRow({ step, chip, skills }: { step: Step; chip: Chip; skills
 }
 
 /** The workflows a project can use, with the chosen one's steps beside the list; copying, deleting and choosing the default are here. */
-export function WorkflowList({ folder, runs, switches, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: string) => Promise<void> }) {
+export function WorkflowList({ folder, runs, switches, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: { id: string; name: string }) => Promise<void> }) {
   const [entries, setEntries] = useState<WorkflowEntry[] | null>(null)
   const [picked, setPicked] = useState(initial)
   const [describe, setDescribe] = useState('')
@@ -72,7 +73,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
     setAsking(false)
     document.getElementById(`wfl-${next.scope}-${next.id}`)?.scrollIntoView({ block: 'nearest' })
   }
-  const start = (first: string | undefined, editing?: string) => {
+  const start = (first: string | undefined, editing?: { id: string; name: string }) => {
     setStarting(true)
     setError('')
     onBuilder(first, editing).then(
@@ -154,10 +155,11 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                   {folder && shown.id !== defaultId && <button className="primary" onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
                   <button disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project'))}>Copy to {folder ? here : 'a project'}</button>
                   <button onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global'))}>Copy for everything</button>
-                  <button disabled={!folder || starting} title={folder ? '' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, wf.name)}>Edit with the builder</button>
+                  <button disabled={!folder || starting} title={folder ? '' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, { id: shown.id, name: wf.name })}>Edit with the builder</button>
                   {shown.scope !== 'built-in' && <button onClick={() => setAsking(true)}>Delete</button>}
                 </div>
               )}
+              {shown.scope !== 'built-in' && <History folder={folder} id={shown.id} />}
             </>
           )
         )}

@@ -69,6 +69,7 @@ import { WorkflowStore } from './workflows/store'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
 import { HeldMerges } from './workflows/heldMerges'
+import { WorkflowHistory } from './workflows/history'
 import { WaitNotices } from './workflows/waitNotice'
 import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
@@ -451,7 +452,7 @@ const skillSource: SkillSource = {
   items: () => libraryService.library.listSync(),
   playbook: (project) => new Set((project ? libraryService.rulesFor(project) : libraryService.playbooks.read('global')).filter((r) => r.mode !== 'off').map((r) => r.id))
 }
-const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), skills: skillSource, now: Date.now })
+const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), history: new WorkflowHistory(join(HOME, 'workflow-history')), skills: skillSource, now: Date.now })
 const BUILDER_ALLOWED = BUILDER_ALLOWED_NAMES.map((t) => `mcp__agent-world__${t}`)
 const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
@@ -1269,6 +1270,7 @@ async function main() {
       offered: (id) => !!byId(id)?.builder,
       list: (id) => builder.list(byId(id)?.repoPath ?? null),
       get: (id, wf) => builder.get(byId(id)?.repoPath ?? null, wf),
+      history: (id, wf) => builder.history(byId(id)?.repoPath ?? null, wf),
       propose: (id, file) => {
         const said = builder.propose(id, byId(id)?.repoPath ?? null, file)
         send('workflows')
@@ -1730,7 +1732,7 @@ async function main() {
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
-  ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string) => {
+  ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string, editing?: unknown) => {
     const folder = projectOf(project)
     if (!folder) throw new Error('Open a project first.')
     let a = builderAgent(agents, folder)
@@ -1745,11 +1747,31 @@ async function main() {
       agents.push(a)
       persist()
     }
+    // Each edit of a saved workflow starts clean: an earlier draft is dropped, the builder starts a new conversation, and the saved workflow is the draft to edit in place.
+    if (typeof editing === 'string' && editing) {
+      builder.discard(a.id)
+      a.sessionId = randomUUID()
+      a.started = false
+      persist()
+      const live = sessions.get(a.id)
+      if (live) {
+        restarting.add(a.id)
+        mailbox.restarting(a.id)
+        live.kill()
+      }
+      try {
+        builder.startEdit(a.id, folder, editing)
+      } catch {
+        // A workflow that does not read cannot be the draft; the builder is told what is wrong when it reads it.
+      }
+      send('workflows')
+    }
     const text = typeof first === 'string' ? first.trim().slice(0, 4000) : ''
     if (text) mailbox.fromPerson(a.id, text)
     spawn(a, env)
     return a
   })
+  ipcMain.handle('workflows:history', (_, project: unknown, id: string) => builder.historyOf(projectOf(project), String(id)))
   ipcMain.handle('workflows:proposal', (_, agent: string, project: unknown) => builder.view(String(agent), projectOf(project)))
   ipcMain.handle('workflows:propose-save', (_, agent: string, project: unknown, how: SaveHow) => {
     const entry = builder.save(String(agent), projectOf(project), how === 'global' || how === 'replace' || how === 'copy' ? how : 'project')

@@ -59,6 +59,7 @@ describe('what one office call says as a stamp', () => {
   it('is a flag for the builder\'s workflow tools and for any call it has no picture for', () => {
     expect(stamp('workflow_list')).toMatchObject({ kind: 'flag', label: 'workflows', tip: 'Looked at workflows' })
     expect(stamp('workflow_get', { id: 'journey' })).toMatchObject({ kind: 'flag', label: 'journey', tip: 'Read workflow journey' })
+    expect(stamp('workflow_history', { id: 'journey' })).toMatchObject({ kind: 'flag', label: 'journey', tip: 'Read the history of workflow journey' })
     expect(stamp('workflow_propose', { file: '{"id":"billing-change","name":"Billing change"}' })).toMatchObject({ kind: 'plan', label: 'proposed', tip: 'Proposed billing-change' })
     expect(stamp('workflow_propose', { file: 'not json' })).toMatchObject({ kind: 'plan', tip: 'Proposed a workflow' })
     expect(stamp('something_new')).toMatchObject({ kind: 'flag', label: 'Something new', tip: 'Something new' })

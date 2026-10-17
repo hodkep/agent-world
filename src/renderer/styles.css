@@ -3246,3 +3246,7 @@ svg.pxg { display: block; flex: none; }
 .se-skills .sk button:hover { color: var(--text); }
 .se-add { align-self: flex-start; }
 .se-problem { margin: 0; font-size: 12px; white-space: pre-line; }
+
+.bs-history { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.bs-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.bs-history li { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; }

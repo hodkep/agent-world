@@ -370,7 +370,9 @@ export interface AwApi {
     /** Deletes a workflow's file from the project or the global folder. */
     remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
     /** The project's workflow builder, made on first use and woken if asleep. What the person typed is sent to it once it can take it. */
-    builder(project: string, first?: string): Promise<AgentRecord>
+    builder(project: string, first?: string, editing?: string): Promise<AgentRecord>
+    /** The changes saved through the builder to one workflow, newest first. */
+    history(project: string | null, id: string): Promise<import('./builder').HistoryEntry[]>
     /** The builder's draft against what is saved; null when it has none. */
     proposal(agentId: string, project: string | null): Promise<import('./builder').ProposalView | null>
     /** Saves the draft where the person chose, approving its commands for that exact file; says the saved workflow. */

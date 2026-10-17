@@ -59,6 +59,8 @@ interface Options {
     offered: (callerId: string) => boolean
     list: (callerId: string) => string
     get: (callerId: string, id: string) => string
+    /** The changes saved to one workflow before, newest first, as lines. */
+    history: (callerId: string, id: string) => string
     /** Takes the file as the agent wrote it; throws every problem it has, so the agent can fix them all at once. */
     propose: (callerId: string, file: string) => string
   }
@@ -491,6 +493,17 @@ function addBuilderTools(server: McpServer, callerId: string, b: BuilderApi) {
     async ({ id }) => {
       try {
         return { content: [{ type: 'text' as const, text: b.get(callerId, id) }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'workflow_history',
+    { description: 'The changes saved to one workflow before, newest first, with when and what changed. Read it before changing a saved workflow.', inputSchema: { id: z.string().min(1).max(60).describe('The id from workflow_list') }, annotations: READ_ONLY },
+    async ({ id }) => {
+      try {
+        return { content: [{ type: 'text' as const, text: b.history(callerId, id) }] }
       } catch (err) {
         return fail(err)
       }
