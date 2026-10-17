@@ -211,3 +211,26 @@ test('an agent that closed the task before it heard its check had failed can sti
     await s.shutdown()
   }
 })
+
+test('a follow-up round after the task finished reads the workflow file again: a changed file asks for its commands again, as a new task would', async () => {
+  const s = await session({ run: 'true' })
+  try {
+    await s.call('task_begin', { title: 'Add a toggle' })
+    await s.call('step_done', { step: 'build' })
+    const ask = s.page.getByRole('region', { name: 'Commands from Checked' })
+    await ask.getByRole('button', { name: 'Approve and run' }).click()
+    await expect(ask).toHaveCount(0)
+    await s.call('task_done', { summary: 'Toggle added.' })
+
+    // The file is edited; the agent is asked for more on the same task, as a follow-up round.
+    writeFileSync(s.file, JSON.stringify(flow('true && echo uploaded')))
+    await s.call('task_begin', { title: 'Missed the settings page', follow_up: true })
+    await s.call('step_done', { step: 'build' })
+    await s.page.getByRole('tab', { name: 'Chat' }).click()
+    const again = s.page.getByRole('region', { name: 'Commands from Checked' })
+    await expect(again.getByLabel('What changed since the version you approved')).toContainText('+ true && echo uploaded', { timeout: 20_000 })
+    await s.client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

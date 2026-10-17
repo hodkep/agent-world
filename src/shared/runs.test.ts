@@ -45,6 +45,15 @@ describe('what a run is, read from its log', () => {
     expect(r!.rounds.map((x) => [x.n, x.startedAt, x.endedAt, x.commits.length])).toEqual([[1, 100, 400, 0], [2, 500, undefined, 1]])
   })
 
+  it('a new snapshot of the workflow replaces the one the run began with, and the rounds keep what they logged', () => {
+    const v1 = { id: 'journey', name: 'Journey', hash: 'aaaa1111', steps: [{ id: 'build', kind: 'work' as const, name: 'Build' }] }
+    const v2 = { ...v1, hash: 'bbbb2222', steps: [...v1.steps, { id: 'tests', kind: 'check' as const, name: 'Tests', run: 'npm test' }] }
+    const [r] = reduceRuns([{ ...begin('r1', 100), workflow: v1 }, { k: 'step', t: 150, run: 'r1', round: 1, step: 'build', state: 'done' }, { k: 'done', t: 200, run: 'r1' }, { k: 'round', t: 300, run: 'r1' }, { k: 'workflow', t: 310, run: 'r1', workflow: v2 }])
+    expect(r!.workflow).toEqual(v2)
+    expect(r!.rounds[0]!.steps).toHaveLength(1)
+    expect(r!.rounds).toHaveLength(2)
+  })
+
   it('a stopped run is closed as stopped, and runs come out oldest first', () => {
     const rs = reduceRuns([begin('r1', 100), begin('r2', 150, 'Import CSV', 'a2'), { k: 'stop', t: 300, run: 'r2' }])
     expect(rs.map((r) => [r.id, r.status])).toEqual([['r1', 'open'], ['r2', 'stopped']])

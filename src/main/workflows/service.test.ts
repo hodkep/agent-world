@@ -93,6 +93,36 @@ describe('follow-ups', () => {
     expect(r!.rounds.map((x) => x.n)).toEqual([1, 2])
   })
 
+  it('a follow-up after the task finished takes the workflow file as it is now when its version changed, so a changed file is read again', () => {
+    const { wf, state } = make()
+    const v1: RunWorkflow = { id: 'journey', name: 'Journey', hash: 'aaaa1111', steps: [{ id: 'build', kind: 'work', name: 'Build' }] }
+    const v2: RunWorkflow = { ...v1, hash: 'bbbb2222', steps: [...v1.steps, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test' }] }
+    state.pick = () => v1
+    wf.begin('a1', 'Add a dark-mode toggle')
+    wf.done('a1')
+    state.pick = (id) => (id === 'journey' ? v2 : undefined)
+    wf.begin('a1', 'Missed the settings page', { followUp: true })
+    expect(state.picked.at(-1)).toBe('journey')
+    expect(wf.runs()[0]!.workflow).toEqual(v2)
+  })
+
+  it('a follow-up leaves the run as it is when the file is unchanged, is gone, or the task is still open', () => {
+    const { wf, state } = make()
+    const v1: RunWorkflow = { id: 'journey', name: 'Journey', hash: 'aaaa1111', steps: [{ id: 'build', kind: 'work', name: 'Build' }] }
+    state.pick = () => v1
+    wf.begin('a1', 'Add a dark-mode toggle')
+    wf.begin('a1', 'More', { followUp: true })
+    wf.done('a1')
+    wf.begin('a1', 'Same file', { followUp: true })
+    wf.done('a1')
+    state.pick = () => undefined
+    wf.begin('a1', 'File gone', { followUp: true })
+    wf.done('a1')
+    state.pick = () => ({ ...v1, id: 'standard', name: 'Standard', hash: 'cccc3333' })
+    wf.begin('a1', 'Another workflow answers', { followUp: true })
+    expect(wf.runs()[0]!.workflow).toEqual(v1)
+  })
+
   it('a follow-up with nothing before it, or while the task is still open, changes nothing it should not', () => {
     const { wf } = make()
     wf.begin('a1', 'Open one')
@@ -666,7 +696,7 @@ describe('a task that follows a workflow', () => {
     expect(wf.runs()[1]!.workflow!.steps.map((s) => s.id)).toEqual(['plan', 'fix', 'ok', 'land'])
   })
 
-  it('a follow-up round goes on with the same workflow without picking again, and a run with no pick has no workflow', () => {
+  it('a follow-up round goes on with the same workflow, read again by its id and not chosen afresh, and a run with no pick has no workflow', () => {
     const { wf, state } = make()
     wf.begin('a1', 'No pick')
     expect(wf.runs()[0]!.workflow).toBeUndefined()
@@ -675,7 +705,7 @@ describe('a task that follows a workflow', () => {
     wf.done('a2')
     state.picked.length = 0
     wf.begin('a2', 'More', { followUp: true })
-    expect(state.picked).toEqual([])
+    expect(state.picked).toEqual(['bug-fix'])
     expect(wf.runs()[1]!.rounds).toHaveLength(2)
     expect(wf.runs()[1]!.workflow!.id).toBe('bug-fix')
   })
