@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { Workflow } from '../../shared/workflow'
 import { Approvals } from './approvals'
 import { Builder, Proposals } from './builder'
+import { WorkflowHistory } from './history'
 import { WorkflowStore } from './store'
 
 const wf = (id: string, name = id, steps: Workflow['steps'] = [{ id: 'build', kind: 'work' }]): Workflow => ({ version: 1, id, name, steps })
@@ -26,8 +27,9 @@ function setup() {
   const file = join(root, 'proposals.json')
   let t = 1000
   const skills = { items: [{ id: 'tdd', kind: 'skill', description: 'Write the failing test first.' }, { id: 'code-review', kind: 'skill', description: 'Review a diff against our standards.' }, { id: 'house-style', kind: 'instruction', description: 'How we write.' }], playbook: new Set(['tdd']) }
-  const make = () => new Builder({ store, approvals, proposals: new Proposals(file), skills: { items: () => skills.items, playbook: () => skills.playbook }, now: () => (t += 1000) })
-  return { root, project, globalDir, store, approvals, file, skills, builder: make(), make }
+  const history = new WorkflowHistory(join(root, 'history'))
+  const make = () => new Builder({ store, approvals, proposals: new Proposals(file), history, skills: { items: () => skills.items, playbook: () => skills.playbook }, now: () => (t += 1000) })
+  return { root, project, globalDir, store, approvals, file, skills, history, builder: make(), make }
 }
 const json = (w: Workflow) => JSON.stringify(w)
 
@@ -256,6 +258,67 @@ describe('saving a proposal', () => {
     s.builder.propose('a1', s.project, json({ ...billing, name: 'Billing' }))
     expect(() => s.builder.save('a1', s.project, 'project')).toThrow('There is already a workflow "billing-change" in that place.')
     expect(s.builder.view('a1', s.project)).not.toBeNull()
+  })
+})
+
+describe('the changes made to a workflow through the builder', () => {
+  const lint = (w: Workflow): Workflow => ({ ...w, steps: [...w.steps.slice(0, 3), { id: 'types', kind: 'check', name: 'Types', run: 'npm run typecheck', gate: 'pass' }, ...w.steps.slice(3)] })
+
+  it('are written down when the person saves: when, how, and in a line what changed, newest first', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    s.builder.save('a1', s.project, 'project')
+    s.builder.propose('a1', s.project, json(lint(billing)))
+    s.builder.save('a1', s.project, 'replace')
+    const h = s.builder.historyOf(s.project, 'billing-change')
+    expect(h.map((e) => [e.how, e.summary])).toEqual([['replace', 'added Types'], ['project', 'created with 4 steps']])
+    expect(h[0]!.by).toBe('you')
+    expect(h[0]!.at).toBeGreaterThan(h[1]!.at)
+  })
+
+  it('are read by the builder as lines, newest first, and it is told when there are none or the id is unknown', () => {
+    const s = setup()
+    s.store.save(s.project, billing, 'project')
+    expect(s.builder.history(s.project, 'billing-change')).toContain('No change has been saved through the builder yet')
+    s.builder.propose('a1', s.project, json(lint(billing)))
+    s.builder.save('a1', s.project, 'replace')
+    const text = s.builder.history(s.project, 'billing-change')
+    expect(text.split('\n')).toHaveLength(1)
+    expect(text).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2} · replaced the saved one · added Types/)
+    expect(() => s.builder.history(s.project, 'nope')).toThrow('No workflow "nope".')
+  })
+
+  it('are kept for each workflow apart: a save of one leaves another\'s history alone', () => {
+    const s = setup()
+    s.builder.propose('a1', s.project, json(billing))
+    s.builder.save('a1', s.project, 'project')
+    s.builder.propose('a1', s.project, json(wf('quick', 'Quick')))
+    s.builder.save('a1', s.project, 'global')
+    expect(s.builder.historyOf(s.project, 'quick')).toHaveLength(1)
+    expect(s.builder.historyOf(s.project, 'billing-change')).toHaveLength(1)
+  })
+})
+
+describe('starting an edit of a saved workflow', () => {
+  it('makes the saved workflow the draft, so it can be edited in place, with nothing yet differing from the saved one', () => {
+    const s = setup()
+    s.store.save(s.project, billing, 'project')
+    const v = s.builder.startEdit('a1', s.project, 'billing-change')
+    expect(v.workflow).toEqual(billing)
+    expect(v.saved).toEqual({ scope: 'project' })
+    expect(v.diff.same).toBe(true)
+    expect(v.edited).toBeUndefined()
+    const next = { ...billing, steps: billing.steps.slice(0, 3) }
+    expect(s.builder.edit('a1', s.project, next).diff.removed.map((r) => r.id)).toEqual(['land'])
+  })
+
+  it('says so for an id that does not exist or does not read, and takes the place of an earlier draft', () => {
+    const s = setup()
+    expect(() => s.builder.startEdit('a1', s.project, 'nope')).toThrow('No workflow "nope".')
+    s.builder.propose('a1', s.project, json(billing))
+    s.store.save(s.project, wf('quick', 'Quick'), 'project')
+    expect(s.builder.startEdit('a1', s.project, 'quick').workflow.id).toBe('quick')
+    expect(s.builder.view('a1', s.project)!.workflow.id).toBe('quick')
   })
 })
 

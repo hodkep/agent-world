@@ -172,9 +172,11 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     expect(JSON.parse((await call('workflow_get', { id: 'bug-fix' })).text)).toEqual(BUG_FIX)
     expect((await call('workflow_get', { id: 'nope' })).error).toBe(true)
 
-    // The same file proposed back is not a proposal.
+    // The saved workflow is already the draft beside the chat, to be edited in place; the same file proposed back is not a proposal.
+    const saved = win.getByRole('region', { name: 'Workflow proposal' })
+    await expect(saved.getByLabel('Name of step 2')).toHaveValue('Fix, test first')
+    await expect(saved).toContainText('Nothing differs from the saved one.')
     expect((await call('workflow_propose', { file: JSON.stringify(BUG_FIX) })).text).toContain('unchanged')
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
 
     const next = structuredClone(BUG_FIX)
     next.steps[2] = { ...next.steps[2]!, retries: 3 } as (typeof next.steps)[number]
@@ -200,11 +202,19 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     expect(readdirSync(dir)).toEqual(['bug-fix.json'])
     const approved = JSON.parse(readFileSync(join(home, 'workflow-approvals.json'), 'utf8')).approved as Record<string, { commands: string[] }>
     expect(approved[hashOf(join(dir, 'bug-fix.json'))]!.commands).toEqual(['npm test', 'npm run lint'])
+    // The save is written down, and the builder can read it back.
+    await win.getByRole('option', { name: /Bug fix/ }).click()
+    await expect(win.getByRole('region', { name: 'History of bug-fix' })).toContainText('replaced the saved one: added Lint; changed Tests pass (retries 2 → 3)')
+    expect((await call('workflow_history', { id: 'bug-fix' })).text).toContain('replaced the saved one · added Lint; changed Tests pass (retries 2 → 3)')
 
     // A later proposal against a file the person then edited by hand cannot be saved over it.
     await win.getByRole('option', { name: /Bug fix/ }).click()
     await win.getByRole('button', { name: 'Edit with the builder' }).click()
-    await call('workflow_propose', { file: JSON.stringify({ ...next, name: 'Fix a bug' }) })
+    // Each edit starts a fresh conversation: the builder is started again on a new session, and the person's earlier chat is not carried into it.
+    await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBe(2)
+    expect(flag(launches(argsLog)[1]!, '--session-id')).not.toBe(flag(launches(argsLog)[0]!, '--session-id'))
+    const again = await asAgent(launches(argsLog)[1]!)
+    await again.call('workflow_propose', { file: JSON.stringify({ ...next, name: 'Fix a bug' }) })
     await expect(win.getByRole('region', { name: 'Workflow proposal' })).toContainText('Fix a bug')
     writeFileSync(join(dir, 'bug-fix.json'), JSON.stringify({ ...next, name: 'Edited by hand' }, null, 2) + '\n')
     await win.getByRole('button', { name: 'Replace Fix a bug in shop' }).click()
@@ -212,6 +222,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     expect((JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as { name: string }).name).toBe('Edited by hand')
     await win.getByRole('button', { name: 'Discard' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    await again.client.close()
     await client.close()
   } finally {
     await s.shutdown()

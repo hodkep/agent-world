@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, workflowDiff } from './builder'
+import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, diffSummary, workflowDiff } from './builder'
 import type { AgentRecord } from './types'
 import { STEPS_MAX, STEP_KINDS, GATES, parseWorkflow, type Workflow } from './workflow'
 
@@ -84,6 +84,18 @@ describe('workflowDiff', () => {
   })
 })
 
+describe('diffSummary', () => {
+  it('says in one line what a save changed: steps added, changed, removed or moved, and the name or the when', () => {
+    const next: Workflow = { ...bugFix, name: 'Bug fix (billing)', steps: [bugFix.steps[0]!, bugFix.steps[1]!, { ...bugFix.steps[2]!, retries: 3 }, { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint', gate: 'pass' }, bugFix.steps[4]!] }
+    expect(diffSummary(workflowDiff(bugFix, next))).toBe('renamed to "Bug fix (billing)"; added Lint; changed Tests pass (retries 2 → 3); removed Audit')
+    expect(diffSummary(workflowDiff(bugFix, { ...bugFix, steps: [...bugFix.steps].reverse() }))).toBe('steps reordered')
+  })
+  it('says created for a workflow that was new, and no change when nothing differs', () => {
+    expect(diffSummary(workflowDiff(undefined, bugFix))).toBe('created with 5 steps')
+    expect(diffSummary(workflowDiff(bugFix, bugFix))).toBe('no change')
+  })
+})
+
 describe('builderInstructions', () => {
   const text = builderInstructions()
 
@@ -124,13 +136,13 @@ describe('builderInstructions', () => {
   })
 
   it('may use its three tools and read the project\'s notes without being asked each time, and nothing that writes', () => {
-    expect([...BUILDER_ALLOWED]).toEqual(['workflow_list', 'workflow_get', 'workflow_propose', 'recall'])
+    expect([...BUILDER_ALLOWED]).toEqual(['workflow_list', 'workflow_get', 'workflow_history', 'workflow_propose', 'recall'])
   })
 
   it('has one name and one role for the agent, and three tools', () => {
     expect(BUILDER_NAME).toBe('builder')
     expect(BUILDER_ROLE).toBe('Workflow builder')
-    expect([...BUILDER_TOOLS]).toEqual(['workflow_list', 'workflow_get', 'workflow_propose'])
+    expect([...BUILDER_TOOLS]).toEqual(['workflow_list', 'workflow_get', 'workflow_history', 'workflow_propose'])
   })
 })
 

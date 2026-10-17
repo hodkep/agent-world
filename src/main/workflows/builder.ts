@@ -1,9 +1,10 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { type ProposalView, type SaveHow, workflowDiff } from '../../shared/builder'
+import { type HistoryEntry, type ProposalView, type SaveHow, diffSummary, workflowDiff } from '../../shared/builder'
 import { type Scope, type Workflow, type WorkflowEntry, checkCommands, isWorkflowId, parseWorkflow, stepName, toRunWorkflow } from '../../shared/workflow'
 import { type SkillSource, goneSkills, skillList, skillStates } from '../../shared/skills'
 import type { Approvals } from './approvals'
+import { type WorkflowHistory, historyKey } from './history'
 import type { WorkflowStore } from './store'
 
 /** What a draft was made against: the saved file it would change (its content hash), or none. */
@@ -58,6 +59,7 @@ interface Deps {
   store: WorkflowStore
   approvals: Approvals
   proposals: Proposals
+  history: WorkflowHistory
   skills: SkillSource
   now: () => number
 }
@@ -181,6 +183,41 @@ export class Builder {
     return this.view(agent, project)!
   }
 
+  /** The saved workflow with this id, as an entry with its scope; throws when there is none. */
+  private entryOf(project: string | null, id: string): WorkflowEntry {
+    if (!isWorkflowId(id)) throw new Error('Not a valid workflow id.')
+    const e = this.deps.store.list(project).find((x) => x.id === id)
+    if (!e) throw new Error(`No workflow "${id}".`)
+    return e
+  }
+
+  /** The changes saved through the builder to this workflow, newest first. */
+  historyOf(project: string | null, id: string): HistoryEntry[] {
+    const e = this.entryOf(project, id)
+    return e.scope === 'built-in' ? [] : this.deps.history.list(historyKey(project, e.scope, e.id))
+  }
+
+  /** The same, as lines for the builder to read. */
+  history(project: string | null, id: string): string {
+    const entries = this.historyOf(project, id)
+    if (entries.length === 0) return `No change has been saved through the builder yet for "${id}".`
+    const WHAT: Record<SaveHow, string> = { project: 'saved to the project', global: 'saved for everything', replace: 'replaced the saved one', copy: 'saved as a copy' }
+    const when = (t: number) => {
+      const d = new Date(t)
+      const p = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+    }
+    return entries.map((h) => `${when(h.at)} · ${WHAT[h.how]} · ${h.summary}`).join('\n')
+  }
+
+  /** Starts an edit of a saved workflow: it becomes the draft, so it can be edited in place and compared with what is saved. An earlier draft is dropped. */
+  startEdit(agent: string, project: string | null, id: string): ProposalView {
+    const e = this.entryOf(project, id)
+    if (!e.workflow) throw new Error(`The workflow "${id}" does not read, so it cannot be edited here:\n${(e.problems ?? []).map((p) => `- ${p}`).join('\n')}`)
+    this.deps.proposals.set(agent, { workflow: e.workflow, origin: e.workflow, base: this.baseOf(e), at: this.deps.now() })
+    return this.view(agent, project)!
+  }
+
   discard(agent: string) {
     this.deps.proposals.clear(agent)
   }
@@ -207,6 +244,9 @@ export class Builder {
     }
     const commands = checkCommands(toRunWorkflow(entry.workflow!))
     if (commands.length && entry.hash) this.deps.approvals.approve(entry.id, entry.hash, commands, this.deps.now())
+    // What the save changed is written down, so the builder can read why the workflow is the way it is.
+    const summary = how === 'copy' ? `a copy of ${r.workflow.id}${v.diff.same ? '' : `; ${diffSummary(v.diff)}`}` : diffSummary(v.diff)
+    this.deps.history.add(historyKey(project, entry.scope, entry.id), { at: this.deps.now(), how, by: 'you', summary })
     this.deps.proposals.clear(agent)
     return entry
   }

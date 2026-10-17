@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { addStep, moveStep, removeStep, setStep } from '../../shared/stepEdit'
+import type { SkillState } from '../../shared/skills'
+import { SKILL_WORDS } from './WorkflowList'
 import { GATES, STEPS_MAX, STEP_KINDS, type Gate, type StepKind, type Workflow, stepName } from '../../shared/workflow'
 
 const KIND_LABEL: Record<StepKind, string> = { plan: 'plan', work: 'work', check: 'check', audit: 'review', approve: 'your approval', merge: 'land' }
@@ -18,7 +20,7 @@ const clean = (e: Error) => e.message.replace(/^Error invoking remote method '[^
  * The builder's draft as steps the person can change in place: the name and brief as text, a work step's skills as chips, a check's command, tries and gate, a step moved or removed,
  * a step added. Every change goes to the office, which checks it like a file; what it says is wrong shows under the steps, and saving waits until nothing is.
  */
-export function StepEditor({ agentId, folder, workflow, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
+export function StepEditor({ agentId, folder, workflow, skillStates, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
   const [wf, setWf] = useState(workflow)
   const [problem, setProblem] = useState('')
   const [skills, setSkills] = useState<string[]>([])
@@ -97,8 +99,9 @@ export function StepEditor({ agentId, folder, workflow, at, edited, onProblem, o
               {s.kind === 'work' && (
                 <div className="se-skills" aria-label={`Skills of step ${n}`}>
                   {(s.skills ?? []).map((id) => (
-                    <span key={id} className="sk ready">
+                    <span key={id} className={`sk ${skillStates[id] ?? 'ready'}`}>
                       {id}
+                      {SKILL_WORDS[skillStates[id] ?? 'ready'] && <small> {SKILL_WORDS[skillStates[id] ?? 'ready']}</small>}
                       <button aria-label={`Remove skill ${id} from step ${n}`} onClick={() => change(setStep(wf, i, { skills: (s.skills ?? []).filter((x) => x !== id) }))}>✕</button>
                     </span>
                   ))}

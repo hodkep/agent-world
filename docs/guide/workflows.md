@@ -1,6 +1,6 @@
 # Workflows
 
-A pipeline an agent follows for each task (plan, build, checks, review, land), with gates that stop for you.
+A pipeline an agent follows for each task: plan, build, checks, review, land.
 
 ## Turn workflows on
 
@@ -71,7 +71,7 @@ Click **Workflows** in the top bar. **Runs**: **7 days** or **30 days**. Two cha
 
 **Insights**: a tile for each gate of each run.
 
-**Workflows**: the project's workflows with the chosen one's steps. To make one from a sentence, open a project, type it in **Describe a workflow to the builder** and click **Start with the builder**. The builder can only propose: its draft appears beside its chat as steps you can edit in place (rename, brief, skills, a check's command, **▲ ▼ ✕**, **＋ Add step**; **Undo edits** goes back to its proposal), and you save it with **Save to** the project or **Save for everything**. File format and design: [docs/workflows-design.md](../workflows-design.md).
+**Workflows**: the project's workflows, with the chosen one's steps and **History** (what was saved to it through the builder). To make one from a sentence, type it in **Describe a workflow to the builder** and click **Start with the builder**; to change one, click **Edit with the builder**, which starts a fresh chat with that workflow as the draft. The builder can only propose. The draft is steps you edit in place (**▲ ▼ ✕**, **＋ Add step**, **Undo edits**) and save with **Save to** the project or **Save for everything**. Design: [docs/workflows-design.md](../workflows-design.md).
 
 ## The three dials
 

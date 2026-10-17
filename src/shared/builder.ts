@@ -69,11 +69,33 @@ export function workflowDiff(saved: Workflow | undefined, proposed: Workflow): W
   return { isNew: !saved, same, ...(name && { name }), ...(when && { when }), added, removed, changed, reordered, unchanged, commands }
 }
 
+/** One save of a workflow through the builder: when, how, who saved it, and in a line what it changed. */
+export interface HistoryEntry {
+  at: number
+  how: SaveHow
+  by: string
+  summary: string
+}
+
+/** One line for a history entry: what a save changed in a workflow. */
+export function diffSummary(d: WorkflowDiff): string {
+  if (d.isNew) return `created with ${d.added.length} step${d.added.length === 1 ? '' : 's'}`
+  const parts = [
+    ...(d.name ? [`renamed to "${d.name.to}"`] : []),
+    ...(d.when ? ['"when" reworded'] : []),
+    ...(d.added.length ? [`added ${d.added.map((a) => a.name).join(', ')}`] : []),
+    ...d.changed.map((c) => `changed ${c.name} (${c.fields.join(' · ')})`),
+    ...(d.removed.length ? [`removed ${d.removed.map((r) => r.name).join(', ')}`] : []),
+    ...(d.reordered ? ['steps reordered'] : [])
+  ]
+  return parts.length ? parts.join('; ') : 'no change'
+}
+
 /** The agent the person talks to about workflows: one per project, named so, and found again by this job title. */
 export const BUILDER_NAME = 'builder'
 export const BUILDER_ROLE = 'Workflow builder'
 /** The tools only the builder is given. */
-export const BUILDER_TOOLS = ['workflow_list', 'workflow_get', 'workflow_propose'] as const
+export const BUILDER_TOOLS = ['workflow_list', 'workflow_get', 'workflow_history', 'workflow_propose'] as const
 /** What the builder may use without being asked each time: its own tools and the project's notes, which it only reads. */
 export const BUILDER_ALLOWED = [...BUILDER_TOOLS, 'recall'] as const
 
@@ -109,6 +131,7 @@ You never write a file. You hand a draft to the person with workflow_propose, an
 Tools: ${BUILDER_TOOLS.join(', ')}.
 - workflow_list shows the workflows that exist, and the skills you can name on a work step. Call it first.
 - workflow_get gives one as its file. To change one, start from it and keep everything the person did not ask to change, with the same id.
+- workflow_history lists the changes saved to one before, newest first, with when and what changed. Read it before changing a saved workflow, so you do not undo a change the person made on purpose, and to answer why a step is there.
 - workflow_propose takes the whole file as JSON text. If it is wrong you get every problem back at once: fix them and call it again.
 
 How to work
