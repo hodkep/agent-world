@@ -1,13 +1,27 @@
 import { app } from 'electron'
+import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import type { InstallState } from '../shared/updateInstall'
+import { createInstaller } from './inAppUpdate/installer'
+import { placeOf } from './inAppUpdate/installScript'
 import { buildInfo, latestRelease, updateMode } from './updateCheck'
 import { updateFeed } from './updateFeed'
 
 /** `latest` and `url` are set when a newer version is out but this build cannot install it itself: the page of its release is what the person is pointed to. */
-export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }
+export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; install?: InstallState }
 
 let current: UpdateState = { state: 'off' }
+let installer: ReturnType<typeof createInstaller> | null = null
+
+/** The app bundle this process runs from: three folders above its executable (Agent World.app/Contents/MacOS/Agent World). */
+const appBundle = () => dirname(dirname(dirname(app.getPath('exe'))))
+
+/** Downloads the newer release the last look found (unsigned Mac build only); its progress comes through the update state. */
+export const downloadUpdate = () => (installer && current.tag ? installer.download(current.tag) : Promise.resolve())
+export const cancelUpdateDownload = () => installer?.cancel()
+/** Replaces the app with the downloaded version and restarts, or says why it will not. */
+export const installUpdate = () => installer?.install()
 
 /** What the last look found, for a window opened after it. */
 export const updateState = (): UpdateState => current
@@ -33,7 +47,24 @@ export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState)
   if (feed.kind === 'github' && updateMode({ packaged: app.isPackaged, platform: process.platform, signed: info.signed }) === 'tell') {
     if (!info.repo) return set({ state: 'off', detail: 'This build does not say where its releases are.' })
     set({ state: 'checking' })
-    return set(await latestRelease(app.getVersion(), info.repo, (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } })))
+    const found = await latestRelease(app.getVersion(), info.repo, (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } }))
+    if (found.state !== 'available' || !found.latest) return set(found)
+    // Only this build can install by itself, from the same release it was told about.
+    installer = createInstaller({
+      current: app.getVersion(),
+      repo: info.repo,
+      arch: process.arch,
+      appPath: appBundle(),
+      pid: process.pid,
+      updatesDir: join(app.getPath('userData'), 'updates'),
+      fetch: (url, init) => fetch(url, init),
+      place: () => placeOf(appBundle()),
+      launch: (script, args) => spawn('/bin/sh', [script, ...args], { detached: true, stdio: 'ignore' }).unref(),
+      quit: () => app.quit(),
+      onState: (i) => set({ ...current, install: i })
+    })
+    const failure = installer.lastFailure()
+    return set({ ...found, tag: `v${found.latest}`, ...(failure && { install: { phase: 'failed' as const, kind: 'manifest' as const, reason: `The last update was not installed: ${failure}` } }) })
   }
   try {
     const { autoUpdater } = await import('electron-updater')

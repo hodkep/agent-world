@@ -69,6 +69,17 @@ When a newer version exists:
 - **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) cannot replace itself. A chip with an arrow and the version number appears in the top bar, and **Open the release page** appears under **Check now**. Either opens the release page on GitHub; download the new version and install it as before.
 - **A build that can install itself** (a Mac build signed with a Developer ID) downloads the update and says that it installs when you quit.
 
+### How an update of a build without a Developer ID is kept safe
+
+The standard updater of a Mac app only replaces an app signed by the same Apple Developer ID, and this build has none, so Agent World does the replacing itself, with these limits:
+
+- It fetches only from this project's GitHub release (`github.com`, and the host GitHub sends release downloads on to, over https), at addresses it builds from the repository and the release's tag; it never takes an address from what the release says. It refuses a version that is not newer than yours and a file over 600 MB.
+- It keeps the file only if its size and its sha512 are the ones in `latest-mac.yml` of the same release, and deletes it otherwise.
+- Before it replaces anything it unpacks the new app next to the old one and checks that it is Agent World (`dev.agentworld.app`), is the version that was announced, and passes `codesign --verify`. The old app is kept as a backup and put back, and reopened, if any step fails; the reason is kept in the update log.
+- It asks for no password and writes nothing outside the folder Agent World is in and its own `updates` folder. Your agents' data in `~/.agent-world` is not touched. Where the app cannot change its own folder, or macOS runs it from a read-only place, it does not try: it keeps the download and says what to do.
+
+What this does not give you: the checksum comes from the same release as the file, so trust rests on the security of the GitHub account that publishes the releases (two-factor sign-in is on), not on a signature from Apple. An Apple Developer ID is the better answer in the long run: with it the standard updater works with no code of ours in the way, and macOS itself checks who made the update.
+
 ## Run setup again
 
 Open **Setup** and press **Set up again** to repeat the first-run steps. See [Getting started](getting-started.md).

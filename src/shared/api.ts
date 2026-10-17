@@ -1,3 +1,4 @@
+import type { InstallState } from './updateInstall'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Run } from './runs'
@@ -273,9 +274,13 @@ export interface AwApi {
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
-  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }>
-  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }>
-  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }) => void): () => void
+  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; install?: InstallState }>
+  /** Unsigned Mac build: download the newer release, stop it, or replace the app with it and restart. */
+  downloadUpdate(): Promise<void>
+  cancelUpdateDownload(): Promise<void>
+  installUpdate(): Promise<void>
+  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; install?: InstallState }>
+  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; install?: InstallState }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
