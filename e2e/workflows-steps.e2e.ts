@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { readLog } from './readLog'
 
 const REVIEWED = {
   version: 1,
@@ -48,8 +49,8 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     await page.reload()
     await hire(page, { name: 'ada' })
     const [ada] = await page.evaluate(() => window.aw.listAgents())
-    await expect.poll(() => readFileSync(argsLog, 'utf8').includes('--settings')).toBe(true)
-    const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
+    await expect.poll(() => readLog(argsLog).includes('--settings')).toBe(true)
+    const launch = readLog(argsLog).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
     const flag = (f: string) => launch[launch.indexOf(f) + 1]!
     // The opening text lists the project's other workflow, since there is a choice.
     expect(flag('--append-system-prompt')).toContain('Reviewed is the default')

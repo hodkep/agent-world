@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { readLog } from './readLog'
 
 const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
 
@@ -29,8 +30,8 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
     await page.reload()
     await hire(page, { name: 'ada' })
-    await expect.poll(() => readFileSync(argsLog, 'utf8').includes('--mcp-config')).toBe(true)
-    const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--mcp-config'))!
+    await expect.poll(() => readLog(argsLog).includes('--mcp-config')).toBe(true)
+    const launch = readLog(argsLog).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--mcp-config'))!
     const mcp = JSON.parse(readFileSync(launch[launch.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
