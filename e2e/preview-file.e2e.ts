@@ -27,7 +27,14 @@ async function open(extra: Record<string, string> = {}) {
   return { page, shutdown, pages, tmp }
 }
 const run = (page: import('@playwright/test').Page, code: string) =>
-  page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c).catch(() => '') ?? '', code)
+  page.evaluate(async (c) => {
+      // A webview that is not in the page yet, or not ready (it throws at once, not as a failed promise), is no answer yet, so a poll asks again.
+      try {
+        return (await (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c)) ?? ''
+      } catch {
+        return ''
+      }
+    }, code)
 
 test('a path to a page, typed in the Preview bar, opens it with the pictures beside it, and the bar keeps the path', async () => {
   const { page, shutdown, pages } = await open()

@@ -67,7 +67,10 @@ test('a subagent opens as a conversation in a panel to the right of the chat: th
 
     // A second subagent gets a tab beside the first, and closing both closes the panel.
     await page.getByRole('button', { name: /subagents? working/ }).click()
-    await list.locator('.dg-row').nth(1).locator('.dg-line').click()
+    // The first may have finished by now and be folded away; the second is the one to open either way.
+    const folded = list.getByRole('button', { name: /^Show \d+ finished/ })
+    if (await folded.count()) await folded.click()
+    await list.locator('.dg-row', { hasText: 'part 2' }).locator('.dg-line').click()
     await page.keyboard.press('Escape')
     await expect(panel.getByRole('tab')).toHaveCount(2)
     await expect(panel.locator('.sp-pill')).toHaveText('WORKING')

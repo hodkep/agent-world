@@ -10,10 +10,11 @@ const LONG = 'The image should be separate and the message should be trimmed sep
 test('the pictures of a sent message are a row of their own, the words are trimmed by themselves, and the viewer steps through them', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-pics-'))
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1' },
     home
   )
   try {
+    // No transcript is written for this one: the row the person sent, with its pictures as attached, is what is looked at. Once the transcript has the message, the app shows that instead (pictures as rows of their own), and when that happens depends on how fast the machine is.
     const page = await app.firstWindow()
     await page.setViewportSize({ width: 1500, height: 1000 })
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)

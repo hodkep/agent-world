@@ -39,7 +39,14 @@ test('a local link in the chat opens in the Preview tab, ⌘/Ctrl-click opens th
     // A plain click shows it in the Preview tab, at the address that was clicked.
     await local.click()
     await expect(page.getByRole('tab', { name: /Preview/, selected: true })).toBeVisible()
-    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c).catch(() => '') ?? '', code)
+    const run = (code: string) => page.evaluate(async (c) => {
+      // A webview that is not in the page yet, or not ready (it throws at once, not as a failed promise), is no answer yet, so a poll asks again.
+      try {
+        return (await (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c)) ?? ''
+      } catch {
+        return ''
+      }
+    }, code)
     await expect.poll(() => run('document.body.innerText'), { timeout: 15_000 }).toContain('/docs/start')
     expect(await opened()).toEqual([])
 
@@ -100,7 +107,14 @@ test('a link to a server the Preview tab already shows opens that page in place,
     await hire(page)
     // The agent's own server shows up in the Preview tab first, with its webview already on screen.
     await page.getByRole('tab', { name: /Preview/ }).click()
-    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c).catch(() => '') ?? '', code)
+    const run = (code: string) => page.evaluate(async (c) => {
+      // A webview that is not in the page yet, or not ready (it throws at once, not as a failed promise), is no answer yet, so a poll asks again.
+      try {
+        return (await (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c)) ?? ''
+      } catch {
+        return ''
+      }
+    }, code)
     await expect.poll(() => run('document.body.innerText'), { timeout: 15_000 }).toContain('Detected site')
     await page.getByRole('tab', { name: 'Chat' }).click()
     const log = page.getByRole('log', { name: 'Conversation with ada' })

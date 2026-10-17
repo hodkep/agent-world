@@ -215,7 +215,14 @@ test('a page on another address is shown after the site is allowed once, with th
     await expect(page.locator('webview')).toHaveCount(0)
     await ask.getByRole('button', { name: 'Open here' }).click()
     // With a user gesture, as a click by a person is: the page's own link then adds a place to go back to.
-    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string, gesture?: boolean): Promise<unknown> } | null)?.executeJavaScript(c, true).catch(() => '') ?? '', code)
+    const run = (code: string) => page.evaluate(async (c) => {
+      // A webview that is not in the page yet, or not ready (it throws at once, not as a failed promise), is no answer yet, so a poll asks again.
+      try {
+        return (await (document.querySelector('webview') as unknown as { executeJavaScript(c: string, gesture?: boolean): Promise<unknown> } | null)?.executeJavaScript(c, true)) ?? ''
+      } catch {
+        return ''
+      }
+    }, code)
     await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('hello from the site')
     await expect(ask).toHaveCount(0)
     await expect(page.locator('.pa .pa-tag')).toHaveText('web')

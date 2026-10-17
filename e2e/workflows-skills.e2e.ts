@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -48,7 +48,8 @@ async function start() {
   return { ...app, page, repo, argsLog }
 }
 
-const launches = (argsLog: string) => readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
+// The fake writes the log when the first agent starts, which on a slow machine is after the first look: no file yet is no launches yet.
+const launches = (argsLog: string) => (existsSync(argsLog) ? readFileSync(argsLog, 'utf8') : '').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
 const flag = (launch: string[], f: string) => launch[launch.indexOf(f) + 1]!
 async function asAgent(launch: string[]) {
   const cfg = JSON.parse(readFileSync(flag(launch, '--mcp-config'), 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
