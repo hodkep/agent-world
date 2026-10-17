@@ -7,7 +7,7 @@ import { hire, launchApp } from './launch'
 test('Esc interrupts a working agent from anywhere in the conversation, but not while a menu is open', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-esc-'))
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_HANG: '1' },
+    { AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_WORK_UNTIL_ESC: '1' },
     home
   )
   try {
