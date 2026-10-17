@@ -1,3 +1,4 @@
+import pkg from '../../package.json'
 import { createServer, type IncomingMessage } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -125,7 +126,7 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 }
 
 function toolsFor(callerId: string, o: Options) {
-  const server = new McpServer({ name: 'agent-world', version: '0.1.0' })
+  const server = new McpServer({ name: 'agent-world', version: pkg.version })
   server.registerTool(
     'list_agents',
     { description: 'List the other coding agents working in this Agent World office, with what each is doing right now.', inputSchema: {} },
