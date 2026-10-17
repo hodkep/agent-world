@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Workspaces } from '../../shared/api'
 import { MailConnect } from './MailConnect'
 import { TerminalView } from './TerminalView'
+import { useProviderSetup } from './useProviderSetup'
 import type { AgentOptions, AutonomyLevel, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderLogo } from './ProviderLogo'
 import { TrackingCost } from '../todos/TrackingCost'
@@ -54,45 +55,12 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
   const [name, setName] = useState('')
   const [crew, setCrew] = useState(false)
   const [busy, setBusy] = useState(false)
-  // The installer of a tool that was not found runs in a terminal in the step; when it ends the app looks again by itself, and says so if the tool is still not there.
-  const [install, setInstall] = useState<{ provider: ProviderId; pty: string } | null>(null)
-  const [installNote, setInstallNote] = useState<{ provider: ProviderId; text: string } | null>(null)
+  const { install, installNote, signIn, runInstall, openSignIn, doneSigningIn } = useProviderSetup(providers, onRescan)
   const [copied, setCopied] = useState<string | null>(null)
   const [git, setGit] = useState<{ source: 'system' | 'bundled'; bin: string; version?: string } | null | undefined>(undefined)
   useEffect(() => void window.aw.gitInfo().then(setGit, () => setGit(null)), [])
-  // The terminal where a provider's own sign-in runs, opened on request and shown right in the step.
-  const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
-  const openSignIn = async (provider: ProviderId) => {
-    if (signIn) window.aw.closeShell(signIn.pty)
-    setSignIn({ provider, pty: await window.aw.openSignIn(provider) })
-  }
-  const runInstall = async (p: ProviderInfo) => {
-    setInstallNote(null)
-    try {
-      setInstall({ provider: p.id, pty: await window.aw.installProvider(p.id) })
-    } catch (err) {
-      setInstallNote({ provider: p.id, text: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
-    }
-  }
-  const installPty = install?.pty
-  useEffect(() => {
-    if (!install) return
-    const { provider, pty } = install
-    return window.aw.onPtyExit((id) => {
-      if (id !== pty) return
-      setInstall(null)
-      // Look again; the card then says what was found, or that the tool is still not there.
-      void Promise.resolve(onRescan()).then(() => setInstallNote({ provider, text: '' }))
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [installPty])
   const copy = (text: string, key: string) => {
     void navigator.clipboard.writeText(text).then(() => (setCopied(key), setTimeout(() => setCopied((c) => (c === key ? null : c)), 1200)))
-  }
-  const doneSigningIn = () => {
-    if (signIn) window.aw.closeShell(signIn.pty)
-    setSignIn(null)
-    onRescan()
   }
   // Re-scan shows it is working (the check can take a few seconds) and says what it found.
   const [scan, setScan] = useState<'idle' | 'busy' | 'found' | 'none'>('idle')

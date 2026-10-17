@@ -1841,7 +1841,10 @@ async function main() {
     const shell = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
     const sid = `term:${randomUUID()}`
     const login = account ? accountsSvc.signIn(p.id, account) : { env: {}, args: [] as readonly string[] }
-    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: homedir(), env: { ...env, ...login.env } as Record<string, string> })
+    // Claude asks once whether to trust the folder it starts in, and trusting a person's whole home folder is far too much: it starts in a folder of the app's own.
+    const neutral = join(HOME, 'sign-in')
+    mkdirSync(neutral, { recursive: true })
+    const pt = pty.spawn(shell, process.platform === 'win32' ? [] : ['-l'], { name: 'xterm-256color', cols: 90, rows: 14, cwd: neutral, env: { ...env, ...login.env } as Record<string, string> })
     shells.set(sid, pt)
     pt.onData((d) => {
       const b = buffers.get(sid) ?? { text: '', end: 0 }
