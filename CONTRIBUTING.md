@@ -56,3 +56,12 @@ Keep every picture under 1 MB and the GIF under 5 MB (the test fails above that 
 Use the issue templates. For a security problem, do not open a public issue: see [SECURITY.md](.github/SECURITY.md).
 
 By contributing you agree that your contributions are licensed under the [MIT licence](LICENSE), and to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
+
+## Who can do what
+
+- **Everyone** can read the code, open issues and send pull requests from a fork. Nobody else has write access to this repository.
+- **The owner** reviews and merges. `main` accepts changes only through a pull request that has a code owner's review, a passing `test` and `commit-messages` check, a linear history (squash or rebase, no merge commits) and no unresolved conversations. It cannot be force-pushed or deleted.
+- **Releases** are tags that start with `v`. Only the owner can create, move or delete one, and the release job waits for the owner's approval before it starts and before it can use the signing secrets.
+- **Workflows** from a first-time or outside contributor do not run until the owner approves them, they get a read-only token, and only GitHub's own actions and `pnpm/action-setup` are allowed to run.
+- **A security problem** goes to private vulnerability reporting, not to an issue: see [SECURITY.md](.github/SECURITY.md).
+- To give someone a role, add them as a collaborator: *triage* for managing issues, *write* only for a maintainer you trust, *admin* for the owner alone.

@@ -7,6 +7,8 @@ permissions:
   contents: write
 jobs:
   release:
+    # The `release` environment holds the signing secrets, runs only for a `v*` tag, and waits for the owner to approve (Settings > Environments).
+    environment: release
     strategy:
       fail-fast: false
       matrix:
