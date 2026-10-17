@@ -988,6 +988,8 @@ function createWindow() {
     // A step or two larger than the default, which is what pressing Cmd+ twice gave every launch; AW_ZOOM=1 turns it off (tests).
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true, webviewTag: true, zoomFactor: Number(process.env.AW_ZOOM) || 1.2 }
   })
+  // A window made on a screen smaller than it (a CI runner's is 1024x768) is cut to fit; hidden ones, which only tests use, are put back to size so layouts are the same everywhere.
+  if (HIDDEN) w.setContentSize(1440, 868)
   const id = w.webContents.id
   windows.add(w)
   w.on('closed', () => {
