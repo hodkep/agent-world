@@ -1,7 +1,30 @@
 name: ci
-on: [push, pull_request]
+# A pull request is tested once, by its own run; main is tested again after each merge. A branch push alone, with a pull request open, would be a second run of the same commit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+# A newer run of the same branch or pull request replaces the one still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
+  # No commit credits an AI tool. The same check as the commit-msg hook (scripts/check-commit-messages.mjs), so a commit made where the hook is not installed is still caught.
+  # Its own job because it needs a cheap Linux runner and no install, and a bad message should fail in seconds, not after the Mac job.
+  commit-messages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - name: Check the new commits
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: node scripts/check-commit-messages.mjs "$RANGE"
+
   test:
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -13,7 +36,12 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # Electron's own download is left to its first use otherwise, which is the first end-to-end test, three workers at once, and a network failure there reads as a broken test.
+      - run: node node_modules/electron/install.js
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run build
       - run: pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: e2e-results, path: test-results, retention-days: 7 }
