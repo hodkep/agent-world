@@ -77,11 +77,18 @@ describe('the plan line of the brief', () => {
 
 describe('the workflows the opening text offers', () => {
   const e = (id: string, when?: string) => ({ id, scope: 'project' as const, workflow: { version: 1 as const, id, name: id === 'standard' ? 'Standard' : id === 'bug-fix' ? 'Bug fix' : id, ...(when && { when }), steps: [{ id: 'b', kind: 'work' as const }] } })
+  it('says a description covers the task only when it covers all of it, and that the default is for doubt, so copy changes are not read to cover new code', () => {
+    const text = workflowList([e('standard', 'Anything'), e('quick-change', 'Typos, wording and copy changes with no logic change.')], 'standard')
+    expect(text).toContain("use it unless another one's description covers the whole task")
+    expect(text).toContain('does not stretch to other work (copy changes do not cover new code or new tests)')
+    expect(text).toContain('when in doubt, use Standard')
+  })
+
   it('lists at most five as "id: when", leaving out the default and a file that has problems, and nothing when there is no choice', () => {
     const list = [e('standard', 'Anything'), e('bug-fix', 'A defect.'), e('quick', 'Typos.'), e('sec', 'Auth.'), e('a', 'A.'), e('b', 'B.'), e('c', 'C.'), { id: 'broken', scope: 'project' as const, problems: ['x'] }]
-    expect(workflowList(list, 'standard')).toBe('This project has workflows. Standard is the default: use it unless another one clearly fits the task better, and then pass its id to task_begin as "workflow":\n- bug-fix: A defect.\n- quick: Typos.\n- sec: Auth.\n- a: A.\n- b: B.')
+    expect(workflowList(list, 'standard')).toBe('This project has workflows. Standard is the default: use it unless another one\'s description covers the whole task, and then pass its id to task_begin as "workflow". A description says what a workflow is for and does not stretch to other work (copy changes do not cover new code or new tests); when in doubt, use Standard:\n- bug-fix: A defect.\n- quick: Typos.\n- sec: Auth.\n- a: A.\n- b: B.')
     expect(workflowList([e('standard', 'Anything')], 'standard')).toBe('')
-    expect(workflowList([e('standard'), e('bug-fix')], 'bug-fix')).toBe('This project has workflows. Bug fix is the default: use it unless another one clearly fits the task better, and then pass its id to task_begin as "workflow":\n- standard')
+    expect(workflowList([e('standard'), e('bug-fix')], 'bug-fix')).toBe('This project has workflows. Bug fix is the default: use it unless another one\'s description covers the whole task, and then pass its id to task_begin as "workflow". A description says what a workflow is for and does not stretch to other work (copy changes do not cover new code or new tests); when in doubt, use Bug fix:\n- standard')
   })
 })
 
