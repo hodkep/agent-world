@@ -7,6 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { type Page, expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { readLog } from './readLog'
 
 const BILLING = {
   version: 1,
@@ -62,7 +63,7 @@ async function start(extra: { saved?: object; approved?: Record<string, unknown>
 }
 
 /** What each launched agent was started with, newest launch last. */
-const launches = (argsLog: string) => readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
+const launches = (argsLog: string) => readLog(argsLog).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
 const flag = (launch: string[], f: string) => launch[launch.indexOf(f) + 1]!
 
 async function asAgent(launch: string[]) {

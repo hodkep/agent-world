@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { readLog } from './readLog'
 
 const SKILLED = {
   version: 1,
@@ -49,7 +50,7 @@ async function start() {
 }
 
 // The fake writes the log when the first agent starts, which on a slow machine is after the first look: no file yet is no launches yet.
-const launches = (argsLog: string) => (existsSync(argsLog) ? readFileSync(argsLog, 'utf8') : '').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
+const launches = (argsLog: string) => readLog(argsLog).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
 const flag = (launch: string[], f: string) => launch[launch.indexOf(f) + 1]!
 async function asAgent(launch: string[]) {
   const cfg = JSON.parse(readFileSync(flag(launch, '--mcp-config'), 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
