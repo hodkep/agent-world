@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses a commit message that credits an AI tool. Turned on by `pnpm install` (core.hooksPath), see scripts/check-commit-messages.mjs.
+exec node "$(git rev-parse --show-toplevel)/scripts/check-commit-messages.mjs" --file "$1"

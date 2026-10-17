@@ -18,6 +18,7 @@
     "shots": "node scripts/shots.mjs",
     "readme:art": "node --experimental-strip-types --no-warnings scripts/readme-art.mjs",
     "postinstall": "electron-rebuild -f -w node-pty",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "pack": "node scripts/fetch-git.mjs --platform && electron-vite build && electron-builder --dir; electron-rebuild -f -w node-pty",
     "dist": "node scripts/fetch-git.mjs --platform && electron-vite build && electron-builder; electron-rebuild -f -w node-pty"
   },

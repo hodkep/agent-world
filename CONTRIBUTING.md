@@ -46,7 +46,7 @@ Keep every picture under 1 MB and the GIF under 5 MB (the test fails above that 
 
 ## Changes
 
-- **Commits** follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`, with a subject that says what the change does for someone using the app (`fix(chat): …`, `feat(library): …`). Types are feat, fix, docs, style, refactor, perf, test, build, ci, chore and revert. Keep a change in one commit when it is one idea, and say why in the body only when the subject cannot.
+- **Commits** follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`, with a subject that says what the change does for someone using the app (`fix(chat): …`, `feat(library): …`). Types are feat, fix, docs, style, refactor, perf, test, build, ci, chore and revert. Keep a change in one commit when it is one idea, and say why in the body only when the subject cannot. A commit message does not credit an AI tool (no `Co-Authored-By:` or "Generated with" line for one): a `commit-msg` hook turned on by `pnpm install` and a CI check both refuse it.
 - **Branches:** work on a branch of your own and open a pull request to `main`. Branches named `aw/<name>` are the worktrees Agent World itself creates for its agents (`~/.agent-world/worktrees/…`); you do not need to use them.
 - **Screens:** for a change to how the app looks or behaves on screen, show a mock or a screenshot in the pull request first. The look is described in [DESIGN.md](DESIGN.md).
 - **Before you open a pull request:** `pnpm typecheck`, `pnpm test`, and the end-to-end specs of the area you touched.

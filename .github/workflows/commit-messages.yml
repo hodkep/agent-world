@@ -1,0 +1,17 @@
+name: commit-messages
+# No commit credits an AI tool. The same check as the commit-msg hook (scripts/check-commit-messages.mjs), so a commit made where the hook is not installed is still caught.
+on:
+  push:
+  pull_request:
+jobs:
+  commit-messages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Check the new commits
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+        run: node scripts/check-commit-messages.mjs "$RANGE"
