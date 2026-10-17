@@ -2,7 +2,7 @@
 
 **Before you start:** nothing needs installing first. Agent World carries its own `git`, and its setup screen installs the Claude Code CLI for you (press **Install Claude Code**) and Antigravity if you want it. You sign in once with your own account in a terminal inside the setup screen. Agent World runs your own `claude`; it never handles your login.
 
-1. Pick the file for your Mac: `Agent World-<version>-arm64.dmg` for Apple silicon (M1 and later), `…-x64.dmg` for Intel. (Apple menu > About This Mac shows which you have.)
+1. Pick the file for your Mac: `Agent-World-<version>-arm64.dmg` for Apple silicon (M1 and later), `…-x64.dmg` for Intel. (Apple menu > About This Mac shows which you have.)
 2. Open the dmg and drag **Agent World** into **Applications**.
 3. The app is not signed with an Apple Developer ID, so macOS blocks the first launch ("Agent World" cannot be opened because Apple cannot check it for malicious software). This is needed once. Either:
    - **macOS 15 (Sequoia) and later:** try to open the app once, then go to **System Settings > Privacy & Security**, scroll down to the Security section, and press **Open Anyway** next to "Agent World was blocked", then confirm with your password. Right-click > Open no longer works on these versions.

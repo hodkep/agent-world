@@ -16,3 +16,11 @@ describe('what the Mac build produces', () => {
     expect(mac).toMatch(/identity: "-"/)
   })
 })
+
+describe('what the installers are called', () => {
+  it('has no space in the name, so the file on GitHub, the one a build makes and the one the docs name are the same, and so is each blockmap', () => {
+    const name = /^artifactName:\s*"?([^"\n]+)"?\s*$/m.exec(builder)?.[1]
+    expect(name).toBe('Agent-World-${version}-${arch}.${ext}')
+    expect(name).not.toMatch(/\s/)
+  })
+})
