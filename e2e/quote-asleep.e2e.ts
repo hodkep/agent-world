@@ -53,6 +53,8 @@ test('words quoted while the agent is asleep after a restart are in the message 
     await expect(page.getByText('ada is asleep.')).toBeVisible()
     await select(page, 'rewrite')
     await page.getByRole('button', { name: 'Ask ada' }).click()
+    // Ask opens a small box; Add with nothing typed takes the quote alone.
+    await page.getByRole('textbox', { name: 'Ask ada about the selection' }).press('Enter')
     // Asleep there is no box to show it in, but it is not lost: the composer says so, and shows it once the agent wakes.
     await expect(page.locator('.composer.asleep')).toContainText('1 quote waiting')
     await page.getByRole('button', { name: 'Wake ada' }).click()

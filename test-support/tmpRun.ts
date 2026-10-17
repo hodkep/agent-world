@@ -8,6 +8,8 @@ import { join } from 'node:path'
  * Used as the global setup of both Vitest and Playwright: what it returns is run at the end.
  */
 export default function setup() {
+  // Git settings handed down by a developer's shell or tool (core.hooksPath, an author, a repository) are not part of what a test sets up.
+  for (const k of Object.keys(process.env)) if (/^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+|GLOBAL|SYSTEM|PARAMETERS)$/.test(k) || /^GIT_(DIR|WORK_TREE|INDEX_FILE)$/.test(k)) delete process.env[k]
   const real = tmpdir()
   const run = mkdtempSync(join(real, 'awr-'))
   process.env.TMPDIR = run

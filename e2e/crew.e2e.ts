@@ -41,7 +41,7 @@ test('a line for subagents sits beside the commands line, and opens every subage
     await expect(panel.locator('.dg-row[data-level="1"]')).toContainText('Nested helper')
     await expect(rows.first()).toContainText('background')
     // What it can do to a working one: ask the main agent to stop it.
-    await panel.locator('.dg-row.s-working').last().getByRole('button').first().click()
+    await panel.locator('.dg-row.s-working').last().getByRole('button', { name: 'Details' }).click()
     await panel.getByRole('button', { name: /Ask ada to stop this one/ }).click()
     // It costs the main agent a turn, so it asks first; nothing is sent until you confirm, and Cancel sends nothing.
     await expect(panel.getByText(/uses one of ada.s turns/)).toBeVisible()
@@ -67,7 +67,7 @@ test('a finished subagent can be followed up: it goes into the message box as a 
     const panel = page.getByRole('dialog', { name: 'Subagents' })
     await expect(panel).toContainText('2 done', { timeout: 20_000 })
     await panel.getByRole('button', { name: 'Show 2 finished' }).click()
-    await panel.locator('.dg-row.s-done').first().getByRole('button').first().click()
+    await panel.locator('.dg-row.s-done').first().getByRole('button', { name: 'Details' }).click()
     await panel.getByRole('button', { name: 'Follow up' }).first().click()
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' })).toContainText('agent id fake')
   } finally {
