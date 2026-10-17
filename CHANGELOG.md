@@ -4,6 +4,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-18
+
 ### Added
 
 - Workflows: the builder's draft can be edited in place. Names, briefs, skills, a check's command, its tries and gate, and the steps themselves can be changed, moved, removed and added, with **Undo edits**, and saving waits until the checker is satisfied.
@@ -44,5 +46,6 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.1.0...HEAD
+[Unreleased]: ../../compare/v0.1.1...HEAD
+[0.1.1]: ../../compare/v0.1.0...v0.1.1
 [0.1.0]: ../../releases/tag/v0.1.0
