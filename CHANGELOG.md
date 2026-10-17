@@ -2,6 +2,29 @@
 
 All notable changes to Agent World are listed here. The format follows [Keep a Changelog](https://keepachangelog.com), and the project follows [Semantic Versioning](https://semver.org) once it is past 1.0.
 
+## [Unreleased]
+
+### Added
+
+- Workflows: the builder's draft can be edited in place. Names, briefs, skills, a check's command, its tries and gate, and the steps themselves can be changed, moved, removed and added, with **Undo edits**, and saving waits until the checker is satisfied.
+- Workflows: **Edit with the builder** starts a fresh chat with a saved workflow as the draft. Every save through the builder is written down, shown as **History** under the workflow, and readable by the builder with the new read-only tool `workflow_history`.
+- Workflows: a run belongs to the todo its agent is on. The Runs ledger shows the task, the task says how its run stands and opens it, finishing the run finishes the task, and the builder's own chats are no longer tracked as requests.
+- Workflows: a plan with no open questions says the agent asked none, and a note for the agent can be sent with the approval.
+- Guide: pages and pictures for the builder's draft and for a task with its run.
+
+### Fixed
+
+- Workflows: an agent is told once that a check waits for your approval, not on every step report, until you answer or the workflow file changes.
+- Workflows: a follow-up round reads the workflow file again and takes a changed copy, so an edited file's commands are asked about again.
+- Workflows: agents are told a workflow's description covers a task only when it covers all of it, so copy changes are not read to cover new code.
+- Chat: a long conversation no longer loses its end on a slow machine, and a jump to one of your messages settles where it should. Alt+Up from the end of a conversation goes to your last message.
+- Release: the installers are named `Agent-World-<version>-<arch>`, with hyphens, so the file on GitHub, the one a build makes and the ones the docs name are the same.
+
+### Security
+
+- `dompurify`, `katex`, `lodash-es` and `source-map-js` are held to their patched versions, including the copies that monaco, mermaid and vite bring in.
+- The CI workflow's token can only read the repository.
+
 ## [0.1.0] - 2026-10-16
 
 The first public release.
@@ -21,4 +44,5 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
+[Unreleased]: ../../compare/v0.1.0...HEAD
 [0.1.0]: ../../releases/tag/v0.1.0
