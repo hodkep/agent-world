@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { SHOTS_DIR, SHOTS_ON, type Scene, agentGit, exists, hireNamed, officeTools, seedRun, shoot, shootElement, shotApp, writeSkill } from './shotsKit'
+import { SHOTS_DIR, SHOTS_ON, type Scene, agentGit, cleanEnv, exists, hireNamed, officeTools, seedRun, shoot, shootElement, shotApp, writeSkill } from './shotsKit'
 import { seedWeek } from './workflowsWeek'
 
 test.skip(!SHOTS_ON, 'The pictures are taken on purpose: AW_SHOTS=1 pnpm shots')
@@ -183,7 +183,7 @@ test('workflows: a merge held by git, as the band under the run track, and the a
     await expect.poll(() => (exists(o.envLog) ? 'ok' : '')).toBe('ok')
     seedRun(o.home, { agentId: ada!.id, repo: o.repo })
     writeFileSync(join(ada!.cwd, 'toggle.ts'), 'export const dark = true\n')
-    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...a], { cwd: ada!.cwd, encoding: 'utf8' })
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...a], { cwd: ada!.cwd, encoding: 'utf8', env: cleanEnv() })
     git('add', '-A')
     git('commit', '-qm', 'feat(settings): a dark-mode toggle')
     const asAgent = agentGit(o.envLog)

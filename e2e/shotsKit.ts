@@ -12,11 +12,15 @@ export const SHOTS_ON = !!process.env.AW_SHOTS
 
 export type Scene = 'story' | 'idle' | 'waiting' | 'thinking' | 'researching' | 'implementing' | 'running' | 'delegating' | 'permission' | 'asleep'
 
+/** The environment of whoever runs the shots without what is theirs alone: another office's addresses and tokens, git's hooks set for an agent, a Claude login folder, fake-agent switches. */
+export const cleanEnv = (): Record<string, string> =>
+  Object.fromEntries(Object.entries(process.env).filter(([k, v]) => v !== undefined && !/^(AW_|GIT_CONFIG_|FAKE_|SHOTS_)/.test(k) && k !== 'CLAUDE_CONFIG_DIR')) as Record<string, string>
+
 /** A small project to work in: a git repository with a few files, committed, as a person's own would be. */
 export function makeProject(tmp: string, name = 'storefront') {
   const repo = join(realpathSync(tmp), name)
   mkdirSync(join(repo, 'src'), { recursive: true })
-  const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...a], { cwd: repo, encoding: 'utf8' }).trim()
+  const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...a], { cwd: repo, encoding: 'utf8', env: cleanEnv() }).trim()
   git('init', '-q', '-b', 'main')
   writeFileSync(join(repo, 'README.md'), `# ${name}\n\nA small online shop.\n`)
   writeFileSync(join(repo, 'src', 'app.ts'), "export const app = { name: 'storefront' }\n")
@@ -45,12 +49,11 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
     writeFileSync(join(bin, name), `#!/bin/sh\nexec node "${resolve(__dirname, script)}" "$@"\n`)
     chmodSync(join(bin, name), 0o755)
   }
-  const { CLAUDE_CONFIG_DIR: _own, ...inherited } = process.env
   const size = o.size ?? { width: 1400, height: 900 }
   const app = await electron.launch({
     args: [resolve(__dirname, '..')],
     env: {
-      ...(inherited as Record<string, string>),
+      ...cleanEnv(),
       AW_HIDDEN: '1', AW_ZOOM: '1', AW_NO_SETUP: o.fresh ? '' : '1', AW_HOME: home, AW_USER_HOME: join(tmp, 'user'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'),
       AW_CLAUDE_BIN: join(bin, 'claude'), AW_AGY_BIN: o.agy ? join(bin, 'agy') : '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...(o.agy && { AW_AGY_HOME: join(tmp, 'agy'), AW_AGY_CONFIG: join(tmp, 'mcp_config.json') }),
       FAKE_DELAY_MS: '150', FAKE_TRANSCRIPT: '1', FAKE_ARGS: join(tmp, 'args.log'), FAKE_ENV_FILE: join(tmp, 'env.log'), SHOTS_SCENES: JSON.stringify(o.scenes ?? {}), ...o.env
@@ -123,7 +126,7 @@ export function agentGit(envLog: string) {
   const env = JSON.parse(readFileSync(envLog, 'utf8').trim().split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).at(-1)!) as { url: string; token: string; git: Record<string, string> }
   return (cwd: string, ...args: string[]) =>
     new Promise<{ ok: boolean; out: string }>((done) =>
-      execFile('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...args], { cwd, env: { ...process.env, ...env.git, AW_MCP_URL: env.url, AW_AGENT_TOKEN: env.token } }, (err, stdout, stderr) => done({ ok: !err, out: `${stdout}${stderr}` }))
+      execFile('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...args], { cwd, env: { ...cleanEnv(), ...env.git, AW_MCP_URL: env.url, AW_AGENT_TOKEN: env.token } }, (err, stdout, stderr) => done({ ok: !err, out: `${stdout}${stderr}` }))
     )
 }
 
