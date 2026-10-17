@@ -5,7 +5,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -16,8 +16,4 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run build
-      # The windows run of the end-to-end tests is where Windows-only problems show up; the app runs hidden, so no display is needed except on Linux.
       - run: pnpm exec playwright test
-        if: runner.os != 'Linux'
-      - run: xvfb-run -a pnpm exec playwright test
-        if: runner.os == 'Linux'

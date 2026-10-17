@@ -32,7 +32,7 @@ To commit everything, type a message in **Message…** and click **Commit all**.
 
 ## Browse and edit files
 
-**Files** lists the worktree's files. Click one to open it in a tab, edit it, and click **Save** (⌘S; Ctrl+S on Windows and Linux). Edits go straight into the agent's worktree. A Markdown file has **Preview** and **Source** to read it formatted or as text; this is not the **Preview** tab.
+**Files** lists the worktree's files. Click one to open it in a tab, edit it, and click **Save** (⌘S). Edits go straight into the agent's worktree. A Markdown file has **Preview** and **Source** to read it formatted or as text; this is not the **Preview** tab.
 
 ## Send code to the agent
 

@@ -6,7 +6,7 @@
 
 web
 
-Electron desktop app (Chromium renderer). macOS is the platform it has been run on; builds for Windows and Linux exist but are experimental.
+Electron desktop app (Chromium renderer) for macOS.
 
 ## Users
 
@@ -37,7 +37,7 @@ Existing pixel visualizers (Pixel Agents, claude-office) only watch; existing or
 - Anything Claude asks the user (tool approval, plan, folder trust, questions, its own menus) appears in an 8-bit dialog or inline in the chat, and comes back after a window reload.
 - Agents are hired from roles (built-in, saved, or a project's `.claude/agents`), can be grouped, cloned, and handed to another agent for review; commands started by an agent can be listed and stopped from the chat.
 - Usage limits (5-hour, weekly) are shown as the tanks of the power plant on the back lawn of the office; the top bar's Usage button opens the full picture and counts the limits running low.
-- Shipping: installers for macOS, Windows and Linux through electron-builder (unsigned until signing certificates are provided), update checks against an address set in Settings, and a three-platform CI workflow. Only macOS has been run by hand; the Windows and Linux builds are made by the workflow and untested.
+- Shipping: installers for macOS through electron-builder (signed ad hoc until a Developer ID certificate is provided), update checks against the project's GitHub releases or an address set in Settings, and a CI workflow on macOS. There are no Windows or Linux installers.
 - Roles are dynamic: an agent is a senior; while it has live subagents it is the boss; subagents are interns.
 - Activities shown: idle, thinking, researching, implementing, running, delegating, waiting, permission, asleep.
 - No external art assets in v1: all pixel art is generated in code (no downloads, no license questions). Cosmetic upgrades and themes come later.

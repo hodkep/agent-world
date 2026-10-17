@@ -4,7 +4,7 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: For a security problem, do not file it here: see SECURITY.md.
+      value: "For a security problem, do not file it here: see SECURITY.md."
   - type: textarea
     id: what
     attributes:
@@ -26,7 +26,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      options: [macOS, Windows, Linux]
+      options: [macOS]
     validations:
       required: true
   - type: input

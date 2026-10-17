@@ -67,7 +67,7 @@ To look now, press **Check now**; the line next to it says what was found. To us
 When a newer version exists:
 
 - **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) cannot replace itself. A chip with an arrow and the version number appears in the top bar, and **Open the release page** appears under **Check now**. Either opens the release page on GitHub; download the new version and install it as before.
-- **A build that can install itself** (a Mac build signed with a Developer ID, or a build for another system) downloads the update and says that it installs when you quit. Windows and Linux builds have not been tried by hand, so this has not been seen there.
+- **A build that can install itself** (a Mac build signed with a Developer ID) downloads the update and says that it installs when you quit.
 
 ## Run setup again
 

@@ -1,16 +1,14 @@
 # Releasing
 
-A release is a tag. Pushing a tag that starts with `v` builds the installers on macOS, Windows and Linux and uploads them to a GitHub release (`.github/workflows/release.yml`). The installed app looks for updates in those releases.
+A release is a tag. Pushing a tag that starts with `v` builds the Mac installers and uploads them to a GitHub release (`.github/workflows/release.yml`). The installed app looks for updates in those releases.
 
 ## Make a release
 
 1. Change `version` in `package.json` (for example to `0.2.0`) and add the entry to [CHANGELOG.md](CHANGELOG.md). Commit both.
 2. Tag and push: `git tag v0.2.0 && git push origin main v0.2.0`. The tag must be the version with a `v` in front (`v0.1.0` for 0.1.0).
-3. The workflow runs the type check and the unit tests, builds, and uploads on each system:
+3. The workflow runs the type check and the unit tests, builds, and uploads:
    - macOS: `Agent World-<version>-arm64.dmg` and `-x64.dmg` to install from, the matching `.zip` files and `latest-mac.yml` for the updater.
-   - Windows: the installer (`.exe`) and `latest.yml`.
-   - Linux: the AppImage, the `.deb` and `latest-linux.yml`.
-4. The release is created as a **draft**. When all three systems have finished uploading, open it on GitHub and press **Publish release**. The updater only sees published releases, so nobody is offered a half-uploaded one.
+4. The release is created as a **draft**. When the upload has finished, open it on GitHub and press **Publish release**. The updater only sees published releases, so nobody is offered a half-uploaded one.
 
 ## Check a build before you tag it
 
@@ -39,8 +37,6 @@ The workflow signs and notarises when these five repository secrets exist (Setti
 | `APPLE_ID` | The email of the Apple ID that owns the membership. |
 | `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password for that Apple ID, made at appleid.apple.com under Sign-In and Security, App-Specific Passwords. (The Apple ID's own password does not work.) |
 | `APPLE_TEAM_ID` | The 10-character team id, shown at developer.apple.com under Membership details. |
-
-Windows is not signed, so Windows shows its SmartScreen warning on first run. Linux builds are not signed.
 
 ## Take a release back
 
