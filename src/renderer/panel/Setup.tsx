@@ -42,19 +42,30 @@ interface Props {
   onClose: () => void
   /** Reopened from Settings: it can be closed at any step. */
   reopened: boolean
+  /** A provider to set up as this opens (sent from the hire form): its installer or sign-in starts at once, on the step that lists it. */
+  startWith?: ProviderId | null
 }
 
 /** First run: what is on this machine, where to work, how much freedom agents get, and the first agent. Skippable except where nothing else would work. */
-export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened }: Props) {
+export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, onOpen, onRescan, onHire, onClose, reopened, startWith }: Props) {
   const ready = providers.filter((p) => p.detection.state === 'ready')
-  const [step, setStep] = useState(0)
-  const [visited, setVisited] = useState(() => new Set([0]))
+  const [step, setStep] = useState(startWith ? 1 : 0)
+  const [visited, setVisited] = useState(() => new Set(startWith ? [0, 1] : [0]))
   const [skipped, setSkipped] = useState(() => new Set<number>())
   const [level, setLevel] = useState<AutonomyLevel>('ask')
   const [name, setName] = useState('')
   const [crew, setCrew] = useState(false)
   const [busy, setBusy] = useState(false)
   const setup = useProviderSetup(providers, onRescan)
+  const started = useRef(false)
+  useEffect(() => {
+    const p = startWith && providers.find((x) => x.id === startWith)
+    if (!p || started.current) return
+    started.current = true
+    if (p.detection.state === 'not-installed') void setup.runInstall(p)
+    else if (p.detection.state === 'needs-sign-in') void setup.openSignIn(p.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [git, setGit] = useState<{ source: 'system' | 'bundled'; bin: string; version?: string } | null | undefined>(undefined)
   useEffect(() => void window.aw.gitInfo().then(setGit, () => setGit(null)), [])
   // Re-scan shows it is working (the check can take a few seconds) and says what it found.

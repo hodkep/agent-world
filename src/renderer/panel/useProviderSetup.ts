@@ -15,6 +15,8 @@ export function useProviderSetup(providers: ProviderInfo[], onRescan: () => void
   const [install, setInstall] = useState<{ provider: ProviderId; pty: string } | null>(null)
   const [installNote, setInstallNote] = useState<{ provider: ProviderId; text: string } | null>(null)
   const [signIn, setSignIn] = useState<{ provider: ProviderId; pty: string } | null>(null)
+  // Tools whose installer finished here, so their card can say "installed, now sign in".
+  const [installed, setInstalled] = useState<ProviderId[]>([])
   const rescan = useRef(onRescan)
   rescan.current = onRescan
   const looking = useRef(false)
@@ -31,8 +33,11 @@ export function useProviderSetup(providers: ProviderInfo[], onRescan: () => void
   const stopInstall = useCallback((pty: string) => (window.aw.closeShell(pty), setInstall(null)), [])
   const stopSignIn = useCallback((pty: string) => (window.aw.closeShell(pty), setSignIn(null)), [])
 
+  // One terminal at a time: starting another puts the one open away.
   const runInstall = async (p: ProviderInfo) => {
     setInstallNote(null)
+    if (signIn) stopSignIn(signIn.pty)
+    if (install) stopInstall(install.pty)
     try {
       setInstall({ provider: p.id, pty: await window.aw.installProvider(p.id) })
     } catch (err) {
@@ -41,6 +46,7 @@ export function useProviderSetup(providers: ProviderInfo[], onRescan: () => void
   }
   const openSignIn = async (provider: ProviderId) => {
     if (signIn) window.aw.closeShell(signIn.pty)
+    if (install) stopInstall(install.pty)
     setSignIn({ provider, pty: await window.aw.openSignIn(provider) })
   }
   const doneSigningIn = () => {
@@ -57,6 +63,7 @@ export function useProviderSetup(providers: ProviderInfo[], onRescan: () => void
       if (id !== pty) return
       setInstall(null)
       void look().then(() => setInstallNote({ provider, text: '' }))
+      setInstalled((l) => [...l, provider])
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installPty])
@@ -82,10 +89,10 @@ export function useProviderSetup(providers: ProviderInfo[], onRescan: () => void
 
   // What the looking found: an installer whose tool is now there is done, and so is a sign-in whose tool is ready.
   useEffect(() => {
-    if (install && providers.find((p) => p.id === install.provider)?.detection.state !== 'not-installed') stopInstall(install.pty)
+    if (install && providers.find((p) => p.id === install.provider)?.detection.state !== 'not-installed') (setInstalled((l) => [...l, install.provider]), stopInstall(install.pty))
     if (signIn && providers.find((p) => p.id === signIn.provider)?.detection.state === 'ready') stopSignIn(signIn.pty)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers])
 
-  return { install, installNote, signIn, runInstall, openSignIn, doneSigningIn }
+  return { install, installNote, signIn, installed, runInstall, openSignIn, doneSigningIn }
 }

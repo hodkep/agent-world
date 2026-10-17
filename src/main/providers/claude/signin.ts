@@ -49,9 +49,9 @@ export function signInState(status: AuthStatus | null, onboarding: Onboarding): 
   if (!status) return { state: 'ready' }
   if (!status.loggedIn) {
     if (status.apiProvider && status.apiProvider !== 'firstParty') return { state: 'ready' }
-    return { state: 'needs-sign-in', hint: 'Claude Code is installed but not signed in. Open a terminal below and sign in with your own account; its first run also asks a few questions, such as the text style.' }
+    return { state: 'needs-sign-in', hint: 'Claude Code is installed but not signed in. Open a terminal below and sign in with your own account; its first run also asks a few questions, such as the text style. Claude also asks once whether you trust the folder it opens in: choose “Yes, I trust this folder”.' }
   }
-  if (onboarding === 'not-done') return { state: 'needs-sign-in', hint: "Claude Code is signed in, but its first-run questions (text style, security notes) have not been answered yet. Open a terminal below and answer them once; it takes a moment." }
+  if (onboarding === 'not-done') return { state: 'needs-sign-in', hint: "Claude Code is signed in, but its first-run questions (text style, security notes) have not been answered yet. Open a terminal below and answer them once; it takes a moment. Claude also asks once whether you trust the folder it opens in: choose “Yes, I trust this folder”." }
   return { state: 'ready' }
 }
 

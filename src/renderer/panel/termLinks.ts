@@ -38,3 +38,18 @@ export function findLinks(text: string): TermLink[] {
   }
   return out.sort((a, b) => a.start - b.start)
 }
+
+export interface WrappedLink extends TermLink {
+  /** 1-based cells, end included, as the terminal wants a link's place; it may run over several rows. */
+  range: { start: { x: number; y: number }; end: { x: number; y: number } }
+}
+
+/**
+ * The links in a line the terminal wrapped over several rows: the rows are read as the one line they are, so a long sign-in address
+ * is one link that opens whole, not a piece per row. `firstY` is the 1-based row of `rows[0]`; every row but the last is `cols` wide.
+ */
+export function findWrappedLinks(rows: string[], cols: number, firstY: number): WrappedLink[] {
+  const text = rows.map((r, i) => (i < rows.length - 1 ? r.padEnd(cols) : r)).join('')
+  const at = (offset: number) => ({ x: (offset % cols) + 1, y: firstY + Math.floor(offset / cols) })
+  return findLinks(text).map((l) => ({ ...l, range: { start: at(l.start), end: at(l.end - 1) } }))
+}

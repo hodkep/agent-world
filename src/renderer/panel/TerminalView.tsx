@@ -6,7 +6,7 @@ import { mentionText } from '../../shared/mention'
 import { openFileEvent } from '../files/context'
 import { macKeySequence } from './macKeys'
 import { type Match, findMatches, markTarget, stepMatch } from './termFind'
-import { findLinks } from './termLinks'
+import { findWrappedLinks } from './termLinks'
 
 // `focusTick` changes whenever the panel wants keys back in this terminal (after a card button stole focus).
 /** A terminal on one of the app's ptys: an agent's, or a shell in the grid (its id starts with `term:`). */
@@ -114,11 +114,20 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     // Addresses and file paths in the output open with Cmd (or Ctrl) held down.
     const links = term.registerLinkProvider({
       provideLinks: (y, done) => {
-        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? ''
-        const found = findLinks(text).filter((l) => l.kind === 'url' || askRef.current)
+        // A line the terminal wrapped is read whole, so a long address is one link.
+        const buf = term.buffer.active
+        let first = y - 1
+        while (first > 0 && buf.getLine(first)?.isWrapped) first--
+        const rows: string[] = []
+        for (let i = first; i < buf.length; i++) {
+          const row = buf.getLine(i)
+          if (!row || (i > first && !row.isWrapped)) break
+          rows.push(row.translateToString(true))
+        }
+        const found = findWrappedLinks(rows, term.cols, first + 1).filter((l) => (l.kind === 'url' || askRef.current) && l.range.start.y <= y && l.range.end.y >= y)
         done(
           found.map((l) => ({
-            range: { start: { x: l.start + 1, y }, end: { x: l.end, y } },
+            range: l.range,
             text: l.target,
             activate: (ev: MouseEvent) => {
               if (!(ev.metaKey || ev.ctrlKey)) return

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findLinks } from './termLinks'
+import { findLinks, findWrappedLinks } from './termLinks'
 
 describe('findLinks', () => {
   it('finds web addresses, leaving off the punctuation that ends a sentence', () => {
@@ -22,5 +22,25 @@ describe('findLinks', () => {
 
   it('finds several on one line, in order', () => {
     expect(findLinks('a.ts:1 https://x.io b/c.py').map((l) => l.target)).toEqual(['a.ts', 'https://x.io', 'b/c.py'])
+  })
+})
+
+describe('findWrappedLinks', () => {
+  const url = `https://accounts.example.com/o/oauth2/auth?client_id=${'a'.repeat(60)}&state=xyz`
+  it('finds an address the terminal wrapped onto several rows as one whole link, from where it starts to where it ends', () => {
+    const cols = 40
+    const text = `Open ${url} now`
+    const rows = Array.from({ length: Math.ceil(text.length / cols) }, (_, i) => text.slice(i * cols, (i + 1) * cols))
+    const [l] = findWrappedLinks(rows, cols, 7)
+    expect(l!.target).toBe(url)
+    expect(l!.range.start).toEqual({ x: 6, y: 7 })
+    const last = 5 + url.length - 1
+    expect(l!.range.end).toEqual({ x: (last % cols) + 1, y: 7 + Math.floor(last / cols) })
+  })
+
+  it('is the same as findLinks for one row', () => {
+    const [l] = findWrappedLinks(['see https://example.com/a now'], 80, 3)
+    expect(l!.target).toBe('https://example.com/a')
+    expect(l!.range).toEqual({ start: { x: 5, y: 3 }, end: { x: 25, y: 3 } })
   })
 })
