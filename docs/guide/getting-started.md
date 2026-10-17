@@ -11,7 +11,7 @@ Install Agent World, get Claude Code ready, choose a project folder and hire you
 
 ## Install on a Mac
 
-1. Download the file for your Mac from the project's releases page on GitHub: `Agent World-<version>-arm64.dmg` for Apple silicon (M1 and later), `Agent World-<version>-x64.dmg` for Intel. Apple menu > About This Mac shows which you have.
+1. Download the file for your Mac from the project's releases page on GitHub: `Agent-World-<version>-arm64.dmg` for Apple silicon (M1 and later), `Agent-World-<version>-x64.dmg` for Intel. Apple menu > About This Mac shows which you have.
 2. Open the dmg and drag **Agent World** into **Applications**.
 3. Open it. The app is not signed with an Apple Developer ID, so macOS blocks the first launch. You approve it once: see [macOS blocks the first launch](troubleshooting.md#macos-blocks-the-first-launch).
 

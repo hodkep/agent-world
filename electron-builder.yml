@@ -27,7 +27,7 @@ mac:
     - { from: "build/git/darwin-${arch}", to: git }
 dmg:
   title: "Agent World"
-artifactName: "${productName}-${version}-${arch}.${ext}"
+artifactName: "Agent-World-${version}-${arch}.${ext}"
 # Installers are published to the project's GitHub releases by the release workflow; the installed app looks there for updates unless Settings gives another address.
 # The owner and repository come from the repository field of package.json or the git remote the build runs in.
 publish:
