@@ -10,7 +10,7 @@ import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
-import { checkForUpdates, updateState } from './updates'
+import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, updateState } from './updates'
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
@@ -1434,6 +1434,9 @@ async function main() {
   })
   ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   ipcMain.handle('updates:state', () => updateState())
+  ipcMain.handle('updates:download', () => downloadUpdate())
+  ipcMain.handle('updates:cancel', () => cancelUpdateDownload())
+  ipcMain.handle('updates:install', () => installUpdate())
   // An installed app looks by itself once at the start and every six hours; a build that is not installed has nothing to look for.
   if (app.isPackaged) startChecks(() => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   // Automated runs have no one to walk through setup, so they start as if it was done.

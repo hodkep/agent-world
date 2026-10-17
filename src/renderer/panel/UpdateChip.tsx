@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import type { InstallState } from '../../shared/updateInstall'
 
-export type UpdateInfo = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string }
+export type UpdateInfo = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; install?: InstallState }
 
 // What the last look found, kept for the whole window so a screen opened after it (Settings) still knows.
 let last: UpdateInfo = { state: 'off' }
