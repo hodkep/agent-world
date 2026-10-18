@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
+import pkg from '../package.json'
 
 // The update of a build without a Developer ID, against a release server of the test's own (AW_UPDATE_RELEASES: honoured only by an app that is not installed)
 // and a fake app bundle to replace (AW_UPDATE_APP_PATH). A real replacement on a real Mac, with a real codesign and open, is tried by hand.
@@ -68,7 +69,7 @@ test('an unsigned Mac build is offered the update, downloads it with progress, c
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await expect(pop).toContainText('Agent World 0.9.0 is available')
-    await expect(pop).toContainText('You have 0.1.1')
+    await expect(pop).toContainText(`You have ${pkg.version}`)
     await pop.getByRole('button', { name: 'Download' }).click()
     await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
     await expect(pop).toContainText("Checksum matches the release's")
