@@ -999,6 +999,11 @@ export function App() {
       select(a.id)
     })
 
+  // What a restart for an update would put to sleep: agents at work, and agents waiting for an answer.
+  const updateAgents = {
+    working: allAgents.filter((a) => ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(world[a.id]?.activity ?? 'asleep')).length,
+    waiting: allAgents.filter((a) => world[a.id]?.activity === 'waiting').length
+  }
   const switchTo = (change: Parameters<typeof window.aw.reconfigure>[1]) => current && run(() => window.aw.reconfigure(current.id, change))
   const between = !state || ['idle', 'waiting'].includes(state.activity)
 
@@ -1254,7 +1259,7 @@ export function App() {
         />
       )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
-      {settings && prefs && <Settings initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {settings && prefs && <Settings updateAgents={updateAgents} initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
@@ -1300,7 +1305,7 @@ export function App() {
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
         {error && <span className="error">{error}</span>}
-        <UpdateChip />
+        <UpdateChip agents={updateAgents} />
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />

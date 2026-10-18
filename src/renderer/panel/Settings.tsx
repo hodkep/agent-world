@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useUpdateInfo } from './UpdateChip'
+import { UpdatePanel, useUpdateInfo } from './UpdateChip'
+import { updateView } from './updateView'
 import type { Role } from '../../shared/roles'
 import type { Prefs, ProviderInfo } from '../../shared/types'
 import { MailConnect } from './MailConnect'
@@ -72,7 +73,7 @@ const PANES = [
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void> }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, updateAgents = { working: 0, waiting: 0 } }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
@@ -87,7 +88,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   // What the app last found about a newer version, said as it looks (and a page to open when this build cannot install it itself).
   const found = useUpdateInfo()
   const update = found.detail ?? { off: '', checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.' }[found.state]
-  const updatePage = found.state === 'available' && found.url ? found.url : ''
+  const shown = updateView(found, updateAgents)
   useEffect(() => dialog.current?.showModal(), [])
   const set = (patch: Partial<Prefs>) => onChange(patch)
   const setRoleModel = (title: string, model: string) => {
@@ -284,9 +285,13 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <div className="settings-row">
                 <button onClick={() => void window.aw.checkUpdates()}>Check now</button>
                 <span className="hint" role="status">{update}</span>
-                {updatePage && <button className="primary" onClick={() => void window.aw.openExternal(updatePage).catch(() => undefined)}>Open the release page</button>}
               </div>
-              {updatePage && <p className="hint">This build is not signed with an Apple Developer ID, so it cannot install the new version itself: download it from the page and install it as before.</p>}
+              {shown && (
+                <div className="set-update">
+                  <UpdatePanel view={shown} info={found} />
+                  <p className="hint">This build is not signed with an Apple Developer ID, so an update is checked against the checksum published with its release on GitHub, and put in place by Agent World itself.</p>
+                </div>
+              )}
             </>
           )}
           {pane === 'setup' && (

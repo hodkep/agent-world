@@ -6,7 +6,7 @@ import { launchApp } from './launch'
 
 const RELEASE = 'https://github.com/hodkep/agent-world/releases/tag/v0.2.0'
 
-test('a newer version that the app cannot install itself is a chip in the top bar and a button in Settings, and both open its release page', async () => {
+test('a newer version for a build that has no way to download it is a chip that opens a popover with its release page, and the same button in Settings', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-update-'))
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs') }, home)
   try {
@@ -24,17 +24,21 @@ test('a newer version that the app cannot install itself is a chip in the top ba
     await expect(page.getByRole('button', { name: /is available/ })).toHaveCount(0)
 
     await tell({ state: 'available', detail: '0.2.0 is available.', latest: '0.2.0', url: RELEASE })
-    const chip = page.locator('header').getByRole('button', { name: 'Agent World 0.2.0 is available: open its page' })
+    const chip = page.locator('header').getByRole('button', { name: 'Agent World 0.2.0 is available' })
     await expect(chip).toContainText('0.2.0')
+    // The chip opens a popover; nothing opens in the browser until the button in it is pressed (this state has no tag, so there is no download to offer).
     await chip.click()
+    expect(await opened()).toEqual([])
+    await page.getByRole('dialog', { name: 'Agent World update' }).getByRole('button', { name: 'Open the release page' }).click()
     await expect.poll(opened).toEqual([RELEASE])
+    await page.keyboard.press('Escape')
 
     // Settings says the same, with a button beside Check now.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: /Updates/ }).click()
     await expect(settings.getByRole('status')).toContainText('0.2.0 is available.')
-    await expect(settings).toContainText('cannot install the new version itself')
+    await expect(settings).toContainText('not signed with an Apple Developer ID')
     await settings.getByRole('button', { name: 'Open the release page' }).click()
     await expect.poll(opened).toEqual([RELEASE, RELEASE])
     await settings.getByRole('button', { name: 'Close settings' }).click()

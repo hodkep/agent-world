@@ -3254,3 +3254,19 @@ svg.pxg { display: block; flex: none; }
 .rb-tab .rb-todo { align-self: flex-start; margin-top: 2px; padding: 0 6px; font: 11px Menlo, Consolas, monospace; color: var(--ok-text); background: transparent; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok-text) 40%, var(--ink)); }
 .rb-tab .rb-todo:hover { background: color-mix(in srgb, var(--ok-text) 12%, var(--panel-3)); }
 .td-run { text-align: left; padding: 0; }
+
+/* The update: the chip's popover and the same panel in Settings. */
+.upd-wrap { position: relative; align-self: center; }
+.upd-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 360px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 28px rgb(0 0 0 / 0.5); padding: 14px; }
+.upd-panel { display: flex; flex-direction: column; gap: 10px; }
+.upd-title { font-size: 14px; color: var(--text); }
+.upd-body { margin: 0; color: var(--muted); line-height: 1.45; font-size: 12px; max-width: none; }
+.upd-bar { height: 12px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); position: relative; }
+.upd-bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.upd-bar.ok i { background: #3f8f4a; }
+.upd-meter { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.upd-ticks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #8fd49a; }
+.upd-warn { padding: 8px 10px; background: #2c2316; box-shadow: 0 0 0 1px #5b4a24; color: #e8d3a0; font-size: 12px; line-height: 1.4; }
+.upd-error { padding: 8px 10px; background: #2d1a1c; box-shadow: 0 0 0 1px #6b2b30; color: #f0b8bc; font-size: 12px; line-height: 1.4; }
+.upd-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.settings .upd-panel, .set-update .upd-panel { max-width: 460px; }

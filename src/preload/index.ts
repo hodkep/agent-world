@@ -100,6 +100,7 @@ const api: AwApi = {
   downloadUpdate: () => ipcRenderer.invoke('updates:download'),
   cancelUpdateDownload: () => ipcRenderer.invoke('updates:cancel'),
   installUpdate: () => ipcRenderer.invoke('updates:install'),
+  revealUpdate: (kind) => ipcRenderer.invoke('updates:reveal', kind),
   onUpdateState: on('update-state'),
   getPrefs: () => ipcRenderer.invoke('prefs:get'),
   setPrefs: (p) => ipcRenderer.invoke('prefs:set', p),
