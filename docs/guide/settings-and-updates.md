@@ -78,6 +78,8 @@ The standard updater of a Mac app only replaces an app signed by the same Apple 
 - Before it replaces anything it unpacks the new app next to the old one and checks that it is Agent World (`dev.agentworld.app`), is the version that was announced, and passes `codesign --verify`. The old app is kept as a backup and put back, and reopened, if any step fails; the reason is kept in the update log.
 - It asks for no password and writes nothing outside the folder Agent World is in and its own `updates` folder. Your agents' data in `~/.agent-world` is not touched. Where the app cannot change its own folder, or macOS runs it from a read-only place, it does not try: it keeps the download and says what to do.
 
+One thing you may notice: macOS can ask again for access to folders such as Documents or Downloads after an update. An app signed without a Developer ID has a new identity with every build, so macOS treats each one as a new app; replacing the app by hand does the same. A Developer ID would stop that too.
+
 What this does not give you: the checksum comes from the same release as the file, so trust rests on the security of the GitHub account that publishes the releases (two-factor sign-in is on), not on a signature from Apple. An Apple Developer ID is the better answer in the long run: with it the standard updater works with no code of ours in the way, and macOS itself checks who made the update.
 
 ## Run setup again
