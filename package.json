@@ -1,6 +1,6 @@
 {
   "name": "agent-world",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "engines": {
@@ -70,7 +70,7 @@
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
   },
-  "description": "Watch and direct your Claude Code agents as characters in a pixel-art office",
+  "description": "Run and steer Claude Code and Antigravity agents from a pixel-art office: each agent gets its own git worktree, chat, terminal and diff view, with approval gates, workflows, a shared skills library and a todo board. macOS.",
   "author": "Pratik <agentworld.app@gmail.com>",
   "repository": "github:hodkep/agent-world",
   "homepage": "https://github.com/hodkep/agent-world#readme",
