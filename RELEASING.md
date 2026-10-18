@@ -38,6 +38,12 @@ The workflow signs and notarises when these five repository secrets exist (Setti
 | `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password for that Apple ID, made at appleid.apple.com under Sign-In and Security, App-Specific Passwords. (The Apple ID's own password does not work.) |
 | `APPLE_TEAM_ID` | The 10-character team id, shown at developer.apple.com under Membership details. |
 
+## The Homebrew tap
+
+`hodkep/homebrew-tap` holds the cask that `brew install --cask hodkep/tap/agent-world` uses. Nothing to do per release: when you press **Publish release**, `.github/workflows/notify-tap.yml` wakes the tap's `update-cask` workflow, which reads the release, updates the cask's version and sha256 values, audits it with Homebrew and commits. If the wake-up is missed, the tap checks every 6 hours anyway.
+
+The wake-up needs the repository secret `TAP_DISPATCH_TOKEN`: a fine-grained personal access token limited to `hodkep/homebrew-tap` with **Contents: read and write**. These tokens expire (at most a year): renew it and run `gh secret set TAP_DISPATCH_TOKEN -R hodkep/agent-world`. Without it the job passes and says so, and only the 6-hourly check runs.
+
 ## Take a release back
 
 - **Not published yet (a draft):** delete the release on GitHub, and delete the tag with `git push origin :refs/tags/v0.2.0`. Nothing was offered to anyone.

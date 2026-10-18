@@ -1,0 +1,23 @@
+name: notify-tap
+# Tells the Homebrew tap (hodkep/homebrew-tap) that a release is published, so its cask moves at once instead of at its next 6-hourly check.
+# This is only a wake-up call: the tap reads the release itself and trusts nothing sent here. It needs the TAP_DISPATCH_TOKEN secret (a
+# fine-grained token for that one repository, Contents: read and write); without it the job says so and passes, and the tap's own check catches up.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "TAP_DISPATCH_TOKEN is not set: the tap picks this release up at its next 6-hourly check."
+            exit 0
+          fi
+          gh api repos/hodkep/homebrew-tap/dispatches -f event_type=agent-world-release
+          echo "The tap was told to look for a new release."
