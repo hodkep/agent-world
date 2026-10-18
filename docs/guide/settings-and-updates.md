@@ -66,7 +66,7 @@ To look now, press **Check now**; the line next to it says what was found. To us
 
 When a newer version exists:
 
-- **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) cannot replace itself. A chip with an arrow and the version number appears in the top bar, and **Open the release page** appears under **Check now**. Either opens the release page on GitHub; download the new version and install it as before.
+- **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) puts a chip with an arrow and the version number in the top bar. Press it to open a small window under it: **Download** fetches the new version from this project's GitHub release and shows how far it is; when it has been checked, **Install and restart** closes Agent World, puts the new version in place of this one and opens it again (agents that are working will be asleep after the restart; wake them to resume). While it downloads the chip shows the percentage. **Settings > Updates** shows the same state and the same buttons. If it fails, the window says why in a sentence and offers **Try again**, **Show in Finder** (when the file was kept) or **Open the release page**. How this is kept safe is below.
 - **A build that can install itself** (a Mac build signed with a Developer ID) downloads the update and says that it installs when you quit.
 
 ### How an update of a build without a Developer ID is kept safe
