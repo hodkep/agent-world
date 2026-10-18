@@ -55,7 +55,7 @@ Keep every picture under 1 MB and the GIF under 5 MB (the test fails above that 
 
 Use the issue templates. For a security problem, do not open a public issue: see [SECURITY.md](.github/SECURITY.md).
 
-By contributing you agree that your contributions are licensed under the [MIT licence](LICENSE), and to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
+By contributing you agree that your contributions are licensed under the [Apache License 2.0](LICENSE) (section 5 of the license says that is the default for anything you submit). You keep your copyright and your name stays in the history. The project is open core: the maintainer may also offer separate commercial editions with extra features, and Apache 2.0 lets the maintainer include contributions in those, with the notices kept. You also agree to follow the [code of conduct](.github/CODE_OF_CONDUCT.md).
 
 ## Who can do what
 
