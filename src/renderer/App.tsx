@@ -1476,13 +1476,6 @@ export function App() {
               el.addEventListener('pointerup', up)
             }}
           />
-          {crewOpen && <CrewView agents={agents.map((a) => ({ id: a.id, name: a.name }))} waitingOf={waitingOf} onOpen={select} onClose={() => setCrewOpen(false)} />}
-          {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
-          {hiring && (
-            <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-              <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} unready={(providers ?? []).filter((p) => p.detection.state !== 'ready')} onSetUp={(id) => (setHiring(false), setSetupFor(id), setSetupAgain(true))} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
-            </Modal>
-          )}
           {agents.length > 0 && (
             <nav className="roster" aria-label="Agents" hidden={folded}>
               {rosterRows()}
@@ -1718,6 +1711,14 @@ export function App() {
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} inPlace={current.branch ? undefined : { path: current.cwd }} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>
+        {/* Dialogs sit outside the side panel: inside it they would be open (blocking the page) but not drawn while the panel is hidden. */}
+        {crewOpen && <CrewView agents={agents.map((a) => ({ id: a.id, name: a.name }))} waitingOf={waitingOf} onOpen={select} onClose={() => setCrewOpen(false)} />}
+        {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
+        {hiring && (
+          <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
+            <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} unready={(providers ?? []).filter((p) => p.detection.state !== 'ready')} onSetUp={(id) => (setHiring(false), setSetupFor(id), setSetupAgain(true))} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+          </Modal>
+        )}
         {current && subs[current.id] && (
           <SubagentPanel
             key={current.id}
