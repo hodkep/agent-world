@@ -6,7 +6,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Added
 
-- Homebrew: `brew install --cask hodkep/tap/agent-world` installs the app, and the tap follows each release by itself. The app is still not signed with an Apple Developer ID, so the first launch still needs Open Anyway.
+- Homebrew: `brew install --cask hodkep/tap/agent-world` installs the app, and the tap follows each release by itself. The cask removes macOS's quarantine mark from the app, so there is no Open Anyway step; that skips macOS's first-launch check for this app only.
 
 ### Changed
 
