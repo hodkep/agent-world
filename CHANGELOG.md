@@ -12,6 +12,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - License: from the next release the project is under the [Apache License 2.0](LICENSE) instead of MIT. It adds an explicit patent grant and says plainly that the license gives no right to the name or logo, which [TRADEMARK.md](TRADEMARK.md) now covers. Versions up to 0.1.2 were published under MIT and stay under it.
 
+### Fixed
+
+- Claude Code that is signed in and set up was shown as **Needs sign-in** (and signing in again changed nothing) on a Mac where `~/.claude/.claude.json` exists without the first-run flag. The flag is now looked for in every file Claude Code keeps, and any one saying the first questions were answered is enough. Its usage tanks on the lawn, which are drawn for ready programs only, came back with it.
+
 ## [0.1.2] - 2026-10-18
 
 ### Added
