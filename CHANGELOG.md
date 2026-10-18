@@ -4,6 +4,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-18
+
 ### Added
 
 - Updates: a Mac build without a Developer ID can download a newer version and install it from inside the app. The chip in the top bar opens a popover with **Download**, a progress bar, the checks it passed, and **Install and restart**; Settings > Updates shows the same. The file comes only from this project's GitHub release and is kept only if its size and sha512 match the published ones; the new app is checked (identity, version, signature) before it replaces the old one, which is put back if anything fails. Where the app cannot replace itself it says why and keeps the download.
@@ -50,6 +52,7 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.1.1...HEAD
+[Unreleased]: ../../compare/v0.1.2...HEAD
+[0.1.2]: ../../compare/v0.1.1...v0.1.2
 [0.1.1]: ../../compare/v0.1.0...v0.1.1
 [0.1.0]: ../../releases/tag/v0.1.0
