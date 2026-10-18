@@ -4,7 +4,7 @@
 
 <p align="center">
   <img alt="latest release" src="https://img.shields.io/github/v/release/hodkep/agent-world?style=flat-square&labelColor=12101a&color=f2c230&label=release">
-  <img alt="licence MIT" src="https://img.shields.io/badge/licence-MIT-f2c230?style=flat-square&labelColor=12101a">
+  <img alt="licence Apache 2.0" src="https://img.shields.io/badge/licence-Apache%202.0-f2c230?style=flat-square&labelColor=12101a">
   <img alt="platform: macOS" src="https://img.shields.io/badge/platform-macOS-f2c230?style=flat-square&labelColor=12101a">
   <img alt="Node 22 or newer" src="https://img.shields.io/badge/node-22%2B-f2c230?style=flat-square&labelColor=12101a">
 </p>
@@ -153,4 +153,4 @@ Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the test rules
 
 ## <img src="docs/images/icons/licence.svg" width="24" height="24" alt=""> Licence
 
-[MIT](LICENSE). Agent World is not affiliated with Anthropic or Google. The Claude and Antigravity marks in the app belong to their owners: see [NOTICE.md](NOTICE.md).
+[Apache License 2.0](LICENSE) from the release after 0.1.2; versions up to 0.1.2 were published under the MIT licence and stay under it. The core is open: use it, change it, and send improvements. The maintainer may also offer separate commercial editions with extra features. The name and logo are not covered by the license: see [TRADEMARK.md](TRADEMARK.md). Agent World is not affiliated with Anthropic or Google. The Claude and Antigravity marks in the app belong to their owners: see [NOTICE.md](NOTICE.md).

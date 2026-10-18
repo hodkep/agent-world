@@ -75,5 +75,5 @@
   "repository": "github:hodkep/agent-world",
   "homepage": "https://github.com/hodkep/agent-world#readme",
   "bugs": "https://github.com/hodkep/agent-world/issues",
-  "license": "MIT"
+  "license": "Apache-2.0"
 }
