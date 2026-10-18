@@ -26,7 +26,7 @@ Each project is an office floor. Each agent is a character with its own git work
 3. **Follow the setup screens.** Nothing has to be installed first: the app carries its own `git`, and setup installs the Claude Code CLI for you and has you sign in once, in a terminal inside the app. Agent World runs your own `claude` and never handles your login. Antigravity (`agy`) is optional.
 4. **Hire.** Pick a project folder, click **+ Agent**, name it, and the character walks in.
 
-Prefer Homebrew? `brew install --cask hodkep/tap/agent-world` does step 1; steps 2 to 4 still apply.
+Prefer Homebrew? `brew install --cask hodkep/tap/agent-world` does steps 1 and 2: the cask removes the quarantine mark, so there is no Open Anyway step (that skips macOS's first-launch check for this app only). Steps 3 and 4 still apply.
 
 ![The hire form: a name, a role, a model, and how much the agent may do without asking](docs/images/hire.png)
 
