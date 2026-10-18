@@ -108,3 +108,16 @@ describe('asking GitHub for the latest release', () => {
     expect(r.url).toBe('https://github.com/hodkep/agent-world/releases/tag/v0.2.0')
   })
 })
+
+describe('where the release is asked for', () => {
+  const repo = { owner: 'hodkep', repo: 'agent-world' }
+  it('is GitHub unless a test run gave a server of its own, and the page and the question are built from that origin and the repository', async () => {
+    const asked: string[] = []
+    const get = async (url: string) => (asked.push(url), { ok: true, status: 200, json: async () => ({ tag_name: 'v0.2.0' }) })
+    expect(await latestRelease('0.1.0', repo, get)).toMatchObject({ state: 'available', url: 'https://github.com/hodkep/agent-world/releases/tag/v0.2.0' })
+    expect(asked).toEqual(['https://api.github.com/repos/hodkep/agent-world/releases/latest'])
+    asked.length = 0
+    expect(await latestRelease('0.1.0', repo, get, { api: 'http://127.0.0.1:9999/api', downloads: 'http://127.0.0.1:9999' })).toMatchObject({ state: 'available', url: 'http://127.0.0.1:9999/hodkep/agent-world/releases/tag/v0.2.0' })
+    expect(asked).toEqual(['http://127.0.0.1:9999/api/repos/hodkep/agent-world/releases/latest'])
+  })
+})

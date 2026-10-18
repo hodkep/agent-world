@@ -70,8 +70,9 @@ export type Pick = { ok: true; asset: Asset } | { ok: false; reason: string }
  * only names which file: a name that is a path or an address, another version, another processor or another kind of file is refused, and so is a
  * version that is not newer than the running one, or a size that is nothing or over the cap.
  */
-export function assetFor(o: { manifest: Manifest; arch: string; current: string; repo: Repo; tag: string }): Pick {
+export function assetFor(o: { manifest: Manifest; arch: string; current: string; repo: Repo; tag: string; downloads?: string }): Pick {
   const { manifest, arch, current, repo, tag } = o
+  const downloads = o.downloads ?? 'https://github.com'
   if (!/^v?\d+\.\d+\.\d+$/.test(tag) || tag.replace(/^v/, '') !== manifest.version) return { ok: false, reason: 'The release says another version than its tag.' }
   if (!isNewer(current, tag)) return { ok: false, reason: `${manifest.version} is not newer than ${current}.` }
   if (arch !== 'arm64' && arch !== 'x64') return { ok: false, reason: `There is no download for this kind of processor (${arch}).` }
@@ -80,7 +81,7 @@ export function assetFor(o: { manifest: Manifest; arch: string; current: string;
   if (!file) return { ok: false, reason: `The release has no ${name}.` }
   if (!Number.isInteger(file.size) || file.size <= 0 || file.size > MAX_BYTES) return { ok: false, reason: `The size of ${name} is not one that is accepted.` }
   if (!file.sha512) return { ok: false, reason: `The release gives no checksum for ${name}.` }
-  return { ok: true, asset: { version: manifest.version, name, url: `https://github.com/${repo.owner}/${repo.repo}/releases/download/${encodeURIComponent(tag)}/${name}`, sha512: file.sha512, size: file.size } }
+  return { ok: true, asset: { version: manifest.version, name, url: `${downloads}/${repo.owner}/${repo.repo}/releases/download/${encodeURIComponent(tag)}/${name}`, sha512: file.sha512, size: file.size } }
 }
 
 const HOSTS = new Set(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'])

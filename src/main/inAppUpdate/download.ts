@@ -13,10 +13,10 @@ type WithBody = Response & { body: ReadableStream<Uint8Array> }
 type Opened = { ok: true; res: WithBody } | { ok: false; kind: 'network' | 'host'; reason: string }
 
 /** Asks for an address and follows the redirects by hand, so that each one, like the first, has to be a host of GitHub's release downloads. */
-async function open(first: string, get: Fetch, signal?: AbortSignal): Promise<Opened> {
+async function open(first: string, get: Fetch, signal?: AbortSignal, allow: (address: string) => boolean = allowedHost): Promise<Opened> {
   let url = first
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
-    if (!allowedHost(url)) return { ok: false, kind: 'host', reason: 'The download was sent somewhere that is not GitHub, so it was refused.' }
+    if (!allow(url)) return { ok: false, kind: 'host', reason: 'The download was sent somewhere that is not GitHub, so it was refused.' }
     const res = await get(url, { redirect: 'manual', signal })
     if (res.status >= 300 && res.status < 400) {
       const next = res.headers.get('location')
@@ -31,9 +31,9 @@ async function open(first: string, get: Fetch, signal?: AbortSignal): Promise<Op
 }
 
 /** A small text file from GitHub's release downloads (the manifest), read whole, up to a megabyte. */
-export async function fetchText(url: string, get: Fetch, signal?: AbortSignal): Promise<{ ok: true; text: string } | { ok: false; kind: 'network' | 'host'; reason: string }> {
+export async function fetchText(url: string, get: Fetch, signal?: AbortSignal, allow?: (address: string) => boolean): Promise<{ ok: true; text: string } | { ok: false; kind: 'network' | 'host'; reason: string }> {
   try {
-    const opened = await open(url, get, signal)
+    const opened = await open(url, get, signal, allow)
     if (!opened.ok) return opened
     const text = await opened.res.text()
     return text.length > 1024 * 1024 ? { ok: false, kind: 'network', reason: 'The release information is far larger than it should be.' } : { ok: true, text }
@@ -47,7 +47,7 @@ export async function fetchText(url: string, get: Fetch, signal?: AbortSignal): 
  * redirect after it, must be one of GitHub's release hosts; the body is counted as it arrives and stopped when it passes the published size; and the
  * size and the sha512 are checked before the file gets its name. On any failure nothing is left in the folder.
  */
-export async function downloadAsset(o: { asset: Asset; dir: string; fetch: Fetch; onProgress: (received: number, total: number) => void; signal?: AbortSignal }): Promise<DownloadResult> {
+export async function downloadAsset(o: { asset: Asset; dir: string; fetch: Fetch; onProgress: (received: number, total: number) => void; signal?: AbortSignal; /** Which addresses may be fetched; GitHub's release hosts unless a test says otherwise. */ allow?: (address: string) => boolean }): Promise<DownloadResult> {
   const { asset, dir, signal } = o
   mkdirSync(dir, { recursive: true })
   const final = join(dir, asset.name)
@@ -56,7 +56,7 @@ export async function downloadAsset(o: { asset: Asset; dir: string; fetch: Fetch
   rmSync(final, { force: true })
   rmSync(part, { force: true })
   try {
-    const opened = await open(asset.url, o.fetch, signal)
+    const opened = await open(asset.url, o.fetch, signal, o.allow)
     if (!opened.ok) return fail(opened.kind, opened.reason)
     const res = opened.res
     const hash = createHash('sha512')

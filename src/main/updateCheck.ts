@@ -67,16 +67,16 @@ export function startChecks(run: () => Promise<unknown>, o: { startMs?: number; 
 type Fetch = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
 
 /** Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release. */
-export async function latestRelease(current: string, repo: Repo, get: Fetch): Promise<ReleaseState> {
+export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: { api: string; downloads: string } = { api: 'https://api.github.com', downloads: 'https://github.com' }): Promise<ReleaseState> {
   try {
-    const res = await get(`https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/latest`)
+    const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases/latest`)
     if (res.status === 404) return { state: 'none', detail: 'No release is published yet.' }
     if (!res.ok) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
     const tag = String(((await res.json()) as { tag_name?: unknown }).tag_name ?? '')
     if (!isNewer(current, tag)) return { state: 'none' }
     const latest = tag.replace(/^v/, '')
     // The page is built from the repository and the tag, not taken from the answer: only a page of this repository is ever opened.
-    return { state: 'available', detail: `${latest} is available.`, latest, url: `https://github.com/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}` }
+    return { state: 'available', detail: `${latest} is available.`, latest, url: `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}` }
   } catch (e) {
     return { state: 'error', detail: `Could not reach GitHub: ${(e as Error).message.split('\n')[0]}` }
   }

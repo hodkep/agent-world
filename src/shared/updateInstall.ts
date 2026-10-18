@@ -1,4 +1,4 @@
-export type FailureKind = 'network' | 'checksum' | 'size' | 'host' | 'cancelled' | 'manifest' | 'blocked'
+export type FailureKind = 'network' | 'checksum' | 'size' | 'host' | 'cancelled' | 'manifest' | 'blocked' | 'install'
 
 /** Where an in-app update of an unsigned Mac build stands, from the window's point of view. */
 export type InstallState =

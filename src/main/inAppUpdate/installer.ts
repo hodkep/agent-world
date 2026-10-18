@@ -5,6 +5,7 @@ import type { InstallState } from '../../shared/updateInstall'
 import { type Fetch, downloadAsset, fetchText } from './download'
 import { INSTALL_SCRIPT, installBlocker } from './installScript'
 import { assetFor, parseLatestMac } from './manifest'
+import type { ReleaseOrigins } from './origins'
 
 /** The bundle identifier the new app must have (it is the appId of electron-builder.yml). */
 export const BUNDLE_ID = 'dev.agentworld.app'
@@ -18,6 +19,8 @@ export interface InstallerDeps {
   pid: number
   updatesDir: string
   fetch: Fetch
+  /** Where releases are downloaded from, and which addresses may be fetched (GitHub's, unless a test's own server stands in). */
+  origins: ReleaseOrigins
   place: () => { parentWritable: boolean; readOnlyVolume: boolean }
   /** Runs the helper script detached, so it outlives the app. */
   launch: (script: string, args: string[]) => void
@@ -39,16 +42,16 @@ export function createInstaller(d: InstallerDeps) {
 
   async function run(tag: string) {
     abort = new AbortController()
-    const base = `https://github.com/${d.repo.owner}/${d.repo.repo}/releases/download/${encodeURIComponent(tag)}`
-    const got = await fetchText(`${base}/latest-mac.yml`, d.fetch, abort.signal)
+    const base = `${d.origins.downloads}/${d.repo.owner}/${d.repo.repo}/releases/download/${encodeURIComponent(tag)}`
+    const got = await fetchText(`${base}/latest-mac.yml`, d.fetch, abort.signal, d.origins.allow)
     if (!got.ok) return set({ phase: 'failed', kind: got.kind, reason: got.reason })
     const manifest = parseLatestMac(got.text)
     if (!manifest) return set({ phase: 'failed', kind: 'manifest', reason: 'The release information could not be read.' })
-    const pick = assetFor({ manifest, arch: d.arch, current: d.current, repo: d.repo, tag })
+    const pick = assetFor({ manifest, arch: d.arch, current: d.current, repo: d.repo, tag, downloads: d.origins.downloads })
     if (!pick.ok) return set({ phase: 'failed', kind: 'manifest', reason: pick.reason })
     const version = pick.asset.version
     set({ phase: 'downloading', version, received: 0, total: pick.asset.size })
-    const r = await downloadAsset({ asset: pick.asset, dir: join(d.updatesDir, version), fetch: d.fetch, signal: abort.signal, onProgress: (received, total) => set({ phase: 'downloading', version, received, total }) })
+    const r = await downloadAsset({ asset: pick.asset, dir: join(d.updatesDir, version), fetch: d.fetch, signal: abort.signal, allow: d.origins.allow, onProgress: (received, total) => set({ phase: 'downloading', version, received, total }) })
     set(r.ok ? { phase: 'ready', version, file: r.file } : { phase: 'failed', version, kind: r.kind, reason: r.reason })
   }
 

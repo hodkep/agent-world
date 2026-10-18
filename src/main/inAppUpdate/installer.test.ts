@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { type InstallState, createInstaller } from './installer'
+import { releaseOrigins } from './origins'
 
 const zip = Buffer.from('a zip, more or less'.repeat(500))
 const sha = createHash('sha512').update(zip).digest('base64')
@@ -11,7 +12,7 @@ const repo = { owner: 'hodkep', repo: 'agent-world' }
 const BASE = 'https://github.com/hodkep/agent-world/releases/download/v0.1.2'
 const yml = (over: { sha?: string; size?: number } = {}) => `version: 0.1.2\nfiles:\n  - url: Agent-World-0.1.2-arm64.zip\n    sha512: ${over.sha ?? sha}\n    size: ${over.size ?? zip.length}\n  - url: Agent-World-0.1.2-x64.zip\n    sha512: ${over.sha ?? sha}\n    size: ${over.size ?? zip.length}\npath: Agent-World-0.1.2-x64.zip\n`
 
-const make = (o: { files?: Record<string, Response | Error>; place?: { parentWritable: boolean; readOnlyVolume: boolean } } = {}) => {
+const make = (o: { files?: Record<string, Response | Error>; place?: { parentWritable: boolean; readOnlyVolume: boolean }; origins?: ReturnType<typeof releaseOrigins> } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-inst-'))
   const states: InstallState[] = []
   const calls: string[] = []
@@ -31,6 +32,7 @@ const make = (o: { files?: Record<string, Response | Error>; place?: { parentWri
       if (r instanceof Error) throw r
       return r.clone()
     },
+    origins: o.origins ?? releaseOrigins(true, {}),
     place: () => o.place ?? { parentWritable: true, readOnlyVolume: false },
     launch: (script, args) => (calls.push('launch'), launched.push({ script, args })),
     quit: () => calls.push('quit'),
@@ -38,6 +40,16 @@ const make = (o: { files?: Record<string, Response | Error>; place?: { parentWri
   })
   return { installer, dir, states, calls, launched }
 }
+
+describe('the in-app update against a server of a test\'s own', () => {
+  it('downloads from the address a test run gave, and from nowhere else', async () => {
+    const own = 'http://127.0.0.1:9999'
+    const m = make({ origins: releaseOrigins(false, { AW_UPDATE_RELEASES: own }), files: { [`${own}/hodkep/agent-world/releases/download/v0.1.2/latest-mac.yml`]: new Response(yml()), [`${own}/hodkep/agent-world/releases/download/v0.1.2/Agent-World-0.1.2-arm64.zip`]: new Response(zip) } })
+    await m.installer.download('v0.1.2')
+    expect(m.installer.state()).toMatchObject({ phase: 'ready' })
+    expect(m.calls.every((c) => c.startsWith(own))).toBe(true)
+  })
+})
 
 describe('the in-app update, from found to installed', () => {
   it('downloads the zip for this computer, checks it, and says it is ready', async () => {
