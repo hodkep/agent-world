@@ -72,6 +72,15 @@ describe('finding Claude Code and what it needs', () => {
     expect(d).toMatchObject({ state: 'needs-sign-in' })
     expect(read).toContain('/Users/a/.claude.json')
   })
+  it('is ready when the home folder\'s .claude.json says the questions were answered, even though .claude/.claude.json (a small file Claude Code also keeps) says nothing about it', async () => {
+    // As on a real Mac: the folder's own file holds a few migration markers and no hasCompletedOnboarding; the one in the home folder holds the flag.
+    const d = await detectClaude('claude', { ...base, status: async () => signedIn, readJson: (p) => (p === '/Users/a/.claude/.claude.json' ? '{"firstStartTime":"2025-09-25T05:32:00Z","migrationVersion":12}' : p === '/Users/a/.claude.json' ? '{"hasCompletedOnboarding":true,"oauthAccount":{}}' : null) })
+    expect(d).toMatchObject({ state: 'ready' })
+  })
+  it('still needs sign-in when no file says so and one of them shows a first run that never finished', async () => {
+    const d = await detectClaude('claude', { ...base, status: async () => signedIn, readJson: (p) => (p === '/Users/a/.claude/.claude.json' ? '{"migrationVersion":12}' : p === '/Users/a/.claude.json' ? '{"oauthAccount":{}}' : null) })
+    expect(d).toMatchObject({ state: 'needs-sign-in' })
+  })
   it('is ready when there is no file to read at all, as in a fresh test setup', async () => {
     expect(await detectClaude('claude', { ...base, status: async () => signedIn, readJson: () => null })).toMatchObject({ state: 'ready' })
   })

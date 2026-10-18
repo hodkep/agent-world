@@ -87,13 +87,12 @@ export async function detectClaude(bin: string, deps: Deps): Promise<Detection> 
   const status = parseStatus(await (deps.status ?? ((b: string) => ask(b, ['auth', 'status'])))(bin).catch(() => ''))
   const home = deps.home ?? homedir()
   const read = deps.readJson ?? readText
+  // Any of the files saying the questions were answered is enough: the folder's own .claude.json can be a small file of other markers that never holds the flag,
+  // and taking the first file found said "not answered" for a Claude Code that was signed in and set up.
   let onboarding: Onboarding = 'unknown'
-  if (status?.loggedIn && status.configDirectory) for (const p of configJsonPaths(status.configDirectory, home)) {
-    const o = onboardingOf(read(p))
-    if (o !== 'unknown') {
-      onboarding = o
-      break
-    }
+  if (status?.loggedIn && status.configDirectory) {
+    const seen = configJsonPaths(status.configDirectory, home).map((p) => onboardingOf(read(p)))
+    onboarding = seen.includes('done') ? 'done' : seen.includes('not-done') ? 'not-done' : 'unknown'
   }
   const s = signInState(status, onboarding)
   return s.state === 'ready' ? { state: 'ready', version, path: bin } : { state: 'needs-sign-in', version, path: bin, hint: s.hint }
