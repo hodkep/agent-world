@@ -12,6 +12,8 @@
    Because the app is not signed, it cannot replace itself when a new version comes out. It tells you when one is available and opens its page on GitHub, and you download and install it the same way.
 4. Follow the setup screens: install and sign in to Claude Code, choose a project folder, click **+ Agent**, and the character walks in.
 
+With Homebrew, one line does steps 1 and 2: `brew install --cask hodkep/tap/agent-world`. Step 3 still applies, because the app is not signed with an Apple Developer ID yet.
+
 ## Building the installers yourself
 
 ```

@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Homebrew: `brew install --cask hodkep/tap/agent-world` installs the app, and the tap follows each release by itself. The app is still not signed with an Apple Developer ID, so the first launch still needs Open Anyway.
+
 ### Changed
 
 - License: from the next release the project is under the [Apache License 2.0](LICENSE) instead of MIT. It adds an explicit patent grant and says plainly that the license gives no right to the name or logo, which [TRADEMARK.md](TRADEMARK.md) now covers. Versions up to 0.1.2 were published under MIT and stay under it.
