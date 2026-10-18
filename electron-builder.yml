@@ -9,6 +9,10 @@ files:
 asarUnpack:
   - node_modules/node-pty/**
 npmRebuild: true
+# Apache 2.0 section 4: the license and the NOTICE file travel with the app, next to its resources.
+extraResources:
+  - LICENSE
+  - NOTICE
 icon: build/icon.png
 mac:
   category: public.app-category.developer-tools

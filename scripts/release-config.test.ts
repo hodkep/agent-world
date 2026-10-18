@@ -24,3 +24,13 @@ describe('what the installers are called', () => {
     expect(name).not.toMatch(/\s/)
   })
 })
+
+describe('what the installers carry for the license', () => {
+  // Apache 2.0 section 4: whoever receives the app also receives a copy of the license, and the NOTICE file.
+  const top = /^extraResources:\n((?:[ ]+- .*\n)+)/m.exec(builder)?.[1] ?? ''
+  it('puts LICENSE and NOTICE in the app, whatever the system', () => {
+    expect(top).toMatch(/- LICENSE\b/)
+    expect(top).toMatch(/- NOTICE\b/)
+  })
+})
+
