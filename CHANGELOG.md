@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- Workflows: the agent's words in the plan gate, in a step's brief and in the Land band's plan block are read as in the chat: Markdown shows, an address is a link, and the path of a real file is a link that opens it (a page in the Preview).
+
 ## [0.2.0] - 2026-10-19
 
 ### Added

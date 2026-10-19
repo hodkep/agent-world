@@ -70,7 +70,7 @@ export function Finish({ agentId, agentName, activity, needs, onDone }: { agentI
         <b>{status.branch} → {status.base}</b>
         <small>{status.ahead} commit{status.ahead === 1 ? '' : 's'}</small>
       </summary>
-      {status?.merge && <MergeGate merge={status.merge} onSeen={(i) => void window.aw.finishSeen(agentId, [i])} onAgain={() => void window.aw.finishAudit(agentId)} />}
+      {status?.merge && <MergeGate merge={status.merge} agentId={agentId} onSeen={(i) => void window.aw.finishSeen(agentId, [i])} onAgain={() => void window.aw.finishAudit(agentId)} />}
       <fieldset>
         <legend>Ready?</legend>
         <ul className="checks">

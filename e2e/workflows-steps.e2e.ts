@@ -16,7 +16,7 @@ const REVIEWED = {
   steps: [
     { id: 'plan', kind: 'plan', gate: 'auto' },
     { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' },
-    { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff.' },
+    { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff. See https://example.com/spec.' },
     { id: 'review', kind: 'audit' },
     { id: 'land', kind: 'merge' }
   ]
@@ -71,7 +71,7 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     expect(begun.text).toContain('there is no workflow "nope", so the project\'s default was used')
     expect(begun.text).toContain('Workflow: Reviewed')
     expect(begun.text).toContain('build "Build": Make the change.')
-    expect(begun.text).toContain('ok "Your review": the person approves this before it can land. Look at the diff.')
+    expect(begun.text).toContain('ok "Your review": the person approves this before it can land. Look at the diff. See https://example.com/spec.')
     expect(begun.text).not.toContain('plan_submit')
     expect(await edit()).toBe('')
 
@@ -103,6 +103,8 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     await page.getByRole('tab', { name: 'Chat' }).click()
     const panel = page.getByRole('region', { name: 'Step from ada' })
     await expect(panel).toContainText('Look at the diff.')
+    // The brief is read as in the chat: an address in it is a link.
+    await expect(panel.locator('a[href="https://example.com/spec"]')).toHaveCount(1)
     await panel.getByRole('button', { name: 'Send back' }).click()
     await panel.getByRole('textbox').fill('Please add a test.')
     await panel.getByRole('button', { name: 'Send back' }).click()

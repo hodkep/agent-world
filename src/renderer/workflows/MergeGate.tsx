@@ -1,6 +1,7 @@
 import type { FindingKind } from '../../shared/audit'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import { callSpend } from '../../shared/runStats'
+import { Markdown } from '../chat/markdown'
 
 const KIND: Record<FindingKind, string> = { 'out-of-scope': 'Out of scope', 'goal-unmet': 'Goal not met', 'guess-wrong': 'Guess wrong' }
 const PLAN_TAG: Record<MergeCheck['plan'], { text: string; tone: string }> = {
@@ -13,7 +14,7 @@ const PLAN_TAG: Record<MergeCheck['plan'], { text: string; tone: string }> = {
 }
 
 /** The block above Finish's checklist: the plan the person approved beside what a reviewer found in the branch against it. */
-export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSeen: (index: number) => void; onAgain: () => void }) {
+export function MergeGate({ merge, agentId, onSeen, onAgain }: { merge: MergeCheck; /** Whose words the plan block shows: paths in them open like in the chat. */ agentId: string; onSeen: (index: number) => void; onAgain: () => void }) {
   const a = merge.audit
   if (!merge.planned && a.state !== 'done' && a.state !== 'running' && a.state !== 'failed' && a.state !== 'not-run') return null
   const tag = PLAN_TAG[merge.plan]
@@ -24,9 +25,9 @@ export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSee
         <div className="mg-card">
           <div className="mg-row">
             <span className={`mg-tag ${tag.tone}`}>{tag.text}</span>
-            <b>{merge.planned.goal}</b>
+            <div className="pg-text mg-goal"><Markdown text={merge.planned.goal} agentId={agentId} /></div>
           </div>
-          <span className="hint">{merge.planned.outOfScope.length ? `Out of scope: ${merge.planned.outOfScope.join(' ')}` : 'Nothing was listed as out of scope.'}</span>
+          <div className="pg-text hint"><Markdown text={merge.planned.outOfScope.length ? `Out of scope: ${merge.planned.outOfScope.join(' ')}` : 'Nothing was listed as out of scope.'} agentId={agentId} /></div>
           <span className="hint">
             {merge.commits} commit{merge.commits === 1 ? '' : 's'} in the task, {merge.flagged} outside it
           </span>
