@@ -33,6 +33,13 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     expect((await fold.boundingBox())!.height).toBeLessThan(46) // a long line of todos wraps to two lines, no more
     await fold.click()
     await expect(log.locator('.of-row')).toHaveCount(5)
+    // A call that touched one task carries its chip, so the board is a click away from the line (the list call has none).
+    await expect(log.locator('.of-todo')).toHaveCount(4)
+    await expect(log.locator('.of-todo').first()).toHaveText('todo#14 ↗')
+    await log.locator('.of-todo').first().click()
+    await expect(page.getByRole('dialog', { name: 'Todos' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Todos' })).toBeHidden()
     for (const row of await log.locator('.of-row').all()) await row.click()
     // Each button goes once it is used, so the first one left is always the next.
     for (let n = await log.locator('.of-details').count(); n > 0; n--) await log.locator('.of-details').first().click()
