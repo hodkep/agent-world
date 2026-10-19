@@ -70,6 +70,8 @@ export interface Use {
   launch?: number
   /** The exact words the agent was given (for started and triggered), so they can be shown as they were. */
   words?: string
+  /** For triggered: the prompt looked related to the item when the reminder was given (only that yes or no is kept, never the prompt). */
+  related?: boolean
   /** For skipped: why the agent passed the item over, in its words. */
   reason?: string
   /** For triggered by something the agent met rather than a message: what, in a few words ("merge conflict, 2 files"). */
@@ -83,6 +85,9 @@ export interface Tally {
   used: number
   /** Pointed at and the agent said, with a reason, that it did not apply. */
   declined: number
+  /** Reminders that came on a prompt that looked related to the item, and how many of those the agent then read it for (in that launch, from then on). */
+  related: number
+  relatedAnswered: number
 }
 export interface ItemStats extends Tally {
   id: string

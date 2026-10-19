@@ -7,13 +7,13 @@ import { UseLog, summarize, type Use } from './uses'
 const u = (over: Partial<Use>): Use => ({ t: 1, agent: 'a1', name: 'Ann', provider: 'claude', workspace: 'w', id: 'tdd', how: 'fetched', ...over })
 
 describe('what the library log says', () => {
-  it('counts a trigger as answered when the agent read the item in that turn or the next few, not before it', () => {
+  it('counts a trigger as answered when the agent read the item in that turn or any later turn of the same launch, not before it: it reads when it gets to the work', () => {
     const s = summarize([
       u({ how: 'triggered', turn: 4 }), u({ how: 'fetched', turn: 6 }),
       u({ how: 'triggered', turn: 10 }), u({ how: 'fetched', turn: 14 }),
       u({ how: 'triggered', turn: 20 }), u({ how: 'fetched', turn: 19 })
     ])
-    expect(s.items.tdd).toMatchObject({ triggered: 3, answered: 1 })
+    expect(s.items.tdd).toMatchObject({ triggered: 3, answered: 2 })
   })
 
   it('counts a trigger as answered only when the same agent used the item in the same turn', () => {
@@ -45,6 +45,24 @@ describe('an item the agent decided not to use', () => {
     expect(s.items.tdd!.reasons).toEqual(['trivial, both sides only appended', 'a question, not the work'])
     expect(s.items.tdd!.byProvider.agy).toMatchObject({ declined: 1 })
     expect(s.top).toEqual([])
+  })
+})
+
+describe('a reminder that came on a prompt that looked related', () => {
+  it('is counted apart from the reminders that did not, and as answered when the item was read in that launch from then on', () => {
+    const s = summarize([
+      u({ how: 'triggered', turn: 1, related: true }), u({ how: 'fetched', turn: 9 }),
+      u({ how: 'triggered', turn: 7, related: true }),
+      u({ how: 'triggered', turn: 13, related: false }),
+      u({ how: 'triggered', turn: 19, related: true, provider: 'agy', agent: 'a2' })
+    ])
+    expect(s.items.tdd).toMatchObject({ triggered: 4, related: 3, relatedAnswered: 2 })
+    expect(s.items.tdd!.byProvider.claude).toMatchObject({ triggered: 3, related: 2, relatedAnswered: 2 })
+    expect(s.items.tdd!.byProvider.agy).toMatchObject({ triggered: 1, related: 1, relatedAnswered: 0 })
+  })
+  it('is not guessed for an entry logged before the check existed: it is a reminder and nothing more', () => {
+    const s = summarize([u({ how: 'triggered', turn: 1 }), u({ how: 'fetched', turn: 2 })])
+    expect(s.items.tdd).toMatchObject({ triggered: 1, answered: 1, related: 0, relatedAnswered: 0 })
   })
 })
 

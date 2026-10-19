@@ -69,7 +69,7 @@ test('chat: margin notes under a message say what the library did for it, and op
     await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Library' })
     await dialog.getByRole('tab', { name: 'Reached for' }).click()
-    const rows = dialog.getByLabel('Items agents were pointed at')
+    const rows = dialog.getByLabel('Items agents were reminded of')
     await expect(rows).toContainText('pdf')
     await expect(rows).toContainText('Too few to judge yet')
 
