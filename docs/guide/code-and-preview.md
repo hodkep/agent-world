@@ -10,6 +10,8 @@ Select an agent in the office. The tabs above its panel are **Chat**, **Terminal
 
 Open **Code**, then **Changes**. The list shows what the agent changed since its branch left the base branch: commits, uncommitted edits and new files. Click a file to see its diff. **↻** refreshes the list.
 
+Above the diff, **Unchanged code** is **Fold** (the default) or **Show**. Folded, only the changes and a few lines around them are drawn, and a row such as "49 hidden lines" stands for the rest: click it, or drag its edge, to open more. **Context** (3, 5 or 10) is how many lines stay around each change. Both choices are kept for every file. Press ⌘⌥U (Ctrl+Alt+U) to switch between **Fold** and **Show**; **F1** in the diff offers **Show all hidden lines**. A new file has nothing to fold.
+
 ![The Code tab: the Changes list with a changed file's diff, and Merge into main at the foot](../images/code.png)
 
 Switch the column between:

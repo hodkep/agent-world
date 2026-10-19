@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Code: the diff on the Changes tab folds the unchanged code by default, with a row such as "49 hidden lines" for each stretch. **Unchanged code: Show | Fold** and **Context: 3 / 5 / 10** sit above the diff and are kept; ⌘⌥U (Ctrl+Alt+U) switches them, and **F1** has **Show all hidden lines**. Selecting code in a folded diff asks the agent about the real line numbers.
+
 ### Changed
 
 - Workflows: the agent's words in the plan gate, in a step's brief and in the Land band's plan block are read as in the chat: Markdown shows, an address is a link, and the path of a real file is a link that opens it (a page in the Preview).
