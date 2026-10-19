@@ -102,6 +102,7 @@ export function ChatView({
   need,
   gate,
   track,
+  stepCard,
   moreNeeds,
   needActions,
   visible,
@@ -132,6 +133,8 @@ export function ChatView({
   gate?: ReactNode
   /** Where this agent's open run stands, shown above the conversation. */
   track?: ReactNode
+  /** The step that waits for the person, as the last thing in the conversation. */
+  stepCard?: ReactNode
   moreNeeds: number
   needActions: NeedActions
   visible: boolean
@@ -651,6 +654,7 @@ export function ChatView({
             {turnSec >= 1 && <span className="live-time" aria-hidden="true">{spanLabel(turnSec)}</span>}
           </div>
         )}
+        {stepCard}
       </div>
       {need && needClosed && (
         <div className="chat-banner" role="status">

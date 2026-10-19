@@ -56,12 +56,12 @@ test('an agy agent\'s branch is audited too: the question goes to agy, on its sm
     ].map((e) => JSON.stringify(e)).join('\n') + '\n')
 
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    const card = o.page.getByRole('region', { name: "ada's audit" })
     // The agent never reported its work here, so the audit has not started by itself.
-    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
-    await expect(dialog.getByRole('list', { name: 'What the audit found' })).toContainText('Adds a project key', { timeout: 20_000 })
-    await expect(dialog.getByRole('group', { name: 'Against the plan' })).toContainText('gemini-3.8-flash-low · about 17k tokens')
-    expect(dialog).not.toContainText('not available for this program')
+    await o.page.evaluate((id) => window.aw.finishAudit(id), ada!.id)
+    await expect(card).toContainText('Adds a project key', { timeout: 20_000 })
+    const audit = (await o.page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)).merge!.audit
+    expect(audit).toMatchObject({ state: 'done', model: 'gemini-3.8-flash-low', tokens: 16948 })
     const asked = JSON.parse(readFileSync(o.auditLog, 'utf8').trim().split('\n')[0]!) as { prompt: string; model: string }
     expect(asked.model).toBe('gemini-3.8-flash-low')
     expect(asked.prompt).toContain('Add a dark-mode toggle to Settings.')
@@ -71,7 +71,7 @@ test('an agy agent\'s branch is audited too: the question goes to agy, on its sm
   }
 })
 
-test('at max the audit of an agy agent uses agy\'s large model, and an agy that fails says why without holding Land', async () => {
+test('at max the audit of an agy agent uses agy\'s large model, and an agy that fails says why on its card without holding Land', async () => {
   const o = await office('wfagy2', { dial: 'max', env: { FAKE_AUDIT_FAIL: 'Quota exhausted' } })
   try {
     await hireAgy(o.page, 'ada')
@@ -86,11 +86,12 @@ test('at max the audit of an agy agent uses agy\'s large model, and an agy that 
       { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' }
     ].map((e) => JSON.stringify(e)).join('\n') + '\n')
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    const card = o.page.getByRole('region', { name: "ada's audit" })
     // The agent never reported its work here, so the audit has not started by itself.
-    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
-    await expect(dialog).toContainText('Audit failed: Quota exhausted', { timeout: 20_000 })
-    await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()
+    await o.page.evaluate((id) => window.aw.finishAudit(id), ada!.id)
+    await expect(card).toContainText('The audit failed', { timeout: 20_000 })
+    await expect(card).toContainText('Quota exhausted')
+    expect((await o.page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)).merge!.blocking).toEqual([])
     expect(existsSync(o.auditLog)).toBe(true)
     expect((JSON.parse(readFileSync(o.auditLog, 'utf8').trim().split('\n')[0]!) as { model: string }).model).toBe('gemini-3.8-flash-high')
   } finally {

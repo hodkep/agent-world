@@ -768,31 +768,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .settings label.row-label { flex-direction: row; align-items: center; justify-content: space-between; }
 .settings textarea { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 4px 6px; resize: vertical; }
 
-.finish-band { margin: 0 12px 8px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--line), 0 0 0 3px var(--ink); font-size: 12px; color: var(--muted); max-height: 46vh; overflow-y: auto; }
-.finish-band.needs { box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px var(--ink); }
-.finish-band summary { display: flex; gap: 8px; align-items: center; padding: 8px 12px; cursor: pointer; color: var(--text); position: sticky; top: 0; background: var(--panel-3); z-index: 1; }
-.finish-band summary .tag { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; padding: 1px 6px; background: var(--well); color: var(--muted); }
-.finish-band.needs summary .tag { background: var(--accent); color: var(--ink); }
-.finish-band summary b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.finish-band summary small { margin-left: auto; color: var(--muted); white-space: nowrap; }
-.finish-error { margin: 0 12px 8px; }
-.finish-band fieldset { margin: 0 12px 8px; }
-.finish-band .hint.bad { margin: 0 12px 8px; }
-.finish-band .finish-land { padding: 0 12px 10px; justify-content: flex-end; }
-.finish .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.finish .checks .ok span { color: var(--ok, #5f9e5f); }
-.finish .checks .no span { color: var(--danger-text); }
-.finish .checks .note span { color: var(--muted); }
 .wf-gate { margin: 0; font: 11px Menlo, Consolas, monospace; color: var(--muted); }
-.mg { display: flex; flex-direction: column; gap: 8px; }
-.mg .hint { margin: 0; padding: 0; }
-.mg-card { background: var(--panel-2); box-shadow: 0 0 0 1px var(--ink); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
-.mg-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.mg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.mg-tag { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 6px; color: var(--ink); background: var(--ok); }
-.mg-tag.warn { background: var(--accent); }
-.mg-tag.dim { background: var(--dim); color: var(--text); }
-.mg-cost { font: 11px Menlo, Consolas, monospace; }
 
 .grid-view { position: absolute; inset: 0; overflow: auto; padding: 12px; background: var(--well); display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-auto-rows: min-content; gap: 12px; align-content: start; z-index: 5; }
 .tile { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--panel); border: 2px solid var(--ink); color: var(--text); cursor: pointer; min-width: 0; }
@@ -1912,7 +1888,6 @@ dialog.handoff { width: min(640px, 94vw); }
 .hire-base { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hire-base > span:first-child { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .hire-base small { color: var(--muted); font-size: 12px; }
-.finish-into { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
 
 /* The Changes column: a header with the branch and what it is compared with, status filters, a note when the base looks wrong, and a footer of one commit line and one land button. */
 .change-list.ch { gap: 0; padding: 0; }
@@ -3046,22 +3021,6 @@ svg.pxg { display: block; flex: none; }
 .run-track.bar .pill.land { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; background: color-mix(in srgb, var(--accent) 14%, var(--panel-3)); color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--ink)); border: 0; padding: 1px 8px; }
 .run-track.bar .pill.land.notyet { background: var(--panel-3); color: var(--muted); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
 .run-track.bar .pill.land.notyet:hover { color: var(--text); background: var(--panel-hover); }
-.land-band { margin: 0 12px 8px; padding: 10px 12px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--accent-dim), 0 0 0 3px var(--ink); font-size: 12px; color: var(--muted); }
-.land-band h3 { margin: 0 0 2px; display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; color: var(--text); }
-.land-band .tag { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
-.land-band p { margin: 0 0 8px; max-width: none; }
-.lb-find { list-style: none; margin: 0 0 4px; padding: 0; }
-.lb-find li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 5px 0; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); color: var(--text); }
-.lb-find small { display: block; margin-top: 1px; font-size: 11px; color: var(--muted); }
-.lb-tick { all: unset; box-sizing: border-box; width: 14px; height: 14px; margin-top: 2px; display: grid; place-items: center; cursor: pointer; box-shadow: 0 0 0 1px var(--muted); color: var(--ink); }
-.lb-tick.on { background: var(--ok-text); box-shadow: none; cursor: default; }
-.lb-tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.lb-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-.lb-go { background: var(--accent); color: var(--ink); font-weight: 700; }
-.lb-go:hover { background: var(--accent-hot); }
-.lb-ghost { background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--muted); }
-.lb-why { margin-left: auto; font-size: 11px; color: var(--muted); max-width: 220px; text-align: right; }
-.lb-note { font-style: italic; }
 /* ---- The Runs tab: two charts, then a ledger of the runs grouped by what to do about them ---- */
 .rb { display: flex; flex-direction: column; gap: 12px; }
 .rb-charts { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
@@ -3287,7 +3246,6 @@ svg.pxg { display: block; flex: none; }
 .pg-text .md > :last-child { margin-bottom: 0; }
 .pg-text .md p { margin: 0 0 4px; max-width: none; }
 .pg-text .md code { background: var(--well); padding: 0 4px; }
-.mg-goal { font-weight: 700; }
 .pg-foot.pg-text .md, .pg-foot.pg-text .md p { display: inline; }
 
 /* What's new: the notes of a version in a dialog, and in a small box under an update that is offered */
@@ -3355,3 +3313,19 @@ svg.pxg { display: block; flex: none; }
 .agent-tile.is-idle .wt-state { background: var(--ok); }
 .identicon { display: inline-grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); padding: 5px; flex: none; background: color-mix(in srgb, var(--c) 14%, var(--well)); box-shadow: 0 0 0 2px var(--ink); }
 .identicon i.on { background: var(--c); }
+/* The step that waits for the person: the last thing in the conversation, never above the message box. */
+.step-card { display: block; margin: 8px 0 4px; padding: 9px 11px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--accent); font-size: 12px; color: var(--muted); }
+.step-card header { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; padding: 0; border: 0; background: none; }
+.step-card .tag { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.09em; text-transform: uppercase; padding: 1px 6px; background: var(--accent); color: var(--ink); }
+.step-card .tag.bad { background: var(--danger); color: var(--text); }
+.step-card .sc-title { color: var(--text); font-weight: 600; font-size: 12.5px; }
+.step-card ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.step-card li { padding: 3px 0; border-top: 1px solid var(--line); color: var(--text); overflow-wrap: anywhere; }
+.step-card li:first-child { border-top: 0; }
+.step-card li small { display: block; color: var(--muted); font-size: 10.5px; }
+.step-card li.sc-more { color: var(--muted); }
+.step-card .sc-acts { display: flex; gap: 8px; align-items: center; margin-top: 7px; }
+.step-card .ghost { background: none; box-shadow: none; border: 0; color: var(--muted); }
+.step-card .ghost:hover { color: var(--text); }
+.step-card.quiet { display: flex; gap: 8px; align-items: center; padding: 5px 8px; box-shadow: 0 0 0 1px var(--line); }
+.step-card.quiet .sc-title { flex: 1; font-weight: 400; }

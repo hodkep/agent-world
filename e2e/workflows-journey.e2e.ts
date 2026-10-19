@@ -87,22 +87,21 @@ for (const program of ['claude', 'agy'] as const) {
       // Nobody opened anything: with the check passed the app started the audit itself.
       await expect.poll(() => runEvents(w).some((e) => e.k === 'audit' && e.state === 'done'), { timeout: 20_000 }).toBe(true)
 
-      // Finish shows what holds Land and what does not, and Land is the person's.
+      // The audit card, at the end of the conversation, shows what is left to look at; what holds landing is in the merge check, and landing is the person's.
       await chatTab(s.page)
-      const dialog = s.page.getByRole('region', { name: "Finish ada's work" })
-      await expect(dialog).toContainText('Plan approved')
-      await expect(dialog.getByRole('list', { name: 'What the audit found' })).toContainText('Adds a file the plan did not mention', { timeout: 20_000 })
-      await expect(dialog).toContainText('Tests pass: test -f ok.txt passed')
-      await expect(dialog.getByRole('button', { name: 'Land anyway on main' })).toBeVisible()
+      const card = s.page.getByRole('region', { name: "ada's audit" })
+      await expect(card).toContainText('Adds a file the plan did not mention', { timeout: 20_000 })
+      const merge = (await s.page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)).merge!
+      expect(merge.plan).toBe('approved')
+      expect(merge.checks.map((c) => `${c.name}:${c.state}`)).toEqual(['Tests pass:passed'])
       await shot(s.page, `journey-${program}-3-finish`)
       // The findings are the person's to see: the agent's row says so, as it does for a permission, and then says Land is.
       await expect(s.page.locator('.roster .ask-pill')).toHaveText('audit')
-      await dialog.getByRole('checkbox', { name: 'Seen, fine' }).click()
-      await expect(dialog.getByRole('checkbox', { name: 'Seen, fine' })).toBeChecked()
+      await card.getByRole('button', { name: 'All seen, fine' }).click()
+      await expect(card).toHaveCount(0)
       await expect(s.page.locator('.roster .ask-pill')).toHaveText('land')
       await shot(s.page, `journey-${program}-3b-land`)
-      await dialog.getByRole('button', { name: 'Land on main' }).click()
-      await expect(dialog).toBeHidden({ timeout: 20_000 })
+      await s.page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }), ada!.id)
       expect(gitIn(w.repo, 'log', '--format=%s', 'main').split('\n')).toEqual(expect.arrayContaining(['add toggle', 'make the check pass']))
       const audited = JSON.parse(readFileSync(w.env.FAKE_AUDIT_LOG!, 'utf8').trim().split('\n')[0]!) as string | { model: string; prompt: string }
       if (program === 'agy') expect((audited as { model: string }).model).toBe('gemini-3.8-flash-low')

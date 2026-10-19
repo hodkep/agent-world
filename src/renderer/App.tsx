@@ -38,7 +38,6 @@ import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
 import { hint, keysOf, matches } from './shortcuts'
 import { next } from './cycle'
-import { Finish } from './panel/Finish'
 import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
@@ -67,7 +66,7 @@ import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
-import { LandBand } from './workflows/LandBand'
+import { StepCard } from './workflows/StepCard'
 import { RunTrack } from './workflows/RunTrack'
 import { useLandingHolds } from './workflows/useLandingHolds'
 import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
@@ -688,21 +687,6 @@ export function App() {
       <>
         {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
         {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
-        {a.branch && !(landingHolds.find((h) => h.agentId === a.id && !h.declined)) && !['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? 'asleep') && (
-          <Finish
-            key={a.id}
-            agentId={a.id}
-            agentName={a.name}
-            activity={world[a.id]?.activity ?? 'asleep'}
-            needs={waits.some((x) => x.agentId === a.id && (x.kind === 'audit' || x.kind === 'land'))}
-            onDone={(removed) => {
-              if (removed) {
-                setAgents((xs) => xs.filter((x) => x.id !== a.id))
-                setSelected((cur) => (cur === a.id ? null : cur))
-              }
-            }}
-          />
-        )}
         {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
       </>
     )
@@ -712,12 +696,11 @@ export function App() {
     const run = wf.runs.filter((r) => r.agent === a.id).at(-1)
     const t = run && prefs && workflowsShown(prefs.workflows.enabled, wf.open) ? trackOf(run, ctxFor(run)) : undefined
     const hold = landingHolds.find((h) => h.agentId === a.id)
-    // Git holds the agent's merge: the marker is on the track, and the band that asks the person sits right under it.
+    // Git holds the agent's merge: the marker is on the track; what asks the person is the card at the end of the conversation.
     return (
       (t || hold) && (
         <>
           {t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" landing={landingPill(hold)} onReopen={() => void window.aw.landingReopen(a.id)} />}
-          {hold && !hold.declined && <LandBand hold={hold} agentName={a.name} />}
         </>
       )
     )
@@ -734,6 +717,7 @@ export function App() {
       need={needsOf(a.id)[0] ?? null}
       gate={gateFor(a)}
       track={trackFor(a)}
+      stepCard={prefs && workflowsShown(prefs.workflows.enabled, wf.open) && a.branch ? <StepCard agentId={a.id} agentName={a.name} held={!!landingHolds.find((h) => h.agentId === a.id && !h.declined)} working={['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? 'asleep')} /> : undefined}
       moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
       needActions={needActions(a.id)}
       visible={visible}
