@@ -329,24 +329,24 @@ export function HistoryList(p: {
       <ul className="commits" aria-label="Commits">
         {list?.map((c, i) => (
           <Fragment key={c.hash}>
-          {divider(i, c)}
-          <li>
-            <button className="commit" onClick={() => (onCommit(c.hash), onPick(null))} title={`${c.hash}\n${new Date(c.at).toLocaleString()}`}>
-              <span className={`dot ${c.head ? 'head' : ''}`} aria-hidden="true" />
-              <span className="subject">{c.subject}</span>
-              <span className="ch-meta">
-                <code className="hash">{c.short}</code>
-                <span>
-                  {c.author} · {agoLabel(c.at, Date.now())}
+            {divider(i, c)}
+            <li>
+              <button className="commit" onClick={() => (onCommit(c.hash), onPick(null))} title={`${c.hash}\n${new Date(c.at).toLocaleString()}`}>
+                <span className={`dot ${c.head ? 'head' : ''}`} aria-hidden="true" />
+                <span className="subject">{c.subject}</span>
+                <span className="ch-meta">
+                  <code className="hash">{c.short}</code>
+                  <span>
+                    {c.author} · {agoLabel(c.at, Date.now())}
+                  </span>
+                  <span className="stat">
+                    {c.files} file{c.files === 1 ? '' : 's'} <span className="plus">+{c.added}</span> <span className="minus">−{c.deleted}</span>
+                  </span>
+                  {c.head && <span className="tagc">HEAD</span>}
+                  {c.local && <span className="tagc local" title="Not pushed yet">LOCAL</span>}
                 </span>
-                <span className="stat">
-                  {c.files} file{c.files === 1 ? '' : 's'} <span className="plus">+{c.added}</span> <span className="minus">−{c.deleted}</span>
-                </span>
-                {c.head && <span className="tagc">HEAD</span>}
-                {c.local && <span className="tagc local" title="Not pushed yet">LOCAL</span>}
-              </span>
-            </button>
-          </li>
+              </button>
+            </li>
           </Fragment>
         ))}
         {list && scope === 'branch' && !p.inPlace && !query && !more && list.length > 0 && <li className="commit-base">branch starts here · {base}</li>}

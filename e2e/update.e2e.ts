@@ -175,22 +175,36 @@ test("Updates shows the installed version and its What's new, the new version's 
   }
 })
 
-test("after an update the app says so once, with a way to read what is new, and the first start only learns the version", async () => {
-  test.setTimeout(60_000)
+test("after an update the app says so once, remembering the version the moment it is shown; the first start and a downgrade say nothing, and only learn the version", async () => {
+  test.setTimeout(90_000)
   const w = await world({ prefs: { seenVersion: '0.0.1' } })
   try {
     const { page } = w
     const banner = page.getByRole('status').filter({ hasText: `Updated to Agent World ${pkg.version}` })
     await expect(banner).toBeVisible()
     await shot(page, 'whatsnew-4-banner')
-    await banner.getByRole('button', { name: "See what's new" }).click()
+    // Remembered as soon as it showed, not only when it is dismissed: a reload or a restart does not show it again.
+    await expect.poll(async () => (await page.evaluate(() => window.aw.getPrefs())).seenVersion).toBe(pkg.version)
+    const open = banner.getByRole('button', { name: "See what's new" })
+    await open.click()
     await expect(page.getByRole('dialog', { name: `What's new in ${pkg.version}` })).toBeVisible()
     await page.keyboard.press('Escape')
+    // Closing puts focus back on the button that opened it, and the line stays for this session until it is dismissed.
+    await expect(open).toBeFocused()
+    await expect(banner).toBeVisible()
+    await banner.getByRole('button', { name: 'Dismiss' }).click()
     await expect(banner).toBeHidden()
     await page.reload()
     await expect(page.locator('.upd-banner')).toHaveCount(0)
   } finally {
     await w.close()
+  }
+  const back = await world({ prefs: { seenVersion: '99.0.0' } })
+  try {
+    await expect.poll(async () => (await back.page.evaluate(() => window.aw.getPrefs())).seenVersion).toBe(pkg.version)
+    await expect(back.page.locator('.upd-banner')).toHaveCount(0)
+  } finally {
+    await back.close()
   }
   const first = await world()
   try {
@@ -201,4 +215,3 @@ test("after an update the app says so once, with a way to read what is new, and 
     await first.close()
   }
 })
-
