@@ -84,7 +84,7 @@ test('an agent\'s Workflow tab shows its runs round by round with their commits,
     writeFileSync(
       join(home, 'aw', 'runs.jsonl'),
       j([
-        begin('r1', now - 3 * HOUR, ada!.id, 'ada', 'Add a dark-mode toggle'),
+        begin('r1', now - 3 * HOUR, ada!.id, 'ada', 'Add a dark-mode toggle', { project }),
         commit('r1', now - 2.5 * HOUR, 'a41f9c2aaa', 'feat: toggle', 1),
         { k: 'done', t: now - 2 * HOUR, run: 'r1', summary: 'Toggle added to Settings.' },
         { k: 'round', t: now - 1.5 * HOUR, run: 'r1' },

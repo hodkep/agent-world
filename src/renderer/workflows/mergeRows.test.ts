@@ -27,7 +27,7 @@ describe('the rows the Finish checklist gets from the merge check', () => {
       { ok: true, text: 'Audit: 1 finding, all seen' },
       { ok: null, text: '1 commit was made outside the task.' }
     ])
-    expect(mergeRows({ ...base, audit: { state: 'not-run' } })).toEqual([{ ok: true, text: 'Plan approved' }])
+    expect(mergeRows({ ...base, audit: { state: 'not-run' } })).toEqual([{ ok: true, text: 'Plan approved' }, { ok: null, text: 'The audit has not run yet.' }])
     expect(mergeRows({ ...base, audit: { state: 'running' } }).at(-1)).toEqual({ ok: null, text: 'Auditing the branch against the plan…' })
     expect(mergeRows({ ...base, audit: { state: 'failed', reason: 'claude timed out' } }).at(-1)).toEqual({ ok: null, text: 'Audit failed: claude timed out. Land is not held for this.' })
     expect(mergeRows({ ...base, audit: { state: 'off', reason: 'economy' } }).at(-1)).toEqual({ ok: null, text: 'Audit is off at the economy dial.' })

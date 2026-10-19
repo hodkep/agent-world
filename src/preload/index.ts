@@ -76,7 +76,7 @@ const api: AwApi = {
   onLibraryUse: on('library-use'),
   onTodosChanged: on('todos-changed'),
   onOpenPage: on('open-page'),
-  finishStatus: (id) => ipcRenderer.invoke('finish:status', id),
+  finishStatus: (id, o) => ipcRenderer.invoke('finish:status', id, o),
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
   finishAudit: (id) => ipcRenderer.invoke('finish:audit', id),
   finishSeen: (id, which) => ipcRenderer.invoke('finish:seen', id, which),

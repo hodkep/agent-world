@@ -30,13 +30,13 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - Edits until the plan is approved: by a hook for Claude agents, by a plugin for agy agents. A shell command such as `sed -i` is caught at the commit instead.
 - Commits until the plan is approved, and a merge into the base branch while the gate holds it: by git, for every program, even with `--no-verify`.
 - Checks and the review: the app runs them.
-- **Finish**: refuses unless the gate is met or you click **Land anyway**.
+- **Land**: the band in the agent's chat (below its run track) refuses unless the gate is met or you click **Land anyway**. It shows the audit's findings to tick and the checks, and it is where you merge or squash and remove the agent.
 
 Limits:
 
 - An agent that unsets git's environment variables or sets its own `core.hooksPath` gets past the git holds.
 - Only a task's first round is held for its plan, and not with **Plan gate** off.
-- The **Merge into main** button in the Code tab applies no gate. Use **Finish this branch** ([Code and preview](code-and-preview.md)).
+- The **Merge into main** button in the Code tab applies no gate. Use the Land band in the agent's chat.
 
 ## Follow a run: the track
 

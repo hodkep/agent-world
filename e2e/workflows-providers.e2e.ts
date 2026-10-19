@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, write
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
-import { headMenu, launchApp } from './launch'
+import { chatTab, launchApp } from './launch'
 
 const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
 const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key; the plan puts a theme per project out of scope.' }] })
@@ -55,8 +55,10 @@ test('an agy agent\'s branch is audited too: the question goes to agy, on its sm
       { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' }
     ].map((e) => JSON.stringify(e)).join('\n') + '\n')
 
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    // The agent never reported its work here, so the audit has not started by itself.
+    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
     await expect(dialog.getByRole('list', { name: 'What the audit found' })).toContainText('Adds a project key', { timeout: 20_000 })
     await expect(dialog.getByRole('group', { name: 'Against the plan' })).toContainText('gemini-3.8-flash-low · about 17k tokens')
     expect(dialog).not.toContainText('not available for this program')
@@ -83,8 +85,10 @@ test('at max the audit of an agy agent uses agy\'s large model, and an agy that 
       { k: 'plan', t: t - 4000, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a toggle.', assumptions: [], outOfScope: [], questions: [] } },
       { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' }
     ].map((e) => JSON.stringify(e)).join('\n') + '\n')
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    // The agent never reported its work here, so the audit has not started by itself.
+    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
     await expect(dialog).toContainText('Audit failed: Quota exhausted', { timeout: 20_000 })
     await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()
     expect(existsSync(o.auditLog)).toBe(true)

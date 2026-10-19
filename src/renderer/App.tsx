@@ -36,6 +36,7 @@ import { ShortcutsSheet } from './panel/ShortcutsSheet'
 import { hint, keysOf, matches } from './shortcuts'
 import { next } from './cycle'
 import { Finish } from './panel/Finish'
+import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
@@ -236,17 +237,10 @@ export function App() {
     return window.aw.listProviders().then(setProviders, () => setProviders([]))
   }, [])
   useEffect(() => void scanProviders(), [scanProviders])
-  const [finishing, setFinishing] = useState<string | null>(null)
   // In a narrow panel the tab strip scrolls sideways, so the tab chosen is brought into view.
   useEffect(() => {
     document.querySelector('.tabs [role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [view])
-  // The Changes panel's land menu can open the finish dialog too.
-  useEffect(() => {
-    const on = (e: Event) => setFinishing(String((e as CustomEvent).detail))
-    window.addEventListener('aw-finish', on)
-    return () => window.removeEventListener('aw-finish', on)
-  }, [])
   const [grid, setGrid] = useState(() => store('aw.grid') === '1')
   // null shows the overview tiles; otherwise conversations side by side in this layout.
   const [paneLayout, setPaneLayout] = useState<GridLayout | null>(() => {
@@ -291,7 +285,11 @@ export function App() {
   const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true }
   // A project's workflow file whose check commands are not approved: its checks wait for the person.
   const ctxFor = (r: { id: string }) => ({ ...stepCtx, approved: !wf.unapproved.includes(r.id) })
-  const needsYou = pendingPlans(wf.runs).length + waitingSteps(wf.runs, stepCtx).length + checkPanels(wf.runs, ctxFor).length
+  // The Workflows window and its count are about the project that is open, as the agent list is.
+  const projectRuns = folder ? wf.runs.filter((r) => r.project === folder) : wf.runs
+  // Everything a run waits for the person for (a plan, check commands, an approval, audit findings, Land): the Workflows count, and the same sign beside the agent that a permission request gets.
+  const waits = waitsForPerson(projectRuns, ctxFor, landingHolds)
+  const needsYou = waits.length
   const patchPrefs = (patch: Partial<Prefs>) => {
     const next = { ...prefsNow.current!, ...patch }
     prefsNow.current = next
@@ -572,9 +570,11 @@ export function App() {
       }),
     []
   )
+  // An agent that is only waiting for the person's word on a run raises its hand in the office, as for a permission.
+  const askedOffice = <T extends { activity: string }>(id: string, st: T): T => (['idle', 'waiting'].includes(st.activity) && waits.some((w) => w.agentId === id) ? { ...st, activity: 'permission' } : st)
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }, inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id]?.until ?? 0) > Date.now(), readingName: reading[a.id]?.item }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: askedOffice(a.id, world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }), inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id]?.until ?? 0) > Date.now(), readingName: reading[a.id]?.item }))
     )
   })
 
@@ -648,6 +648,8 @@ export function App() {
     ...(termMenus[id] ? [{ kind: 'menu', ...termMenus[id]! } as const] : [])
   ]
   needsRef.current = needsOf
+  // What an agent asks of the person, in one word: a permission or question first, else a workflow wait.
+  const askWord = (id: string): string | null => (needsOf(id)[0] ? needTitle(needsOf(id)[0]!).toLowerCase() : waits.find((w) => w.agentId === id) ? waitWord(waits.find((w) => w.agentId === id)!.kind) : null)
   talkRef.current = talk
   const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
   useEffect(() => {
@@ -665,6 +667,21 @@ export function App() {
       <>
         {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
         {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
+        {a.branch && !(landingHolds.find((h) => h.agentId === a.id && !h.declined)) && !['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? 'asleep') && (
+          <Finish
+            key={a.id}
+            agentId={a.id}
+            agentName={a.name}
+            activity={world[a.id]?.activity ?? 'asleep'}
+            needs={waits.some((x) => x.agentId === a.id && (x.kind === 'audit' || x.kind === 'land'))}
+            onDone={(removed) => {
+              if (removed) {
+                setAgents((xs) => xs.filter((x) => x.id !== a.id))
+                setSelected((cur) => (cur === a.id ? null : cur))
+              }
+            }}
+          />
+        )}
         {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
       </>
     )
@@ -1037,9 +1054,9 @@ export function App() {
                         </span>
                       )}
                     </span>
-                    {needsOf(a.id).length > 0 ? (
+                    {askWord(a.id) ? (
                       <span className="ask-pill" title="Waiting for you: click to answer">
-                        {needTitle(needsOf(a.id)[0]!).toLowerCase()}
+                        {askWord(a.id)}
                       </span>
                     ) : (
                       <span />
@@ -1106,7 +1123,6 @@ export function App() {
     compact: () => void run(() => window.aw.chatSend(a.id, '/compact')),
     handbook: () => openHandbook(a),
     tools: () => setView('tools'),
-    finish: () => setFinishing(a.id),
     rename: () => setRenaming(a.id),
     group: () => setGrouping(true),
     remove: () => remove(a.id)
@@ -1177,23 +1193,8 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
-      {finishing && agents.find((a) => a.id === finishing) && (
-        <Finish
-          agentId={finishing}
-          agentName={agents.find((a) => a.id === finishing)!.name}
-          onClose={() => setFinishing(null)}
-          onDone={(removed) => {
-            const id = finishing
-            setFinishing(null)
-            if (removed) {
-              setAgents((xs) => xs.filter((a) => a.id !== id))
-              setSelected((s) => (s === id ? null : s))
-            }
-          }}
-        />
-      )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={wf.runs} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setAgents((xs) => (xs.some((x) => x.id === a.id) ? xs : [...xs, a])), setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setAgents((xs) => (xs.some((x) => x.id === a.id) ? xs : [...xs, a])), setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
@@ -1378,7 +1379,7 @@ export function App() {
                     detail: world[a.id]?.detail,
                     mode: world[a.id]?.mode,
                     stats: stats[a.id],
-                    needs: needsOf(a.id)[0] ? needTitle(needsOf(a.id)[0]!).toLowerCase() : null
+                    needs: askWord(a.id)
                   }))}
                 />
               )}
@@ -1568,7 +1569,7 @@ export function App() {
                 </span>
               )}
               {cur && <span className="hc-cost">${cur.costUsd.toFixed(2)}</span>}
-              {agents.some((a) => a.id !== current.id && needsOf(a.id).length > 0) && (
+              {agents.some((a) => a.id !== current.id && askWord(a.id)) && (
                 <button className="ask-pill" onClick={() => setSwitcher(true)} title="Another agent is waiting for you">
                   others waiting
                 </button>

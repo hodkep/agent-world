@@ -55,7 +55,6 @@ export interface AgentActions {
   compact: () => void
   handbook: () => void
   tools: () => void
-  finish: () => void
   rename: () => void
   group: () => void
   remove: () => void
@@ -263,12 +262,6 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                   <small>MCP · plugins</small>
                 </button>
               </div>
-              {info.branch && (
-                <button className="cb-row finish" role="menuitem" onClick={run(actions.finish)}>
-                  <PixelIcon name="flag" />
-                  Finish this branch
-                </button>
-              )}
               {info.branch && (
                 <button className="cb-row" role="menuitem" onClick={run(actions.handoff)} title="Give this branch to another agent to review, continue or answer a question about">
                   <PixelIcon name="review" />

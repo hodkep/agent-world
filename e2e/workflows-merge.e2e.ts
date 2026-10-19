@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { headMenu, hire, launchApp } from './launch'
+import { chatTab, hire, launchApp } from './launch'
 
 const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key; the plan puts a theme per project out of scope.' }, { kind: 'guess-wrong', text: 'The choice is saved in localStorage; the plan guessed preferences.json.' }] })
 
@@ -42,8 +42,10 @@ test('the merge gate: Finish shows the plan against what the audit found, holds 
   try {
     o.begin()
     o.plan()
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    // The agent never reported its work here, so the audit has not started by itself.
+    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
     const block = dialog.getByRole('group', { name: 'Against the plan' })
     await expect(block).toContainText('Add a dark-mode toggle to Settings.')
     await expect(block).toContainText('Out of scope: A theme per project.')
@@ -88,8 +90,8 @@ test('Land anyway is always possible and is recorded with what was holding it, a
   const o = await office('wfmerge2', { dial: 'balanced' })
   try {
     o.begin()
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
     await expect(dialog).toContainText('No plan was approved for this task.')
     await dialog.getByRole('button', { name: 'Land anyway on main' }).click()
     await expect(dialog).toBeHidden({ timeout: 15_000 })
@@ -104,8 +106,8 @@ test('at economy a plan is optional so landing is not held for a missing one, an
   const o = await office('wfmerge2b', { dial: 'economy' })
   try {
     o.begin()
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
     await expect(dialog).toContainText('Audit is off at the economy dial.')
     await expect(dialog).not.toContainText('No plan was approved')
     await dialog.getByRole('button', { name: 'Land on main' }).click()
@@ -123,13 +125,14 @@ test('an audit that fails says why, never holds Land, and can be run again', asy
     o.begin()
     o.plan()
     o.add({ k: 'plan', t: Date.now() - 3000, run: 'r1', round: 1, state: 'approved' })
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    // The agent never reported its work here, so the audit has not started by itself.
+    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
     await expect(dialog).toContainText('The audit failed: Credit balance is too low', { timeout: 15_000 })
     await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()
     await dialog.getByRole('button', { name: 'Run the audit again' }).click()
     await expect.poll(() => readFileSync(o.auditLog, 'utf8').trim().split('\n').length).toBe(2)
-    await dialog.getByRole('button', { name: 'Close' }).click()
     // The run, opened from the agent's Workflow tab, keeps the line.
     await o.page.getByRole('tab', { name: 'Workflow' }).click()
     await o.page.getByRole('list', { name: 'This week' }).getByRole('button', { name: /Add a dark-mode toggle/ }).click()
@@ -153,8 +156,8 @@ test('the merge gate has its own switch in Settings; off, Finish shows nothing o
     await expect(gate).not.toBeChecked()
     await expect.poll(() => JSON.parse(readFileSync(join(o.tmp, 'home', 'preferences.json'), 'utf8')).workflows.mergeGate).toBe(false)
     await settings.getByRole('button', { name: 'Close' }).click()
-    await headMenu(o.page, 'Finish')
-    const dialog = o.page.getByRole('dialog', { name: "Finish ada's work" })
+    await chatTab(o.page)
+    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
     await expect(dialog).toContainText('1 commit on aw/ada to land')
     await expect(dialog.getByRole('group', { name: 'Against the plan' })).toHaveCount(0)
     await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()

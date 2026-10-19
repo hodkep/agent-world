@@ -372,10 +372,6 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
                   Push &amp; open PR
                   <small>against {data.base}</small>
                 </button>
-                <button role="menuitem" onClick={() => (setMenu(false), window.dispatchEvent(new CustomEvent('aw-finish', { detail: agentId })))}>
-                  Finish {agentName}…
-                  <small>checks, merge or squash, and clean up</small>
-                </button>
               </div>
             )}
           </div>

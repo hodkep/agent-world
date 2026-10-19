@@ -15,7 +15,7 @@ const PLAN_TAG: Record<MergeCheck['plan'], { text: string; tone: string }> = {
 /** The block above Finish's checklist: the plan the person approved beside what a reviewer found in the branch against it. */
 export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSeen: (index: number) => void; onAgain: () => void }) {
   const a = merge.audit
-  if (!merge.planned && a.state !== 'done' && a.state !== 'running' && a.state !== 'failed') return null
+  if (!merge.planned && a.state !== 'done' && a.state !== 'running' && a.state !== 'failed' && a.state !== 'not-run') return null
   const tag = PLAN_TAG[merge.plan]
   return (
     <fieldset className="mg">
@@ -33,6 +33,12 @@ export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSee
         </div>
       )}
       {a.state === 'running' && <span className="hint">Auditing the branch against the plan…</span>}
+      {a.state === 'not-run' && (
+        <div className="mg-row">
+          <span className="hint">The audit has not run yet. It starts by itself once the agent reports its work and its checks pass.</span>
+          <button onClick={onAgain}>Run the audit now</button>
+        </div>
+      )}
       {a.state === 'failed' && (
         <div className="mg-row">
           <span className="hint">The audit failed: {a.reason}</span>

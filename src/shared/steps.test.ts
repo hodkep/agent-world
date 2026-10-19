@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, stepReply, stepStates, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, readyForAudit, stepReply, stepStates, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -217,5 +217,24 @@ describe('the checks that need the person', () => {
     expect(panels([...base, ran(1, true)])).toEqual([])
     expect(panels([...base, ran(1, false), ran(2, false), step('tests', 'skipped', 500)])).toEqual([])
     expect(panels([...base, ran(1, false), ran(2, false), { k: 'stop', t: 900, run: 'r1' }])).toEqual([])
+  })
+})
+
+describe('when the app starts the audit by itself', () => {
+  const ready = (events: RunEvent[], ctx = { auditOn: true }) => readyForAudit(reduceRuns(events)[0]!, ctx)
+  it('once every step before the audit is passed or skipped, and not while the plan or the build is still open', () => {
+    expect(ready([begin(STANDARD)])).toBe(false)
+    expect(ready([begin(STANDARD), submitted()])).toBe(false)
+    expect(ready([begin(STANDARD), decided('released')])).toBe(false)
+    expect(ready([begin(STANDARD), decided('released'), step('build', 'done')])).toBe(true)
+    // A plan nobody needed is skipped.
+    expect(ready([begin(STANDARD), step('build', 'done')])).toBe(true)
+  })
+  it('not when the audit is off, the run has no audit step, or a check before it has not passed', () => {
+    const done = [begin(STANDARD), decided('released'), step('build', 'done')]
+    expect(ready(done, { auditOn: false })).toBe(false)
+    expect(ready([begin(REVIEWED), decided('released'), step('fix', 'done')])).toBe(false)
+    const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'x' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+    expect(ready([begin(CHECKED), step('build', 'done')])).toBe(false)
   })
 })

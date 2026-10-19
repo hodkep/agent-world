@@ -244,7 +244,8 @@ export interface AwApi {
   onOpenPage(cb: (agentId: string, path: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
-  finishStatus(agentId: string): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
+  /** `look` only reads: it starts no audit and runs no check, which the chat band (asking every few seconds) must not do. */
+  finishStatus(agentId: string, o?: { look?: boolean }): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
   /** Run the audit of the branch again (after one failed). */
   finishAudit(agentId: string): Promise<void>
   /** The merges into the base branch that git held for want of the person's say, by agent, until they land or the person says not yet. */
