@@ -30,19 +30,19 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - Edits until the plan is approved: by a hook for Claude agents, by a plugin for agy agents. A shell command such as `sed -i` is caught at the commit instead.
 - Commits until the plan is approved, and a merge into the base branch while the gate holds it: by git, for every program, even with `--no-verify`.
 - Checks and the review: the app runs them.
-- **Land**: the band in the agent's chat (below its run track) refuses unless the gate is met or you click **Land anyway**. It shows the audit's findings to tick and the checks, and it is where you merge or squash and remove the agent.
+- **Landing**: git holds a merge into the base branch unless the gate is met or you **Set aside** what holds it.
 
-![The audit's findings and the checks in the agent's chat, with AUDIT beside the agent](../images/workflow-audit-band.png)
+![The audit card at the end of the conversation, with the findings to look at](../images/workflow-audit-card.png)
 
-The audit starts by itself, once, when the agent's steps before it have passed (the plan, its work, a check that must pass, a step you approve). It is one model call, so it costs: a run that commits again later is **not** audited again by itself; the band then says "The audit has not run yet" and **Run the audit now** audits the branch as it is. What waits for you shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and under "others waiting", and the agent raises a hand in the office, as for a permission.
+The audit starts by itself, once, when the agent's steps before it have passed. It is one model call, so a run that commits again later is **not** audited again by itself; if git then holds the merge, its card has **Run the audit**. What waits for you shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and under "others waiting", and the agent raises a hand in the office.
 
-![Land, after the findings were seen, with LAND beside the agent](../images/workflow-land-band.png)
+Findings to look at show as a card at the end of the agent's chat, with **All seen, fine** and **Set aside**. Nothing sits above the message box and nothing opens by itself. **Set aside** records the audit as not followed (the track and the ledger say so), and nothing it found holds the merge; a line in the chat has **Undo**.
 
 Limits:
 
 - An agent that unsets git's environment variables or sets its own `core.hooksPath` gets past the git holds.
 - Only a task's first round is held for its plan, and not with **Plan gate** off.
-- The **Merge into main** button in the Code tab applies no gate. Use the Land band in the agent's chat.
+- The **Merge into main** button in the Code tab applies no gate. To land through the gate, ask the agent to merge.
 
 ## Follow a run: the track
 
@@ -56,14 +56,12 @@ While a run is open, a track sits above the agent's chat: its steps as stations,
 
 ## Land a branch
 
-Ask the agent to merge the branch. If the gate holds it, git refuses, the agent tells you why, and a band headed **Merge held** appears under the run track with a **Land held** marker. It lists what holds it, such as an unapproved plan or **N audit findings have not been seen**. Then either:
+Ask the agent to merge the branch. If the gate holds it, git refuses, the agent tells you why, a **Land held** marker is on the run track, and a card at the end of the chat lists what holds it, such as an unapproved plan or **N audit findings have not been seen**. Then either:
 
-- Tick each review finding as seen, then ask the agent to merge again.
-- Click **Land anyway**. The branch lands once, on the agent's next try.
+- Click **All seen, fine** for the findings, then ask the agent to merge again.
+- Click **Set aside**. It lifts the hold, so the branch lands once, on the agent's next try, and records the audit as not followed.
 
-**Not yet** puts the band away; click the marker, now **Land held · not yet**, to bring it back.
-
-![Merge held band](../images/merge-held.png)
+![The merge held card](../images/merge-held.png)
 
 A failed review never holds landing. Checks and steps that need you hold it even with **Merge gate** off.
 
