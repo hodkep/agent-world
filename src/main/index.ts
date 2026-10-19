@@ -2053,11 +2053,14 @@ async function main() {
   const folderOf = async (id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
+    // Git is what lists its files and changes: a plain folder has none to offer.
+    if (!a.branch && !(await isGitRepo(a.cwd))) throw new Error(`${a.name} works directly in ${a.cwd}, not in a git worktree.`)
     return a
   }
   // Where an agent without a branch of its own works: whether git can say anything about it, and the branch the folder is on.
   ipcMain.handle('code:place', async (_, id: string) => {
-    const a = await folderOf(id)
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
     const repo = await isGitRepo(a.cwd)
     return { git: repo, branch: repo ? await checkedOutBranch(a.cwd) : '' }
   })
