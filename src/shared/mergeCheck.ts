@@ -11,6 +11,8 @@ export interface MergeCheck {
   commits: number
   flagged: number
   audit: AuditState
+  /** The person set the review aside: not followed, by their choice; what it found holds nothing. */
+  asideAudit: boolean
   /** One row per check step of the run's workflow, for the checklist. */
   checks: CheckRow[]
   /** Things that hold Land back until the person acts. */

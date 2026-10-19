@@ -68,6 +68,8 @@ function own(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: St
   }
   if (kind === 'audit') {
     if (!ctx.auditOn) return 'skipped'
+    // The person set it aside: not followed, and nothing it found holds anything back.
+    if (last?.state === 'skipped') return 'skipped'
     const a = run.audit
     if (!a || a.t < round.startedAt) return 'later'
     if (a.state === 'failed') return 'skipped'
@@ -105,6 +107,14 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     else (state = 'running', (held = true))
     return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }) }
   })
+}
+
+/** Whether the person set the audit of this round aside (and has not asked for it again since): the step is not followed, by their choice. */
+export function auditSetAside(run: Run, roundN?: number): boolean {
+  // A run that follows no workflow has no audit step of its own: the gate's audit is set aside under this name.
+  const step = run.workflow ? run.workflow.steps.find((s) => s.kind === 'audit')?.id : 'audit'
+  const round = run.rounds.find((r) => r.n === (roundN ?? run.rounds.length))
+  return !!step && !!round && round.steps.filter((s) => s.step === step).at(-1)?.state === 'skipped'
 }
 
 /** The audit is the app's to start once the agent's steps before it are passed or skipped (a check that has not passed, or a plan or approval still open, holds it back). */

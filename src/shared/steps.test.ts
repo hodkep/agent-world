@@ -45,6 +45,11 @@ describe('the audit and the landing, which the app and the person do', () => {
     expect(states([...built, audit(), seen(), landed()])).toEqual(['plan:passed', 'build:passed', 'review:passed', 'land:passed'])
   })
 
+  it('an audit the person set aside is skipped, so landing is theirs to do, and asking for it again brings the findings back', () => {
+    expect(states([...built, audit(), step('review', 'skipped', 530)])).toEqual(['plan:passed', 'build:passed', 'review:skipped', 'land:waiting'])
+    expect(states([...built, audit(), step('review', 'skipped', 530), step('review', 'rerun', 540)])).toEqual(['plan:passed', 'build:passed', 'review:waiting', 'land:pending'])
+  })
+
   it('with no audit to run (the economy dial, or a program that cannot) the audit is skipped and the landing follows the build', () => {
     expect(states(built, { auditOn: false })).toEqual(['plan:passed', 'build:passed', 'review:skipped', 'land:waiting'])
   })

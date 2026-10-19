@@ -123,6 +123,19 @@ describe('which gates a run met', () => {
     expect(tiles(events).slice(0, 2)).toEqual(['plan:ok', 'check:ok'])
   })
 
+  it('say a review set aside with findings unseen in the run\'s own words', () => {
+    const aside: RunEvent = { k: 'step', t: 8 * MIN, run: 'r1', round: 1, step: 'review', state: 'skipped' }
+    const line = timelineOf(run([begin(), audit(7 * MIN, [finding, finding]), aside, done(9 * MIN)]), 99 * MIN).find((e) => /^You set the review aside/.test(e.text))
+    expect(line).toMatchObject({ kind: 'bad', text: 'You set the review aside with 2 things not looked at: “Renamed a token.”' })
+  })
+
+  it('count a review the person set aside, with findings they never looked at, as not followed, and one set aside after seeing them as it was', () => {
+    const aside = (t: number): RunEvent => ({ k: 'step', t, run: 'r1', round: 1, step: 'review', state: 'skipped' })
+    expect(tiles([begin(), audit(7 * MIN, [finding]), aside(8 * MIN), done(9 * MIN)])[2]).toBe('review:bad')
+    expect(tiles([begin(), audit(7 * MIN, [finding]), seen(7.5 * MIN, [0]), aside(8 * MIN), done(9 * MIN)])[2]).toBe('review:trouble')
+    expect(tiles([begin(), audit(7 * MIN, [finding]), aside(8 * MIN), { k: 'step', t: 8.5 * MIN, run: 'r1', round: 1, step: 'review', state: 'rerun' } as RunEvent, done(9 * MIN)])[2]).toBe('review:bad')
+  })
+
   it('count a review that found nothing as met, and one that could not run as not asked', () => {
     expect(tiles([begin(), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])[2]).toBe('review:ok')
     const failed: RunEvent = { k: 'audit', t: 7 * MIN, run: 'r1', head: 'h1', state: 'failed', reason: 'no model' }
