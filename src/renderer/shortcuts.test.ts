@@ -89,6 +89,15 @@ describe('a key press against the table', () => {
   })
 })
 
+describe('the Changes tab', () => {
+  it('has its own place in the sheet, with one shortcut to fold unchanged code', () => {
+    expect(PLACES).toContain('Changes')
+    expect(findShortcuts('', 'Changes', true).map((s) => s.id)).toEqual(['fold-unchanged'])
+    expect(hint('fold-unchanged', true)).toBe('Fold or show unchanged code (⌘⌥U)')
+    expect(hint('fold-unchanged', false)).toBe('Fold or show unchanged code (Ctrl+Alt+U)')
+  })
+})
+
 describe('the table of shortcuts', () => {
   it('has a place, a description and keys for every entry, with no id twice', () => {
     for (const s of SHORTCUTS) {

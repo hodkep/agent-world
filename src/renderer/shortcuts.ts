@@ -1,7 +1,7 @@
 const MAC: Record<string, string> = { Mod: '⌘', Ctrl: '⌃', Alt: '⌥', Shift: '⇧' }
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
 
-export const PLACES = ['Anywhere', 'Conversation', 'Message box', 'Terminal', 'Image editor'] as const
+export const PLACES = ['Anywhere', 'Conversation', 'Message box', 'Terminal', 'Changes', 'Image editor'] as const
 export type Place = (typeof PLACES)[number]
 
 /** One thing the keyboard does. `keys` are written as "Shift+Mod+Z"; two of them are two ways, or two directions, of the one thing. */
@@ -45,6 +45,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'term-line', place: 'Terminal', text: 'Move to the start or end of the line', keys: ['Mod+ArrowLeft', 'Mod+ArrowRight'], mac: true },
   { id: 'term-del-word', place: 'Terminal', text: 'Delete a word', keys: ['Alt+Backspace'], mac: true },
   { id: 'term-del-line', place: 'Terminal', text: 'Delete the line', keys: ['Mod+Backspace'], mac: true },
+
+  { id: 'fold-unchanged', place: 'Changes', text: 'Fold or show unchanged code', keys: ['Mod+Alt+U'] },
 
   { id: 'undo', place: 'Image editor', text: 'Undo', keys: ['Mod+Z'] },
   { id: 'redo', place: 'Image editor', text: 'Redo', keys: ['Shift+Mod+Z'] },

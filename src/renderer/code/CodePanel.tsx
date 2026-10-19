@@ -4,6 +4,7 @@ import { ContextTray, type CodeJump, useAskSelection } from './askAgent'
 import { codeContext } from './codeContext'
 import { Markdown } from '../chat/markdown'
 import { editorOptions, languageFor, monaco } from './monaco'
+import { CONTEXTS, CONTEXT_KEY, FOLD_KEY, type Context, type Fold, foldOptions, readFold } from './foldRule'
 import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { BasePicker } from '../panel/BasePicker'
@@ -91,6 +92,28 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
       return 'tree'
     }
   })
+  // Whether the diff folds the code around the changes, and how many lines it keeps: one choice for every file, kept like the tree or list one.
+  const [fold, setFold] = useState<Fold>(() => readFold((k) => localStorage.getItem(k)))
+  const pickFold = (next: Fold) => {
+    setFold(next)
+    try {
+      localStorage.setItem(FOLD_KEY, next.fold ? 'fold' : 'show')
+      localStorage.setItem(CONTEXT_KEY, String(next.context))
+    } catch {
+      /* the choice just is not kept */
+    }
+  }
+  const foldNow = useRef(fold)
+  foldNow.current = fold
+  const toggleFold = useRef(() => {})
+  toggleFold.current = () => pickFold({ ...foldNow.current, fold: !foldNow.current.fold })
+  useEffect(() => diff.current?.updateOptions(foldOptions(fold)), [fold])
+  // The key works anywhere on the Changes tab, not only with the editor or the header focused (Monaco takes it itself inside the editor).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey && e.code === 'KeyU' && !e.defaultPrevented && (e.preventDefault(), toggleFold.current())
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [])
   const pickView = (v: 'tree' | 'list') => {
     setView(v)
     try {
@@ -170,8 +193,13 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
   useEffect(refresh, [refresh, workDone])
 
   useEffect(() => {
-    diff.current = monaco.editor.createDiffEditor(host.current!, { ...editorOptions, readOnly: true, renderSideBySide: false })
-    const asking = attachAsk(diff.current.getModifiedEditor())
+    diff.current = monaco.editor.createDiffEditor(host.current!, { ...editorOptions, readOnly: true, renderSideBySide: false, ...foldOptions(foldNow.current) })
+    const modified = diff.current.getModifiedEditor()
+    // In Monaco's command palette (F1) too, so the choice is reachable from the keyboard without the header.
+    modified.addAction({ id: 'aw.foldUnchanged', label: 'Fold or show unchanged code', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyU], run: () => toggleFold.current() })
+    // The rows of hidden lines can only be opened with the mouse (the editor gives them no key), so the palette can open every one of them. The widget has the method, the typings do not.
+    modified.addAction({ id: 'aw.showHiddenLines', label: 'Show all hidden lines', run: () => (diff.current as unknown as { showAllUnchangedRegions?: () => void } | null)?.showAllUnchangedRegions?.() })
+    const asking = attachAsk(modified)
     return () => {
       asking.dispose()
       const m = diff.current?.getModel()
@@ -388,6 +416,26 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
             <span aria-hidden="true">·</span>
             <span className="flang">
               {mode === 'dirty' ? 'uncommitted' : mode === 'history' ? `in commit ${commit?.slice(0, 7) ?? ''}` : `${{ added: 'new file', modified: 'changed', deleted: 'deleted' }[data?.files.find((f) => f.path === path)?.status ?? 'modified']} vs ${data?.base ?? 'base'}`}
+            </span>
+            <span className="fold-ctl">
+              <span className="lab" id="fold-lab">Unchanged code</span>
+              <span
+                className="change-view"
+                role="group"
+                aria-labelledby="fold-lab"
+                onKeyDown={(e) => (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (e.preventDefault(), pickFold({ ...fold, fold: e.key === 'ArrowRight' }))}
+              >
+                <button aria-pressed={!fold.fold} className={fold.fold ? '' : 'on'} onClick={() => pickFold({ ...fold, fold: false })} title="Show all the code of the file">Show</button>
+                <button aria-pressed={fold.fold} className={fold.fold ? 'on' : ''} onClick={() => pickFold({ ...fold, fold: true })} title="Fold the code around the changes">Fold</button>
+              </span>
+              <label className="lab">
+                Context{' '}
+                <select value={fold.context} onChange={(e) => pickFold({ ...fold, context: Number(e.target.value) as Context })} title="How many lines stay around each change when the code is folded">
+                  {CONTEXTS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
             </span>
           </div>
         )}

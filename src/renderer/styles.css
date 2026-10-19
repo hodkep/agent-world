@@ -166,10 +166,15 @@ aside:not(.wide) .change-list { width: 190px; }
 .ftab .x { width: 18px; height: 18px; padding: 0; line-height: 1; background: transparent; box-shadow: none; border-color: transparent; color: var(--muted); }
 .ftab .x:hover { color: var(--accent); background: var(--well); }
 .fdot { width: 8px; height: 8px; flex: none; background: var(--accent); }
-.fcrumb { display: flex; align-items: center; gap: 10px; flex: none; padding: 4px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px Menlo, Consolas, monospace; }
-.fcrumb .fpath { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; flex: none; padding: 4px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font: 11px Menlo, Consolas, monospace; }
+.fcrumb .fpath { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 6ch; max-width: 100%; }
 .fcrumb .flang { color: var(--think); }
 .fcrumb button { margin-left: auto; flex: none; font: 12px inherit; padding: 1px 10px; }
+.fold-ctl { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.fold-ctl .lab { color: var(--muted); }
+.fold-ctl .change-view { margin-left: 0; }
+.fold-ctl .change-view button { margin-left: 0; font-size: 11px; padding: 0 8px; }
+.fold-ctl select { font: 11px Menlo, Consolas, monospace; padding: 1px 4px; background: var(--panel-2); color: var(--text); border: 1px solid var(--ink); }
 .fask { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: wrap; padding: 5px 10px; background: var(--danger-well); border-bottom: 1px solid var(--line); }
 .fask span { flex: 1; min-width: 160px; }
 .fask .danger { color: var(--danger-text); }
