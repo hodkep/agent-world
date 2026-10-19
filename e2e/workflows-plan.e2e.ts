@@ -7,10 +7,11 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 import { readLog } from './readLog'
+import { shot } from './wf-helpers'
 
 const BAD = '## Goal\nAdd a toggle.\n'
 const GOOD = `## Goal
-Add a dark-mode toggle to Settings.
+Add a dark-mode toggle to Settings, as in docs/mock.html and https://example.com/spec (not in src/nowhere.ts).
 
 ## Assumptions
 - [given] The toggle lives in Settings.
@@ -82,6 +83,8 @@ test('the plan gate end to end: task_begin asks for a plan, plan_submit checks i
     expect(text(refused)).toContain('Missing "## Assumptions"')
     expect(text(refused)).toContain('Missing "## Out of scope"')
     writeFileSync(join(ada!.cwd, '.agent-world', 'plan.md'), GOOD)
+    mkdirSync(join(ada!.cwd, 'docs'), { recursive: true })
+    writeFileSync(join(ada!.cwd, 'docs', 'mock.html'), '<h1>mock</h1>')
     expect(text(await client.callTool({ name: 'plan_submit', arguments: {} }))).toContain('1 open question')
     expect(await (await edit('src/a.ts')).json()).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: expect.stringContaining('waiting') } })
     // A path that leads out of the worktree is refused.
@@ -93,7 +96,17 @@ test('the plan gate end to end: task_begin asks for a plan, plan_submit checks i
     // The panel is in the chat: the read-back, the question as choices, approval blocked until it is answered.
     await page.getByRole('tab', { name: 'Chat' }).click()
     const panel = page.getByRole('region', { name: 'Plan from ada' })
-    await expect(panel).toContainText('Add a dark-mode toggle to Settings.')
+    await expect(panel).toContainText('Add a dark-mode toggle to Settings')
+    // What the agent wrote is read as in the chat: the path of a real file and an address are links, a path that is no file here stays as written.
+    const fileLink = panel.locator('a.file-link', { hasText: 'mock.html' })
+    await expect(fileLink).toBeVisible()
+    await expect(panel.locator('a[href="https://example.com/spec"]')).toHaveCount(1)
+    await expect(panel).toContainText('src/nowhere.ts')
+    await expect(panel.locator('a', { hasText: 'nowhere' })).toHaveCount(0)
+    await shot(panel, 'plan-gate-links')
+    await fileLink.click()
+    await expect(page.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: 'Chat' }).click()
     await expect(panel).toContainText('The choice is saved in preferences.json.')
     await expect(panel).toContainText('A theme per project.')
     await expect(page.locator('header').getByRole('button', { name: /Workflows/ })).toBeVisible()

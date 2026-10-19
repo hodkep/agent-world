@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Run, RunStep } from '../../shared/runs'
+import { Markdown } from '../chat/markdown'
 
 /** A step of a workflow that waits for the person: what it is, then approve it or send the work back with a note. */
 export function StepGate({ agentName, run, step, onDecide }: { agentName: string; run: Run; step: RunStep; onDecide: (decision: 'approved' | 'changes', note?: string) => void }) {
@@ -13,7 +14,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
       </header>
       <div className="pg-body">
         <p className="pg-task">{run.title}</p>
-        {step.brief && <p>{step.brief}</p>}
+        {step.brief && <div className="pg-text"><Markdown text={step.brief} agentId={run.agent} /></div>}
         <p className="pg-task">{run.workflow?.name}: this must be approved before {agentName}'s work can land.</p>
         {asking && (
           <label className="pg-note">

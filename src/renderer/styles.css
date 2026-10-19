@@ -3291,3 +3291,12 @@ svg.pxg { display: block; flex: none; }
 .upd-error { padding: 8px 10px; background: var(--danger-well); box-shadow: 0 0 0 1px var(--danger); color: var(--danger-text); font-size: 12px; line-height: 1.4; }
 .upd-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .settings .upd-panel, .set-update .upd-panel { max-width: 460px; }
+
+/* Words of the agent in a gate, read as Markdown: no extra room around the paragraphs, so a row stays as tall as its text */
+.pg-text { min-width: 0; overflow-wrap: anywhere; }
+.pg-text .md > :first-child { margin-top: 0; }
+.pg-text .md > :last-child { margin-bottom: 0; }
+.pg-text .md p { margin: 0 0 4px; max-width: none; }
+.pg-text .md code { background: var(--well); padding: 0 4px; }
+.mg-goal { font-weight: 700; }
+.pg-foot.pg-text .md, .pg-foot.pg-text .md p { display: inline; }

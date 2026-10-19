@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { answersOf, unanswered } from '../../shared/plan'
 import type { Round, Run } from '../../shared/runs'
 import { checkText } from '../../shared/runStats'
+import { Markdown } from '../chat/markdown'
 
 type Decide = (state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }) => void
 
 /** The plan gate: what the agent says it understood, checked before it builds. The person answers the open questions, then approves or sends it back. */
 export function PlanGate({ agentName, run, round, onDecide }: { agentName: string; run: Run; round: Round; onDecide: Decide }) {
   const plan = round.plan!
+  // What the agent wrote is read as in the chat: Markdown, an address a link, the path of a real file a link that opens it (a page in Preview).
+  const md = (text: string) => <Markdown text={text} agentId={run.agent} />
   const r = plan.readback
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [asking, setAsking] = useState(false)
@@ -24,16 +27,16 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
       </header>
       <div className="pg-body">
         <p className="pg-task">{run.title}</p>
-        <div className="pg-row"><span className="pg-k goal">Goal</span><span>{r.goal}</span></div>
+        <div className="pg-row"><span className="pg-k goal">Goal</span><div className="pg-text">{md(r.goal)}</div></div>
         {r.assumptions.map((a, i) => (
-          <div key={i} className="pg-row"><span className={`pg-k ${a.kind}`}>{a.kind === 'given' ? 'Given' : 'Guessed'}</span><span className={a.kind === 'given' ? 'dim' : ''}>{a.text}</span></div>
+          <div key={i} className="pg-row"><span className={`pg-k ${a.kind}`}>{a.kind === 'given' ? 'Given' : 'Guessed'}</span><div className={`pg-text ${a.kind === 'given' ? 'dim' : ''}`}>{md(a.text)}</div></div>
         ))}
-        {r.outOfScope.length > 0 && <div className="pg-row"><span className="pg-k scope">Out of scope</span><span className="dim">{r.outOfScope.join(' ')}</span></div>}
+        {r.outOfScope.length > 0 && <div className="pg-row"><span className="pg-k scope">Out of scope</span><div className="pg-text dim">{md(r.outOfScope.join(' '))}</div></div>}
         {r.questions.map((q) => (
           <div key={q.text} className="pg-row">
             <span className="pg-k open" title={q.source === 'check' ? 'Found by the intent check, comparing your request with the plan' : undefined}>{q.source === 'check' ? 'From check' : 'Open'}</span>
             <div className="pg-q">
-              <span>{q.text}</span>
+              <div className="pg-text">{md(q.text)}</div>
               {q.options.length > 0 ? (
                 <div className="pg-opts" role="radiogroup" aria-label={q.text}>
                   {q.options.map((o) => (
@@ -72,7 +75,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
           <button className="pg-release" onClick={() => onDecide('released')} title="Let the agent edit without approving this plan">Let {agentName} edit without approval</button>
         </div>
         {checkText(plan.check) && <small className="pg-foot">{checkText(plan.check)}</small>}
-        <small className="pg-foot">{open.length > 0 ? `${open.length} open question${open.length === 1 ? '' : 's'} block approval · ` : ''}{plan.path || 'plan.md'}</small>
+        <small className="pg-foot pg-text">{open.length > 0 ? `${open.length} open question${open.length === 1 ? '' : 's'} block approval · ` : ''}{md(`\`${plan.path || 'plan.md'}\``)}</small>
       </div>
     </section>
   )
