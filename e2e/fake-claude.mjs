@@ -569,10 +569,12 @@ if (process.env.FAKE_ASKQ) {
     cursor = 1
   }
   draw()
-  await new Promise((resolve) => {
+  const cancelled = await new Promise((resolve) => {
     const toggle = () => (picked[tab].has(cursor) ? picked[tab].delete(cursor) : picked[tab].add(cursor))
     const onKey = (d) => {
       const k = String(d), q = qs[tab]
+      // Esc cancels the whole menu, as in Claude: the question is declined and the turn ends.
+      if (k === '\x1b') return (process.stdin.off('data', onKey), resolve(true))
       const rowCount = q ? q.options.length + 2 : 2
       if (k === '\x1b[B') cursor = Math.min(rowCount, cursor + 1)
       else if (k === '\x1b[A') cursor = Math.max(1, cursor - 1)
@@ -583,7 +585,7 @@ if (process.env.FAKE_ASKQ) {
         if (!q) {
           if (cursor !== 1) return
           process.stdin.off('data', onKey)
-          return resolve()
+          return resolve(false)
         }
         q.multiSelect ? toggle() : advance()
       } else if (q && !q.multiSelect && cursor === q.options.length + 1) other[tab] = (other[tab] ?? '') + k
@@ -591,6 +593,11 @@ if (process.env.FAKE_ASKQ) {
     }
     process.stdin.on('data', onKey)
   })
+  if (cancelled) {
+    process.stdout.write('\x1b[2J\x1b[Hquestion declined\r\n')
+    await hook('Stop')
+    await new Promise(() => {})
+  }
   const said = qs.map((q, i) => (other[i] ?? [...picked[i]].sort().map((n) => q.options[n - 1].label).join(','))).join(' | ')
   process.stdout.write(`\x1b[2J\x1b[Hanswers: ${said}\r\n`)
   await hook('PostToolUse', { tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: { questions: qs } })

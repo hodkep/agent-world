@@ -2382,6 +2382,10 @@ async function main() {
       io.write(keysOf(id).submit)
     }
   })
+  ipcMain.handle('question:cancel', (_, id: string) => {
+    if (!questionOpen.has(id)) throw new Error('That question is no longer open.')
+    sessions.get(id)?.write(keysOf(id).cancel)
+  })
   ipcMain.handle('answer-question', async (_, id: string, answers: QuestionAnswer[]) => {
     const questions = askedQuestions.get(id)
     if (!questions?.length || !questionOpen.has(id)) throw new Error('That question is no longer open; answer it in the terminal.')

@@ -306,6 +306,8 @@ export interface AwApi {
   onComposerPrefill(cb: (agentId: string, text: string) => void): () => void
   /** Esc: back out of the open menu. */
   cancelMenu(agentId: string): Promise<void>
+  /** Esc on an open question: the agent is told it was declined, as in the terminal. */
+  cancelQuestion(agentId: string): Promise<void>
   /** Open /rewind and go to the prompt that starts with this text; Claude's own confirmation follows as a menu. */
   rewindTo(agentId: string, promptText: string): Promise<void>
   /** Esc: interrupt what the agent is doing. */
