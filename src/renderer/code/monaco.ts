@@ -36,4 +36,10 @@ export const editorOptions: monaco.editor.IStandaloneEditorConstructionOptions =
   scrollBeyondLastLine: false
 }
 
+/**
+ * The old side's numbers in an inline diff sit in a strip of their own, sized from the numbers' width; at the editor's default of 5 characters
+ * the strip is narrower than the box Monaco puts it in, so the editor covers the right-most digit (10 to 39 read as 1, 2, 3). From 7 characters the strip is wide enough for four digits.
+ */
+export const ORIGINAL_NUMBER_CHARS = 7
+
 export { monaco }
