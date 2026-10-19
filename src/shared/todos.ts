@@ -175,8 +175,8 @@ export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?
     blockedWhy: status === 'blocked' ? clip(p.blockedWhy ?? t.blockedWhy, NOTE_MAX) || undefined : undefined
   }
   if (status !== 'doing' && status !== 'blocked') delete next.claimedBy
-  // An agent that sets a task to doing is on it, as with todo_claim; a task another agent is already doing stays theirs.
-  if (status === 'doing' && by.kind === 'agent' && !(t.claimedBy && t.claimedBy.id !== by.id && t.status === 'doing')) next.claimedBy = by
+  // An agent that sets a task to doing is on it, as with todo_claim; a task another agent is doing or has blocked stays theirs (only doing and blocked keep a claimer).
+  if (status === 'doing' && by.kind === 'agent' && !(t.claimedBy && t.claimedBy.id !== by.id)) next.claimedBy = by
   const changed = put(b, stamp(next, by, at, { what: 'updated' }))
   return target && target !== t.list ? moveTodo(changed, id, target, Number.MAX_SAFE_INTEGER, by, at) : changed
 }
