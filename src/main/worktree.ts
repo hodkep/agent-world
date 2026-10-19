@@ -70,12 +70,17 @@ export async function createWorktree(o: { repoPath: string; name: string; rootDi
   return { path, branch, base }
 }
 
+/** Does a hire here get a branch and worktree of its own? Only then can an old aw/<name> be in its way. */
+export async function makesBranch(o: { repoPath: string; inPlace?: boolean }) {
+  return !o.inPlace && (await isGitRepo(o.repoPath)) && (await hasCommits(o.repoPath))
+}
+
 /**
  * The worktree an agent is hired into, or null when it works in the folder itself: the person asked for that, the folder is not a repository, or it is a
  * repository with nothing committed (no branch to start from). When git cannot make one the reason comes back as a sentence, not as the command that failed.
  */
 export async function worktreeFor(o: { repoPath: string; name: string; rootDir: string; from?: string; base?: string; inPlace?: boolean }) {
-  if (o.inPlace || !(await isGitRepo(o.repoPath)) || !(await hasCommits(o.repoPath))) return null
+  if (!(await makesBranch(o))) return null
   try {
     return await createWorktree(o)
   } catch (err) {

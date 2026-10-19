@@ -399,3 +399,20 @@ describe('the diff an auditor reads', () => {
     expect(diff).not.toContain('b.ts')
   })
 })
+
+describe('the commits made in a folder since an agent was hired into it', () => {
+  it('lists only those after the time, newest first, and counts them', async () => {
+    const commit = (name: string, date: string) => {
+      writeFileSync(join(repo, name), name)
+      git(repo, 'add', '.')
+      execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', `feat: ${name}`], { cwd: repo, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } })
+    }
+    commit('old.txt', '2020-01-01T00:00:00Z')
+    commit('one.txt', '2030-01-01T00:00:00Z')
+    commit('two.txt', '2030-01-02T00:00:00Z')
+    const page = await history(repo, '', { scope: 'branch', since: Date.parse('2029-01-01T00:00:00Z') })
+    expect(page.commits.map((c) => c.subject)).toEqual(['feat: two.txt', 'feat: one.txt'])
+    expect(page.total).toBe(2)
+    expect((await history(repo, '', { scope: 'branch', since: Date.parse('2031-01-01T00:00:00Z') })).commits).toEqual([])
+  })
+})

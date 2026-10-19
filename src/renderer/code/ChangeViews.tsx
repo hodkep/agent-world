@@ -11,13 +11,14 @@ type File = { path: string; status: ChangeStatus }
 export type ChangeMode = 'branch' | 'dirty' | 'history'
 
 /** What the Changes column shows: the branch against its base, what is not committed yet, or the branch's commits. */
-export function ViewSwitch({ mode, onMode, counts }: { mode: ChangeMode; onMode: (m: ChangeMode) => void; counts: Record<ChangeMode, number | null> }) {
+export function ViewSwitch({ mode, onMode, counts, inPlace }: { mode: ChangeMode; onMode: (m: ChangeMode) => void; counts: Record<ChangeMode, number | null>; /** An agent in the folder itself has no branch to show: its views are what is uncommitted and the commits since it was hired. */ inPlace?: boolean }) {
   // In a narrow column the middle one is "Pending" and the counts go into the tooltips.
   const items: [ChangeMode, string, string][] = [
     ['branch', 'Branch', 'What this branch changes compared with its base'],
     ['dirty', 'Uncommitted', 'Changes in the worktree that are not committed yet'],
-    ['history', 'History', "The branch's commits"]
+    ['history', inPlace ? 'Commits' : 'History', inPlace ? 'The commits made in this folder since the agent was hired' : "The branch's commits"]
   ]
+  if (inPlace) items.shift()
   return (
     <div className="ch-switch" role="group" aria-label="What to show">
       {items.map(([k, label, tip]) => (
@@ -197,6 +198,8 @@ const PAGE = 50
 export function HistoryList(p: {
   agentId: string
   base: string
+  /** An agent in the folder itself: the commits since it was hired, with no branch to say "since" of. */
+  inPlace?: boolean
   tick: number
   commit: string | null
   onCommit: (hash: string | null) => void
@@ -294,7 +297,7 @@ export function HistoryList(p: {
 
   return (
     <>
-      <div className="ch-find ch-scope">
+      {!p.inPlace && <div className="ch-find ch-scope">
         <span className="change-view" role="group" aria-label="Which commits">
           <button className={scope === 'branch' ? 'on' : ''} aria-pressed={scope === 'branch'} onClick={() => setScope('branch')} title={`Only the commits since this branch left ${base}`}>
             Since {base}
@@ -304,7 +307,7 @@ export function HistoryList(p: {
             All
           </button>
         </span>
-      </div>
+      </div>}
       <div className="ch-find">
         <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search message, author or hash…" aria-label="Search commits" />
       </div>

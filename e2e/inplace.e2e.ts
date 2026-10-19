@@ -14,6 +14,8 @@ test('an agent can work in the folder itself, and removing a worktree agent dele
   writeFileSync(join(repo, 'README.md'), '# shop\n')
   git('add', '.')
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init')
+  // An old branch with the agent's name is no reason to refuse it a name when it makes no branch.
+  git('branch', 'aw/quick')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, tmp)
   try {
     const page = await app.firstWindow()
@@ -28,7 +30,22 @@ test('an agent can work in the folder itself, and removing a worktree agent dele
     const [quick] = await page.evaluate(() => window.aw.listAgents())
     expect(quick!.branch).toBeNull()
     expect(realpathSync(quick!.cwd)).toBe(realpathSync(repo))
-    expect(git('branch', '--list', 'aw/*').trim()).toBe('')
+    expect(git('branch', '--list', 'aw/*').trim()).toBe('aw/quick')
+
+    // Its Code tab lists what is uncommitted in the folder, can commit it, and then lists the commit.
+    writeFileSync(join(repo, 'notes.md'), 'work\n')
+    await page.getByRole('tab', { name: 'Code' }).click()
+    await expect(page.getByText('in your folder')).toBeVisible()
+    await expect(page.getByRole('note').filter({ hasText: 'works straight in this folder' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Branch/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Merge into/ })).toHaveCount(0)
+    const file = page.getByRole('button', { name: 'notes.md' })
+    await expect(file).toBeVisible()
+    await page.getByLabel('Commit message').fill('docs: notes')
+    await page.getByRole('button', { name: 'Commit all' }).click()
+    await page.getByRole('button', { name: /^Commits/ }).click()
+    await expect(page.getByRole('list', { name: 'Commits' })).toContainText('docs: notes')
+    expect(git('log', '-1', '--format=%s').trim()).toBe('docs: notes')
 
     // A normal agent gets a branch; removing it with nothing to lose takes the branch too.
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
@@ -39,7 +56,7 @@ test('an agent can work in the folder itself, and removing a worktree agent dele
     expect(git('branch', '--list', 'aw/*')).toContain('aw/tidy')
     const tidy = (await page.evaluate(() => window.aw.listAgents())).find((a) => a.name === 'tidy')!
     expect((await page.evaluate((id) => window.aw.removeAgent(id), tidy.id)).ok).toBe(true)
-    expect(git('branch', '--list', 'aw/*').trim()).toBe('')
+    expect(git('branch', '--list', 'aw/*').trim()).toBe('aw/quick')
   } finally {
     await shutdown()
   }
