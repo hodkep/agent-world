@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Code: the line numbers of the old side in the Changes diff are shown in full, up to four digits; the right-most digit was hidden under the editor (lines 10 to 39 read as 1, 2, 3).
+
 ## [0.2.1] - 2026-10-19
 
 ### Added
