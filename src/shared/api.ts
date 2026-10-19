@@ -133,6 +133,8 @@ export interface CodeApi {
   /** An uncommitted file: the last commit's version and the worktree's. */
   dirtyDiff(agentId: string, path: string): Promise<{ original: string; current: string }>
   /** The branch's commits, newest first: those since its base ("branch") or all of them. */
+  /** Where an agent that has no branch of its own works: whether the folder is a git repository, and the branch it is on. */
+  place(agentId: string): Promise<{ git: boolean; branch: string }>
   log(agentId: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }): Promise<CommitPage>
   commitDetail(agentId: string, hash: string): Promise<CommitDetail>
   commitDiff(agentId: string, hash: string, path: string): Promise<{ original: string; current: string }>

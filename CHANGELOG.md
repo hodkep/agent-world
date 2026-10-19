@@ -38,6 +38,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Fixed
 
+- An agent that works in your folder directly is no longer refused a name because an old `aw/<name>` branch exists (it makes no branch), and its Code tab lists what is uncommitted in the folder, with staging, commit and discard, and the commits made since it was hired, instead of saying there is nothing to show.
 - Workflows: an agent is told once that a check waits for your approval, not on every step report, until you answer or the workflow file changes.
 - Workflows: a follow-up round reads the workflow file again and takes a changed copy, so an edited file's commands are asked about again.
 - Workflows: agents are told a workflow's description covers a task only when it covers all of it, so copy changes are not read to cover new code.

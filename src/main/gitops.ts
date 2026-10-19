@@ -197,14 +197,16 @@ const commitOnly = (hash: string) => {
 }
 
 /** The branch's commits, newest first: those since it left `base` (scope "branch") or all that lead to it ("all"). A search matches message, author or hash. */
-export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }): Promise<CommitPage> {
-  const range = o.scope === 'branch' ? `${await mergeBase(cwd, base)}..HEAD` : 'HEAD'
+export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; since?: number }): Promise<CommitPage> {
+  // An agent working in the folder itself has no branch of its own: its commits are those made after it was hired.
+  const since = o.since === undefined ? [] : [`--since=${new Date(o.since).toISOString()}`]
+  const range = o.since !== undefined || o.scope === 'all' ? 'HEAD' : `${await mergeBase(cwd, base)}..HEAD`
   const searching = !!o.search?.trim()
   const limit = o.limit ?? 50
   const skip = o.skip ?? 0
   // A search reads the whole range and filters it here; a plain page asks git for just its part.
   const window = searching ? [] : [`--max-count=${limit + 1}`, `--skip=${skip}`]
-  const text = await raw(cwd, 'log', '--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s', ...window, range)
+  const text = await raw(cwd, 'log', '--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s', ...since, ...window, range)
   const pushed = await git(cwd, 'rev-parse', '--abbrev-ref', '@{u}').then(
     async () => new Set((await git(cwd, 'rev-list', '@{u}..HEAD')).split('\n').filter(Boolean)),
     () => null
@@ -231,7 +233,7 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
         local: pushed ? pushed.has(h!) : false
       }
     })
-  const total = searching ? commits.length : Number((await git(cwd, 'rev-list', '--count', range)) || 0)
+  const total = searching ? commits.length : Number((await git(cwd, 'rev-list', '--count', ...since, range)) || 0)
   if (searching) {
     const q = o.search!.trim().toLowerCase()
     commits = commits.filter((c) => c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.hash.startsWith(q))

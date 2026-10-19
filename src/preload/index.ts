@@ -190,6 +190,7 @@ const api: AwApi = {
     unstage: (id, paths) => ipcRenderer.invoke('code:unstage', id, paths),
     commitStaged: (id, message) => ipcRenderer.invoke('code:commit-staged', id, message),
     dirtyDiff: (id, path) => ipcRenderer.invoke('code:dirty-diff', id, path),
+    place: (id) => ipcRenderer.invoke('code:place', id),
     log: (id, o) => ipcRenderer.invoke('code:log', id, o),
     commitDetail: (id, hash) => ipcRenderer.invoke('code:commit-detail', id, hash),
     commitDiff: (id, hash, path) => ipcRenderer.invoke('code:commit-diff', id, hash, path),

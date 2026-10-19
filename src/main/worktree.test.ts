@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DirtyWorktreeError, NoCommitsError, createWorktree, checkedOutBranch, hasCommits, isGitRepo, nameTaken, plainGitError, removeWorktree, worktreeFor } from './worktree'
+import { DirtyWorktreeError, NoCommitsError, createWorktree, checkedOutBranch, hasCommits, isGitRepo, nameTaken, makesBranch, plainGitError, removeWorktree, worktreeFor } from './worktree'
 import { repoInfo } from './gitops'
 
 let tmp: string
@@ -157,5 +157,17 @@ describe('the folder an agent is hired into', () => {
     expect(err).toBeInstanceOf(Error)
     expect(err!.message).toMatch(/^git said: /)
     expect(err!.message).not.toMatch(/Command failed|\/usr\/bin\/git/)
+  })
+})
+
+describe('whether a hire makes a branch', () => {
+  it('is only when it gets a worktree: in a repository with commits and not asked to work in the folder, so a left-over aw/<name> blocks nothing else', async () => {
+    const fresh = join(tmp, 'fresh')
+    execFileSync('mkdir', [fresh])
+    git(fresh, 'init', '-q', '-b', 'main')
+    expect(await makesBranch({ repoPath: repo })).toBe(true)
+    expect(await makesBranch({ repoPath: repo, inPlace: true })).toBe(false)
+    expect(await makesBranch({ repoPath: tmp })).toBe(false)
+    expect(await makesBranch({ repoPath: fresh })).toBe(false)
   })
 })

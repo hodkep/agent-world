@@ -1919,7 +1919,7 @@ dialog.handoff { width: min(640px, 94vw); }
 /* The Changes column: a header with the branch and what it is compared with, status filters, a note when the base looks wrong, and a footer of one commit line and one land button. */
 .change-list.ch { gap: 0; padding: 0; }
 .ch-top { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
-.ch-top .br { font: 12px Menlo, Consolas, monospace; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.ch-top .br { font: 12px Menlo, Consolas, monospace; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
 .ch-top button { padding: 0 8px; }
 .ch-cmp { display: flex; align-items: center; gap: 8px; padding: 0 12px 8px; font-size: 12px; color: var(--muted); min-width: 0; }
 .ch-sum { display: flex; align-items: center; gap: 6px; padding: 0 12px 8px; flex-wrap: wrap; }
@@ -1929,6 +1929,8 @@ dialog.handoff { width: min(640px, 94vw); }
 .chipf.is-added b { color: var(--ok-text); }
 .chipf.is-modified b { color: var(--accent); }
 .chipf.is-deleted b { color: var(--danger-text); }
+.ch-place { font: 10px Menlo, Consolas, monospace; padding: 1px 6px; background: var(--well); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 100 auto; }
+.ch-top .br + .ch-place { margin-left: -2px; }
 .ch-note { margin: 0 12px 8px; background: var(--well); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; color: var(--muted); }
 .ch-note::before { content: ''; float: left; width: 8px; height: 8px; margin: 5px 10px 0 0; background: var(--accent); }
 .ch-note b { color: var(--text); }
