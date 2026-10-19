@@ -329,7 +329,11 @@ export class Workflows {
     if (!this.deps.enabled()) return
     if (last && !last.auto) return this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
     if (at < this.deps.since()) return
-    if (last?.endedAt !== undefined && at - last.endedAt < SAME_WORK_MS) {
+    // A run belongs to one task: commits close together join it unless the agent has moved to another task of the board.
+    const todo = this.deps.todoOf?.(agentId)
+    const held = last?.todos ?? []
+    if (last?.endedAt !== undefined && at - last.endedAt < SAME_WORK_MS && (!todo || held.length === 0 || held.includes(todo))) {
+      this.link(last.id, agentId, held)
       this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject })
       return this.append({ k: 'done', t: at, run: last.id })
     }
@@ -337,6 +341,7 @@ export class Workflows {
     if (!who) return
     const run = this.deps.newId()
     this.append({ k: 'begin', t: at, run, agent: agentId, name: who.name, project: who.project, title: subject, auto: true })
+    this.link(run, agentId)
     this.append({ k: 'commit', t: at, run, round: 1, sha, subject })
     this.append({ k: 'done', t: at, run })
   }

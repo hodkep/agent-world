@@ -57,6 +57,16 @@ describe('changing', () => {
     b = updateTodo(b, '1', { status: 'open' }, ada, 5)
     expect(b.todos[0]!.blockedWhy).toBeUndefined()
   })
+  it('an agent that sets a task to doing is on it, so a run can belong to it', () => {
+    let b = updateTodo(start(), '1', { status: 'doing' }, ada, 3)
+    expect(b.todos[0]).toMatchObject({ status: 'doing', claimedBy: ada })
+    expect(currentTodoOf(b, 'a1')?.id).toBe('1')
+    // A person marking it doing is not an agent working on it; another agent's claim is not taken over.
+    expect(updateTodo(start(), '1', { status: 'doing' }, you, 3).todos[0]!.claimedBy).toBeUndefined()
+    const bob: Actor = { kind: 'agent', id: 'b1', name: 'bob', provider: 'agy' }
+    b = updateTodo(b, '1', { status: 'doing' }, bob, 4)
+    expect(b.todos[0]!.claimedBy).toEqual(ada)
+  })
   it('does not let a second agent claim what another is doing', () => {
     const b = claimTodo(start(), '1', ada, 3)
     expect(() => claimTodo(b, '1', { kind: 'agent', id: 'b1', name: 'bob', provider: 'agy' }, 4)).toThrow(/ada/)

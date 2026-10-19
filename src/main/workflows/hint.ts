@@ -11,6 +11,9 @@ export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_d
 export const WORKFLOW_REMINDER =
   'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo or a tiny edit.'
 
+/** The reminder for one turn: only while workflows are on and the agent (not the builder, not a subagent) has no task open, so it costs nothing once a task is announced. */
+export const workflowRemind = (o: { enabled: boolean; subagent: boolean; builder: boolean; open: boolean }): string => (o.enabled && !o.subagent && !o.builder && !o.open ? WORKFLOW_REMINDER : '')
+
 /** What task_begin answers while the plan gate is on: where the plan goes, the four sections the app checks, and that edits wait for approval. */
 export const PLAN_INSTRUCTION =
   'Before changing anything, write your plan to .agent-world/plan.md and call plan_submit. Start the file with these four sections, in this order:\n' +
