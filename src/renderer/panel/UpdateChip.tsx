@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { InstallState } from '../../shared/updateInstall'
+import { NotesBox } from './ReleaseNotes'
 import { type UpdateAction, type UpdateView, updateView } from './updateView'
 
-export type UpdateInfo = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }
+export type UpdateInfo = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
 
 // What the last look found, kept for the whole window so a screen opened after it (Settings) still knows.
 let last: UpdateInfo = { state: 'off' }
@@ -80,6 +81,12 @@ export function UpdatePanel({ view, info, close }: { view: UpdateView; info: Upd
       {view.error && <div className="upd-error" role="alert">{view.error}</div>}
       {view.warning && <div className="upd-warn" role="status">{view.warning}</div>}
       {view.body && <p className="upd-body">{view.body}</p>}
+      {view.notes && (
+        <>
+          <b className="upd-notes-title">What's new in {info.latest}</b>
+          <NotesBox markdown={view.notes} label={`What's new in ${info.latest}`} />
+        </>
+      )}
       {view.actions.length > 0 && (
         <div className="upd-acts">
           {view.actions.map((a) =>

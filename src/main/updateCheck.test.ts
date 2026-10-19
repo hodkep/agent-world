@@ -103,6 +103,15 @@ describe('asking GitHub for the latest release', () => {
     expect(await latestRelease('0.1.0', repo, async () => ({ ok: false, status: 403, json: async () => ({}) }))).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
     expect(await latestRelease('0.1.0', repo, async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com') })).toEqual({ state: 'error', detail: 'Could not reach GitHub: getaddrinfo ENOTFOUND api.github.com' })
   })
+  it("carries the release's own text (its body) as the notes, from the same answer, cut when it is huge; no text, no notes", async () => {
+    const repo2 = { owner: 'hodkep', repo: 'agent-world' }
+    const withBody = (body: unknown) => ok({ tag_name: 'v0.2.0', body })
+    expect(await latestRelease('0.1.0', repo2, withBody('## What changed\n\n- A thing'))).toMatchObject({ state: 'available', notes: '## What changed\n\n- A thing' })
+    const huge = await latestRelease('0.1.0', repo2, withBody('x'.repeat(50_000)))
+    expect(huge.notes!.length).toBeLessThanOrEqual(20_001)
+    expect(huge.notes!.endsWith('…')).toBe(true)
+    for (const empty of [undefined, null, '', '   \n', 5, { text: 'x' }]) expect('notes' in (await latestRelease('0.1.0', repo2, withBody(empty)))).toBe(false)
+  })
   it('opens only a release page on GitHub, never an address the answer made up', async () => {
     const r = await latestRelease('0.1.0', repo, ok({ tag_name: 'v0.2.0', html_url: 'https://evil.example/x' }))
     expect(r.url).toBe('https://github.com/hodkep/agent-world/releases/tag/v0.2.0')

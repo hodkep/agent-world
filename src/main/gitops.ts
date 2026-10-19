@@ -190,6 +190,8 @@ export interface CommitPage {
   /** How many commits there are in this scope (before a search). */
   total: number
   more: boolean
+  /** For an agent working in the folder itself: when it was hired and how many of the commits came after, which is where the list says it started. */
+  sinceHire?: { at: number; count: number }
 }
 
 const HEX = /^[0-9a-f]{7,40}$/i
@@ -199,7 +201,23 @@ const commitOnly = (hash: string) => {
 }
 
 /** The branch's commits, newest first: those since it left `base` (scope "branch") or all that lead to it ("all"). A search matches message, author or hash. */
-export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; since?: number }): Promise<CommitPage> {
+/** How many commits a search by git itself will name: enough to look through, never the whole history of a big repository. */
+const SEARCH_CAP = 200
+
+/** The commits whose message or author holds the text (git does the looking), or that start with it as a hash: at most SEARCH_CAP of each, newest first. */
+async function searchHashes(cwd: string, q: string): Promise<string[]> {
+  const found = new Set<string>()
+  for (const by of ['--grep', '--author']) {
+    for (const h of (await git(cwd, 'log', '-i', '-F', `${by}=${q}`, `--max-count=${SEARCH_CAP}`, '--format=%H', 'HEAD').catch(() => '')).split('\n')) if (h) found.add(h)
+  }
+  if (/^[0-9a-f]{4,40}$/i.test(q)) {
+    const hash = await git(cwd, 'rev-parse', '--verify', '--quiet', `${q}^{commit}`).catch(() => '')
+    if (hash) found.add(hash)
+  }
+  return [...found]
+}
+
+export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; since?: number; /** Search by asking git, with a cap, instead of reading the whole range (for a folder with a long history). */ gitSearch?: boolean }): Promise<CommitPage> {
   // An agent working in the folder itself has no branch of its own: its commits are those made after it was hired.
   const since = o.since === undefined ? [] : [`--since=${new Date(o.since).toISOString()}`]
   const range = o.since !== undefined || o.scope === 'all' ? 'HEAD' : `${await mergeBase(cwd, base)}..HEAD`
@@ -208,7 +226,13 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
   const skip = o.skip ?? 0
   // A search reads the whole range and filters it here; a plain page asks git for just its part.
   const window = searching ? [] : [`--max-count=${limit + 1}`, `--skip=${skip}`]
-  const text = await raw(cwd, 'log', '--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s', ...since, ...window, range)
+  const fields = ['--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s']
+  let named: string[] | null = null
+  if (searching && o.gitSearch) {
+    named = await searchHashes(cwd, o.search!.trim())
+    if (!named.length) return { commits: [], total: 0, more: false }
+  }
+  const text = named ? await raw(cwd, 'log', '--no-walk=sorted', ...fields, ...named) : await raw(cwd, 'log', ...fields, ...since, ...window, range)
   const pushed = await git(cwd, 'rev-parse', '--abbrev-ref', '@{u}').then(
     async () => new Set((await git(cwd, 'rev-list', '@{u}..HEAD')).split('\n').filter(Boolean)),
     () => null
@@ -236,6 +260,7 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
       }
     })
   const total = searching ? commits.length : Number((await git(cwd, 'rev-list', '--count', ...since, range)) || 0)
+  if (named) return { commits: commits.slice(skip, skip + limit), total: commits.length, more: commits.length > skip + limit }
   if (searching) {
     const q = o.search!.trim().toLowerCase()
     commits = commits.filter((c) => c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.hash.startsWith(q))
@@ -247,7 +272,11 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
 /** The commits of an agent working in the folder itself: those made since it was hired, or every one of the folder's when no hire time is on record. */
 export async function inPlaceHistory(cwd: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }, hiredAt?: number): Promise<CommitPage> {
   if (!(await hasCommits(cwd))) return { commits: [], total: 0, more: false }
-  return history(cwd, '', hiredAt === undefined ? { ...o, scope: 'all' } : { ...o, since: hiredAt })
+  // All of the folder's commits, a page at a time; how many came since the agent was hired is one count, so the list can mark where it started.
+  const page = await history(cwd, '', { ...o, scope: 'all', gitSearch: true })
+  if (hiredAt === undefined) return page
+  const count = Number((await git(cwd, 'rev-list', '--count', `--since=${new Date(hiredAt).toISOString()}`, 'HEAD')) || 0)
+  return { ...page, sinceHire: { at: hiredAt, count } }
 }
 
 /** Where an agent without a branch of its own works: whether the folder is a git repository, and the branch it is on (none before the first commit). */
@@ -306,13 +335,18 @@ export interface Readiness {
   baseReady: boolean
   /** Files that would conflict if merged now. */
   conflicts: string[]
+  /** The branch shares no history with the base (git finds no merge base, as after the base was rewritten): there is nothing to count and nothing that can be merged. */
+  unrelated: boolean
 }
 
 /** What stands between the agent's work and the base branch, without changing anything. */
 export async function finishReadiness(repo: string, cwd: string, branch: string, base: string): Promise<Readiness> {
-  const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
   const uncommitted = lines(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK)).length
   const baseReady = (await checkedOutBranch(repo)) === base && !(await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK))
+  // With no merge base every commit of the branch would count as new, and a merge would refuse: say so instead.
+  const unrelated = await git(cwd, 'merge-base', base, branch).then(() => false, () => true)
+  if (unrelated) return { ahead: 0, uncommitted, baseReady, conflicts: [], unrelated }
+  const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
   let conflicts: string[] = []
   if (ahead > 0) {
     try {
@@ -323,7 +357,7 @@ export async function finishReadiness(repo: string, cwd: string, branch: string,
       conflicts = [...new Set([...out.matchAll(/^\d+ [0-9a-f]+ [123]\t(.+)$/gm)].map((m) => m[1]!))]
     }
   }
-  return { ahead, uncommitted, baseReady, conflicts }
+  return { ahead, uncommitted, baseReady, conflicts, unrelated: false }
 }
 
 /** What the branch has added to `base` since it left it, as a patch: committed work only, and not the plan files agents keep in `.agent-world/`. */

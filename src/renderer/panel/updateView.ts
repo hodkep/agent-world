@@ -11,6 +11,8 @@ export interface UpdateView {
   body?: string
   progress?: { fraction: number; label: string; ok?: boolean }
   ticks?: string[]
+  /** What the new version holds (the release's own text), shown before it is downloaded or installed. */
+  notes?: string
   warning?: string
   error?: string
   actions: UpdateAction[]
@@ -44,6 +46,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
     chip,
     title: `Agent World ${latest} is available`,
     body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.`,
+    ...(info.notes && { notes: info.notes }),
     actions: info.tag ? [{ id: 'download', label: 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
   })
   if (!install || install.phase === 'idle') return offer()
@@ -56,6 +59,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
         title: `${install.version} is ready to install`,
         progress: { fraction: 1, label: '', ok: true },
         ticks: ['Downloaded', "Checksum matches the release's"],
+        ...(info.notes && { notes: info.notes }),
         body: 'Agent World closes, puts the new version in place of this one, and opens again. It takes a few seconds.',
         warning: asleep(agents),
         actions: [{ id: 'install', label: 'Install and restart', primary: true }, { id: 'later', label: 'Later' }]
@@ -83,4 +87,17 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
       }
     }
   }
+}
+
+/**
+ * The Check now button of Settings > Updates. Once a download has started (or finished, until the app restarts) it is greyed with the reason rather than gone,
+ * because pressing it would look again and start the same download over.
+ */
+export function checkNowButton(info: UpdateInfo): { label: string; disabled: boolean; reason?: string } {
+  const install = info.install
+  if (install?.phase === 'downloading') return { label: 'Check now', disabled: true, reason: 'A download is under way.' }
+  if (install?.phase === 'ready') return { label: 'Check now', disabled: true, reason: `${install.version} is downloaded; restart to install it.` }
+  if (install?.phase === 'installing') return { label: 'Check now', disabled: true, reason: `${install.version} is being installed.` }
+  if (info.state === 'checking') return { label: 'Checking…', disabled: true, reason: 'Looking for a newer version.' }
+  return { label: 'Check now', disabled: false }
 }

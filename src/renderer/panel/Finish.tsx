@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MergeGate } from '../workflows/MergeGate'
 import { mergeRows } from '../workflows/mergeRows'
 import { BasePicker } from './BasePicker'
+import { landChecks } from './landChecks'
 
 type Status = Awaited<ReturnType<typeof window.aw.finishStatus>>
 
@@ -40,12 +41,7 @@ export function Finish({ agentId, agentName, activity, needs, onDone }: { agentI
     const timer = setInterval(() => void load(), 3000)
     return () => (off(), clearInterval(timer))
   }, [load, activity])
-  const checks = status && [
-    { ok: status.ahead > 0, text: status.ahead > 0 ? `${status.ahead} commit${status.ahead === 1 ? '' : 's'} on ${status.branch} to land` : `Nothing to land: ${status.base} already has everything on ${status.branch}` },
-    { ok: status.uncommitted === 0, text: status.uncommitted === 0 ? 'Everything is committed' : `${status.uncommitted} file${status.uncommitted === 1 ? '' : 's'} not committed yet (commit in the Code tab)` },
-    { ok: status.baseReady, text: status.baseReady ? `Your checkout is on ${status.base} with nothing uncommitted` : `Your own checkout must be on ${status.base} with nothing uncommitted` },
-    { ok: status.conflicts.length === 0, text: status.conflicts.length === 0 ? `No conflicts with ${status.base}` : `Would conflict in ${status.conflicts.join(', ')}` }
-  ]
+  const checks = status && landChecks(status)
   const rows = status?.merge ? mergeRows(status.merge) : []
   const held = !!status?.merge?.blocking.length
   const ready = !!checks && checks.every((c) => c.ok)
@@ -62,13 +58,13 @@ export function Finish({ agentId, agentName, activity, needs, onDone }: { agentI
   }
   // Nothing to land: no band. A look that failed before there was any status is said, not hidden.
   if (!status && error) return <p className="hint bad finish-error" role="alert">Could not read {agentName}'s branch: {error}</p>
-  if (!status || status.ahead === 0) return null
+  if (!status || (status.ahead === 0 && !status.unrelated)) return null
   return (
     <details className={`finish finish-band ${needs ? 'needs' : ''}`} role="region" aria-label={`Finish ${agentName}'s work`} open>
       <summary>
         <span className="tag">{needs ? 'Needs you' : ready ? 'Ready to land' : 'Not ready yet'}</span>
         <b>{status.branch} → {status.base}</b>
-        <small>{status.ahead} commit{status.ahead === 1 ? '' : 's'}</small>
+        {!status.unrelated && <small>{status.ahead} commit{status.ahead === 1 ? '' : 's'}</small>}
       </summary>
       {status?.merge && <MergeGate merge={status.merge} agentId={agentId} onSeen={(i) => void window.aw.finishSeen(agentId, [i])} onAgain={() => void window.aw.finishAudit(agentId)} />}
       <fieldset>

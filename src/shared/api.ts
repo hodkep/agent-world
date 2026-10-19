@@ -43,6 +43,8 @@ export interface CommitPage {
   commits: CommitInfo[]
   total: number
   more: boolean
+  /** For an agent working in the folder itself: when it was hired and how many of the commits came after. */
+  sinceHire?: { at: number; count: number }
 }
 export interface CommitDetail {
   subject: string
@@ -245,7 +247,7 @@ export interface AwApi {
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
   /** Whether an agent's branch is ready to land on its base branch. */
   /** `readOnly` only reads: it starts no audit and runs no check, which the chat band (asking every few seconds) must not do. */
-  finishStatus(agentId: string, o?: { readOnly?: boolean }): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
+  finishStatus(agentId: string, o?: { readOnly?: boolean }): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** The branch shares no history with its base: nothing to count, nothing to merge. */ unrelated: boolean; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
   /** Run the audit of the branch again (after one failed). */
   finishAudit(agentId: string): Promise<void>
   /** The merges into the base branch that git held for want of the person's say, by agent, until they land or the person says not yet. */
@@ -278,6 +280,8 @@ export interface AwApi {
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
   updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }>
+  /** The version running, and the notes of it from the changelog that came with the app (null when this build has none for it). */
+  appInfo(): Promise<{ version: string; notes: import('./changelog').ReleaseNotes | null }>
   /** Unsigned Mac build: download the newer release, stop it, or replace the app with it and restart. */
   downloadUpdate(): Promise<void>
   cancelUpdateDownload(): Promise<void>

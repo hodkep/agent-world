@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { UpdatePanel, useUpdateInfo } from './UpdateChip'
-import { updateView } from './updateView'
+import { checkNowButton, updateView } from './updateView'
+import { WhatsNew } from './ReleaseNotes'
 import type { Role } from '../../shared/roles'
 import type { Prefs, ProviderInfo } from '../../shared/types'
 import { MailConnect } from './MailConnect'
@@ -89,6 +90,11 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const found = useUpdateInfo()
   const update = found.detail ?? { off: '', checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.' }[found.state]
   const shown = updateView(found, updateAgents)
+  // The version that is installed, and its notes (read from the changelog that came with the app) in a dialog.
+  const [version, setVersion] = useState('')
+  const [notesOpen, setNotesOpen] = useState(false)
+  useEffect(() => void window.aw.appInfo().then((i) => setVersion(i.version), () => undefined), [])
+  const check = checkNowButton(found)
   useEffect(() => dialog.current?.showModal(), [])
   const set = (patch: Partial<Prefs>) => onChange(patch)
   const setRoleModel = (title: string, model: string) => {
@@ -277,15 +283,22 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
           {pane === 'updates' && (
             <>
               <legend>Updates</legend>
+              <div className="upd-version">
+                <b>Agent World {version}</b>
+                <small>installed</small>
+                <span className="grow" />
+                <button className="su-link" onClick={() => setNotesOpen(true)}>What's new</button>
+                <button onClick={() => void window.aw.checkUpdates()} disabled={check.disabled} title={check.reason}>{check.label}</button>
+              </div>
               <p className="set-lead">Where to look for a newer version. Leave it empty to use this project's releases on GitHub, or give a folder on the web that holds the files the build step produces.</p>
               <label>
                 Update address
                 <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => url.trim() !== prefs.updateUrl && set({ updateUrl: url.trim() })} placeholder="https://example.com/agent-world/" />
               </label>
               <div className="settings-row">
-                <button onClick={() => void window.aw.checkUpdates()}>Check now</button>
                 <span className="hint" role="status">{update}</span>
               </div>
+              {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
               {shown && (
                 <div className="set-update">
                   <UpdatePanel view={shown} info={found} />

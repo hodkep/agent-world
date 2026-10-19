@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InstallState } from '../../shared/updateInstall'
-import { updateView } from './updateView'
+import { checkNowButton, updateView } from './updateView'
 
 const base = { state: 'available' as const, latest: '0.1.2', current: '0.1.1', url: 'https://github.com/hodkep/agent-world/releases/tag/v0.1.2', tag: 'v0.1.2' }
 const view = (install?: InstallState, agents = { working: 0, waiting: 0 }) => updateView({ ...base, ...(install && { install }) }, agents)!
@@ -87,5 +87,36 @@ describe('what the update chip and its popover show', () => {
     const v = view({ phase: 'failed', version: '0.1.2', kind: 'cancelled', reason: 'The download was stopped.' })
     expect(v.title).toBe('Agent World 0.1.2 is available')
     expect(ids(v)).toEqual(['download', 'changes'])
+  })
+})
+
+describe("the new version's notes in the popover", () => {
+  const notes = '## What changed\n\n- A thing'
+  it('come with the offer and with the downloaded update, and are left out while it downloads', () => {
+    expect(view().notes).toBeUndefined()
+    const withNotes = (install?: InstallState) => updateView({ ...base, notes, ...(install && { install }) }, { working: 0, waiting: 0 })!
+    expect(withNotes().notes).toBe(notes)
+    expect(withNotes({ phase: 'ready', version: '0.1.2', file: '/x.zip' }).notes).toBe(notes)
+    expect(withNotes({ phase: 'downloading', version: '0.1.2', received: 1, total: 4 }).notes).toBeUndefined()
+  })
+})
+
+describe('the Check now button', () => {
+  const found = { state: 'available' as const, latest: '0.3.0', current: '0.2.0' }
+  it('is there, and works, when nothing is downloading or waiting to be installed', () => {
+    expect(checkNowButton({ state: 'none' })).toEqual({ label: 'Check now', disabled: false })
+    expect(checkNowButton(found)).toEqual({ label: 'Check now', disabled: false })
+    expect(checkNowButton({ ...found, install: { phase: 'idle' } })).toEqual({ label: 'Check now', disabled: false })
+    // A download that failed or was stopped is no longer running: looking again is fine.
+    expect(checkNowButton({ ...found, install: { phase: 'failed', kind: 'network', reason: 'x', version: '0.3.0' } }).disabled).toBe(false)
+    expect(checkNowButton({ ...found, install: { phase: 'failed', kind: 'cancelled', reason: 'x', version: '0.3.0' } }).disabled).toBe(false)
+  })
+  it('is greyed, with the reason, while a look is under way', () => {
+    expect(checkNowButton({ state: 'checking' })).toEqual({ label: 'Checking…', disabled: true, reason: 'Looking for a newer version.' })
+  })
+  it('is greyed, with the reason, from the moment a download starts until the app restarts: pressing it would start the download again', () => {
+    expect(checkNowButton({ ...found, install: { phase: 'downloading', version: '0.3.0', received: 1, total: 10 } })).toEqual({ label: 'Check now', disabled: true, reason: 'A download is under way.' })
+    expect(checkNowButton({ ...found, install: { phase: 'ready', version: '0.3.0', file: '/x.zip' } })).toEqual({ label: 'Check now', disabled: true, reason: '0.3.0 is downloaded; restart to install it.' })
+    expect(checkNowButton({ ...found, install: { phase: 'installing', version: '0.3.0' } }).disabled).toBe(true)
   })
 })

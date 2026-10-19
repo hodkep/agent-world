@@ -443,12 +443,46 @@ describe('every look the app takes at a repository goes through the chosen git w
 })
 
 describe('the commits of an agent working in the folder itself', () => {
-  it('are those since it was hired; an agent with no hire time on record (an older one) shows every commit of the folder instead of failing', async () => {
-    writeFileSync(join(repo, 'n.txt'), 'n')
+  const at = (iso: string) => ({ ...process.env, GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso })
+  const commit = (name: string, iso: string, author = 't') => {
+    writeFileSync(join(repo, name), name)
     git(repo, 'add', '.')
-    git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'later work')
-    expect((await inPlaceHistory(repo, { scope: 'branch' }, Date.now() + 60_000)).commits).toEqual([])
-    expect((await inPlaceHistory(repo, { scope: 'branch' })).commits.map((c) => c.subject)).toEqual(['later work', 'init'])
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', `user.name=${author}`, 'commit', '-qm', `feat: ${name}`], { cwd: repo, env: at(iso) })
+  }
+  it('are all of the folder\'s, newest first, with how many were made since the agent was hired, so the list can say where it started', async () => {
+    commit('old.txt', '2020-01-01T00:00:00Z')
+    commit('one.txt', '2030-01-01T00:00:00Z')
+    commit('two.txt', '2030-01-02T00:00:00Z')
+    const hired = Date.parse('2029-01-01T00:00:00Z')
+    const page = await inPlaceHistory(repo, { scope: 'branch' }, hired)
+    expect(page.commits.map((c) => c.subject)).toEqual(['feat: two.txt', 'feat: one.txt', 'feat: old.txt', 'init'])
+    expect(page.total).toBe(4)
+    expect(page.sinceHire).toEqual({ at: hired, count: 2 })
+    expect((await inPlaceHistory(repo, { scope: 'branch' }, Date.parse('2031-01-01T00:00:00Z'))).sinceHire).toEqual({ at: Date.parse('2031-01-01T00:00:00Z'), count: 0 })
+  })
+  it('say nothing of a hire time when none is on record (an older agent), and still show every commit', async () => {
+    commit('a.txt', '2030-01-01T00:00:00Z')
+    const page = await inPlaceHistory(repo, { scope: 'branch' })
+    expect(page.commits.map((c) => c.subject)).toEqual(['feat: a.txt', 'init'])
+    expect('sinceHire' in page).toBe(false)
+  })
+  it('are read one page at a time, never all at once: a page, whether more follow, and the total from a count', async () => {
+    for (let i = 1; i <= 5; i++) commit(`f${i}.txt`, `2030-01-0${i}T00:00:00Z`)
+    const first = await inPlaceHistory(repo, { scope: 'branch', limit: 2 }, 0)
+    expect(first.commits.map((c) => c.subject)).toEqual(['feat: f5.txt', 'feat: f4.txt'])
+    expect(first).toMatchObject({ total: 6, more: true })
+    const last = await inPlaceHistory(repo, { scope: 'branch', limit: 2, skip: 4 }, 0)
+    expect(last.commits.map((c) => c.subject)).toEqual(['feat: f1.txt', 'init'])
+    expect(last.more).toBe(false)
+  })
+  it('are searched by git (message, author, hash start) with a cap, not read in full and filtered here', async () => {
+    commit('apple.txt', '2030-01-01T00:00:00Z', 'Ada')
+    commit('pear.txt', '2030-01-02T00:00:00Z', 'Bo')
+    expect((await inPlaceHistory(repo, { scope: 'branch', search: 'APPLE' }, 0)).commits.map((c) => c.subject)).toEqual(['feat: apple.txt'])
+    expect((await inPlaceHistory(repo, { scope: 'branch', search: 'bo' }, 0)).commits.map((c) => c.subject)).toEqual(['feat: pear.txt'])
+    const hash = git(repo, 'rev-parse', 'HEAD')
+    expect((await inPlaceHistory(repo, { scope: 'branch', search: hash.slice(0, 8) }, 0)).commits.map((c) => c.subject)).toEqual(['feat: pear.txt'])
+    expect(await inPlaceHistory(repo, { scope: 'branch', search: 'nothing like this' }, 0)).toMatchObject({ commits: [], total: 0, more: false })
   })
   it('are none in a repository with no commits yet', async () => {
     const fresh = join(tmp, 'fresh')
@@ -466,5 +500,23 @@ describe('where an agent without a branch of its own works', () => {
     mkdirSync(fresh)
     git(fresh, 'init', '-q', '-b', 'main')
     expect(await placeOf(fresh)).toEqual({ git: true, branch: '' })
+  })
+})
+
+describe('a branch that shares no history with its base', () => {
+  it('is said so, with no commit count and no conflict check, instead of counting every old commit and calling it clean', async () => {
+    // main was rewritten: this branch holds the same files under different commits, so git finds no merge base.
+    git(repo, 'checkout', '-q', '--orphan', 'old-history')
+    git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'the old first commit')
+    writeFileSync(join(repo, 'more.txt'), 'x')
+    git(repo, 'add', '.')
+    git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'the old second commit')
+    expect(await finishReadiness(repo, repo, 'old-history', 'main')).toMatchObject({ unrelated: true, ahead: 0, conflicts: [] })
+  })
+  it('is not said of a branch that came from the base', async () => {
+    writeFileSync(join(wt.path, 'w.txt'), 'w')
+    git(wt.path, 'add', '.')
+    git(wt.path, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work')
+    expect(await finishReadiness(repo, wt.path, wt.branch, 'main')).toMatchObject({ unrelated: false, ahead: 1 })
   })
 })

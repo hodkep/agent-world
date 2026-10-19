@@ -9,6 +9,8 @@ export interface ReleaseState {
   /** The newer version, and the page of its release on GitHub. */
   latest?: string
   url?: string
+  /** The release's own text (Markdown), when it has any: what the new version holds. */
+  notes?: string
 }
 
 /** The GitHub repository of the `repository` field of package.json: "github:owner/repo", an address, or {url}. */
@@ -66,17 +68,26 @@ export function startChecks(run: () => Promise<unknown>, o: { startMs?: number; 
 
 type Fetch = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
 
+/** The notes a release carries in its answer: its text, when it has some, cut so a huge one cannot weigh on the window. */
+export const NOTES_MAX = 20_000
+function releaseNotesOf(body: unknown): string | undefined {
+  if (typeof body !== 'string' || !body.trim()) return undefined
+  return body.length > NOTES_MAX ? `${body.slice(0, NOTES_MAX)}…` : body
+}
+
 /** Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release. */
 export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: { api: string; downloads: string } = { api: 'https://api.github.com', downloads: 'https://github.com' }): Promise<ReleaseState> {
   try {
     const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases/latest`)
     if (res.status === 404) return { state: 'none', detail: 'No release is published yet.' }
     if (!res.ok) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
-    const tag = String(((await res.json()) as { tag_name?: unknown }).tag_name ?? '')
+    const answer = (await res.json()) as { tag_name?: unknown; body?: unknown }
+    const tag = String(answer.tag_name ?? '')
     if (!isNewer(current, tag)) return { state: 'none' }
+    const notes = releaseNotesOf(answer.body)
     const latest = tag.replace(/^v/, '')
     // The page is built from the repository and the tag, not taken from the answer: only a page of this repository is ever opened.
-    return { state: 'available', detail: `${latest} is available.`, latest, url: `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}` }
+    return { state: 'available', detail: `${latest} is available.`, latest, ...(notes && { notes }), url: `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}` }
   } catch (e) {
     return { state: 'error', detail: `Could not reach GitHub: ${(e as Error).message.split('\n')[0]}` }
   }

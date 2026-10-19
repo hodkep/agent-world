@@ -2,7 +2,7 @@ import { app, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { InstallState } from '../shared/updateInstall'
+import { type InstallState, lookAllowed } from '../shared/updateInstall'
 import { createInstaller } from './inAppUpdate/installer'
 import { helperEnv, releaseOrigins } from './inAppUpdate/origins'
 import { placeOf } from './inAppUpdate/installScript'
@@ -10,7 +10,7 @@ import { buildInfo, latestRelease, updateMode } from './updateCheck'
 import { updateFeed } from './updateFeed'
 
 /** `latest` and `url` are set when a newer version is out but this build cannot install it itself: the page of its release is what the person is pointed to. */
-export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The version running now. */ current?: string; install?: InstallState }
+export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** The new version's own notes (Markdown), from the same answer. */ notes?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The version running now. */ current?: string; install?: InstallState }
 
 let current: UpdateState = { state: 'off' }
 let installer: ReturnType<typeof createInstaller> | null = null
@@ -44,6 +44,8 @@ let started = false
  * Nothing runs for a development build. An address cleared in Settings takes effect after a restart.
  */
 export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState) => void): Promise<UpdateState> {
+  // A download under way, or waiting for the restart, is left as it is: looking again would start it over.
+  if (!lookAllowed(installer?.state())) return current
   const set = (s: UpdateState) => ((current = s), onState(s), s)
   // A test run (an app that is not installed) may stand its own server in for GitHub; an installed app never does (see releaseOrigins).
   const origins = releaseOrigins(app.isPackaged, process.env)

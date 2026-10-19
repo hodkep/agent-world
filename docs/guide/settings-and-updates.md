@@ -62,11 +62,17 @@ To let an Antigravity agent message the others, press **Let agy (Antigravity) me
 
 The installed app looks for a newer version about 15 seconds after it starts and then every six hours while it is open. A development build never looks.
 
-To look now, press **Check now**; the line next to it says what was found. To use another source, type an **Update address** that starts with `http://` or `https://`; leave it empty to use the project's releases on GitHub. It is saved when you leave the field, and an address you clear takes effect after a restart.
+The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app), and **Check now**. The line below says what was found. Once a download has started, **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
+
+![The installed version, What's new, and Check now greyed while 0.9.0 is downloaded](../images/updates-version-and-notes.png)
+
+The first start after an update says so in a line under the top bar, with **See what's new**; it shows once.
+
+To look now, press **Check now**. To use another source, type an **Update address** that starts with `http://` or `https://`; leave it empty to use the project's releases on GitHub. It is saved when you leave the field, and an address you clear takes effect after a restart.
 
 When a newer version exists:
 
-- **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) puts a chip with an arrow and the version number in the top bar. Press it to open a small window under it: **Download** fetches the new version from this project's GitHub release and shows how far it is; when it has been checked, **Install and restart** closes Agent World, puts the new version in place of this one and opens it again (agents that are working will be asleep after the restart; wake them to resume). While it downloads the chip shows the percentage. **Settings > Updates** shows the same state and the same buttons. If it fails, the window says why in a sentence and offers **Try again**, **Show in Finder** (when the file was kept) or **Open the release page**. How this is kept safe is below.
+- **A Mac build that is not signed with an Apple Developer ID** (the build described in [Getting started](getting-started.md)) puts a chip with an arrow and the version number in the top bar. Press it to open a small window under it, which also shows what is new in that version (the release's own text) before you download it: **Download** fetches the new version from this project's GitHub release and shows how far it is; when it has been checked, **Install and restart** closes Agent World, puts the new version in place of this one and opens it again (agents that are working will be asleep after the restart; wake them to resume). While it downloads the chip shows the percentage. **Settings > Updates** shows the same state and the same buttons. If it fails, the window says why in a sentence and offers **Try again**, **Show in Finder** (when the file was kept) or **Open the release page**. How this is kept safe is below.
 - **A build that can install itself** (a Mac build signed with a Developer ID) downloads the update and says that it installs when you quit.
 
 ### How an update of a build without a Developer ID is kept safe

@@ -17,6 +17,12 @@ describe('preferences', () => {
   it('ignore values of the wrong kind, keeping the rest', () => {
     expect(cleanPrefs({ notifications: 'loud', keepAwake: 'yes', claudePath: ' /x/claude ', defaults: { inPlace: 1, model: 'sonnet' } })).toEqual({ ...DEFAULT_PREFS, providers: { claude: { path: '/x/claude' } }, defaults: { ...DEFAULT_PREFS.defaults, model: 'sonnet' } })
   })
+  it('remember the version whose What\'s new was last offered, empty until then, and ignore anything that is not a short version text', () => {
+    expect(DEFAULT_PREFS.seenVersion).toBe('')
+    expect(cleanPrefs({ seenVersion: '0.2.0' }).seenVersion).toBe('0.2.0')
+    expect(cleanPrefs({ seenVersion: 7 }).seenVersion).toBe('')
+    expect(cleanPrefs({ seenVersion: 'x'.repeat(100) }).seenVersion).toBe('')
+  })
   it('workflows start off at the balanced dial, and a bad value falls back', () => {
     expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} })
     expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } })
