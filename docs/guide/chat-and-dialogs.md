@@ -84,6 +84,6 @@ To put a card away, click its **✕** or press Esc. The agent keeps waiting, and
 
 **Answer in terminal** is at the foot of every card. It takes you to the agent's **Terminal** tab to answer the program's own dialog. From the chat it also makes **Terminal** the tab agents open on, until you click **Chat** again.
 
-The model button, the ring (**Context and usage**, with **Compact**) and **More actions** (**Review**, **Clone**, **Hand off…**, **Finish this branch**, **Remove agent** and more) sit under the box.
+The model button, the ring (**Context and usage**, with **Compact**) and **More actions** (**Review**, **Clone**, **Hand off…**, **Remove agent** and more) sit under the box.
 
 Next: [Code and preview](code-and-preview.md)

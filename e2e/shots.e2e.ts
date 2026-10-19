@@ -201,6 +201,27 @@ test('workflows: a merge held by git, as the band under the run track, and the a
   }
 })
 
+test('workflows: the audit card at the end of the conversation, where the findings are answered', async () => {
+  const findings = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key; the plan puts a theme per project out of scope.' }, { kind: 'guess-wrong', text: 'The choice is saved in localStorage; the plan did not say where.' }] })
+  const o = await shotApp({ env: { FAKE_CHAT: '1', FAKE_AUDIT: findings } })
+  try {
+    await hireNamed(o.page, 'ada')
+    const [ada] = await o.page.evaluate(() => window.aw.listAgents())
+    seedRun(o.home, { agentId: ada!.id, repo: o.repo })
+    writeFileSync(join(ada!.cwd, 'toggle.ts'), 'export const dark = true\n')
+    const git = (...a: string[]) => execFileSync('git', ['-c', 'user.email=dev@example.com', '-c', 'user.name=Dev', ...a], { cwd: ada!.cwd, encoding: 'utf8', env: cleanEnv() })
+    git('add', '-A')
+    git('commit', '-qm', 'feat(settings): a dark-mode toggle')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.page.evaluate((id) => window.aw.finishAudit(id), ada!.id)
+    await expect(o.page.getByRole('region', { name: "ada's audit" })).toBeVisible({ timeout: 20_000 })
+    await o.page.waitForTimeout(800)
+    await shoot(o.page, 'workflow-audit-card')
+  } finally {
+    await o.shutdown()
+  }
+})
+
 test('workflows: the builder\'s draft, edited in place before it is saved', async () => {
   const o = await shotApp({ env: { FAKE_CHAT: '1' }, size: { width: 1400, height: 900 } })
   try {

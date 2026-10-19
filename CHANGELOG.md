@@ -8,6 +8,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Quick switch: resting the pointer on the project button (or on the agent number beside the chat) opens a grid panel under it, with a pixel picture for each project or agent, so one click switches instead of opening a list first. A click on the button keeps the panel open until a click elsewhere or Esc; the grid scrolls when it does not fit and gains a search box past eight projects; arrow keys, Enter and the numbers 1 to 9 work too.
 
+### Changed
+
+- Workflows: nothing sticks above the message box any more. The Finish band, which was always open whenever an agent had commits ahead of its base, and the Merge held band under the run track are replaced by one card at the end of the conversation: the audit's findings still to look at, a failed audit, or what holds the merge. It never shows while the agent works and never opens by itself. **All seen, fine** answers the findings at once; **Set aside** lifts what holds the merge and records the audit as not followed (the track, the Runs ledger and a line in the chat with **Undo**). The squash and "remove the agent after" options of the old band are gone from the chat; **Merge into main** and **Push & open PR** in the Code tab remain.
+
 ### Fixed
 
 - Code: the line numbers of the old side in the Changes diff are shown in full, up to four digits; the right-most digit was hidden under the editor (lines 10 to 39 read as 1, 2, 3).

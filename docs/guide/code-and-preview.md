@@ -44,11 +44,8 @@ Select code in a diff or a file, then click **Ask** and the agent's name, or pre
 
 - **Merge into main** (the base's name replaces `main`) merges the branch into your own checkout after a question. It refuses unless that checkout is on the base branch with nothing uncommitted. On a conflict it aborts and leaves the base unchanged.
 - **Push & open PR**, in the **▾** menu **More ways to finish**, pushes to `origin` and opens a pull request. It needs `gh`, the GitHub command line tool.
-- **Finish name…** in the same menu, or **Finish this branch** in the chat's **More actions** menu, opens the Finish dialog.
 
-In Finish, the **Ready?** list must pass: commits to land, everything committed, your checkout on the base with nothing uncommitted, and no conflict. Under **Land it**, pick **Merge, keeping each commit** or **Squash into one commit**, and leave **Then remove name, its worktree and branch** ticked or not. The button reads **Land on main**, or **Land anyway on main** when the merge gate holds it.
-
-The plan and review checks apply in Finish, not to **Merge into main**: that button applies none of the gates and merges as soon as you confirm. See [Workflows](workflows.md).
+To land through the plan and review gates, ask the agent to merge: git holds the merge until the gate is met or you **Set aside** what holds it (see [Workflows](workflows.md)). **Merge into main** applies none of the gates and merges as soon as you confirm.
 
 An agent that works directly in your folder has no branch. **Code** then shows a note instead of **Changes** and **Files**.
 

@@ -56,7 +56,7 @@ A request shows above the character and in the panel. Allow or deny it in one cl
 
 Each agent works on its own branch (`aw/<name>`) in its own git worktree, and the Code tab shows what it changed. With workflows on, git itself holds an agent's merge into your base branch until the plan, the review and its findings are settled; you release it from the agent's chat.
 
-![The run track with a held merge and the band under it where the findings are ticked](docs/images/merge-held.png)
+![The run track with a held merge and the card at the end of the conversation where it is answered](docs/images/merge-held.png)
 
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
