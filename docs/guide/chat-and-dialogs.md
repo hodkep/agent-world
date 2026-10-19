@@ -68,7 +68,7 @@ To put a card away, click its **✕** or press Esc. The agent keeps waiting, and
 
 **ALLOW?** The card says "Wants to use" and a tool, with what it will do. Click **Allow** or **Deny**. After 5 minutes a Claude Code agent's request falls back to Claude's own dialog in its terminal.
 
-**PLAN** The card shows the plan. Click **Approve · auto-accept edits** or **Approve · review each edit**, or type in "What should change?" and click **Keep planning**.
+**PLAN** The card shows the plan. Click **Approve · auto-accept edits** or **Approve · review each edit**, type in "What should change?" and click **Keep planning**, or click **Reject plan**, which does what Esc does in the terminal.
 
 **QUESTION** One page for each question, then a review page.
 
