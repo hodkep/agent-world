@@ -7,6 +7,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 ### Fixed
 
 - Code: the line numbers of the old side in the Changes diff are shown in full, up to four digits; the right-most digit was hidden under the editor (lines 10 to 39 read as 1, 2, 3).
+- Chat: a line break inside a list item or a paragraph of a reply shows as a line break, as in the Claude Code terminal (a line under a numbered item no longer joins the item's line); a blank line still starts a paragraph.
 
 ## [0.2.1] - 2026-10-19
 

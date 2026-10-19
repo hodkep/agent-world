@@ -114,3 +114,40 @@ test('the chat renders the Markdown stress document', async () => {
     await shutdown()
   }
 })
+
+// A reply's own line breaks show in the chat as in the Claude Code terminal: a line under a list item stays on its own line, a paragraph of two lines shows two.
+test('the chat keeps the single line breaks of a reply, and a blank line still starts a paragraph', async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'aw-md-')))
+  const dir = join(home, 'proj')
+  mkdirSync(dir)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+  const doc = join(home, 'doc.md')
+  writeFileSync(doc, '## heading\n1. xxx\n2. xxx\nanother one\n3. xxx\n4. xxx\nanother one\n5. xxx\n6. ssss\nparagraph\n\nfirst line\nsecond line\n\nnew paragraph\n\n```\nkept\n  as it is\n```\n')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_SAY_FILE: doc }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), dir)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const md = page.getByRole('log', { name: 'Conversation with ada' }).locator('.md').first()
+    await expect(md.getByRole('heading', { name: 'heading' })).toBeVisible({ timeout: 15_000 })
+    // "another one" is on its own line under item 2 (a break inside the item), and "paragraph" under item 6.
+    const items = md.locator('ol > li')
+    await expect(items).toHaveCount(6)
+    await expect(items.nth(1).locator('br')).toHaveCount(1)
+    expect((await items.nth(1).innerText()).split('\n').map((l) => l.trim())).toEqual(['xxx', 'another one'])
+    expect((await items.nth(3).innerText()).split('\n').map((l) => l.trim())).toEqual(['xxx', 'another one'])
+    expect((await items.nth(5).innerText()).split('\n').map((l) => l.trim())).toEqual(['ssss', 'paragraph'])
+    // A paragraph of two lines shows two lines; a blank line starts another paragraph; a code block is untouched.
+    const two = md.locator('p', { hasText: 'first line' })
+    expect((await two.innerText()).split('\n')).toEqual(['first line', 'second line'])
+    await expect(md.locator('p', { hasText: 'new paragraph' })).toHaveCount(1)
+    await expect(md.locator('pre code')).toHaveText('kept\n  as it is\n')
+    if (process.env.AW_SHOTS) await page.screenshot({ path: join(process.env.AW_SHOTS, 'chat-line-breaks.png') })
+  } finally {
+    await shutdown()
+  }
+})
+
