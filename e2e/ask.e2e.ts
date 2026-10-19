@@ -82,3 +82,46 @@ test('Cancel question declines the question as Esc does in the terminal, and the
     await shutdown()
   }
 })
+
+test('when the program does not take Esc, Cancel question says so, the card stays and Answer in terminal is still there', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-ask-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_ASKQ: '1', FAKE_NO_ESC: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await expect(page.locator('.ask-pill')).toContainText('question', { timeout: 15_000 })
+    await page.locator('.ask-pill').click()
+    const dialog = page.getByRole('dialog')
+    const cancel = dialog.getByRole('button', { name: 'Cancel question' })
+    await cancel.click()
+    // Held while the round trip lasts, so a second click cannot send a second Esc.
+    await expect(cancel).toBeDisabled()
+    await expect(dialog.getByRole('alert')).toContainText('The program did not take Esc', { timeout: 10_000 })
+    await expect(dialog).toContainText('Favourite colour?')
+    await expect(cancel).toBeEnabled()
+    await expect(dialog.getByRole('button', { name: 'Answer in terminal' })).toBeVisible()
+  } finally {
+    await shutdown()
+  }
+})
+
+test('after Cancel question the agent is not left looking like it waits for a permission', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-ask-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_ASKQ: '1', FAKE_QUIET_ESC: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await expect(page.locator('.ask-pill')).toContainText('question', { timeout: 15_000 })
+    await expect(page.getByRole('region', { name: 'Selected agent' })).toContainText('permission')
+    await page.locator('.ask-pill').click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel question' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden({ timeout: 10_000 })
+    await expect(page.getByRole('region', { name: 'Selected agent' })).not.toContainText('permission', { timeout: 15_000 })
+  } finally {
+    await shutdown()
+  }
+})
