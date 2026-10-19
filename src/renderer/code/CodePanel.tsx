@@ -3,7 +3,7 @@ import type { Changes } from '../../shared/api'
 import { ContextTray, type CodeJump, useAskSelection } from './askAgent'
 import { codeContext } from './codeContext'
 import { Markdown } from '../chat/markdown'
-import { editorOptions, languageFor, monaco } from './monaco'
+import { ORIGINAL_NUMBER_CHARS, editorOptions, languageFor, monaco } from './monaco'
 import { CONTEXTS, CONTEXT_KEY, FOLD_KEY, type Context, type Fold, foldOptions, readFold } from './foldRule'
 import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
@@ -194,6 +194,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
 
   useEffect(() => {
     diff.current = monaco.editor.createDiffEditor(host.current!, { ...editorOptions, readOnly: true, renderSideBySide: false, ...foldOptions(foldNow.current) })
+    diff.current.getOriginalEditor().updateOptions({ lineNumbersMinChars: ORIGINAL_NUMBER_CHARS })
     const modified = diff.current.getModifiedEditor()
     // In Monaco's command palette (F1) too, so the choice is reachable from the keyboard without the header.
     modified.addAction({ id: 'aw.foldUnchanged', label: 'Fold or show unchanged code', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyU], run: () => toggleFold.current() })
