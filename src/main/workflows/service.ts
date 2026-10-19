@@ -148,10 +148,14 @@ export class Workflows {
     return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
   }
 
-  /** Whether the agent's latest run has passed every step before its audit, so the app can start the audit without being asked. */
+  /**
+   * Whether the app starts the audit without being asked: the run's steps before it have passed and it has not been audited in this round. One audit by itself per round,
+   * so a run that commits again does not pay for another on every new head; the person's "Run the audit now" audits the new one.
+   */
   auditDue(agentId: string, head: string): boolean {
     const run = this.mine(agentId)[0]
-    return !!run && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
+    const tried = !!run?.audit && run.audit.t >= run.rounds[run.rounds.length - 1]!.startedAt
+    return !!run && !tried && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
   }
 
   private running = new Set<string>()

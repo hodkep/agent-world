@@ -288,7 +288,7 @@ export function App() {
   // The Workflows window and its count are about the project that is open, as the agent list is.
   const projectRuns = folder ? wf.runs.filter((r) => r.project === folder) : wf.runs
   // Everything a run waits for the person for (a plan, check commands, an approval, audit findings, Land): the Workflows count, and the same sign beside the agent that a permission request gets.
-  const waits = waitsForPerson(projectRuns, ctxFor, landingHolds)
+  const waits = waitsForPerson(wf.runs, ctxFor, landingHolds, folder ? { project: folder, agents: new Set(agents.map((a) => a.id)) } : undefined)
   const needsYou = waits.length
   const patchPrefs = (patch: Partial<Prefs>) => {
     const next = { ...prefsNow.current!, ...patch }
@@ -649,7 +649,11 @@ export function App() {
   ]
   needsRef.current = needsOf
   // What an agent asks of the person, in one word: a permission or question first, else a workflow wait.
-  const askWord = (id: string): string | null => (needsOf(id)[0] ? needTitle(needsOf(id)[0]!).toLowerCase() : waits.find((w) => w.agentId === id) ? waitWord(waits.find((w) => w.agentId === id)!.kind) : null)
+  const askWord = (id: string): string | null => {
+    const need = needsOf(id)[0]
+    const wait = waits.find((w) => w.agentId === id)
+    return need ? needTitle(need).toLowerCase() : wait ? waitWord(wait.kind) : null
+  }
   talkRef.current = talk
   const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
   useEffect(() => {

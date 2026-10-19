@@ -88,7 +88,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, makesBranch, nameTaken, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -2061,8 +2061,7 @@ async function main() {
   ipcMain.handle('code:place', async (_, id: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
-    const repo = await isGitRepo(a.cwd)
-    return { git: repo, branch: repo ? await checkedOutBranch(a.cwd) : '' }
+    return placeOf(a.cwd)
   })
   ipcMain.handle('code:changes', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
@@ -2105,8 +2104,7 @@ async function main() {
   ipcMain.handle('code:log', async (_, id: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }) => {
     const a = await folderOf(id)
     if (a.branch) return history(a.cwd, a.base ?? (await checkedOutBranch(a.repoPath)), o)
-    if (!(await hasCommits(a.cwd))) return { commits: [], total: 0, more: false }
-    return history(a.cwd, '', { ...o, since: a.hiredAt })
+    return inPlaceHistory(a.cwd, o, a.hiredAt)
   })
   ipcMain.handle('code:commit-detail', async (_, id: string, hash: string) => commitDetail((await folderOf(id)).cwd, hash))
   ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string) => commitDiff((await folderOf(id)).cwd, hash, path))
@@ -2162,10 +2160,10 @@ async function main() {
     if (act && check?.checks.some((c) => c.state === 'running' || c.state === 'pending') && ahead > 0) void kickChecks(id, { fresh: true })
     return { head, auditable, check }
   }
-  ipcMain.handle('finish:status', async (_, id: string, o?: { look?: boolean }) => {
+  ipcMain.handle('finish:status', async (_, id: string, o?: { readOnly?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
-    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead, !o?.look)).check }
+    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead, !o?.readOnly)).check }
   })
   // "Run the audit again" after one failed.
   ipcMain.handle('finish:audit', async (_, id: string) => {

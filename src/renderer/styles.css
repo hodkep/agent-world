@@ -783,6 +783,7 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .finish-band.needs summary .tag { background: var(--accent); color: var(--ink); }
 .finish-band summary b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .finish-band summary small { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.finish-error { margin: 0 12px 8px; }
 .finish-band fieldset { margin: 0 12px 8px; }
 .finish-band .hint.bad { margin: 0 12px 8px; }
 .finish-band .finish-land { padding: 0 12px 10px; justify-content: flex-end; }

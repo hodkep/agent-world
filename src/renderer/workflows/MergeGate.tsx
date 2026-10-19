@@ -35,7 +35,7 @@ export function MergeGate({ merge, onSeen, onAgain }: { merge: MergeCheck; onSee
       {a.state === 'running' && <span className="hint">Auditing the branch against the plan…</span>}
       {a.state === 'not-run' && (
         <div className="mg-row">
-          <span className="hint">The audit has not run yet. It starts by itself once the agent reports its work and its checks pass.</span>
+          <span className="hint">The audit has not run yet. It starts by itself once the agent reports its work and its checks pass, once per round; this runs it on the branch as it is now.</span>
           <button onClick={onAgain}>Run the audit now</button>
         </div>
       )}

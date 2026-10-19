@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MergeGate } from '../workflows/MergeGate'
 import { mergeRows } from '../workflows/mergeRows'
 import { BasePicker } from './BasePicker'
@@ -7,7 +7,7 @@ type Status = Awaited<ReturnType<typeof window.aw.finishStatus>>
 
 /**
  * Under the run's track in an agent's chat while it has commits its base branch does not: the audit's findings to tick, what stands in the way, and Land (merge or
- * squash, and whether the agent leaves). It opens the audit by asking for the status, so the person never has to look for it. `needs` is set when the person's word is what
+ * squash, and whether the agent leaves). It only reads (the app starts the audit itself). `needs` is set when the person's word is what
  * the run waits for.
  */
 export function Finish({ agentId, agentName, activity, needs, onDone }: { agentId: string; agentName: string; /** The agent's turn ending or starting is when the commits and the checks change. */ activity: string; needs: boolean; onDone: (removed: boolean) => void }) {
@@ -17,14 +17,22 @@ export function Finish({ agentId, agentName, activity, needs, onDone }: { agentI
   const [message, setMessage] = useState('')
   const [cleanup, setCleanup] = useState(true)
   const [busy, setBusy] = useState(false)
-  const load = useCallback(
-    () =>
-      window.aw.finishStatus(agentId, { look: true }).then(
-        (s) => (setStatus(s), setError(''), setMessage((m) => (m && !m.startsWith('Merge ') ? m : `Merge ${s.branch}`))),
-        (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
-      ),
-    [agentId]
-  )
+  // One look at a time: a slow one is not stacked under by the next tick of the timer.
+  const looking = useRef(false)
+  const load = useCallback(async () => {
+    if (looking.current) return
+    looking.current = true
+    try {
+      const s = await window.aw.finishStatus(agentId, { readOnly: true })
+      setStatus(s)
+      setError('')
+      setMessage((m) => (m && !m.startsWith('Merge ') ? m : `Merge ${s.branch}`))
+    } catch (e) {
+      setError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+    } finally {
+      looking.current = false
+    }
+  }, [agentId])
   useEffect(() => {
     void load()
     // The audit answers a while after it was asked for, and findings are ticked from here: both change the check. A commit made by hand in the terminal says nothing, so it is looked for now and then.
@@ -52,7 +60,8 @@ export function Finish({ agentId, agentName, activity, needs, onDone }: { agentI
       setBusy(false)
     }
   }
-  // Nothing to land (or no status yet, or not a branch agent): no band.
+  // Nothing to land: no band. A look that failed before there was any status is said, not hidden.
+  if (!status && error) return <p className="hint bad finish-error" role="alert">Could not read {agentName}'s branch: {error}</p>
   if (!status || status.ahead === 0) return null
   return (
     <details className={`finish finish-band ${needs ? 'needs' : ''}`} role="region" aria-label={`Finish ${agentName}'s work`} open>
