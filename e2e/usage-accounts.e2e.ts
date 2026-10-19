@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
+import { weekStartOf } from '../src/shared/ledger'
 
 // A week of history on three accounts: the computer's own login, Work, and agy.
 test('Usage and Weekly Rewind show each account with its program, spend, limits and week', async () => {
@@ -11,7 +12,10 @@ test('Usage and Weekly Rewind show each account with its program, spend, limits 
   mkdirSync(home, { recursive: true })
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ accounts: [{ id: 'work', name: 'Work', provider: 'claude' }] }))
   const now = Date.now()
-  const hrs = (h: number) => now - h * 3_600_000
+  // The Weekly Rewind shows the calendar week, so the seeded history must lie inside it whatever day and hour this runs: on a Monday morning
+  // 'thirty hours ago' is last week. Each event sits a second after the one 'hours' before it, from the start of this week, in the same order as before.
+  const weekStart = weekStartOf(now)
+  const hrs = (h: number) => Math.min(now, weekStart + (30 - h) * 1000 + 1)
   const ev = [
     { k: 'cost', t: hrs(30), agent: 'a', project: 'checkout', model: 'Opus 5.5', usd: 12, provider: 'claude', name: 'Charlie', account: 'work' },
     { k: 'cost', t: hrs(5), agent: 'a', project: 'checkout', model: 'Opus 5.5', usd: 8, provider: 'claude', name: 'Charlie', account: 'work' },
