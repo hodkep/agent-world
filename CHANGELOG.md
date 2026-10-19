@@ -4,6 +4,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-19
+
 ### Added
 
 - Code: the diff on the Changes tab folds the unchanged code by default, with a row such as "49 hidden lines" for each stretch. **Unchanged code: Show | Fold** and **Context: 3 / 5 / 10** sit above the diff and are kept; ⌘⌥U (Ctrl+Alt+U) switches them, and **F1** has **Show all hidden lines**. Selecting code in a folded diff asks the agent about the real line numbers.
@@ -90,7 +92,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.0...HEAD
+[Unreleased]: ../../compare/v0.2.1...HEAD
+[0.2.1]: ../../compare/v0.2.0...v0.2.1
 [0.2.0]: ../../compare/v0.1.2...v0.2.0
 [0.1.2]: ../../compare/v0.1.1...v0.1.2
 [0.1.1]: ../../compare/v0.1.0...v0.1.1
