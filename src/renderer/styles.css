@@ -499,6 +499,8 @@ aside.drawer.wide { width: min(94vw, 900px); }
 /* ---- Chat ------------------------------------------------------------------------------------- */
 .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--well); }
 .chat[hidden] { display: none; }
+.preview-keep { display: contents; }
+.preview-keep[hidden] { display: none; }
 .chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: auto; }
 .chat-empty { margin: auto; max-width: 34ch; text-align: center; color: var(--muted); line-height: 1.5; }
 .msg.user { align-self: flex-end; max-width: 88%; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
