@@ -241,6 +241,24 @@ describe('work the agent never announced', () => {
     expect(wf.runs().map((r) => [r.title, r.rounds[0]!.commits.length])).toEqual([['feat: add slugify', 2], ['feat: add truncate', 1]])
   })
 
+  it('a run the app starts belongs to the task the agent is on, and a different task is a different run even when the commits are close', () => {
+    const { wf, state } = make()
+    state.todoOf = () => '4'
+    wf.commit('a2', 'c1', 'feat: cancel button', 10 * MIN)
+    wf.commit('a2', 'c2', 'test: cancel button', 12 * MIN)
+    state.todoOf = () => '5'
+    wf.commit('a2', 'c3', 'feat: todo chip', 13 * MIN)
+    expect(wf.runs().map((r) => [r.title, r.todos, r.rounds[0]!.commits.length])).toEqual([['feat: cancel button', ['4'], 2], ['feat: todo chip', ['5'], 1]])
+  })
+
+  it('commits made while no task is claimed still join, and take the task the agent claims next', () => {
+    const { wf, state } = make()
+    wf.commit('a2', 'c1', 'feat: a', 10 * MIN)
+    state.todoOf = () => '4'
+    wf.commit('a2', 'c2', 'feat: b', 12 * MIN)
+    expect(wf.runs().map((r) => [r.todos, r.rounds[0]!.commits.length])).toEqual([[['4'], 2]])
+  })
+
   it('nothing is started with workflows off, and after a task the agent announced a stray commit is still just flagged', () => {
     const off = make({ enabled: false })
     off.wf.commit('a2', 'x1', 'whatever', 5000)

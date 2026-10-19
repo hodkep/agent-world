@@ -33,7 +33,7 @@ test('the Runs tab is two charts (how often each workflow ran, how well each sta
 
     // The ledger: the run that waits on the person first, then what landed with trouble, then what landed clean, with how many each.
     const ledger = win.getByRole('table', { name: 'Runs' })
-    await expect(ledger.locator('.rb-grp')).toHaveText([/Needs you.*2/, /Landed with trouble.*1/, /Landed clean.*5.*2 needed a second try/])
+    await expect(ledger.locator('.rb-grp')).toHaveText([/Needs you.*2/, /Landed with trouble.*1/, /Landed clean.*4.*2 needed a second try/, /Not announced.*1.*no task was started/])
     await expect(ledger.getByRole('row').filter({ hasText: 'add csv import' })).toContainText('—')
     const billing = ledger.getByRole('row').filter({ hasText: 'Billing export' })
     await expect(billing).toContainText('1 h 30 m')

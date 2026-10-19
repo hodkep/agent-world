@@ -82,7 +82,7 @@ import { askModel, auditModel, defaultWorkflow, pickAsker } from '../shared/work
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
-import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList } from './workflows/hint'
+import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
@@ -619,10 +619,15 @@ const todoRemind = (id: string, prompt: string): string => {
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search', 'library_skip'].map((t) => `mcp__agent-world__${t}`)
 // The todo board is the project's own list, so an agent may use it without asking each time too.
 const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
+// The nudge to call task_begin: the opening text alone was not followed reliably (a real agent recorded about half its tasks), so each turn with no task open repeats it.
+const workflowReminder = (id: string): string => {
+  const a = byId(id)
+  return a ? workflowRemind({ enabled: prefs.workflows.enabled, subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open') }) : ''
+}
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 const libraryRemind = (id: string, prompt: string) => {
   try {
-    return [prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt)].filter(Boolean).join('\n') || null
+    return [prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt), workflowReminder(id)].filter(Boolean).join('\n') || null
   } catch {
     return null
   }

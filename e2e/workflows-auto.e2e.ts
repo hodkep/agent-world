@@ -42,6 +42,8 @@ test('an agent that commits without announcing a task still gets a run, started 
     await page.locator('header').getByRole('button', { name: 'Workflows' }).click()
     await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('table', { name: 'Runs' })).toContainText('add health check')
     await expect(page.getByRole('dialog', { name: 'Workflows' })).toContainText('from a commit')
+    // It did not land clean: no task was started, so it sits in a group that says so.
+    await expect(page.getByRole('dialog', { name: 'Workflows' }).locator('.rb-grp')).toHaveText([/Not announced.*1.*no task was started/])
   } finally {
     await shutdown()
   }

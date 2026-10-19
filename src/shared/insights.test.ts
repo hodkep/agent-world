@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -341,9 +341,13 @@ describe('the runs grouped by what to do about them', () => {
     expect(only.map((g) => g.key)).toEqual(['clean'])
     expect(only[0]!.note).toBe('')
   })
-  it('does not call a run the app started from a commit trouble just because it was never announced', () => {
+  it('does not call a run the app started from a commit trouble, nor clean: it is not announced, in a group of its own below the others', () => {
     const auto = reduceRuns([begin(0, null, { auto: true }, 'c'), done(1, 'c')])
-    expect(groupRuns(auto, () => ctx).map((g) => g.key)).toEqual(['clean'])
+    const groups = groupRuns([...auto, ...reduceRuns(landedClean('x', 5))], () => ctx)
+    expect(groups.map((g) => g.key)).toEqual(['clean', 'unannounced'])
+    expect(groups[1]).toMatchObject({ title: 'Not announced', note: 'no task was started, so no plan, checks or review' })
+    expect(groupKeyOf(auto[0]!, gateTiles(auto[0]!, ctx))).toBe('unannounced')
+    expect(GROUP_STANDS.unannounced).toBe('not announced')
   })
 })
 

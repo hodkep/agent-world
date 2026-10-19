@@ -604,7 +604,9 @@ if (process.env.FAKE_ASKQ) {
   await hook('Stop')
   await new Promise(() => {})
 }
-await hook('UserPromptSubmit', { prompt: 'add a health check' })
+const said = await hook('UserPromptSubmit', { prompt: 'add a health check' })
+// FAKE_SHOW_REMINDER=1: print what the office added to the request, so a spec can read it in the terminal.
+if (process.env.FAKE_SHOW_REMINDER) console.log(`REMINDER: ${said?.hookSpecificOutput?.additionalContext ?? 'none'}`)
 await sleep(pause)
 await hook('PreToolUse', { tool_name: 'Grep', tool_input: { pattern: 'router' } })
 await sleep(pause)

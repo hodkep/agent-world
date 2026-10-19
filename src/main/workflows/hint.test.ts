@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RunWorkflow } from '../../shared/runs'
-import { PLAN_INSTRUCTION, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList } from './hint'
+import { PLAN_INSTRUCTION, WORKFLOW_REMINDER, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './hint'
 
 describe('what task_begin tells the agent about the plan, per dial', () => {
   it('balanced and max ask for the plan every time', () => {
@@ -95,5 +95,18 @@ describe('the workflows the opening text offers', () => {
 describe('the tools an agent may use without being asked each time', () => {
   it('are the office\'s four workflow tools, so reporting a step never stops to ask the person for permission', () => {
     expect(WORKFLOW_TOOLS).toEqual(['mcp__agent-world__task_begin', 'mcp__agent-world__task_done', 'mcp__agent-world__plan_submit', 'mcp__agent-world__step_done'])
+  })
+})
+
+describe('the reminder to announce a task, said at the start of a turn', () => {
+  const ask = { enabled: true, subagent: false, builder: false, open: false }
+  it('is said while workflows are on and the agent has no task open', () => {
+    expect(workflowRemind(ask)).toBe(WORKFLOW_REMINDER)
+  })
+  it('is not said with workflows off, to the builder or a subagent, or while a task is open', () => {
+    expect(workflowRemind({ ...ask, enabled: false })).toBe('')
+    expect(workflowRemind({ ...ask, builder: true })).toBe('')
+    expect(workflowRemind({ ...ask, subagent: true })).toBe('')
+    expect(workflowRemind({ ...ask, open: true })).toBe('')
   })
 })

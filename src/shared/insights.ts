@@ -328,7 +328,7 @@ export function invocations(runs: Run[], days: number, now: number): Invocations
   return { byWorkflow, total: byWorkflow.reduce((n, w) => n + w.runs, 0), fromCommit, perDay }
 }
 
-export type GroupKey = 'needs' | 'open' | 'trouble' | 'clean' | 'stopped'
+export type GroupKey = 'needs' | 'open' | 'trouble' | 'clean' | 'stopped' | 'unannounced'
 export interface RunGroup {
   key: GroupKey
   title: string
@@ -337,24 +337,26 @@ export interface RunGroup {
   /** Newest first. */
   runs: Run[]
 }
-const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Still open', trouble: 'Landed with trouble', clean: 'Landed clean', stopped: 'Stopped' }
+const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Still open', trouble: 'Landed with trouble', clean: 'Landed clean', stopped: 'Stopped', unannounced: 'Not announced' }
 
 /**
  * The runs by what there is to do about them: those held for the person, those still going, those that finished with a gate missed or overridden, those that finished clean
- * (a retried check or a plan sent back is still clean), and those stopped. A run the app started from a commit is not trouble for never having been announced.
+ * (a retried check or a plan sent back is still clean), and those stopped. A run the app started from a commit is not trouble for never having been announced, nor clean: it has a group of its own.
  */
 export function groupKeyOf(r: Run, tiles: Tile[]): GroupKey {
   if (r.status === 'stopped') return 'stopped'
   if (tiles.some((t) => t.kind === 'wait')) return 'needs'
   if (r.status === 'open') return 'open'
-  return tiles.some((t) => t.gate !== 'told' && t.kind === 'bad') ? 'trouble' : 'clean'
+  if (tiles.some((t) => t.gate !== 'told' && t.kind === 'bad')) return 'trouble'
+  // A run the app started from a commit never had a task, a plan, checks or a review: nothing of it landed clean.
+  return r.auto ? 'unannounced' : 'clean'
 }
 
 /** How a run is said to stand, in the words of its group. */
-export const GROUP_STANDS: Record<GroupKey, string> = { needs: 'needs you', open: 'still open', trouble: 'landed with trouble', clean: 'landed clean', stopped: 'stopped' }
+export const GROUP_STANDS: Record<GroupKey, string> = { needs: 'needs you', open: 'still open', trouble: 'landed with trouble', clean: 'landed clean', stopped: 'stopped', unannounced: 'not announced' }
 
 export function groupRuns(runs: Run[], ctxFor: (run: Run) => StepContext): RunGroup[] {
-  const buckets: Record<GroupKey, Run[]> = { needs: [], open: [], trouble: [], clean: [], stopped: [] }
+  const buckets: Record<GroupKey, Run[]> = { needs: [], open: [], trouble: [], clean: [], stopped: [], unannounced: [] }
   let retried = 0
   for (const r of [...runs].sort((a, b) => b.startedAt - a.startedAt)) {
     const tiles = gateTiles(r, ctxFor(r))
@@ -362,8 +364,8 @@ export function groupRuns(runs: Run[], ctxFor: (run: Run) => StepContext): RunGr
     buckets[key].push(r)
     if (key === 'clean' && tiles.some((t) => t.kind === 'trouble')) retried++
   }
-  const notes: Record<GroupKey, string> = { needs: '', open: '', trouble: 'went ahead past a gate', clean: retried > 0 ? `${retried} needed a second try` : '', stopped: '' }
-  return (['needs', 'open', 'trouble', 'clean', 'stopped'] as const).filter((k) => buckets[k].length > 0).map((key) => ({ key, title: GROUP_TITLES[key], note: notes[key], runs: buckets[key] }))
+  const notes: Record<GroupKey, string> = { needs: '', open: '', trouble: 'went ahead past a gate', clean: retried > 0 ? `${retried} needed a second try` : '', stopped: '', unannounced: 'no task was started, so no plan, checks or review' }
+  return (['needs', 'open', 'trouble', 'clean', 'stopped', 'unannounced'] as const).filter((k) => buckets[k].length > 0).map((key) => ({ key, title: GROUP_TITLES[key], note: notes[key], runs: buckets[key] }))
 }
 
 export interface LedgerRow {
