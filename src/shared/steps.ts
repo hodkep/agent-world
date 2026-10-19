@@ -107,6 +107,13 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
   })
 }
 
+/** The audit is the app's to start once the agent's steps before it are passed or skipped (a check that has not passed, or a plan or approval still open, holds it back). */
+export function readyForAudit(run: Run, ctx: StepContext): boolean {
+  const states = stepStates(run, ctx)
+  const at = states.findIndex((s) => s.kind === 'audit')
+  return ctx.auditOn && at >= 0 && states.slice(0, at).every((s) => s.state === 'passed' || s.state === 'skipped')
+}
+
 /** What the person's answer to a step is typed into the agent as. */
 export function stepReply(name: string, decision: 'approved' | 'changes', note?: string): string {
   if (decision === 'approved') return `Your step "${name}" was approved.${note ? ` They said: ${note}` : ''}`

@@ -13,4 +13,5 @@ export const gitProgram = (): GitProgram | null => current
 export const gitBin = (): string => current?.bin ?? 'git'
 
 /** The environment for running git: the app's own, with what a bundled git needs added. */
-export const gitProcessEnv = (): NodeJS.ProcessEnv => ({ ...process.env, ...(current?.env ?? {}) })
+// GIT_OPTIONAL_LOCKS=0: the app looks at repositories often (status, diffs) and must never hold an index lock another git is waiting for.
+export const gitProcessEnv = (): NodeJS.ProcessEnv => ({ ...process.env, ...(current?.env ?? {}), GIT_OPTIONAL_LOCKS: '0' })

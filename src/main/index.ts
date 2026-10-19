@@ -499,6 +499,8 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
 // Called when the agent reports its work, when the person answers a check, and (for what is new) when Finish is opened.
 // Told once for each check and file version that waits for the person, not on every step report.
 const waitNotices = new WaitNotices()
+// The audit is the app's to start: once an agent's steps before it have passed it begins on its own, with nothing to open. Set where git and the asker are at hand.
+let autoAudit: (id: string) => Promise<void> = async () => {}
 async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean } = {}) {
   const a = byId(id)
   if (!a) return
@@ -513,8 +515,9 @@ async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean }
     else if (r.waitingApproval && !o.fresh && waitNotices.firstTime(id, `${r.waitingApproval}|${workflows.runs().findLast((x) => x.agent === id && x.status !== 'stopped')?.workflow?.hash ?? ''}`))
       mailbox.fromOffice(id, `The check "${r.waitingApproval}" waits for the person to approve its commands; their answer arrives as your next message.`)
   } catch {
-    // A check that cannot run (no such folder, git failed) is simply not run; the merge gate will say it has not run.
+    // A check that cannot run (no such folder, git failed) is simply not run; the merge gate says it has not run.
   }
+  void autoAudit(id)
 }
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 // The builder never has a task of its own.
@@ -1311,6 +1314,7 @@ async function main() {
         const r = workflows.stepDone(caller, step)
         send('workflows')
         if (r.checking) void kickChecks(caller)
+        else void autoAudit(caller)
         return r
       },
       submitPlan: async (caller, path) => {
@@ -2130,22 +2134,35 @@ async function main() {
     await workflows.runAudit(id, head, await branchDiff(a.cwd, base, a.branch!))
     send('workflows')
   }
-  const mergeOf = async (id: string, a: AgentRecord, base: string, ahead: number) => {
+  autoAudit = async (id) => {
+    const a = byId(id)
+    if (!a?.branch) return
+    try {
+      const { base } = await worktreeOf(id)
+      const head = await git(a.cwd, 'rev-parse', a.branch)
+      if (!workflows.auditDue(id, head)) return
+      const r = await finishReadiness(a.repoPath, a.cwd, a.branch, base)
+      if (r.ahead > 0 && workflows.mergeCheck(id, head, { auditable: (await readyAskers()).length > 0 })?.audit.state === 'not-run') await startAudit(id, a, base, head)
+    } catch {
+      // An audit that cannot start (git failed, no asker) is started when the band or the merge asks for the status.
+    }
+  }
+  const mergeOf = async (id: string, a: AgentRecord, base: string, ahead: number, act = true) => {
     const head = await git(a.cwd, 'rev-parse', a.branch!)
     const auditable = (await readyAskers()).length > 0
     let check = workflows.mergeCheck(id, head, { auditable })
-    if (check?.audit.state === 'not-run' && ahead > 0) {
+    if (act && check?.audit.state === 'not-run' && ahead > 0) {
       void startAudit(id, a, base, head).catch(() => undefined)
       check = workflows.mergeCheck(id, head, { auditable })
     }
     // Checks that have not run for this branch are run now; ones that already did are left alone, so opening Finish never uses up their tries.
-    if (check?.checks.some((c) => c.state === 'running' || c.state === 'pending') && ahead > 0) void kickChecks(id, { fresh: true })
+    if (act && check?.checks.some((c) => c.state === 'running' || c.state === 'pending') && ahead > 0) void kickChecks(id, { fresh: true })
     return { head, auditable, check }
   }
-  ipcMain.handle('finish:status', async (_, id: string) => {
+  ipcMain.handle('finish:status', async (_, id: string, o?: { look?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
-    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead)).check }
+    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead, !o?.look)).check }
   })
   // "Run the audit again" after one failed.
   ipcMain.handle('finish:audit', async (_, id: string) => {

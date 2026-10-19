@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { MergeGate } from '../workflows/MergeGate'
 import { mergeRows } from '../workflows/mergeRows'
 import { BasePicker } from './BasePicker'
 
 type Status = Awaited<ReturnType<typeof window.aw.finishStatus>>
 
-/** Land an agent's work on its base branch: what stands in the way, merge or squash, and whether the agent leaves. */
-export function Finish({ agentId, agentName, onClose, onDone }: { agentId: string; agentName: string; onClose: () => void; onDone: (removed: boolean) => void }) {
-  const dialog = useRef<HTMLDialogElement>(null)
+/**
+ * Under the run's track in an agent's chat while it has commits its base branch does not: the audit's findings to tick, what stands in the way, and Land (merge or
+ * squash, and whether the agent leaves). It opens the audit by asking for the status, so the person never has to look for it. `needs` is set when the person's word is what
+ * the run waits for.
+ */
+export function Finish({ agentId, agentName, activity, needs, onDone }: { agentId: string; agentName: string; /** The agent's turn ending or starting is when the commits and the checks change. */ activity: string; needs: boolean; onDone: (removed: boolean) => void }) {
   const [status, setStatus] = useState<Status | null>(null)
   const [error, setError] = useState('')
   const [squash, setSquash] = useState(false)
@@ -16,18 +19,19 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
   const [busy, setBusy] = useState(false)
   const load = useCallback(
     () =>
-      window.aw.finishStatus(agentId).then(
+      window.aw.finishStatus(agentId, { look: true }).then(
         (s) => (setStatus(s), setError(''), setMessage((m) => (m && !m.startsWith('Merge ') ? m : `Merge ${s.branch}`))),
         (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
       ),
     [agentId]
   )
   useEffect(() => {
-    dialog.current?.showModal()
     void load()
-    // The audit answers a while after the dialog opened, and findings are ticked from here: both change the check.
-    return window.aw.onWorkflows(() => void load())
-  }, [load])
+    // The audit answers a while after it was asked for, and findings are ticked from here: both change the check. A commit made by hand in the terminal says nothing, so it is looked for now and then.
+    const off = window.aw.onWorkflows(() => void load())
+    const timer = setInterval(() => void load(), 3000)
+    return () => (off(), clearInterval(timer))
+  }, [load, activity])
   const checks = status && [
     { ok: status.ahead > 0, text: status.ahead > 0 ? `${status.ahead} commit${status.ahead === 1 ? '' : 's'} on ${status.branch} to land` : `Nothing to land: ${status.base} already has everything on ${status.branch}` },
     { ok: status.uncommitted === 0, text: status.uncommitted === 0 ? 'Everything is committed' : `${status.uncommitted} file${status.uncommitted === 1 ? '' : 's'} not committed yet (commit in the Code tab)` },
@@ -48,16 +52,18 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
       setBusy(false)
     }
   }
+  // Nothing to land (or no status yet, or not a branch agent): no band.
+  if (!status || status.ahead === 0) return null
   return (
-    <dialog ref={dialog} className="settings finish" aria-label={`Finish ${agentName}'s work`} onClose={onClose} onCancel={onClose}>
-      <header className="settings-head">
-        <b>Finish {agentName}'s work</b>
-        <button onClick={onClose}>Close</button>
-      </header>
+    <details className={`finish finish-band ${needs ? 'needs' : ''}`} role="region" aria-label={`Finish ${agentName}'s work`} open>
+      <summary>
+        <span className="tag">{needs ? 'Needs you' : ready ? 'Ready to land' : 'Not ready yet'}</span>
+        <b>{status.branch} → {status.base}</b>
+        <small>{status.ahead} commit{status.ahead === 1 ? '' : 's'}</small>
+      </summary>
       {status?.merge && <MergeGate merge={status.merge} onSeen={(i) => void window.aw.finishSeen(agentId, [i])} onAgain={() => void window.aw.finishAudit(agentId)} />}
       <fieldset>
         <legend>Ready?</legend>
-        {!status && !error && <span className="hint">Checking…</span>}
         <ul className="checks">
           {checks?.map((c) => (
             <li key={c.text} className={c.ok ? 'ok' : 'no'}>
@@ -76,7 +82,7 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
           <legend>Land it</legend>
           <div className="finish-into">
             <span>Into</span>
-            <BasePicker value={status.base} label="Branch to land on" load={() => window.aw.code.branches(agentId)} onPick={async (b) => (await window.aw.code.setBase(agentId, b), setStatus(null), await load())} note="Changes where this lands, and what it is compared with. Nothing else." />
+            <BasePicker value={status.base} label="Branch to land on" load={() => window.aw.code.branches(agentId)} onPick={async (b) => (await window.aw.code.setBase(agentId, b), await load())} note="Changes where this lands, and what it is compared with. Nothing else." />
           </div>
           <label className="check">
             <input type="radio" name="how" checked={!squash} onChange={() => (setSquash(false), setMessage(`Merge ${status.branch}`))} /> Merge, keeping each commit
@@ -96,15 +102,15 @@ export function Finish({ agentId, agentName, onClose, onDone }: { agentId: strin
         </fieldset>
       )}
       {error && (
-        <p className="hint bad" role="alert" style={{ padding: '0 14px' }}>
+        <p className="hint bad" role="alert">
           {error}
         </p>
       )}
-      <div className="settings-row" style={{ padding: '10px 14px', justifyContent: 'flex-end' }}>
+      <div className="settings-row finish-land">
         <button className="primary" disabled={!ready || busy || (squash && !message.trim())} onClick={() => void land()}>
           {busy ? 'Landing…' : `${held ? 'Land anyway' : 'Land'} on ${status?.base ?? 'base'}`}
         </button>
       </div>
-    </dialog>
+    </details>
   )
 }

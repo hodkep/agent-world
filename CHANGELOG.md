@@ -9,6 +9,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 - Homebrew: `brew install --cask hodkep/tap/agent-world` installs the app, and the tap follows each release by itself. The cask removes macOS's quarantine mark from the app, so there is no Open Anyway step; that skips macOS's first-launch check for this app only.
 - Chat: a question the agent asks has a **Cancel question** button, in the chat and in the pop-up, that declines it as Esc does in the terminal. A plan has a **Reject plan** button that does the same. If the program does not take the Esc, the card says so and **Answer in terminal** is still there.
 - Chat: a line of the office's todo calls has a `todo#N` chip that opens the task on the Todos board, two clicks from the row instead of four. A task that is no longer on the board shows as removed.
+- Workflows: the audit starts by itself once the agent's steps before it have passed, and it and Land are decided in a band in the agent's chat. **Finish this branch** and the Finish window are gone, and **Run the audit now** is there if it has not started.
+- Workflows: whatever waits for you (a plan, check commands, an approval, audit findings, Land) shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and "others waiting", counts on the Workflows button, and the agent raises a hand in the office, as for a permission.
 
 ### Changed
 
@@ -19,6 +21,9 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 - Preview: a Preview that has been opened stays loaded when you go to another tab, so its page is not loaded again until the app is reloaded. The last three opened are kept, and one is let go when its agent sleeps.
 - Workflows: a run the app starts from a commit (the agent never called `task_begin`) is grouped **Not announced**, not **Landed clean**; it belongs to the todo the agent is on, and a different todo starts a new run. An agent that sets a task to doing with `todo_update` now claims it, and each turn with no task open reminds the agent to call `task_begin`.
 - Claude Code that is signed in and set up was shown as **Needs sign-in** (and signing in again changed nothing) on a Mac where `~/.claude/.claude.json` exists without the first-run flag. The flag is now looked for in every file Claude Code keeps, and any one saying the first questions were answered is enough. Its usage tanks on the lawn, which are drawn for ready programs only, came back with it.
+- The Workflows window and its count list only the open project's runs.
+- Looking at a repository on a timer no longer takes git's optional locks, so a commit or add made at the same moment cannot fail with an `index.lock`.
+- An agent that works in your folder directly is no longer refused a name because an old `aw/<name>` branch exists (it makes no branch), and its Code tab lists what is uncommitted in the folder, with staging, commit and discard, and the commits made since it was hired, instead of saying there is nothing to show.
 
 ## [0.1.2] - 2026-10-18
 
@@ -38,7 +43,6 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Fixed
 
-- An agent that works in your folder directly is no longer refused a name because an old `aw/<name>` branch exists (it makes no branch), and its Code tab lists what is uncommitted in the folder, with staging, commit and discard, and the commits made since it was hired, instead of saying there is nothing to show.
 - Workflows: an agent is told once that a check waits for your approval, not on every step report, until you answer or the workflow file changes.
 - Workflows: a follow-up round reads the workflow file again and takes a changed copy, so an edited file's commands are asked about again.
 - Workflows: agents are told a workflow's description covers a task only when it covers all of it, so copy changes are not read to cover new code.

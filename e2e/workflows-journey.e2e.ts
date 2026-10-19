@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { headMenu, hire } from './launch'
+import { chatTab, hire } from './launch'
 import { PLAN, envLines, gitAs, gitIn, hireAgy, mcpAs, openWorkflows, runEvents, shot, start, world } from './wf-helpers'
 
 /** A task from its first word to Land, for an agent of each program: the same rules, enforced the same way. */
@@ -84,16 +84,22 @@ for (const program of ['claude', 'agy'] as const) {
       await expect.poll(() => runEvents(w).filter((e) => e.k === 'check' && e.ok === true).length, { timeout: 20_000 }).toBe(1)
       await call('task_done', { summary: 'Added the toggle, and the check passes.' })
 
+      // Nobody opened anything: with the check passed the app started the audit itself.
+      await expect.poll(() => runEvents(w).some((e) => e.k === 'audit' && e.state === 'done'), { timeout: 20_000 }).toBe(true)
+
       // Finish shows what holds Land and what does not, and Land is the person's.
-      await headMenu(s.page, 'Finish')
-      const dialog = s.page.getByRole('dialog', { name: "Finish ada's work" })
+      await chatTab(s.page)
+      const dialog = s.page.getByRole('region', { name: "Finish ada's work" })
       await expect(dialog).toContainText('Plan approved')
       await expect(dialog.getByRole('list', { name: 'What the audit found' })).toContainText('Adds a file the plan did not mention', { timeout: 20_000 })
       await expect(dialog).toContainText('Tests pass: test -f ok.txt passed')
       await expect(dialog.getByRole('button', { name: 'Land anyway on main' })).toBeVisible()
       await shot(s.page, `journey-${program}-3-finish`)
+      // The findings are the person's to see: the agent's row says so, as it does for a permission, and then says Land is.
+      await expect(s.page.locator('.roster .ask-pill')).toHaveText('audit')
       await dialog.getByRole('checkbox', { name: 'Seen, fine' }).click()
       await expect(dialog.getByRole('checkbox', { name: 'Seen, fine' })).toBeChecked()
+      await expect(s.page.locator('.roster .ask-pill')).toHaveText('land')
       await dialog.getByRole('button', { name: 'Land on main' }).click()
       await expect(dialog).toBeHidden({ timeout: 20_000 })
       expect(gitIn(w.repo, 'log', '--format=%s', 'main').split('\n')).toEqual(expect.arrayContaining(['add toggle', 'make the check pass']))

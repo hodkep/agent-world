@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
 
-const begin = (run: string, t: number, agent: string, name: string, title: string) => ({ k: 'begin', t, run, agent, name, project: '/p', title })
+const begin = (run: string, t: number, agent: string, name: string, title: string, project = '/p') => ({ k: 'begin', t, run, agent, name, project, title })
 
 test('turning workflows off with runs open: the confirm lists them, "let them finish" keeps the button as winding down, "stop them now" closes them and hides it', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-wfruns-'))
@@ -12,10 +12,13 @@ test('turning workflows off with runs open: the confirm lists them, "let them fi
   mkdirSync(project)
   mkdirSync(join(home, 'aw'), { recursive: true })
   const events = [
-    begin('r1', 1000, 'x1', 'ada', 'Add a dark-mode toggle'),
+    begin('r1', 1000, 'x1', 'ada', 'Add a dark-mode toggle', project),
     { k: 'done', t: 2000, run: 'r1' },
     { k: 'round', t: 3000, run: 'r1' },
-    begin('r2', 3500, 'x2', 'bo', 'Fix the login redirect')
+    begin('r2', 3500, 'x2', 'bo', 'Fix the login redirect', project),
+    // Another project's run: the window is about the project that is open.
+    begin('r9', 3600, 'x9', 'cy', 'Rotate the signing keys', '/other'),
+    { k: 'done', t: 3700, run: 'r9' }
   ]
   writeFileSync(join(home, 'aw', 'runs.jsonl'), events.map((e) => JSON.stringify(e)).join('\n') + '\n')
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, home)
@@ -32,6 +35,7 @@ test('turning workflows off with runs open: the confirm lists them, "let them fi
     const win = page.getByRole('dialog', { name: 'Workflows' })
     await expect(win).toContainText('Winding down')
     await expect(win).toContainText('2 runs are still open')
+    await expect(win.getByRole('table', { name: 'Runs' })).not.toContainText('Rotate the signing keys')
     await expect(win.getByRole('table', { name: 'Runs' })).toContainText('Add a dark-mode toggle')
     await win.getByRole('button', { name: 'Close' }).click()
 
@@ -69,7 +73,7 @@ test('turning workflows off with runs open: the confirm lists them, "let them fi
     await expect(bar.getByRole('button', { name: 'Workflows' })).toHaveCount(0)
     const after = await page.evaluate(() => window.aw.workflows.summary())
     expect(after.open).toBe(0)
-    expect(after.runs.map((r) => r.status)).toEqual(['stopped', 'stopped'])
+    expect(after.runs.map((r) => r.status)).toEqual(['stopped', 'stopped', 'done'])
   } finally {
     await shutdown()
   }

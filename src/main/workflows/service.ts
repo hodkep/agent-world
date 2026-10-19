@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, checkFailed, checkGaveUp, checkRuns, stepStates } from '../../shared/steps'
+import { DEFAULT_RETRIES, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -146,6 +146,12 @@ export class Workflows {
 
   private states(run: Run, head?: string) {
     return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
+  }
+
+  /** Whether the agent's latest run has passed every step before its audit, so the app can start the audit without being asked. */
+  auditDue(agentId: string, head: string): boolean {
+    const run = this.mine(agentId)[0]
+    return !!run && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
   }
 
   private running = new Set<string>()

@@ -71,7 +71,6 @@ async function pickFromMenu(page: Page, item: string | RegExp) {
   const ask = /Ask (\w+) to review/.exec(name)
   if (ask) return second('Review', `Ask ${ask[1]}`)
   if (/Hire a new reviewer/.test(name)) return second('Review', 'Hire a new reviewer')
-  if (/Finish/.test(name)) return menu.getByRole('menuitem', { name: 'Finish this branch' }).click()
   if (/Group/.test(name)) return menu.getByRole('menuitem', { name: /Group/ }).click()
   return menu.getByRole('menuitem', { name: item }).click()
 }
