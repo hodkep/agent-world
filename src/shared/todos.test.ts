@@ -66,6 +66,10 @@ describe('changing', () => {
     const bob: Actor = { kind: 'agent', id: 'b1', name: 'bob', provider: 'agy' }
     b = updateTodo(b, '1', { status: 'doing' }, bob, 4)
     expect(b.todos[0]!.claimedBy).toEqual(ada)
+    // Nor a task that agent has blocked: it is still theirs.
+    b = updateTodo(b, '1', { status: 'blocked', blockedWhy: 'needs the key' }, ada, 5)
+    b = updateTodo(b, '1', { status: 'doing' }, bob, 6)
+    expect(b.todos[0]!.claimedBy).toEqual(ada)
   })
   it('does not let a second agent claim what another is doing', () => {
     const b = claimTodo(start(), '1', ada, 3)
