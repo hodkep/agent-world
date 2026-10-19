@@ -153,7 +153,7 @@ test('the agent list is folded into a switcher by default', async () => {
     await expect(page.locator('nav.roster:visible')).toHaveCount(0)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
     const menu = page.getByRole('menu', { name: 'Agents' })
-    await expect(menu.getByRole('button', { name: /ada/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /ada/ })).toBeVisible()
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'switcher.png') })
     await page.keyboard.press('Escape')
     await expect(menu).toHaveCount(0)

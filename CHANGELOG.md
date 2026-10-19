@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Quick switch: resting the pointer on the project button (or on the agent number beside the chat) opens a grid panel under it, with a pixel picture for each project or agent, so one click switches instead of opening a list first. A click on the button keeps the panel open until a click elsewhere or Esc; the grid scrolls when it does not fit and gains a search box past eight projects; arrow keys, Enter and the numbers 1 to 9 work too.
+
 ### Fixed
 
 - Code: the line numbers of the old side in the Changes diff are shown in full, up to four digits; the right-most digit was hidden under the editor (lines 10 to 39 read as 1, 2, 3).

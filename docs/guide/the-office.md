@@ -59,7 +59,7 @@ The tag says what kind of request it is. Each kind is in [Dialogs](chat-and-dial
 
 Except for **+ Agent**, the buttons are icons. Point at one to see its name.
 
-- Project button: your recent folders and **Open another folder…**.
+- Project button: rest the pointer on it and a grid of your recent folders opens under it (a pixel picture each, how many agents work there, a red number when one waits for you); one click switches. Click the button to keep the grid open until you click elsewhere. **Open another folder…** is at its foot, and with many projects it scrolls and gains a search box. The agent number beside the chat works the same way for agents.
 - **History**, **Subagents**, and **Grid**, which shows every agent at once.
 - **Todos** ([Todos](todos.md)), **Workflows** ([Workflows](workflows.md)) and **Library** ([Library and playbook](library-and-playbook.md)).
 - **Usage** (**Usage & Estimated Costs**, with a number when limits are nearly used up) and **Weekly Rewind**.
