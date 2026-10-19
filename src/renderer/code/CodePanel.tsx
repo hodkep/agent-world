@@ -53,8 +53,7 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
       <div className="code code-inplace" role="note" aria-label="No git worktree">
         <b>{agentName} works directly in this folder</b>
         <code>{inPlace.path}</code>
-        <p>It is not a git repository, so there are no changes to list. Run <code>git init</code> there and the changes made in it show here; the Files tab works as it is.</p>
-        <button onClick={() => setTab('files')}>Open the Files tab</button>
+        <p>It is not a git repository, so there are no changes or files to list. Run <code>git init</code> there and what is made in it shows here.</p>
       </div>
     )
   }
