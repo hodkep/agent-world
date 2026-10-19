@@ -4,6 +4,7 @@ import { Library, type Item } from './store'
 import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
 import { buildCatalog } from './catalog'
+import { matchItems } from './match'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
@@ -93,12 +94,12 @@ export function createLibraryService(d: Deps) {
   const indexSync = (agentId: string) => entriesFor(agentOrThrow(agentId).repoPath, d.grants?.(agentId) ?? [])
   const index = async (agentId: string) => indexSync(agentId)
 
-  function record(agentId: string, id: string, how: How, mode?: string, words?: string, reason?: string, because?: string) {
+  function record(agentId: string, id: string, how: How, mode?: string, words?: string, reason?: string, because?: string, related?: boolean) {
     const a = d.agent(agentId)
     if (!a) return
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
-    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words, reason, because })
+    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words, reason, because, ...(related !== undefined && { related }) })
     if (how === 'fetched' || how === 'skill' || how === 'read') state.get(agentId)?.read.add(id)
     d.onUse?.(a.id, how, id)
   }
@@ -130,8 +131,11 @@ export function createLibraryService(d: Deps) {
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
-    /** Called at each prompt (Claude's hook): the rulebook line when it is due (the first message, every few after, after a compaction, after a long pause), and now and then the whole catalog. The message itself is not read: the agent decides which rule applies. */
-    remind(agentId: string, _prompt: string): string {
+    /**
+     * Called at each prompt (Claude's hook): the rulebook line when it is due (the first message, every few after, after a compaction, after a long pause), and now and then the whole catalog.
+     * The agent decides which rule applies; the prompt is only looked at here to note, for the numbers on the playbook screen, which rules it looked related to. That yes or no is kept, never the prompt.
+     */
+    remind(agentId: string, prompt: string): string {
       const st = state.get(agentId)
       if (!st) return ''
       st.turn++
@@ -141,9 +145,10 @@ export function createLibraryService(d: Deps) {
       const entries = indexSync(agentId)
       const parts = due && st.reminder ? [st.reminder] : []
       // A rule the agent has read is in its context until it loses it, so it is not logged as put in front of it again.
+      const related = due ? new Set(matchItems(prompt, entries, entries.length).map((m) => m.id)) : new Set<string>()
       if (due) for (const id of [...st.hardIds, ...st.mediumIds]) {
         const e = entries.find((x) => x.id === id)
-        if (e && !st.read.has(id)) record(agentId, id, 'triggered', e.mode, `${id} (${e.when || 'when it applies'})`)
+        if (e && !st.read.has(id)) record(agentId, id, 'triggered', e.mode, `${id} (${e.when || 'when it applies'})`, undefined, undefined, related.has(id))
       }
       if (entries.some((e) => e.mode === 'on-demand') && (st.catalogDue || st.turn % CATALOG_EVERY === 0)) {
         st.catalogDue = false

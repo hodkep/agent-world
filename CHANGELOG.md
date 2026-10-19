@@ -16,6 +16,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Code: the line numbers of the old side in the Changes diff are shown in full, up to four digits; the right-most digit was hidden under the editor (lines 10 to 39 read as 1, 2, 3).
 - Chat: a line break inside a list item or a paragraph of a reply shows as a line break, as in the Claude Code terminal (a line under a numbered item no longer joins the item's line); a blank line still starts a paragraph.
+- Library: **Reached for** judges a rule on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders could only end in silence). Each row shows how often it was reminded, the related prompts, how often it was read (any time later in that session, not only within 3 turns) and said no, and a verdict: most said no (make the "when" narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt.
 
 ## [0.2.1] - 2026-10-19
 

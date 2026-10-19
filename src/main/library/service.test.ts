@@ -147,6 +147,17 @@ describe('what an agent is given from the library', () => {
       svc.remind('a1', 'x')
       expect(svc.stats().items.pdf!.triggered).toBe(3)
     })
+    it('notes on each reminder whether the prompt looked related to the rule, and keeps nothing of the prompt itself', async () => {
+      rulebook('hard')
+      await svc.prepare('a1', true, true)
+      svc.remind('a1', 'start working on this pdf')
+      for (let i = 0; i < 5; i++) svc.remind('a1', 'rename the lamp post')
+      svc.remind('a1', 'rename the lamp post')
+      const triggered = svc.usesOf('a1').filter((u) => u.how === 'triggered')
+      expect(triggered.map((u) => u.related)).toEqual([true, false])
+      expect(JSON.stringify(svc.usesOf('a1'))).not.toContain('lamp post')
+      expect(svc.stats().items.pdf).toMatchObject({ triggered: 2, related: 1 })
+    })
     it('counts a trigger as answered when the agent then fetches the item in the same turn', async () => {
       rulebook('hard')
       await svc.prepare('a1', true)

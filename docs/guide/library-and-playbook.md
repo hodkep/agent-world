@@ -69,9 +69,9 @@ An agent can read only items in its playbook. Claude Code also gets the playbook
 
 ## Reached for
 
-The **Reached for** tab shows, for each item agents were pointed at, how often they read it: **pointed**, **read** and **said no**. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
+The **Reached for** tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
 
-To fix a flagged row, click **Write a when**, **Make it firm** or **Make it a step**.
+To fix a flagged row, click **Write a when** (**Write a narrower when** when most said no), **Make it firm** or **Make it a step**.
 
 ## What it costs
 

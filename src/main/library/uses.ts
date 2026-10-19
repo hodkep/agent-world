@@ -31,10 +31,7 @@ export class UseLog {
   }
 }
 
-/** An item pointed at counts as read when the agent reads it in that turn or within this many after: it reads when it gets to the work, not always at once. */
-const ANSWER_TURNS = 3
-
-const zero = (): Tally => ({ delivered: 0, triggered: 0, answered: 0, used: 0, declined: 0 })
+const zero = (): Tally => ({ delivered: 0, triggered: 0, answered: 0, used: 0, declined: 0, related: 0, relatedAnswered: 0 })
 
 export function summarize(uses: Use[]): Summary {
   const items: Summary['items'] = {}
@@ -42,7 +39,8 @@ export function summarize(uses: Use[]): Summary {
   // The turns an agent read an item in, per launch.
   const readAt = new Map<string, number[]>()
   for (const u of uses) if ((u.how === 'fetched' || u.how === 'skill' || u.how === 'read') && u.turn !== undefined) readAt.set(`${u.agent}|${u.launch}|${u.id}`, [...(readAt.get(`${u.agent}|${u.launch}|${u.id}`) ?? []), u.turn])
-  const answered = (u: Use) => readAt.get(`${u.agent}|${u.launch}|${u.id}`)?.some((t) => u.turn !== undefined && t >= u.turn && t <= u.turn + ANSWER_TURNS) ?? false
+  // Read in that turn or any later turn of the same launch: an agent reads a rule when it gets to the work, not always at once.
+  const answered = (u: Use) => readAt.get(`${u.agent}|${u.launch}|${u.id}`)?.some((t) => u.turn !== undefined && t >= u.turn) ?? false
   const bump = (u: Use, f: (t: Tally) => void) => {
     const i = (items[u.id] ??= { id: u.id, ...zero(), reasons: [], byProvider: {} })
     f(i)
@@ -51,7 +49,14 @@ export function summarize(uses: Use[]): Summary {
   }
   for (const u of uses) {
     if (u.how === 'delivered') bump(u, (t) => t.delivered++)
-    else if (u.how === 'triggered') bump(u, (t) => (t.triggered++, answered(u) && t.answered++))
+    else if (u.how === 'triggered') {
+      const read = answered(u)
+      bump(u, (t) => {
+        t.triggered++
+        if (read) t.answered++
+        if (u.related) (t.related++, read && t.relatedAnswered++)
+      })
+    }
     else if (u.how === 'fetched' || u.how === 'skill' || u.how === 'read') bump(u, (t) => t.used++)
     else if (u.how === 'skipped') {
       bump(u, (t) => t.declined++)

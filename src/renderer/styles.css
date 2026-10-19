@@ -3329,3 +3329,4 @@ svg.pxg { display: block; flex: none; }
 .step-card .ghost:hover { color: var(--text); }
 .step-card.quiet { display: flex; gap: 8px; align-items: center; padding: 5px 8px; box-shadow: 0 0 0 1px var(--line); }
 .step-card.quiet .sc-title { flex: 1; font-weight: 400; }
+.reach-rem { display: block; color: var(--dim); font-weight: 400; font-size: 11px; margin-top: 2px; }
