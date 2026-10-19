@@ -116,7 +116,7 @@ const api: AwApi = {
   answerMenu: (id, i) => ipcRenderer.invoke('menu:answer', id, i),
   onComposerPrefill: on('composer-prefill'),
   cancelMenu: (id) => ipcRenderer.invoke('menu:cancel', id),
-  cancelQuestion: (id) => ipcRenderer.invoke('question:cancel', id),
+  cancelNeed: (id) => ipcRenderer.invoke('need:cancel', id),
   rewindTo: (id, text) => ipcRenderer.invoke('rewind-to', id, text),
   chatInterrupt: (id, restore) => ipcRenderer.invoke('chat:interrupt', id, restore),
   listRoles: (folder) => ipcRenderer.invoke('roles:list', folder),

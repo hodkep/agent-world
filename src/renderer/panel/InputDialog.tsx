@@ -20,7 +20,7 @@ export interface NeedActions {
   answer: (answers: QuestionAnswer[]) => Promise<void>
   menu: (index: number) => Promise<void>
   cancelMenu: () => Promise<void>
-  cancelQuestion: () => Promise<void>
+  cancelNeed: () => Promise<void>
 }
 
 interface Props {
@@ -48,13 +48,13 @@ export function NeedPanel({ need, actions, onFinishInTerminal, hint, onProgress 
     }
   }
   // The questions are laid out as one piece (steps, page, buttons), so they bring their own body and footer.
-  if (need.kind === 'question') return <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} onCancel={() => attempt(actions.cancelQuestion)} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
+  if (need.kind === 'question') return <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} onCancel={() => attempt(actions.cancelNeed)} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
   return (
     <>
       <div className="dialog-body">
         {need.kind === 'trust' && <Trust path={need.path} onAnswer={actions.trust} />}
         {need.kind === 'permission' && <Permission req={need.request} onDecide={actions.decide} />}
-        {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} />}
+        {need.kind === 'plan' && <Plan text={need.text} onAnswer={(c, f) => attempt(() => actions.plan(c, f))} onCancel={() => attempt(actions.cancelNeed)} />}
         {need.kind === 'menu' && <TerminalChoice menu={need} onPick={(i) => attempt(() => actions.menu(i))} onCancel={() => attempt(actions.cancelMenu)} onTerminal={onFinishInTerminal} />}
       </div>
       {error && (
@@ -136,7 +136,7 @@ function Permission({ req, onDecide }: { req: PermissionRequest; onDecide: (id: 
   )
 }
 
-function Plan({ text, onAnswer }: { text: string; onAnswer: (choice: 0 | 1 | 2, feedback?: string) => Promise<void> }) {
+function Plan({ text, onAnswer, onCancel }: { text: string; onAnswer: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>; onCancel: () => Promise<void> }) {
   const [feedback, setFeedback] = useState('')
   const [busy, setBusy] = useState(false)
   const go = async (c: 0 | 1 | 2, f?: string) => {
@@ -160,6 +160,9 @@ function Plan({ text, onAnswer }: { text: string; onAnswer: (choice: 0 | 1 | 2, 
         </button>
         <button disabled={busy} onClick={() => void go(1)}>
           Approve · review each edit
+        </button>
+        <button disabled={busy} onClick={() => void onCancel()} title="Reject the plan, as Esc does in the terminal">
+          Reject plan
         </button>
       </div>
       <form
