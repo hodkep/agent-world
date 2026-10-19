@@ -34,6 +34,32 @@ test('a dev server an agent starts shows up in the Preview tab', async () => {
   }
 })
 
+test('the Preview tab keeps its page when you go to the chat and back: the page is not loaded again', async () => {
+  const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<h1>kept</h1>'))
+  await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+  const port = (dev.address() as AddressInfo).port
+  const home = mkdtempSync(join(tmpdir(), 'aw-keep-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_DEV_PORT: String(port), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await expect(page.getByRole('tab', { name: /Preview ●/ })).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code)
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('kept')
+    // Something that only a page that is still the same page remembers.
+    await run('window.__seen = 42')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
+  } finally {
+    await shutdown()
+    dev.close()
+  }
+})
+
 test('selecting an element on the preview adds it to the message as one chip of context', async () => {
   const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<main><h1>Shop</h1><button id="cta" class="big">Sign up</button></main>'))
   await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
