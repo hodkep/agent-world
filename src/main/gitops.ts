@@ -115,7 +115,7 @@ export async function discardFile(cwd: string, path: string) {
 
 const run = promisify(execFile)
 /** Every git the app runs here: the chosen program with its environment (and no optional locks), never a bare `git` on the path. */
-const gitRun = (cwd: string, args: string[]) => run(gitBin(), args, { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024 })
+const gitRun = (cwd: string, args: string[], timeout?: number) => run(gitBin(), args, { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024, ...(timeout && { timeout }) })
 /** Git's output exactly as it came (the other helper trims it, which would eat the leading space of a ` M` status line). */
 const raw = async (cwd: string, ...args: string[]) => (await gitRun(cwd, args)).stdout
 
@@ -200,15 +200,23 @@ const commitOnly = (hash: string) => {
   return hash
 }
 
-/** The branch's commits, newest first: those since it left `base` (scope "branch") or all that lead to it ("all"). A search matches message, author or hash. */
 /** How many commits a search by git itself will name: enough to look through, never the whole history of a big repository. */
 const SEARCH_CAP = 200
+/** How long a search by git may take before it is stopped. */
+const SEARCH_MS = 20_000
 
 /** The commits whose message or author holds the text (git does the looking), or that start with it as a hash: at most SEARCH_CAP of each, newest first. */
-async function searchHashes(cwd: string, q: string): Promise<string[]> {
+async function searchHashes(cwd: string, q: string, timeoutMs: number): Promise<string[]> {
   const found = new Set<string>()
   for (const by of ['--grep', '--author']) {
-    for (const h of (await git(cwd, 'log', '-i', '-F', `${by}=${q}`, `--max-count=${SEARCH_CAP}`, '--format=%H', 'HEAD').catch(() => '')).split('\n')) if (h) found.add(h)
+    let out = ''
+    try {
+      out = (await gitRun(cwd, ['log', '-i', '-F', `${by}=${q}`, `--max-count=${SEARCH_CAP}`, '--format=%H', 'HEAD'], timeoutMs)).stdout
+    } catch (e) {
+      // A search that ran out of time is said, not shown as "no commit matches".
+      if ((e as { killed?: boolean }).killed) throw new Error('The search took too long and was stopped; try a longer word.')
+    }
+    for (const h of out.split('\n')) if (h) found.add(h)
   }
   if (/^[0-9a-f]{4,40}$/i.test(q)) {
     const hash = await git(cwd, 'rev-parse', '--verify', '--quiet', `${q}^{commit}`).catch(() => '')
@@ -217,7 +225,16 @@ async function searchHashes(cwd: string, q: string): Promise<string[]> {
   return [...found]
 }
 
-export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; since?: number; /** Search by asking git, with a cap, instead of reading the whole range (for a folder with a long history). */ gitSearch?: boolean }): Promise<CommitPage> {
+/** The page a window asks for, kept to 1 to 200 commits from a whole, non-negative place: whatever was sent. */
+export function clampPage(o: { limit?: unknown; skip?: unknown }): { limit: number; skip: number } {
+  const whole = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : undefined)
+  const limit = whole(o.limit)
+  const skip = whole(o.skip)
+  return { limit: limit === undefined ? 50 : Math.min(200, Math.max(1, limit)), skip: skip === undefined ? 0 : Math.max(0, skip) }
+}
+
+/** The branch's commits, newest first: those since it left `base` (scope "branch") or all that lead to it ("all"). A search matches message, author or hash. */
+export async function history(cwd: string, base: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; since?: number; /** Search by asking git, with a cap, instead of reading the whole range (for a folder with a long history). */ gitSearch?: boolean; searchTimeoutMs?: number }): Promise<CommitPage> {
   // An agent working in the folder itself has no branch of its own: its commits are those made after it was hired.
   const since = o.since === undefined ? [] : [`--since=${new Date(o.since).toISOString()}`]
   const range = o.since !== undefined || o.scope === 'all' ? 'HEAD' : `${await mergeBase(cwd, base)}..HEAD`
@@ -229,7 +246,7 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
   const fields = ['--no-renames', '--shortstat', '--format=%x1e%H%x1f%an%x1f%ct%x1f%s']
   let named: string[] | null = null
   if (searching && o.gitSearch) {
-    named = await searchHashes(cwd, o.search!.trim())
+    named = await searchHashes(cwd, o.search!.trim(), o.searchTimeoutMs ?? SEARCH_MS)
     if (!named.length) return { commits: [], total: 0, more: false }
   }
   const text = named ? await raw(cwd, 'log', '--no-walk=sorted', ...fields, ...named) : await raw(cwd, 'log', ...fields, ...since, ...window, range)
@@ -270,7 +287,7 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
 }
 
 /** The commits of an agent working in the folder itself: those made since it was hired, or every one of the folder's when no hire time is on record. */
-export async function inPlaceHistory(cwd: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }, hiredAt?: number): Promise<CommitPage> {
+export async function inPlaceHistory(cwd: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number; searchTimeoutMs?: number }, hiredAt?: number): Promise<CommitPage> {
   if (!(await hasCommits(cwd))) return { commits: [], total: 0, more: false }
   // All of the folder's commits, a page at a time; how many came since the agent was hired is one count, so the list can mark where it started.
   const page = await history(cwd, '', { ...o, scope: 'all', gitSearch: true })
@@ -310,6 +327,8 @@ export async function commitDiff(cwd: string, hash: string, path: string) {
  * branch or has uncommitted work, and backs out completely on conflict, so the user's tree is never left half-merged.
  */
 export async function mergeInto(repo: string, branch: string, base: string, o: { squash?: boolean; message?: string } = {}) {
+  // Whichever button asked: a branch with no shared history is refused here, in the same words as Land.
+  if (await noMergeBase(repo, branch, base)) throw new Error(unrelatedMessage(branch, base))
   const current = await checkedOutBranch(repo)
   if (current !== base) throw new Error(`${base} is not checked out in ${repo} (it is on ${current}); switch to ${base} first.`)
   if (await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK)) throw new Error(`${repo} has uncommitted changes; commit or stash them before merging.`)
@@ -340,11 +359,15 @@ export interface Readiness {
 }
 
 /** What stands between the agent's work and the base branch, without changing anything. */
+/** Does git find no common ancestor of the branch and its base (the base's history was rewritten, or the branch never came from it)? */
+export const noMergeBase = (cwd: string, branch: string, base: string) => git(cwd, 'merge-base', base, branch).then(() => false, () => true)
+export const unrelatedMessage = (branch: string, base: string) => `${branch} does not come from ${base}'s history: reset it onto ${base} before landing.`
+
 export async function finishReadiness(repo: string, cwd: string, branch: string, base: string): Promise<Readiness> {
   const uncommitted = lines(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK)).length
   const baseReady = (await checkedOutBranch(repo)) === base && !(await git(repo, 'status', '--porcelain', '--', '.', ...NOT_WORK))
   // With no merge base every commit of the branch would count as new, and a merge would refuse: say so instead.
-  const unrelated = await git(cwd, 'merge-base', base, branch).then(() => false, () => true)
+  const unrelated = await noMergeBase(cwd, branch, base)
   if (unrelated) return { ahead: 0, uncommitted, baseReady, conflicts: [], unrelated }
   const ahead = Number(await git(cwd, 'rev-list', '--count', `${base}..${branch}`))
   let conflicts: string[] = []

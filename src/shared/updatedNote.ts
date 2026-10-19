@@ -8,3 +8,13 @@ export function justUpdated(seen: string, running: string): boolean {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return b[i]! > a[i]!
   return false
 }
+
+/** Is the version remembered one the app should simply take as its own, without a word: nothing remembered yet, or a newer one than runs now (a downgrade)? */
+export function learnsVersion(seen: string, running: string): boolean {
+  if (seen === '') return nums(running) !== undefined
+  const a = nums(seen)
+  const b = nums(running)
+  if (!a || !b) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!
+  return false
+}

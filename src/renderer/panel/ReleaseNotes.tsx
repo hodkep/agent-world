@@ -3,15 +3,37 @@ import { marked } from 'marked'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReleaseNotes } from '../../shared/changelog'
 
-/** Release notes (Markdown from a changelog or a release page) as clean HTML: no scripts, no pictures, no forms, and only web and mail links. */
+/**
+ * Release notes (Markdown from a changelog or a release page) as clean HTML: no scripts, no pictures, no forms, no classes or styles (so a note cannot borrow the app's looks),
+ * and only https links. Each link shows the host it really goes to beside its words, so words cannot hide the address.
+ */
 export function notesHtml(markdown: string): string {
   const clean = DOMPurify.sanitize(marked.parse(markdown, { async: false }) as string, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ['img', 'picture', 'source', 'svg', 'style', 'form', 'input', 'button', 'textarea', 'select', 'iframe', 'video', 'audio', 'object', 'embed'],
-    FORBID_ATTR: ['style', 'srcset', 'src'],
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:)/i
+    FORBID_ATTR: ['style', 'srcset', 'src', 'class', 'id', 'name'],
+    ALLOWED_URI_REGEXP: /^https:/i
   })
-  return clean
+  const box = document.createElement('template')
+  box.innerHTML = clean
+  for (const a of box.content.querySelectorAll('a')) {
+    const href = a.getAttribute('href')
+    let host = ''
+    try {
+      host = href ? new URL(href).hostname : ''
+    } catch {
+      /* not an address: it is words below */
+    }
+    if (!href || !host) {
+      a.replaceWith(...a.childNodes)
+      continue
+    }
+    a.setAttribute('title', href)
+    a.setAttribute('rel', 'noopener noreferrer')
+    const words = a.textContent ?? ''
+    if (!words.includes(host)) a.append(` (${host})`)
+  }
+  return box.innerHTML
 }
 
 /** The notes of a version, read in a small box; a link in them opens in the browser, nowhere else. */
@@ -43,8 +65,11 @@ export function WhatsNew({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [info, setInfo] = useState<Awaited<ReturnType<typeof window.aw.appInfo>> | null>(null)
   useEffect(() => {
+    // The dialog is shown from a button; closing it puts focus back on that button (a dialog taken out of the page does not).
+    const opener = document.activeElement as HTMLElement | null
     dialog.current?.showModal()
     void window.aw.appInfo().then(setInfo, () => setInfo({ version: '', notes: null }))
+    return () => opener?.focus()
   }, [])
   const notes: ReleaseNotes | null = info?.notes ?? null
   return (

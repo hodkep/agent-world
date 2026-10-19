@@ -7,7 +7,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 ### Added
 
 - Code: the diff on the Changes tab folds the unchanged code by default, with a row such as "49 hidden lines" for each stretch. **Unchanged code: Show | Fold** and **Context: 3 / 5 / 10** sit above the diff and are kept; ⌘⌥U (Ctrl+Alt+U) switches them, and **F1** has **Show all hidden lines**. Selecting code in a folded diff asks the agent about the real line numbers.
-- Updates: Settings > Updates shows the version installed, with **What's new** (the notes of that version, from the changelog that now comes with the app) and **Check now**; the popover under the update chip shows what is new in the version offered (the release's own text, cleaned and with links that open in the browser) before **Download**; the first start after an update says so once with **See what's new**.
+- Updates: Settings > Updates shows the version installed, with **What's new** (the notes of that version, from the changelog that now comes with the app) and **Check now**; the popover under the update chip shows what is new in the version offered (the release's own text, cleaned and with links that open in the browser) before **Download**; the first start after an update says so once with **See what's new** (remembered the moment it is shown; the first start and a downgrade say nothing). Every link in release notes shows the host it really goes to, and only https links work.
 - Code: for an agent working in the folder itself the commits list shows every commit of the folder, a page at a time, with a line where the agent started and a search done by git.
 
 ### Changed

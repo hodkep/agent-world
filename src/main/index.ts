@@ -89,7 +89,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, makesBranch, nameTaken, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -2106,8 +2106,10 @@ async function main() {
   ipcMain.handle('code:dirty-diff', async (_, id: string, path: string) => dirtyDiff((await folderOf(id)).cwd, path))
   ipcMain.handle('code:log', async (_, id: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }) => {
     const a = await folderOf(id)
-    if (a.branch) return history(a.cwd, a.base ?? (await checkedOutBranch(a.repoPath)), o)
-    return inPlaceHistory(a.cwd, o, a.hiredAt)
+    // The window asks for a page; what it sent is kept to a sane one (and a search to a sane length), whatever it was.
+    const page = { scope: o?.scope === 'all' ? ('all' as const) : ('branch' as const), ...(typeof o?.search === 'string' && { search: o.search.slice(0, 200) }), ...clampPage(o ?? {}) }
+    if (a.branch) return history(a.cwd, a.base ?? (await checkedOutBranch(a.repoPath)), page)
+    return inPlaceHistory(a.cwd, page, a.hiredAt)
   })
   ipcMain.handle('code:commit-detail', async (_, id: string, hash: string) => commitDetail((await folderOf(id)).cwd, hash))
   ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string) => commitDiff((await folderOf(id)).cwd, hash, path))
@@ -2181,7 +2183,7 @@ async function main() {
   ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean; anyway?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
-    if (r.unrelated) throw new Error(`${a.branch} does not come from ${base}'s history: reset it onto ${base} before landing.`)
+    if (r.unrelated) throw new Error(unrelatedMessage(a.branch!, base))
     if (r.uncommitted) throw new Error(`${a.name} has ${r.uncommitted} uncommitted file(s); commit them first (Code tab).`)
     if (!r.ahead) throw new Error(`${a.branch} has nothing that ${base} does not already have.`)
     // The server says no, not only the dialog: an audit still running or a plan never approved holds the branch back.

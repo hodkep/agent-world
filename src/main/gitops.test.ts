@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 import { useGit } from './gitProgram'
 import { chmodSync } from 'node:fs'
@@ -518,5 +518,70 @@ describe('a branch that shares no history with its base', () => {
     git(wt.path, 'add', '.')
     git(wt.path, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'work')
     expect(await finishReadiness(repo, wt.path, wt.branch, 'main')).toMatchObject({ unrelated: false, ahead: 1 })
+  })
+})
+
+describe('a long history is never read whole', () => {
+  afterEach(() => useGit(null))
+  const recording = () => {
+    const seen = join(tmp, 'calls.log')
+    const bin = join(tmp, 'recording-git')
+    writeFileSync(bin, `#!/bin/sh\necho "$*" >> '${seen}'\nexec git "$@"\n`)
+    chmodSync(bin, 0o755)
+    useGit({ bin, source: 'bundled', env: {}, pathDirs: [] })
+    return () => readFileSync(seen, 'utf8').trim().split('\n')
+  }
+  it('asks git for one page: a count and a skip, so a thousand commits are not read to show fifty', async () => {
+    const calls = recording()
+    await inPlaceHistory(repo, { scope: 'branch', limit: 2, skip: 1 }, 0)
+    const log = calls().filter((l) => l.startsWith('log '))
+    expect(log.length).toBeGreaterThan(0)
+    // One more than the page, to know whether more follow; every log walks with a limit.
+    expect(log.some((l) => l.includes('--max-count=3') && l.includes('--skip=1'))).toBe(true)
+    expect(log.every((l) => l.includes('--max-count=') || l.includes('--no-walk'))).toBe(true)
+  })
+  it('searches by git with a fixed string, no case, and a cap on what it names; the page is then read for those commits only', async () => {
+    const calls = recording()
+    await inPlaceHistory(repo, { scope: 'branch', search: 'init' }, 0)
+    const log = calls().filter((l) => l.startsWith('log '))
+    const grep = log.find((l) => l.includes('--grep=init'))!
+    expect(grep).toContain('-F')
+    expect(grep).toContain('-i')
+    expect(grep).toContain('--max-count=200')
+    expect(log.find((l) => l.includes('--author=init'))).toContain('--max-count=200')
+    expect(log.some((l) => l.includes('--no-walk=sorted'))).toBe(true)
+    // No log of the whole range went by: nothing read in full and filtered here.
+    expect(log.every((l) => l.includes('--max-count=') || l.includes('--no-walk'))).toBe(true)
+  })
+  it('stops a search that takes too long and says so, instead of leaving the panel waiting', async () => {
+    const bin = join(tmp, 'slow-git')
+    // Only the search is slow; everything else is git as it is.
+    writeFileSync(bin, '#!/bin/sh\ncase "$*" in *--grep*) exec sleep 5;; esac\nexec git "$@"\n')
+    chmodSync(bin, 0o755)
+    useGit({ bin, source: 'bundled', env: {}, pathDirs: [] })
+    const started = Date.now()
+    await expect(inPlaceHistory(repo, { scope: 'branch', search: 'x', searchTimeoutMs: 200 } as never, 0)).rejects.toThrow(/too long/)
+    expect(Date.now() - started).toBeLessThan(3000)
+  })
+})
+
+describe('the page a window asks for', () => {
+  it('is kept to 1 to 200 commits from a whole, non-negative place, whatever was sent', () => {
+    expect(clampPage({})).toEqual({ limit: 50, skip: 0 })
+    expect(clampPage({ limit: 0, skip: -5 })).toEqual({ limit: 1, skip: 0 })
+    expect(clampPage({ limit: 100000, skip: 7.9 })).toEqual({ limit: 200, skip: 7 })
+    expect(clampPage({ limit: Number.NaN, skip: Number.POSITIVE_INFINITY })).toEqual({ limit: 50, skip: 0 })
+    expect(clampPage({ limit: '9' as never, skip: '2' as never })).toEqual({ limit: 50, skip: 0 })
+  })
+})
+
+describe('landing a branch that shares no history with its base', () => {
+  it('is refused by the merge itself, whichever button asked, with the same words as Land', async () => {
+    git(repo, 'checkout', '-q', '--orphan', 'rewritten')
+    writeFileSync(join(repo, 'x.txt'), 'x')
+    git(repo, 'add', '.')
+    git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'rewritten work')
+    git(repo, 'checkout', '-q', 'main')
+    await expect(mergeInto(repo, 'rewritten', 'main')).rejects.toThrow("rewritten does not come from main's history: reset it onto main before landing.")
   })
 })
