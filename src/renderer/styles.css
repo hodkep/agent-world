@@ -3346,3 +3346,10 @@ svg.pxg { display: block; flex: none; }
 .swa-bar { height: 8px; margin: 0 0 8px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
 .swa-bar i { display: block; height: 100%; background: var(--think); }
 .swa-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 2px solid var(--ink); }
+
+/* The dot on a switcher button: another project or agent needs you (red, pulsing in steps) or finished (green, still) */
+.adot { position: absolute; right: -5px; top: -5px; width: 10px; height: 10px; z-index: 2; pointer-events: none; box-shadow: 0 0 0 2px var(--panel); }
+.adot.need { background: var(--danger-hot); animation: wt-blink 1s steps(2) infinite; }
+.adot.done { background: var(--ok-text); }
+.wt-done { position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; background: var(--ok-text); box-shadow: 0 0 0 2px var(--panel-2); }
+@media (prefers-reduced-motion: reduce) { .adot.need { animation: none; } }

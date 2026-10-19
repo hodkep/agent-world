@@ -13,6 +13,7 @@ import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
 import { useHoverMenu } from './panel/hoverMenu'
+import { agentDot, createDoneTracker, projectDot } from '../shared/attention'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
 import { type LimitView, type UsageLimits, noLimits, untilReset } from '../shared/usage'
@@ -662,7 +663,18 @@ export function App() {
     const wait = waits.find((w) => w.agentId === id)
     return need ? needTitle(need).toLowerCase() : wait ? waitWord(wait.kind) : null
   }
+  // Agents that finished while you were elsewhere: another project's, or another agent here. Remembered until you open that project or select the agent.
+  const finished = useRef(createDoneTracker())
+  const [finishedKey, setFinishedKey] = useState('')
+  useEffect(() => {
+    const t = finished.current
+    t.observe(allAgents.map((a) => ({ id: a.id, repoPath: a.repoPath, activity: world[a.id]?.activity ?? 'asleep' })))
+    if (folder) t.opened(folder)
+    if (selected) t.selected(selected)
+    setFinishedKey(`${[...t.projects()].sort().join('|')}#${[...t.agents()].sort().join('|')}`)
+  }, [world, allAgents, folder, selected])
   // What each project's agents are doing, for its tile in the project switcher: some wait for the person (a permission, a question, a plan, a gate), some are working.
+  const agentsDot = agentDot({ selected, agents: agents.map((a) => ({ id: a.id, asks: askWord(a.id) !== null })), done: finished.current.agents() })
   const wsActivity: Record<string, WorkspaceActivity> = {}
   for (const a of allAgents) {
     const w = (wsActivity[a.repoPath] ??= { waiting: 0, working: 0 })
@@ -1297,6 +1309,8 @@ export function App() {
         <WorkspaceMenu
           workspaces={workspaces}
           activity={wsActivity}
+          dot={projectDot({ activity: wsActivity, active: folder, done: finished.current.projects() })}
+          finished={finished.current.projects()}
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
           onPick={pick}
           onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
@@ -1499,10 +1513,11 @@ export function App() {
               <button onClick={() => step(-1)} aria-label="Previous agent" title="Previous agent in this project" className="hc-step hc-prev" />
               <button onClick={() => step(1)} aria-label="Next agent" title="Next agent in this project" className="hc-step hc-next" />
               <span className="hc-wrap" ref={sw.wrap as React.RefObject<HTMLSpanElement>} onMouseEnter={() => sw.menu.enter()} onMouseLeave={() => sw.menu.leave()}>
-                <button className={`hc-switch ${sw.open ? 'open' : ''}`} onClick={() => sw.menu.click()} aria-haspopup="menu" aria-expanded={sw.open} aria-label="Agents" title="All agents in this project">
+                <button className={`hc-switch ${sw.open ? 'open' : ''}`} onClick={() => sw.menu.click()} aria-haspopup="menu" aria-expanded={sw.open} aria-label="Agents" title={`All agents in this project${agentsDot === 'need' ? '. Another agent needs you' : agentsDot === 'done' ? '. Another agent finished' : ''}`}>
                   {agents.length}
                   <span aria-hidden="true">▾</span>
                 </button>
+                {agentsDot && <span className={`adot ${agentsDot}`} aria-hidden="true" data-testid="agents-dot" />}
                 {sw.open && (
                   <div className="qp-wrap hc" data-pinned={sw.pinned}>
                     <QuickPanel
