@@ -3,8 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
+import { useGit } from './gitProgram'
+import { chmodSync } from 'node:fs'
 
 let tmp: string
 let repo: string
@@ -414,5 +416,55 @@ describe('the commits made in a folder since an agent was hired into it', () => 
     expect(page.commits.map((c) => c.subject)).toEqual(['feat: two.txt', 'feat: one.txt'])
     expect(page.total).toBe(2)
     expect((await history(repo, '', { scope: 'branch', since: Date.parse('2031-01-01T00:00:00Z') })).commits).toEqual([])
+  })
+})
+
+describe('every look the app takes at a repository goes through the chosen git without optional locks', () => {
+  afterEach(() => useGit(null))
+  it('reads status, history, a diff and a commit with GIT_OPTIONAL_LOCKS=0 and the chosen program, never a bare git', async () => {
+    const seen = join(tmp, 'seen.log')
+    const bin = join(tmp, 'recording-git')
+    writeFileSync(bin, `#!/bin/sh\necho "$GIT_OPTIONAL_LOCKS $1" >> '${seen}'\nexec git "$@"\n`)
+    chmodSync(bin, 0o755)
+    useGit({ bin, source: 'bundled', env: {}, pathDirs: [] })
+    writeFileSync(join(wt.path, 'a.ts'), 'changed\n')
+    await worktreeStatus(wt.path)
+    await history(wt.path, 'main', { scope: 'all' })
+    await dirtyDiff(wt.path, 'a.ts')
+    const hash = git(wt.path, 'rev-parse', 'HEAD')
+    await commitDiff(wt.path, hash, 'a.ts')
+    await changes(wt.path, 'main')
+    const lines = readFileSync(seen, 'utf8').trim().split('\n')
+    // status, log, rev-list... and the `show` calls (one for dirtyDiff, two for the commit) all went through it, every one told not to lock.
+    expect(lines.some((l) => l.endsWith(' status'))).toBe(true)
+    expect(lines.filter((l) => l.endsWith(' show')).length).toBe(3)
+    expect(lines.every((l) => l.startsWith('0 '))).toBe(true)
+  })
+})
+
+describe('the commits of an agent working in the folder itself', () => {
+  it('are those since it was hired; an agent with no hire time on record (an older one) shows every commit of the folder instead of failing', async () => {
+    writeFileSync(join(repo, 'n.txt'), 'n')
+    git(repo, 'add', '.')
+    git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'later work')
+    expect((await inPlaceHistory(repo, { scope: 'branch' }, Date.now() + 60_000)).commits).toEqual([])
+    expect((await inPlaceHistory(repo, { scope: 'branch' })).commits.map((c) => c.subject)).toEqual(['later work', 'init'])
+  })
+  it('are none in a repository with no commits yet', async () => {
+    const fresh = join(tmp, 'fresh')
+    mkdirSync(fresh)
+    git(fresh, 'init', '-q', '-b', 'main')
+    expect(await inPlaceHistory(fresh, { scope: 'branch' }, 0)).toEqual({ commits: [], total: 0, more: false })
+  })
+})
+
+describe('where an agent without a branch of its own works', () => {
+  it('says whether the folder is a git repository and the branch it is on, empty when there is none', async () => {
+    expect(await placeOf(repo)).toEqual({ git: true, branch: 'main' })
+    expect(await placeOf(tmp)).toEqual({ git: false, branch: '' })
+    const fresh = join(tmp, 'fresh2')
+    mkdirSync(fresh)
+    git(fresh, 'init', '-q', '-b', 'main')
+    expect(await placeOf(fresh)).toEqual({ git: true, branch: '' })
   })
 })

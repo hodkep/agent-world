@@ -32,6 +32,12 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - Checks and the review: the app runs them.
 - **Land**: the band in the agent's chat (below its run track) refuses unless the gate is met or you click **Land anyway**. It shows the audit's findings to tick and the checks, and it is where you merge or squash and remove the agent.
 
+![The audit's findings and the checks in the agent's chat, with AUDIT beside the agent](../images/workflow-audit-band.png)
+
+The audit starts by itself, once, when the agent's steps before it have passed (the plan, its work, a check that must pass, a step you approve). It is one model call, so it costs: a run that commits again later is **not** audited again by itself; the band then says "The audit has not run yet" and **Run the audit now** audits the branch as it is. What waits for you shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and under "others waiting", and the agent raises a hand in the office, as for a permission.
+
+![Land, after the findings were seen, with LAND beside the agent](../images/workflow-land-band.png)
+
 Limits:
 
 - An agent that unsets git's environment variables or sets its own `core.hooksPath` gets past the git holds.

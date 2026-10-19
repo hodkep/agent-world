@@ -114,8 +114,10 @@ export async function discardFile(cwd: string, path: string) {
 // ---- What is uncommitted, staging, and the history of the branch -----------------------------------------------
 
 const run = promisify(execFile)
+/** Every git the app runs here: the chosen program with its environment (and no optional locks), never a bare `git` on the path. */
+const gitRun = (cwd: string, args: string[]) => run(gitBin(), args, { cwd, env: gitProcessEnv(), maxBuffer: 64 * 1024 * 1024 })
 /** Git's output exactly as it came (the other helper trims it, which would eat the leading space of a ` M` status line). */
-const raw = async (cwd: string, ...args: string[]) => (await run('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 })).stdout
+const raw = async (cwd: string, ...args: string[]) => (await gitRun(cwd, args)).stdout
 
 export interface WorktreeStatus {
   staged: Change[]
@@ -163,7 +165,7 @@ export async function commitStaged(cwd: string, message: string) {
 /** An uncommitted file: as the last commit has it on the left, as it is in the worktree on the right; empty when it is new or deleted. */
 export async function dirtyDiff(cwd: string, path: string) {
   inside(cwd, path)
-  const original = await run('git', ['show', `HEAD:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout, () => '')
+  const original = await gitRun(cwd, ['show', `HEAD:${path}`]).then((r) => r.stdout, () => '')
   const current = await readWorktreeFile(cwd, path).catch(() => '')
   return { original, current }
 }
@@ -242,6 +244,18 @@ export async function history(cwd: string, base: string, o: { scope: 'branch' | 
   return { commits: commits.slice(0, limit), total, more: commits.length > limit }
 }
 
+/** The commits of an agent working in the folder itself: those made since it was hired, or every one of the folder's when no hire time is on record. */
+export async function inPlaceHistory(cwd: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }, hiredAt?: number): Promise<CommitPage> {
+  if (!(await hasCommits(cwd))) return { commits: [], total: 0, more: false }
+  return history(cwd, '', hiredAt === undefined ? { ...o, scope: 'all' } : { ...o, since: hiredAt })
+}
+
+/** Where an agent without a branch of its own works: whether the folder is a git repository, and the branch it is on (none before the first commit). */
+export async function placeOf(cwd: string): Promise<{ git: boolean; branch: string }> {
+  const repo = await isGitRepo(cwd)
+  return { git: repo, branch: repo ? await checkedOutBranch(cwd) : '' }
+}
+
 /** One commit: its message in full and the files it changed. */
 export async function commitDetail(cwd: string, hash: string): Promise<{ subject: string; body: string; author: string; at: number; files: Change[] }> {
   commitOnly(hash)
@@ -258,7 +272,7 @@ export async function commitDetail(cwd: string, hash: string): Promise<{ subject
 export async function commitDiff(cwd: string, hash: string, path: string) {
   commitOnly(hash)
   inside(cwd, path)
-  const at = (rev: string) => run('git', ['show', `${rev}:${path}`], { cwd, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout, () => '')
+  const at = (rev: string) => gitRun(cwd, ['show', `${rev}:${path}`]).then((r) => r.stdout, () => '')
   return { original: await at(`${hash}^`), current: await at(hash) }
 }
 

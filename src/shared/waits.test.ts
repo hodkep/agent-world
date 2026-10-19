@@ -44,3 +44,14 @@ describe('what waits for the person, per agent', () => {
     expect(['plan', 'approve', 'check', 'audit', 'land'].map((k) => waitWord(k as never))).toEqual(['plan', 'approve', 'check?', 'audit', 'land'])
   })
 })
+
+describe('what waits for the person in the open project only', () => {
+  const other = (agent: string, run: string): RunEvent[] => [{ ...begin(STANDARD, agent, run), project: '/other' } as RunEvent, { k: 'plan', t: 200, run, round: 1, state: 'submitted', path: 'p.md', readback }]
+  it('leaves out another project\'s plans and its held merges', () => {
+    const runs = reduceRuns([{ ...begin(STANDARD), project: '/p' } as RunEvent, submitted, ...other('a2', 'r2')])
+    const all = waitsForPerson(runs, () => ({ auditOn: true }), [{ agentId: 'a2', declined: false }])
+    expect(all.map((w) => `${w.agentId}:${w.kind}`).sort()).toEqual(['a1:plan', 'a2:land', 'a2:plan'])
+    const here = waitsForPerson(runs, () => ({ auditOn: true }), [{ agentId: 'a2', declined: false }, { agentId: 'a1', declined: false }], { project: '/p', agents: new Set(['a1']) })
+    expect(here.map((w) => `${w.agentId}:${w.kind}`).sort()).toEqual(['a1:land', 'a1:plan'])
+  })
+})

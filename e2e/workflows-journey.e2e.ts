@@ -100,6 +100,7 @@ for (const program of ['claude', 'agy'] as const) {
       await dialog.getByRole('checkbox', { name: 'Seen, fine' }).click()
       await expect(dialog.getByRole('checkbox', { name: 'Seen, fine' })).toBeChecked()
       await expect(s.page.locator('.roster .ask-pill')).toHaveText('land')
+      await shot(s.page, `journey-${program}-3b-land`)
       await dialog.getByRole('button', { name: 'Land on main' }).click()
       await expect(dialog).toBeHidden({ timeout: 20_000 })
       expect(gitIn(w.repo, 'log', '--format=%s', 'main').split('\n')).toEqual(expect.arrayContaining(['add toggle', 'make the check pass']))

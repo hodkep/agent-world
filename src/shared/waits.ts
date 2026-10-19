@@ -17,7 +17,9 @@ export const waitWord = (kind: WaitKind) => ({ plan: 'plan', approve: 'approve',
  * Everything that waits for the person across runs: a plan handed in, check commands to approve (or a check that gave up), a step to approve,
  * audit findings not seen, and Land (the work is built and nothing but the person's word is left, or git is holding a merge for it).
  */
-export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, holds: { agentId: string; declined: boolean }[] = []): Wait[] {
+export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, holds: { agentId: string; declined: boolean }[] = [], scope?: { project: string; agents: Set<string> }): Wait[] {
+  // The open project's: another project's plans and held merges are not what the person is looking at.
+  if (scope) (runs = runs.filter((r) => r.project === scope.project), (holds = holds.filter((h) => scope.agents.has(h.agentId))))
   const out: Wait[] = []
   const add = (run: Run, kind: WaitKind) => out.push({ agentId: run.agent, run, kind })
   for (const { run } of pendingPlans(runs)) if (run.status !== 'stopped') add(run, 'plan')

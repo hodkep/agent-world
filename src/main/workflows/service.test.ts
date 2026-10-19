@@ -1256,3 +1256,34 @@ describe('running a workflow\'s checks', () => {
     expect(stateOf(b.wf, 'tests', 'h3')).toBe('failed')
   })
 })
+
+describe('when the app starts the audit by itself', () => {
+  const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const built = () => {
+    const o = make()
+    o.state.pick = () => STANDARD
+    o.wf.begin('a1', 'Add a toggle')
+    o.wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    o.wf.decide(o.wf.runs()[0]!.id, 'approved')
+    return o
+  }
+  it('not while the agent is still building, once it reported its work, and not for a run with no workflow', () => {
+    const { wf } = built()
+    expect(wf.auditDue('a1', 'h1')).toBe(false)
+    wf.stepDone('a1', 'build')
+    expect(wf.auditDue('a1', 'h1')).toBe(true)
+    const plain = make()
+    plain.wf.begin('a1', 'No steps')
+    expect(plain.wf.auditDue('a1', 'h1')).toBe(false)
+  })
+  it('once per run: a later commit (a new head) is not audited again by itself, only when the person asks', async () => {
+    const { wf } = built()
+    wf.stepDone('a1', 'build')
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.auditDue('a1', 'h1')).toBe(false)
+    expect(wf.auditDue('a1', 'h2')).toBe(false)
+    // The person's own "Run the audit now" still audits the new head.
+    await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
+    expect(wf.mergeCheck('a1', 'h2')!.audit.state).toBe('done')
+  })
+})
