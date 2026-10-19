@@ -4,7 +4,7 @@ import { stepCardOf } from './stepCard'
 
 const check = (o: Partial<MergeCheck> = {}): MergeCheck => ({ run: { id: 'r1', title: 'Add a toggle' }, plan: 'approved', planned: null, commits: 2, flagged: 0, audit: { state: 'not-run' }, asideAudit: false, checks: [], blocking: [], notes: [], ...o })
 const done = (findings: { kind: 'out-of-scope' | 'goal-unmet' | 'guess-wrong'; text: string; file?: string; seen?: boolean }[]): MergeCheck['audit'] => ({ state: 'done', findings: findings.map((f) => ({ seen: false, ...f })), files: 3, lines: 40, truncated: false })
-const ask = (o: { merge?: MergeCheck | null; held?: boolean; working?: boolean } = {}) => stepCardOf({ merge: check(), held: false, working: false, ...o })
+const ask = (o: { merge?: MergeCheck | null; held?: boolean; working?: boolean; unrelated?: { branch: string; base: string } | null } = {}) => stepCardOf({ merge: check(), held: false, working: false, unrelated: null, ...o })
 
 describe('the card of the step that waits for the person', () => {
   it('is nothing with no gate, while the agent works, or when nothing is waiting', () => {
@@ -44,6 +44,13 @@ describe('the card of the step that waits for the person', () => {
     const card = ask({ held: true, merge: check({ blocking: ['The plan is still waiting for your approval.'], audit: { state: 'not-run' } }) })!
     expect(card).toMatchObject({ kind: 'hold', actions: { again: true, seenAll: false, aside: true }, againLabel: 'Run the audit' })
     expect(ask({ merge: check({ audit: { state: 'failed', reason: 'x' } }) })).toMatchObject({ againLabel: 'Run the audit again' })
+  })
+
+  it('is one quiet line when the branch shares no history with its base, with or without a gate, and nothing else matters then', () => {
+    const line = { kind: 'unrelated', tag: 'NOT LANDABLE', title: "This branch does not come from main's history: reset it onto main before landing", actions: { seenAll: false, again: false, aside: false, undo: false } }
+    expect(ask({ merge: null, unrelated: { branch: 'aw/ada', base: 'main' } })).toMatchObject(line)
+    expect(ask({ held: true, merge: check({ blocking: ['x'], audit: done([{ kind: 'out-of-scope', text: 'a' }]) }), unrelated: { branch: 'aw/ada', base: 'main' } })).toMatchObject(line)
+    expect(ask({ merge: null, unrelated: { branch: 'aw/ada', base: 'main' }, working: true })).toBeNull()
   })
 
   it('is nothing for a hold that has nothing left holding it', () => {

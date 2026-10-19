@@ -3,7 +3,7 @@ import type { MergeCheck } from './mergeCheck'
 
 /** What the step that waits for the person shows, in the conversation: a card (or, once the audit was set aside, one quiet line). */
 export interface StepCardSpec {
-  kind: 'audit' | 'failed' | 'hold' | 'aside'
+  kind: 'audit' | 'failed' | 'hold' | 'aside' | 'unrelated'
   tag: string
   title: string
   /** What is left to look at, or what holds the merge, as lines: the first few. */
@@ -24,9 +24,11 @@ const none = { seenAll: false, again: false, aside: false, undo: false }
  * The one card a run needs now, from what the merge check says: the audit's findings still to look at, an audit that failed, what holds the merge while git holds it,
  * or the quiet line for an audit the person set aside. Nothing while the agent works, and nothing for what needs no word from the person.
  */
-export function stepCardOf(i: { merge: MergeCheck | null; held: boolean; working: boolean }): StepCardSpec | null {
+export function stepCardOf(i: { merge: MergeCheck | null; held: boolean; working: boolean; /** The branch shares no history with its base (the base was rewritten): it cannot be landed until it is reset onto it. */ unrelated: { branch: string; base: string } | null }): StepCardSpec | null {
   const { merge, held } = i
-  if (!merge || i.working) return null
+  if (i.working) return null
+  if (i.unrelated) return { kind: 'unrelated', tag: 'NOT LANDABLE', title: `This branch does not come from ${i.unrelated.base}'s history: reset it onto ${i.unrelated.base} before landing`, lines: [], more: 0, actions: none }
+  if (!merge) return null
   const a = merge.audit
   const unseen = a.state === 'done' ? a.findings.filter((f) => !f.seen) : []
   const findingLines = unseen.slice(0, SHOWN).map((f) => ({ text: f.text, where: [WHERE[f.kind], f.file].filter(Boolean).join(' · ') }))

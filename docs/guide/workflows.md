@@ -63,7 +63,7 @@ Ask the agent to merge the branch. If the gate holds it, git refuses, the agent 
 
 ![The merge held card](../images/merge-held.png)
 
-A failed review never holds landing. Checks and steps that need you hold it even with **Merge gate** off.
+A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds landing. Checks and steps that need you hold it even with **Merge gate** off.
 
 ## The Workflows window
 
