@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test'
 import { chatTab, hire, launchApp } from './launch'
 import { shot } from './wf-helpers'
 
-test('Finish checks the work is ready, squashes it onto the base branch and retires the agent', async () => {
+test('finishing checks the work is ready, squashes it onto the base branch and retires the agent (the call the app keeps; the screen for it is gone)', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -27,23 +27,22 @@ test('Finish checks the work is ready, squashes it onto the base branch and reti
     git(ada!.cwd, 'commit', '-qm', 'add health')
 
     await chatTab(page)
-    const dialog = page.getByRole('region', { name: "Finish ada's work" })
-    await expect(dialog).toContainText('1 commit on aw/ada to land', { timeout: 15_000 })
-    await expect(dialog).toContainText('No conflicts with main')
-    await dialog.getByLabel('Squash into one commit').check()
-    await dialog.getByLabel('Commit message').fill('Add a health check')
-    await dialog.getByRole('button', { name: 'Land on main' }).click()
-    await expect(dialog).toBeHidden({ timeout: 15_000 })
+    // Nothing sits above the message box about it: landing is no longer a panel of the chat.
+    await expect(page.locator('.finish-band')).toHaveCount(0)
+    const ready = await page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)
+    expect(ready).toMatchObject({ branch: 'aw/ada', base: 'main', ahead: 1, uncommitted: 0, baseReady: true, conflicts: [] })
+    await page.evaluate((id) => window.aw.finishRun(id, { squash: true, message: 'Add a health check', cleanup: true }), ada!.id)
 
     expect(git(repo, 'log', '--format=%s', 'main').split('\n')).toEqual(['Add a health check', 'init'])
     expect(git(repo, 'branch', '--list', 'aw/*')).toBe('')
+    await page.reload()
     await expect(page.locator('.roster button')).toHaveCount(0)
   } finally {
     await shutdown()
   }
 })
 
-test('Finish says what is in the way instead of landing', async () => {
+test('finishing says what is in the way instead of landing', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -64,10 +63,11 @@ test('Finish says what is in the way instead of landing', async () => {
     git(ada!.cwd, 'commit', '-qm', 'add health')
     writeFileSync(join(ada!.cwd, 'wip.ts'), 'x\n')
     await chatTab(page)
-    const dialog = page.getByRole('region', { name: "Finish ada's work" })
-    await expect(dialog).toContainText('1 commit on aw/ada to land', { timeout: 15_000 })
-    await expect(dialog).toContainText('1 file not committed yet')
-    await expect(dialog.getByRole('button', { name: /Land on/ })).toBeDisabled()
+    const status = await page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)
+    expect(status).toMatchObject({ ahead: 1, uncommitted: 1 })
+    const refused = await page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }).then(() => 'landed', (e: Error) => e.message), ada!.id)
+    expect(refused).toContain('uncommitted')
+    expect(git(repo, 'log', '--format=%s', 'main')).toBe('init')
   } finally {
     await shutdown()
   }

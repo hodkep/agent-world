@@ -37,48 +37,45 @@ async function office(name: string, o: { dial: string; env?: Record<string, stri
   return { tmp, repo, git, page, ada: ada!, shutdown, auditLog, add, begin, plan, runs: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { k: string; how?: string; held?: string[] }) }
 }
 
-test('the merge gate: Finish shows the plan against what the audit found, holds Land until the plan is approved and the findings seen, and the server refuses until then', async () => {
+const status = (page: import('@playwright/test').Page, id: string) => page.evaluate((i) => window.aw.finishStatus(i, { readOnly: true }), id)
+
+test('the merge gate: the audit card shows what it found against the plan, landing is held until the plan is approved and the findings seen, and the server refuses until then', async () => {
   const o = await office('wfmerge', { dial: 'balanced', env: { FAKE_AUDIT: FINDINGS } })
   try {
     o.begin()
     o.plan()
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
-    // The agent never reported its work here, so the audit has not started by itself.
-    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
-    const block = dialog.getByRole('group', { name: 'Against the plan' })
-    await expect(block).toContainText('Add a dark-mode toggle to Settings.')
-    await expect(block).toContainText('Out of scope: A theme per project.')
-    await expect(dialog.getByRole('list', { name: 'What the audit found' })).toContainText('Adds a project key', { timeout: 15_000 })
-    await expect(block).toContainText('Guess wrong')
-    await expect(block).toContainText('Audited 1 file')
-    await expect(block).toContainText('claude-haiku-5-5 · $0.0040')
+    // The agent never reported its work here, so the audit has not started by itself: nothing asks for the person, and the card is not there.
+    const card = o.page.getByRole('region', { name: "ada's audit" })
+    await expect(card).toHaveCount(0)
+    await o.page.evaluate((id) => window.aw.finishAudit(id), o.ada.id)
+    await expect(card).toContainText('2 things to look at', { timeout: 15_000 })
+    await expect(card).toContainText('Adds a project key')
+    await expect(card).toContainText('out of scope · src/theme.ts')
+    await expect(card).toContainText('guess may be wrong')
+    // What the audit read and what it cost are kept in its record.
+    const merge = (await status(o.page, o.ada.id)).merge!
+    expect(merge.planned).toMatchObject({ goal: 'Add a dark-mode toggle to Settings.', outOfScope: ['A theme per project.'] })
+    expect(merge.audit).toMatchObject({ state: 'done', files: 1, model: 'claude-haiku-5-5', cost: 0.004 })
     // What the model was shown: the goal, the out-of-scope line and the diff of the commit, not the plan file.
     const asked = JSON.parse(readFileSync(o.auditLog, 'utf8').trim().split('\n')[0]!) as string
     expect(asked).toContain('Add a dark-mode toggle to Settings.')
     expect(asked).toContain('A theme per project.')
     expect(asked).toContain('+export const dark = true')
 
-    // Two things hold Land: the plan was never approved, and two findings are unseen.
-    await expect(dialog).toContainText('The plan is still waiting for your approval.')
-    await expect(dialog).toContainText('2 audit findings have not been seen.')
-    await expect(dialog.getByRole('button', { name: 'Land anyway on main' })).toBeVisible()
+    // Two things hold landing: the plan was never approved, and two findings are unseen. The server refuses.
+    expect(merge.blocking).toEqual(['The plan is still waiting for your approval.', '2 audit findings have not been seen.'])
     const refused = await o.page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }).then(() => 'landed', (e: Error) => e.message), o.ada.id)
     expect(refused).toContain('Not ready to land')
     expect(refused).toContain('The plan is still waiting for your approval.')
 
-    // Seen, fine on both, then the person approves the plan: the checks turn to ticks and Land is plain.
-    for (const box of await dialog.getByRole('checkbox', { name: 'Seen, fine' }).all()) {
-      await box.click()
-      await expect(box).toBeChecked()
-    }
-    await expect(dialog).toContainText('Audit: 2 findings, all seen')
+    // All seen in one answer, then the person approves the plan: nothing holds landing, and it lands.
+    await card.getByRole('button', { name: 'All seen, fine' }).click()
+    await expect(card).toHaveCount(0)
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual(['The plan is still waiting for your approval.'])
     await o.page.evaluate(() => window.aw.workflows.decide('r1', 'approved'))
-    await expect(dialog).toContainText('Plan approved')
-    const land = dialog.getByRole('button', { name: 'Land on main' })
-    await expect(land).toBeEnabled()
-    await land.click()
-    await expect(dialog).toBeHidden({ timeout: 15_000 })
+    await expect.poll(async () => (await status(o.page, o.ada.id)).merge!.blocking).toEqual([])
+    await o.page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }), o.ada.id)
     expect(o.git(o.repo, 'log', '--format=%s', 'main').split('\n')).toContain('add toggle')
     expect(o.runs().find((e) => e.k === 'merge')).toMatchObject({ how: 'checked', held: [] })
   } finally {
@@ -91,10 +88,8 @@ test('Land anyway is always possible and is recorded with what was holding it, a
   try {
     o.begin()
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
-    await expect(dialog).toContainText('No plan was approved for this task.')
-    await dialog.getByRole('button', { name: 'Land anyway on main' }).click()
-    await expect(dialog).toBeHidden({ timeout: 15_000 })
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual(['No plan was approved for this task.'])
+    await o.page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false, anyway: true }), o.ada.id)
     expect(o.runs().find((e) => e.k === 'merge')).toMatchObject({ how: 'anyway', held: ['No plan was approved for this task.'] })
     expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
   } finally {
@@ -102,16 +97,16 @@ test('Land anyway is always possible and is recorded with what was holding it, a
   }
 })
 
-test('at economy a plan is optional so landing is not held for a missing one, and no audit runs and the row says so', async () => {
+test('at economy a plan is optional so landing is not held for a missing one, and no audit runs and the status says so', async () => {
   const o = await office('wfmerge2b', { dial: 'economy' })
   try {
     o.begin()
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
-    await expect(dialog).toContainText('Audit is off at the economy dial.')
-    await expect(dialog).not.toContainText('No plan was approved')
-    await dialog.getByRole('button', { name: 'Land on main' }).click()
-    await expect(dialog).toBeHidden({ timeout: 15_000 })
+    const merge = (await status(o.page, o.ada.id)).merge!
+    expect(merge.audit).toEqual({ state: 'off', reason: 'economy' })
+    expect(merge.blocking).toEqual([])
+    await expect(o.page.getByRole('region', { name: "ada's audit" })).toHaveCount(0)
+    await o.page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }), o.ada.id)
     expect(o.runs().find((e) => e.k === 'merge')).toMatchObject({ how: 'checked', held: [] })
     expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
   } finally {
@@ -119,19 +114,20 @@ test('at economy a plan is optional so landing is not held for a missing one, an
   }
 })
 
-test('an audit that fails says why, never holds Land, and can be run again', async () => {
+test('an audit that fails says why on its card, never holds landing, and can be run again', async () => {
   const o = await office('wfmerge3', { dial: 'balanced', env: { FAKE_AUDIT_FAIL: 'Credit balance is too low' } })
   try {
     o.begin()
     o.plan()
     o.add({ k: 'plan', t: Date.now() - 3000, run: 'r1', round: 1, state: 'approved' })
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
+    const card = o.page.getByRole('region', { name: "ada's audit" })
     // The agent never reported its work here, so the audit has not started by itself.
-    await dialog.getByRole('button', { name: 'Run the audit now' }).click()
-    await expect(dialog).toContainText('The audit failed: Credit balance is too low', { timeout: 15_000 })
-    await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()
-    await dialog.getByRole('button', { name: 'Run the audit again' }).click()
+    await o.page.evaluate((id) => window.aw.finishAudit(id), o.ada.id)
+    await expect(card).toContainText('The audit failed', { timeout: 15_000 })
+    await expect(card).toContainText('Credit balance is too low')
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual([])
+    await card.getByRole('button', { name: 'Run the audit again' }).click()
     await expect.poll(() => readFileSync(o.auditLog, 'utf8').trim().split('\n').length).toBe(2)
     // The run, opened from the agent's Workflow tab, keeps the line.
     await o.page.getByRole('tab', { name: 'Workflow' }).click()
@@ -142,7 +138,7 @@ test('an audit that fails says why, never holds Land, and can be run again', asy
   }
 })
 
-test('the merge gate has its own switch in Settings; off, Finish shows nothing of the plan or the audit and no model is asked', async () => {
+test('the merge gate has its own switch in Settings; off, nothing of the plan or the audit is shown and no model is asked', async () => {
   const o = await office('wfmerge4', { dial: 'balanced', env: { FAKE_AUDIT: FINDINGS } })
   try {
     o.begin()
@@ -157,11 +153,52 @@ test('the merge gate has its own switch in Settings; off, Finish shows nothing o
     await expect.poll(() => JSON.parse(readFileSync(join(o.tmp, 'home', 'preferences.json'), 'utf8')).workflows.mergeGate).toBe(false)
     await settings.getByRole('button', { name: 'Close' }).click()
     await chatTab(o.page)
-    const dialog = o.page.getByRole('region', { name: "Finish ada's work" })
-    await expect(dialog).toContainText('1 commit on aw/ada to land')
-    await expect(dialog.getByRole('group', { name: 'Against the plan' })).toHaveCount(0)
-    await expect(dialog.getByRole('button', { name: 'Land on main' })).toBeEnabled()
+    const st = await status(o.page, o.ada.id)
+    expect(st.ahead).toBe(1)
+    expect(st.merge).toBeNull()
+    await expect(o.page.getByRole('region', { name: "ada's audit" })).toHaveCount(0)
     expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('the audit card is the last thing in the conversation and never above the message box; Set aside leaves one quiet line with Undo, holds nothing, and the run says the audit was not followed', async () => {
+  const o = await office('wfmerge5', { dial: 'balanced', env: { FAKE_AUDIT: FINDINGS } })
+  try {
+    o.begin()
+    o.plan()
+    o.add({ k: 'plan', t: Date.now() - 3000, run: 'r1', round: 1, state: 'approved' })
+    await chatTab(o.page)
+    await o.page.evaluate((id) => window.aw.finishAudit(id), o.ada.id)
+    const card = o.page.getByRole('region', { name: "ada's audit" })
+    await expect(card).toContainText('2 things to look at', { timeout: 15_000 })
+    // It sits in the conversation, after the last of it, and above the message box there is nothing but the box's own bar.
+    await expect(o.page.locator('.chat-log').getByRole('region', { name: "ada's audit" })).toHaveCount(1)
+    await expect(o.page.locator('.finish-band, .land-band')).toHaveCount(0)
+    const [log, box, c] = [await o.page.locator('.chat-log').boundingBox(), await o.page.getByRole('textbox', { name: 'Message ada' }).boundingBox(), await card.boundingBox()]
+    expect(c!.y + c!.height).toBeLessThanOrEqual(log!.y + log!.height + 1)
+    expect(c!.y + c!.height).toBeLessThanOrEqual(box!.y)
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual(['2 audit findings have not been seen.'])
+
+    await card.getByRole('button', { name: 'Set aside' }).click()
+    await expect(card).toHaveCount(0)
+    const line = o.page.getByRole('note', { name: "ada's audit, set aside" })
+    await expect(line).toContainText('You set the audit aside · 2 things not looked at')
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual([])
+
+    // The run says so in its own words, in the ledger.
+    await o.page.locator('header').getByRole('button', { name: 'Workflows' }).click()
+    const win = o.page.getByRole('dialog', { name: 'Workflows' })
+    await win.getByRole('table', { name: 'Runs' }).getByRole('button', { name: /Add a dark-mode toggle/ }).click()
+    await expect(win.getByRole('region', { name: 'How Add a dark-mode toggle went' })).toContainText('You set the review aside with 2 things not looked at')
+    await win.getByRole('button', { name: 'Close' }).first().click()
+
+    // Undo brings the card and what it holds back.
+    await line.getByRole('button', { name: 'Undo' }).click()
+    await expect(line).toHaveCount(0)
+    await expect(card).toContainText('2 things to look at')
+    expect((await status(o.page, o.ada.id)).merge!.blocking).toEqual(['2 audit findings have not been seen.'])
   } finally {
     await o.shutdown()
   }

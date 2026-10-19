@@ -90,40 +90,55 @@ test('the same merge goes through with no say from the person once the findings 
   }
 })
 
-test('a held merge shows in the agent\'s chat as a marker on the run track with the band under it, where the findings are ticked and the person says Land anyway or Not yet, and in the agent\'s Workflow tab as the same status', async () => {
+test('a held merge shows in the agent\'s chat as a marker on the track and a card at the end of the conversation, never above the message box; all seen clears what holds it and the next try goes through', async () => {
   const o = await office('wfland3')
   try {
     await o.page.getByRole('tab', { name: 'Chat' }).click()
     await o.merge()
     await expect.poll(async () => (await o.merge()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.')
     const track = o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).first()
-    const band = o.page.getByRole('region', { name: "ada's merge is held" })
-    // The marker is on the track and the band sits right under it, with what holds the merge and the findings to tick.
+    const card = o.page.getByRole('region', { name: "ada's merge is held" })
     await expect(track.getByText('Land held', { exact: true })).toBeVisible()
-    await expect(band).toBeVisible()
-    await expect(band).toContainText('2 audit findings have not been seen.')
-    await expect(band.getByRole('list', { name: 'What the review found' })).toContainText('Adds a project key')
-    const [t, b] = [await track.boundingBox(), await band.boundingBox()]
-    expect(b!.y).toBeGreaterThanOrEqual(t!.y + t!.height - 1)
-    // Ticking a finding changes what holds it.
-    await band.getByRole('checkbox', { name: 'Seen: Adds a project key' }).click()
-    await expect(band).toContainText('1 audit finding has not been seen.')
-    // Not yet puts the band away and leaves the marker, which brings it back.
-    await band.getByRole('button', { name: 'Not yet' }).click()
-    await expect(band).toHaveCount(0)
-    await expect(track.getByRole('button', { name: 'Land held · not yet' })).toBeVisible()
-    // The agent's Workflow tab says the same.
+    await expect(card).toBeVisible()
+    await expect(card).toContainText('2 audit findings have not been seen.')
+    // It is the last thing in the conversation: inside the log, and nothing of the kind sits between the log and the message box.
+    await expect(o.page.locator('.chat-log').getByRole('region', { name: "ada's merge is held" })).toHaveCount(1)
+    await expect(o.page.locator('.finish-band, .land-band')).toHaveCount(0)
+    const [log, box, c] = [await o.page.locator('.chat-log').boundingBox(), await o.page.getByRole('textbox', { name: 'Message ada' }).boundingBox(), await card.boundingBox()]
+    expect(c!.y + c!.height).toBeLessThanOrEqual(log!.y + log!.height + 1)
+    expect(c!.y + c!.height).toBeLessThanOrEqual(box!.y)
+    // The agent's Workflow tab says the same status on the track.
     await o.page.getByRole('tab', { name: /^Workflow/ }).click()
-    await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).last()).toContainText('Land held · not yet')
+    await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).last()).toContainText('Land held')
     await o.page.getByRole('tab', { name: 'Chat' }).click()
-    await track.getByRole('button', { name: 'Land held · not yet' }).click()
-    await expect(band).toBeVisible()
-    // The agent's next try after Land anyway goes through, and the band and marker go.
-    await band.getByRole('button', { name: 'Land anyway' }).click()
-    await expect(band).toHaveCount(0)
+    await card.getByRole('button', { name: 'All seen, fine' }).click()
+    await expect(card).toHaveCount(0)
     expect((await o.merge()).ok).toBe(true)
     await expect(track.getByText(/Land held/)).toHaveCount(0)
-    await expect.poll(o.landed).toMatchObject({ how: 'anyway' })
+    await expect.poll(o.landed).toMatchObject({ how: 'checked' })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('Set aside on a held merge lifts the hold and records the audit as not followed, with a quiet line and Undo, and the next try goes through', async () => {
+  const o = await office('wfland4')
+  try {
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.merge()
+    await expect.poll(async () => (await o.merge()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.')
+    const card = o.page.getByRole('region', { name: "ada's merge is held" })
+    await card.getByRole('button', { name: 'Set aside' }).click()
+    await expect(card).toHaveCount(0)
+    const line = o.page.getByRole('note', { name: "ada's audit, set aside" })
+    await expect(line).toContainText('You set the audit aside · 2 things not looked at')
+    // The track marks the step, and the run's own story says it.
+    await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).first()).toBeVisible()
+    expect((await o.merge()).ok).toBe(true)
+    await o.page.locator('header').getByRole('button', { name: 'Workflows' }).click()
+    const win = o.page.getByRole('dialog', { name: 'Workflows' })
+    await win.getByRole('table', { name: 'Runs' }).getByRole('button', { name: /Add a dark-mode toggle/ }).click()
+    await expect(win.getByRole('region', { name: 'How Add a dark-mode toggle went' })).toContainText('You set the review aside with 2 things not looked at')
   } finally {
     await o.shutdown()
   }
