@@ -3,7 +3,7 @@ import type { PictureSet } from './gallery'
 import { OutlineIcon } from '../panel/IconButton'
 import { type AreaRow, type OfficeGroup, areasOf, outcomeOf, stampOf, todoOf, whisperOf } from './officeCalls'
 import { AREA_ICON, STAMP_ICON } from './stampIcons'
-import { openTodo } from '../todos/todoStore'
+import { openTodo, todoBrief, useTodoVersion } from '../todos/todoStore'
 import { ToolCard } from './ToolCard'
 
 type Call = AreaRow['calls'][number]
@@ -16,6 +16,9 @@ function CallItem({ call, onImage }: { call: Call; onImage: (src: string, set?: 
   const st = stampOf(call.run)
   const out = outcomeOf(call.run)
   const todo = todoOf(call.run)
+  // The board may have lost the task since (removed by someone): the chip says so instead of opening nothing.
+  useTodoVersion()
+  const gone = todo !== null && !todoBrief(todo)
   return (
     <div className={`of-item stamp-${st.kind} ${st.state}`}>
       <div className="of-line">
@@ -27,7 +30,7 @@ function CallItem({ call, onImage }: { call: Call; onImage: (src: string, set?: 
             {w.why && <span className="of-why"> · {w.why}</span>}
           </span>
         </button>
-        {todo && <button className="of-todo" onClick={() => openTodo(todo)} title={`Open todo#${todo} on the Todos board`}>todo#{todo} ↗</button>}
+        {todo && (gone ? <span className="of-todo gone" title={`todo#${todo} is not on this project's board any more`}>todo#{todo} removed</span> : <button className="of-todo" onClick={() => openTodo(todo)} title={`Open todo#${todo} on the Todos board`}>todo#{todo} ↗</button>)}
       </div>
       {shown && (
         <div className="of-card">

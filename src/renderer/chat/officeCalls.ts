@@ -241,7 +241,6 @@ export function areasOf(calls: Call[], working = false): AreaRow[] {
 const OUTCOME_LINES = 4
 const OUTCOME_WIDTH = 240
 
-/** What a call brought back, for its opened row: the first few lines of the result and how many more there are; nothing for a failed call, whose reason the row already has. */
 /** The number of the one task a todo call touched: the id it was given, or for a new task the number the office answered with. */
 export function todoOf(run: ToolRun): string | null {
   const tool = agentWorldTool(run.name) ?? ''
@@ -251,6 +250,7 @@ export function todoOf(run: ToolRun): string | null {
   return /\d+/.exec(str((run.input as Record<string, unknown>).id))?.[0] ?? null
 }
 
+/** What a call brought back, for its opened row: the first few lines of the result and how many more there are; nothing for a failed call, whose reason the row already has. */
 export function outcomeOf(run: ToolRun): { text: string; more: number } | null {
   if (!run.result || run.result.isError) return null
   const all = (run.result.text ?? '').split('\n').map((l) => l.trimEnd())
