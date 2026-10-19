@@ -16,7 +16,8 @@ import { linkifyTodos } from '../todos/linkifyTodos'
 import { openTodo, useTodoVersion } from '../todos/todoStore'
 import { EMOJI } from './emoji'
 
-marked.setOptions({ gfm: true, breaks: false })
+// breaks: a single newline in a reply is a line break, as in the Claude Code terminal (a blank line still starts a paragraph).
+marked.setOptions({ gfm: true, breaks: true })
 // Code blocks are coloured by Monaco's tokenizer, in the same theme as the Code tab.
 monaco.editor.setTheme('agent-world')
 
