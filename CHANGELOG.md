@@ -7,6 +7,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 ### Added
 
 - Homebrew: `brew install --cask hodkep/tap/agent-world` installs the app, and the tap follows each release by itself. The cask removes macOS's quarantine mark from the app, so there is no Open Anyway step; that skips macOS's first-launch check for this app only.
+- Chat: a question the agent asks has a **Cancel question** button, in the chat and in the pop-up, that declines it as Esc does in the terminal. A plan has a **Reject plan** button that does the same. If the program does not take the Esc, the card says so and **Answer in terminal** is still there.
+- Chat: a line of the office's todo calls has a `todo#N` chip that opens the task on the Todos board, two clicks from the row instead of four. A task that is no longer on the board shows as removed.
 
 ### Changed
 
@@ -14,6 +16,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Fixed
 
+- Preview: a Preview that has been opened stays loaded when you go to another tab, so its page is not loaded again until the app is reloaded. The last three opened are kept, and one is let go when its agent sleeps.
+- Workflows: a run the app starts from a commit (the agent never called `task_begin`) is grouped **Not announced**, not **Landed clean**; it belongs to the todo the agent is on, and a different todo starts a new run. An agent that sets a task to doing with `todo_update` now claims it, and each turn with no task open reminds the agent to call `task_begin`.
 - Claude Code that is signed in and set up was shown as **Needs sign-in** (and signing in again changed nothing) on a Mac where `~/.claude/.claude.json` exists without the first-run flag. The flag is now looked for in every file Claude Code keeps, and any one saying the first questions were answered is enough. Its usage tanks on the lawn, which are drawn for ready programs only, came back with it.
 
 ## [0.1.2] - 2026-10-18
