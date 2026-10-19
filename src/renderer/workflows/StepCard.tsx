@@ -6,29 +6,42 @@ import { stepCardOf } from '../../shared/stepCard'
  * The step that waits for the person, as the last thing in the conversation: it scrolls with the chat, takes room only inside it, and never opens by itself or sits above
  * the message box. Set aside lifts what holds the run and records the step as not followed; the quiet line it leaves has Undo.
  */
-export function StepCard({ agentId, agentName, held, working }: { agentId: string; agentName: string; /** Git is holding this agent's merge, and the person has not put the hold away. */ held: boolean; /** The agent's turn is running: nothing waits for the person yet. */ working: boolean }) {
+export function StepCard({ agentId, agentName, active, held, working }: { agentId: string; agentName: string; /** This agent's chat is the one on screen: only then is the branch looked at. */ active: boolean; /** Git is holding this agent's merge, and the person has not put the hold away. */ held: boolean; /** The agent's turn is running: nothing waits for the person yet. */ working: boolean }) {
   const [merge, setMerge] = useState<MergeCheck | null>(null)
+  const [unrelated, setUnrelated] = useState<{ branch: string; base: string } | null>(null)
   const looking = useRef(false)
   const load = useCallback(async () => {
     if (looking.current) return
     looking.current = true
     try {
-      setMerge((await window.aw.finishStatus(agentId, { readOnly: true })).merge ?? null)
+      const s = await window.aw.finishStatus(agentId, { readOnly: true })
+      setMerge(s.merge ?? null)
+      setUnrelated(s.unrelated ? { branch: s.branch, base: s.base } : null)
     } catch {
       setMerge(null)
+      setUnrelated(null)
     } finally {
       looking.current = false
     }
   }, [agentId])
   useEffect(() => {
+    if (!active) return
     void load()
     // The audit answers a while after it was asked for, and a commit made by hand in the terminal says nothing: so it is looked at again when the office says something changed and now and then.
     const off = [window.aw.onWorkflows(load), window.aw.onLanding(load)]
     const timer = setInterval(() => void load(), 5000)
     return () => (off.forEach((f) => f()), clearInterval(timer))
-  }, [load, working, held])
-  const spec = stepCardOf({ merge, held, working })
-  if (!spec || !merge) return null
+  }, [load, active, working, held])
+  const spec = stepCardOf({ merge, held, working, unrelated })
+  if (!spec) return null
+  if (spec.kind === 'unrelated')
+    return (
+      <div className="step-card quiet" role="note" aria-label={`${agentName}'s branch has no shared history`}>
+        <span className="tag bad">{spec.tag}</span>
+        <span className="sc-title">{spec.title}</span>
+      </div>
+    )
+  if (!merge) return null
   const unseen = merge.audit.state === 'done' ? merge.audit.findings.flatMap((f, i) => (f.seen ? [] : [i])) : []
   const then = (f: () => Promise<unknown>) => () => void f().then(load, load)
   if (spec.kind === 'aside')

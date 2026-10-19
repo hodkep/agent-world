@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { chatTab, hire, launchApp } from './launch'
-import { shot } from './wf-helpers'
 
 test('finishing checks the work is ready, squashes it onto the base branch and retires the agent (the call the app keeps; the screen for it is gone)', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
@@ -73,7 +72,7 @@ test('finishing says what is in the way instead of landing', async () => {
   }
 })
 
-test('a branch that shares no history with its base says so in one red line, counts no commits and cannot be landed', async () => {
+test('a branch that shares no history with its base says so in one red line at the end of the chat, counts no commits and cannot be landed', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -96,16 +95,17 @@ test('a branch that shares no history with its base says so in one red line, cou
     git(ada!.cwd, 'commit', '-qm', 'add health')
     git(ada!.cwd, 'branch', '-M', 'rewritten', 'aw/ada')
     await chatTab(page)
-    const band = page.getByRole('region', { name: "Finish ada's work" })
-    await expect(band).toContainText("This branch does not come from main's history: reset it onto main before landing", { timeout: 15_000 })
-    await shot(page, 'whatsnew-6-no-shared-history')
-    await expect(band).not.toContainText('No conflicts with main')
-    await expect(band).not.toContainText('commit on aw/ada to land')
-    await expect(band.getByRole('button', { name: /Land on/ })).toBeDisabled()
-    // The server refuses too, not only the button.
+    const line = page.getByRole('note', { name: "ada's branch has no shared history" })
+    await expect(line).toContainText("This branch does not come from main's history: reset it onto main before landing", { timeout: 15_000 })
+    // It is in the conversation, not above the message box, and it carries no count and no "No conflicts".
+    await expect(page.locator('.chat-log').getByRole('note', { name: "ada's branch has no shared history" })).toHaveCount(1)
+    await expect(line).not.toContainText('No conflicts')
+    await expect(line).not.toContainText('commit on aw/ada to land')
+    const status = await page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)
+    expect(status).toMatchObject({ unrelated: true, ahead: 0, conflicts: [] })
+    // The server refuses too, in the same words.
     await expect(page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }), ada!.id)).rejects.toThrow(/does not come from main's history/)
   } finally {
     await shutdown()
   }
 })
-

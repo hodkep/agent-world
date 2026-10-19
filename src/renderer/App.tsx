@@ -717,7 +717,7 @@ export function App() {
       need={needsOf(a.id)[0] ?? null}
       gate={gateFor(a)}
       track={trackFor(a)}
-      stepCard={prefs && workflowsShown(prefs.workflows.enabled, wf.open) && a.branch ? <StepCard agentId={a.id} agentName={a.name} held={!!landingHolds.find((h) => h.agentId === a.id && !h.declined)} working={['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? 'asleep')} /> : undefined}
+      stepCard={a.branch ? <StepCard agentId={a.id} agentName={a.name} active={visible} held={!!landingHolds.find((h) => h.agentId === a.id && !h.declined)} working={['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? 'asleep')} /> : undefined}
       moreNeeds={Math.max(0, needsOf(a.id).length - 1)}
       needActions={needActions(a.id)}
       visible={visible}
