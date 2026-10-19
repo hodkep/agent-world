@@ -161,7 +161,7 @@ function Plan({ text, onAnswer, onCancel }: { text: string; onAnswer: (choice: 0
         <button disabled={busy} onClick={() => void go(1)}>
           Approve · review each edit
         </button>
-        <button disabled={busy} onClick={() => void onCancel()} title="Reject the plan, as Esc does in the terminal">
+        <button disabled={busy} onClick={() => void (setBusy(true), onCancel().finally(() => setBusy(false)))} title="Reject the plan, as Esc does in the terminal">
           Reject plan
         </button>
       </div>
@@ -373,7 +373,7 @@ function Questions({
         </div>
       )}
       <footer className="qd-foot">
-        <button className="cancel" disabled={busy} onClick={() => void onCancel()} title="Decline the question, as Esc does in the terminal">
+        <button className="cancel" disabled={busy} onClick={() => void (setBusy(true), onCancel().finally(() => setBusy(false)))} title="Decline the question, as Esc does in the terminal">
           Cancel question
         </button>
         <button className="term" onClick={onFinishInTerminal} title="Answer this in the agent's terminal instead">

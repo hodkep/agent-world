@@ -574,7 +574,8 @@ if (process.env.FAKE_ASKQ) {
     const onKey = (d) => {
       const k = String(d), q = qs[tab]
       // Esc cancels the whole menu, as in Claude: the question is declined and the turn ends.
-      if (k === '\x1b') return (process.stdin.off('data', onKey), resolve(true))
+      // FAKE_NO_ESC=1: a menu that does nothing on Esc, so the card stays and the button has to say so.
+      if (k === '\x1b' && !process.env.FAKE_NO_ESC) return (process.stdin.off('data', onKey), resolve(true))
       const rowCount = q ? q.options.length + 2 : 2
       if (k === '\x1b[B') cursor = Math.min(rowCount, cursor + 1)
       else if (k === '\x1b[A') cursor = Math.max(1, cursor - 1)
@@ -595,7 +596,8 @@ if (process.env.FAKE_ASKQ) {
   })
   if (cancelled) {
     process.stdout.write('\x1b[2J\x1b[Hquestion declined\r\n')
-    await hook('Stop')
+    // FAKE_QUIET_ESC=1: like the real program, nothing is reported after an Esc.
+    if (!process.env.FAKE_QUIET_ESC) await hook('Stop')
     await new Promise(() => {})
   }
   const said = qs.map((q, i) => (other[i] ?? [...picked[i]].sort().map((n) => q.options[n - 1].label).join(','))).join(' | ')

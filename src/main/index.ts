@@ -82,6 +82,7 @@ import { askModel, auditModel, defaultWorkflow, pickAsker } from '../shared/work
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
+import { cancelNeed } from './needCancel'
 import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
@@ -1519,19 +1520,22 @@ async function main() {
   })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
-  ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => {
-    const p = sessions.get(id)
-    if (!p) return
+  // After an Esc that answers what the agent was waiting on (a stop, a declined question or plan): a permission card still open would keep it looking busy,
+  // and Claude reports nothing after an Esc, so "waiting for you" is left for the idle check to settle.
+  const settleAfterEsc = (id: string) => {
     stoppedAt.set(id, Date.now())
-    const { first, then } = keysOf(id).interrupt
-    // Stopping answers what the agent was waiting on: a permission card still open would keep it looking busy after the Esc.
     for (const r of [...pendingPermissions.values()]) if (r.agentId === id) eventHandles.forEach((h) => h.decide(r.id, 'deny'))
-    // Claude reports nothing after an Esc, and the idle check only settles a working agent: leave "waiting for you" so it can.
     const a = byId(id)
     if (a && lastActivity.get(id) === 'permission') {
       lastActivity.set(id, 'thinking')
       send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
     }
+  }
+  ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => {
+    const p = sessions.get(id)
+    if (!p) return
+    const { first, then } = keysOf(id).interrupt
+    settleAfterEsc(id)
     p.write(first)
     for (const [delay, keys] of then)
       setTimeout(() => {
@@ -2387,10 +2391,10 @@ async function main() {
       io.write(keysOf(id).submit)
     }
   })
-  ipcMain.handle('need:cancel', (_, id: string) => {
-    if (!questionOpen.has(id) && !planOpen.has(id)) throw new Error('That is no longer open.')
-    sessions.get(id)?.write(keysOf(id).cancel)
-  })
+  const cancelling = new Set<string>()
+  ipcMain.handle('need:cancel', (_, id: string) =>
+    cancelNeed({ id, inFlight: cancelling, isOpen: () => questionOpen.has(id) || planOpen.has(id), press: () => (settleAfterEsc(id), void sessions.get(id)?.write(keysOf(id).cancel)), sleep: (ms) => new Promise<void>((r) => setTimeout(r, ms)) })
+  )
   ipcMain.handle('answer-question', async (_, id: string, answers: QuestionAnswer[]) => {
     const questions = askedQuestions.get(id)
     if (!questions?.length || !questionOpen.has(id)) throw new Error('That question is no longer open; answer it in the terminal.')
