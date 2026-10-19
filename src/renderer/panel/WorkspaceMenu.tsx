@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useState } from 'react'
 import type { WorkspaceInfo, Workspaces } from '../../shared/api'
+import type { Dot } from '../../shared/attention'
 import { Identicon } from './Identicon'
 import { useHoverMenu } from './hoverMenu'
 import { QuickPanel } from './QuickPanel'
@@ -23,6 +24,8 @@ export const filterWorkspaces = (items: WorkspaceInfo[], text: string) => {
 export function WorkspaceMenu({
   workspaces,
   activity = {},
+  dot = null,
+  finished = new Set<string>(),
   onOpen,
   onPick,
   onForget,
@@ -30,6 +33,10 @@ export function WorkspaceMenu({
 }: {
   workspaces: Workspaces | null
   activity?: Record<string, WorkspaceActivity>
+  /** Another project needs you (red) or an agent in one finished unseen (green): a dot on the button. */
+  dot?: Dot
+  /** The projects where an agent finished and nothing has been opened since: a green mark on their tile. */
+  finished?: Set<string>
   onOpen: (path: string) => void
   onPick: () => void
   onForget: (path: string) => void
@@ -61,7 +68,9 @@ export function WorkspaceMenu({
         <span className="ws-name">{active?.name ?? (workspaces?.active ? workspaces.active.split(/[\\/]/).pop() : 'Choose a project')}</span>
         {active && <span className={`ws-tag ${active.git ? 'git' : ''}`}>{active.git ? 'git' : 'no git'}</span>}
         <span className="ws-caret" aria-hidden="true" />
+        {dot && <span className="sr-only">{dot === 'need' ? ' Another project needs you' : ' An agent in another project finished'}</span>}
       </button>
+      {dot && <span className={`adot ${dot}`} aria-hidden="true" data-testid="project-dot" />}
       {open && (
         <div className="qp-wrap" data-pinned={pinned}>
           {items.length > 0 ? (
@@ -88,7 +97,8 @@ export function WorkspaceMenu({
                       <span className="wt-top">
                         <Identicon name={w.name} />
                         {a && a.waiting > 0 && <span className="wt-need" title={`${a.waiting} waiting for you`}>{a.waiting}</span>}
-                        {a && a.waiting === 0 && a.working > 0 && <span className="wt-live" title={`${a.working} working`} />}
+                        {a && a.waiting === 0 && finished.has(w.path) && <span className="wt-done" title="An agent here finished" />}
+                        {a && a.waiting === 0 && !finished.has(w.path) && a.working > 0 && <span className="wt-live" title={`${a.working} working`} />}
                       </span>
                       <span className="wt-name">{w.name}</span>
                       <span className="wt-sub">

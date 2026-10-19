@@ -7,14 +7,14 @@ import { hire, launchApp } from './launch'
 import { shot } from './wf-helpers'
 
 // Resting on the project button (or the agent number) opens a grid panel; one click on a tile switches; a click on the button keeps it open until a click elsewhere.
-async function office(names: string[], missing?: string) {
+async function office(names: string[], missing?: string, env: Record<string, string> = {}) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-quick-')))
   const home = join(tmp, 'home')
   mkdirSync(home)
   const paths = names.map((n) => join(tmp, n))
   for (const p of paths) if (!p.endsWith(missing ?? '\0')) (mkdirSync(p), execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: p }))
   writeFileSync(join(home, 'workspaces.json'), JSON.stringify({ active: paths[0], recent: paths }))
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, tmp)
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', ...env }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), paths[0]!)
@@ -124,3 +124,73 @@ test('the agent switcher is the same panel: resting on the number opens a grid o
     await shutdown()
   }
 })
+
+// Another project (or agent) wants you, or finished while you were elsewhere: a dot on the button, red over green, never for where you are.
+async function pick(page: import('@playwright/test').Page, project: string) {
+  await page.locator('.ws-button').hover()
+  await page.getByRole('menu', { name: 'Projects' }).getByRole('menuitem', { name: new RegExp(project) }).click()
+  await expect(page.locator('.ws-button')).toContainText(project)
+}
+
+test('a project that needs you shows a red dot on the project button while you are in another one, and its tile says how many', async () => {
+  const { page, shutdown } = await office(['shop-a', 'shop-b'])
+  try {
+    await expect(page.getByTestId('project-dot')).toHaveCount(0)
+    await pick(page, 'shop-b')
+    await hire(page, { name: 'ada' })
+    // In the project where the agent waits there is no dot (its own pills say it).
+    await expect(page.getByTestId('project-dot')).toHaveCount(0)
+    await pick(page, 'shop-a')
+    const dot = page.getByTestId('project-dot')
+    await expect(dot).toHaveClass(/need/)
+    await expect(page.locator('.ws-button')).toContainText('Another project needs you')
+    await page.locator('.ws-button').hover()
+    const tile = page.getByRole('menu', { name: 'Projects' }).getByRole('menuitem', { name: /shop-b/ })
+    await expect(tile.locator('.wt-need')).toHaveText('1')
+    await page.waitForTimeout(300)
+    await shot(page, 'quick-4-dot')
+    // Going there clears it (nothing waits in the project you are in).
+    await tile.click()
+    await expect(page.getByTestId('project-dot')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('an agent that finishes in another project leaves a green dot until that project is opened', async () => {
+  const { page, shutdown } = await office(['shop-a', 'shop-b'], undefined, { FAKE_CHAT: '1', FAKE_DELAY_MS: '600' })
+  try {
+    await pick(page, 'shop-b')
+    await hire(page, { name: 'ada' })
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    await page.evaluate((id) => window.aw.chatSend(id, 'Say something'), ada!.id)
+    await pick(page, 'shop-a')
+    // The agent works and finishes its turn while you are in shop-a.
+    const dot = page.getByTestId('project-dot')
+    await expect(dot).toHaveClass(/done/, { timeout: 30_000 })
+    await page.locator('.ws-button').hover()
+    await expect(page.getByRole('menu', { name: 'Projects' }).getByRole('menuitem', { name: /shop-b/ }).locator('.wt-done')).toBeVisible()
+    await pick(page, 'shop-b')
+    await pick(page, 'shop-a')
+    await expect(page.getByTestId('project-dot')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the agent number shows a red dot while another agent of this project waits for you, and none when only the agent you are on does', async () => {
+  const { page, shutdown } = await office(['shop'])
+  try {
+    await hire(page, { name: 'ada' })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    // Only ada exists and she is the one on screen: nothing else to point at.
+    await expect(page.getByTestId('agents-dot')).toHaveCount(0)
+    await hire(page, { name: 'bo' })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await expect(page.getByTestId('agents-dot')).toHaveClass(/need/)
+    await expect(page.locator('.hc-switch')).toHaveAttribute('title', /Another agent needs you/)
+  } finally {
+    await shutdown()
+  }
+})
+
