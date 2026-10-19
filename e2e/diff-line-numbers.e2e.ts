@@ -49,13 +49,20 @@ const geometry = (page: Page, shown: string) =>
 test('the old-side line numbers are drawn in full, up to four digits, and no digit sits under the editor', async () => {
   const { page, shutdown } = await start()
   try {
+    // Folded (the default): the numbers around the two changes, one of them four digits.
+    await expect.poll(async () => (await geometry(page, '1000')).found, { timeout: 10_000 }).toBe(true)
+    for (const n of ['12', '1000']) {
+      const g = await geometry(page, n)
+      expect(g.found, `line ${n} on the old side, folded`).toBe(true)
+      expect(g.numberRight!, `old-side ${n} ends before the editor starts, folded`).toBeLessThanOrEqual(g.editorLeft + 0.5)
+    }
+    // Shown in full: every line is there, from the top to where the numbers have four digits.
+    await page.getByRole('group', { name: 'Unchanged code' }).getByRole('button', { name: 'Show' }).click()
+    await expect.poll(async () => (await geometry(page, '10')).found, { timeout: 10_000 }).toBe(true)
     for (const n of ['10', '12']) {
       const g = await geometry(page, n)
-      expect(g.found, `line ${n} on the old side`).toBe(true)
       expect(g.numberRight!, `old-side ${n} ends before the editor starts`).toBeLessThanOrEqual(g.editorLeft + 0.5)
     }
-    // Near the end of the file the numbers have four digits.
-    // Scrolled down to where the numbers have four digits.
     await page.locator('.diff .editor.modified .view-line', { hasText: 'line5 = 5' }).first().click()
     for (let i = 0; i < 40; i++) await page.keyboard.press('PageDown')
     await expect.poll(async () => (await geometry(page, '4-digit')).found, { timeout: 10_000 }).toBe(true)
