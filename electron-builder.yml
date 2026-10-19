@@ -9,10 +9,11 @@ files:
 asarUnpack:
   - node_modules/node-pty/**
 npmRebuild: true
-# Apache 2.0 section 4: the license and the NOTICE file travel with the app, next to its resources.
+# Apache 2.0 section 4: the license and the NOTICE file travel with the app, next to its resources; so does the changelog, which the installed version's What's new is read from.
 extraResources:
   - LICENSE
   - NOTICE
+  - CHANGELOG.md
 icon: build/icon.png
 mac:
   category: public.app-category.developer-tools

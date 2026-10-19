@@ -288,6 +288,8 @@ export interface Prefs {
   providers: Partial<Record<ProviderId, { path: string }>>
   /** Where new builds are published; empty means the app does not look for updates. */
   updateUrl: string
+  /** The version whose What's new was last offered; empty before the first start of a build that remembers it. */
+  seenVersion: string
   /** Standing instructions added to every agent, whatever its role. */
   houseRules: string
   /** Which model a job (a role's title) uses when the role does not set one. */

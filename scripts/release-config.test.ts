@@ -32,5 +32,8 @@ describe('what the installers carry for the license', () => {
     expect(top).toMatch(/- LICENSE\b/)
     expect(top).toMatch(/- NOTICE\b/)
   })
+  it("puts CHANGELOG.md in the app, which is where the installed version's What's new is read from", () => {
+    expect(top).toMatch(/- CHANGELOG\.md\b/)
+  })
 })
 

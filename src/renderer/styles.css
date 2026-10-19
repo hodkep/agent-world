@@ -3305,3 +3305,22 @@ svg.pxg { display: block; flex: none; }
 .pg-text .md code { background: var(--well); padding: 0 4px; }
 .mg-goal { font-weight: 700; }
 .pg-foot.pg-text .md, .pg-foot.pg-text .md p { display: inline; }
+
+/* What's new: the notes of a version in a dialog, and in a small box under an update that is offered */
+.whats-new { width: min(560px, 94vw); }
+.wn-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.notes { background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 10px 12px; font-size: 12px; line-height: 1.5; max-height: 170px; overflow: auto; }
+.notes.wn-notes { max-height: min(60vh, 420px); }
+.notes h3, .notes h4 { margin: 10px 0 3px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.notes > :first-child { margin-top: 0; }
+.notes ul { margin: 0; padding-left: 16px; }
+.notes li { margin: 2px 0; }
+.notes p { margin: 4px 0; max-width: none; }
+.upd-version { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
+.upd-version b { font-size: 14px; }
+.upd-version small { color: var(--muted); }
+.upd-version .grow { flex: 1; }
+.upd-banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--selected); box-shadow: 0 0 0 1px var(--accent-dim); font-size: 12px; }
+.upd-banner .grow { flex: 1; }
+.commit-div { padding: 5px 10px; background: var(--selected); color: var(--accent); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border-top: 1px solid var(--accent-dim); border-bottom: 1px solid var(--accent-dim); list-style: none; }
+.upd-notes-title { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }

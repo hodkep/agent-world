@@ -289,7 +289,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
           <UncommittedList agentId={agentId} tick={tick} path={path} onPick={setPath} onChanged={refresh} view={view} run={run} notice={(t) => setNotice(t)} />
         )}
         {mode === 'history' && (data || place) && (
-          <HistoryList agentId={agentId} base={data?.base ?? ''} inPlace={!!place} tick={tick} commit={commit} onCommit={setCommit} path={path} onPick={setPath} view={view} run={run} notice={(t) => setNotice(t)} />
+          <HistoryList agentId={agentId} base={data?.base ?? ''} inPlace={!!place} startedBy={agentName} tick={tick} commit={commit} onCommit={setCommit} path={path} onPick={setPath} view={view} run={run} notice={(t) => setNotice(t)} />
         )}
         {mode !== 'branch' && (notice || error) && (
           <div className="ch-foot ch-status">

@@ -79,7 +79,8 @@ test('on every Settings page the heading has room above it and sits close to the
         const r = document.createRange()
         r.selectNodeContents(lg)
         const words = r.getBoundingClientRect()
-        const lead = (pane.querySelector('.set-lead') ?? [...pane.children].find((c) => c !== lg)) as HTMLElement
+        // Whatever comes first under the heading: its lead line, or on Updates the row with the version.
+        const lead = [...pane.children].find((c) => c !== lg) as HTMLElement
         return { above: Math.round(words.top - head.bottom), below: Math.round(lead.getBoundingClientRect().top - words.bottom) }
       })
       // Room above the heading (it used to touch the line under the title), and no wider a gap below than that.

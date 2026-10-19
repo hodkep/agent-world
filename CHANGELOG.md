@@ -7,10 +7,17 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 ### Added
 
 - Code: the diff on the Changes tab folds the unchanged code by default, with a row such as "49 hidden lines" for each stretch. **Unchanged code: Show | Fold** and **Context: 3 / 5 / 10** sit above the diff and are kept; ⌘⌥U (Ctrl+Alt+U) switches them, and **F1** has **Show all hidden lines**. Selecting code in a folded diff asks the agent about the real line numbers.
+- Updates: Settings > Updates shows the version installed, with **What's new** (the notes of that version, from the changelog that now comes with the app) and **Check now**; the popover under the update chip shows what is new in the version offered (the release's own text, cleaned and with links that open in the browser) before **Download**; the first start after an update says so once with **See what's new**.
+- Code: for an agent working in the folder itself the commits list shows every commit of the folder, a page at a time, with a line where the agent started and a search done by git.
 
 ### Changed
 
 - Workflows: the agent's words in the plan gate, in a step's brief and in the Land band's plan block are read as in the chat: Markdown shows, an address is a link, and the path of a real file is a link that opens it (a page in the Preview).
+
+### Fixed
+
+- **Check now** is greyed, with the reason, from the moment an update download starts until the app restarts, and the app does not look again meanwhile, so it cannot start the same download over.
+- A branch that shares no history with its base (after the base was rewritten) is no longer counted commit by commit with a green "No conflicts": Land says it does not come from the base's history, shows no count, and cannot be pressed.
 
 ## [0.2.0] - 2026-10-19
 

@@ -45,6 +45,8 @@ import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
 import { IconButton } from './panel/IconButton'
 import { UpdateChip } from './panel/UpdateChip'
+import { WhatsNew } from './panel/ReleaseNotes'
+import { justUpdated } from '../shared/updatedNote'
 import { Settings } from './panel/Settings'
 import { LibraryModal } from './panel/LibraryModal'
 import { TodoBoardModal } from './todos/TodoBoardModal'
@@ -296,6 +298,14 @@ export function App() {
     setPrefs(next)
     void window.aw.setPrefs(next)
   }
+  // After an update the app says so once, with a way to read what is new; the first start of a build that remembers nothing only learns the version.
+  const [appVersion, setAppVersion] = useState('')
+  const [notesOpen, setNotesOpen] = useState(false)
+  useEffect(() => void window.aw.appInfo().then((i) => setAppVersion(i.version), () => undefined), [])
+  useEffect(() => {
+    if (prefs && appVersion && prefs.seenVersion === '') patchPrefs({ seenVersion: appVersion })
+  }, [prefs?.seenVersion, appVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+  const updatedBanner = !!prefs && !!appVersion && justUpdated(prefs.seenVersion, appVersion)
   // The world builds asynchronously; agents that arrived first must be synced once it exists.
   const [officeReady, setOfficeReady] = useState(false)
   const [talk, setTalk] = useState<Talk>(readTalk)
@@ -1321,6 +1331,15 @@ export function App() {
         <IconButton icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
+      {updatedBanner && (
+        <div className="upd-banner" role="status">
+          <span>Updated to Agent World {appVersion}.</span>
+          <button className="su-link" onClick={() => (setNotesOpen(true), patchPrefs({ seenVersion: appVersion }))}>See what's new</button>
+          <span className="grow" />
+          <button aria-label="Dismiss" title="Dismiss" onClick={() => patchPrefs({ seenVersion: appVersion })}>✕</button>
+        </div>
+      )}
+      {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
       <main>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />

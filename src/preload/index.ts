@@ -97,6 +97,7 @@ const api: AwApi = {
   resync: () => ipcRenderer.invoke('resync'),
   checkUpdates: () => ipcRenderer.invoke('updates:check'),
   updateState: () => ipcRenderer.invoke('updates:state'),
+  appInfo: () => ipcRenderer.invoke('app:info'),
   downloadUpdate: () => ipcRenderer.invoke('updates:download'),
   cancelUpdateDownload: () => ipcRenderer.invoke('updates:cancel'),
   installUpdate: () => ipcRenderer.invoke('updates:install'),

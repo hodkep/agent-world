@@ -10,6 +10,7 @@ import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
+import { installedNotes } from './releaseNotes'
 import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, updateState } from './updates'
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
@@ -1444,6 +1445,8 @@ async function main() {
   })
   ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   ipcMain.handle('updates:state', () => updateState())
+  // The changelog travels with the app: next to its resources when installed, in the project folder when run from source.
+  ipcMain.handle('app:info', () => ({ version: app.getVersion(), notes: installedNotes([process.resourcesPath, app.getAppPath()], app.getVersion()) }))
   ipcMain.handle('updates:download', () => downloadUpdate())
   ipcMain.handle('updates:cancel', () => cancelUpdateDownload())
   ipcMain.handle('updates:install', () => installUpdate())
@@ -2178,6 +2181,7 @@ async function main() {
   ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean; anyway?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
+    if (r.unrelated) throw new Error(`${a.branch} does not come from ${base}'s history: reset it onto ${base} before landing.`)
     if (r.uncommitted) throw new Error(`${a.name} has ${r.uncommitted} uncommitted file(s); commit them first (Code tab).`)
     if (!r.ahead) throw new Error(`${a.branch} has nothing that ${base} does not already have.`)
     // The server says no, not only the dialog: an audit still running or a plan never approved holds the branch back.

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChangeStatus, CommitDetail, CommitInfo, WorktreeStatus } from '../../shared/api'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import type { ChangeStatus, CommitDetail, CommitInfo, CommitPage, WorktreeStatus } from '../../shared/api'
 import { agoLabel } from '../profile/format'
 import { changeRows } from './tree'
 
@@ -16,7 +16,7 @@ export function ViewSwitch({ mode, onMode, counts, inPlace }: { mode: ChangeMode
   const items: [ChangeMode, string, string][] = [
     ['branch', 'Branch', 'What this branch changes compared with its base'],
     ['dirty', 'Uncommitted', 'Changes in the worktree that are not committed yet'],
-    ['history', inPlace ? 'Commits' : 'History', inPlace ? 'The commits made in this folder since the agent was hired' : "The branch's commits"]
+    ['history', inPlace ? 'Commits' : 'History', inPlace ? 'Every commit of this folder, with a line where the agent started' : "The branch's commits"]
   ]
   if (inPlace) items.shift()
   return (
@@ -198,8 +198,9 @@ const PAGE = 50
 export function HistoryList(p: {
   agentId: string
   base: string
-  /** An agent in the folder itself: the commits since it was hired, with no branch to say "since" of. */
+  /** An agent in the folder itself: every commit of the folder, with a divider where the agent started (named here), and no branch to say "since" of. */
   inPlace?: boolean
+  startedBy?: string
   tick: number
   commit: string | null
   onCommit: (hash: string | null) => void
@@ -216,6 +217,7 @@ export function HistoryList(p: {
   const [list, setList] = useState<CommitInfo[] | null>(null)
   const [total, setTotal] = useState(0)
   const [more, setMore] = useState(false)
+  const [sinceHire, setSinceHire] = useState<CommitPage['sinceHire']>(undefined)
   const [branchTotal, setBranchTotal] = useState<number | null>(null)
   const [detail, setDetail] = useState<CommitDetail | null>(null)
   const [closed, setClosed] = useState<Set<string>>(new Set())
@@ -236,12 +238,25 @@ export function HistoryList(p: {
       setList(page.commits)
       setTotal(page.total)
       setMore(page.more)
+      setSinceHire(page.sinceHire)
       if (scope === 'branch' && !query) setBranchTotal(page.total)
     })
   }, [agentId, scope, query, tick, run])
   useEffect(() => {
     if (branchTotal === null) void window.aw.code.log(agentId, { scope: 'branch', limit: 1 }).then((p) => setBranchTotal(p.total), () => {})
   }, [agentId, branchTotal, tick])
+
+  // Where the agent started, in a list of all the folder's commits: a line above the first commit made since, and above the first made before.
+  const divider = (i: number, c: CommitInfo) => {
+    if (!p.inPlace || !sinceHire || query || !list) return null
+    // Git dates commits to the second, so the hire time counts to the second too: a commit made in the second of the hire is the agent's.
+    const started = Math.floor(sinceHire.at / 1000) * 1000
+    const before = c.at < started
+    const name = p.startedBy ?? 'the agent'
+    if (!before && i === 0 && sinceHire.count > 0) return <li className="commit-div" role="separator">Since {name} started · {sinceHire.count.toLocaleString()}</li>
+    if (before && (i === 0 || list[i - 1]!.at >= started)) return <li className="commit-div" role="separator">Before {name} started · {Math.max(0, total - sinceHire.count).toLocaleString()}</li>
+    return null
+  }
 
   const older = () =>
     void run(async () => {
@@ -312,8 +327,10 @@ export function HistoryList(p: {
         <input className="change-find" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search message, author or hash…" aria-label="Search commits" />
       </div>
       <ul className="commits" aria-label="Commits">
-        {list?.map((c) => (
-          <li key={c.hash}>
+        {list?.map((c, i) => (
+          <Fragment key={c.hash}>
+          {divider(i, c)}
+          <li>
             <button className="commit" onClick={() => (onCommit(c.hash), onPick(null))} title={`${c.hash}\n${new Date(c.at).toLocaleString()}`}>
               <span className={`dot ${c.head ? 'head' : ''}`} aria-hidden="true" />
               <span className="subject">{c.subject}</span>
@@ -330,8 +347,9 @@ export function HistoryList(p: {
               </span>
             </button>
           </li>
+          </Fragment>
         ))}
-        {list && scope === 'branch' && !query && !more && list.length > 0 && <li className="commit-base">branch starts here · {base}</li>}
+        {list && scope === 'branch' && !p.inPlace && !query && !more && list.length > 0 && <li className="commit-base">branch starts here · {base}</li>}
         {list && list.length === 0 && <li className="empty">{query ? 'No commit matches.' : scope === 'branch' ? `No commits since ${base} yet.` : 'No commits.'}</li>}
         {list && more && (
           <li className="empty more">
