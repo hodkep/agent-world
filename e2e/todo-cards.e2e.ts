@@ -16,6 +16,8 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
+    // The tasks the agent names are on the board, so their chips open them.
+    for (let n = 1; n <= 14; n++) await page.evaluate(([f, i]) => window.aw.todos.add(f!, { title: `Task ${i}` }), [home, String(n)])
     await page.getByRole('tab', { name: 'Chat' }).click()
     const box = page.getByRole('textbox', { name: 'Message ada' })
     await box.fill('keep the board up to date')
@@ -63,8 +65,33 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     await expect(reply.locator('code')).toContainText('todo#99')
     await expect(reply.locator('code .todo-ref')).toHaveCount(0)
 
-    // These tasks are not on this project's board, so the link says so rather than opening nothing.
-    await expect(reply.locator('.todo-ref').first()).toContainText('not found')
+    // They are on the board, so the link names the task.
+    await expect(reply.locator('.todo-ref').first()).toContainText('Task 14')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('chat: a chip for a task that is not on the board any more is not a button, and says removed', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-todo-gone-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_TODO: '1' },
+    home
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('keep the board up to date')
+    await box.press('Enter')
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await log.locator('.of-head').click({ timeout: 15_000 })
+    await expect(log.locator('.of-todo.gone').first()).toContainText('removed')
+    await expect(log.locator('button.of-todo')).toHaveCount(0)
   } finally {
     await shutdown()
   }
