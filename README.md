@@ -155,4 +155,4 @@ Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the test rules
 
 ## <img src="docs/images/icons/licence.svg" width="24" height="24" alt=""> Licence
 
-[Apache License 2.0](LICENSE) from the release after 0.1.2; versions up to 0.1.2 were published under the MIT licence and stay under it. The core is open: use it, change it, and send improvements. The maintainer may also offer separate commercial editions with extra features. The name and logo are not covered by the license: see [TRADEMARK.md](TRADEMARK.md). Agent World is not affiliated with Anthropic or Google. The Claude and Antigravity marks in the app belong to their owners: see [NOTICE.md](NOTICE.md).
+[Apache License 2.0](LICENSE) from 0.2.0; versions up to 0.1.2 were published under the MIT licence and stay under it. The core is open: use it, change it, and send improvements. The maintainer may also offer separate commercial editions with extra features. The name and logo are not covered by the license: see [TRADEMARK.md](TRADEMARK.md). Agent World is not affiliated with Anthropic or Google. The Claude and Antigravity marks in the app belong to their owners: see [NOTICE.md](NOTICE.md).
