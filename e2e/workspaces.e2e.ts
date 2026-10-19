@@ -53,6 +53,8 @@ test('the project you worked in is saved, offered first on the next launch, and 
 
     // Forgetting drops it from the saved list without touching the folder; a project an agent still works in stays listed, with nothing left to forget.
     await page.locator('.ws-button').click()
+    // The × shows when the pointer is over the tile.
+    await page.getByRole('menuitem', { name: /shop-api/ }).hover()
     await page.getByRole('button', { name: 'Forget shop-api' }).click()
     await expect(page.getByRole('button', { name: 'Forget shop-api' })).toHaveCount(0)
     await expect(page.getByRole('menu', { name: 'Projects' })).toContainText('1 agent')

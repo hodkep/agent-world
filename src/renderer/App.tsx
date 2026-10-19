@@ -9,7 +9,10 @@ import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
 import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
-import { WorkspaceMenu } from './panel/WorkspaceMenu'
+import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
+import { Identicon } from './panel/Identicon'
+import { QuickPanel } from './panel/QuickPanel'
+import { useHoverMenu } from './panel/hoverMenu'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
 import { type LimitView, type UsageLimits, noLimits, untilReset } from '../shared/usage'
@@ -319,19 +322,9 @@ export function App() {
   // Folded away by default; the switcher in the slim header stands in for the list. Tests open it with aw.compact=0.
   const compact = store('aw.compact') !== '0'
   const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
-  const [switcher, setSwitcher] = useState(false)
-  const switchWrap = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!switcher) return
-    const away = (e: MouseEvent) => !switchWrap.current?.contains(e.target as Node) && setSwitcher(false)
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSwitcher(false)
-    window.addEventListener('mousedown', away)
-    window.addEventListener('keydown', esc)
-    return () => {
-      window.removeEventListener('mousedown', away)
-      window.removeEventListener('keydown', esc)
-    }
-  }, [switcher])
+  // The agent switcher in the slim header: resting on it opens a grid of the agents, a click keeps it open until a click elsewhere.
+  const sw = useHoverMenu()
+  const openSwitcher = () => !sw.pinned && sw.menu.click()
   const [renaming, setRenaming] = useState<string | null>(null)
   const [grouping, setGrouping] = useState(false)
   const [stats, setStats] = useState<Record<string, AgentStats>>({})
@@ -669,6 +662,14 @@ export function App() {
     const need = needsOf(id)[0]
     const wait = waits.find((w) => w.agentId === id)
     return need ? needTitle(need).toLowerCase() : wait ? waitWord(wait.kind) : null
+  }
+  // What each project's agents are doing, for its tile in the project switcher: some wait for the person (a permission, a question, a plan, a gate), some are working.
+  const wsActivity: Record<string, WorkspaceActivity> = {}
+  for (const a of allAgents) {
+    const w = (wsActivity[a.repoPath] ??= { waiting: 0, working: 0 })
+    const act = world[a.id]?.activity ?? 'asleep'
+    if (needsOf(a.id).length > 0 || act === 'permission' || waits.some((x) => x.agentId === a.id)) w.waiting++
+    else if (['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(act)) w.working++
   }
   talkRef.current = talk
   const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
@@ -1311,6 +1312,7 @@ export function App() {
         </h1>
         <WorkspaceMenu
           workspaces={workspaces}
+          activity={wsActivity}
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
           onPick={pick}
           onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
@@ -1512,19 +1514,46 @@ export function App() {
             <section className="head-compact" aria-label="Selected agent">
               <button onClick={() => step(-1)} aria-label="Previous agent" title="Previous agent in this project" className="hc-step hc-prev" />
               <button onClick={() => step(1)} aria-label="Next agent" title="Next agent in this project" className="hc-step hc-next" />
-              <span className="hc-wrap" ref={switchWrap}>
-                <button className="hc-switch" onClick={() => setSwitcher((o) => !o)} aria-haspopup="menu" aria-expanded={switcher} aria-label="Agents" title="All agents in this project">
+              <span className="hc-wrap" ref={sw.wrap as React.RefObject<HTMLSpanElement>} onMouseEnter={() => sw.menu.enter()} onMouseLeave={() => sw.menu.leave()}>
+                <button className={`hc-switch ${sw.open ? 'open' : ''}`} onClick={() => sw.menu.click()} aria-haspopup="menu" aria-expanded={sw.open} aria-label="Agents" title="All agents in this project">
                   {agents.length}
                   <span aria-hidden="true">▾</span>
                 </button>
-                {switcher && (
-                  <div className="sw-pop" role="menu" aria-label="Agents">
-                    <nav className="roster" aria-label="Agent list">
-                      {rosterRows(() => setSwitcher(false))}
-                    </nav>
-                    <div className="sw-foot">
-                      <button onClick={() => (setSwitcher(false), setHiring(true))}>+ Agent</button>
-                    </div>
+                {sw.open && (
+                  <div className="qp-wrap hc" data-pinned={sw.pinned}>
+                    <QuickPanel
+                      label="Agents"
+                      title="Agents"
+                      count={agents.length}
+                      className="agents"
+                      footer={
+                        <>
+                          <button role="menuitem" onClick={() => (sw.menu.chosen(), setHiring(true))}>+ Agent</button>
+                          <span className="hint">Ctrl+Tab to step</span>
+                        </>
+                      }
+                    >
+                      {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
+                        const activity = world[a.id]?.activity ?? 'asleep'
+                        const ask = askWord(a.id)
+                        return (
+                          <Fragment key={a.id}>
+                            {a.group && a.group !== all[i - 1]?.group && <div className="group-head qp-head">{a.group}</div>}
+                            <div className={`wt-cell ${a.id === selected ? 'on' : ''}`}>
+                              <button role="menuitem" className={`wt agent-tile is-${activity} ${a.id === selected ? 'on' : ''}`} data-n={i < 9 ? String(i + 1) : undefined} aria-current={a.id === selected} onClick={() => (select(a.id), sw.menu.chosen())} title={`${a.name}: ${activity}`}>
+                                {i < 9 && <kbd aria-hidden="true">{i + 1}</kbd>}
+                                <span className="wt-top">
+                                  <Identicon name={a.name} />
+                                  <span className="wt-state" aria-hidden="true" />
+                                </span>
+                                <span className="wt-name">{a.name}</span>
+                                <span className="wt-sub">{ask ? <span className="ask-pill">{ask}</span> : activity}</span>
+                              </button>
+                            </div>
+                          </Fragment>
+                        )
+                      })}
+                    </QuickPanel>
                   </div>
                 )}
               </span>
@@ -1599,7 +1628,7 @@ export function App() {
               )}
               {cur && <span className="hc-cost">${cur.costUsd.toFixed(2)}</span>}
               {agents.some((a) => a.id !== current.id && askWord(a.id)) && (
-                <button className="ask-pill" onClick={() => setSwitcher(true)} title="Another agent is waiting for you">
+                <button className="ask-pill" onClick={openSwitcher} title="Another agent is waiting for you">
                   others waiting
                 </button>
               )}
