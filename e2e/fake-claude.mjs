@@ -686,6 +686,8 @@ if (process.env.FAKE_PLAN) {
     process.stdin.setRawMode?.(true)
     const onKey = (d) => {
       const k = String(d)
+      // Esc rejects the plan, as in Claude: it stays in plan mode and nothing is chosen.
+      if (k === '\x1b') return (process.stdin.off('data', onKey), process.stdout.write('\x1b[2J\x1b[Hplan rejected\r\n'), resolve())
       if (k === '\x1b[B') at = Math.min(2, at + 1)
       else if (k === '\x1b[A') at = Math.max(0, at - 1)
       else if (k === '\r') {

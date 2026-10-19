@@ -2382,8 +2382,8 @@ async function main() {
       io.write(keysOf(id).submit)
     }
   })
-  ipcMain.handle('question:cancel', (_, id: string) => {
-    if (!questionOpen.has(id)) throw new Error('That question is no longer open.')
+  ipcMain.handle('need:cancel', (_, id: string) => {
+    if (!questionOpen.has(id) && !planOpen.has(id)) throw new Error('That is no longer open.')
     sessions.get(id)?.write(keysOf(id).cancel)
   })
   ipcMain.handle('answer-question', async (_, id: string, answers: QuestionAnswer[]) => {
