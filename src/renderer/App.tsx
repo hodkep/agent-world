@@ -1132,7 +1132,8 @@ export function App() {
     plan: (choice, feedback) => window.aw.answerPlan(agentId, choice, feedback),
     answer: (answers) => window.aw.answerQuestions(agentId, answers),
     menu: (index) => window.aw.answerMenu(agentId, index),
-    cancelMenu: () => window.aw.cancelMenu(agentId)
+    cancelMenu: () => window.aw.cancelMenu(agentId),
+    cancelQuestion: () => window.aw.cancelQuestion(agentId)
   })
   const decideById = (id: string, d: 'allow' | 'deny') => {
     window.aw.decide(id, d)

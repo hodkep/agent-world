@@ -20,6 +20,7 @@ export interface NeedActions {
   answer: (answers: QuestionAnswer[]) => Promise<void>
   menu: (index: number) => Promise<void>
   cancelMenu: () => Promise<void>
+  cancelQuestion: () => Promise<void>
 }
 
 interface Props {
@@ -47,7 +48,7 @@ export function NeedPanel({ need, actions, onFinishInTerminal, hint, onProgress 
     }
   }
   // The questions are laid out as one piece (steps, page, buttons), so they bring their own body and footer.
-  if (need.kind === 'question') return <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
+  if (need.kind === 'question') return <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} onCancel={() => attempt(actions.cancelQuestion)} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
   return (
     <>
       <div className="dialog-body">
@@ -190,12 +191,14 @@ const ready = (q: Question, d: Draft) => (q.multiSelect ? d.picks.length > 0 : d
 function Questions({
   questions,
   onSend,
+  onCancel,
   error,
   onFinishInTerminal,
   onProgress
 }: {
   questions: Question[]
   onSend: (a: QuestionAnswer[]) => Promise<void>
+  onCancel: () => Promise<void>
   error: string | null
   onFinishInTerminal: () => void
   onProgress?: (p: string) => void
@@ -367,6 +370,9 @@ function Questions({
         </div>
       )}
       <footer className="qd-foot">
+        <button className="cancel" disabled={busy} onClick={() => void onCancel()} title="Decline the question, as Esc does in the terminal">
+          Cancel question
+        </button>
         <button className="term" onClick={onFinishInTerminal} title="Answer this in the agent's terminal instead">
           <span className="gl" aria-hidden="true">
             &gt;_
