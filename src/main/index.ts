@@ -2180,6 +2180,16 @@ async function main() {
     workflows.seen(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
     send('workflows')
   })
+  ipcMain.handle('finish:aside', (_, id: string) => {
+    workflows.asideAudit(id)
+    send('workflows')
+    send('landing')
+  })
+  ipcMain.handle('finish:undo-aside', (_, id: string) => {
+    workflows.undoAsideAudit(id)
+    send('workflows')
+    send('landing')
+  })
   ipcMain.handle('finish:run', async (_, id: string, o: { squash: boolean; message: string; cleanup: boolean; anyway?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)

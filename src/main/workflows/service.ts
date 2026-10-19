@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -43,6 +43,7 @@ interface Deps {
 export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: number; model?: string } | { failed: string }
 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
+const AUDIT_STEP = 'audit'
 const SAME_WORK_MS = 10 * 60_000
 const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
@@ -455,7 +456,8 @@ export class Workflows {
     const flagged = run.rounds.reduce((n, r) => n + r.commits.filter((c) => c.flagged).length, 0)
     if (flagged) notes.push(`${flagged} commit${flagged === 1 ? ' was' : 's were'} made outside the task.`)
     const audit: MergeCheck['audit'] = gated ? this.auditState(run, head, o.auditable ?? true) : { state: 'off', reason: 'gate' }
-    if (audit.state === 'done') {
+    const asideAudit = auditSetAside(run)
+    if (audit.state === 'done' && !asideAudit) {
       const unseen = audit.findings.filter((f) => !f.seen).length
       if (unseen) blocking.push(`${unseen} audit finding${unseen === 1 ? ' has' : 's have'} not been seen.`)
     }
@@ -481,7 +483,7 @@ export class Workflows {
     })
     if (!gated && blocking.length === 0 && checks.length === 0) return null
     const readback = this.planOf(run)
-    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, checks, blocking, notes }
+    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, asideAudit, checks, blocking, notes }
   }
 
   /** The plan an audit reads against: the latest round's that has a goal (a released hold has none). */
@@ -534,6 +536,25 @@ export class Workflows {
     this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
   }
 
+  /** The person sets the review aside: not followed, by their choice, and nothing it found or has not yet found holds landing. */
+  asideAudit(agentId: string) {
+    this.auditStep(agentId, 'skipped')
+  }
+
+  /** The person takes it back: the review's findings hold landing again. */
+  undoAsideAudit(agentId: string) {
+    this.auditStep(agentId, 'rerun')
+  }
+
+  private auditStep(agentId: string, state: 'skipped' | 'rerun') {
+    const run = this.mine(agentId)[0]
+    if (!run) throw new Error('No such run.')
+    // A run that follows no workflow has no audit step of its own: its audit is the one the gate runs, and sets aside under that name.
+    const step = run.workflow ? run.workflow.steps.find((s) => s.kind === 'audit')?.id : AUDIT_STEP
+    if (!step) throw new Error('This run has no review to set aside.')
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: run.rounds.length, step, state })
+  }
+
   /** The heads the person allowed to land with something still holding them, by agent: one allowance serves one head, and landing it uses it up. */
   private allowed = new Map<string, string>()
 
@@ -547,7 +568,7 @@ export class Workflows {
     const check = this.mergeCheck(agentId, head, o)
     if (!check || this.allowed.get(agentId) === head) return null
     // A review that was expected and has not answered holds the branch too: the person would be letting it land unseen.
-    const reviewing = check.audit.state === 'not-run' ? ['The review has not run for this branch yet.'] : check.audit.state === 'running' ? ['The review is still running.'] : []
+    const reviewing = check.asideAudit ? [] : check.audit.state === 'not-run' ? ['The review has not run for this branch yet.'] : check.audit.state === 'running' ? ['The review is still running.'] : []
     const held = [...check.blocking, ...reviewing]
     return held.length ? held : null
   }

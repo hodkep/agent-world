@@ -1,7 +1,7 @@
 import { weekStartOf } from './ledger'
 import type { Run, RunWorkflow } from './runs'
 import { formatDuration } from './runStats'
-import { type StepContext, stepStates } from './steps'
+import { type StepContext, auditSetAside, stepStates } from './steps'
 
 /** One stretch of a run's time: the agent working, the person being waited on, a check that ran, or one that failed. */
 export interface Segment {
@@ -266,7 +266,8 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
   if (a?.state === 'failed') out.push({ at: a.t - start, kind: 'trouble', text: `Review could not run: ${a.reason}` })
   if (a?.state === 'done') {
     const unseen = a.findings.filter((f) => !f.seen)
-    const text = a.findings.length === 0 ? 'Review found nothing' : unseen.length === 0 ? `Review found ${plural(a.findings.length, 'thing', 'things')}, all seen` : `Review found ${plural(unseen.length, 'thing', 'things')} you did not look at: “${clip(unseen[0]!.text, 80)}”`
+    const aside = unseen.length > 0 && auditSetAside(run)
+    const text = aside ? `You set the review aside with ${plural(unseen.length, 'thing', 'things')} not looked at: “${clip(unseen[0]!.text, 80)}”` : a.findings.length === 0 ? 'Review found nothing' : unseen.length === 0 ? `Review found ${plural(a.findings.length, 'thing', 'things')}, all seen` : `Review found ${plural(unseen.length, 'thing', 'things')} you did not look at: “${clip(unseen[0]!.text, 80)}”`
     out.push({ at: a.t - start, kind: a.findings.length === 0 ? 'ok' : unseen.length === 0 ? 'trouble' : 'bad', text })
   }
   if (run.landed) out.push({ at: run.landed.t - start, kind: run.landed.how === 'checked' ? 'ok' : 'bad', text: run.landed.how === 'checked' ? 'Landed after the checks' : `Landed anyway, with ${run.landed.held.join(' and ') || 'a gate'} still holding it` })

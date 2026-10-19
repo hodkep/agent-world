@@ -260,6 +260,10 @@ export interface AwApi {
   landingReopen(agentId: string): Promise<void>
   /** The person has seen these findings (by position) of the audit of the branch as it is now. */
   finishSeen(agentId: string, which: number[]): Promise<void>
+  /** The person sets the audit aside: not followed, by their choice, and nothing it found or has not yet found holds landing. */
+  finishAside(agentId: string): Promise<void>
+  /** The person takes that back. */
+  finishUndoAside(agentId: string): Promise<void>
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
   finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean; /** Land although the merge gate holds it back; the choice is recorded. */ anyway?: boolean }): Promise<{ base: string; removed: boolean }>
   /** Notes saved for this agent's project, newest first (shared by every agent in it). */
