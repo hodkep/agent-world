@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { PictureSet } from './gallery'
 import { OutlineIcon } from '../panel/IconButton'
-import { type AreaRow, type OfficeGroup, areasOf, outcomeOf, stampOf, whisperOf } from './officeCalls'
+import { type AreaRow, type OfficeGroup, areasOf, outcomeOf, stampOf, todoOf, whisperOf } from './officeCalls'
 import { AREA_ICON, STAMP_ICON } from './stampIcons'
+import { openTodo } from '../todos/todoStore'
 import { ToolCard } from './ToolCard'
 
 type Call = AreaRow['calls'][number]
@@ -14,16 +15,20 @@ function CallItem({ call, onImage }: { call: Call; onImage: (src: string, set?: 
   const w = whisperOf(call.run)
   const st = stampOf(call.run)
   const out = outcomeOf(call.run)
+  const todo = todoOf(call.run)
   return (
     <div className={`of-item stamp-${st.kind} ${st.state}`}>
-      <button className="of-row" aria-expanded={shown} onClick={() => setShown(!shown)}>
-        <span className="of-ic" aria-hidden="true"><OutlineIcon name={STAMP_ICON[st.kind]} size={14} /></span>
-        <span className="of-txt">
-          <b>{w.bold}</b>
-          {w.rest && <span> {w.rest}</span>}
-          {w.why && <span className="of-why"> · {w.why}</span>}
-        </span>
-      </button>
+      <div className="of-line">
+        <button className="of-row" aria-expanded={shown} onClick={() => setShown(!shown)}>
+          <span className="of-ic" aria-hidden="true"><OutlineIcon name={STAMP_ICON[st.kind]} size={14} /></span>
+          <span className="of-txt">
+            <b>{w.bold}</b>
+            {w.rest && <span> {w.rest}</span>}
+            {w.why && <span className="of-why"> · {w.why}</span>}
+          </span>
+        </button>
+        {todo && <button className="of-todo" onClick={() => openTodo(todo)} title={`Open todo#${todo} on the Todos board`}>todo#{todo} ↗</button>}
+      </div>
       {shown && (
         <div className="of-card">
           {out && (

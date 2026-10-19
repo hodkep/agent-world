@@ -22,7 +22,7 @@ Everything the agent does is a card. Commands, reads and searches in a row fold 
 
 ![The chat of an agent: a command folded into one line, the Library and Notes rows of the office's own calls, an edit shown as a diff, and the agent's reply](../images/chat.png)
 
-The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A button such as "2 commands running" above the box lists them with **Stop**.
+The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board. A button such as "2 commands running" above the box lists them with **Stop**.
 
 ## The message box
 
@@ -76,6 +76,7 @@ To put a card away, click its **✕** or press Esc. The agent keeps waiting, and
 
 - Click an answer or press its number. "Something else…" takes your own words.
 - **Next** turns the page and reads **Review** on the last. Check your answers, then click **Send answers**.
+- **Cancel question** declines it, as Esc does in the terminal. ✕ only puts the card away.
 
 **TRUST?** "Trust this workspace before the agent starts?" Click **Trust folder** to say yes or **Exit** to say no.
 

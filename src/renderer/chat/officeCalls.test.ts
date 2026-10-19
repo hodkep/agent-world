@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Row } from './format'
-import { areasOf, groupOffice, outcomeOf, officeTool, runCall, stampOf, summaryOf, whisperOf } from './officeCalls'
+import { areasOf, groupOffice, outcomeOf, officeTool, runCall, stampOf, summaryOf, todoOf, whisperOf } from './officeCalls'
 
 const call = (id: string, tool: string, input: Record<string, unknown> = {}, text?: string, isError = false): Extract<Row, { kind: 'tool' }> => ({
   kind: 'tool', id, run: { name: `mcp__agent-world__${tool}`, input, result: text === undefined ? undefined : { text, isError }, at: 1, id } as never
@@ -164,5 +164,22 @@ describe('what a call brought back, shown in its opened row', () => {
   })
   it('is nothing for a call that failed, since its reason is already in the row', () => {
     expect(outcomeOf(call('f', 'todo_done', { id: '9' }, 'No todo 9', true).run)).toBeNull()
+  })
+})
+
+describe('the todo a call touched', () => {
+  it('is the number the call was given for an update, a claim, a look or a finish', () => {
+    for (const tool of ['todo_update', 'todo_done', 'todo_claim', 'todo_get']) expect(todoOf(call('a', tool, { id: '336' }, 'ok').run)).toBe('336')
+    expect(todoOf(call('a', 'todo_done', { id: 'todo#12' }, 'ok').run)).toBe('12')
+  })
+  it('is the number the office gave a new task, read from what came back', () => {
+    expect(todoOf(call('a', 'todo_add', { title: 'x' }, 'Added todo#336 to Chat.').run)).toBe('336')
+    expect(todoOf(call('a', 'todo_add', { title: 'x' }).run)).toBeNull()
+    expect(todoOf(call('a', 'todo_add', { title: 'x' }, 'No such list', true).run)).toBeNull()
+  })
+  it('is nothing for a call that is not about one task', () => {
+    expect(todoOf(call('a', 'todo_list').run)).toBeNull()
+    expect(todoOf(call('a', 'todo_search', { query: 'x' }, 'todo#1 …').run)).toBeNull()
+    expect(todoOf(call('a', 'library_get', { id: 'tdd' }, 'ok').run)).toBeNull()
   })
 })
