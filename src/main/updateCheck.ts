@@ -51,7 +51,7 @@ export function updateMode(o: { packaged: boolean; platform: NodeJS.Platform; si
 }
 
 /**
- * Looks by itself: once a little after the app starts and again every six hours while it is open. A look that is still running is not started again,
+ * Looks by itself: once a little after the app starts and again every three hours while it is open. A look that is still running is not started again,
  * and one that failed (no network) is simply tried at the next time. Returns what stops it.
  */
 export function startChecks(run: () => Promise<unknown>, o: { startMs?: number; everyMs?: number } = {}): () => void {
@@ -62,7 +62,7 @@ export function startChecks(run: () => Promise<unknown>, o: { startMs?: number; 
     void run().catch(() => undefined).finally(() => (busy = false))
   }
   const first = setTimeout(look, o.startMs ?? 15_000)
-  const every = setInterval(look, o.everyMs ?? 6 * 3600_000)
+  const every = setInterval(look, o.everyMs ?? 3 * 3600_000)
   return () => (clearTimeout(first), clearInterval(every))
 }
 

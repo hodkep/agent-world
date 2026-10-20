@@ -1492,7 +1492,7 @@ async function main() {
   ipcMain.handle('updates:cancel', () => cancelUpdateDownload())
   ipcMain.handle('updates:install', () => installUpdate())
   ipcMain.handle('updates:reveal', (_, kind: 'file' | 'log') => revealUpdate(kind === 'log' ? 'log' : 'file'))
-  // An installed app looks by itself once at the start and every six hours; a build that is not installed has nothing to look for.
+  // An installed app looks by itself once at the start and every three hours; a build that is not installed has nothing to look for.
   if (app.isPackaged) startChecks(() => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   // Automated runs have no one to walk through setup, so they start as if it was done.
   ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))

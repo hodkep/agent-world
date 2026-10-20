@@ -62,7 +62,7 @@ To let an Antigravity agent message the others, press **Let agy (Antigravity) me
 
 ## Updates
 
-The installed app looks for a newer version about 15 seconds after it starts and then every six hours while it is open. A development build never looks.
+The installed app looks for a newer version about 15 seconds after it starts and then every three hours while it is open. A development build never looks.
 
 The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app), and **Check now**. The line below says what was found. Once a download has started, **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
 
