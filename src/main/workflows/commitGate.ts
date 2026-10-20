@@ -34,13 +34,13 @@ const ASK = `if [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
 fi
 `
 // git runs this before it moves any reference, and `--no-verify` does not skip it: a commit cannot reach the agent's own branch while the office holds it.
-// Only the first step ("prepared") of an update to a branch asks, and its last ("committed") tells the office it happened; the repository's own hook of this name then gets what git sent.
+// Only the first step ("prepared") of an update to a branch asks, and its last ("committed") tells the office it happened, remote-tracking branches too (a push moves them even with `--no-verify`); the repository's own hook of this name then gets what git sent.
 const REF_SCRIPT = `#!/bin/sh
 # Part of Agent World. Safe to delete: git then runs the repository's own hooks again.
 state="$1"
 input=$(cat)
 if { [ "$state" = prepared ] || [ "$state" = committed ]; } && [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
-  refs=$(printf '%s\\n' "$input" | awk 'substr($3,1,11)=="refs/heads/" { print $3 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
+  refs=$(printf '%s\\n' "$input" | awk -v st="$state" 'substr($3,1,11)=="refs/heads/" || (st=="committed" && substr($3,1,13)=="refs/remotes/") { print $3 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
   if [ -n "$refs" ]; then
     case "$AW_MCP_URL" in
       http://127.0.0.1:*|http://localhost:*|http://\\[::1\\]:*)
@@ -160,3 +160,6 @@ export const movesBase = (base: string | null, refs: string[]): boolean => !!bas
 
 /** The commit a branch points at, or null when there is no such branch (or `cwd` is not a repository). */
 export const branchHead = (cwd: string, branch: string): string | null => git(cwd, 'rev-parse', '--verify', '-q', `refs/heads/${branch}`) || null
+
+/** The commit any reference (`refs/remotes/origin/x`) points at, or null when there is none (or `cwd` is not a repository). */
+export const refHead = (cwd: string, ref: string): string | null => git(cwd, 'rev-parse', '--verify', '-q', ref) || null
