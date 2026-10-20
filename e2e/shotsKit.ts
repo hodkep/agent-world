@@ -111,7 +111,7 @@ export const exists = existsSync
 
 /** The task of `agentId` that follows the Journey workflow, with its plan approved, as the log would hold it. */
 export function seedRun(home: string, o: { agentId: string; repo: string }) {
-  const JOURNEY = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }] }
+  const JOURNEY = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
   const t = Date.now()
   const events = [
     { k: 'begin', t: t - 5000, run: 'r1', agent: o.agentId, name: 'ada', project: o.repo, title: 'Add a dark-mode toggle', workflow: JOURNEY },
