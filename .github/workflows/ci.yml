@@ -76,7 +76,11 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
 
-  # The end-to-end specs, split over four Macs. Each shard builds the app and runs its quarter of the specs; the aggregator below reports for all of them.
+  # The end-to-end specs, split over two Macs. Each shard builds the app and runs half of the specs; the aggregator below reports for all of them.
+  # Why two and not four: this repository gets a shared pool of about 5 Macs, not one per job. Counting today's 34 macOS jobs, at most 5 ran at the same moment, and
+  # a job sometimes waited 15 to 35 minutes for one. With four shards a single pull request held most of the pool and the other pull requests' jobs queued behind it,
+  # so the shards of one run ended up running one after another. Two shards still run side by side and leave room for a second pull request. No concurrency group
+  # makes pull requests wait for each other: GitHub keeps one pending run per group and cancels an older pending one, so a third pull request would cancel the second.
   e2e:
     needs: [changes, checks]
     if: needs.changes.outputs.e2e == 'true'
@@ -84,7 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     runs-on: macos-latest
     env:
       PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/report-${{ matrix.shard }}.json
@@ -102,7 +106,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node node_modules/electron/install.js
       - run: pnpm run build
-      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/4
+      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/2
       - uses: actions/upload-artifact@v4
         if: always()
         with:
