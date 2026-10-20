@@ -196,4 +196,35 @@ describe('mailbox', () => {
     box.turnEnded('a2')
     expect(delivered.some((d) => d.text === 'never')).toBe(false)
   })
+
+  describe('the same name in two projects', () => {
+    beforeEach(() => {
+      online = new Set(['a1', 'a2', 'b1', 'b2'])
+      const all = () => [
+        { id: 'a1', name: 'ada', online: true, repoPath: '/shop' },
+        { id: 'a2', name: 'linus', online: true, repoPath: '/shop' },
+        { id: 'b1', name: 'ada', online: true, repoPath: '/blog' },
+        { id: 'b2', name: 'grace', online: true, repoPath: '/blog' },
+        { id: 'c1', name: 'zed', online: true, repoPath: '/docs' }
+      ]
+      box = new Mailbox({ agents: all, deliver: (to, text) => delivered.push({ to, text }), notify: (m) => notes.push({ ...m }) })
+      for (const id of ['a1', 'a2', 'b1', 'b2', 'c1']) box.ready(id)
+    })
+
+    it('reaches the one in the sender\'s own project', () => {
+      box.send('a2', 'ada', 'hello')
+      expect(delivered.at(-1)!.to).toBe('a1')
+      box.send('b2', 'ada', 'hello')
+      expect(delivered.at(-1)!.to).toBe('b1')
+    })
+
+    it('reaches a name that only one project has, from another project', () => {
+      box.send('a2', 'grace', 'hi')
+      expect(delivered.at(-1)!.to).toBe('b2')
+    })
+
+    it('asks the sender to say which, when the name is in two other projects', () => {
+      expect(() => box.send('c1', 'ada', 'hi')).toThrow(/more than one agent named ada/i)
+    })
+  })
 })

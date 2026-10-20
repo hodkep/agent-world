@@ -8,6 +8,11 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Settings: an account is renamed by clicking its name in Settings > Accounts (Enter saves, Esc cancels). Only the label changes: the folder, the sign-in and the agents on it stay.
 
+### Fixed
+
+- Two projects can each have an agent with the same name. A name only has to be free inside its project, and an agent writing to another by name reaches the one in its own project first.
+- Hire an agent, Subagents and History open in grid mode too; they were drawn inside the side panel, which grid mode hides.
+
 ## [0.2.2] - 2026-10-20
 
 ### Added

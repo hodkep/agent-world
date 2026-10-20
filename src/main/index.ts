@@ -418,7 +418,7 @@ const agentTokens = new Map<string, string>()
 // Claude needs a moment after SessionStart/Stop before its input box accepts a paste.
 const DELIVERY_DELAY_MS = 700
 const mailbox = new Mailbox({
-  agents: () => agents.map((a) => ({ id: a.id, name: a.name, online: sessions.has(a.id) })),
+  agents: () => agents.map((a) => ({ id: a.id, name: a.name, online: sessions.has(a.id), repoPath: a.repoPath })),
   deliver: (id, text) => {
     const attempt = (left: number) => {
       const p = sessions.get(id)
@@ -670,14 +670,14 @@ async function nextName(repoPath: string) {
   for (let n = 1; ; n++)
     for (const base of NAMES) {
       const name = n === 1 ? base : `${base}${n}`
-      if (agents.some((a) => a.name === name) || reservedNames.has(name)) continue
-      reservedNames.add(name)
+      if (agents.some((a) => a.name === name && a.repoPath === repoPath) || reservedNames.has(`${repoPath}:${name}`)) continue
+      reservedNames.add(`${repoPath}:${name}`)
       if (await nameTaken({ repoPath, name, rootDir: join(HOME, 'worktrees') })) {
-        reservedNames.delete(name)
+        reservedNames.delete(`${repoPath}:${name}`)
         continue
       }
       // By now the caller has the agent in the list; if it failed instead, the name is free again soon.
-      setTimeout(() => reservedNames.delete(name), 30_000)
+      setTimeout(() => reservedNames.delete(`${repoPath}:${name}`), 30_000)
       return name
     }
 }
@@ -1172,7 +1172,7 @@ async function main() {
       if (!p) throw new Error(`There is no program called ${i.provider}.`)
       if ((await p.detect(binFor(p))).state !== 'ready') throw new Error(`${p.label} is not ready on this computer (is it installed and signed in?).`)
       const wanted = i.branch ? cleanName(i.branch.replace(/^aw\//, '')) : ''
-      const name = wanted ? checkName(wanted, agents.map((a) => a.name)) : await nextName(parent.repoPath)
+      const name = wanted ? checkName(wanted, agents.filter((a) => a.repoPath === parent.repoPath).map((a) => a.name)) : await nextName(parent.repoPath)
       if (wanted && (await makesBranch({ repoPath: parent.repoPath, inPlace: i.worktree === false })) && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
       const wt = await worktreeFor({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), inPlace: i.worktree === false, ...(parent.branch && { from: parent.branch }) })
       // It works the way its parent does (full autonomy only if the parent has it); one that only reads cannot change anything. When it stops to ask, the question comes up on its parent's card.
@@ -1640,7 +1640,7 @@ async function main() {
   ipcMain.handle('window:new', () => void createWindow())
   ipcMain.handle('list-agents', () => agents.filter((a) => !a.parent).map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
   ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string) => {
-    const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.map((a) => a.name)) : await nextName(folder)
+    const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.filter((a) => a.repoPath === folder).map((a) => a.name)) : await nextName(folder)
     if (cleanName(wanted ?? '') && (await makesBranch({ repoPath: folder, inPlace: options.inPlace })) && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
       throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
     const wt = await worktreeFor({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), inPlace: options.inPlace, ...(base && (await assertBranch(folder, base), { base })) })
@@ -2050,7 +2050,7 @@ async function main() {
   ipcMain.handle('rename-agent', (_, id: string, wanted: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
-    a.name = checkName(wanted, agents.filter((x) => x.id !== id).map((x) => x.name))
+    a.name = checkName(wanted, agents.filter((x) => x.id !== id && x.repoPath === a.repoPath).map((x) => x.name))
     persist()
     return a.name
   })
