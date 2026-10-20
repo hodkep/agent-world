@@ -110,6 +110,17 @@ describe('AccountService lists and removes', () => {
     expect(svc().without('work', [agent()])).toEqual([])
   })
 
+  it('renames an account: the label changes, its id, folder and program do not, and a name is trimmed, kept to forty characters and never taken by another account of the program', () => {
+    const two = [work, { id: 'home', name: 'Home', provider: 'claude' as const }]
+    const s = new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => two })
+    expect(s.rename('work', '  Day job  ')).toEqual([{ id: 'work', name: 'Day job', provider: 'claude' }, two[1]])
+    expect(s.rename('work', 'x'.repeat(60))[0]!.name).toHaveLength(40)
+    expect(s.rename('work', 'WORK')[0]!.name).toBe('WORK')
+    expect(() => s.rename('work', ' home ')).toThrow('An account with that name exists.')
+    expect(() => s.rename('work', '   ')).toThrow('Give the account a name.')
+    expect(() => s.rename('gone', 'Other')).toThrow('That account was removed.')
+  })
+
   it('signs the program\'s own login in the usual way and an account in its own folder', () => {
     expect(svc().signIn('claude', '')).toEqual({ env: {}, args: [] })
     expect(svc().signIn('claude', 'work')).toEqual({ env: { FAKE_HOME: '/h/accounts/work' }, args: ['login'] })

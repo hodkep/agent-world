@@ -111,6 +111,17 @@ export class AccountService {
     )
   }
 
+  /** The accounts with one relabelled. Only the label changes: its id, folder, sign-in and agents stay. A name another account of the program already has is refused. */
+  rename(id: string, name: string): Account[] {
+    const label = name.trim().slice(0, 40)
+    if (!label) throw new Error('Give the account a name.')
+    const all = this.deps.accounts()
+    const target = all.find((x) => x.id === id)
+    if (!target) throw new Error('That account was removed.')
+    if (all.some((x) => x.id !== id && x.provider === target.provider && x.name.toLowerCase() === label.toLowerCase())) throw new Error('An account with that name exists.')
+    return all.map((x) => (x.id === id ? { ...x, name: label } : x))
+  }
+
   /** The accounts left after removing one; it refuses while an agent still runs on it. Its folder, and the sign-in in it, stay on disk. */
   without(id: string, agents: AgentRecord[]): Account[] {
     const busy = agents.filter((a) => a.account === id)

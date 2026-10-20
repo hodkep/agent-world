@@ -48,7 +48,7 @@ For Claude Code, you can sign in more than one subscription and move agents betw
 
 To add an account: press **Add account**, type a name (only a label for you), press **Continue to sign in**, finish in the terminal and your browser, then press **I have signed in: check**.
 
-Each account has **Sign in** (when it needs one), **Make default** and **Remove**. The default account is used for every agent you hire, and the hire form shows an **Account** choice once you have added one.
+Each account has **Sign in** (when it needs one), **Make default** and **Remove**. Click an account's name to rename it: **Enter** saves and **Esc** cancels. Only the label changes; the folder, the sign-in and the agents on it stay. This computer's own login has no label to change. The default account is used for every agent you hire, and the hire form shows an **Account** choice once you have added one.
 
 A signed-in account also has **Switch all agents here**. It lists the agents that are working now (they are stopped, moved, then sent `continue`) and the idle or asleep ones (moved quietly), and **Stop them, switch and continue** does it. Each conversation resumes in the same session on the new account. **Switch idle ones only** leaves the working agents where they are, and an agent that does not stop in time stays on its old account. Antigravity agents have one login and are left alone.
 

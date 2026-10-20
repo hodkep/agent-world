@@ -42,6 +42,7 @@ const api: AwApi = {
   listAccounts: () => ipcRenderer.invoke('accounts:list'),
   addAccount: (provider, name) => ipcRenderer.invoke('accounts:add', provider, name),
   removeAccount: (id) => ipcRenderer.invoke('accounts:remove', id),
+  renameAccount: (id, name) => ipcRenderer.invoke('accounts:rename', id, name),
   setAccount: (id, account) => ipcRenderer.invoke('agent-set-account', id, account),
   accountAgents: () => ipcRenderer.invoke('accounts:agents'),
   switchAllAgents: (account, stopWorking) => ipcRenderer.invoke('accounts:switch-all', account, stopWorking),

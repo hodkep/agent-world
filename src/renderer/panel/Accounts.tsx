@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AccountInfo, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderTag } from './ProviderTag'
 import { accountColor } from '../accounts'
@@ -11,6 +11,10 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
   const keepers = providers.filter((p) => p.capabilities.accounts && p.detection.state !== 'not-installed')
   const [list, setList] = useState<AccountInfo[] | null>(null)
   const [error, setError] = useState('')
+  // The account whose name is being edited, with the text so far.
+  const [renaming, setRenaming] = useState<{ id: string; text: string } | null>(null)
+  // Escape cancels, and leaving the field after that must not save what was typed.
+  const cancelled = useRef(false)
   // "Switch all agents here": the account whose dialog is open.
   const [switching, setSwitching] = useState<{ id: string; name: string } | null>(null)
   // The add flow: a name, then the account's own sign-in in a terminal the user can see.
@@ -49,6 +53,18 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
       setError('Not signed in yet. Finish in the terminal and the browser, then check again.')
     }
   }
+  const saveName = async () => {
+    if (!renaming) return
+    const { id, text } = renaming
+    setError('')
+    try {
+      const next = await window.aw.renameAccount(id, text)
+      onChange({ accounts: next.accounts })
+      setRenaming(null)
+    } catch (e) {
+      setError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+    }
+  }
   const remove = async (id: string) => {
     setError('')
     try {
@@ -75,7 +91,29 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
                   <i className="dot" aria-hidden="true" />
                   <div className="who">
                     <b>
-                      {x.name}
+                      {renaming?.id === x.id ? (
+                        <input
+                          className="acct-rename"
+                          aria-label={`Name of ${x.name}`}
+                          value={renaming.text}
+                          maxLength={40}
+                          autoFocus
+                          onChange={(e) => setRenaming({ id: x.id, text: e.target.value })}
+                          // Escape is this field's own: the Settings dialog would close on it otherwise.
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void saveName()
+                            if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), (cancelled.current = true), setRenaming(null), setError(''))
+                          }}
+                          onBlur={() => (cancelled.current ? (cancelled.current = false) : void saveName())}
+                        />
+                      ) : x.id ? (
+                        <button className="acct-name" title="Rename this account" aria-label={`Rename ${x.name}`} onClick={() => (setError(''), setRenaming({ id: x.id, text: x.name }))}>
+                          {x.name}
+                          <span aria-hidden="true"> ✎</span>
+                        </button>
+                      ) : (
+                        x.name
+                      )}
                       {isDefault && <span className="acct-tag">Default for new agents</span>}
                     </b>
                     <span>{list ? (x.loggedIn ? x.email || 'Signed in' : 'Not signed in') : 'Checking…'}</span>

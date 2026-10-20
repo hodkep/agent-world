@@ -203,6 +203,8 @@ export interface AwApi {
   /** Makes the account's folder; returns its id. Sign-in follows with openSignIn. */
   addAccount(provider: ProviderId, name: string): Promise<string>
   removeAccount(id: string): Promise<Prefs>
+  /** Gives an account another label; nothing else about it changes. */
+  renameAccount(id: string, name: string): Promise<Prefs>
   /** Moves an agent to another account ('' for this computer's own login); a running one restarts on it and keeps its conversation. */
   setAccount(agentId: string, account: string): Promise<void>
   /** Every agent as "switch all agents to an account" sees it: which program, which account, running or asleep, and what it is doing. */
