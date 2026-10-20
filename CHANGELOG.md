@@ -4,6 +4,20 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-21
+
+### Changed
+
+- Workflows: when a merge fails for a reason that is no conflict, such as no git identity, **Land** says what git said instead of "Merge conflict in some files".
+- Chat: **⇧⌘L** (Ctrl+Shift+L) on words selected in a reply opens the same Ask box as the **Ask** button, instead of quoting them into the message at once.
+- Development: the end-to-end specs of a pull request run on macOS 14, split over two Macs, where jobs start in seconds; the required check `test (macos-latest)` now fails when a job before it was abandoned (a job that never got a Mac), instead of passing. Vite is updated from 8.3.1 to 8.3.3.
+
+### Fixed
+
+- Chat: a message typed while its agent is still starting waits for the agent's input box instead of being lost, which left the chat on "Sending…" with the agent idle.
+- Chat: scrolling up from the end of the conversation leaves it at once, so a row that changes size no longer pulls the view back and makes it flicker.
+- Tests: specs that failed at random under load wait for what an agent makes (up to 45 seconds), the workflow builder spec waits for the agent's launch to be in the log, the fake chat agent reports that it has started, and three races inside the specs are closed.
+
 ## [0.2.3] - 2026-10-20
 
 ### Added
@@ -138,7 +152,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.3...HEAD
+[Unreleased]: ../../compare/v0.2.4...HEAD
+[0.2.4]: ../../compare/v0.2.3...v0.2.4
 [0.2.3]: ../../compare/v0.2.2...v0.2.3
 [0.2.2]: ../../compare/v0.2.1...v0.2.2
 [0.2.1]: ../../compare/v0.2.0...v0.2.1
