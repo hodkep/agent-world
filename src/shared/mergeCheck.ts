@@ -4,6 +4,8 @@ import type { StepStatus } from './steps'
 /** What the person is shown before landing an agent's work: where its plan stands, what the audit found, and what holds Land back. */
 export interface MergeCheck {
   run: { id: string; title: string }
+  /** Set when the run ends in a pull request: what is held is the push of the branch, not a merge into the base branch. */
+  land?: 'pr'
   plan: 'approved' | 'released' | 'waiting' | 'changes' | 'none' | 'not-needed'
   /** The plan the person approved, for the block above the findings; null when no plan was handed in. */
   planned: { goal: string; outOfScope: string[] } | null

@@ -63,7 +63,35 @@ fi
 exit 0
 `
 
-const script = (name: string) => name === 'reference-transaction' ? REF_SCRIPT : `#!/bin/sh\n# Part of Agent World. Safe to delete: git then runs the repository's own hooks again.\n${name === 'pre-commit' ? ASK : ''}${chain(name)}`
+// git runs this before it sends anything, with one line on stdin for each reference: "<local ref> <local sha> <remote ref> <remote sha>". The office is asked about
+// the local branches sent (a deleted branch or a tag has none), and `--no-verify` skips this hook, so a push that does is not held. The repository's own pre-push hook then gets what git sent.
+const PUSH_SCRIPT = `#!/bin/sh
+# Part of Agent World. Safe to delete: git then runs the repository's own hooks again.
+input=$(cat)
+if [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
+  refs=$(printf '%s\\n' "$input" | awk 'substr($1,1,11)=="refs/heads/" { print $1 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
+  if [ -n "$refs" ]; then
+    case "$AW_MCP_URL" in
+      http://127.0.0.1:*|http://localhost:*|http://\\[::1\\]:*)
+        tok=$(printf '%s' "$AW_AGENT_TOKEN" | tr -cd 'A-Za-z0-9._~+/=-')
+        here=$(pwd | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+        out=$(printf 'header = "Authorization: Bearer %s"\\n' "$tok" | curl -s --max-time 5 -X POST -K - -H "Content-Type: application/json" --data "{\\"cwd\\":\\"$here\\",\\"refs\\":[$refs]}" "\${AW_MCP_URL%/mcp}/hook/git-push" 2>/dev/null)
+        reason=$(printf '%s' "$out" | sed -n 's/.*"block":"\\([^"]*\\)".*/\\1/p')
+        if [ -n "$reason" ]; then
+          printf 'Agent World: this push is held. %s\\n' "$reason" >&2
+          exit 1
+        fi ;;
+    esac
+  fi
+fi
+if [ -n "$AW_ORIG_HOOKS" ] && [ "$AW_ORIG_HOOKS" != "$(dirname "$0")" ] && [ -x "$AW_ORIG_HOOKS/pre-push" ]; then
+  printf '%s\\n' "$input" | "$AW_ORIG_HOOKS/pre-push" "$@"
+  exit $?
+fi
+exit 0
+`
+
+const script = (name: string) => name === 'reference-transaction' ? REF_SCRIPT : name === 'pre-push' ? PUSH_SCRIPT : `#!/bin/sh\n# Part of Agent World. Safe to delete: git then runs the repository's own hooks again.\n${name === 'pre-commit' ? ASK : ''}${chain(name)}`
 
 /** Writes a hook for every kind git has into `dir`, each running the repository's own of that name. */
 export function writeGitHooks(dir: string): void {

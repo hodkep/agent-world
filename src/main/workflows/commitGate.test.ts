@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -295,6 +295,74 @@ describe('a merge into the base branch with the office\'s hooks in place', () =>
     expect(told).toHaveLength(1)
     expect(JSON.parse(told[0]!.body!)).toEqual({ cwd: work, refs: ['refs/heads/main'] })
     expect(told[0]!.auth).toBe('Bearer tok-1')
+  })
+})
+
+describe('a push of the agent\'s branch with the office\'s hooks in place', () => {
+  const withRemote = async () => {
+    const { work, root } = await repo()
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    const remote = join(root, 'remote.git')
+    await run(root, {}, 'init', '-q', '--bare', remote)
+    await run(work, {}, 'remote', 'add', 'origin', remote)
+    await run(work, {}, 'checkout', '-q', '-b', 'feat')
+    writeFileSync(join(work, 'f.txt'), 'f\n')
+    await run(work, {}, 'add', '-A')
+    await run(work, {}, 'commit', '-qm', 'feat')
+    return { work, root, hooks, remote }
+  }
+  const onRemote = async (remote: string) => (await run(remote, {}, 'branch', '--list', 'feat')).out.trim()
+
+  it('is refused with the office\'s words, naming the branch it sends, and nothing reaches the remote', async () => {
+    const { work, hooks, remote } = await withRemote()
+    const office = await stub({ block: 'Not yet: 1 audit finding has not been seen.' })
+    const r = await run(work, agentEnv(hooks, office.url), 'push', 'origin', 'feat')
+    expect(r.ok).toBe(false)
+    expect(r.out).toContain('Agent World: this push is held. Not yet: 1 audit finding has not been seen.')
+    expect(await onRemote(remote)).toBe('')
+    const asked = office.seen.find((x) => x.url === '/hook/git-push')!
+    expect(JSON.parse(asked.body!)).toEqual({ cwd: work, refs: ['refs/heads/feat'] })
+    expect(asked.auth).toBe('Bearer tok-1')
+  })
+
+  it('goes through when the office says nothing holds it, is asked once, and is not asked about deleting a branch or pushing a tag', async () => {
+    const { work, hooks, remote } = await withRemote()
+    const office = await stub({})
+    const env = agentEnv(hooks, office.url)
+    expect((await run(work, env, 'push', 'origin', 'feat')).ok).toBe(true)
+    expect(await onRemote(remote)).toContain('feat')
+    expect(office.seen.filter((x) => x.url === '/hook/git-push')).toHaveLength(1)
+    await run(work, {}, 'tag', 'v1')
+    expect((await run(work, env, 'push', 'origin', 'v1')).ok).toBe(true)
+    expect((await run(work, env, 'push', 'origin', '--delete', 'feat')).ok).toBe(true)
+    expect(office.seen.filter((x) => x.url === '/hook/git-push')).toHaveLength(1)
+  })
+
+  it('goes through when the office cannot be reached, and when the person pushes from their own terminal with no office variables', async () => {
+    const { work, hooks, remote } = await withRemote()
+    expect((await run(work, agentEnv(hooks, 'http://127.0.0.1:9/mcp'), 'push', 'origin', 'feat')).ok).toBe(true)
+    await run(work, {}, 'push', 'origin', '--delete', 'feat')
+    const env = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks }
+    expect((await run(work, env, 'push', 'origin', 'feat')).ok).toBe(true)
+    expect(await onRemote(remote)).toContain('feat')
+  })
+
+  it('still runs the repository\'s own pre-push hook with what git passes it, and its refusal still counts', async () => {
+    const { work, hooks, remote } = await withRemote()
+    const own = join(work, '.git', 'hooks')
+    mkdirSync(own, { recursive: true })
+    writeFileSync(join(own, 'pre-push'), '#!/bin/sh\necho "$1" >> "$(git rev-parse --show-toplevel)/push-seen.log"\ncat >> "$(git rev-parse --show-toplevel)/push-seen.log"\n[ -f "$(git rev-parse --show-toplevel)/refuse" ] && exit 1\nexit 0\n')
+    chmodSync(join(own, 'pre-push'), 0o755)
+    const office = await stub({})
+    const env = agentEnv(hooks, office.url, own)
+    writeFileSync(join(work, 'refuse'), '')
+    expect((await run(work, env, 'push', 'origin', 'feat')).ok).toBe(false)
+    expect(await onRemote(remote)).toBe('')
+    expect(readFileSync(join(work, 'push-seen.log'), 'utf8')).toContain('refs/heads/feat')
+    unlinkSync(join(work, 'refuse'))
+    expect((await run(work, env, 'push', 'origin', 'feat')).ok).toBe(true)
+    expect(await onRemote(remote)).toContain('feat')
   })
 })
 
