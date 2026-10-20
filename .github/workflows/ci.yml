@@ -1,9 +1,11 @@
 name: ci
 # A pull request is tested once, by its own run; main is tested again after each merge. A branch push alone, with a pull request open, would be a second run of the same commit.
+# ready_for_review is here so marking a draft ready starts the end-to-end run the draft skipped.
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 # The jobs only read the repository: the token is limited to that.
 permissions:
   contents: read
@@ -26,13 +28,45 @@ jobs:
           RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
         run: node scripts/check-commit-messages.mjs "$RANGE"
 
-  test:
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest]
-    runs-on: ${{ matrix.os }}
+  # Whether this run needs the Mac end-to-end work: only a pull request that is ready for review and changed something besides docs, the changelog and pictures.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      e2e: ${{ steps.decide.outputs.e2e }}
+      why: ${{ steps.decide.outputs.why }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            echo "e2e=false" >> "$GITHUB_OUTPUT"; echo "why=a push to main runs the typecheck and unit tests only" >> "$GITHUB_OUTPUT"
+          elif [ "$DRAFT" = true ]; then
+            echo "e2e=false" >> "$GITHUB_OUTPUT"; echo "why=this pull request is a draft; mark it ready for review to run the end-to-end specs" >> "$GITHUB_OUTPUT"
+          else
+            # A diff that fails prints nothing, and nothing listed counts as code: the specs run.
+            git diff --name-only "$BASE...$HEAD" > changed.txt || : > changed.txt
+            node scripts/ci-changes.mjs < changed.txt | tee code.txt
+            if grep -q 'code=true' code.txt; then
+              echo "e2e=true" >> "$GITHUB_OUTPUT"; echo "why=code changed" >> "$GITHUB_OUTPUT"
+            else
+              echo "e2e=false" >> "$GITHUB_OUTPUT"; echo "why=only docs, the changelog or pictures changed" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  # The fast checks, first: a typo fails here in about a minute, before four Macs are started. Electron's binary is not needed for them.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -41,15 +75,78 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm test
-      # The 20-minute end-to-end run is the pull request's own: what lands on main is what a pull request already ran it on, so the run after a merge
-      # is the typecheck and the unit tests alone, which still catch a pull request that merged on a base that had moved.
-      # Electron's own download is left to its first use otherwise, which is the first end-to-end test, two workers at once, and a network failure there reads as a broken test.
-      - if: github.event_name == 'pull_request'
-        run: node node_modules/electron/install.js
-      - if: github.event_name == 'pull_request'
-        run: pnpm run build
-      - if: github.event_name == 'pull_request'
-        run: pnpm exec playwright test
+
+  # The end-to-end specs, split over four Macs. Each shard builds the app and runs its quarter of the specs; the aggregator below reports for all of them.
+  e2e:
+    needs: [changes, checks]
+    if: needs.changes.outputs.e2e == 'true'
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: macos-latest
+    env:
+      PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/report-${{ matrix.shard }}.json
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      # Electron's download is the one that failed the first end-to-end test, two workers at once, and read as a broken test: it is cached, and fetched before any test starts.
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - run: pnpm run build
+      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request' && failure()
-        with: { name: e2e-results, path: test-results, retention-days: 7 }
+        if: always()
+        with:
+          name: e2e-report-${{ matrix.shard }}
+          path: playwright-report/report-${{ matrix.shard }}.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results-${{ matrix.shard }}
+          path: test-results
+          retention-days: 7
+
+  # The one required check. Its name is what the repository's ruleset asks for, so it stays exactly this whatever runs behind it.
+  # It passes when the end-to-end work was left out on purpose (a draft, only docs changed, a push to main) and fails when any job before it failed or was cancelled.
+  test:
+    name: test (macos-latest)
+    needs: [changes, checks, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        if: needs.e2e.result != 'skipped'
+        with:
+          pattern: e2e-report-*
+          merge-multiple: true
+          path: reports
+      - name: Summary
+        env:
+          E2E: ${{ needs.changes.outputs.e2e }}
+          WHY: ${{ needs.changes.outputs.why }}
+        run: |
+          if [ "$E2E" = true ]; then
+            node scripts/ci-summary.mjs reports/*.json >> "$GITHUB_STEP_SUMMARY" || true
+          else
+            printf '## End-to-end\n\nSkipped: %s.\n' "$WHY" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Every job before this one passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
