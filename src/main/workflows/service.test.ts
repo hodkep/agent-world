@@ -10,13 +10,14 @@ import { Workflows } from './service'
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], none: false, pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
       planGate: () => state.planGate,
       mergeGate: () => state.mergeGate,
+      noWorkflow: () => state.none,
       pick: (_agent, id) => (state.picked.push(id), state.pick(id)),
       run: async (command, cwd) => {
         state.ran.push(`${command} @ ${cwd}`)
@@ -173,6 +174,19 @@ describe('commits', () => {
     wf.done('a1')
     wf.commit('a1', 'def456', 'chore: tidy')
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'def456', flagged: true })
+  })
+
+  it('with no workflow in the project nothing is recorded: no run starts from a commit, and the task is said to have no workflow to follow', () => {
+    const { wf, state } = make()
+    state.none = true
+    wf.commit('a1', 'ccc333', 'feat: x')
+    expect(wf.runs()).toEqual([])
+    expect(wf.applies('a1')).toBe(false)
+    expect(wf.applies('a1', 'bug-fix')).toBe(false)
+    state.pick = (id) => (id === 'bug-fix' ? { id: 'bug-fix', name: 'Bug fix', steps: [{ id: 'build', kind: 'work', name: 'Build' }] } : undefined)
+    expect(wf.applies('a1', 'bug-fix')).toBe(true)
+    state.none = false
+    expect(wf.applies('a1')).toBe(true)
   })
 
   it('with workflows off only an open run takes a commit', () => {

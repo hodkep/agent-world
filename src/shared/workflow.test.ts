@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { STANDARD, checkCommands, commandDiff, isLanding, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
+import type { WorkflowEntry } from './workflow'
+import { STANDARD, checkCommands, commandDiff, isLanding, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -162,5 +163,21 @@ describe('the commands a workflow runs', () => {
       { change: 'same', text: 'npm run lint' }
     ])
     expect(commandDiff([], ['make'])).toEqual([{ change: 'added', text: 'make' }])
+  })
+})
+
+describe('which workflow a new task follows', () => {
+  const entry = (id: string): WorkflowEntry => ({ id, scope: id === 'standard' ? 'built-in' : 'project', workflow: { version: 1, id, name: id, steps: [{ id: 'build', kind: 'work' }] } })
+  const list = [entry('standard'), entry('bug-fix'), { id: 'broken', scope: 'project' as const, problems: ['x'] }]
+  it('is the one asked for, else the project\'s default, else Standard; a file with problems is never picked', () => {
+    expect(pickEntry(list, 'bug-fix', 'standard')?.id).toBe('bug-fix')
+    expect(pickEntry(list, 'broken', 'standard')?.id).toBe('standard')
+    expect(pickEntry(list, undefined, 'bug-fix')?.id).toBe('bug-fix')
+    expect(pickEntry(list, 'nope', 'gone')?.id).toBe('standard')
+  })
+  it('is none when the project uses no workflow, unless the task asks for one that is there', () => {
+    expect(pickEntry(list, undefined, 'none')).toBeUndefined()
+    expect(pickEntry(list, 'nope', 'none')).toBeUndefined()
+    expect(pickEntry(list, 'bug-fix', 'none')?.id).toBe('bug-fix')
   })
 })

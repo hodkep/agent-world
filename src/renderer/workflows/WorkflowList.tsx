@@ -3,6 +3,7 @@ import type { Run } from '../../shared/runs'
 import { workflowRuns } from '../../shared/runStats'
 import { type SkillState, goneSkills } from '../../shared/skills'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
+import { NO_WORKFLOW } from '../../shared/workflows'
 import { History } from './History'
 
 const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', pr: 'pull request', merge: 'land' }
@@ -54,6 +55,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
   const [describe, setDescribe] = useState('')
   const [starting, setStarting] = useState(false)
   const [asking, setAsking] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(() => window.aw.workflows.definitions(folder).then((e) => (setEntries(e), setError('')), (e: Error) => setError(e.message)), [folder])
   useEffect(() => void load(), [load])
@@ -97,11 +99,12 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
         {list.map((e) => {
           const key = `${e.scope}:${e.id}`
           return (
-            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={shown === e ? 'on' : ''} onClick={() => (setPicked(key), setAsking(false))}>
+            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={shown === e ? 'on' : ''} onClick={() => (setPicked(key), setAsking(false), setRemoving(false))}>
               <b>{e.workflow?.name ?? `${e.id}.json`}</b>
               <span className="muted">
                 {e.problems ? 'Has problems' : SCOPE_LABEL[e.scope]}
                 {e.id === defaultId && !e.problems ? ' · default' : ''}
+                {e.scope === 'built-in' && defaultId === NO_WORKFLOW ? ' · removed for this project' : ''}
                 {e.skills && goneSkills(e.skills).length > 0 && <span className="sk-warn"> · {goneSkills(e.skills).length === 1 ? '1 warning' : `${goneSkills(e.skills).length} warnings`}</span>}
               </span>
             </li>
@@ -128,6 +131,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                 <b>{wf.name}</b>
                 <span className="wf-tag">{SCOPE_LABEL[shown.scope]}</span>
                 {shown.id === defaultId && <span className="wf-tag flag">Default{folder ? ` for ${here}` : ''}</span>}
+                {shown.scope === 'built-in' && defaultId === NO_WORKFLOW && <span className="wf-tag flag">Removed for {here || 'this project'}</span>}
               </div>
               {wf.when && <p className="muted">When: {wf.when}</p>}
               <p className="muted">{(() => { const n = workflowRuns(runs, shown.id, Date.now()); return n === 0 ? 'No runs this week.' : `${n} run${n === 1 ? '' : 's'} this week.` })()}</p>
@@ -144,7 +148,13 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                 {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} skills={shown.skills} />)}
               </ol>
               {shown.file && <span className="mono muted">{shown.file}</span>}
-              {asking ? (
+              {removing ? (
+                <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>
+                  <span>Remove {wf.name} for {here}? Agents will then work with no workflow: no plan hold, no track, no gate. You can bring it back from the list.</span>
+                  <button className="primary" onClick={() => (setRemoving(false), onDefault(NO_WORKFLOW))}>Remove</button>
+                  <button onClick={() => setRemoving(false)}>Keep it</button>
+                </div>
+              ) : asking ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Delete ${wf.name}`}>
                   <span>Delete {shown.id}.json? This cannot be undone.</span>
                   <button className="primary" onClick={() => void run(() => window.aw.workflows.remove(folder, shown.id, shown.scope === 'project' ? 'project' : 'global'))}>Delete</button>
@@ -152,11 +162,13 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                 </div>
               ) : (
                 <div className="wfl-acts">
-                  {folder && shown.id !== defaultId && <button className="primary" onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
+                  {folder && shown.scope === 'built-in' && defaultId === NO_WORKFLOW && <button className="primary" onClick={() => onDefault(shown.id)}>Restore {wf.name}</button>}
+                  {folder && shown.id !== defaultId && !(shown.scope === 'built-in' && defaultId === NO_WORKFLOW) && <button className="primary" onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
                   <button disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project'))}>Copy to {folder ? here : 'a project'}</button>
                   <button onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global'))}>Copy for everything</button>
                   <button disabled={!folder || starting} title={folder ? '' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, { id: shown.id, name: wf.name })}>Edit with the builder</button>
                   {shown.scope !== 'built-in' && <button onClick={() => setAsking(true)}>Delete</button>}
+                  {folder && shown.scope === 'built-in' && defaultId !== NO_WORKFLOW && <button onClick={() => setRemoving(true)}>Remove</button>}
                 </div>
               )}
               {shown.scope !== 'built-in' && <History folder={folder} id={shown.id} />}

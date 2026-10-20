@@ -19,6 +19,8 @@ interface Deps {
   planGate: () => boolean
   /** The merge gate: Land is held until the plan was approved and the audit's findings were seen. */
   mergeGate: () => boolean
+  /** The agent's project uses no workflow: no task is recorded and nothing is held, as with workflows off. */
+  noWorkflow?: (agentId: string) => boolean
   dial: () => Dial
   /** One question to a model for the audit, under the agent's own account; the reply text and what it cost. */
   ask: (agentId: string, prompt: string, model?: string) => Promise<Asked>
@@ -103,6 +105,11 @@ export class Workflows {
   /** The agent's runs, newest first. */
   private mine(agentId: string) {
     return this.runs().filter((r) => r.agent === agentId).reverse()
+  }
+
+  /** Whether a task of this agent follows a workflow at all: not in a project that uses none, unless the task asks for one that is there. */
+  applies(agentId: string, requested?: string): boolean {
+    return !this.deps.noWorkflow?.(agentId) || (!!requested && !!this.deps.pick(agentId, requested))
   }
 
   /** `followUp`: the request continues the agent's last task, so that run gets a new round instead of a new run. */
@@ -344,8 +351,8 @@ export class Workflows {
       const round = r.rounds.find((x) => at >= x.startedAt && (x.endedAt === undefined || at <= x.endedAt))
       if (round) return this.append({ k: 'commit', t: at, run: r.id, round: round.n, sha, subject })
     }
-    // With workflows off, a commit outside every window is not recorded: the feature is winding down, not tracking new work.
-    if (!this.deps.enabled()) return
+    // With workflows off, a commit outside every window is not recorded: the feature is winding down, not tracking new work. A project with no workflow tracks none either.
+    if (!this.deps.enabled() || this.deps.noWorkflow?.(agentId)) return
     if (last && !last.auto) return this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
     if (at < this.deps.since()) return
     // A run belongs to one task: commits close together join it unless the agent has moved to another task of the board.
