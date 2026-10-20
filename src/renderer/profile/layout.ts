@@ -27,3 +27,21 @@ export const CONTROLS_ROOM = 54
 export function cardMaxHeight(o: { stageH: number; side: 'left' | 'right'; drawerH: number }): number {
   return Math.max(0, o.stageH - 20 - o.drawerH - (o.side === 'left' ? CONTROLS_ROOM : 0))
 }
+
+const PANE_HEAD = 44
+const SPOT_GAP = 4
+const SPOT_EDGE = 8
+/** The least of the card that must show: a pane low in the grid moves the card up rather than leave it a sliver. */
+const MIN_SHOWN = 240
+
+/**
+ * Where the profile card goes when an agent's name is clicked in a pane of the grid: just under the pane's header, at its left edge, and kept inside the grid (against the
+ * right edge for a pane that is far right, moved up for one that is low). `pane` is the tile's place as shares of the grid, `area` its size in pixels.
+ */
+export function gridCardSpot(area: { w: number; h: number }, pane: { x: number; y: number; w: number; h: number }): { mode: 'full' | 'compact'; left: number; top: number; maxHeight: number } {
+  const mode = area.w >= 640 ? 'full' : 'compact'
+  const wide = mode === 'full' ? CARD_FULL.w : CARD_COMPACT.w
+  const left = Math.max(SPOT_GAP, Math.min(pane.x * area.w + SPOT_GAP, area.w - wide - SPOT_EDGE))
+  const top = Math.max(SPOT_GAP, Math.min(pane.y * area.h + PANE_HEAD + SPOT_GAP, area.h - SPOT_EDGE - MIN_SHOWN))
+  return { mode, left, top, maxHeight: area.h - top - SPOT_EDGE }
+}

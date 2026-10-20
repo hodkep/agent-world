@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_COMPACT, CARD_FULL, CONTROLS_ROOM, cardLayout, cardMaxHeight } from './layout'
+import { CARD_COMPACT, CARD_FULL, CONTROLS_ROOM, cardLayout, cardMaxHeight, gridCardSpot } from './layout'
 import { agoLabel, agoShort, durationLabel, levelOf } from './format'
 
 describe('where the profile card goes', () => {
@@ -81,5 +81,25 @@ describe('how tall the card may be on the stage', () => {
 
   it('is never less than nothing', () => {
     expect(cardMaxHeight({ stageH: 100, side: 'left', drawerH: 230 })).toBe(0)
+  })
+})
+
+describe('where the profile card goes over a pane of the grid', () => {
+  const area = { w: 1000, h: 800 }
+  const pane = (x: number, y = 0) => ({ x, y, w: 0.5, h: 1 })
+  it('drops from the pane\'s name, just under its header, at the pane\'s left edge', () => {
+    expect(gridCardSpot(area, pane(0.5))).toEqual({ mode: 'full', left: 504, top: 48, maxHeight: 744 })
+    expect(gridCardSpot(area, pane(0))).toMatchObject({ left: 4 })
+  })
+
+  it('stays inside the grid: a pane near the right edge puts the card against that edge instead', () => {
+    expect(gridCardSpot(area, pane(0.8)).left).toBe(1000 - CARD_FULL.w - 8)
+  })
+
+  it('is the compact card in a narrow grid, and moves up when too little is left under the name', () => {
+    expect(gridCardSpot({ w: 500, h: 800 }, pane(0.7))).toMatchObject({ mode: 'compact', left: 500 - CARD_COMPACT.w - 8 })
+    const low = gridCardSpot({ w: 1000, h: 500 }, { x: 0, y: 0.6, w: 0.5, h: 0.4 })
+    expect(low.maxHeight).toBeGreaterThanOrEqual(240)
+    expect(low.top + low.maxHeight).toBeLessThanOrEqual(500 - 8)
   })
 })

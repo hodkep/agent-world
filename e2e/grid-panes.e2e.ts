@@ -190,3 +190,45 @@ test('a terminal can be dragged in from the list, and terminals of an earlier ru
     await shutdown()
   }
 })
+
+test('clicking an agent\'s name in the grid stacks its profile card over its pane: the other panes stay, another name moves it, Escape or a click elsewhere puts it away', async () => {
+  const { page, shutdown } = await start(1440, 900)
+  try {
+    await openGrid(page, ['ada', 'linus'])
+    const area = (await page.locator('.panes').boundingBox())!
+    const cardOf = (n: string) => page.getByRole('dialog', { name: `${n}'s profile` })
+    await expect(page.getByRole('dialog', { name: /profile/ })).toHaveCount(0)
+
+    // The card opens under ada's name, inside the grid, and is the topmost thing there.
+    await pane(page, 'ada').getByRole('button', { name: 'ada', exact: true }).click()
+    await expect(cardOf('ada')).toBeVisible()
+    await expect(cardOf('ada')).toContainText(/settings/i)
+    const c = (await cardOf('ada').boundingBox())!
+    const p = (await pane(page, 'ada').boundingBox())!
+    expect(c.x).toBeGreaterThanOrEqual(p.x - 1)
+    expect(c.x + c.width).toBeLessThanOrEqual(area.x + area.width + 1)
+    expect(c.y).toBeGreaterThan(p.y)
+    const top = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest('.pane-card') !== null, [c.x + c.width / 2, c.y + 40])
+    expect(top).toBe(true)
+    // The other pane is still there, live.
+    await expect(pane(page, 'linus')).toBeVisible()
+
+    // Another name moves the card to that agent's pane.
+    await pane(page, 'linus').getByRole('button', { name: 'linus', exact: true }).click()
+    await expect(cardOf('linus')).toBeVisible()
+    await expect(cardOf('ada')).toHaveCount(0)
+
+    // Escape puts it away, and so does a click anywhere else; the name toggles it too.
+    await page.keyboard.press('Escape')
+    await expect(cardOf('linus')).toHaveCount(0)
+    await pane(page, 'ada').getByRole('button', { name: 'ada', exact: true }).click()
+    await expect(cardOf('ada')).toBeVisible()
+    await pane(page, 'linus').locator('.pane-head').click({ position: { x: 300, y: 10 } })
+    await expect(cardOf('ada')).toHaveCount(0)
+    await pane(page, 'ada').getByRole('button', { name: 'ada', exact: true }).click()
+    await pane(page, 'ada').getByRole('button', { name: 'ada', exact: true }).click()
+    await expect(cardOf('ada')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
