@@ -1898,6 +1898,12 @@ async function main() {
     savePrefs(join(HOME, 'preferences.json'), prefs)
     return made.id
   })
+  // A label is only for the person: the folder, the sign-in and the agents on it stay as they are.
+  ipcMain.handle('accounts:rename', (_, id: string, name: string) => {
+    prefs = cleanPrefs({ ...prefs, accounts: accountsSvc.rename(String(id ?? ''), String(name ?? '')) }, prefs)
+    savePrefs(join(HOME, 'preferences.json'), prefs)
+    return prefs
+  })
   // Removing forgets the account in the app only: its folder, and the sign-in in it, stay on disk.
   ipcMain.handle('accounts:remove', (_, id: string) => {
     const left = accountsSvc.without(id, agents)

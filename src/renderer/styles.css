@@ -1751,6 +1751,10 @@ dialog.handoff { width: min(640px, 94vw); }
 .acct .who small { font: 11px var(--mono, Menlo, Consolas, monospace); }
 .acct .acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .acct .acts button { padding: 2px 8px; font-size: 12px; }
+.acct-name { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 700; cursor: text; }
+.acct-name span { color: var(--dim); font-weight: 400; }
+.acct-name:hover span, .acct-name:focus-visible span { color: var(--muted); }
+.acct-rename { font: inherit; font-weight: 700; color: var(--text); background: var(--well); border: 0; box-shadow: 0 0 0 1px var(--accent); padding: 1px 6px; width: 160px; max-width: 100%; }
 .acct-tag, .acct-state { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; background: var(--well); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px var(--line); font-weight: 400; }
 .acct-tag { color: var(--accent); }
 .acct-state[data-ok="true"] { color: #9fdc9f; }
