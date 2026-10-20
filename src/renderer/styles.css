@@ -3109,6 +3109,10 @@ svg.pxg { display: block; flex: none; }
 .mo-says { display: grid; gap: 6px; }
 .mo-says p { margin: 0; font-size: 12px; color: var(--muted); max-width: none; }
 .track .sq .tn { position: absolute; top: -9px; right: -9px; font: 700 10px Menlo, Consolas, monospace; line-height: 1; background: var(--ink); color: var(--accent); padding: 1px 3px; }
+.wt-items { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.wt-items li { display: flex; gap: 8px; align-items: center; padding: 4px 8px; background: var(--well); }
+.wt-items .n { font: 700 10px Menlo, Consolas, monospace; color: var(--muted); width: 14px; }
+.wt-items .s { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wt-cap { margin: 0; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
 .wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .wt-day { background: var(--well); box-shadow: 0 0 0 1px var(--ink); min-height: 62px; padding: 3px; display: flex; flex-direction: column; gap: 3px; align-items: stretch; }

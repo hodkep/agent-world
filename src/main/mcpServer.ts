@@ -72,7 +72,7 @@ interface Options {
      * `planFirst`: the office wants this task's plan approved before the agent edits, so the agent is told to write and submit one.
      * `brief`: what the task's workflow asks of the agent, step by step.
      */
-    begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean }
+    begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
     stepDone: (callerId: string, step?: string) => { done: string; waiting?: string; checking?: boolean }
@@ -417,9 +417,9 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     },
     async ({ title, follow_up, workflow }) => {
       try {
-        const { planFirst, brief, none } = wf.begin(callerId, title, follow_up ?? false, workflow)
+        const { planFirst, brief, none, added } = wf.begin(callerId, title, follow_up ?? false, workflow)
         if (none) return { content: [{ type: 'text' as const, text: brief ?? 'No workflow applies in this project.' }] }
-        return { content: [{ type: 'text' as const, text: `Task begun: ${title}${brief ? `\n\n${brief}` : ''}${planFirst ? `\n\n${wf.planInstruction()}` : ''}` }] }
+        return { content: [{ type: 'text' as const, text: `${added ? 'Added to the task in progress' : 'Task begun'}: ${title}${brief ? `\n\n${brief}` : ''}${planFirst ? `\n\n${wf.planInstruction()}` : ''}` }] }
       } catch (err) {
         return fail(err)
       }

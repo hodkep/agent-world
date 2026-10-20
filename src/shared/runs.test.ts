@@ -175,6 +175,13 @@ describe('what the merge gate adds to a run', () => {
     expect(reduceRuns([begin('r1', 100)])[0]!.additions).toBeUndefined()
   })
 
+  it('a request added to a run while it is open is one of its items, in the order added, and the run keeps its own title', () => {
+    const [r] = reduceRuns([begin('r1', 100), { k: 'item', t: 150, run: 'r1', title: 'Fold unchanged code' }, { k: 'item', t: 160, run: 'r1', title: 'A shortcut for it' }, { k: 'item', t: 170, run: 'nope', title: 'x' }])
+    expect(r!.items).toEqual([{ title: 'Fold unchanged code', t: 150 }, { title: 'A shortcut for it', t: 160 }])
+    expect(r!.status).toBe('open')
+    expect(reduceRuns([begin('r1', 100)])[0]!.items).toBeUndefined()
+  })
+
   it('a failed audit keeps its reason, and landing is recorded with what was still holding it', () => {
     const [r] = reduceRuns([begin('r1', 100), { k: 'audit', t: 200, run: 'r1', head: 'h1', state: 'failed', reason: 'timed out' }, { k: 'merge', t: 300, run: 'r1', head: 'h1', how: 'anyway', held: ['No plan was approved for this task.'] }])
     expect(r!.audit).toEqual({ head: 'h1', t: 200, state: 'failed', reason: 'timed out' })
