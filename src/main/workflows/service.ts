@@ -50,6 +50,8 @@ const AUDIT_STEP = 'audit'
 const SAME_WORK_MS = 10 * 60_000
 /** What a run's ledger says of a push the pre-push hold never saw (`git push --no-verify`). */
 const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
+/** What a landing records when the person set the review aside: it did not pass the review, it was excused from it. */
+const ASIDE_HELD = 'The review was set aside.'
 const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
@@ -158,7 +160,12 @@ export class Workflows {
 
   done(agentId: string, summary?: string) {
     const open = this.runs().find((r) => r.agent === agentId && r.status === 'open')
-    if (!open) throw new Error('No task is open.')
+    if (!open) {
+      // The push that ended a pull request run already said it: the agent's own task_done after it is not an error.
+      const last = this.mine(agentId)[0]
+      if (last?.landed && landingKind(last.workflow) === 'pr') return
+      throw new Error('No task is open.')
+    }
     // Agents often forget to report a step: finishing the task reports the ones left, marked as the app's doing.
     const round = open.rounds[open.rounds.length - 1]!
     for (const s of open.workflow?.steps ?? []) {
@@ -627,13 +634,22 @@ export class Workflows {
     if (!check) {
       // Nothing holds a push that ends in a pull request with its gate auto, but the run still ends there.
       const run = this.mine(agentId)[0]
-      if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: skipped.length ? 'anyway' : 'checked', held: skipped })
+      if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') {
+        this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: skipped.length ? 'anyway' : 'checked', held: skipped })
+        this.endAtPush(agentId)
+      }
       return
     }
     if (check.blocking.length && !o.anyway) throw new Error(`Not ready to land:\n${check.blocking.map((b) => `- ${b}`).join('\n')}`)
     this.allowed.delete(agentId)
-    const held = [...(o.unchecked ? this.holdsOf(check) : check.blocking), ...skipped]
+    const held = [...(o.unchecked ? this.holdsOf(check) : check.blocking), ...(check.asideAudit ? [ASIDE_HELD] : []), ...skipped]
     this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: held.length ? 'anyway' : 'checked', held })
+    if (check.land === 'pr') this.endAtPush(agentId)
+  }
+
+  /** A run that ends in a pull request ends when its branch is pushed: the same as the agent saying it is done, which it need not do. */
+  private endAtPush(agentId: string) {
+    if (this.openRun(agentId)) this.done(agentId)
   }
 
   /** Whether this head of the agent's latest run is already recorded as landed or pushed. */

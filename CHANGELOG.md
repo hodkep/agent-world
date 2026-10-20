@@ -17,6 +17,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Fixed
 
+- Workflows: a push that goes through now really ends a run that ends in a pull request, as the agent is told; its own `task_done` afterwards is no error. **Set aside** followed by a push is recorded as pushed anyway, naming the review.
+- Workflows: a held push lists the findings to answer, and the run story and the Workflow tab say what was added to the plan and how a push went through.
 - Workflows: an agent kept showing AUDIT (or another wait) beside its name because of an older run whose findings nobody had answered, with nothing in the chat to answer them. Only an agent's latest run can wait for you now.
 
 ## [0.2.2] - 2026-10-20

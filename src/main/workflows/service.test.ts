@@ -728,6 +728,39 @@ describe('the merge gate', () => {
       expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'checked' })
     })
 
+    it('ends the run when the push went through, as the brief says, so the agent\'s own task_done afterwards is no error, and the next task is a run of its own', () => {
+      const { wf, state } = make()
+      state.pick = () => pull('auto')
+      wf.begin('a1', 'Add a toggle')
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.runs()[0]).toMatchObject({ status: 'done', landed: { head: 'h1' } })
+      expect(() => wf.done('a1', 'Pushed.')).not.toThrow()
+      wf.begin('a1', 'Next')
+      expect(wf.runs()).toHaveLength(2)
+      expect(() => wf.done('a2')).toThrow('No task is open.')
+    })
+
+    it('does not end a run that lands by merging: that one goes on until the agent says it is done', () => {
+      const { wf, state } = make()
+      state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land', gate: 'auto' }] })
+      wf.begin('a1', 'Task')
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.runs()[0]!.status).toBe('open')
+    })
+
+    it('records a push after the review was set aside as pushed anyway, naming that', async () => {
+      const { wf, state } = make()
+      state.pick = () => pull()
+      wf.begin('a1', 'Add a toggle')
+      wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+      wf.decide(wf.runs()[0]!.id, 'approved')
+      state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","text":"Adds a project key."}]}' })
+      await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+      wf.asideAudit('a1')
+      wf.landing('a1', 'h1')
+      expect(wf.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['The review was set aside.'] })
+    })
+
     it('ends the run on a push even when its gate is auto and nothing was checked, so it does not wait for ever', () => {
       const { wf, state } = make()
       state.pick = () => pull('auto')
