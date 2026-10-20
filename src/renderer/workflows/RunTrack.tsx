@@ -2,7 +2,7 @@ import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 import { Sprite } from '../pixel/Pixels'
 import type { LandingPill, Station, Track } from '../../shared/runTrack'
 
-const ICON: Record<Station['kind'], HeaderIconName> = { plan: 'file', work: 'terminal', approve: 'tick', check: 'tick', audit: 'search', merge: 'flag' }
+const ICON: Record<Station['kind'], HeaderIconName> = { plan: 'file', work: 'terminal', approve: 'tick', check: 'tick', audit: 'search', pr: 'flag', merge: 'flag' }
 const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'not asked' }
 
 /**
