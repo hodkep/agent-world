@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HOOK_NAMES, blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
+import { HOOK_NAMES, blockText, branchHead, currentBranch, refHead, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
 
 const dirs: string[] = []
 const servers: Server[] = []
@@ -363,6 +363,30 @@ describe('a push of the agent\'s branch with the office\'s hooks in place', () =
     unlinkSync(join(work, 'refuse'))
     expect((await run(work, env, 'push', 'origin', 'feat')).ok).toBe(true)
     expect(await onRemote(remote)).toContain('feat')
+  })
+})
+
+describe('a push that skipped the pre-push hold', () => {
+  it('still tells the office once the branch reached the remote (git updates the remote-tracking branch), with that reference, and not when only the push was refused', async () => {
+    const { work, root } = await repo()
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    const remote = join(root, 'remote.git')
+    await run(root, {}, 'init', '-q', '--bare', remote)
+    await run(work, {}, 'remote', 'add', 'origin', remote)
+    await run(work, {}, 'checkout', '-q', '-b', 'feat')
+    writeFileSync(join(work, 'f.txt'), 'f\n')
+    await run(work, {}, 'add', '-A')
+    await run(work, {}, 'commit', '-qm', 'feat')
+    const held = await stub({ block: 'Not yet.' })
+    expect((await run(work, agentEnv(hooks, held.url), 'push', 'origin', 'feat')).ok).toBe(false)
+    expect(held.seen.filter((x) => x.url === '/hook/git-landed')).toHaveLength(0)
+    const office = await stub({ block: 'Not yet.' })
+    expect((await run(work, agentEnv(hooks, office.url), 'push', '--no-verify', 'origin', 'feat')).ok).toBe(true)
+    const told = office.seen.filter((x) => x.url === '/hook/git-landed').map((x) => JSON.parse(x.body!).refs as string[])
+    expect(told.flat()).toContain('refs/remotes/origin/feat')
+    expect(refHead(work, 'refs/remotes/origin/feat')).toBe(branchHead(work, 'feat'))
+    expect(refHead(work, 'refs/remotes/origin/nope')).toBeNull()
   })
 })
 

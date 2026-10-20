@@ -50,7 +50,7 @@ async function office(name: string) {
   const remote = join(tmp, 'remote.git')
   git(tmp, 'init', '-q', '--bare', remote)
   git(repo, 'remote', 'add', 'origin', remote)
-  const push = () => asAgent(ada!.cwd, 'push', 'origin', ada!.branch!)
+  const push = (...extra: string[]) => asAgent(ada!.cwd, 'push', ...extra, 'origin', ada!.branch!)
   const merge = () => asAgent(repo, 'merge', '--ff-only', ada!.branch!)
   const pushed = () => git(remote, 'branch', '--list', ada!.branch!)
   const landed = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.landed as { how: string; held: string[] } | undefined
@@ -112,6 +112,33 @@ test('a held push shows in the chat as a card that says the push is held, and Se
     await expect(o.page.getByRole('note', { name: "ada's audit, set aside" })).toContainText('You set the audit aside · 2 things not looked at')
     expect((await o.push()).ok).toBe(true)
     expect(o.pushed()).toContain('aw/')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a push that skips the hold with --no-verify cannot be stopped, but the run records it as pushed anyway, saying so, and a push the office let through is recorded once', async () => {
+  const o = await office('wfpush4')
+  try {
+    expect((await o.push('--no-verify')).ok).toBe(true)
+    expect(o.pushed()).toContain('aw/')
+    await expect.poll(o.landed).toMatchObject({ how: 'anyway' })
+    const landed = (await o.landed())!
+    expect(landed.held).toContain('Pushed without the hold: git push --no-verify.')
+    expect(landed.held.length).toBeGreaterThan(1)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a push the person had allowed is recorded once, as pushed anyway with what held it and without the skipped-hold line', async () => {
+  const o = await office('wfpush5')
+  try {
+    await o.push()
+    await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.')
+    await o.page.evaluate((id) => window.aw.landingAllow(id), o.ada.id)
+    expect((await o.push()).ok).toBe(true)
+    await expect.poll(o.landed).toMatchObject({ how: 'anyway', held: ['2 audit findings have not been seen.'] })
   } finally {
     await o.shutdown()
   }

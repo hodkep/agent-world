@@ -40,7 +40,7 @@ Findings to look at show as a card at the end of the agent's chat, with **All se
 
 Limits:
 
-- An agent that unsets git's environment variables, sets its own `core.hooksPath` or pushes with `--no-verify` gets past the git holds.
+- An agent that unsets git's environment variables, sets its own `core.hooksPath` or pushes with `--no-verify` gets past the git holds; a skipped push is still recorded as pushed anyway.
 - Only a task's first round is held for its plan, and not with **Plan gate** off.
 - The **Merge into main** button in the Code tab applies no gate. To land through the gate, ask the agent to merge.
 

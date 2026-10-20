@@ -73,7 +73,7 @@ import { Builder, Proposals } from './workflows/builder'
 import { HeldMerges } from './workflows/heldMerges'
 import { WorkflowHistory } from './workflows/history'
 import { WaitNotices } from './workflows/waitNotice'
-import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './workflows/commitGate'
+import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, refHead, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
@@ -1288,6 +1288,19 @@ async function main() {
       if (event === 'git-landed') {
         const where = typeof payload.cwd === 'string' ? payload.cwd : ''
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
+        // The agent's branch reached a remote (git moved its remote-tracking branch to the head it has) with no push the office let through: it skipped the hold.
+        const branch = a.branch ?? currentBranch(a.cwd)
+        const tracked = refs.find((r) => branch && /^refs\/remotes\/[^/]+\//.test(r) && r.replace(/^refs\/remotes\/[^/]+\//, '') === branch)
+        if (tracked && branch && where && isInside(a.cwd, where) && workflows.landKind(id) === 'pr') {
+          const head = branchHead(a.cwd, branch)
+          if (head && refHead(a.cwd, tracked) === head && !workflows.landedHead(id, head)) {
+            workflows.landing(id, head, { anyway: true, unchecked: true })
+            landingHeld.clear(id)
+            send('workflows')
+            send('landing')
+          }
+          return {}
+        }
         if (!a.branch || !movesBase(a.base ?? null, refs) || !where || !(isInside(a.cwd, where) || isInside(a.repoPath, where))) return {}
         const head = branchHead(a.cwd, a.branch)
         if (head) {
