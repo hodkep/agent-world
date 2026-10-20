@@ -171,7 +171,7 @@ describe('what the merge gate adds to a run', () => {
 
   it('what the person added to the plan stays with the run, in the order added, whichever audit comes after, and an event for no run is ignored', () => {
     const [r] = reduceRuns([begin('r1', 100), audit(200, 'h1'), { k: 'scope', t: 210, run: 'r1', text: 'Folding unchanged code.' }, audit(300, 'h2'), { k: 'scope', t: 310, run: 'r1', text: 'A shortcut for it.' }, { k: 'scope', t: 320, run: 'nope', text: 'x' }])
-    expect(r!.additions).toEqual(['Folding unchanged code.', 'A shortcut for it.'])
+    expect(r!.additions).toEqual([{ text: 'Folding unchanged code.', t: 210 }, { text: 'A shortcut for it.', t: 310 }])
     expect(reduceRuns([begin('r1', 100)])[0]!.additions).toBeUndefined()
   })
 

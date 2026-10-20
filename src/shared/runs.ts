@@ -147,7 +147,7 @@ export interface Run {
   /** More work asked for while the run was open, in the order asked (the run's own title is the first item). */
   items?: { title: string; t: number }[]
   /** What the person added to the plan afterwards, in the order added. */
-  additions?: string[]
+  additions?: { text: string; t: number }[]
   landed?: Landed
 }
 
@@ -197,7 +197,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
     } else if (e.k === 'item') {
       r.items = [...(r.items ?? []), { title: e.title, t: e.t }]
     } else if (e.k === 'scope') {
-      r.additions = [...(r.additions ?? []), e.text]
+      r.additions = [...(r.additions ?? []), { text: e.text, t: e.t }]
     } else if (e.k === 'seen') {
       if (r.audit?.state === 'done' && r.audit.head === e.head) for (const i of e.which) if (r.audit.findings[i]) r.audit.findings[i]!.seen = true
     } else if (e.k === 'merge') {

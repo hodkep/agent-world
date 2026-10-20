@@ -206,9 +206,29 @@ describe('how one run went, line by line', () => {
       { at: 30 * MIN, kind: 'bad', text: 'Plan sent, then you lifted the hold after 25m without approving it' },
       { at: 80 * MIN, kind: 'trouble', text: 'Check failed once, passed on try 2' },
       { at: 85 * MIN, kind: 'bad', text: 'Review found 1 thing you did not look at: “Renamed a token.”' },
-      { at: 90 * MIN, kind: 'bad', text: 'Landed anyway, with review still holding it' }
+      { at: 90 * MIN, kind: 'bad', text: 'Landed anyway. Not met: review.' }
     ])
   })
+  it('tells a landing anyway as what was not met, one sentence, and a skipped hold as its own sentence; a run that ends in a pull request says pushed', () => {
+    const PR: RunWorkflow = { id: 'pr', name: 'Standard', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
+    const landed = (wf: RunWorkflow, held: string[]) => timelineOf(run([begin(0, wf), { k: 'merge', t: MIN, run: 'r1', head: 'h1', how: 'anyway', held }, done(MIN)]), 9 * MIN).at(-1)
+    expect(landed(PR, ['The review has not run for this branch yet.', 'Pushed without the hold: git push --no-verify.'])).toEqual({ at: MIN, kind: 'bad', text: 'Pushed anyway. Not met: the review has not run for this branch yet. The hold itself was skipped: git push --no-verify.' })
+    expect(landed(PR, ['Pushed without the hold: git push --no-verify.'])!.text).toBe('Pushed anyway. The hold itself was skipped: git push --no-verify.')
+    expect(landed(JOURNEY, ['No plan was approved for this task.', '2 audit findings have not been seen.'])!.text).toBe('Landed anyway. Not met: no plan was approved for this task; 2 audit findings have not been seen.')
+    expect(landed(JOURNEY, [])!.text).toBe('Landed anyway.')
+  })
+
+  it('says what was added to the plan, when, in the story of the run', () => {
+    const r = run([begin(), audit(2 * MIN, [finding]), { k: 'scope', t: 3 * MIN, run: 'r1', text: 'Renamed a token.' }])
+    expect(timelineOf(r, 9 * MIN).at(-1)).toEqual({ at: 3 * MIN, kind: 'trouble', text: 'Added to the plan: “Renamed a token.”' })
+  })
+
+  it('says the landing was with the review set aside when it was, instead of after the checks', () => {
+    const aside: RunEvent = { k: 'step', t: 3 * MIN, run: 'r1', round: 1, step: 'review', state: 'skipped' }
+    const r = run([begin(), plan(MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(2.5 * MIN, 'build'), check(2.6 * MIN, 1, true), audit(2.8 * MIN, [finding]), aside, merge(4 * MIN, 'checked'), done(4 * MIN)].map((e) => (e.k === 'merge' ? { ...e, held: [] } : e)))
+    expect(timelineOf(r, 9 * MIN).at(-1)).toEqual({ at: 4 * MIN, kind: 'trouble', text: 'Landed with the review set aside' })
+  })
+
   it('says a plan still waiting is waiting for the person, and a clean run as met', () => {
     expect(timelineOf(run([begin(), plan(5 * MIN, 'submitted')]), 26 * MIN).at(-1)).toEqual({ at: 5 * MIN, kind: 'you', text: 'Plan sent 21m ago: waiting for you' })
     const clean = run([begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])

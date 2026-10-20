@@ -236,6 +236,17 @@ export interface TimelineEntry {
   text: string
 }
 const times = (n: number) => (n === 1 ? 'once' : `${n} times`)
+/** The landing as one line of the story: what was not met when it went through anyway (a skipped hold is its own sentence), or that the review was set aside. */
+function landing(run: Run, l: NonNullable<Run['landed']>): { kind: TimelineEntry['kind']; text: string } {
+  const verb = run.workflow?.steps.some((s) => s.kind === 'pr') ? 'Pushed' : 'Landed'
+  if (l.how === 'checked') return auditSetAside(run) ? { kind: 'trouble', text: `${verb} with the review set aside` } : { kind: 'ok', text: 'Landed after the checks' }
+  const bare = (h: string) => h.replace(/\.$/, '')
+  const skipped = l.held.filter((h) => h.startsWith('Pushed without the hold'))
+  const unmet = l.held.filter((h) => !h.startsWith('Pushed without the hold')).map((h) => bare(h).replace(/^([A-Z])(?=[a-z])/, (c) => c.toLowerCase()))
+  const text = [`${verb} anyway.`, unmet.length ? `Not met: ${unmet.join('; ')}.` : '', ...skipped.map((h) => `The hold itself was skipped: ${bare(h).replace(/^Pushed without the hold: /, '')}.`)].filter(Boolean).join(' ')
+  return { kind: 'bad', text }
+}
+
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t)
 
 /** How one run went, line by line: began, plan, checks, review, landing, and each follow-up round, with when each happened. */
@@ -271,7 +282,8 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
     const text = aside ? `You set the review aside with ${plural(unseen.length, 'thing', 'things')} not looked at: “${clip(unseen[0]!.text, 80)}”` : a.findings.length === 0 ? 'Review found nothing' : unseen.length === 0 ? `Review found ${plural(a.findings.length, 'thing', 'things')}, all seen` : `Review found ${plural(unseen.length, 'thing', 'things')} you did not look at: “${clip(unseen[0]!.text, 80)}”`
     out.push({ at: a.t - start, kind: a.findings.length === 0 ? 'ok' : unseen.length === 0 ? 'trouble' : 'bad', text })
   }
-  if (run.landed) out.push({ at: run.landed.t - start, kind: run.landed.how === 'checked' ? 'ok' : 'bad', text: run.landed.how === 'checked' ? 'Landed after the checks' : `Landed anyway, with ${run.landed.held.join(' and ') || 'a gate'} still holding it` })
+  for (const add of run.additions ?? []) out.push({ at: add.t - start, kind: 'trouble', text: `Added to the plan: “${clip(add.text, 80)}”` })
+  if (run.landed) out.push({ at: run.landed.t - start, ...landing(run, run.landed) })
   return out.sort((x, y) => x.at - y.at)
 }
 

@@ -46,6 +46,16 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
           ))}
         </ol>
       )}
+      {latest.additions && latest.additions.length > 0 && (
+        <div className="wt-added">
+          <span className="muted">Added to the plan</span>
+          <ul aria-label="Added to the plan">
+            {latest.additions.map((a, i) => (
+              <li key={`${i}-${a.text}`}>{a.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
       <div className="wt-week" role="list" aria-label="This week">
         {weekDays(week, ctxFor, now).map((d) => (

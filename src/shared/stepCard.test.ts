@@ -49,7 +49,18 @@ describe('the card of the step that waits for the person', () => {
   it('is what holds the merge while git holds it, with the unseen findings answered all at once, and one word to set aside', () => {
     const card = ask({ held: true, merge: check({ plan: 'waiting', blocking: ['The plan is still waiting for your approval.', '1 audit finding has not been seen.'], audit: done([{ kind: 'out-of-scope', text: 'Adds a project key.' }]) }) })!
     expect(card).toMatchObject({ kind: 'hold', tag: 'LAND HELD', title: '2 things hold the merge', actions: { seenAll: true, aside: true, again: false } })
-    expect(card.lines.map((l) => l.text)).toEqual(['The plan is still waiting for your approval.', '1 audit finding has not been seen.'])
+    expect(card.lines.map((l) => l.text)).toEqual(['The plan is still waiting for your approval.', '1 audit finding has not been seen.', 'Adds a project key.'])
+  })
+
+  it('lists the unseen findings under what holds the push, each with its place in the audit, so they can be answered one by one from the held card', () => {
+    const files = ['src/code/a.ts', 'src/code/b.ts', 'src/code/c.ts']
+    const card = ask({ held: true, merge: check({ land: 'pr', blocking: ['2 audit findings have not been seen.'], audit: done([{ kind: 'out-of-scope', files, text: 'The fold feature.' }, { kind: 'goal-unmet', text: 'No test for a 5-digit line count.' }]) }) })!
+    expect(card.lines).toEqual([
+      { text: '2 audit findings have not been seen.' },
+      { text: 'The fold feature.', where: 'out of scope · 3 files', index: 0, kind: 'out-of-scope', files },
+      { text: 'No test for a 5-digit line count.', where: 'goal not met', index: 1, kind: 'goal-unmet', files: [] }
+    ])
+    expect(card.more).toBe(0)
   })
 
   it('offers to run the audit when git holds the merge for a review that has not run for this branch', () => {

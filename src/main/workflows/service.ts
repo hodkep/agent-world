@@ -543,7 +543,7 @@ export class Workflows {
 
   private async audit(agentId: string, run: Run, head: string, diff: string) {
     const readback = this.planOf(run)!
-    const shown = auditPrompt(readback, diff, { additions: run.additions })
+    const shown = auditPrompt(readback, diff, { additions: run.additions?.map((a) => a.text) })
     const failed = (reason: string) => this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'failed', reason })
     let reply: Awaited<ReturnType<Deps['ask']>>
     try {
