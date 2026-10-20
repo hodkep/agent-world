@@ -79,8 +79,8 @@ import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, b
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { checkPassed, stepReply } from '../shared/steps'
-import { checkCommands, commandDiff, toRunWorkflow } from '../shared/workflow'
-import { askModel, auditModel, defaultWorkflow, pickAsker } from '../shared/workflows'
+import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
+import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
@@ -458,6 +458,11 @@ const skillSource: SkillSource = {
 const builder = new Builder({ store: workflowStore, approvals, proposals: new Proposals(join(HOME, 'workflow-proposals.json')), history: new WorkflowHistory(join(HOME, 'workflow-history')), skills: skillSource, now: Date.now })
 const BUILDER_ALLOWED = BUILDER_ALLOWED_NAMES.map((t) => `mcp__agent-world__${t}`)
 const commandsApproved = (w: { scope?: string; hash?: string }) => w.scope !== 'project' || (!!w.hash && approvals.has(w.hash))
+// A project that uses no workflow is offered none of it, as with workflows off.
+const noWorkflowFor = (agentId: string) => {
+  const a = byId(agentId)
+  return !!a && usesNoWorkflow(prefs.workflows, a.repoPath)
+}
 const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   run: (command, cwd) => runCheck(command, cwd, { env: checkEnv(process.env, loginShellPath() ?? process.env.PATH ?? '') }),
   approved: commandsApproved,
@@ -466,11 +471,11 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   pick: (id, requested) => {
     const a = byId(id)
     if (!a) return undefined
-    const usable = workflowStore.list(a.repoPath).filter((e) => e.workflow)
-    const chosen = usable.find((e) => e.id === requested) ?? usable.find((e) => e.id === defaultWorkflow(prefs.workflows, a.repoPath)) ?? usable.find((e) => e.id === 'standard')
+    const chosen = pickEntry(workflowStore.list(a.repoPath), requested, defaultWorkflow(prefs.workflows, a.repoPath))
     return chosen ? toRunWorkflow(chosen.workflow!, chosen.hash, chosen.scope === 'built-in' ? undefined : chosen.scope) : undefined
   },
   enabled: () => prefs.workflows.enabled,
+  noWorkflow: noWorkflowFor,
   since: () => prefs.workflows.since,
   planGate: () => prefs.workflows.planGate,
   mergeGate: () => prefs.workflows.mergeGate,
@@ -531,7 +536,7 @@ async function readyAskers(): Promise<ProviderId[]> {
   askersSeen = { at: Date.now(), ready }
   return ready
 }
-const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
+const workflowsFor = (agentId: string) => !byId(agentId)?.builder && ((prefs.workflows.enabled && !noWorkflowFor(agentId)) || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
 async function syncRunCommits(a: AgentRecord) {
   // Switched on, every agent's commits are read (an agent that never announced a task still gets a run); switched off, only agents with runs.
@@ -628,7 +633,7 @@ const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_cl
 // The nudge to call task_begin: the opening text alone was not followed reliably (a real agent recorded about half its tasks), so each turn with no task open repeats it.
 const workflowReminder = (id: string): string => {
   const a = byId(id)
-  return a ? workflowRemind({ enabled: prefs.workflows.enabled, subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open') }) : ''
+  return a ? workflowRemind({ enabled: prefs.workflows.enabled && !noWorkflowFor(id), subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open') }) : ''
 }
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 const libraryRemind = (id: string, prompt: string) => {
@@ -890,7 +895,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1335,6 +1340,8 @@ async function main() {
       offered: workflowsFor,
       planInstruction: () => planInstruction(prefs.workflows.dial),
       begin: (caller, title, followUp, workflow) => {
+        // A project that uses no workflow records no task: the agent is told there is nothing to follow.
+        if (!workflows.applies(caller, workflow)) return { planFirst: false, none: true, brief: 'No workflow applies in this project, so no task is recorded and nothing is asked of you: work as usual.' }
         const id = workflows.begin(caller, title, { followUp, workflow })
         send('workflows')
         const run = workflows.runs().find((r) => r.id === id)

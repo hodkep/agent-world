@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, askModel, auditModel, pickAsker, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, NO_WORKFLOW, usesNoWorkflow, askModel, auditModel, pickAsker, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs to the agent: five of 150 tokens, and makes no separate call', () => {
@@ -84,6 +84,16 @@ describe('which workflow a project uses by default', () => {
     expect(withDefault(w, '/p/other', 'quick-change').defaults).toEqual({ '/p/shop': 'bug-fix', '/p/other': 'quick-change' })
     expect(withDefault(w, '/p/shop', 'standard').defaults).toEqual({})
     expect(w.defaults).toEqual({ '/p/shop': 'bug-fix' })
+  })
+})
+
+describe('a project that uses no workflow', () => {
+  const w = { enabled: true, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: { '/p/shop': 'bug-fix' } }
+  it('is a choice kept per project like any other default, and choosing Standard again brings it back', () => {
+    const none = withDefault(w, '/p/shop', NO_WORKFLOW)
+    expect(defaultWorkflow(none, '/p/shop')).toBe('none')
+    expect([usesNoWorkflow(none, '/p/shop'), usesNoWorkflow(none, '/p/other'), usesNoWorkflow(none, null), usesNoWorkflow(w, '/p/shop')]).toEqual([true, false, false, false])
+    expect(withDefault(none, '/p/shop', 'standard').defaults).toEqual({})
   })
 })
 

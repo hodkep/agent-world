@@ -23,6 +23,10 @@ The default is **Standard** (**Plan**, **Build**, **Audit**, **Pull request**), 
 
 A commit with no announced task gets a run marked **from a commit**, in the **Not announced** group, with no workflow, plan hold or track. It joins the agent's todo.
 
+## Use no workflow in a project
+
+In the **Workflows** window, select **Standard** and click **Remove**. Agents in that project then work as if workflows were off: no task is recorded, nothing is held (no plan hold, no track, no gate), no reminder is added and no run starts from a commit. It is a choice for that project only; **Restore Standard** undoes it, and making another workflow the default also ends it. Runs already open finish as they were.
+
 ## Enforced and only asked
 
 Announcing a task, handing in a plan, reporting steps and saying done are only asked. The app holds:
