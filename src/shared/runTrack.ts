@@ -1,6 +1,6 @@
 import type { Run } from './runs'
 import { type StepContext, stepStates } from './steps'
-import type { StepKind } from './workflow'
+import { type StepKind, isLanding, landingKind } from './workflow'
 
 /** One station on a run's track: a step of its workflow, and how far the run has got with it. */
 export interface Station {
@@ -27,15 +27,15 @@ export interface Track {
 }
 
 /** The landing is the agent's to do when the person asks it in the chat; the office holds it until its gates are met. */
-const LAND_ASK = 'ready to land: ask the agent'
+const LAND_ASK = { merge: 'ready to land: ask the agent', pr: 'ready for a pull request: ask the agent' }
 
-function waitingFor(kind: StepKind, state: string, runDone: boolean): string | undefined {
+function waitingFor(kind: StepKind, state: string, runDone: boolean, landing: 'pr' | 'merge' = 'merge'): string | undefined {
   if (kind === 'plan' && state === 'waiting') return 'needs your approval'
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
   if (kind === 'check' && state === 'waiting') return 'its commands need your approval'
   if (kind === 'check' && state === 'failed') return 'out of tries: your call'
-  if (kind === 'audit' && runDone) return LAND_ASK
-  if (kind === 'merge' && state === 'waiting') return LAND_ASK
+  if (kind === 'audit' && runDone) return LAND_ASK[landing]
+  if (isLanding(kind) && state === 'waiting') return LAND_ASK[landing]
   return undefined
 }
 
@@ -58,7 +58,7 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
     return { ...base, state: i === at ? 'now' : 'next' }
   })
   const here = steps[at]!
-  const waiting = waitingFor(here.kind, here.state, run.status === 'done')
+  const waiting = waitingFor(here.kind, here.state, run.status === 'done', landingKind(run.workflow))
   const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
   return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }
@@ -66,7 +66,8 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
 export type LandingPill = { kind: 'held' | 'notyet'; text: string }
 
 /** The marker on a run's track when git held the agent's merge into the base branch: held while the band asks the person, and "not yet" once they put the band away. */
-export function landingPill(hold: { declined: boolean } | undefined): LandingPill | null {
+export function landingPill(hold: { declined: boolean } | undefined, landing: 'pr' | 'merge' = 'merge'): LandingPill | null {
   if (!hold) return null
-  return hold.declined ? { kind: 'notyet', text: 'Land held · not yet' } : { kind: 'held', text: 'Land held' }
+  const word = landing === 'pr' ? 'Push' : 'Land'
+  return hold.declined ? { kind: 'notyet', text: `${word} held · not yet` } : { kind: 'held', text: `${word} held` }
 }

@@ -4,6 +4,7 @@ import { checkFailed, checkGaveUp, checkPanels, checkPassed, readyForAudit, step
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+const PULL: RunWorkflow = { id: 'pull', name: 'Pull', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
 const begin = (workflow?: RunWorkflow): RunEvent => ({ k: 'begin', t: 100, run: 'r1', agent: 'a1', name: 'ada', project: '/p', title: 'Task', ...(workflow && { workflow }) })
 const readback = { goal: 'g', assumptions: [], outOfScope: [], questions: [] }
 const submitted = (t = 200): RunEvent => ({ k: 'plan', t, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback })
@@ -43,6 +44,13 @@ describe('the audit and the landing, which the app and the person do', () => {
     expect(states([...built, audit()])).toEqual(['plan:passed', 'build:passed', 'review:waiting', 'land:pending'])
     expect(states([...built, audit(), seen()])).toEqual(['plan:passed', 'build:passed', 'review:passed', 'land:waiting'])
     expect(states([...built, audit(), seen(), landed()])).toEqual(['plan:passed', 'build:passed', 'review:passed', 'land:passed'])
+  })
+
+  it('a pull request step is the landing too: the person\'s to do once the audit is seen, and passed when the push was let through', () => {
+    const pulled = [begin(PULL), decided('released'), step('build', 'done')]
+    expect(states([...pulled, audit(), seen()])).toEqual(['plan:passed', 'build:passed', 'review:passed', 'pr:waiting'])
+    expect(states([...pulled, audit(), seen(), landed()])).toEqual(['plan:passed', 'build:passed', 'review:passed', 'pr:passed'])
+    expect(states([...pulled, audit()])).toEqual(['plan:passed', 'build:passed', 'review:waiting', 'pr:pending'])
   })
 
   it('an audit the person set aside is skipped, so landing is theirs to do, and asking for it again brings the findings back', () => {
