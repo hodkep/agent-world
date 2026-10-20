@@ -136,6 +136,26 @@ describe('landing the work', () => {
     expect(readFileSync(join(repo, 'a.ts'), 'utf8')).toBe('from user\n')
   })
 
+  it('says what git said when the merge fails for a reason that is not a conflict, such as no git identity to write the merge commit with', async () => {
+    writeFileSync(join(wt.path, 'a.ts'), 'from ada\n')
+    await commitAll(wt.path, 'ada work')
+    // A bare machine (a CI runner) cannot name the person who merges; a Mac makes a name up from the user and host, which hides this.
+    git(repo, 'config', '--unset', 'user.email')
+    git(repo, 'config', '--unset', 'user.name')
+    git(repo, 'config', 'user.useConfigOnly', 'true')
+    const was = { global: process.env.GIT_CONFIG_GLOBAL, nosystem: process.env.GIT_CONFIG_NOSYSTEM }
+    process.env.GIT_CONFIG_GLOBAL = '/dev/null'
+    process.env.GIT_CONFIG_NOSYSTEM = '1'
+    try {
+      const failure = await mergeInto(repo, wt.branch, 'main').then(() => '', (e: Error) => e.message)
+      expect(failure).toMatch(/identity unknown/i)
+      expect(failure).not.toMatch(/Merge conflict/)
+    } finally {
+      for (const [k, v] of [['GIT_CONFIG_GLOBAL', was.global], ['GIT_CONFIG_NOSYSTEM', was.nosystem]] as const) v === undefined ? delete process.env[k] : (process.env[k] = v)
+    }
+    expect(git(repo, 'status', '--porcelain')).toBe('')
+  })
+
   it('squashes the agent\'s commits into one on the base branch', async () => {
     writeFileSync(join(wt.path, 'a.ts'), 'one\ntwo\n')
     await commitAll(wt.path, 'step 1')
