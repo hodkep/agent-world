@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { chatMenu, hire, launchApp } from './launch'
+import { SLOW } from './waits'
 
 test('chat with an agent: send a prompt, watch tools and the reply appear, slash commands complete', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-chat-'))
@@ -28,7 +29,7 @@ test('chat with an agent: send a prompt, watch tools and the reply appear, slash
     await expect(log.locator('.msg.user')).toContainText('add a health check')
     // A command is folded to its headline until clicked; clicking again folds it.
     const cmd = log.locator('.tc', { hasText: 'List the source folder' })
-    await expect(cmd).toBeVisible({ timeout: 10_000 })
+    await expect(cmd).toBeVisible({ timeout: SLOW })
     await expect(cmd).not.toContainText('$ ls src')
     await cmd.getByRole('button', { name: /List the source folder/ }).click()
     await expect(cmd).toContainText('$ ls src')
@@ -77,7 +78,7 @@ test('attach and paste pictures, run a shell command with !, switch permission m
     await box.fill('what is in this picture?')
     await box.press('Enter')
     await expect(log.locator('.msg.user .bubble').first()).toContainText('what is in this picture?')
-    await expect(log.locator('.pic img').first()).toBeVisible({ timeout: 10_000 })
+    await expect(log.locator('.pic img').first()).toBeVisible({ timeout: SLOW })
     await expect(chips).toHaveCount(0)
 
     // Paste a picture from the clipboard.
@@ -120,14 +121,14 @@ test('attach and paste pictures, run a shell command with !, switch permission m
     await expect(page.locator('.mode-chip')).toHaveText('Ask first')
     await page.locator('.mode-chip').click()
     await page.getByRole('menuitemradio', { name: /^Edit automatically/ }).click()
-    await expect(page.locator('.mode-chip')).toHaveText('Edit automatically', { timeout: 10_000 })
+    await expect(page.locator('.mode-chip')).toHaveText('Edit automatically', { timeout: SLOW })
     // Jumping two steps ahead presses Shift+Tab twice, reading the footer each time.
     await page.locator('.mode-chip').click()
     await page.getByRole('menuitemradio', { name: /^Ask first/ }).click()
-    await expect(page.locator('.mode-chip')).toHaveText('Ask first', { timeout: 10_000 })
+    await expect(page.locator('.mode-chip')).toHaveText('Ask first', { timeout: SLOW })
     await page.locator('.mode-chip').click()
     await page.getByRole('menuitemradio', { name: /^Plan/ }).click()
-    await expect(page.locator('.mode-chip')).toHaveText('Plan', { timeout: 10_000 })
+    await expect(page.locator('.mode-chip')).toHaveText('Plan', { timeout: SLOW })
 
     // Search marks every match in the conversation, which stays whole, and steps from one to the next.
     await box.fill('')
@@ -172,13 +173,13 @@ test('after Esc interrupts a turn (Claude sends no Stop hook) the chat stops say
     const box = page.getByRole('textbox', { name: 'Message ada' })
     await box.fill('do something long')
     await box.press('Enter')
-    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: SLOW })
     // While it works, a typed message can wait its turn or be sent right now.
     await box.fill('actually, stop and do this instead')
     await expect(page.getByRole('button', { name: 'Send now' })).toBeVisible()
     await box.fill('')
     // The screen goes quiet with the input box showing: the turn is over.
-    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 15_000 })
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: SLOW })
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
     await expect(page.getByRole('log').locator('.ev-chip')).toContainText('Interrupted')
 
@@ -219,15 +220,15 @@ test('a wide picture sits in a frame no wider than itself, and a command card ha
     await box.fill('add a health check')
     await box.press('Enter')
     const pic = log.locator('.msg.user .pic').first()
-    await expect(pic.locator('img')).toBeVisible({ timeout: 10_000 })
+    await expect(pic.locator('img')).toBeVisible({ timeout: SLOW })
     await expect.poll(async () => Math.abs((await pic.boundingBox())!.width - (await pic.locator('img').boundingBox())!.width)).toBeLessThan(6)
 
     // The command card: a title, a copy button, and colour in the command.
     const card = log.locator('.tc', { hasText: 'List the source folder' })
-    await card.getByRole('button', { name: /List the source folder/ }).click({ timeout: 10_000 })
+    await card.getByRole('button', { name: /List the source folder/ }).click({ timeout: SLOW })
     await expect(card).toContainText('$ ls src')
     await expect(card.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(1)
-    await expect(card.locator('.tc-cmd code span[class*="mtk"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(card.locator('.tc-cmd code span[class*="mtk"]').first()).toBeVisible({ timeout: SLOW })
   } finally {
     await shutdown()
   }
@@ -252,11 +253,11 @@ test('tool lookups are one quiet line and MCP calls read as a sentence, with det
 
     // Steps that follow one another fold into a group once done; open it to see them.
     const head = log.locator('.sg-head').first()
-    await expect(head).toBeVisible({ timeout: 15_000 })
+    await expect(head).toBeVisible({ timeout: SLOW })
     if ((await head.getAttribute('aria-expanded')) === 'false') await head.click()
     // Tool lookup: a line with a chip per tool, no JSON.
     const line = log.locator('.tc-line')
-    await expect(line).toContainText('Loaded 2 tools', { timeout: 15_000 })
+    await expect(line).toContainText('Loaded 2 tools', { timeout: SLOW })
     await expect(line.locator('.chip')).toHaveText(['playwright navigate', 'playwright snapshot'])
     await expect(line).not.toContainText('{')
 
@@ -295,9 +296,9 @@ test('a message sent while the agent is busy is shown as queued, and stays in th
     const box = page.getByRole('textbox', { name: 'Message ada' })
     await box.fill('first job')
     await box.press('Enter')
-    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toBeVisible({ timeout: SLOW })
     // The chat shows it working as soon as it is sent; the second message waits until the agent has really taken the first (its first tool step shows).
-    await expect(page.locator('.live-detail')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.live-detail')).toBeVisible({ timeout: SLOW })
     await box.fill('second job')
     await box.press('Enter')
     const second = log.locator('.msg.user', { hasText: 'second job' })
@@ -307,7 +308,7 @@ test('a message sent while the agent is busy is shown as queued, and stays in th
     await page.waitForTimeout(21_000)
     await expect(second).toBeVisible()
     // Once the agent picks it up it is an ordinary message of yours, and it stays.
-    await expect(log.locator('.msg.assistant', { hasText: 'Picked up "second job"' })).toBeVisible({ timeout: 30_000 })
+    await expect(log.locator('.msg.assistant', { hasText: 'Picked up "second job"' })).toBeVisible({ timeout: SLOW })
     await expect(second.locator('.msg-meta')).toHaveCount(0)
     await expect(log.locator('.msg.user', { hasText: 'second job' })).toHaveCount(1)
   } finally {

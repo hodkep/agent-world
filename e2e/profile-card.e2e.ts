@@ -160,8 +160,8 @@ test('the figure moves, and holds still with reduced motion', async () => {
   try {
     await expect(page.locator('.profile-overlay')).toBeVisible({ timeout: 15_000 })
     const a = await pixels(page)
-    await page.waitForTimeout(1300)
-    expect(await pixels(page)).not.toBe(a)
+    // The animation repeats, so one later picture can fall on the same frame: wait for any picture that differs.
+    await expect.poll(async () => (await pixels(page)) !== a, { timeout: 10_000, intervals: [300] }).toBe(true)
     expect(a).toContain('255')   // it drew something
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.waitForTimeout(500)

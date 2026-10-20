@@ -1,6 +1,7 @@
 import { type Page, _electron as electron } from '@playwright/test'
 import { rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { SLOW } from './waits'
 
 // Tests run with no visible window, dock icon or notifications (AW_HIDDEN), so they never steal focus from what you are doing.
 // Set AW_SHOW=1 to watch one: AW_SHOW=1 npx playwright test e2e/chat.e2e.ts
@@ -34,7 +35,7 @@ export async function hire(page: Page, fields: { name?: string; model?: string; 
   if (fields.budget) await form.getByLabel('Budget (USD)').fill(fields.budget)
   if (fields.instructions) await form.getByLabel('Extra instructions').fill(fields.instructions)
   await form.getByRole('button', { name: 'Hire' }).click()
-  await form.waitFor({ state: 'detached' })
+  await form.waitFor({ state: 'detached', timeout: SLOW })
   // Most tests read the raw terminal; the chat view has its own tests.
   await page.getByRole('tab', { name: 'Terminal' }).click()
 }

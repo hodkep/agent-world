@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
+import { SLOW } from './waits'
 
 test('a second account is signed in once, hired on, and an agent moves between accounts without signing in again', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-acct-')))
@@ -55,7 +56,9 @@ test('a second account is signed in once, hired on, and an agent moves between a
     await expect.poll(() => (existsSync(envLog) ? readFileSync(envLog, 'utf8').trim().split('\n') : []), { timeout: 15_000 }).toEqual([work])
     await expect(page.locator('.agent-row .acct-dot')).toHaveAttribute('title', 'Runs on Work')
 
-    // The spend it made is counted under Work as well as in the total.
+    // The spend it made is counted under Work as well as in the total. The Usage window reads the totals once when it opens, so it is opened
+    // after the spend is in; opened earlier on a slow machine it would show the old totals for as long as the spec waits.
+    await expect.poll(() => page.evaluate(() => window.aw.overview(30).then((o) => o.accounts.some((a) => a.account === 'work' && a.usd >= 1.5))), { timeout: SLOW }).toBe(true)
     await page.locator('header').getByRole('button', { name: /^Usage/ }).click()
     const usage = page.getByRole('dialog', { name: /usage/i })
     const byAccount = usage.locator('section', { hasText: 'By account' })

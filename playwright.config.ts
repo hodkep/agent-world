@@ -7,7 +7,8 @@ const CI = !!process.env.CI
 export default defineConfig({
   testDir: 'e2e',
   testMatch: '*.e2e.ts',
-  timeout: 60_000,
+  // A spec waits up to SLOW (e2e/waits.ts) for an agent's reply, more than once in some; a busy CI Mac needs room for that.
+  timeout: CI ? 120_000 : 60_000,
   workers: CI ? 2 : 3,
   retries: 1,
   // The json report goes where PLAYWRIGHT_JSON_OUTPUT_NAME says; the summary reads it.
