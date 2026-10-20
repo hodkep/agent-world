@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, noMergeBase, moveOntoBase, undoMove, unrelatedPlan, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 import { useGit } from './gitProgram'
 import { chmodSync } from 'node:fs'
@@ -583,5 +583,93 @@ describe('landing a branch that shares no history with its base', () => {
     git(repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'rewritten work')
     git(repo, 'checkout', '-q', 'main')
     await expect(mergeInto(repo, 'rewritten', 'main')).rejects.toThrow("rewritten does not come from main's history: reset it onto main before landing.")
+  })
+})
+
+describe('moving a branch onto a base whose history was rewritten', () => {
+  const commit = (cwd: string, file: string, text: string, msg: string) => {
+    writeFileSync(join(cwd, file), text)
+    git(cwd, 'add', '.')
+    git(cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', msg)
+    return git(cwd, 'rev-parse', 'HEAD')
+  }
+  // The branch (`feature`) holds the old history c1..c2 and its own f1..f2; main was rewritten (an orphan that replays c1..c2 with new ids), so git finds no merge base.
+  let rw: string
+  beforeEach(() => {
+    rw = join(tmp, 'rewrite')
+    mkdirSync(rw)
+    git(rw, 'init', '-q', '-b', 'old')
+    git(rw, 'config', 'user.email', 't@t')
+    git(rw, 'config', 'user.name', 't')
+    commit(rw, 'zero.txt', 'zero\n', 'c0')
+    const c1 = commit(rw, 'a.txt', 'one\n', 'c1')
+    const c2 = commit(rw, 'b.txt', 'two\n', 'c2')
+    git(rw, 'checkout', '-q', '-b', 'feature')
+    commit(rw, 'f1.txt', 'own one\n', 'f1: first of its own')
+    commit(rw, 'f2.txt', 'own two\n', 'f2: second of its own')
+    git(rw, 'checkout', '-q', '--orphan', 'main2')
+    git(rw, 'rm', '-rfq', '.')
+    // A different message, or git would make the very same root commit and the two histories would share it.
+    commit(rw, 'zero.txt', 'zero\n', 'c0 rewritten')
+    git(rw, '-c', 'user.email=t@t', '-c', 'user.name=t', 'cherry-pick', c1, c2)
+    git(rw, 'checkout', '-q', 'feature')
+  })
+  const subjects = (cwd: string, ref: string) => git(cwd, 'log', '--format=%s', ref).split('\n')
+
+  it('lists the branch\'s own commits by what they change, oldest first, and how many main already has', async () => {
+    const plan = await unrelatedPlan(rw, 'feature', 'main2')
+    expect(plan.mine.map((c) => c.subject)).toEqual(['f1: first of its own', 'f2: second of its own'])
+    expect(plan.already).toBeGreaterThanOrEqual(2)
+    expect(plan.mine[0]!.sha).toMatch(/^[0-9a-f]{40}$/)
+  })
+  it('moves the chosen commits onto the base, keeping a backup of the branch as it was', async () => {
+    const before = git(rw, 'rev-parse', 'feature')
+    const plan = await unrelatedPlan(rw, 'feature', 'main2')
+    const r = await moveOntoBase(rw, 'feature', 'main2', plan.mine.map((c) => c.sha))
+    expect(r.moved).toBe(2)
+    expect(subjects(rw, 'feature')).toEqual(['f2: second of its own', 'f1: first of its own', 'c2', 'c1', 'c0 rewritten'])
+    expect(await noMergeBase(rw, 'feature', 'main2')).toBe(false)
+    expect(git(rw, 'rev-parse', r.backup)).toBe(before)
+    expect(r.backup).toMatch(/^aw\/backup\/feature-\d{8}-\d{4}/)
+    expect(git(rw, 'status', '--porcelain')).toBe('')
+  })
+  it('can start over from the base, dropping them all, and still keeps the backup', async () => {
+    const before = git(rw, 'rev-parse', 'feature')
+    const r = await moveOntoBase(rw, 'feature', 'main2', [])
+    expect(r.moved).toBe(0)
+    expect(git(rw, 'rev-parse', 'feature')).toBe(git(rw, 'rev-parse', 'main2'))
+    expect(git(rw, 'rev-parse', r.backup)).toBe(before)
+  })
+  it('moves only the ones chosen', async () => {
+    const plan = await unrelatedPlan(rw, 'feature', 'main2')
+    await moveOntoBase(rw, 'feature', 'main2', [plan.mine[1]!.sha])
+    expect(subjects(rw, 'feature')).toEqual(['f2: second of its own', 'c2', 'c1', 'c0 rewritten'])
+  })
+  it('stops at a commit that does not apply, names it and its files, and puts the branch back exactly as it was', async () => {
+    // main changed the line the branch\'s second commit also changes.
+    git(rw, 'checkout', '-q', 'main2')
+    commit(rw, 'f2.txt', 'main edited it\n', 'main edits f2.txt')
+    git(rw, 'checkout', '-q', 'feature')
+    const before = git(rw, 'rev-parse', 'feature')
+    const plan = await unrelatedPlan(rw, 'feature', 'main2')
+    await expect(moveOntoBase(rw, 'feature', 'main2', plan.mine.map((c) => c.sha))).rejects.toMatchObject({ kind: 'conflict', subject: 'f2: second of its own', files: ['f2.txt'] })
+    expect(git(rw, 'rev-parse', 'feature')).toBe(before)
+    expect(git(rw, 'status', '--porcelain')).toBe('')
+    expect(git(rw, 'branch', '--list', 'aw/backup/*')).toBe('')
+  })
+  it('refuses while files are not committed, and changes nothing', async () => {
+    writeFileSync(join(rw, 'wip.txt'), 'x')
+    const before = git(rw, 'rev-parse', 'feature')
+    await expect(moveOntoBase(rw, 'feature', 'main2', [])).rejects.toMatchObject({ kind: 'uncommitted' })
+    expect(git(rw, 'rev-parse', 'feature')).toBe(before)
+  })
+  it('can be undone while nothing has happened since, and not after', async () => {
+    const before = git(rw, 'rev-parse', 'feature')
+    const r = await moveOntoBase(rw, 'feature', 'main2', [])
+    await undoMove(rw, 'feature', r.backup, r.head)
+    expect(git(rw, 'rev-parse', 'feature')).toBe(before)
+    const again = await moveOntoBase(rw, 'feature', 'main2', [])
+    commit(rw, 'later.txt', 'x', 'work after the move')
+    await expect(undoMove(rw, 'feature', again.backup, again.head)).rejects.toThrow(/since/)
   })
 })

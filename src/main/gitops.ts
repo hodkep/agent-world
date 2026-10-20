@@ -444,3 +444,78 @@ export async function staleHint(repo: string, cwd: string, base: string, files: 
     return null
   }
 }
+
+
+/** Why a move onto the base did not happen: files not committed, or a commit that does not apply (named, with its files). */
+export class MoveError extends Error {
+  sha?: string
+  subject?: string
+  files?: string[]
+  count?: number
+  constructor(
+    public kind: 'uncommitted' | 'conflict' | 'branch',
+    message: string,
+    detail: { sha?: string; subject?: string; files?: string[]; count?: number } = {}
+  ) {
+    super(message)
+    Object.assign(this, detail)
+  }
+}
+
+/**
+ * A branch that shares no history with its base (the base was rewritten): which of its commits are really its own. Compared by what each one changes, so a
+ * commit main already has under another id is not one of them. Oldest first.
+ */
+export async function unrelatedPlan(cwd: string, branch: string, base: string): Promise<{ mine: { sha: string; subject: string }[]; already: number }> {
+  const rows = lines(await git(cwd, 'cherry', base, branch)).map((l) => ({ own: l.startsWith('+'), sha: l.slice(2).trim() }))
+  const mine = rows.filter((r) => r.own).map((r) => r.sha)
+  const subjects = new Map<string, string>()
+  if (mine.length) for (const l of lines(await git(cwd, 'log', '--no-walk=unsorted', '--format=%H%x1f%s', ...mine.slice(0, 500)))) subjects.set(l.split('\x1f')[0]!, l.split('\x1f').slice(1).join('\x1f'))
+  return { mine: mine.map((sha) => ({ sha, subject: subjects.get(sha) ?? '' })), already: rows.filter((r) => !r.own).length }
+}
+
+const stamp = (d = new Date()) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`
+
+/**
+ * Starts the branch at the base and replays the chosen commits on it (none: just the base), in the agent's own worktree. The branch as it was is kept as a backup
+ * branch first. A commit that does not apply stops it: the branch is put back exactly, the backup removed (nothing changed), and the commit and its files are named.
+ */
+export async function moveOntoBase(cwd: string, branch: string, base: string, pick: string[]): Promise<{ moved: number; backup: string; head: string }> {
+  const dirty = lines(await git(cwd, 'status', '--porcelain', '--', '.', ...NOT_WORK))
+  if (dirty.length) throw new MoveError('uncommitted', `${dirty.length} file${dirty.length === 1 ? ' is' : 's are'} not committed: commit them first so nothing is lost.`, { count: dirty.length })
+  if ((await git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD')) !== branch) throw new MoveError('branch', `${branch} is not the branch checked out here.`)
+  let backup = `aw/backup/${branch.replace(/^aw\//, '')}-${stamp()}`
+  for (let n = 2; (await git(cwd, 'rev-parse', '--verify', '--quiet', `refs/heads/${backup}`).catch(() => '')) !== ''; n++) backup = `aw/backup/${branch.replace(/^aw\//, '')}-${stamp()}-${n}`
+  await git(cwd, 'branch', backup, 'HEAD')
+  let moved = 0
+  try {
+    await git(cwd, 'reset', '--hard', base)
+    for (const sha of pick) {
+      try {
+        await git(cwd, 'cherry-pick', sha)
+        moved++
+      } catch (e) {
+        const files = lines(await git(cwd, 'diff', '--name-only', '--diff-filter=U').catch(() => ''))
+        // Nothing to conflict over: the commit changes nothing here any more (main has it); it is simply not needed.
+        if (!files.length) {
+          await git(cwd, 'cherry-pick', '--skip').catch(() => git(cwd, 'reset', '--hard', 'HEAD'))
+          continue
+        }
+        const subject = await git(cwd, 'log', '-1', '--format=%s', sha).catch(() => '')
+        await git(cwd, 'cherry-pick', '--abort').catch(() => undefined)
+        throw new MoveError('conflict', `${sha.slice(0, 7)} does not apply on ${base}.`, { sha, subject, files })
+      }
+    }
+  } catch (e) {
+    await git(cwd, 'reset', '--hard', backup)
+    await git(cwd, 'branch', '-D', backup).catch(() => undefined)
+    throw e
+  }
+  return { moved, backup, head: await git(cwd, 'rev-parse', 'HEAD') }
+}
+
+/** Puts the branch back to its backup, only while nothing has happened on it since the move. */
+export async function undoMove(cwd: string, branch: string, backup: string, expectHead: string): Promise<void> {
+  if ((await git(cwd, 'rev-parse', branch)) !== expectHead) throw new Error('The branch has changed since it was moved, so it is not put back.')
+  await git(cwd, 'reset', '--hard', backup)
+}
