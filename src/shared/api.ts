@@ -268,6 +268,8 @@ export interface AwApi {
   landingReopen(agentId: string): Promise<void>
   /** The person has seen these findings (by position) of the audit of the branch as it is now. */
   finishSeen(agentId: string, which: number[]): Promise<void>
+  /** These out-of-scope findings (by position) belong in the plan: later audits are told, and they count as seen. */
+  finishAddToPlan(agentId: string, which: number[]): Promise<void>
   /** The person sets the audit aside: not followed, by their choice, and nothing it found or has not yet found holds landing. */
   finishAside(agentId: string): Promise<void>
   /** The person takes that back. */

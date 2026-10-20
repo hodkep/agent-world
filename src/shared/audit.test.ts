@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditPrompt, parseAudit } from './audit'
+import { auditPrompt, findingFiles, parseAudit } from './audit'
 import type { PlanReadback } from './plan'
 
 describe('reading the auditor\'s reply', () => {
@@ -25,6 +25,22 @@ describe('reading the auditor\'s reply', () => {
       { kind: 'out-of-scope', text: 'x'.repeat(299) + '…' },
       { kind: 'guess-wrong', text: 'kept' }
     ])
+  })
+
+  it('keeps the files a finding covers, when the reviewer reports one finding for one cause: strings only, no empty ones, at most thirty', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `src/f${i}.ts`)
+    const reply = JSON.stringify({ findings: [{ kind: 'out-of-scope', files: ['a.ts', 7, '', 'b.ts'], text: 'The fold feature.' }, { kind: 'out-of-scope', files: many, text: 'Many.' }, { kind: 'goal-unmet', files: [], text: 'None.' }, { kind: 'guess-wrong', files: 'a.ts', text: 'Not a list.' }] })
+    const got = parseAudit(reply)!
+    expect(got[0]).toEqual({ kind: 'out-of-scope', files: ['a.ts', 'b.ts'], text: 'The fold feature.' })
+    expect(got[1]!.files).toHaveLength(30)
+    expect(got[2]).toEqual({ kind: 'goal-unmet', text: 'None.' })
+    expect(got[3]).toEqual({ kind: 'guess-wrong', text: 'Not a list.' })
+  })
+
+  it('lists the files of a finding, from `files` or the one `file`', () => {
+    expect(findingFiles({ kind: 'out-of-scope', text: 'x', files: ['a.ts', 'b.ts'], file: 'c.ts' })).toEqual(['a.ts', 'b.ts'])
+    expect(findingFiles({ kind: 'out-of-scope', text: 'x', file: 'c.ts' })).toEqual(['c.ts'])
+    expect(findingFiles({ kind: 'out-of-scope', text: 'x' })).toEqual([])
   })
 
   it('keeps at most ten findings so a rambling reply cannot fill the dialog', () => {
@@ -54,6 +70,18 @@ describe('asking a model to review a diff against the plan', () => {
     const { prompt, files, lines, truncated } = auditPrompt(plan, diff)
     for (const part of ['Add a dark-mode toggle to Settings.', 'A theme per project.', '[given] The toggle lives in Settings.', '[guessed] The choice is saved in preferences.json.', '+export const dark = true', '"findings"', 'out-of-scope', 'goal-unmet', 'guess-wrong']) expect(prompt).toContain(part)
     expect({ files, lines, truncated }).toEqual({ files: 1, lines: 5, truncated: false })
+  })
+
+  it('asks for one finding per cause, with every file it covers, and tells it what the person added to the plan since, so that is not reported again', () => {
+    const diff = file('src/prefs.ts', '+export const dark = true')
+    const plain = auditPrompt(plan, diff).prompt
+    expect(plain).toContain('one finding per cause')
+    expect(plain).toContain('"files"')
+    expect(plain).not.toContain('Added to the plan')
+    const added = auditPrompt(plan, diff, { additions: ['Folding unchanged code in the diff.', 'A shortcut for it.'] }).prompt
+    expect(added).toContain('## Added to the plan afterwards by the person: in scope')
+    expect(added).toContain('- Folding unchanged code in the diff.')
+    expect(added).toContain('- A shortcut for it.')
   })
 
   it('cuts a diff that is too big at a file boundary and says how much it showed, so a large change never fails the call', () => {
