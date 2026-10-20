@@ -1244,7 +1244,8 @@ async function main() {
           const why = workflows.commitBlock(id, where, stagedFiles(where))
           if (why) return { block: blockText(why) }
         }
-        if (a.branch && movesBase(a.base ?? null, refs) && (isInside(a.cwd, where) || isInside(a.repoPath, where))) {
+        // A run that ends in a pull request holds the push instead (git-push below): the base branch is GitHub's to move once CI has run.
+        if (a.branch && workflows.landKind(id) !== 'pr' && movesBase(a.base ?? null, refs) && (isInside(a.cwd, where) || isInside(a.repoPath, where))) {
           const head = branchHead(a.cwd, a.branch)
           const held = head ? workflows.landingHold(id, head) : null
           if (head && held) {
@@ -1255,6 +1256,32 @@ async function main() {
             return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it lands anyway; tell them what holds it and ask.`) }
           }
         }
+        return {}
+      }
+      // git's pre-push hook asks whether the agent's branch may be sent: for a run that ends in a pull request this is the gate the merge gate was, because
+      // the pull request, CI and the merge are GitHub's. Let through, the run ends here, recorded like a landing (as anyway when the person allowed it).
+      if (event === 'git-push') {
+        const where = typeof payload.cwd === 'string' ? payload.cwd : ''
+        const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
+        const branch = a.branch ?? currentBranch(a.cwd)
+        if (!where || !isInside(a.cwd, where) || workflows.landKind(id) !== 'pr' || !branch || !holdsBranch(branch, refs)) return {}
+        const head = branchHead(a.cwd, branch)
+        if (!head) return {}
+        const held = workflows.landingHold(id, head)
+        if (held) {
+          if (a.base && held.some((h) => h.startsWith('The review has not run'))) void startAudit(id, a, a.base, head).catch(() => undefined)
+          landingHeld.hold(id, head, held)
+          send('landing')
+          return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it is pushed anyway; tell them what holds it and ask.`) }
+        }
+        try {
+          workflows.landing(id, head, { anyway: true })
+        } catch {
+          // Only an unknown agent throws here; there is nothing to log for it.
+        }
+        landingHeld.clear(id)
+        send('workflows')
+        send('landing')
         return {}
       }
       // git moved the base branch: the landing is logged, as landed anyway when something still held it (it was allowed, or got past the hold).

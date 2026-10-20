@@ -634,6 +634,52 @@ describe('the merge gate', () => {
     expect(wf.landingHold('a1', 'h1')).toBeNull()
   })
 
+  describe('a pull request step, which holds the push of the branch', () => {
+    const pull = (gate?: 'auto' | 'approve'): RunWorkflow => ({ id: 'p', name: 'P', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', ...(gate && { gate }) }] })
+
+    it('holds for the same reasons Land does, says which landing the run ends in, and its own gate decides over the switch', () => {
+      const run = (w: RunWorkflow, mergeGate = true) => {
+        const { wf, state } = make()
+        state.mergeGate = mergeGate
+        state.pick = () => w
+        wf.begin('a1', 'Add a toggle')
+        return wf
+      }
+      const wf = run(pull())
+      expect(wf.landKind('a1')).toBe('pr')
+      expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ land: 'pr', blocking: ['No plan was approved for this task.'] })
+      expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
+      expect(run(pull(), false).landingHold('a1', 'h1')).toBeNull()
+      expect(run(pull('approve'), false).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
+      expect(run(pull('auto'), true).landingHold('a1', 'h1')).toBeNull()
+    })
+
+    it('ends the run when the push went through, recorded like a landing', () => {
+      const { wf, state } = make()
+      state.pick = () => pull()
+      wf.begin('a1', 'Add a toggle')
+      wf.decide(wf.runs()[0]!.id, 'released')
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'checked' })
+    })
+
+    it('ends the run on a push even when its gate is auto and nothing was checked, so it does not wait for ever', () => {
+      const { wf, state } = make()
+      state.pick = () => pull('auto')
+      wf.begin('a1', 'Add a toggle')
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'checked', held: [] })
+    })
+
+    it('is not what a merge workflow, or a run with no workflow, ends in', () => {
+      const { wf, state } = make()
+      state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] })
+      wf.begin('a1', 'Task')
+      expect(wf.landKind('a1')).toBe('merge')
+      expect(make().wf.landKind('a1')).toBeUndefined()
+    })
+  })
+
   it('forgets the allowance once the branch has landed, so the next head is held again', () => {
     const { wf } = make()
     wf.begin('a1', 'Add a toggle')

@@ -72,6 +72,7 @@ import { RunTrack } from './workflows/RunTrack'
 import { useLandingHolds } from './workflows/useLandingHolds'
 import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
 import { landingPill, trackOf } from '../shared/runTrack'
+import { landingKind } from '../shared/workflow'
 import { pendingPlans } from '../shared/runs'
 import { checkPanels, waitingSteps } from '../shared/steps'
 import { CheckGate } from './workflows/CheckGate'
@@ -712,7 +713,7 @@ export function App() {
     return (
       (t || hold) && (
         <>
-          {t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" landing={landingPill(hold)} onReopen={() => void window.aw.landingReopen(a.id)} />}
+          {t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" landing={landingPill(hold, landingKind(run?.workflow))} onReopen={() => void window.aw.landingReopen(a.id)} />}
         </>
       )
     )

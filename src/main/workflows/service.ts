@@ -10,6 +10,7 @@ import { parsePlan, type PlanQuestion } from '../../shared/plan'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import type { Dial } from '../../shared/workflows'
 import { namedSkills } from '../../shared/skills'
+import { isLanding, landingKind } from '../../shared/workflow'
 
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
@@ -251,8 +252,13 @@ export class Workflows {
 
   /** Whether landing is held for the plan, the audit and the person's approvals: the merge step's own gate decides, else the Settings switch. */
   private mergeRequired(run: Run): boolean {
-    const merge = run.workflow?.steps.find((s) => s.kind === 'merge')
+    const merge = run.workflow?.steps.find((s) => isLanding(s.kind))
     return merge?.gate === 'approve' ? true : merge?.gate === 'auto' ? false : this.deps.mergeGate()
+  }
+
+  /** What the agent's latest run ends in, if its workflow has a landing step: a pull request (git holds the push) or a merge (git holds the base branch). */
+  landKind(agentId: string): 'pr' | 'merge' | undefined {
+    return landingKind(this.mine(agentId)[0]?.workflow)
   }
 
   /** Whether the run's plan must be approved before edits: the plan step's own gate decides, else the Settings switch; a workflow with no plan step needs none. */
@@ -483,7 +489,7 @@ export class Workflows {
     })
     if (!gated && blocking.length === 0 && checks.length === 0) return null
     const readback = this.planOf(run)
-    return { run: { id: run.id, title: run.title }, plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, asideAudit, checks, blocking, notes }
+    return { run: { id: run.id, title: run.title }, ...(landingKind(run.workflow) === 'pr' && { land: 'pr' as const }), plan: state, planned: readback ? { goal: readback.goal, outOfScope: readback.outOfScope } : null, commits, flagged, audit, asideAudit, checks, blocking, notes }
   }
 
   /** The plan an audit reads against: the latest round's that has a goal (a released hold has none). */
@@ -576,7 +582,12 @@ export class Workflows {
   /** Land is about to happen: refused while the check holds it, unless the person chose to land anyway; either way the choice is logged. */
   landing(agentId: string, head: string, o: { anyway?: boolean; auditable?: boolean } = {}) {
     const check = this.mergeCheck(agentId, head, o)
-    if (!check) return
+    if (!check) {
+      // Nothing holds a push that ends in a pull request with its gate auto, but the run still ends there.
+      const run = this.mine(agentId)[0]
+      if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: 'checked', held: [] })
+      return
+    }
     if (check.blocking.length && !o.anyway) throw new Error(`Not ready to land:\n${check.blocking.map((b) => `- ${b}`).join('\n')}`)
     this.allowed.delete(agentId)
     this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: check.blocking.length ? 'anyway' : 'checked', held: check.blocking })

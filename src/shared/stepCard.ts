@@ -34,7 +34,8 @@ export function stepCardOf(i: { merge: MergeCheck | null; held: boolean; working
   const findingLines = unseen.slice(0, SHOWN).map((f) => ({ text: f.text, where: [WHERE[f.kind], f.file].filter(Boolean).join(' · ') }))
   if (held) {
     if (merge.blocking.length === 0) return null
-    return { kind: 'hold', tag: 'LAND HELD', title: merge.blocking.length === 1 ? '1 thing holds the merge' : `${merge.blocking.length} things hold the merge`, lines: merge.blocking.slice(0, SHOWN).map((text) => ({ text })), more: Math.max(0, merge.blocking.length - SHOWN), actions: { ...none, seenAll: unseen.length > 0, again: a.state === 'not-run', aside: true }, ...(a.state === 'not-run' && { againLabel: 'Run the audit' }) }
+    const what = merge.land === 'pr' ? 'push' : 'merge'
+    return { kind: 'hold', tag: merge.land === 'pr' ? 'PUSH HELD' : 'LAND HELD', title: merge.blocking.length === 1 ? `1 thing holds the ${what}` : `${merge.blocking.length} things hold the ${what}`, lines: merge.blocking.slice(0, SHOWN).map((text) => ({ text })), more: Math.max(0, merge.blocking.length - SHOWN), actions: { ...none, seenAll: unseen.length > 0, again: a.state === 'not-run', aside: true }, ...(a.state === 'not-run' && { againLabel: 'Run the audit' }) }
   }
   if (merge.asideAudit) return { kind: 'aside', tag: 'SET ASIDE', title: `You set the audit aside${unseen.length ? ` · ${things(unseen.length)} not looked at` : ''}`, lines: [], more: 0, actions: { ...none, undo: true } }
   if (a.state === 'failed') return { kind: 'failed', tag: 'AUDIT', title: 'The audit failed', lines: [{ text: a.reason }], more: 0, actions: { ...none, again: true, aside: true }, againLabel: 'Run the audit again' }
