@@ -4,18 +4,36 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-20
+
 ### Added
 
+- Workflows: the **NOT LANDABLE** card has a **Move onto main** button. It moves the branch's own commits onto the base, keeping a backup branch; if a commit does not apply it stops and puts everything back, and **Undo** returns to the branch as it was.
+- Workflows: the audit card shows one row per cause, with every file it covers, each answered by **Seen, fine**; an out-of-scope row also has **Add to plan**, which keeps it in scope for later audits of the run.
+- Workflows: the builder's draft has a **Preview** under its steps: for each step what it will ask of you and where you stop, from the step kinds, so it follows your edits.
+- Workflows: a request the agent announces while its run is open is an item of that run, not another run, so one job is one track, one audit and one pull request. The Workflow tab lists the items.
+- Workflows: **Remove** on the built-in Standard (and **Restore Standard**) in the Workflows tab. A project with no workflow asks nothing of its agents: no task is recorded, nothing is held, no reminder is added and no run starts from a commit, the same as with workflows off.
+- Chat: ⇧⌘L (Ctrl+Shift+L) adds the selected words, file text, terminal output or code to your message to the agent, wherever the Ask button shows. It does nothing without a selection.
+- Grid: clicking an agent's name in a pane opens its profile card over that pane, with the same settings as everywhere else. Esc, a click elsewhere or the name again puts it away.
+- Settings: an account is renamed by clicking its name in Settings > Accounts (Enter saves, Esc cancels). Only the label changes: the folder, the sign-in and the agents on it stay.
+- Settings: **Switch all agents here** is always available and lets you choose which agents move, by project.
 
+### Changed
+
+- Workflows: the built-in **Standard** workflow ends in a new **Pull request** step instead of **Land**. Git's `pre-push` holds the push of the agent's branch until the plan is approved and the findings are seen (**Set aside** lifts it), and a push that goes through ends the run, so a run no longer waits for a merge the app never sees. A push that skips the hold with `--no-verify` is recorded as pushed anyway. Workflows you wrote keep their **Land** step.
+- Updates: an installed app now looks for a newer version every three hours while it is open, not every six.
+- Updates: a copy installed with Homebrew is no longer offered the in-app download. The update chip shows `brew upgrade --cask hodkep/tap/agent-world` with a Copy button, so Homebrew's own record of the version stays true.
+- Development: on a pull request the quick checks (commit messages, typecheck, unit tests) run first on Linux, the end-to-end specs are split over four Macs, and a change to documents alone, or a draft pull request, skips the end-to-end run, behind the same required check.
 
 ### Fixed
 
 - Two projects can each have an agent with the same name. A name only has to be free inside its project, and an agent writing to another by name reaches the one in its own project first.
-- Hire an agent, Subagents and History open in grid mode too; they were drawn inside the side panel, which grid mode hides.
-
-### Fixed
-
+- The Crew, History and Hire dialogs, and Subagents, are drawn outside the side panel, so they show in grid mode too, where the panel is hidden.
+- Workflows: an agent kept showing AUDIT (or another wait) beside its name because of an older run whose findings nobody had answered, with nothing in the chat to answer them. Only an agent's latest run can wait for you now.
+- Workflows: a push that goes through now really ends a run that ends in a pull request, as the agent is told; its own `task_done` afterwards is no error. **Set aside** followed by a push is recorded as pushed anyway, naming the review.
+- Workflows: a held push lists the findings to answer, and the run story and the Workflow tab say what was added to the plan and how a push went through.
 - Settings: after **Switch all agents here** the roster, the profile cards and the allowances showed the old accounts until the app was reloaded; they now follow as each agent is moved.
+- A hook script that exits before its payload is written is no longer reported as an error (a test failed on Linux's faster exit).
 
 ## [0.2.2] - 2026-10-20
 
@@ -120,7 +138,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.2...HEAD
+[Unreleased]: ../../compare/v0.2.3...HEAD
+[0.2.3]: ../../compare/v0.2.2...v0.2.3
 [0.2.2]: ../../compare/v0.2.1...v0.2.2
 [0.2.1]: ../../compare/v0.2.0...v0.2.1
 [0.2.0]: ../../compare/v0.1.2...v0.2.0
