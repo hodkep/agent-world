@@ -3330,3 +3330,19 @@ svg.pxg { display: block; flex: none; }
 .step-card.quiet { display: flex; gap: 8px; align-items: center; padding: 5px 8px; box-shadow: 0 0 0 1px var(--line); }
 .step-card.quiet .sc-title { flex: 1; font-weight: 400; }
 .reach-rem { display: block; color: var(--dim); font-weight: 400; font-size: 11px; margin-top: 2px; }
+/* Switch all agents to an account (Settings > Accounts) */
+.settings.swa-dialog { width: min(560px, 94vw); }
+.swa-body { padding: 14px; max-height: min(60vh, 520px); overflow-y: auto; }
+.swa-body p { margin: 0 0 8px; }
+.swa-group { margin: 12px 0 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.swa-group:first-child { margin-top: 0; }
+.swa-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.swa-row:last-child { border-bottom: 0; }
+.swa-row b { flex: none; min-width: 72px; }
+.swa-row span { flex: 1; min-width: 0; color: var(--muted); font: 11.5px Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.swa-chip { font: normal 10.5px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.swa-chip.work { color: var(--think); } .swa-chip.warn { color: var(--accent); } .swa-chip.ok { color: var(--ok-text); } .swa-chip.bad { color: var(--danger-text); }
+.swa-note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.swa-bar { height: 8px; margin: 0 0 8px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.swa-bar i { display: block; height: 100%; background: var(--think); }
+.swa-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 2px solid var(--ink); }

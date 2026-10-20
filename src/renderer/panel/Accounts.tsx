@@ -3,6 +3,7 @@ import type { AccountInfo, Prefs, ProviderId, ProviderInfo } from '../../shared/
 import { ProviderTag } from './ProviderTag'
 import { accountColor } from '../accounts'
 import { TerminalView } from './TerminalView'
+import { SwitchAgentsDialog } from './SwitchAgentsDialog'
 
 /** Settings › Accounts: each Claude subscription is signed in once, in a folder of its own, and agents can then move between them without signing in again. */
 export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; providers: ProviderInfo[]; onChange: (patch: Partial<Prefs>) => void }) {
@@ -10,6 +11,8 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
   const keepers = providers.filter((p) => p.capabilities.accounts && p.detection.state !== 'not-installed')
   const [list, setList] = useState<AccountInfo[] | null>(null)
   const [error, setError] = useState('')
+  // "Switch all agents here": the account whose dialog is open.
+  const [switching, setSwitching] = useState<{ id: string; name: string } | null>(null)
   // The add flow: a name, then the account's own sign-in in a terminal the user can see.
   const [adding, setAdding] = useState<{ step: 'name' | 'sign-in'; provider: ProviderId; name: string; id: string; pty: string; checking: boolean } | null>(null)
   const refresh = useCallback(() => window.aw.listAccounts().then(setList), [])
@@ -84,6 +87,10 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
                   <div className="acts">
                     {list && <span className="acct-state" data-ok={x.loggedIn}>{x.loggedIn ? 'Signed in' : 'Sign in needed'}</span>}
                     {list && !x.loggedIn && x.id && <button onClick={() => void begin(x.id, x.name, x.provider)}>Sign in</button>}
+                    {list && x.loggedIn && (() => {
+                      const elsewhere = list.filter((y) => y.provider === x.provider).reduce((n, y) => n + y.agents, 0) - x.agents
+                      return <button onClick={() => setSwitching({ id: x.id, name: x.name })} disabled={elsewhere <= 0} title={elsewhere <= 0 ? 'Every agent is already on this account' : 'Move every agent to this account, stopping and continuing the ones that are working'}>Switch all agents here</button>
+                    })()}
                     {!isDefault && <button onClick={() => onChange({ defaults: { ...prefs.defaults, accounts: { ...prefs.defaults.accounts, [x.provider]: x.id } } })}>Make default</button>}
                     {x.id && <button onClick={() => void remove(x.id)}>Remove</button>}
                   </div>
@@ -93,6 +100,7 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
           </div>
         </div>
       ))}
+      {switching && <SwitchAgentsDialog account={switching} providers={providers} onClose={() => (setSwitching(null), void refresh())} />}
       {error && <p className="acct-error" role="alert">{error}</p>}
       {!adding && (
         <div className="settings-row">

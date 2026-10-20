@@ -63,6 +63,7 @@ import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
+import { SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
@@ -1538,7 +1539,8 @@ async function main() {
       send('agent-event', { type: 'activity', agentId: id, sessionId: a.sessionId, activity: 'thinking' })
     }
   }
-  ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => {
+  // Esc and what follows it, for one agent: the chat's Esc and "Switch all agents here" both stop an agent this way.
+  const interruptAgent = (id: string, restore?: string) => {
     const p = sessions.get(id)
     if (!p) return
     const { first, then } = keysOf(id).interrupt
@@ -1555,7 +1557,8 @@ async function main() {
         p.write(keysOf(id).clearInput)
         send('composer-prefill', id, restore)
       }, 800)
-  })
+  }
+  ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => interruptAgent(id, restore))
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.
   ipcMain.handle('open-external', (_, url: string) => {
@@ -2239,7 +2242,7 @@ async function main() {
   })
   // Move an agent to another signed-in account. Its conversation file is shared into that account's folder and the
   // same session resumes there, so nothing is lost and no sign-in is asked: each account signed in once, when it was added.
-  ipcMain.handle('agent-set-account', (_, id: string, account: string) => {
+  const moveAgentAccount = (id: string, account: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     if (!accountsSvc.support(a.provider)) throw new Error(`${providerOf(a).label} does not keep separate accounts.`)
@@ -2254,7 +2257,43 @@ async function main() {
       mailbox.restarting(id)
       p.kill()
     }
-  })
+  }
+  ipcMain.handle('agent-set-account', (_, id: string, account: string) => moveAgentAccount(id, account))
+  // Every agent as the "switch all agents to an account" dialog sees it.
+  const switchAgents = (): SwitchAgent[] =>
+    agents.map((a) => ({ id: a.id, name: a.name, provider: providerOf(a).id, account: a.account ?? '', online: sessions.has(a.id), activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : null }))
+  const waitStopped = async (id: string, ms = 12_000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (!sessions.has(id) || ['idle', 'waiting', undefined].includes(lastActivity.get(id))) return true
+    return false
+  }
+  // Moves every agent of a program that keeps accounts to `account`. A working agent is stopped first (the move refuses mid-turn), and once it is back up on the new account it is told to continue.
+  const switchAllAgents = async (account: string, stopWorking: boolean): Promise<SwitchResult[]> => {
+    const plan = planSwitch(switchAgents(), account, (p) => !!accountsSvc.support(p as ProviderId))
+    const working = new Set(plan.stop.map((a) => a.id))
+    const one = async (line: SwitchAgent): Promise<SwitchResult> => {
+      const report = (state: SwitchResult['state'], error?: string) => {
+        const r: SwitchResult = { id: line.id, name: line.name, state, ...(error ? { error } : {}) }
+        send('accounts-switch', r)
+        return r
+      }
+      try {
+        const stopped = working.has(line.id)
+        if (stopped) {
+          report('stopping')
+          interruptAgent(line.id)
+          if (!(await waitStopped(line.id))) return report('failed', 'It did not stop within 12 seconds, so it stays on its old account.')
+        }
+        moveAgentAccount(line.id, account)
+        if (stopped) mailbox.fromPerson(line.id, SWITCH_CONTINUE)
+        return report(stopped ? 'continued' : 'moved')
+      } catch (e) {
+        return report('failed', (e as Error).message)
+      }
+    }
+    return Promise.all((stopWorking ? [...plan.stop, ...plan.quiet] : plan.quiet).map(one))
+  }
+  ipcMain.handle('accounts:agents', () => switchAgents())
+  ipcMain.handle('accounts:switch-all', (_, account: string, stopWorking: boolean) => switchAllAgents(String(account ?? ''), !!stopWorking))
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
   // which keeps the conversation (it resumes the same session).
   ipcMain.handle('chat:set-mode', async (_, id: string, mode: string) => {

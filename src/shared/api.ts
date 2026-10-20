@@ -205,6 +205,12 @@ export interface AwApi {
   removeAccount(id: string): Promise<Prefs>
   /** Moves an agent to another account ('' for this computer's own login); a running one restarts on it and keeps its conversation. */
   setAccount(agentId: string, account: string): Promise<void>
+  /** Every agent as "switch all agents to an account" sees it: which program, which account, running or asleep, and what it is doing. */
+  accountAgents(): Promise<import('./switchPlan').SwitchAgent[]>
+  /** Moves every agent that can change account to `account`. With `stopWorking`, the agents mid-turn are stopped first and told to continue after the move; without it only the idle ones move. Says what happened to each. */
+  switchAllAgents(account: string, stopWorking: boolean): Promise<import('./switchPlan').SwitchResult[]>
+  /** Progress of a switch-all run, one agent at a time. */
+  onAccountsSwitch(cb: (r: import('./switchPlan').SwitchResult) => void): () => void
   /** Continue that conversation as a new agent. */
   resumeSession(folder: string, sessionId: string): Promise<AgentRecord>
   /** MCP servers and plugins available to this agent (runs `claude mcp list`, which health-checks each server: slow). */

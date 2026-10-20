@@ -444,6 +444,18 @@ if (process.env.FAKE_CHAT) {
     await hook('UserPromptSubmit', { prompt })
     // A working Claude shows a spinner line; it is gone when the turn ends.
     if (!process.env.FAKE_HANG) process.stdout.write('\x1b[19;1H✽ Working… (2s · ↓ 40 tokens)')
+    // FAKE_BUSY=1: the turn shows its spinner and carries on until Esc, which ends it as Claude does: an interruption note and no Stop hook.
+    if (process.env.FAKE_BUSY) {
+      // The spinner is drawn again now and then, so a redraw of the screen (the terminal being resized) does not make the turn look over.
+      const spin = setInterval(() => process.stdout.write('\x1b[19;1H✽ Working… (2s · ↓ 40 tokens)'), 400)
+      await new Promise((resolve) => {
+        const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), clearInterval(spin), resolve())
+        process.stdin.on('data', onKey)
+      })
+      turn = false
+      process.stdout.write('\x1b[19;1H\x1b[2K')
+      return void transcript({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } })
+    }
     // FAKE_RESTORE_ON_ESC=1: like the real one, an Esc before anything was produced takes the prompt back into the input box.
     if (process.env.FAKE_RESTORE_ON_ESC) {
       await new Promise((resolve) => {
