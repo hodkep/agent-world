@@ -1,6 +1,6 @@
 # Workflows
 
-A pipeline an agent follows for each task: plan, build, checks, review, land.
+A pipeline an agent follows for each task: plan, build, checks, review, pull request.
 
 ## Turn workflows on
 
@@ -8,18 +8,18 @@ Off by default: **Settings**, then **Features**.
 
 - **Workflows** adds a **Workflow** tab to each agent and a top bar button.
 - **Plan gate** (on by default): an agent waits for your approval of its plan before it edits.
-- **Merge gate** (on by default): landing waits for an approved plan and seen findings.
+- **Merge gate** (on by default): the pull request waits for an approved plan and seen findings.
 - The dial sets how much care each task takes: [The three dials](#the-three-dials).
 
 ## What an agent does with a workflow
 
-The default is **Standard** (**Plan**, **Build**, **Audit**, **Land**), or your pick for the project. For one task the agent:
+The default is **Standard** (**Plan**, **Build**, **Audit**, **Pull request**), or your pick for the project. For one task the agent:
 
 1. Tells the office it began a task, which opens a run. Each turn without one adds a reminder.
 2. Writes a plan to `.agent-world/plan.md` (goal, assumptions, out of scope, questions).
 3. Waits for your approval, then builds.
 4. Has any **check** steps run, and its branch reviewed against the plan (not at **Economy**).
-5. Lands the branch when you ask.
+5. Pushes the branch for a pull request when you ask.
 
 A commit with no announced task gets a run marked **from a commit**, in the **Not announced** group, with no workflow, plan hold or track. It joins the agent's todo.
 
@@ -28,9 +28,9 @@ A commit with no announced task gets a run marked **from a commit**, in the **No
 Announcing a task, handing in a plan, reporting steps and saying done are only asked. The app holds:
 
 - Edits until the plan is approved: by a hook for Claude agents, by a plugin for agy agents. A shell command such as `sed -i` is caught at the commit instead.
-- Commits until the plan is approved, and a merge into the base branch while the gate holds it: by git, for every program, even with `--no-verify`.
+- Commits until the plan is approved, and, while the gate holds it, a push of its branch (a **Pull request** step) or a merge into the base branch (a **Land** step): by git, for every program.
 - Checks and the review: the app runs them.
-- **Landing**: git holds a merge into the base branch unless the gate is met or you **Set aside** what holds it.
+- **The pull request**: git holds the push unless the gate is met or you **Set aside** what holds it. A push that goes through ends the run.
 
 ![The audit card at the end of the conversation, with the findings to look at](../images/workflow-audit-card.png)
 
@@ -40,7 +40,7 @@ Findings to look at show as a card at the end of the agent's chat, with **All se
 
 Limits:
 
-- An agent that unsets git's environment variables or sets its own `core.hooksPath` gets past the git holds.
+- An agent that unsets git's environment variables, sets its own `core.hooksPath` or pushes with `--no-verify` gets past the git holds.
 - Only a task's first round is held for its plan, and not with **Plan gate** off.
 - The **Merge into main** button in the Code tab applies no gate. To land through the gate, ask the agent to merge.
 
@@ -54,16 +54,16 @@ While a run is open, a track sits above the agent's chat: its steps as stations,
 - A **check** step is a command the app runs in the agent's worktree, with a 5 minute limit. A project's commands need **Approve and run** (or **Don't run**) first, and again after the file changes. A failing check goes back to the agent, twice by default, then **Run again** or **Skip this check**.
 - A **your approval** step waits for **Approve** or **Send back**.
 
-## Land a branch
+## Open the pull request
 
-Ask the agent to merge the branch. If the gate holds it, git refuses, the agent tells you why, a **Land held** marker is on the run track, and a card at the end of the chat lists what holds it, such as an unapproved plan or **N audit findings have not been seen**. Then either:
+Ask the agent to push the branch. If the gate holds it, git refuses, the agent tells you why, a **Push held** marker is on the run track, and a card at the end of the chat lists what holds it, such as an unapproved plan or **N audit findings have not been seen**. Then either:
 
-- Click **All seen, fine** for the findings, then ask the agent to merge again.
-- Click **Set aside**. It lifts the hold, so the branch lands once, on the agent's next try, and records the audit as not followed.
+- Click **All seen, fine** for the findings, then ask the agent to push again.
+- Click **Set aside**. It lifts the hold, so the branch goes through once, on the agent's next try, and records the audit as not followed.
 
 ![The merge held card](../images/merge-held.png)
 
-A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds landing. Checks and steps that need you hold it even with **Merge gate** off.
+A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even with **Merge gate** off.
 
 ## The Workflows window
 
