@@ -53,7 +53,7 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
       </div>
     )
   return (
-    <section className={`step-card ${spec.kind}`} role="region" aria-label={spec.kind === 'hold' ? `${agentName}'s merge is held` : `${agentName}'s audit`}>
+    <section className={`step-card ${spec.kind}`} role="region" aria-label={spec.kind === 'hold' ? `${agentName}'s ${merge.land === 'pr' ? 'push' : 'merge'} is held` : `${agentName}'s audit`}>
       <header>
         <span className="tag">{spec.tag}</span>
         <b className="sc-title">{spec.title}</b>
@@ -75,7 +75,7 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
         {spec.actions.aside && (
           <button
             className="ghost"
-            title={held ? `Lifts the hold: ${agentName}'s next merge goes through. The step is recorded as not followed.` : 'The step is recorded as not followed, and nothing it found holds the merge.'}
+            title={held ? `Lifts the hold: ${agentName}'s next ${merge.land === 'pr' ? 'push' : 'merge'} goes through. The step is recorded as not followed.` : `The step is recorded as not followed, and nothing it found holds the ${merge.land === 'pr' ? 'push' : 'merge'}.`}
             onClick={then(async () => {
               if (held) await window.aw.landingAllow(agentId)
               await window.aw.finishAside(agentId)
