@@ -8,6 +8,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Settings: an account is renamed by clicking its name in Settings > Accounts (Enter saves, Esc cancels). Only the label changes: the folder, the sign-in and the agents on it stay.
 
+### Fixed
+
+- Workflows: an agent kept showing AUDIT (or another wait) beside its name because of an older run whose findings nobody had answered, with nothing in the chat to answer them. Only an agent's latest run can wait for you now.
+
 ## [0.2.2] - 2026-10-20
 
 ### Added
