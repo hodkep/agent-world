@@ -3101,6 +3101,8 @@ svg.pxg { display: block; flex: none; }
 .mo-says { display: grid; gap: 6px; }
 .mo-says p { margin: 0; font-size: 12px; color: var(--muted); max-width: none; }
 .track .sq .tn { position: absolute; top: -9px; right: -9px; font: 700 10px Menlo, Consolas, monospace; line-height: 1; background: var(--ink); color: var(--accent); padding: 1px 3px; }
+.wt-added { margin: 8px 0 0; font-size: 12px; }
+.wt-added ul { margin: 2px 0 0 16px; padding: 0; }
 .wt-items { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .wt-items li { display: flex; gap: 8px; align-items: center; padding: 4px 8px; background: var(--well); }
 .wt-items .n { font: 700 10px Menlo, Consolas, monospace; color: var(--muted); width: 14px; }
@@ -3341,6 +3343,7 @@ svg.pxg { display: block; flex: none; }
 .step-card .sc-one { display: flex; gap: 6px; flex: none; }
 .step-card .sc-show { padding: 0; font-size: 10.5px; text-decoration: underline; }
 .step-card .sc-files { color: var(--muted); font: 10.5px Menlo, Consolas, monospace; padding-top: 2px; }
+.step-card .sc-why { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 .step-card .sc-acts { display: flex; gap: 8px; align-items: center; margin-top: 7px; }
 .step-card .ghost { background: none; box-shadow: none; border: 0; color: var(--muted); }
 .step-card .ghost:hover { color: var(--text); }

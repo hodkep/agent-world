@@ -568,7 +568,7 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['3 audit findings have not been seen.'])
     expect(() => wf.addToPlan('a1', 'h1', [1])).toThrow('Only out-of-scope work can be added to the plan.')
     wf.addToPlan('a1', 'h1', [0, 2])
-    expect(wf.runs()[0]!.additions).toEqual(['Folds unchanged code.', 'Adds a shortcut.'])
+    expect(wf.runs()[0]!.additions?.map((a) => a.text)).toEqual(['Folds unchanged code.', 'Adds a shortcut.'])
     expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['1 audit finding has not been seen.'])
     state.asked.length = 0
     await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
