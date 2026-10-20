@@ -53,6 +53,12 @@ describe('the card of the step that waits for the person', () => {
     expect(ask({ merge: null, unrelated: { branch: 'aw/ada', base: 'main' }, working: true })).toBeNull()
   })
 
+  it('says the push is held, not the merge, for a run that ends in a pull request', () => {
+    const one = ask({ held: true, merge: check({ land: 'pr', blocking: ['1 audit finding has not been seen.'], audit: done([{ kind: 'out-of-scope', text: 'x' }]) }) })!
+    expect(one).toMatchObject({ kind: 'hold', tag: 'PUSH HELD', title: '1 thing holds the push' })
+    expect(ask({ held: true, merge: check({ land: 'pr', blocking: ['a', 'b'] }) })).toMatchObject({ tag: 'PUSH HELD', title: '2 things hold the push' })
+  })
+
   it('is nothing for a hold that has nothing left holding it', () => {
     expect(ask({ held: true, merge: check({ blocking: [] }) })).toBeNull()
     expect(ask({ held: true, merge: check({ blocking: ['2 audit findings have not been seen.'] }) })).toMatchObject({ title: '1 thing holds the merge' })
