@@ -6,6 +6,8 @@ interface AgentInfo {
   id: string
   name: string
   online: boolean
+  /** The project the agent works in: names are only unique inside one. */
+  repoPath?: string
 }
 
 interface Deps {
@@ -49,7 +51,12 @@ export class Mailbox {
 
   send(fromId: string, toName: string, text: string, o: { expectsReply?: boolean } = {}): 'delivered' | 'queued' {
     const all = this.deps.agents()
-    const to = all.find((a) => a.name.toLowerCase() === toName.trim().toLowerCase())
+    const named = all.filter((a) => a.name.toLowerCase() === toName.trim().toLowerCase())
+    // The same name can be in two projects: the sender means its own project's, and elsewhere a name must be only one agent's.
+    const mine = all.find((a) => a.id === fromId)?.repoPath
+    const near = named.filter((a) => a.repoPath === mine)
+    const to = near.length === 1 ? near[0] : named.length > 1 ? undefined : named[0]
+    if (!to && named.length > 1) throw new Error(`There is more than one agent named ${toName} in the office. Use list_agents and ask the user which one is meant.`)
     if (!to) throw new Error(`No agent named ${toName}. Use list_agents to see who is in the office.`)
     if (to.id === fromId) throw new Error('You cannot send a message to yourself.')
     if (!to.online) throw new Error(`${to.name} is not running right now; ask the user to wake it, or try later.`)
