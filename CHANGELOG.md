@@ -6,7 +6,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Added
 
-- Settings: an account is renamed by clicking its name in Settings > Accounts (Enter saves, Esc cancels). Only the label changes: the folder, the sign-in and the agents on it stay.
+
 
 ### Fixed
 

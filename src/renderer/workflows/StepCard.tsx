@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import { stepCardOf } from '../../shared/stepCard'
+import { MoveBranch, type Moved } from './MoveBranch'
 
 /**
  * The step that waits for the person, as the last thing in the conversation: it scrolls with the chat, takes room only inside it, and never opens by itself or sits above
@@ -11,6 +12,8 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
   const [unrelated, setUnrelated] = useState<{ branch: string; base: string } | null>(null)
   const [open, setOpen] = useState<Set<number>>(new Set())
   const looking = useRef(false)
+  // A branch just moved onto its base: the card says so (with Undo) until it is closed, though the branch is landable now.
+  const [moved, setMoved] = useState<Moved | null>(null)
   const load = useCallback(async () => {
     if (looking.current) return
     looking.current = true
@@ -34,14 +37,24 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
     return () => (off.forEach((f) => f()), clearInterval(timer))
   }, [load, active, working, held])
   const spec = stepCardOf({ merge, held, working, unrelated })
-  if (!spec) return null
-  if (spec.kind === 'unrelated')
+  if (moved)
     return (
-      <div className="step-card quiet" role="note" aria-label={`${agentName}'s branch has no shared history`}>
-        <span className="tag bad">{spec.tag}</span>
-        <span className="sc-title">{spec.title}</span>
-      </div>
+      <section className="step-card moved" role="region" aria-label={`${agentName}'s branch was moved onto ${moved.base}`}>
+        <header>
+          <span className="tag ok">MOVED</span>
+          <b className="sc-title">{moved.moved ? `Moved ${moved.moved} commit${moved.moved === 1 ? '' : 's'} onto ${moved.base}.` : `Started over from ${moved.base}.`}{moved.already ? ` ${moved.already} were already there.` : ''}</b>
+        </header>
+        <p className="mv">The branch now starts from {moved.base}, so it can be landed. The old branch is kept as <code>{moved.backup}</code> (delete it when you are sure).</p>
+        {moved.error && <p className="mv bad" role="alert">{moved.error}</p>}
+        <div className="sc-acts">
+          <button className="ghost" onClick={() => void window.aw.finishMoveUndo(agentId, moved.backup, moved.head).then((r) => (r.ok ? (setMoved(null), void load()) : setMoved({ ...moved, error: r.message ?? 'It could not be put back.' })))}>Undo (put the old branch back)</button>
+          <button className="ghost" onClick={() => setMoved(null)}>Close</button>
+        </div>
+      </section>
     )
+  if (!spec) return null
+  if (spec.kind === 'unrelated' && unrelated)
+    return <MoveBranch agentId={agentId} agentName={agentName} branch={unrelated.branch} base={unrelated.base} title={spec.title} tag={spec.tag} onMoved={(m) => (setMoved(m), void load())} />
   if (!merge) return null
   const unseen = merge.audit.state === 'done' ? merge.audit.findings.flatMap((f, i) => (f.seen ? [] : [i])) : []
   const then = (f: () => Promise<unknown>) => () => void f().then(load, load)

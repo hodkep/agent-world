@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { chatTab, hire, launchApp } from './launch'
+import { shot } from './wf-helpers'
 
 test('finishing checks the work is ready, squashes it onto the base branch and retires the agent (the call the app keeps; the screen for it is gone)', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'aw-finish-'))
@@ -105,6 +106,28 @@ test('a branch that shares no history with its base says so in one red line at t
     expect(status).toMatchObject({ unrelated: true, ahead: 0, conflicts: [] })
     // The server refuses too, in the same words.
     await expect(page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }), ada!.id)).rejects.toThrow(/does not come from main's history/)
+
+    // The button on the card: a list of what will move (its own commit, by what it changes), then the move, with a backup branch and an Undo.
+    const before = git(ada!.cwd, 'rev-parse', 'aw/ada')
+    await line.getByRole('button', { name: 'Move onto main…' }).click()
+    const open = page.getByRole('region', { name: "ada's branch has no shared history" })
+    await expect(open).toContainText('1 is not there')
+    await expect(open.getByRole('checkbox')).toHaveCount(1)
+    await expect(open).toContainText('add health')
+    await shot(page, 'move-1-list')
+    await open.getByRole('button', { name: 'Move 1 commit onto main' }).click()
+    const moved = page.getByRole('region', { name: "ada's branch was moved onto main" })
+    await expect(moved).toContainText('Moved 1 commit onto main.', { timeout: 15_000 })
+    await shot(page, 'move-2-moved')
+    expect(git(ada!.cwd, 'merge-base', 'main', 'aw/ada')).toMatch(/^[0-9a-f]{40}$/)
+    expect(git(ada!.cwd, 'log', '--format=%s', 'aw/ada').split('\n')).toEqual(['add health', 'init'])
+    expect(git(repo, 'branch', '--list', 'aw/backup/*')).toContain('aw/backup/ada-')
+    // Nothing is held any more: the status says so.
+    expect(await page.evaluate((id) => window.aw.finishStatus(id, { readOnly: true }), ada!.id)).toMatchObject({ unrelated: false, ahead: 1 })
+    // Undo puts the old branch back while nothing has happened since.
+    await moved.getByRole('button', { name: /Undo/ }).click()
+    await expect(page.getByRole('note', { name: "ada's branch has no shared history" })).toBeVisible({ timeout: 15_000 })
+    expect(git(ada!.cwd, 'rev-parse', 'aw/ada')).toBe(before)
   } finally {
     await shutdown()
   }

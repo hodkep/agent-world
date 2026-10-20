@@ -90,7 +90,7 @@ import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, MoveError, moveOntoBase, undoMove, unrelatedPlan, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, makesBranch, nameTaken, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -2214,6 +2214,41 @@ async function main() {
     if (act && check?.checks.some((c) => c.state === 'running' || c.state === 'pending') && ahead > 0) void kickChecks(id, { fresh: true })
     return { head, auditable, check }
   }
+  // A branch that shares no history with its base: move it onto the base (keeping a backup branch) with its own commits, or none. Only while the agent is idle and nothing is uncommitted.
+  const workingNow = (id: string) => sessions.has(id) && ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(lastActivity.get(id) ?? '')
+  ipcMain.handle('finish:move-plan', async (_, id: string) => {
+    const { a, base } = await worktreeOf(id)
+    const plan = await unrelatedPlan(a.cwd, a.branch!, base)
+    const dirty = (await uncommittedFiles(a.cwd)).length
+    const blocked = workingNow(id) ? { kind: 'working' as const } : dirty ? { kind: 'uncommitted' as const, count: dirty } : undefined
+    return { branch: a.branch!, base, ...plan, ...(blocked && { blocked }) }
+  })
+  ipcMain.handle('finish:move', async (_, id: string, pick: string[]) => {
+    const { a, base } = await worktreeOf(id)
+    if (workingNow(id)) return { ok: false as const, kind: 'working' as const, message: `${a.name} is working: it can be moved when the turn ends.` }
+    const shas = (Array.isArray(pick) ? pick : []).filter((s) => typeof s === 'string' && /^[0-9a-f]{40}$/.test(s)).slice(0, 500)
+    try {
+      const r = await moveOntoBase(a.cwd, a.branch!, base, shas)
+      send('workflows')
+      mailbox.fromOffice(id, `Your branch was moved onto ${base}: it now starts from ${base}'s history with ${r.moved} of your own commit${r.moved === 1 ? '' : 's'} on top (the same files; the old branch is kept as ${r.backup}). Nothing for you to do.`)
+      return { ok: true as const, ...r }
+    } catch (e) {
+      if (e instanceof MoveError) return { ok: false as const, kind: e.kind, message: e.message, ...(e.sha && { sha: e.sha }), ...(e.subject && { subject: e.subject }), ...(e.files && { files: e.files }), ...(e.count !== undefined && { count: e.count }) }
+      return { ok: false as const, kind: 'error' as const, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle('finish:move-undo', async (_, id: string, backup: string, head: string) => {
+    const { a } = await worktreeOf(id)
+    if (!/^aw\/backup\/[\w./-]+$/.test(backup) || !/^[0-9a-f]{40}$/.test(head)) return { ok: false, message: 'That is not a backup of this move.' }
+    if (workingNow(id)) return { ok: false, message: `${a.name} is working.` }
+    try {
+      await undoMove(a.cwd, a.branch!, backup, head)
+      send('workflows')
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    }
+  })
   ipcMain.handle('finish:status', async (_, id: string, o?: { readOnly?: boolean }) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)

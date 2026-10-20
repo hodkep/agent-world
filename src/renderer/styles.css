@@ -3367,3 +3367,14 @@ svg.pxg { display: block; flex: none; }
 .adot.done { background: var(--ok-text); }
 .wt-done { position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; background: var(--ok-text); box-shadow: 0 0 0 2px var(--panel-2); }
 @media (prefers-reduced-motion: reduce) { .adot.need { animation: none; } }
+
+/* The NOT LANDABLE card's move onto the base */
+.step-card.quiet .move-go { margin-left: auto; flex: none; }
+.step-card .mv { margin: 4px 0 8px; line-height: 1.5; color: var(--text); font-size: 12.5px; }
+.step-card .mv code, .step-card .mcs code { background: var(--well); padding: 0 4px; }
+.step-card .mv.bad { color: var(--danger-text); }
+.step-card .mcs { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow: auto; }
+.step-card .mcs li { padding: 3px 0; border-top: 1px solid var(--line); }
+.step-card .mcs label { display: flex; gap: 6px; align-items: baseline; }
+.step-card .tag.ok { background: var(--ok); color: var(--ink); }
+.step-card .spin { display: inline-block; width: 8px; height: 8px; background: var(--accent); margin-right: 6px; animation: wt-blink 1s steps(2) infinite; }

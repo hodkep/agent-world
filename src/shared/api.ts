@@ -256,6 +256,12 @@ export interface AwApi {
   /** Whether an agent's branch is ready to land on its base branch. */
   /** `readOnly` only reads: it starts no audit and runs no check, which the chat band (asking every few seconds) must not do. */
   finishStatus(agentId: string, o?: { readOnly?: boolean }): Promise<{ branch: string; base: string; ahead: number; uncommitted: number; baseReady: boolean; conflicts: string[]; /** The branch shares no history with its base: nothing to count, nothing to merge. */ unrelated: boolean; /** Where the plan stands and what the audit found; null when workflows or the merge gate are off. */ merge: import('./mergeCheck').MergeCheck | null }>
+  /** For a branch that shares no history with its base: its own commits (by what they change, oldest first), how many the base already has, and why it cannot be moved yet if so. */
+  finishMovePlan(agentId: string): Promise<{ branch: string; base: string; mine: { sha: string; subject: string }[]; already: number; blocked?: { kind: 'working' | 'uncommitted'; count?: number } }>
+  /** Starts the branch at its base and replays the chosen commits (none: start over), keeping a backup branch; a commit that does not apply puts everything back and is named. */
+  finishMove(agentId: string, pick: string[]): Promise<{ ok: true; moved: number; backup: string; head: string } | { ok: false; kind: 'working' | 'uncommitted' | 'conflict' | 'branch' | 'error'; message: string; sha?: string; subject?: string; files?: string[]; count?: number }>
+  /** Puts the branch back to the backup of a move, while nothing has happened on it since. */
+  finishMoveUndo(agentId: string, backup: string, head: string): Promise<{ ok: boolean; message?: string }>
   /** Run the audit of the branch again (after one failed). */
   finishAudit(agentId: string): Promise<void>
   /** The merges into the base branch that git held for want of the person's say, by agent, until they land or the person says not yet. */
