@@ -228,7 +228,8 @@ if (forkedFrom) console.log(`forked from ${forkedFrom}`)
 console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 // FAKE_DEV_PORT=n: behave like an agent that started a dev server on that port.
 if (process.env.FAKE_DEV_PORT) console.log(`  ➜  Local:   http://localhost:${process.env.FAKE_DEV_PORT}/`)
-await hook('SessionStart', { source: 'startup' })
+// A chat agent says it has started once its screen is up (below), as Claude does: the app takes SessionStart and Stop for "ready for input".
+if (!process.env.FAKE_CHAT) await hook('SessionStart', { source: 'startup' })
 // Like real Claude: a killed session still reports SessionEnd on its way out.
 for (const sig of ['SIGHUP', 'SIGTERM']) process.on(sig, () => void hook('SessionEnd', { reason: 'other' }).finally(() => process.exit(0)))
 // FAKE_COST=0.9 posts one statusline update the way Claude's statusline command would.
@@ -311,7 +312,8 @@ if (process.env.FAKE_LOOP) {
 }
 // FAKE_CHAT=1: an idle agent that answers each prompt it is sent, keeping the saved conversation like real Claude does.
 if (process.env.FAKE_CHAT) {
-  await hook('Stop')
+  // FAKE_START_MS=n: a slow start. Nothing is drawn and nothing read until then, as with Claude loading on a busy machine.
+  await sleep(Number(process.env.FAKE_START_MS || 0))
   // The chat agent has no script to reach the line further down, so it starts its subagent once its screen is up.
   // FAKE_OPEN=<command>: the agent runs that shell command once its screen is up (the hook the app sees is what matters here).
   if (process.env.FAKE_OPEN) setTimeout(() => void hook('PreToolUse', { tool_name: 'Bash', tool_input: { command: process.env.FAKE_OPEN } }), 2500)
@@ -716,6 +718,7 @@ if (process.env.FAKE_PLAN) {
     process.stdin.on('data', onKey)
   })
 }
+if (process.env.FAKE_CHAT) await hook('SessionStart', { source: 'startup' })
 await hook('Stop')
 // FAKE_CLEAR=1: behave like /clear — a new Claude session id in the same terminal, then more work.
 if (process.env.FAKE_CLEAR) {

@@ -227,4 +227,16 @@ describe('mailbox', () => {
       expect(() => box.send('c1', 'ada', 'hi')).toThrow(/more than one agent named ada/i)
     })
   })
+
+  it('knows an agent is starting until its input box is first seen, and again after a relaunch or when it is gone', () => {
+    expect(box.isStarting('new')).toBe(true)
+    box.started('new')
+    expect(box.isStarting('new')).toBe(false)
+    box.restarting('new')
+    expect(box.isStarting('new')).toBe(true)
+    box.ready('new')
+    expect(box.isStarting('new')).toBe(false)
+    box.gone('new')
+    expect(box.isStarting('new')).toBe(true)
+  })
 })

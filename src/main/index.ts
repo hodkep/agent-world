@@ -1445,7 +1445,20 @@ async function main() {
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
-  ipcMain.handle('chat:send', async (_, id: string, raw: string) => {
+  // A message typed while the agent is still starting waits for its input box (a terminal that is not reading yet loses what is pasted into it),
+  // but not for ever: past this the message goes in as it always did. Messages to one agent go in one at a time, in the order they were sent.
+  const READY_WAIT_MS = 20_000
+  const chatQueue = new Map<string, Promise<unknown>>()
+  ipcMain.handle('chat:send', (_, id: string, raw: string) => {
+    const mine = (chatQueue.get(id) ?? Promise.resolve()).then(async () => {
+      const until = Date.now() + READY_WAIT_MS
+      while (sessions.has(id) && mailbox.isStarting(id) && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
+      return sendChat(id, raw)
+    })
+    chatQueue.set(id, mine.catch(() => undefined))
+    return mine
+  })
+  const sendChat = async (id: string, raw: string) => {
     const p = sessions.get(id)
     if (!p) throw new Error('That agent is not running. Wake it first.')
     const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
@@ -1457,7 +1470,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, keysOf(id).submitDelayMs))
     p.write(keysOf(id).submit)
     if (clearing) clearChatNow(id)
-  })
+  }
   // Pictures and files attached in the chat are saved here and mentioned by path; the agent is allowed to read this folder.
   ipcMain.handle('attach-save', (_, agentId: string, name: string, bytes: Uint8Array, mime: string) => {
     if (!byId(agentId)) throw new Error('Unknown agent.')
