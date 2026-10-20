@@ -3,7 +3,7 @@ import type { MergeCheck } from './mergeCheck'
 import { stepCardOf } from './stepCard'
 
 const check = (o: Partial<MergeCheck> = {}): MergeCheck => ({ run: { id: 'r1', title: 'Add a toggle' }, plan: 'approved', planned: null, commits: 2, flagged: 0, audit: { state: 'not-run' }, asideAudit: false, checks: [], blocking: [], notes: [], ...o })
-const done = (findings: { kind: 'out-of-scope' | 'goal-unmet' | 'guess-wrong'; text: string; file?: string; seen?: boolean }[]): MergeCheck['audit'] => ({ state: 'done', findings: findings.map((f) => ({ seen: false, ...f })), files: 3, lines: 40, truncated: false })
+const done = (findings: { kind: 'out-of-scope' | 'goal-unmet' | 'guess-wrong'; text: string; file?: string; files?: string[]; seen?: boolean }[]): MergeCheck['audit'] => ({ state: 'done', findings: findings.map((f) => ({ seen: false, ...f })), files: 3, lines: 40, truncated: false })
 const ask = (o: { merge?: MergeCheck | null; held?: boolean; working?: boolean; unrelated?: { branch: string; base: string } | null } = {}) => stepCardOf({ merge: check(), held: false, working: false, unrelated: null, ...o })
 
 describe('the card of the step that waits for the person', () => {
@@ -19,7 +19,19 @@ describe('the card of the step that waits for the person', () => {
   it('is the audit with what is left to look at, and the two answers: all seen, or set aside', () => {
     const card = ask({ merge: check({ audit: done([{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key.' }, { kind: 'guess-wrong', text: 'Saved in localStorage.' }, { kind: 'goal-unmet', text: 'Seen already.', seen: true }]) }) })
     expect(card).toMatchObject({ kind: 'audit', tag: 'AUDIT', title: '2 things to look at', more: 0, actions: { seenAll: true, again: false, aside: true, undo: false } })
-    expect(card!.lines).toEqual([{ text: 'Adds a project key.', where: 'out of scope · src/theme.ts' }, { text: 'Saved in localStorage.', where: 'guess may be wrong' }])
+    expect(card!.lines).toEqual([
+      { text: 'Adds a project key.', where: 'out of scope · src/theme.ts', index: 0, kind: 'out-of-scope', files: ['src/theme.ts'] },
+      { text: 'Saved in localStorage.', where: 'guess may be wrong', index: 1, kind: 'guess-wrong', files: [] }
+    ])
+  })
+
+  it('shows a finding that covers several files as one row with how many, keeps its place in the audit once earlier ones were seen, and offers Add to plan for out-of-scope work only', () => {
+    const files = Array.from({ length: 8 }, (_, i) => `src/code/f${i}.ts`)
+    const card = ask({ merge: check({ audit: done([{ kind: 'goal-unmet', text: 'Seen.', seen: true }, { kind: 'out-of-scope', files, text: 'The fold feature.' }, { kind: 'goal-unmet', text: 'No test.' }]) }) })!
+    expect(card.lines).toEqual([
+      { text: 'The fold feature.', where: 'out of scope · 8 files', index: 1, kind: 'out-of-scope', files },
+      { text: 'No test.', where: 'goal not met', index: 2, kind: 'goal-unmet', files: [] }
+    ])
   })
 
   it('shows the first four findings and says how many more', () => {

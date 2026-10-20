@@ -206,7 +206,7 @@ test('workflows: a push held by git, as a card at the end of the conversation, a
 })
 
 test('workflows: the audit card at the end of the conversation, where the findings are answered', async () => {
-  const findings = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key; the plan puts a theme per project out of scope.' }, { kind: 'guess-wrong', text: 'The choice is saved in localStorage; the plan did not say where.' }] })
+  const findings = JSON.stringify({ findings: [{ kind: 'out-of-scope', files: ['src/code/CodePanel.tsx', 'src/code/foldRule.ts', 'src/code/foldRule.test.ts', 'src/code/shortcuts.ts', 'src/code/monaco.ts'], text: 'Adds a way to fold unchanged code; the plan only fixes the line numbers.' }, { kind: 'goal-unmet', text: 'No test for a line count of five digits.' }, { kind: 'guess-wrong', text: 'Seven characters for the number column may not fit every font.' }] })
   const o = await shotApp({ env: { FAKE_CHAT: '1', FAKE_AUDIT: findings } })
   try {
     await hireNamed(o.page, 'ada')

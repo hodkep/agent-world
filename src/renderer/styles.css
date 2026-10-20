@@ -3328,6 +3328,11 @@ svg.pxg { display: block; flex: none; }
 .step-card li:first-child { border-top: 0; }
 .step-card li small { display: block; color: var(--muted); font-size: 10.5px; }
 .step-card li.sc-more { color: var(--muted); }
+.step-card li.sc-line { display: flex; gap: 8px; align-items: center; }
+.step-card .sc-text { flex: 1; min-width: 0; }
+.step-card .sc-one { display: flex; gap: 6px; flex: none; }
+.step-card .sc-show { padding: 0; font-size: 10.5px; text-decoration: underline; }
+.step-card .sc-files { color: var(--muted); font: 10.5px Menlo, Consolas, monospace; padding-top: 2px; }
 .step-card .sc-acts { display: flex; gap: 8px; align-items: center; margin-top: 7px; }
 .step-card .ghost { background: none; box-shadow: none; border: 0; color: var(--muted); }
 .step-card .ghost:hover { color: var(--text); }
