@@ -3237,6 +3237,7 @@ svg.pxg { display: block; flex: none; }
 .upd-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 360px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 12px 28px rgb(0 0 0 / 0.5); padding: 14px; }
 .upd-panel { display: flex; flex-direction: column; gap: 10px; }
 .upd-title { font-size: 14px; color: var(--text); }
+.upd-cmd { display: block; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--think); font: 12px Menlo, Consolas, monospace; overflow-wrap: anywhere; user-select: all; }
 .upd-body { margin: 0; color: var(--muted); line-height: 1.45; font-size: 12px; max-width: none; }
 .upd-bar { height: 12px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); position: relative; }
 .upd-bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }

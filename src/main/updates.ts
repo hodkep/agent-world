@@ -6,11 +6,11 @@ import { type InstallState, lookAllowed } from '../shared/updateInstall'
 import { createInstaller } from './inAppUpdate/installer'
 import { helperEnv, releaseOrigins } from './inAppUpdate/origins'
 import { placeOf } from './inAppUpdate/installScript'
-import { buildInfo, latestRelease, updateMode } from './updateCheck'
+import { buildInfo, isHomebrewInstall, latestRelease, updateMode } from './updateCheck'
 import { updateFeed } from './updateFeed'
 
 /** `latest` and `url` are set when a newer version is out but this build cannot install it itself: the page of its release is what the person is pointed to. */
-export type UpdateState = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** The new version's own notes (Markdown), from the same answer. */ notes?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The version running now. */ current?: string; install?: InstallState }
+export type UpdateState = { /** Installed with Homebrew: updated with `brew upgrade`, not from here. */ homebrew?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** The new version's own notes (Markdown), from the same answer. */ notes?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The version running now. */ current?: string; install?: InstallState }
 
 let current: UpdateState = { state: 'off' }
 let installer: ReturnType<typeof createInstaller> | null = null
@@ -64,6 +64,9 @@ export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState)
     set({ state: 'checking' })
     const found = await latestRelease(app.getVersion(), info.repo, (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } }), origins)
     if (found.state !== 'available' || !found.latest) return set(found)
+    // A copy Homebrew installed is updated by Homebrew: it is told so, and nothing here replaces it behind Homebrew's back.
+    const casks = origins.testing ? [process.env.AW_UPDATE_CASKROOM ?? ''].filter(Boolean) : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']
+    if (isHomebrewInstall(casks, existsSync)) return set({ ...found, current: app.getVersion(), homebrew: true })
     // Only this build can install by itself, from the same release it was told about.
     installer = createInstaller({
       current: app.getVersion(),

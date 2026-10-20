@@ -1,7 +1,7 @@
-import type { InstallState } from '../../shared/updateInstall'
+import { BREW_UPGRADE, type InstallState } from '../../shared/updateInstall'
 import type { UpdateInfo } from './UpdateChip'
 
-export type UpdateAction = { id: 'download' | 'cancel' | 'install' | 'later' | 'retry' | 'page' | 'changes' | 'finder' | 'log'; label: string; primary?: boolean }
+export type UpdateAction = { id: 'download' | 'cancel' | 'install' | 'later' | 'retry' | 'page' | 'changes' | 'finder' | 'log' | 'copy'; label: string; primary?: boolean }
 
 /** What the popover under the chip, and the Updates page of Settings, show for a newer version: all of it said here, so the two cannot differ. */
 export interface UpdateView {
@@ -9,6 +9,8 @@ export interface UpdateView {
   chip: string
   title: string
   body?: string
+  /** A command the person runs themselves, shown to copy. */
+  command?: string
   progress?: { fraction: number; label: string; ok?: boolean }
   ticks?: string[]
   /** What the new version holds (the release's own text), shown before it is downloaded or installed. */
@@ -42,6 +44,16 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   const latest = info.latest
   const chip = `↑ ${latest}`
   const install: InstallState | undefined = info.install
+  // Homebrew installed this copy and keeps its own record of the version, so it is the one to update it.
+  if (info.homebrew)
+    return {
+      chip,
+      title: `Agent World ${latest} is available`,
+      body: `${info.current ? `You have ${info.current}. ` : ''}This copy was installed with Homebrew, so Homebrew updates it. Quit Agent World, run this in Terminal, then open it again. If Homebrew says nothing is new yet, run it again in a few minutes.`,
+      command: BREW_UPGRADE,
+      ...(info.notes && { notes: info.notes }),
+      actions: [{ id: 'copy', label: 'Copy command', primary: true }, ...(info.url ? [{ id: 'changes' as const, label: 'What changed' }] : [])]
+    }
   const offer = (): UpdateView => ({
     chip,
     title: `Agent World ${latest} is available`,

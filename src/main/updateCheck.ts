@@ -41,6 +41,9 @@ export function isNewer(current: string, tag: string): boolean {
   return false
 }
 
+/** Whether this copy was installed with Homebrew: the cask keeps a folder named for it in the prefix's Caskroom (Apple Silicon and Intel keep theirs apart). */
+export const isHomebrewInstall = (caskrooms: string[], exists: (path: string) => boolean): boolean => caskrooms.some((root) => exists(`${root}/agent-world`))
+
 /**
  * Whether an installed app can install an update itself. macOS replaces an app only with one signed by the same Developer ID, so a Mac build that was
  * signed ad hoc can find out that a newer one exists but not put it in place: it tells the person and points to the release page.

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { InstallState } from '../../shared/updateInstall'
+import { BREW_UPGRADE, type InstallState } from '../../shared/updateInstall'
 import { NotesBox } from './ReleaseNotes'
 import { type UpdateAction, type UpdateView, updateView } from './updateView'
 
-export type UpdateInfo = { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
+export type UpdateInfo = { homebrew?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
 
 // What the last look found, kept for the whole window so a screen opened after it (Settings) still knows.
 let last: UpdateInfo = { state: 'off' }
@@ -43,6 +43,8 @@ export function runUpdateAction(id: UpdateAction['id'], info: UpdateInfo, close?
       return void window.aw.installUpdate().catch(quiet)
     case 'later':
       return close?.()
+    case 'copy':
+      return void navigator.clipboard.writeText(BREW_UPGRADE).catch(quiet)
     case 'page':
     case 'changes':
       return void (info.url && window.aw.openExternal(info.url).catch(quiet))
@@ -81,6 +83,7 @@ export function UpdatePanel({ view, info, close }: { view: UpdateView; info: Upd
       {view.error && <div className="upd-error" role="alert">{view.error}</div>}
       {view.warning && <div className="upd-warn" role="status">{view.warning}</div>}
       {view.body && <p className="upd-body">{view.body}</p>}
+      {view.command && <code className="upd-cmd">{view.command}</code>}
       {view.notes && (
         <>
           <b className="upd-notes-title">What's new in {info.latest}</b>
