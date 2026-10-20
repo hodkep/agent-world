@@ -210,7 +210,8 @@ export interface AwApi {
   /** Every agent as "switch all agents to an account" sees it: which program, which account, running or asleep, and what it is doing. */
   accountAgents(): Promise<import('./switchPlan').SwitchAgent[]>
   /** Moves every agent that can change account to `account`. With `stopWorking`, the agents mid-turn are stopped first and told to continue after the move; without it only the idle ones move. Says what happened to each. */
-  switchAllAgents(account: string, stopWorking: boolean): Promise<import('./switchPlan').SwitchResult[]>
+  /** `ids` limits it to those agents (one already on the account is restarted on it); without it every agent not on the account moves. */
+  switchAllAgents(account: string, stopWorking: boolean, ids?: string[]): Promise<import('./switchPlan').SwitchResult[]>
   /** Progress of a switch-all run, one agent at a time. */
   onAccountsSwitch(cb: (r: import('./switchPlan').SwitchResult) => void): () => void
   /** Continue that conversation as a new agent. */

@@ -9,6 +9,8 @@ export interface SwitchAgent {
   name: string
   provider: string
   account: string
+  /** The folder of the project it works in; agents are grouped by it. */
+  project: string
   /** Its terminal is running now; an agent that is not is asleep. */
   online: boolean
   activity: Activity | null
@@ -33,19 +35,36 @@ export interface SwitchPlan {
   /** Idle, waiting or asleep: moved without a word. */
   quiet: SwitchAgent[]
   already: SwitchAgent[]
+  /** Agents left out by the person's choice: they stay where they are. */
+  left: SwitchAgent[]
   unsupported: SwitchAgent[]
   /** How many agents change account. */
   moving: number
 }
 
-/** Sorts every agent by what moving it to `account` means for it. `canSwitch` says which programs keep separate accounts. */
-export function planSwitch(agents: SwitchAgent[], account: string, canSwitch: (provider: string) => boolean): SwitchPlan {
-  const plan: SwitchPlan = { stop: [], quiet: [], already: [], unsupported: [], moving: 0 }
+/**
+ * Sorts every agent by what moving it to `account` means for it. `canSwitch` says which programs keep separate accounts. With `picked` only those agents move, and a
+ * picked agent that is already on the account is restarted on it (how one whose process kept the old login is put right); without it every agent not on the account moves.
+ */
+export function planSwitch(agents: SwitchAgent[], account: string, canSwitch: (provider: string) => boolean, picked?: ReadonlySet<string>): SwitchPlan {
+  const plan: SwitchPlan = { stop: [], quiet: [], already: [], left: [], unsupported: [], moving: 0 }
   for (const a of agents) {
     if (!canSwitch(a.provider)) plan.unsupported.push(a)
-    else if (a.account === account) plan.already.push(a)
+    else if (picked && !picked.has(a.id)) plan.left.push(a)
+    else if (!picked && a.account === account) plan.already.push(a)
     else (isWorking(a) ? plan.stop : plan.quiet).push(a)
   }
   plan.moving = plan.stop.length + plan.quiet.length
   return plan
+}
+
+/** The agents ticked when the dialog opens: those that can change account and are not on it yet. */
+export const pickedByDefault = (agents: SwitchAgent[], account: string, canSwitch: (provider: string) => boolean): Set<string> =>
+  new Set(agents.filter((a) => canSwitch(a.provider) && a.account !== account).map((a) => a.id))
+
+/** The agents grouped by project, in the order they come, each group named by its folder. */
+export function byProject(agents: SwitchAgent[]): { project: string; name: string; agents: SwitchAgent[] }[] {
+  const groups = new Map<string, SwitchAgent[]>()
+  for (const a of agents) groups.set(a.project, [...(groups.get(a.project) ?? []), a])
+  return [...groups].map(([project, list]) => ({ project, name: project.split(/[\\/]/).filter(Boolean).pop() ?? project, agents: list }))
 }

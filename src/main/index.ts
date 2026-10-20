@@ -2329,16 +2329,20 @@ async function main() {
   })
   // Move an agent to another signed-in account. Its conversation file is shared into that account's folder and the
   // same session resumes there, so nothing is lost and no sign-in is asked: each account signed in once, when it was added.
-  const moveAgentAccount = (id: string, account: string) => {
+  const moveAgentAccount = (id: string, account: string, restartIfThere = false) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     if (!accountsSvc.support(a.provider)) throw new Error(`${providerOf(a).label} does not keep separate accounts.`)
     if (account && !accountsSvc.dirOf(a.provider, account)) throw new Error('That account was removed.')
-    if ((a.account ?? '') === account) return
+    const there = (a.account ?? '') === account
+    if (there && !restartIfThere) return
     const p = sessions.get(id)
     if (p && !['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn.')
-    accountsSvc.moveConversation(a, account)
-    persist()
+    // Already on the account: only its process is started again, so it takes the account's login (the records can differ from what it runs on).
+    if (!there) {
+      accountsSvc.moveConversation(a, account)
+      persist()
+    }
     if (p) {
       restarting.add(id)
       mailbox.restarting(id)
@@ -2348,14 +2352,14 @@ async function main() {
   ipcMain.handle('agent-set-account', (_, id: string, account: string) => moveAgentAccount(id, account))
   // Every agent as the "switch all agents to an account" dialog sees it.
   const switchAgents = (): SwitchAgent[] =>
-    agents.map((a) => ({ id: a.id, name: a.name, provider: providerOf(a).id, account: a.account ?? '', online: sessions.has(a.id), activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : null }))
+    agents.map((a) => ({ id: a.id, name: a.name, provider: providerOf(a).id, account: a.account ?? '', project: a.repoPath, online: sessions.has(a.id), activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : null }))
   const waitStopped = async (id: string, ms = 12_000) => {
     for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (!sessions.has(id) || ['idle', 'waiting', undefined].includes(lastActivity.get(id))) return true
     return false
   }
   // Moves every agent of a program that keeps accounts to `account`. A working agent is stopped first (the move refuses mid-turn), and once it is back up on the new account it is told to continue.
-  const switchAllAgents = async (account: string, stopWorking: boolean): Promise<SwitchResult[]> => {
-    const plan = planSwitch(switchAgents(), account, (p) => !!accountsSvc.support(p as ProviderId))
+  const switchAllAgents = async (account: string, stopWorking: boolean, ids?: string[]): Promise<SwitchResult[]> => {
+    const plan = planSwitch(switchAgents(), account, (p) => !!accountsSvc.support(p as ProviderId), ids ? new Set(ids) : undefined)
     const working = new Set(plan.stop.map((a) => a.id))
     const one = async (line: SwitchAgent): Promise<SwitchResult> => {
       const report = (state: SwitchResult['state'], error?: string) => {
@@ -2370,7 +2374,7 @@ async function main() {
           interruptAgent(line.id)
           if (!(await waitStopped(line.id))) return report('failed', 'It did not stop within 12 seconds, so it stays on its old account.')
         }
-        moveAgentAccount(line.id, account)
+        moveAgentAccount(line.id, account, true)
         if (stopped) mailbox.fromPerson(line.id, SWITCH_CONTINUE)
         return report(stopped ? 'continued' : 'moved')
       } catch (e) {
@@ -2380,7 +2384,7 @@ async function main() {
     return Promise.all((stopWorking ? [...plan.stop, ...plan.quiet] : plan.quiet).map(one))
   }
   ipcMain.handle('accounts:agents', () => switchAgents())
-  ipcMain.handle('accounts:switch-all', (_, account: string, stopWorking: boolean) => switchAllAgents(String(account ?? ''), !!stopWorking))
+  ipcMain.handle('accounts:switch-all', (_, account: string, stopWorking: boolean, ids?: string[]) => switchAllAgents(String(account ?? ''), !!stopWorking, Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : undefined))
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
   // which keeps the conversation (it resumes the same session).
   ipcMain.handle('chat:set-mode', async (_, id: string, mode: string) => {

@@ -125,10 +125,7 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
                   <div className="acts">
                     {list && <span className="acct-state" data-ok={x.loggedIn}>{x.loggedIn ? 'Signed in' : 'Sign in needed'}</span>}
                     {list && !x.loggedIn && x.id && <button onClick={() => void begin(x.id, x.name, x.provider)}>Sign in</button>}
-                    {list && x.loggedIn && (() => {
-                      const elsewhere = list.filter((y) => y.provider === x.provider).reduce((n, y) => n + y.agents, 0) - x.agents
-                      return <button onClick={() => setSwitching({ id: x.id, name: x.name })} disabled={elsewhere <= 0} title={elsewhere <= 0 ? 'Every agent is already on this account' : 'Move every agent to this account, stopping and continuing the ones that are working'}>Switch all agents here</button>
-                    })()}
+                    {list && x.loggedIn && <button onClick={() => setSwitching({ id: x.id, name: x.name })} title="Choose which agents move to this account, or restart them on it">Switch all agents here</button>}
                     {!isDefault && <button onClick={() => onChange({ defaults: { ...prefs.defaults, accounts: { ...prefs.defaults.accounts, [x.provider]: x.id } } })}>Make default</button>}
                     {x.id && <button onClick={() => void remove(x.id)}>Remove</button>}
                   </div>
@@ -138,7 +135,7 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
           </div>
         </div>
       ))}
-      {switching && <SwitchAgentsDialog account={switching} providers={providers} onClose={() => (setSwitching(null), void refresh())} />}
+      {switching && <SwitchAgentsDialog account={switching} accounts={prefs.accounts} providers={providers} onClose={() => (setSwitching(null), void refresh())} />}
       {error && <p className="acct-error" role="alert">{error}</p>}
       {!adding && (
         <div className="settings-row">
