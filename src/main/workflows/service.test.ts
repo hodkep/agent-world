@@ -512,6 +512,26 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ asideAudit: false, blocking: ['1 audit finding has not been seen.'] })
   })
 
+  it('Add to plan records an out-of-scope finding as in scope and as seen, refuses any other kind, and the next audit is told what was added', async () => {
+    const { wf, state } = make()
+    state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] })
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","files":["a.ts","b.ts"],"text":"Folds unchanged code."},{"kind":"goal-unmet","text":"No test."},{"kind":"out-of-scope","text":"Adds a shortcut."}]}' })
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['3 audit findings have not been seen.'])
+    expect(() => wf.addToPlan('a1', 'h1', [1])).toThrow('Only out-of-scope work can be added to the plan.')
+    wf.addToPlan('a1', 'h1', [0, 2])
+    expect(wf.runs()[0]!.additions).toEqual(['Folds unchanged code.', 'Adds a shortcut.'])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['1 audit finding has not been seen.'])
+    state.asked.length = 0
+    await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
+    expect(state.asked[0]).toContain('## Added to the plan afterwards by the person: in scope')
+    expect(state.asked[0]).toContain('- Folds unchanged code.')
+    expect(() => wf.addToPlan('a1', 'h9', [0])).toThrow('That audit is not the latest.')
+  })
+
   it('a run that follows no workflow can set its audit aside too', async () => {
     const { wf, state } = make()
     wf.begin('a1', 'Add a toggle')

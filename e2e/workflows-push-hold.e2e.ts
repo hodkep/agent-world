@@ -9,7 +9,7 @@ const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/
 
 const PULL = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
 
-async function office(name: string) {
+async function office(name: string, findings = FINDINGS) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), `aw-${name}-`)))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -22,7 +22,7 @@ async function office(name: string) {
   mkdirSync(home, { recursive: true })
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
   const envFile = join(tmp, 'env.log')
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: FINDINGS }, tmp)
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 1000 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
@@ -144,6 +144,30 @@ test('a push the person had allowed is recorded once, as pushed anyway with what
     await o.page.evaluate((id) => window.aw.landingAllow(id), o.ada.id)
     expect((await o.push()).ok).toBe(true)
     await expect.poll(o.landed).toMatchObject({ how: 'anyway', held: ['2 audit findings have not been seen.'] })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('findings arrive grouped, one row for one cause with its files: Add to plan keeps an out-of-scope cause in scope for later audits and counts it as seen, Seen, fine answers the rest', async () => {
+  const grouped = JSON.stringify({ findings: [{ kind: 'out-of-scope', files: ['src/code/a.ts', 'src/code/b.ts', 'src/code/c.ts'], text: 'The fold feature.' }, { kind: 'goal-unmet', text: 'No test for a 5-digit line count.' }] })
+  const o = await office('wffind', grouped)
+  try {
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.page.evaluate((id) => window.aw.finishAudit(id), o.ada.id)
+    const card = o.page.getByRole('region', { name: "ada's audit" })
+    await expect(card).toBeVisible({ timeout: 20_000 })
+    const row = card.getByRole('listitem').filter({ hasText: 'The fold feature.' })
+    await expect(row).toContainText('out of scope · 3 files')
+    await row.getByRole('button', { name: 'show files' }).click()
+    await expect(row).toContainText('src/code/a.ts, src/code/b.ts, src/code/c.ts')
+    // Only out-of-scope work can be added to the plan.
+    await expect(card.getByRole('listitem').filter({ hasText: 'No test for a 5-digit line count.' }).getByRole('button', { name: 'Add to plan' })).toHaveCount(0)
+    await row.getByRole('button', { name: 'Add to plan' }).click()
+    await expect(row).toHaveCount(0)
+    await expect.poll(async () => (await o.page.evaluate(() => window.aw.workflows.summary())).runs[0]!.additions).toEqual(['The fold feature.'])
+    await card.getByRole('button', { name: 'Seen, fine', exact: true }).click()
+    await expect(card).toHaveCount(0)
   } finally {
     await o.shutdown()
   }

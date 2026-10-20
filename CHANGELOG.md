@@ -12,6 +12,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Workflows: the built-in **Standard** workflow ends in a new **Pull request** step instead of **Land**. Git's `pre-push` holds the push of the agent's branch until the plan is approved and the findings are seen (**Set aside** lifts it), and a push that goes through ends the run, so a run no longer waits for a merge the app never sees. A push that skips the hold with `--no-verify` is recorded as pushed anyway. Workflows you wrote keep their **Land** step.
 
+### Added
+
+- Workflows: the audit card shows one row per cause, with every file it covers, each answered by **Seen, fine**; an out-of-scope row also has **Add to plan**, which keeps it in scope for later audits of the run.
+
 ### Fixed
 
 - Workflows: an agent kept showing AUDIT (or another wait) beside its name because of an older run whose findings nobody had answered, with nothing in the chat to answer them. Only an agent's latest run can wait for you now.

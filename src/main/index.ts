@@ -2229,6 +2229,12 @@ async function main() {
     workflows.seen(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
     send('workflows')
   })
+  ipcMain.handle('finish:add-to-plan', async (_, id: string, which: number[]) => {
+    const { a } = await worktreeOf(id)
+    workflows.addToPlan(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
+    send('workflows')
+    send('landing')
+  })
   ipcMain.handle('finish:aside', (_, id: string) => {
     workflows.asideAudit(id)
     send('workflows')
