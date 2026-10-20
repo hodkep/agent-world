@@ -322,6 +322,13 @@ export async function commitDiff(cwd: string, hash: string, path: string) {
   return { original: await at(`${hash}^`), current: await at(hash) }
 }
 
+/** The first lines git printed when it refused, without the command line that execFile puts in front of them. */
+function gitSaid(err: unknown): string {
+  const e = err as { stderr?: string; stdout?: string; message?: string }
+  const text = (e.stderr || e.stdout || e.message || '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('Command failed'))
+  return text.slice(0, 2).join(' ') || 'git gave no reason.'
+}
+
 /**
  * Merge the agent's branch into `base` in the user's own checkout. Refuses when that checkout is on another
  * branch or has uncommitted work, and backs out completely on conflict, so the user's tree is never left half-merged.
@@ -337,11 +344,13 @@ export async function mergeInto(repo: string, branch: string, base: string, o: {
       await git(repo, 'merge', '--squash', branch)
       await git(repo, 'commit', '-m', o.message?.trim() || `Merge ${branch}`)
     } else await git(repo, 'merge', '--no-ff', '--no-edit', branch)
-  } catch {
+  } catch (err) {
     const conflicted = lines(await git(repo, 'diff', '--name-only', '--diff-filter=U')).join(', ')
     // A squash leaves no MERGE_HEAD to abort; --merge puts the tree back to how it was.
     await git(repo, 'merge', '--abort').catch(() => git(repo, 'reset', '--merge'))
-    throw new Error(`Merge conflict in ${conflicted || 'some files'}; the merge was aborted and ${base} is unchanged.`)
+    // Git can refuse for a reason that is no conflict (no name to write the merge commit with, a hook, a lock): then its own words are the answer.
+    if (!conflicted) throw new Error(`The merge did not go through, and ${base} is unchanged: ${gitSaid(err)}`)
+    throw new Error(`Merge conflict in ${conflicted}; the merge was aborted and ${base} is unchanged.`)
   }
 }
 
