@@ -6,7 +6,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Changed
 
-- Workflows: the built-in **Standard** workflow ends in a new **Pull request** step instead of **Land**. Git's `pre-push` holds the push of the agent's branch until the plan is approved and the findings are seen (**Set aside** lifts it), and a push that goes through ends the run, so a run no longer waits for a merge the app never sees. Workflows you wrote keep their **Land** step.
+- Workflows: the built-in **Standard** workflow ends in a new **Pull request** step instead of **Land**. Git's `pre-push` holds the push of the agent's branch until the plan is approved and the findings are seen (**Set aside** lifts it), and a push that goes through ends the run, so a run no longer waits for a merge the app never sees. A push that skips the hold with `--no-verify` is recorded as pushed anyway. Workflows you wrote keep their **Land** step.
 
 ### Fixed
 

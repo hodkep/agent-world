@@ -46,6 +46,8 @@ export type IntentResult = { questions: PlanQuestion[]; cost?: number; tokens?: 
 /** Commits this close together (ms) are one piece of work the agent never announced. */
 const AUDIT_STEP = 'audit'
 const SAME_WORK_MS = 10 * 60_000
+/** What a run's ledger says of a push the pre-push hold never saw (`git push --no-verify`). */
+const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
 const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
@@ -573,23 +575,35 @@ export class Workflows {
   landingHold(agentId: string, head: string, o: { auditable?: boolean } = {}): string[] | null {
     const check = this.mergeCheck(agentId, head, o)
     if (!check || this.allowed.get(agentId) === head) return null
-    // A review that was expected and has not answered holds the branch too: the person would be letting it land unseen.
-    const reviewing = check.asideAudit ? [] : check.audit.state === 'not-run' ? ['The review has not run for this branch yet.'] : check.audit.state === 'running' ? ['The review is still running.'] : []
-    const held = [...check.blocking, ...reviewing]
+    const held = this.holdsOf(check)
     return held.length ? held : null
   }
 
+  /** What holds a head: the check's own reasons, and a review that was expected and has not answered (the person would be letting it land unseen). */
+  private holdsOf(check: MergeCheck): string[] {
+    const reviewing = check.asideAudit ? [] : check.audit.state === 'not-run' ? ['The review has not run for this branch yet.'] : check.audit.state === 'running' ? ['The review is still running.'] : []
+    return [...check.blocking, ...reviewing]
+  }
+
   /** Land is about to happen: refused while the check holds it, unless the person chose to land anyway; either way the choice is logged. */
-  landing(agentId: string, head: string, o: { anyway?: boolean; auditable?: boolean } = {}) {
+  landing(agentId: string, head: string, o: { anyway?: boolean; auditable?: boolean; unchecked?: boolean } = {}) {
     const check = this.mergeCheck(agentId, head, o)
+    // A push that skipped the hold is always "anyway", with that said last: the person was never asked.
+    const skipped = o.unchecked ? [SKIPPED_HOLD] : []
     if (!check) {
       // Nothing holds a push that ends in a pull request with its gate auto, but the run still ends there.
       const run = this.mine(agentId)[0]
-      if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: 'checked', held: [] })
+      if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: skipped.length ? 'anyway' : 'checked', held: skipped })
       return
     }
     if (check.blocking.length && !o.anyway) throw new Error(`Not ready to land:\n${check.blocking.map((b) => `- ${b}`).join('\n')}`)
     this.allowed.delete(agentId)
-    this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: check.blocking.length ? 'anyway' : 'checked', held: check.blocking })
+    const held = [...(o.unchecked ? this.holdsOf(check) : check.blocking), ...skipped]
+    this.append({ k: 'merge', t: this.deps.now(), run: check.run.id, head, how: held.length ? 'anyway' : 'checked', held })
+  }
+
+  /** Whether this head of the agent's latest run is already recorded as landed or pushed. */
+  landedHead(agentId: string, head: string): boolean {
+    return this.mine(agentId)[0]?.landed?.head === head
   }
 }

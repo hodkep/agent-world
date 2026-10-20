@@ -671,6 +671,31 @@ describe('the merge gate', () => {
       expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'checked', held: [] })
     })
 
+    it('records a push that skipped the hold as pushed anyway, with that reason after whatever held it, even when nothing did', () => {
+      const run = (w: RunWorkflow) => {
+        const { wf, state } = make()
+        state.pick = () => w
+        wf.begin('a1', 'Add a toggle')
+        return wf
+      }
+      const held = run(pull())
+      held.landing('a1', 'h1', { anyway: true, unchecked: true })
+      expect(held.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'anyway', held: ['No plan was approved for this task.', 'Pushed without the hold: git push --no-verify.'] })
+      const clear = run(pull('auto'))
+      clear.landing('a1', 'h1', { anyway: true, unchecked: true })
+      expect(clear.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['Pushed without the hold: git push --no-verify.'] })
+    })
+
+    it('says whether a head was already recorded as pushed, so a push the office let through is not recorded twice', () => {
+      const { wf, state } = make()
+      state.pick = () => pull('auto')
+      wf.begin('a1', 'Add a toggle')
+      expect(wf.landedHead('a1', 'h1')).toBe(false)
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.landedHead('a1', 'h1')).toBe(true)
+      expect(wf.landedHead('a1', 'h2')).toBe(false)
+    })
+
     it('is not what a merge workflow, or a run with no workflow, ends in', () => {
       const { wf, state } = make()
       state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] })
