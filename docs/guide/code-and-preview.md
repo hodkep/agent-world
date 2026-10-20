@@ -38,7 +38,7 @@ To commit everything, type a message in **Message…** and click **Commit all**.
 
 ## Send code to the agent
 
-Select code in a diff or a file, then click **Ask** and the agent's name, or press ⌘L (Ctrl+L). The code goes into that agent's message box as a chip. Chips waiting there show under the editor as **In the message**.
+Select code in a diff or a file, then click **Ask** and the agent's name, or press ⌘L (Ctrl+L), or ⇧⌘L (Ctrl+Shift+L), the key that does this in every place that offers it. The code goes into that agent's message box as a chip. Chips waiting there show under the editor as **In the message**.
 
 ## Land a branch
 

@@ -2,6 +2,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef, useState } from 'react'
+import { ADD_SELECTION_EVENT } from '../addSelection'
+import { keysOf } from '../shortcuts'
 import { mentionText } from '../../shared/mention'
 import { openFileEvent } from '../files/context'
 import { macKeySequence } from './macKeys'
@@ -217,13 +219,29 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     }
   }
   const addContext = () => {
-    if (!pick || !ask) return
-    const quoted = pick.text.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')
+    const words = termRef.current?.hasSelection() ? termRef.current.getSelection().replace(/[ \t]+$/gm, '').trim() : (pick?.text ?? '')
+    if (!words || !ask) return
+    const quoted = words.split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')
     window.dispatchEvent(new CustomEvent('aw-context', { detail: { agentId: ask.agentId, text: `From the terminal:\n${quoted}`, file: null, label: 'terminal, selection' } }))
     termRef.current?.clearSelection()
     setPick(null)
     ask.onAttached()
   }
+  // The key adds what is selected here, while this terminal is the one on show.
+  const addRef = useRef(addContext)
+  addRef.current = addContext
+  const shownRef = useRef(visible && !!ask)
+  shownRef.current = visible && !!ask
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ handled: boolean }>).detail
+      if (d.handled || !shownRef.current || !termRef.current?.hasSelection()) return
+      d.handled = true
+      addRef.current()
+    }
+    window.addEventListener(ADD_SELECTION_EVENT, on)
+    return () => window.removeEventListener(ADD_SELECTION_EVENT, on)
+  }, [])
   return (
     <>
       <div ref={el} className="term-host" style={{ display: visible ? 'block' : 'none' }} onDragOver={(e) => e.preventDefault()} onDrop={drop} />
@@ -252,7 +270,7 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
         </button>
       )}
       {pick && visible && ask && (
-        <button className="ask-selection term-ask" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={addContext}>
+        <button className="ask-selection term-ask" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={addContext} title={`Add the selection to your message (${keysOf('add-selection')})`}>
           Add selection to message
         </button>
       )}

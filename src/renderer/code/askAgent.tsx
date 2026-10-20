@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { keysOf } from '../shortcuts'
 import { monaco } from './monaco'
 
 /** Where to bring a piece of code back to, from its chip. */
@@ -85,7 +86,7 @@ export function useAskSelection(o: { agentId: string; agentName: string; host: R
         e.addAction({
           id: 'aw.ask',
           label: 'Add selection to message',
-          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL],
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyL],
           run: () => {
             last.current = e
             add()
@@ -100,7 +101,7 @@ export function useAskSelection(o: { agentId: string; agentName: string; host: R
   const view = (
     <>
       {bubble && (
-        <button className={`ask-selection code-ask ${bubble.under ? 'under' : ''}`} style={{ left: bubble.x, top: bubble.y }} onMouseDown={(e) => e.preventDefault()} onClick={add} title={`Add the selected code to your message to ${o.agentName} (⌘L)`}>
+        <button className={`ask-selection code-ask ${bubble.under ? 'under' : ''}`} style={{ left: bubble.x, top: bubble.y }} onMouseDown={(e) => e.preventDefault()} onClick={add} title={`Add the selected code to your message to ${o.agentName} (⌘L, or ${keysOf('add-selection')} as everywhere else)`}>
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
           </svg>

@@ -66,6 +66,14 @@ describe('a key press against the table', () => {
     expect(matches(press('Tab', { shiftKey: true }), 'cycle-mode')).toBe(true)
   })
 
+  it('adds the selection with Shift+Mod+L, and not with the editor\'s plain Mod+L or another Shift+Mod letter', () => {
+    expect(matches(press('L', { metaKey: true, shiftKey: true }), 'add-selection')).toBe(true)
+    expect(matches(press('l', { ctrlKey: true, shiftKey: true }), 'add-selection')).toBe(true)
+    expect(matches(press('l', { metaKey: true }), 'add-selection')).toBe(false)
+    expect(matches(press('k', { metaKey: true, shiftKey: true }), 'add-selection')).toBe(false)
+    expect(matches(press('l', { metaKey: true, shiftKey: true, altKey: true }), 'add-selection')).toBe(false)
+  })
+
   it('switches workspace with Shift+Mod+[ and ], read from the key itself so a layout where the bracket needs Shift still matches', () => {
     expect(matches({ ...press('{', { metaKey: true, shiftKey: true }), code: 'BracketLeft' }, 'workspace-switch')).toBe(true)
     expect(matches({ ...press('}', { ctrlKey: true, shiftKey: true }), code: 'BracketRight' }, 'workspace-switch')).toBe(true)
