@@ -5,8 +5,12 @@ import type { SkillState } from './skills'
  * A workflow is a list of steps an agent's task goes through, kept as a JSON file. The engine follows it; the app checks it in code,
  * so a file written by hand or proposed by the builder is either valid or comes back with every problem named.
  */
-export const STEP_KINDS = ['plan', 'work', 'check', 'audit', 'approve', 'merge'] as const
+export const STEP_KINDS = ['plan', 'work', 'check', 'audit', 'approve', 'pr', 'merge'] as const
 export type StepKind = (typeof STEP_KINDS)[number]
+/** The two steps that end a run: `pr` holds the push of the agent's branch (the pull request, CI and the merge are GitHub's), `merge` holds a merge into the base branch. */
+export const isLanding = (k: StepKind) => k === 'pr' || k === 'merge'
+/** Which landing step a workflow ends in, if any: what the office holds (a push, or a merge) and how its cards word it. */
+export const landingKind = (wf: { steps: readonly { kind: StepKind }[] } | undefined): 'pr' | 'merge' | undefined => wf?.steps.find((s) => isLanding(s.kind))?.kind as 'pr' | 'merge' | undefined
 export type Gate = 'auto' | 'approve' | 'pass'
 
 export interface Step {
@@ -32,7 +36,7 @@ export type WorkflowResult = { ok: true; workflow: Workflow } | { ok: false; pro
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
 export const STEPS_MAX = 12
 const STEP_ID_MAX = 30
-export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], merge: ['auto', 'approve'] }
+export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], pr: ['auto', 'approve'], merge: ['auto', 'approve'] }
 const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']
 const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
@@ -101,7 +105,7 @@ export function parseWorkflow(text: string): WorkflowResult {
   return { ok: true, workflow: f as unknown as Workflow }
 }
 
-/** Today's pipeline as a workflow, so a project that never writes one behaves as before. Its plan and merge follow the Settings switches. */
+/** The built-in pipeline: plan, build, audit, then the pull request (the push of the agent's branch is what is held). Its plan and pull request follow the Settings switches. */
 export const STANDARD: Workflow = {
   version: 1,
   id: 'standard',
@@ -111,11 +115,11 @@ export const STANDARD: Workflow = {
     { id: 'plan', kind: 'plan' },
     { id: 'build', kind: 'work', name: 'Build' },
     { id: 'review', kind: 'audit', name: 'Audit' },
-    { id: 'land', kind: 'merge', name: 'Land' }
+    { id: 'pr', kind: 'pr', name: 'Pull request' }
   ]
 }
 
-const KIND_NAME: Record<StepKind, string> = { plan: 'Plan', work: 'Build', check: 'Check', audit: 'Audit', approve: 'Your approval', merge: 'Land' }
+const KIND_NAME: Record<StepKind, string> = { plan: 'Plan', work: 'Build', check: 'Check', audit: 'Audit', approve: 'Your approval', pr: 'Pull request', merge: 'Land' }
 /** What a step is called where a person reads it: its own name, else its kind's. */
 export const stepName = (s: Step) => s.name ?? KIND_NAME[s.kind]
 
@@ -131,7 +135,7 @@ export interface Chip {
 export function stepChips(wf: Workflow, switches: { planGate: boolean; mergeGate: boolean }): Chip[] {
   return wf.steps.map((s) => {
     const own = s.gate !== undefined ? s.gate === 'approve' : undefined
-    const inherited = s.kind === 'plan' ? switches.planGate : s.kind === 'merge' ? switches.mergeGate : false
+    const inherited = s.kind === 'plan' ? switches.planGate : isLanding(s.kind) ? switches.mergeGate : false
     return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || (own ?? inherited) }
   })
 }

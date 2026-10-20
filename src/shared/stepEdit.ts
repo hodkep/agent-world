@@ -1,4 +1,4 @@
-import { STEPS_MAX, type Step, type StepKind, type Workflow } from './workflow'
+import { STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
 
 /** The fields of a step that the draft's editor changes; an empty text or list takes the field away. */
 export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'skills' | 'run' | 'retries'>>
@@ -28,7 +28,7 @@ export function addStep(w: Workflow, kind: StepKind): Workflow {
   for (let n = 2; used.has(id); n++) id = `${kind}-${n}`
   const step: Step = kind === 'check' ? { id, kind, run: '' } : { id, kind }
   const last = w.steps.at(-1)
-  const at = last?.kind === 'merge' && kind !== 'merge' ? w.steps.length - 1 : w.steps.length
+  const at = last && isLanding(last.kind) && !isLanding(kind) ? w.steps.length - 1 : w.steps.length
   return withSteps(w, [...w.steps.slice(0, at), step, ...w.steps.slice(at)])
 }
 

@@ -97,6 +97,13 @@ describe('which gates a run met', () => {
     expect(tiles([begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])).toEqual(['plan:ok', 'check:ok', 'review:ok', 'land:ok', 'told:ok'])
   })
 
+  it('count a pull request step as the landing: met when the push went through, waiting while the run is done and it has not', () => {
+    const PULL: RunWorkflow = { id: 'pull', name: 'Pull', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
+    const base = [begin(0, PULL), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), audit(7 * MIN)]
+    expect(tiles([...base, merge(8 * MIN, 'checked'), done(8 * MIN)])[3]).toBe('land:ok')
+    expect(tiles([...base, done(8 * MIN)])[3]).toBe('land:wait')
+  })
+
   it('are met with trouble when a plan was sent back, a check was retried, or the review found things the person saw', () => {
     const events = [begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'changes'), plan(3 * MIN, 'submitted'), plan(4 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, false), check(7 * MIN, 2, true), audit(8 * MIN, [finding]), seen(9 * MIN, [0]), merge(10 * MIN, 'checked'), done(10 * MIN)]
     expect(tiles(events)).toEqual(['plan:trouble', 'check:trouble1', 'review:trouble', 'land:ok', 'told:ok'])

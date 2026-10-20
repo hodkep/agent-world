@@ -109,7 +109,7 @@ describe('a proposal', () => {
     const v = s.builder.view('a1', s.project)!
     expect(v.saved).toMatchObject({ scope: 'built-in' })
     expect(v.diff.isNew).toBe(false)
-    expect(v.diff.removed.map((x) => x.id)).toEqual(['review', 'land'])
+    expect(v.diff.removed.map((x) => x.id)).toEqual(['review', 'pr'])
   })
 
   it('goes stale when the saved file changes after it was proposed', () => {

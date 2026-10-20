@@ -105,7 +105,8 @@ const KIND_DOES: Record<StepKind, string> = {
   check: `the app runs the command "run" in the agent's worktree and a failure goes back to the agent, up to "retries" times (0 to 5, ${DEFAULT_RETRIES} if left out). Needs run. Gate pass means landing waits until it passes; auto only reports.`,
   audit: 'a model reads the branch against the plan and lists what does not match. Fields: model (leave out unless asked).',
   approve: 'the person must approve before anything goes on, like a review. Fields: brief (what to look at). It always stops.',
-  merge: 'the person lands the work. Gate approve makes them confirm; auto leaves it to the settings.'
+  pr: "the agent opens a pull request; git holds the push of its branch until the plan is approved and the review's findings were seen, and CI and the merge are GitHub's. Gate approve makes the person confirm; auto leaves it to the settings. Put it last.",
+  merge: 'the person lands the work with a merge into the base branch. Gate approve makes them confirm; auto leaves it to the settings. Use pr instead when the work goes through a pull request.'
 }
 
 const EXAMPLE = `{
@@ -118,7 +119,7 @@ const EXAMPLE = `{
     { "id": "fix", "kind": "work", "name": "Fix, test first", "brief": "Write a failing test that shows the bug, then make it pass." },
     { "id": "tests", "kind": "check", "name": "Tests pass", "run": "npm test", "gate": "pass", "retries": 3 },
     { "id": "review", "kind": "audit" },
-    { "id": "land", "kind": "merge", "gate": "approve" }
+    { "id": "pr", "kind": "pr", "name": "Pull request", "gate": "approve" }
   ]
 }`
 

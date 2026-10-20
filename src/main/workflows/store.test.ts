@@ -68,7 +68,7 @@ describe('files that do not read', () => {
     const by = (id: string) => list.find((e) => e.id === id)!
     expect(by('broken').problems![0]).toMatch(/^Not valid JSON/)
     expect(by('wrong-name').problems).toEqual(['The id "something-else" does not match the file name "wrong-name.json". Rename the file or the id.'])
-    expect(by('bad-steps').problems).toEqual(['Step 1 ("x"): "kind" must be one of plan, work, check, audit, approve, merge.'])
+    expect(by('bad-steps').problems).toEqual(['Step 1 ("x"): "kind" must be one of plan, work, check, audit, approve, pr, merge.'])
     expect(by('big').problems).toEqual(['The file is larger than 100 KB.'])
     expect(by('broken').workflow).toBeUndefined()
     expect(by('broken').scope).toBe('project')
