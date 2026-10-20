@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { readLog } from './readLog'
 
 test('the library and playbook can be switched off: agents are offered nothing from it, and its icon and window say it is off, with a way to the switch', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-libswitch-'))
@@ -32,8 +33,8 @@ test('the library and playbook can be switched off: agents are offered nothing f
 
     // An agent started now is offered no library tools.
     await hire(page)
-    await expect.poll(() => readFileSync(args, 'utf8').includes('--mcp-config')).toBe(true)
-    const line = readFileSync(args, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--mcp-config'))!
+    await expect.poll(() => readLog(args).includes('--mcp-config')).toBe(true)
+    const line = readLog(args).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--mcp-config'))!
     const mcp = JSON.parse(readFileSync(line[line.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
     const tools = async () => {
       const c = new Client({ name: 'test', version: '1' })

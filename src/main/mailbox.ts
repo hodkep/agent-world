@@ -101,6 +101,11 @@ export class Mailbox {
     if ((this.state.get(agentId) ?? 'starting') === 'starting') this.turnEnded(agentId)
   }
 
+  /** Whether the agent has not shown its input box yet (just started, relaunched, or not known): what is typed into its terminal now would be lost. */
+  isStarting(agentId: string) {
+    return (this.state.get(agentId) ?? 'starting') === 'starting'
+  }
+
   /** The terminal is being relaunched; hold mail (don't drop it) until the new one shows its input box. */
   restarting(agentId: string) {
     this.state.set(agentId, 'starting')
