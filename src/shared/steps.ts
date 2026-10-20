@@ -1,5 +1,5 @@
 import type { Round, Run, RunStep, RunWorkflow } from './runs'
-import type { StepKind } from './workflow'
+import { type StepKind, isLanding } from './workflow'
 
 export type StepStatus = 'passed' | 'running' | 'waiting' | 'pending' | 'skipped' | 'failed'
 export interface StepState {
@@ -75,7 +75,7 @@ function own(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: St
     if (a.state === 'failed') return 'skipped'
     return a.findings.every((f) => f.seen) ? 'passed' : 'waiting'
   }
-  if (kind === 'merge') return run.landed && run.landed.t >= round.startedAt ? 'passed' : 'later'
+  if (isLanding(kind)) return run.landed && run.landed.t >= round.startedAt ? 'passed' : 'later'
   if (kind === 'approve') {
     if (last?.state === 'approved') return 'passed'
     // Sent back: the agent's again, until it says it has done the work again.
@@ -101,7 +101,7 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     let state: StepStatus
     if (o === 'passed' || o === 'skipped') state = o
     else if (o === 'failed') (state = 'failed', (held = true))
-    else if (o === 'later') (state = (s.kind === 'merge' || s.kind === 'approve') && !held ? 'waiting' : 'pending', (held = true))
+    else if (o === 'later') (state = (isLanding(s.kind) || s.kind === 'approve') && !held ? 'waiting' : 'pending', (held = true))
     else if (held) state = 'pending'
     else if (o === 'waiting') (state = 'waiting', (held = true))
     else (state = 'running', (held = true))

@@ -13,6 +13,7 @@ const JOURNEY: RunWorkflow = {
     { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }
   ]
 }
+const PULL: RunWorkflow = { id: 'pull', name: 'Pull', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
 const ctx = { auditOn: true }
 const readback = { goal: 'g', assumptions: [], outOfScope: [], questions: [] }
 const begin: RunEvent = { k: 'begin', t: 100, run: 'r1', agent: 'a1', name: 'ada', project: '/p', title: 'Add wordCount', workflow: JOURNEY }
@@ -85,6 +86,19 @@ describe('where a run is on its track', () => {
     expect(t.stations.map((s) => s.state).slice(0, 3)).toEqual(['done', 'done', 'done'])
     expect(t.at).toBe(3)
     expect(t.waiting).toBe('ready to land: ask the agent')
+  })
+
+  it('for a pull request workflow, waits for the pull request, which git lets through once the gates are met', () => {
+    const run = reduceRuns([{ ...begin, workflow: PULL }, submitted(), planned('approved'), done('build'), { k: 'done', t: 700, run: 'r1' } as RunEvent])[0]!
+    const t = trackOf(run, ctx)!
+    expect(t.at).toBe(2)
+    expect(t.waiting).toBe('ready for a pull request: ask the agent')
+  })
+
+  it('has a pill for a push git held, not a land', () => {
+    expect(landingPill({ declined: false }, 'pr')).toEqual({ kind: 'held', text: 'Push held' })
+    expect(landingPill({ declined: true }, 'pr')).toEqual({ kind: 'notyet', text: 'Push held · not yet' })
+    expect(landingPill({ declined: false })).toEqual({ kind: 'held', text: 'Land held' })
   })
 
   it('has no track for a run that landed, was stopped, follows no workflow, or has nothing left to do', () => {

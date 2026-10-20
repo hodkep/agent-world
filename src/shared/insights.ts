@@ -2,6 +2,7 @@ import { weekStartOf } from './ledger'
 import type { Run, RunWorkflow } from './runs'
 import { formatDuration } from './runStats'
 import { type StepContext, auditSetAside, stepStates } from './steps'
+import { landingKind } from './workflow'
 
 /** One stretch of a run's time: the agent working, the person being waited on, a check that ran, or one that failed. */
 export interface Segment {
@@ -145,7 +146,7 @@ export function gateTiles(run: Run, ctx: StepContext): Tile[] {
   }
   const reviewN = run.audit?.state === 'done' ? run.audit.findings.length : undefined
   const land = (): TileKind => {
-    if (!has(wf, 'merge') || run.status === 'stopped') return 'na'
+    if (!landingKind(wf) || run.status === 'stopped') return 'na'
     if (run.landed) return run.landed.how === 'checked' ? 'ok' : 'bad'
     return run.status === 'done' ? 'wait' : 'na'
   }

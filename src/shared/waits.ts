@@ -1,5 +1,6 @@
 import { type Run, pendingPlans } from './runs'
 import { type StepContext, checkPanels, stepStates, waitingSteps } from './steps'
+import { isLanding } from './workflow'
 
 export type WaitKind = 'plan' | 'approve' | 'check' | 'audit' | 'land'
 /** One thing an agent's run cannot go on without the person for. */
@@ -34,7 +35,7 @@ export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, h
     for (const s of stepStates(run, ctxFor(run))) {
       if (s.state !== 'waiting') continue
       if (s.kind === 'audit') add(run, 'audit')
-      if (s.kind === 'merge') add(run, 'land')
+      if (isLanding(s.kind)) add(run, 'land')
     }
   }
   for (const h of holds) if (!h.declined && !out.some((w) => w.agentId === h.agentId && w.kind === 'land')) out.push({ agentId: h.agentId, run: runs.filter((r) => r.agent === h.agentId).at(-1), kind: 'land' })

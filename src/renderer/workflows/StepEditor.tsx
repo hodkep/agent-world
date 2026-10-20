@@ -4,13 +4,14 @@ import type { SkillState } from '../../shared/skills'
 import { SKILL_WORDS } from './WorkflowList'
 import { GATES, STEPS_MAX, STEP_KINDS, type Gate, type StepKind, type Workflow, stepName } from '../../shared/workflow'
 
-const KIND_LABEL: Record<StepKind, string> = { plan: 'plan', work: 'work', check: 'check', audit: 'review', approve: 'your approval', merge: 'land' }
+const KIND_LABEL: Record<StepKind, string> = { plan: 'plan', work: 'work', check: 'check', audit: 'review', approve: 'your approval', pr: 'pull request', merge: 'land' }
 const GATE_WORDS: Record<StepKind, Record<string, string>> = {
   plan: { auto: 'no stop', approve: 'you approve' },
   work: { auto: 'no stop', approve: 'you approve' },
   check: { auto: 'only reports', pass: 'must pass' },
   audit: { auto: 'no stop', approve: 'you approve' },
   approve: { approve: 'you approve' },
+  pr: { auto: 'follows the switch', approve: 'you confirm' },
   merge: { auto: 'follows the switch', approve: 'you confirm' }
 }
 const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']

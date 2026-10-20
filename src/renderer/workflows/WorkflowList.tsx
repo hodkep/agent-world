@@ -5,7 +5,7 @@ import { type SkillState, goneSkills } from '../../shared/skills'
 import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
 import { History } from './History'
 
-const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', merge: 'land' }
+const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', pr: 'pull request', merge: 'land' }
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
 

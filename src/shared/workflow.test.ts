@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { STANDARD, checkCommands, commandDiff, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, checkCommands, commandDiff, isLanding, parseWorkflow, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -47,7 +47,7 @@ describe('reading a workflow file', () => {
     expect(withSteps(['plan', { id: 'Bad Id', kind: 'plan' }, { id: 'a', kind: 'dance' }, { id: 'a', kind: 'plan', colour: 'red' }])).toEqual([
       'Step 1 must be an object.',
       'Step 2: "id" must be lowercase letters, digits and dashes, up to 30 characters.',
-      'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, merge.',
+      'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, pr, merge.',
       'Step 4 ("a"): the id is already used by step 3.',
       'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, skills, run, retries, model.'
     ])
@@ -84,13 +84,17 @@ describe('reading a workflow file', () => {
 })
 
 describe('the built-in Standard workflow', () => {
-  it('is itself a valid workflow, and is today\'s pipeline: plan, build, audit, land', () => {
+  it('is itself a valid workflow, and is the pipeline of a pull request: plan, build, audit, pull request', () => {
     expect(parseWorkflow(JSON.stringify(STANDARD))).toEqual({ ok: true, workflow: STANDARD })
     expect(STANDARD.id).toBe('standard')
     // An agent that reads "when" must not prefer it to a workflow the project made for its work.
     expect(STANDARD.when).toMatch(/fallback/i)
     expect(STANDARD.when).not.toMatch(/anything/i)
-    expect(STANDARD.steps.map((s) => s.kind)).toEqual(['plan', 'work', 'audit', 'merge'])
+    expect(STANDARD.steps.map((s) => s.kind)).toEqual(['plan', 'work', 'audit', 'pr'])
+    expect(STANDARD.steps.at(-1)!.name).toBe('Pull request')
+    expect(isLanding('pr')).toBe(true)
+    expect(isLanding('merge')).toBe(true)
+    expect(isLanding('audit')).toBe(false)
   })
 })
 
