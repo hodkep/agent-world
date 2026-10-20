@@ -259,6 +259,11 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     await expect(draft.getByRole('alert')).toHaveCount(0)
     await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeEnabled()
     await expect(draft.getByLabel('Commands')).toContainText('npm run typecheck')
+    // The preview under the draft follows the edit: what each step will ask of the person.
+    const preview = draft.getByLabel('Preview of the workflow')
+    await expect(preview).toContainText('you approve the plan before any edit')
+    await expect(preview).toContainText('the app runs `npm run typecheck`')
+    await expect(preview).toContainText('You stop at')
 
     // Lint goes; what is saved is exactly this.
     await draft.getByRole('button', { name: 'Remove step 4' }).click()

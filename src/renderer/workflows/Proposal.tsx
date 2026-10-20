@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ProposalView, SaveHow } from '../../shared/builder'
 import type { Step, WorkflowEntry } from '../../shared/workflow'
+import { previewOf, stopsLine } from '../../shared/workflowPreview'
 import { StepEditor } from './StepEditor'
 import { SkillChips } from './WorkflowList'
 
@@ -43,6 +44,7 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onC
   const discard = () => void window.aw.workflows.discardProposal(agentId).then(onGone, () => undefined)
   const newCommands = view.commands.filter((c) => !c.known).length
   const granted = Object.keys(view.skills).filter((id) => view.skills[id] === 'granted')
+  const rows = previewOf(wf, switches)
   const grantingSteps = wf.steps.filter((s) => s.skills?.some((id) => granted.includes(id))).map((s) => s.name ?? s.id)
   return (
     <section className="bs-draft" aria-label="Workflow proposal">
@@ -58,6 +60,20 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onC
         </p>
       )}
       <StepEditor agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
+      <details className="bs-preview" open aria-label="Preview of the workflow">
+        <summary>
+          <b>Preview</b>
+          <span className="muted"> · {stopsLine(rows)}</span>
+        </summary>
+        <ol>
+          {rows.map((r) => (
+            <li key={r.id} className={r.stops ? 'stops' : undefined}>
+              <span className="bp-k">{r.label}</span>
+              <span className="bp-w">{r.says}</span>
+            </li>
+          ))}
+        </ol>
+      </details>
       {d.same ? (
         <p className="muted">Nothing differs from the saved one.</p>
       ) : d.isNew || !view.saved ? null : (
