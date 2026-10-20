@@ -10,6 +10,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Added
 
+- Workflows: the builder's draft has a **Preview** under its steps: for each step what it will ask of you and where you stop, from the step kinds, so it follows your edits.
 - Workflows: the audit card shows one row per cause, with every file it covers, each answered by **Seen, fine**; an out-of-scope row also has **Add to plan**, which keeps it in scope for later audits of the run.
 
 ### Fixed
