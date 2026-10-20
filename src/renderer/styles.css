@@ -890,6 +890,10 @@ svg.pxi { display: block; flex: none; }
 .grid-bar-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-left: 10px; }
 .pane-head { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: var(--panel-2); border-bottom: 2px solid var(--ink); cursor: grab; font-size: 13px; flex: none; }
 .pane-head button { font-size: 12px; padding: 0 7px; }
+.pane-head .pane-name { font-size: 13px; font-weight: 700; padding: 0; background: none; border: 0; box-shadow: none; color: inherit; cursor: pointer; }
+.pane-head .pane-name:hover, .pane-head .pane-name[aria-expanded="true"] { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+.pane-card { position: absolute; z-index: 6; display: flex; flex-direction: column; box-shadow: 0 0 0 2px var(--accent), 0 8px 24px rgba(0, 0, 0, 0.55); }
+.pane-card .pc { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .pane-act { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .pane .chat { flex: 1; min-height: 0; }
 .chat-menu { }

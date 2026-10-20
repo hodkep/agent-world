@@ -1406,6 +1406,8 @@ export function App() {
                   hidden={inPanel}
                   folderName={folderName}
                   onNewTerminal={(drop) => void newTerminal(drop)}
+                  onProfile={(id) => (setSelected(id), keep('aw.selected', id))}
+                  renderCard={(a, close, mode) => (cardData && current?.id === a.id ? <ProfileCard data={cardData} variant={mode} now={clock} edit={cardEdit} onClose={close} /> : null)}
                   renderChat={(a) => chatFor(a, true, `pane-${a.id}`)}
                 />
               ) : (
