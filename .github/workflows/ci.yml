@@ -122,7 +122,8 @@ jobs:
           retention-days: 7
 
   # The one required check. Its name is what the repository's ruleset asks for, so it stays exactly this whatever runs behind it.
-  # It passes when the end-to-end work was left out on purpose (a draft, only docs changed, a push to main) and fails when any job before it failed or was cancelled.
+  # It passes when the end-to-end work was left out on purpose (a draft, only docs changed, a push to main) and fails unless every job before it succeeded or was skipped:
+  # a job that never got a Mac is "abandoned", which is neither, and must not pass.
   test:
     name: test (macos-latest)
     needs: [changes, checks, e2e]
@@ -151,6 +152,4 @@ jobs:
       - name: Every job before this one passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          echo "Results: $RESULTS"
-          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
+        run: node scripts/ci-needs.mjs "$RESULTS"
