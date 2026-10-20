@@ -1,8 +1,8 @@
 import { type Run, pendingPlans } from './runs'
 import { type StepContext, checkPanels, stepStates, waitingSteps } from './steps'
-import { isLanding } from './workflow'
+import { isLanding, landingKind } from './workflow'
 
-export type WaitKind = 'plan' | 'approve' | 'check' | 'audit' | 'land'
+export type WaitKind = 'plan' | 'approve' | 'check' | 'audit' | 'land' | 'push'
 /** One thing an agent's run cannot go on without the person for. */
 export interface Wait {
   agentId: string
@@ -11,8 +11,11 @@ export interface Wait {
   kind: WaitKind
 }
 
+/** What waits at the end of a run: a push for a pull request step, a landing for a merge. */
+const landWait = (run: Run): WaitKind => (landingKind(run.workflow) === 'pr' ? 'push' : 'land')
+
 /** What a wait is called on the pill beside the agent, as a permission is "allow?". */
-export const waitWord = (kind: WaitKind) => ({ plan: 'plan', approve: 'approve', check: 'check?', audit: 'audit', land: 'land' })[kind]
+export const waitWord = (kind: WaitKind) => ({ plan: 'plan', approve: 'approve', check: 'check?', audit: 'audit', land: 'land', push: 'push' })[kind]
 
 /**
  * Everything that waits for the person across runs: a plan handed in, check commands to approve (or a check that gave up), a step to approve,
@@ -35,9 +38,13 @@ export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, h
     for (const s of stepStates(run, ctxFor(run))) {
       if (s.state !== 'waiting') continue
       if (s.kind === 'audit') add(run, 'audit')
-      if (isLanding(s.kind)) add(run, 'land')
+      if (isLanding(s.kind)) add(run, landWait(run))
     }
   }
-  for (const h of holds) if (!h.declined && !out.some((w) => w.agentId === h.agentId && w.kind === 'land')) out.push({ agentId: h.agentId, run: runs.filter((r) => r.agent === h.agentId).at(-1), kind: 'land' })
+  for (const h of holds) {
+    if (h.declined || out.some((w) => w.agentId === h.agentId && (w.kind === 'land' || w.kind === 'push'))) continue
+    const run = runs.filter((r) => r.agent === h.agentId).at(-1)
+    out.push({ agentId: h.agentId, run, kind: run ? landWait(run) : 'land' })
+  }
   return out
 }
