@@ -61,7 +61,7 @@ Ask the agent to push the branch. If the gate holds it, git refuses, the agent t
 - Click **All seen, fine** for the findings, then ask the agent to push again.
 - Click **Set aside**. It lifts the hold, so the branch goes through once, on the agent's next try, and records the audit as not followed.
 
-![The merge held card](../images/merge-held.png)
+![The push held card](../images/merge-held.png)
 
 A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even with **Merge gate** off.
 

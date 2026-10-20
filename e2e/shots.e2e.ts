@@ -1,6 +1,6 @@
 // The pictures of the README and the user guide, taken from the real app driven by fake agents (no tokens, no sign-in).
 // Not part of the normal run: `pnpm shots` runs it and saves under docs/images. Each test is one picture.
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -174,7 +174,7 @@ test('workflows: the Runs charts and the Insights tiles of a week', async () => 
   }
 })
 
-test('workflows: a merge held by git, as the band under the run track, and the agent\'s Workflow tab', async () => {
+test('workflows: a push held by git, as a card at the end of the conversation, and the agent\'s Workflow tab', async () => {
   const findings = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/theme.ts', text: 'Adds a project key; the plan puts a theme per project out of scope.' }, { kind: 'guess-wrong', text: 'The choice is saved in localStorage; the plan did not say where.' }] })
   const o = await shotApp({ env: { FAKE_CHAT: '1', FAKE_AUDIT: findings } })
   try {
@@ -187,10 +187,14 @@ test('workflows: a merge held by git, as the band under the run track, and the a
     git('add', '-A')
     git('commit', '-qm', 'feat(settings): a dark-mode toggle')
     const asAgent = agentGit(o.envLog)
-    // The agent, asked in the chat to merge, tries; git asks the office, which holds it until the review's findings are seen.
-    await expect.poll(async () => (await asAgent(o.repo, 'merge', '--ff-only', ada!.branch!)).out, { timeout: 30_000 }).toContain('audit findings have not been seen')
+    // A remote to push to, as the agent's project has on GitHub.
+    const remote = mkdtempSync(join(tmpdir(), 'aw-shots-remote-'))
+    execFileSync('git', ['init', '-q', '--bare', remote], { env: cleanEnv() })
+    git('remote', 'add', 'origin', remote)
+    // The agent, asked in the chat to open the pull request, pushes; git asks the office, which holds it until the review's findings are seen.
+    await expect.poll(async () => (await asAgent(ada!.cwd, 'push', 'origin', ada!.branch!)).out, { timeout: 30_000 }).toContain('audit findings have not been seen')
     await o.page.getByRole('tab', { name: 'Chat' }).click()
-    await expect(o.page.getByRole('region', { name: "ada's merge is held" })).toBeVisible()
+    await expect(o.page.getByRole('region', { name: "ada's push is held" })).toBeVisible()
     await o.page.waitForTimeout(800)
     await shoot(o.page, 'merge-held')
     await o.page.getByRole('tab', { name: /^Workflow/ }).click()
@@ -239,7 +243,7 @@ test('workflows: the builder\'s draft, edited in place before it is saved', asyn
         { id: 'build', kind: 'work', name: 'Build' },
         { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass' },
         { id: 'review', kind: 'audit', name: 'Security audit' },
-        { id: 'land', kind: 'merge' }
+        { id: 'pr', kind: 'pr' }
       ]
     }
     await tools.call('workflow_propose', { file: JSON.stringify(draft) })

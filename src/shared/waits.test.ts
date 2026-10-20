@@ -28,9 +28,11 @@ describe('what waits for the person, per agent', () => {
     expect(kinds([begin(STANDARD), released, built, ...audit()])).toEqual(['a1:audit'])
     expect(kinds([begin(STANDARD), released, built, ...audit(true)])).toEqual(['a1:land'])
   })
-  it('a pull request step waits like Land does, once the findings are seen', () => {
+  it('a pull request step waits as a push, once the findings are seen, and a held push is that too', () => {
     expect(kinds([begin(PULL), released, built, ...audit()])).toEqual(['a1:audit'])
-    expect(kinds([begin(PULL), released, built, ...audit(true)])).toEqual(['a1:land'])
+    expect(kinds([begin(PULL), released, built, ...audit(true)])).toEqual(['a1:push'])
+    expect(kinds([begin(PULL), released], [{ agentId: 'a1', declined: false }])).toEqual(['a1:push'])
+    expect(kinds([begin(PULL), released, built, ...audit(true)], [{ agentId: 'a1', declined: false }])).toEqual(['a1:push'])
   })
   it('Land is also what waits when the audit is off, or failed, once the build is done', () => {
     expect(kinds([begin(STANDARD), released, built], [], { auditOn: false })).toEqual(['a1:land'])
@@ -55,7 +57,7 @@ describe('what waits for the person, per agent', () => {
     expect(kinds([begin(STANDARD), released], [{ agentId: 'a1', declined: true }])).toEqual([])
   })
   it('says what is asked in one word', () => {
-    expect(['plan', 'approve', 'check', 'audit', 'land'].map((k) => waitWord(k as never))).toEqual(['plan', 'approve', 'check?', 'audit', 'land'])
+    expect(['plan', 'approve', 'check', 'audit', 'land', 'push'].map((k) => waitWord(k as never))).toEqual(['plan', 'approve', 'check?', 'audit', 'land', 'push'])
   })
 })
 
