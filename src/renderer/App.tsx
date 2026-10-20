@@ -506,6 +506,16 @@ export function App() {
     })
   }, [])
 
+  // "Switch all agents here" changes the agents' accounts in the main process, one after another: the list shown here is read again as each one settles, so the roster, cards and allowances follow with no reload.
+  useEffect(
+    () =>
+      window.aw.onAccountsSwitch((r) => {
+        if (r.state === 'stopping') return
+        void window.aw.listAgents().then(setAgents)
+        void lookLimits(true)
+      }),
+    [lookLimits]
+  )
   useEffect(() => {
     void window.aw.listAgents().then((list) => {
       setAgents(list)
