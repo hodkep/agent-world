@@ -22,6 +22,8 @@ const base = { listAgents: () => [], send: () => 'queued' as const, remember: ()
 const run = (event: string, input: object, env: Record<string, string>) =>
   new Promise<string>((resolve) => {
     const p = execFile('sh', [join(dir, 'hook.sh'), event], { env: { PATH: process.env.PATH, ...env }, timeout: 10_000 }, (_e, out) => resolve(out.trim()))
+    // A script that has nothing to read may exit before the payload is written; that is not an error here (it was an EPIPE on Linux).
+    p.stdin!.on('error', () => {})
     p.stdin!.end(JSON.stringify(input))
   })
 
@@ -97,6 +99,7 @@ describe('the agent\'s token', () => {
   const runWith = (path: string, env: Record<string, string>) =>
     new Promise<string>((resolve) => {
       const p = execFile('sh', [join(dir, 'hook.sh'), 'pre-inv'], { env: { PATH: `${path}:${process.env.PATH}`, ...env }, timeout: 10_000 }, (_e, out) => resolve(out.trim()))
+      p.stdin!.on('error', () => {})
       p.stdin!.end('{"a":1}')
     })
   it('never appears on the command line of the program that sends it (other users can read that with ps)', async () => {
