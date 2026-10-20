@@ -115,6 +115,7 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
           </button>
         )}
       </div>
+      {spec.kind === 'hold' && held && spec.actions.aside && <p className="sc-why">Set aside lifts the hold: {agentName}'s next {merge.land === 'pr' ? 'push' : 'merge'} goes through, recorded as not followed.</p>}
     </section>
   )
 }
