@@ -4,6 +4,8 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-20
+
 ### Added
 
 ### Changed
@@ -104,7 +106,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.1...HEAD
+[Unreleased]: ../../compare/v0.2.2...HEAD
+[0.2.2]: ../../compare/v0.2.1...v0.2.2
 [0.2.1]: ../../compare/v0.2.0...v0.2.1
 [0.2.0]: ../../compare/v0.1.2...v0.2.0
 [0.1.2]: ../../compare/v0.1.1...v0.1.2
