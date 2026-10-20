@@ -48,7 +48,7 @@ const AUDIT_STEP = 'audit'
 const SAME_WORK_MS = 10 * 60_000
 /** What a run's ledger says of a push the pre-push hold never saw (`git push --no-verify`). */
 const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -524,7 +524,7 @@ export class Workflows {
 
   private async audit(agentId: string, run: Run, head: string, diff: string) {
     const readback = this.planOf(run)!
-    const shown = auditPrompt(readback, diff)
+    const shown = auditPrompt(readback, diff, { additions: run.additions })
     const failed = (reason: string) => this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'failed', reason })
     let reply: Awaited<ReturnType<Deps['ask']>>
     try {
@@ -541,6 +541,21 @@ export class Workflows {
   seen(agentId: string, head: string, which: number[]) {
     const run = this.mine(agentId)[0]
     if (!run) throw new Error('No such run.')
+    this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
+  }
+
+  /**
+   * The person says these out-of-scope findings (by position, of the audit of `head`) belong in the plan: each becomes an addition every later audit is told about,
+   * and counts as seen. Only out-of-scope work can be added, since the other kinds are about the goal and the guesses, not about what the plan covers.
+   */
+  addToPlan(agentId: string, head: string, which: number[]) {
+    const run = this.mine(agentId)[0]
+    if (!run) throw new Error('No such run.')
+    const a = run.audit
+    if (a?.state !== 'done' || a.head !== head) throw new Error('That audit is not the latest.')
+    const picked = [...new Set(which)].flatMap((i) => (a.findings[i] ? [a.findings[i]!] : []))
+    if (picked.some((f) => f.kind !== 'out-of-scope')) throw new Error('Only out-of-scope work can be added to the plan.')
+    for (const f of picked) this.append({ k: 'scope', t: this.deps.now(), run: run.id, text: f.text })
     this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
   }
 

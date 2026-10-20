@@ -83,6 +83,7 @@ const api: AwApi = {
   finishRun: (id, o) => ipcRenderer.invoke('finish:run', id, o),
   finishAudit: (id) => ipcRenderer.invoke('finish:audit', id),
   finishSeen: (id, which) => ipcRenderer.invoke('finish:seen', id, which),
+  finishAddToPlan: (id, which) => ipcRenderer.invoke('finish:add-to-plan', id, which),
   finishAside: (id) => ipcRenderer.invoke('finish:aside', id),
   finishUndoAside: (id) => ipcRenderer.invoke('finish:undo-aside', id),
   landingHolds: () => ipcRenderer.invoke('landing:holds'),

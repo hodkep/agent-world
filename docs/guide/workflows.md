@@ -36,7 +36,7 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 
 The audit starts by itself, once, when the agent's steps before it have passed. It is one model call, so a run that commits again later is **not** audited again by itself; if git then holds the merge, its card has **Run the audit**. What waits for you shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and under "others waiting", and the agent raises a hand in the office.
 
-Findings to look at show as a card at the end of the agent's chat, with **All seen, fine** and **Set aside**. Nothing sits above the message box and nothing opens by itself. **Set aside** records the audit as not followed (the track and the ledger say so), and nothing it found holds the merge; a line in the chat has **Undo**.
+Findings to look at show as a card at the end of the agent's chat. The reviewer reports one row per cause, with every file it covers (**show files**). Each row has **Seen, fine**, and out-of-scope work also has **Add to plan**: it stays in scope for later audits and counts as seen. **All seen, fine** answers every row, and **Set aside** the whole audit. Nothing sits above the message box and nothing opens by itself. **Set aside** records the audit as not followed (the track and the ledger say so), and nothing it found holds the merge; a line in the chat has **Undo**.
 
 Limits:
 

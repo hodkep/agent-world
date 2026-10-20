@@ -9,6 +9,7 @@ import { stepCardOf } from '../../shared/stepCard'
 export function StepCard({ agentId, agentName, active, held, working }: { agentId: string; agentName: string; /** This agent's chat is the one on screen: only then is the branch looked at. */ active: boolean; /** Git is holding this agent's merge, and the person has not put the hold away. */ held: boolean; /** The agent's turn is running: nothing waits for the person yet. */ working: boolean }) {
   const [merge, setMerge] = useState<MergeCheck | null>(null)
   const [unrelated, setUnrelated] = useState<{ branch: string; base: string } | null>(null)
+  const [open, setOpen] = useState<Set<number>>(new Set())
   const looking = useRef(false)
   const load = useCallback(async () => {
     if (looking.current) return
@@ -61,9 +62,25 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
       {spec.lines.length > 0 && (
         <ul>
           {spec.lines.map((l, i) => (
-            <li key={`${i}-${l.text}`}>
-              {l.text}
-              {l.where && <small>{l.where}</small>}
+            <li key={`${i}-${l.text}`} className={l.index !== undefined ? 'sc-line' : undefined}>
+              <div className="sc-text">
+                {l.text}
+                {l.where && <small>{l.where}</small>}
+                {l.index !== undefined && (l.files?.length ?? 0) > 1 && (
+                  <>
+                    <button className="ghost sc-show" aria-expanded={open.has(l.index)} onClick={() => setOpen((s) => (s.has(l.index!) ? new Set([...s].filter((x) => x !== l.index)) : new Set(s).add(l.index!)))}>
+                      {open.has(l.index) ? 'hide files' : 'show files'}
+                    </button>
+                    {open.has(l.index) && <div className="sc-files">{l.files!.join(', ')}</div>}
+                  </>
+                )}
+              </div>
+              {l.index !== undefined && (
+                <span className="sc-one">
+                  {l.kind === 'out-of-scope' && <button title="It belongs in the plan: later audits will not report it, and it counts as seen." onClick={then(() => window.aw.finishAddToPlan(agentId, [l.index!]))}>Add to plan</button>}
+                  <button onClick={then(() => window.aw.finishSeen(agentId, [l.index!]))}>Seen, fine</button>
+                </span>
+              )}
             </li>
           ))}
           {spec.more > 0 && <li className="sc-more">and {spec.more} more</li>}
