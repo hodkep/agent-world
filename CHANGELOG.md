@@ -17,6 +17,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Added
 
+- Settings: **Switch all agents here** is always available and lets you choose the agents: they are listed by project with boxes, every agent not on the account is ticked to begin with, and one already on it can be ticked to restart on it.
 ### Changed
 
 - Workflows: nothing sticks above the message box any more. The Finish band, which was always open whenever an agent had commits ahead of its base, and the Merge held band under the run track are replaced by one card at the end of the conversation: the audit's findings still to look at, a failed audit, or what holds the merge. It never shows while the agent works and never opens by itself. **All seen, fine** answers the findings at once; **Set aside** lifts what holds the merge and records the audit as not followed (the track, the Runs ledger and a line in the chat with **Undo**). The squash and "remove the agent after" options of the old band are gone from the chat; **Merge into main** and **Push & open PR** in the Code tab remain.

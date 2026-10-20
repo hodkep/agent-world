@@ -45,7 +45,7 @@ const api: AwApi = {
   renameAccount: (id, name) => ipcRenderer.invoke('accounts:rename', id, name),
   setAccount: (id, account) => ipcRenderer.invoke('agent-set-account', id, account),
   accountAgents: () => ipcRenderer.invoke('accounts:agents'),
-  switchAllAgents: (account, stopWorking) => ipcRenderer.invoke('accounts:switch-all', account, stopWorking),
+  switchAllAgents: (account, stopWorking, ids) => ipcRenderer.invoke('accounts:switch-all', account, stopWorking, ids),
   onAccountsSwitch: on('accounts-switch'),
   resumeSession: (folder, id) => ipcRenderer.invoke('resume-session', folder, id),
   manageTools: (id, action) => ipcRenderer.invoke('manage-tools', id, action),

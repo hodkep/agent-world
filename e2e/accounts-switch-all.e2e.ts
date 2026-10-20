@@ -55,8 +55,10 @@ test('Switch all agents here stops the working agents, moves everyone to the acc
     await work.getByRole('button', { name: 'Switch all agents here' }).click()
     const dialog = page.getByRole('dialog', { name: 'Switch all agents to Work' })
     await expect(dialog).toContainText('Switch 2 agents to Work?')
-    await expect(dialog.getByText('Working now (1)')).toBeVisible()
-    await expect(dialog.getByText('Idle or asleep (1)')).toBeVisible()
+    // Every agent not on Work is ticked, grouped by project, and the working one says it will be stopped.
+    await expect(dialog.getByRole('checkbox', { name: 'ada' })).toBeChecked()
+    await expect(dialog.getByRole('checkbox', { name: 'bob' })).toBeChecked()
+    await expect(dialog.getByRole('group', { name: 'Agents of proj' })).toContainText('will be stopped')
     await dialog.getByRole('button', { name: 'Stop them, switch and continue' }).click()
     await expect(dialog).toContainText('Switched 2 agents to Work', { timeout: 40_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
@@ -72,6 +74,80 @@ test('Switch all agents here stops the working agents, moves everyone to the acc
     await expect(log.locator('.msg.user', { hasText: /^continue$|continue/ })).toHaveCount(1, { timeout: 30_000 })
     await page.locator('.roster button', { hasText: 'ada' }).click()
     await expect(page.getByRole('log', { name: /Conversation with ada/ }).locator('.msg.user', { hasText: 'continue' })).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
+test('Switch all agents here lets the person choose which agents move, is never disabled, and restarts an agent that is already on the account', async () => {
+  test.setTimeout(120_000)
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-swpick-')))
+  const dir = join(tmp, 'proj')
+  mkdirSync(dir)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+  const envLog = join(tmp, 'env.log')
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_ENV: envLog },
+    tmp
+  )
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), dir)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    await hire(page, { name: 'bob' })
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Accounts' }).click()
+    await settings.getByRole('button', { name: 'Add account' }).click()
+    await settings.getByLabel('Name').fill('Work')
+    await settings.getByRole('button', { name: 'Continue to sign in' }).click()
+    await expect.poll(() => existsSync(join(tmp, 'home', 'accounts', 'work', '.fake-login')), { timeout: 15_000 }).toBe(true)
+    await settings.getByRole('button', { name: 'I have signed in: check' }).click()
+    const work = settings.locator('.acct', { hasText: 'Work' })
+    await expect(work).toContainText('Signed in', { timeout: 15_000 })
+    const who = () => page.evaluate(() => window.aw.accountAgents().then((l) => Object.fromEntries(l.map((a) => [a.name, a.account]))))
+    const dialog = page.getByRole('dialog', { name: 'Switch all agents to Work' })
+    const start = () => work.getByRole('button', { name: 'Switch all agents here' }).click()
+
+    // Untick bob: only ada moves.
+    await start()
+    await expect(dialog).toContainText('Switch 2 agents to Work?')
+    await dialog.getByRole('checkbox', { name: 'bob' }).uncheck()
+    await expect(dialog).toContainText('Switch 1 agent to Work?')
+    await dialog.getByRole('button', { name: 'Switch 1 agent' }).click()
+    await expect(dialog).toContainText('Switched 1 agent to Work', { timeout: 40_000 })
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    expect(await who()).toEqual({ ada: 'work', bob: '' })
+
+    // The project's box takes both: bob moves, ada (already there) is ticked too and restarts, so the box is ticked for all.
+    await start()
+    await expect(dialog.getByRole('checkbox', { name: 'ada' })).not.toBeChecked()
+    await expect(dialog.getByRole('checkbox', { name: 'bob' })).toBeChecked()
+    await dialog.getByRole('checkbox', { name: 'All agents of proj' }).check()
+    await expect(dialog.getByRole('checkbox', { name: 'ada' })).toBeChecked()
+    await expect(dialog.getByRole('group', { name: 'Agents of proj' }).getByText('restart', { exact: true })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Switch 2 agents' }).click()
+    await expect(dialog).toContainText('Switched 2 agents to Work', { timeout: 40_000 })
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    expect(await who()).toEqual({ ada: 'work', bob: 'work' })
+
+    // Everyone is on Work and the button is still there: it says so and restarts only the agents ticked.
+    await expect(work.getByRole('button', { name: 'Switch all agents here' })).toBeEnabled()
+    const before = readFileSync(envLog, 'utf8').trim().split('\n').length
+    await start()
+    await expect(dialog).toContainText('Every agent is already on Work')
+    await expect(dialog.getByRole('checkbox', { name: 'ada' })).not.toBeChecked()
+    await expect(dialog.getByRole('button', { name: /^(Switch|Restart) \d/ })).toHaveCount(0)
+    await dialog.getByRole('checkbox', { name: 'ada' }).check()
+    await expect(dialog).toContainText('Restart 1 agent on Work?')
+    await dialog.getByRole('button', { name: 'Restart 1 agent' }).click()
+    await expect(dialog).toContainText('Switched 1 agent to Work', { timeout: 40_000 })
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect.poll(() => readFileSync(envLog, 'utf8').trim().split('\n').length, { timeout: 30_000 }).toBe(before + 1)
+    expect(await who()).toEqual({ ada: 'work', bob: 'work' })
   } finally {
     await shutdown()
   }
