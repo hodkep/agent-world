@@ -23,7 +23,7 @@ const select = (page: import('@playwright/test').Page, words: string) =>
     throw new Error(`not on the page: ${w}`)
   }, words)
 
-test('Shift+Mod+L adds the selected words to the message box, where the Ask button would have, and does nothing without a selection', async () => {
+test('Shift+Mod+L opens the Ask box on the selected words in a reply, as the Ask button does, and does nothing without a selection', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-addsel-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -42,22 +42,34 @@ test('Shift+Mod+L adds the selected words to the message box, where the Ask butt
     await expect(log.getByText('three steps')).toBeVisible({ timeout: 15_000 })
     const quotes = page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')
 
-    // Nothing selected: the key adds nothing.
+    // Nothing selected: the key opens nothing.
     await page.keyboard.press('Control+Shift+L')
+    await expect(page.getByRole('textbox', { name: 'Ask ada about the selection' })).toHaveCount(0)
     await expect(quotes).toHaveCount(0)
 
-    // Words selected in a reply: the key adds them as a quote, the selection goes, and so does the button.
+    // Words selected in a reply: the key opens the box the Ask button opens, with the words still marked, and adds nothing yet.
     await select(page, 'rewrite')
     await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible()
     await page.keyboard.press('Control+Shift+L')
+    const here = page.getByRole('textbox', { name: 'Ask ada about the selection' })
+    await expect(here).toBeFocused()
+    await expect(quotes).toHaveCount(0)
+    // With the box open the key leaves it alone; typing and Enter adds the quote with the question under it.
+    await page.keyboard.press('Control+Shift+L')
+    await expect(here).toBeFocused()
+    await here.fill('is this right?')
+    await here.press('Enter')
     await expect(quotes).toHaveText(['rewrite'])
-    await expect(page.getByRole('button', { name: 'Ask ada' })).toHaveCount(0)
+    await expect(page.getByRole('textbox', { name: 'What to do about this quote' })).toHaveValue('is this right?')
+    await expect(here).toHaveCount(0)
 
-    // A second selection adds a second quote; the plain Ctrl+L alone does not.
+    // A second selection: the plain Ctrl+L opens nothing; the key opens the box, and Enter with no question adds the words alone.
     await select(page, 'rollback')
     await page.keyboard.press('Control+L')
-    await expect(quotes).toHaveCount(1)
+    await expect(here).toHaveCount(0)
     await page.keyboard.press('Control+Shift+L')
+    await expect(here).toBeFocused()
+    await here.press('Enter')
     await expect(quotes).toHaveText(['rewrite', 'rollback'])
   } finally {
     await shutdown()
