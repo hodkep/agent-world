@@ -28,7 +28,7 @@ const tool = (root: string, name: string, body: string) => {
   return p
 }
 
-async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object } = {}) {
+async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'aw-upd-')))
   const src = join(root, 'src')
   mkdirSync(src)
@@ -51,7 +51,9 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
   mkdirSync(apps)
   const app = bundle(apps, 'Agent World.app', '0.1.1', 'old')
   const opened = join(root, 'opened.log')
-  const env = { AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
+  // A fake Homebrew prefix: the cask's folder in it is what says Homebrew installed this copy.
+  if (o.caskroom) mkdirSync(join(root, 'Caskroom', 'agent-world'), { recursive: true })
+  const env = { ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
   if (o.prefs) {
     mkdirSync(join(root, 'home'), { recursive: true })
     writeFileSync(join(root, 'home', 'preferences.json'), JSON.stringify(o.prefs))
@@ -213,5 +215,26 @@ test("after an update the app says so once, remembering the version the moment i
     await expect.poll(async () => (await first.page.evaluate(() => window.aw.getPrefs())).seenVersion).toBe(pkg.version)
   } finally {
     await first.close()
+  }
+})
+
+test('a build installed with Homebrew is told the command to run and is never offered the download', async () => {
+  test.setTimeout(60_000)
+  const w = await world({ caskroom: true })
+  try {
+    const { page } = w
+    await page.evaluate(() => window.aw.checkUpdates())
+    const chip = page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ })
+    await expect(chip).toHaveText('↑ 0.9.0')
+    await chip.click()
+    const pop = page.getByRole('dialog', { name: 'Agent World update' })
+    await expect(pop).toContainText('installed with Homebrew')
+    await expect(pop).toContainText('brew upgrade --cask hodkep/tap/agent-world')
+    await expect(pop.getByRole('button', { name: 'Download' })).toHaveCount(0)
+    // Nothing was fetched: the app does not replace what Homebrew keeps a record of.
+    expect(existsSync(join(w.root, 'home', 'updates'))).toBe(false)
+    expect(readFileSync(join(w.app, 'Contents', 'marker'), 'utf8')).toBe('old')
+  } finally {
+    await w.close()
   }
 })

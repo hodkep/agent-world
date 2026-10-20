@@ -1,3 +1,6 @@
+/** What a copy installed with Homebrew is updated with: the project's cask. */
+export const BREW_UPGRADE = 'brew upgrade --cask hodkep/tap/agent-world'
+
 export type FailureKind = 'network' | 'checksum' | 'size' | 'host' | 'cancelled' | 'manifest' | 'blocked' | 'install'
 
 /** Where an in-app update of an unsigned Mac build stands, from the window's point of view. */

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildInfo, isNewer, latestRelease, parseRepo, startChecks, updateMode } from './updateCheck'
+import { buildInfo, isHomebrewInstall, isNewer, latestRelease, parseRepo, startChecks, updateMode } from './updateCheck'
 
 describe('the repository an installed app takes its releases from', () => {
   it('reads it from the repository field of package.json in the forms npm allows', () => {
@@ -128,5 +128,16 @@ describe('where the release is asked for', () => {
     asked.length = 0
     expect(await latestRelease('0.1.0', repo, get, { api: 'http://127.0.0.1:9999/api', downloads: 'http://127.0.0.1:9999' })).toMatchObject({ state: 'available', url: 'http://127.0.0.1:9999/hodkep/agent-world/releases/tag/v0.2.0' })
     expect(asked).toEqual(['http://127.0.0.1:9999/api/repos/hodkep/agent-world/releases/latest'])
+  })
+})
+
+describe('whether this copy was installed with Homebrew', () => {
+  const roots = ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']
+  it('is so when the cask has a folder in either prefix (Apple Silicon, Intel), and not otherwise', () => {
+    expect(isHomebrewInstall(roots, (p) => p === '/opt/homebrew/Caskroom/agent-world')).toBe(true)
+    expect(isHomebrewInstall(roots, (p) => p === '/usr/local/Caskroom/agent-world')).toBe(true)
+    expect(isHomebrewInstall(roots, () => false)).toBe(false)
+    expect(isHomebrewInstall(roots, (p) => p === '/opt/homebrew/Caskroom/other')).toBe(false)
+    expect(isHomebrewInstall([], () => true)).toBe(false)
   })
 })

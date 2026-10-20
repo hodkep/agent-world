@@ -20,6 +20,19 @@ describe('what the update chip and its popover show', () => {
     expect(v.actions).toEqual([expect.objectContaining({ id: 'download', label: 'Download', primary: true }), expect.objectContaining({ id: 'changes', label: 'What changed' })])
   })
 
+  it('for a copy installed with Homebrew gives the command to run, and never a download or an install', () => {
+    const v = updateView({ ...base, homebrew: true }, { working: 0, waiting: 0 })!
+    expect(v.chip).toBe('↑ 0.1.2')
+    expect(v.title).toBe('Agent World 0.1.2 is available')
+    expect(v.body).toContain('You have 0.1.1')
+    expect(v.body).toContain('installed with Homebrew')
+    expect(v.body).toContain('again in a few minutes')
+    expect(v.command).toBe('brew upgrade --cask hodkep/tap/agent-world')
+    expect(ids(v)).toEqual(['copy', 'changes'])
+    // Whatever an earlier look left behind, Homebrew's way is the only one shown.
+    expect(ids(updateView({ ...base, homebrew: true, install: { phase: 'ready', version: '0.1.2', file: '/x' } }, { working: 0, waiting: 0 })!)).toEqual(['copy', 'changes'])
+  })
+
   it('still offers just the page when the build gives no tag to download from', () => {
     const v = updateView({ state: 'available', latest: '0.1.2', url: base.url }, { working: 0, waiting: 0 })!
     expect(ids(v)).toEqual(['page'])
