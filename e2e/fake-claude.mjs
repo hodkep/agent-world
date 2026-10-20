@@ -228,20 +228,24 @@ if (forkedFrom) console.log(`forked from ${forkedFrom}`)
 console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 // FAKE_DEV_PORT=n: behave like an agent that started a dev server on that port.
 if (process.env.FAKE_DEV_PORT) console.log(`  ➜  Local:   http://localhost:${process.env.FAKE_DEV_PORT}/`)
-// A chat agent says it has started once its screen is up (below), as Claude does: the app takes SessionStart and Stop for "ready for input".
-if (!process.env.FAKE_CHAT) await hook('SessionStart', { source: 'startup' })
 // Like real Claude: a killed session still reports SessionEnd on its way out.
 for (const sig of ['SIGHUP', 'SIGTERM']) process.on(sig, () => void hook('SessionEnd', { reason: 'other' }).finally(() => process.exit(0)))
-// FAKE_COST=0.9 posts one statusline update the way Claude's statusline command would.
-if (process.env.FAKE_COST) {
-  const status = /(http\S+\/status)/.exec(settings.statusLine.command)[1]
-  const res = await fetch(status, {
-    method: 'POST',
-    headers: { ...headers, 'content-type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42, total_input_tokens: Number(process.env.FAKE_TOKENS_IN ?? 0), total_output_tokens: Number(process.env.FAKE_TOKENS_OUT ?? 0) }, rate_limits: { five_hour: { used_percentage: Number(process.env[`FAKE_USED_5H_${(process.env.CLAUDE_CONFIG_DIR ?? '').split('/').pop().toUpperCase()}`] ?? process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
-  })
-  console.log(`status bar: ${await res.text()}`)
+// Saying it has started: SessionStart, then its first status line. A chat agent says so once its screen is up (at the end of its setup below), as Claude does:
+// the app takes SessionStart and Stop for "ready for input", so earlier than that a message sent to it would be lost.
+const announceStart = async () => {
+  await hook('SessionStart', { source: 'startup' })
+  // FAKE_COST=0.9 posts one statusline update the way Claude's statusline command would.
+  if (process.env.FAKE_COST) {
+    const status = /(http\S+\/status)/.exec(settings.statusLine.command)[1]
+    const res = await fetch(status, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, model: { display_name: 'Sonnet' }, context_window: { used_percentage: 42, total_input_tokens: Number(process.env.FAKE_TOKENS_IN ?? 0), total_output_tokens: Number(process.env.FAKE_TOKENS_OUT ?? 0) }, rate_limits: { five_hour: { used_percentage: Number(process.env[`FAKE_USED_5H_${(process.env.CLAUDE_CONFIG_DIR ?? '').split('/').pop().toUpperCase()}`] ?? process.env.FAKE_USED_5H ?? 38), resets_at: Math.floor(Date.now() / 1000) + 2 * 3600 + 600 }, seven_day: { used_percentage: Number(process.env.FAKE_USED_WK ?? 21), resets_at: Math.floor(Date.now() / 1000) + 3 * 86400 + 4 * 3600 } }, cost: { total_cost_usd: Number(process.env.FAKE_COST), total_lines_added: 12, total_lines_removed: 3 } })
+    })
+    console.log(`status bar: ${await res.text()}`)
+  }
 }
+if (!process.env.FAKE_CHAT) await announceStart()
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
 process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.env.FAKE_CHAT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
@@ -554,6 +558,9 @@ if (process.env.FAKE_CHAT) {
     drawFoot()
     await hook('Stop')
   })
+  // The screen is up and input is read: now it says so.
+  await announceStart()
+  await hook('Stop')
   await new Promise(() => {})
 }
 // FAKE_ASKQ=1: an AskUserQuestion with two questions, drawn as Claude draws it and driven by keys
@@ -718,7 +725,7 @@ if (process.env.FAKE_PLAN) {
     process.stdin.on('data', onKey)
   })
 }
-if (process.env.FAKE_CHAT) await hook('SessionStart', { source: 'startup' })
+if (process.env.FAKE_CHAT) await announceStart()
 await hook('Stop')
 // FAKE_CLEAR=1: behave like /clear — a new Claude session id in the same terminal, then more work.
 if (process.env.FAKE_CLEAR) {
