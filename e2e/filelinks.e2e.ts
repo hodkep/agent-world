@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { SLOW } from './waits'
 
 test('files an agent names are links that open as a page, a document, code or an offer to use the default app', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-files-'))
@@ -23,7 +24,7 @@ test('files an agent names are links that open as a page, a document, code or an
     const reply = log.locator('.msg.assistant').filter({ hasText: 'I made' })
 
     // Real files become links named after the file; a web address and a missing file stay as written.
-    await expect(reply.locator('a.file-link')).toHaveText(['report.html', 'notes.md', 'deck.pptx', 'tool.ts'], { timeout: 15_000 })
+    await expect(reply.locator('a.file-link')).toHaveText(['report.html', 'notes.md', 'deck.pptx', 'tool.ts'], { timeout: SLOW })
     await expect(reply).toContainText('https://example.com/docs/page.html')
     await expect(reply).toContainText('missing/nothing.md')
     await expect(reply).not.toContainText(home)
@@ -58,10 +59,10 @@ test('files an agent names are links that open as a page, a document, code or an
     await expect(page.getByRole('tab', { name: /Preview/, selected: true })).toBeVisible()
     const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code)
     // The page may not have loaded yet; keep asking until it answers.
-    await expect.poll(() => run('document.body.innerText').catch(() => ''), { timeout: 15_000 }).toContain('Quarterly report')
+    await expect.poll(() => run('document.body.innerText').catch(() => ''), { timeout: SLOW }).toContain('Quarterly report')
     await page.getByRole('button', { name: 'Select element' }).click()
     await run("const b = document.querySelector('#go').getBoundingClientRect(); const at = { clientX: b.left + 5, clientY: b.top + 5, bubbles: true }; window.dispatchEvent(new MouseEvent('mousemove', at)); window.dispatchEvent(new MouseEvent('click', at))")
-    await expect(page.getByRole('list', { name: 'Attached files' })).toContainText('button on report.html', { timeout: 10_000 })
+    await expect(page.getByRole('list', { name: 'Attached files' })).toContainText('button on report.html', { timeout: SLOW })
   } finally {
     await shutdown()
   }

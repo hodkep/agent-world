@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { SLOW } from './waits'
 import { shot } from './wf-helpers'
 
 // Resting on the project button (or the agent number) opens a grid panel; one click on a tile switches; a click on the button keeps it open until a click elsewhere.
@@ -163,11 +164,12 @@ test('an agent that finishes in another project leaves a green dot until that pr
     await pick(page, 'shop-b')
     await hire(page, { name: 'ada' })
     const [ada] = await page.evaluate(() => window.aw.listAgents())
-    await page.evaluate((id) => window.aw.chatSend(id, 'Say something'), ada!.id)
+    // Away first, then the message: sent from shop-b, a slow machine would switch projects after the reply was already in.
     await pick(page, 'shop-a')
+    await page.evaluate((id) => window.aw.chatSend(id, 'Say something'), ada!.id)
     // The agent works and finishes its turn while you are in shop-a.
     const dot = page.getByTestId('project-dot')
-    await expect(dot).toHaveClass(/done/, { timeout: 30_000 })
+    await expect(dot).toHaveClass(/done/, { timeout: SLOW })
     await page.locator('.ws-button').hover()
     await expect(page.getByRole('menu', { name: 'Projects' }).getByRole('menuitem', { name: /shop-b/ }).locator('.wt-done')).toBeVisible()
     await pick(page, 'shop-b')

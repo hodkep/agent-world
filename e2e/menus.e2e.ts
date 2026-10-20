@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { SLOW } from './waits'
 
 test('a dialog Claude shows itself even after you allowed the tool appears in the chat, and can be answered there', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-own-'))
@@ -14,12 +15,12 @@ test('a dialog Claude shows itself even after you allowed the tool appears in th
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
     await page.getByRole('form', { name: 'Hire an agent' }).getByRole('button', { name: 'Hire' }).click()
     const ask = page.getByRole('region', { name: 'ada is waiting for you' })
-    await ask.getByRole('button', { name: 'Allow' }).click({ timeout: 15_000 })
+    await ask.getByRole('button', { name: 'Allow' }).click({ timeout: SLOW })
     // Claude still wants its own confirmation: it shows up here, with its options as buttons.
-    await expect(ask).toContainText('Bash command', { timeout: 10_000 })
+    await expect(ask).toContainText('Bash command', { timeout: SLOW })
     await expect(ask).toContainText('command_substitution')
     await ask.getByRole('button', { name: 'No', exact: true }).click()
-    await expect(ask).toHaveCount(0, { timeout: 10_000 })
+    await expect(ask).toHaveCount(0, { timeout: SLOW })
     await page.getByRole('tab', { name: 'Terminal' }).click()
     await expect(page.locator('.term-host:visible')).toContainText('chose option 2')
   } finally {
@@ -44,8 +45,8 @@ test('rewind a conversation from a message in the chat', async () => {
     for (const t of ['first thing', 'second thing']) {
       await box.fill(t)
       await box.press('Enter')
-      await expect(log.locator('.msg.assistant').last()).toContainText(t, { timeout: 10_000 })
-      await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 10_000 })
+      await expect(log.locator('.msg.assistant').last()).toContainText(t, { timeout: SLOW })
+      await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: SLOW })
     }
     const first = log.locator('.msg.user', { hasText: 'first thing' })
     await first.hover()
@@ -54,13 +55,13 @@ test('rewind a conversation from a message in the chat', async () => {
     await expect(first.getByRole('button', { name: 'Copied' })).toBeVisible()
     await first.getByRole('button', { name: 'Rewind' }).click()
     const ask = page.getByRole('region', { name: 'ada is waiting for you' })
-    await expect(ask).toContainText('first thing', { timeout: 10_000 })
+    await expect(ask).toContainText('first thing', { timeout: SLOW })
     await ask.getByRole('button', { name: 'Restore conversation' }).click()
     await page.getByRole('tab', { name: 'Terminal' }).click()
     await expect(page.locator('.term-host:visible')).toContainText('rewound to: first thing (option 1)')
     await page.getByRole('tab', { name: 'Chat' }).click()
     // The rewound messages leave the conversation and the prompt is back in the composer.
-    await expect(box).toHaveValue('first thing', { timeout: 10_000 })
+    await expect(box).toHaveValue('first thing', { timeout: SLOW })
     await expect(log.locator('.msg.user')).toHaveCount(0)
   } finally {
     await shutdown()
@@ -77,7 +78,7 @@ test('your own numbered message on the terminal screen is not offered as a menu,
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
     await page.getByRole('form', { name: 'Hire an agent' }).getByRole('button', { name: 'Hire' }).click()
     await page.getByRole('tab', { name: 'Terminal' }).click()
-    await expect(page.locator('.term-host:visible')).toContainText('I mean sub-agent only', { timeout: 15_000 })
+    await expect(page.locator('.term-host:visible')).toContainText('I mean sub-agent only', { timeout: SLOW })
     // A real menu shows up within a second of staying on screen; give this one three.
     await page.waitForTimeout(3000)
     await expect(page.getByRole('region', { name: 'ada is waiting for you' })).toHaveCount(0)
@@ -108,12 +109,12 @@ test('rewind with nothing to go back to says so in words and leaves Claude ready
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await box.fill('only thing')
     await box.press('Enter')
-    await expect(log.locator('.msg.assistant').last()).toContainText('only thing', { timeout: 10_000 })
-    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: 10_000 })
+    await expect(log.locator('.msg.assistant').last()).toContainText('only thing', { timeout: SLOW })
+    await expect(page.getByRole('status').filter({ hasText: 'ada is' })).toHaveCount(0, { timeout: SLOW })
     const msg = log.locator('.msg.user', { hasText: 'only thing' })
     await msg.hover()
     await msg.getByRole('button', { name: 'Rewind' }).click()
-    await expect(page.getByText(/nothing to rewind to yet/i)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/nothing to rewind to yet/i)).toBeVisible({ timeout: SLOW })
     await expect(page.getByText(/Try \/rewind in the Terminal tab/)).toHaveCount(0)
     // Claude's own box was closed, so the terminal is ready again.
     await page.getByRole('tab', { name: 'Terminal' }).click()
