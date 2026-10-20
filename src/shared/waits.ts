@@ -20,6 +20,10 @@ export const waitWord = (kind: WaitKind) => ({ plan: 'plan', approve: 'approve',
 export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, holds: { agentId: string; declined: boolean }[] = [], scope?: { project: string; agents: Set<string> }): Wait[] {
   // The open project's: another project's plans and held merges are not what the person is looking at.
   if (scope) (runs = runs.filter((r) => r.project === scope.project), (holds = holds.filter((h) => scope.agents.has(h.agentId))))
+  // An agent that started something new has moved on from its earlier runs: only its latest run can wait for the person, or an old run's unanswered findings would wait for ever.
+  const latest = new Map<string, Run>()
+  for (const r of runs) if (!latest.has(r.agent) || r.startedAt >= latest.get(r.agent)!.startedAt) latest.set(r.agent, r)
+  runs = runs.filter((r) => latest.get(r.agent) === r)
   const out: Wait[] = []
   const add = (run: Run, kind: WaitKind) => out.push({ agentId: run.agent, run, kind })
   for (const { run } of pendingPlans(runs)) if (run.status !== 'stopped') add(run, 'plan')

@@ -35,6 +35,15 @@ describe('what waits for the person, per agent', () => {
     expect(kinds([begin(STANDARD), released, built, ...audit(true), { k: 'merge', t: 600, run: 'r1', head: 'h1', how: 'checked', held: [] }])).toEqual([])
     expect(kinds([begin(STANDARD), submitted, { k: 'stop', t: 300, run: 'r1' } as RunEvent])).toEqual([])
   })
+  it('only the agent\'s latest run can wait: an older run it moved on from, with findings nobody answered, is not a wait for ever', () => {
+    const old = [begin(STANDARD), released, built, ...audit()]
+    const next: RunEvent = { k: 'begin', t: 700, run: 'r2', agent: 'a1', name: 'ada', project: '/p', title: 'Next', workflow: STANDARD }
+    expect(kinds(old)).toEqual(['a1:audit'])
+    expect(kinds([...old, { k: 'done', t: 650, run: 'r1' }, next])).toEqual([])
+    // Another agent's run is its own latest, whatever the first agent has since started.
+    const other: RunEvent[] = [{ ...begin(STANDARD, 'a2', 'r3'), t: 150 }, { k: 'plan', t: 210, run: 'r3', round: 1, state: 'released' }, { k: 'step', t: 410, run: 'r3', round: 1, step: 'build', state: 'done' }, { k: 'audit', t: 510, run: 'r3', head: 'h9', state: 'done', findings: [{ kind: 'out-of-scope', text: 'y' }], files: 1, lines: 1, truncated: false }]
+    expect(kinds([...old, { k: 'done', t: 650, run: 'r1' }, next, ...other])).toEqual(['a2:audit'])
+  })
   it('a merge git is holding for the person is a Land wait, once, unless the person said not yet', () => {
     expect(kinds([begin(STANDARD), released], [{ agentId: 'a1', declined: false }])).toEqual(['a1:land'])
     expect(kinds([begin(STANDARD), released, built], [{ agentId: 'a1', declined: false }])).toEqual(['a1:land'])
