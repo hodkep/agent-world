@@ -2,6 +2,7 @@ import { type TileKind, headline, weekDays } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
 import { landingPill, trackOf } from '../../shared/runTrack'
+import { landingKind } from '../../shared/workflow'
 import type { StepContext } from '../../shared/steps'
 import { RunTrack } from './RunTrack'
 import { useLandingHolds } from './useLandingHolds'
@@ -33,7 +34,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
   return (
     <div className="wf-tab">
-      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold)} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
+      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold, landingKind(latest.workflow))} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
       <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
       <div className="wt-week" role="list" aria-label="This week">
         {weekDays(week, ctxFor, now).map((d) => (

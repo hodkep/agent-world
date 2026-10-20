@@ -52,15 +52,15 @@ A request shows above the character and in the panel. Allow or deny it in one cl
 
 ![A request to run a command, with Allow and Deny](docs/images/permission.png)
 
-### <img src="docs/images/icons/worktrees.svg" width="24" height="24" alt=""> Worktrees and the merge hold
+### <img src="docs/images/icons/worktrees.svg" width="24" height="24" alt=""> Worktrees and the push hold
 
-Each agent works on its own branch (`aw/<name>`) in its own git worktree, and the Code tab shows what it changed. With workflows on, git itself holds an agent's merge into your base branch until the plan, the review and its findings are settled; you release it from the agent's chat.
+Each agent works on its own branch (`aw/<name>`) in its own git worktree, and the Code tab shows what it changed. With workflows on, git itself holds an agent's push of its branch, before the pull request, until the plan, the review and its findings are settled; you release it from the agent's chat.
 
-![The run track with a held merge and the card at the end of the conversation where it is answered](docs/images/merge-held.png)
+![The run track with a held push and the card at the end of the conversation where it is answered](docs/images/merge-held.png)
 
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
-A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and landing. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
+A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
 
 ![The Runs tab: two charts and a ledger of runs grouped by outcome](docs/images/runs.png)
 
