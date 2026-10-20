@@ -103,6 +103,12 @@ test('selected code goes into the message as a chip, from the Files tab and from
     await page.keyboard.press('Shift+End')
     await page.keyboard.press('ControlOrMeta+l')
     await expect(tray.locator('.ctx-chip')).toHaveCount(2)
+    // Shift+Mod+L, the key that works everywhere, does the same here.
+    await page.locator('.diff .view-line', { hasText: '# shop' }).click()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('Shift+End')
+    await page.keyboard.press('ControlOrMeta+Shift+L')
+    await expect(page.getByText('Added README.md:1 to your message')).toBeVisible()
     // The same lines twice are one chip.
     await page.keyboard.press('ControlOrMeta+l')
     await expect(tray.locator('.ctx-chip')).toHaveCount(2)

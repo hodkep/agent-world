@@ -49,6 +49,12 @@ test('a shell command in a reply can be run in the terminal, and words selected 
     await expect(page.getByRole('textbox', { name: 'Message ada' })).toBeVisible()
     await expect(page.getByText('terminal, selection')).toBeVisible()
     await expect(add).toHaveCount(0)
+
+    // The key adds a terminal selection too, and the selection goes as it does with the button.
+    await page.mouse.click(box.x + 20, box.y + box.height / 2, { clickCount: 3 })
+    await expect(add).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+Shift+L')
+    await expect(add).toHaveCount(0)
   } finally {
     await shutdown()
   }

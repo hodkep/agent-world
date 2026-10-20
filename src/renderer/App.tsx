@@ -37,6 +37,7 @@ import { OPEN_SUBAGENT } from './chat/subagentEvents'
 import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
+import { requestAddSelection } from './addSelection'
 import { hint, keysOf, matches } from './shortcuts'
 import { next } from './cycle'
 import { waitWord, waitsForPerson } from '../shared/waits'
@@ -624,6 +625,15 @@ export function App() {
     window.addEventListener('keydown', onKey, { capture: true })
     return () => window.removeEventListener('keydown', onKey, { capture: true })
   }, [current])
+  // The key beside every Ask button: the place with a selection showing takes it. The code editor has its own binding for the same key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!matches(e, 'add-selection') || (e.target as Element | null)?.closest?.('.monaco-editor')) return
+      if (requestAddSelection()) (e.preventDefault(), e.stopPropagation())
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '/') (e.preventDefault(), e.stopPropagation(), setShortcuts((o) => !o))

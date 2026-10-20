@@ -21,6 +21,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
   { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Shift+Ctrl+Tab', 'Ctrl+Tab'] },
+  { id: 'add-selection', place: 'Anywhere', text: 'Add the selected words, code or output to the message box as context', keys: ['Shift+Mod+L'] },
   { id: 'close', place: 'Anywhere', text: 'Close a dialog, menu or card', keys: ['Esc'] },
   { id: 'resize-panel', place: 'Anywhere', text: 'Resize the side panel (on its edge)', keys: ['ArrowLeft', 'ArrowRight'] },
 
@@ -71,7 +72,8 @@ export function matches(e: KeyPress, id: string): boolean {
   return s.keys.some((combo) => {
     const parts = combo.split('+')
     const key = parts[parts.length - 1]!
-    const same = e.code && CODE[key] ? e.code === CODE[key] : e.key === key
+    // With Shift held a letter arrives as a capital, and with Caps Lock as the other case: a letter is compared without case.
+    const same = e.code && CODE[key] ? e.code === CODE[key] : key.length === 1 && /[a-z]/i.test(key) ? e.key.toLowerCase() === key.toLowerCase() : e.key === key
     // Ctrl alone means the Ctrl key even on a Mac (where Mod is Cmd); Mod is Cmd or Ctrl.
     const mod = parts.includes('Ctrl') ? e.ctrlKey && !e.metaKey : (e.metaKey || e.ctrlKey) === parts.includes('Mod')
     return same && mod && e.shiftKey === parts.includes('Shift') && e.altKey === parts.includes('Alt')

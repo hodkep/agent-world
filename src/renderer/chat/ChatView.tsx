@@ -35,6 +35,7 @@ import { type AgentActions, type AgentInfo, ModelChip, MoreMenu, UsageRing } fro
 import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
+import { ADD_SELECTION_EVENT } from '../addSelection'
 import { hint, keysOf } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
@@ -519,7 +520,22 @@ export function ChatView({
     setAsking(null)
     setPick(null)
   }
+  const pickRef = useRef(pick)
+  pickRef.current = pick
+  const quoteRef = useRef(quote)
+  quoteRef.current = quote
   const cancelAsk = () => (setAsking(null), setPick(null))
+  // The key does what the Ask button does with an empty question.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ handled: boolean }>).detail
+      if (d.handled || !pickRef.current) return
+      d.handled = true
+      quoteRef.current()
+    }
+    window.addEventListener(ADD_SELECTION_EVENT, on)
+    return () => window.removeEventListener(ADD_SELECTION_EVENT, on)
+  }, [])
   // A click anywhere else puts the box away.
   useEffect(() => {
     if (asking === null) return
@@ -564,7 +580,7 @@ export function ChatView({
       {pick && (
         <div className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
           {asking === null ? (
-            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title="Ask about the selected words">
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title={`Ask about the selected words (${keysOf('add-selection')} adds them as they are)`}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               </svg>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { ADD_SELECTION_EVENT } from '../addSelection'
+import { keysOf } from '../shortcuts'
 import type { FileInfo } from '../../shared/files'
 import { languageFor } from '../code/monaco'
 import { Code, Markdown } from '../chat/markdown'
@@ -67,6 +69,21 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
     onAttached()
   }
 
+  const addRef = useRef(addContext)
+  addRef.current = addContext
+  const pickedRef = useRef(pick)
+  pickedRef.current = pick
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ handled: boolean }>).detail
+      if (d.handled || !pickedRef.current) return
+      d.handled = true
+      addRef.current()
+    }
+    window.addEventListener(ADD_SELECTION_EVENT, on)
+    return () => window.removeEventListener(ADD_SELECTION_EVENT, on)
+  }, [])
+
   return (
     <div className="fileview">
       <div className="fileview-bar">
@@ -100,7 +117,7 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
           {text.truncated && <p className="hint">Only the first 2 MB are shown.</p>}
           {info.kind === 'markdown' ? <Markdown text={text.body} agentId={agentId} /> : <Code text={text.body} lang={languageFor(info.name)} className="fileview-code" />}
           {pick && (
-            <button className="ask-selection fileview-ask" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={addContext}>
+            <button className="ask-selection fileview-ask" style={{ left: pick.x, top: pick.y }} onMouseDown={(e) => e.preventDefault()} onClick={addContext} title={`Add the selection to your message (${keysOf('add-selection')})`}>
               Add selection to message
             </button>
           )}

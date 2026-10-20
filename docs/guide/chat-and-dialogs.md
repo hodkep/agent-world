@@ -14,7 +14,7 @@ To find your way in a long conversation:
 - **Show earlier** loads older messages. **Latest** brings you back to the end.
 - Cmd+F (Ctrl+F elsewhere) searches.
 - **Conversation tools** (**⋯**, top right) has **Search**, **Save notes** and **Copy as Markdown**.
-- Select words in a reply and click the button over them, such as **Ask ada**, then **Add**: the words join your message as a quote.
+- Select words in a reply and click the button over them, such as **Ask ada**, then **Add**: the words join your message as a quote. **⇧⌘L** (Ctrl+Shift+L) does the same from the keyboard, without a question, in a reply, a file, the terminal and the code editor.
 
 ## The tool cards
 

@@ -35,7 +35,9 @@ test('files an agent names are links that open as a page, a document, code or an
     await expect(page.locator('.fileview .md strong')).toHaveText('ship')
     await page.locator('.fileview .md p').selectText()
     await page.locator('.fileview-body').dispatchEvent('mouseup')
-    await page.getByRole('button', { name: 'Add selection to message' }).click()
+    // The key does what the button does.
+    await expect(page.getByRole('button', { name: 'Add selection to message' })).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+Shift+L')
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
     await expect(page.getByRole('list', { name: 'Attached files' })).toContainText('notes.md, selection')
 
