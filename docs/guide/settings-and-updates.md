@@ -50,6 +50,8 @@ To add an account: press **Add account**, type a name (only a label for you), pr
 
 Each account has **Sign in** (when it needs one), **Make default** and **Remove**. The default account is used for every agent you hire, and the hire form shows an **Account** choice once you have added one.
 
+A signed-in account also has **Switch all agents here**. It lists the agents that are working now (they are stopped, moved, then sent `continue`) and the idle or asleep ones (moved quietly), and **Stop them, switch and continue** does it. Each conversation resumes in the same session on the new account. **Switch idle ones only** leaves the working agents where they are, and an agent that does not stop in time stays on its old account. Antigravity agents have one login and are left alone.
+
 ## Model by job
 
 Choose the model used when a job is hired from each role. The hire form can still change it.
