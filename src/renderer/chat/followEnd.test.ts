@@ -20,4 +20,17 @@ describe('whether the conversation keeps following its end after a scroll', () =
   it('does not start following because the layout moved: a reader who was away stays away', () => {
     expect(followsEnd({ gap: 426, byReader: false, was: false })).toBe(false)
   })
+
+  it('stops at once when the reader scrolls up, even within the last few pixels: a row that changes size would pull the view back down and flicker', () => {
+    expect(followsEnd({ gap: 30, byReader: true, was: true, up: true })).toBe(false)
+    expect(followsEnd({ gap: 2, byReader: true, was: true, up: true })).toBe(false)
+  })
+
+  it('starts again when the reader scrolls down to the end', () => {
+    expect(followsEnd({ gap: 30, byReader: true, was: false, up: false })).toBe(true)
+  })
+
+  it('does not stop for an upward scroll the layout made near the end', () => {
+    expect(followsEnd({ gap: 30, byReader: false, was: true, up: true })).toBe(true)
+  })
 })
