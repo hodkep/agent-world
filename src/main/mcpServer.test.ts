@@ -287,6 +287,7 @@ describe('workflow tools', () => {
     offered: (caller: string) => caller === 'a1',
     begin: (caller: string, title: string, followUp: boolean, workflow?: string) => {
       if (title === 'off') throw new Error('Workflows are off.')
+      if (title === 'none') return { planFirst: false, none: true, brief: 'No workflow applies in this project, so no task is recorded.' }
       calls.push(`${caller} begin ${title} ${followUp}${workflow ? ` workflow=${workflow}` : ''}`)
       return { planFirst: planFirst && !followUp, brief: `Workflow: ${workflow ?? 'Standard'}. Its steps, in order:` }
     },
@@ -310,6 +311,12 @@ describe('workflow tools', () => {
     await c.callTool({ name: 'task_begin', arguments: { title: 'A missed case', follow_up: true } })
     expect(text(await c.callTool({ name: 'task_done', arguments: { summary: 'All fixed.' } }))).toContain('Task done')
     expect(calls).toEqual(['a1 begin Fix the login redirect false', 'a1 begin A missed case true', 'a1 done All fixed.'])
+  })
+  it('task_begin in a project that uses no workflow says so and never says a task was begun', async () => {
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const said = text(await c.callTool({ name: 'task_begin', arguments: { title: 'none' } }))
+    expect(said).toContain('No workflow applies')
+    expect(said).not.toContain('Task begun')
   })
   it('say plainly when the recorder refuses', async () => {
     const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')

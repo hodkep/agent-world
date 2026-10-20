@@ -131,6 +131,17 @@ export interface Chip {
   stops: boolean
 }
 
+/**
+ * The workflow a new task follows: the one it asked for, else the project's default, else Standard. A project that uses no workflow (`defaultId` is "none") follows
+ * none unless the task asks for one that is there. A file with problems is never picked.
+ */
+export function pickEntry(entries: WorkflowEntry[], requested: string | undefined, defaultId: string): WorkflowEntry | undefined {
+  const usable = entries.filter((e) => e.workflow)
+  const asked = usable.find((e) => e.id === requested)
+  if (asked) return asked
+  return defaultId === 'none' ? undefined : (usable.find((e) => e.id === defaultId) ?? usable.find((e) => e.id === 'standard'))
+}
+
 /** The steps as the list draws them. A plan or merge step that names no gate follows its Settings switch; an approve step always stops. */
 export function stepChips(wf: Workflow, switches: { planGate: boolean; mergeGate: boolean }): Chip[] {
   return wf.steps.map((s) => {

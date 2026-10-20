@@ -88,8 +88,14 @@ export const workflowsShown = (enabled: boolean, open: number) => enabled || ope
 /** The new setting after the switch is flipped: switching on from off records the moment, nothing else does. */
 export const switchWorkflows = (w: WorkflowPrefs, enabled: boolean, now: number): WorkflowPrefs => ({ ...w, enabled, since: enabled && !w.enabled ? now : w.since })
 
+/** The "workflow" a project can choose to use none: agents are asked for nothing there, as with workflows off. */
+export const NO_WORKFLOW = 'none'
+
 /** The workflow id a project uses by default. */
 export const defaultWorkflow = (w: WorkflowPrefs, project: string | null) => (project ? w.defaults[project] : undefined) ?? 'standard'
+
+/** Whether the project has chosen to use no workflow. */
+export const usesNoWorkflow = (w: WorkflowPrefs, project: string | null) => defaultWorkflow(w, project) === NO_WORKFLOW
 
 /** The preferences with `id` as the default for `project`; Standard is what no entry means, so choosing it removes the entry. */
 export function withDefault(w: WorkflowPrefs, project: string, id: string): WorkflowPrefs {
