@@ -62,6 +62,7 @@ test('Switch all agents here stops the working agents, moves everyone to the acc
     await dialog.getByRole('button', { name: 'Stop them, switch and continue' }).click()
     await expect(dialog).toContainText('Switched 2 agents to Work', { timeout: 40_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(page.locator('.agent-row .acct-dot[title="Runs on Work"]')).toHaveCount(2)
 
     // Both agents relaunched on Work, and the conversations carried on.
     const workDir = join(tmp, 'home', 'accounts', 'work')
@@ -121,6 +122,8 @@ test('Switch all agents here lets the person choose which agents move, is never 
     await expect(dialog).toContainText('Switched 1 agent to Work', { timeout: 40_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
     expect(await who()).toEqual({ ada: 'work', bob: '' })
+    // The roster follows at once, with no reload: ada shows she runs on Work, bob does not.
+    await expect(page.locator('.agent-row .acct-dot[title="Runs on Work"]')).toHaveCount(1)
 
     // The project's box takes both: bob moves, ada (already there) is ticked too and restarts, so the box is ticked for all.
     await start()
@@ -136,7 +139,10 @@ test('Switch all agents here lets the person choose which agents move, is never 
 
     // Everyone is on Work and the button is still there: it says so and restarts only the agents ticked.
     await expect(work.getByRole('button', { name: 'Switch all agents here' })).toBeEnabled()
-    const before = readFileSync(envLog, 'utf8').trim().split('\n').length
+    // Launches on Work so far: ada moved (1), then bob moved and ada restarted (2 more). Wait for them all, since a restart lands a moment after the dialog says done.
+    const workDir = join(tmp, 'home', 'accounts', 'work')
+    const launches = () => readFileSync(envLog, 'utf8').trim().split('\n').filter((l) => l === workDir).length
+    await expect.poll(launches, { timeout: 30_000 }).toBe(3)
     await start()
     await expect(dialog).toContainText('Every agent is already on Work')
     await expect(dialog.getByRole('checkbox', { name: 'ada' })).not.toBeChecked()
@@ -146,7 +152,7 @@ test('Switch all agents here lets the person choose which agents move, is never 
     await dialog.getByRole('button', { name: 'Restart 1 agent' }).click()
     await expect(dialog).toContainText('Switched 1 agent to Work', { timeout: 40_000 })
     await dialog.getByRole('button', { name: 'Done' }).click()
-    await expect.poll(() => readFileSync(envLog, 'utf8').trim().split('\n').length, { timeout: 30_000 }).toBe(before + 1)
+    await expect.poll(launches, { timeout: 30_000 }).toBe(4)
     expect(await who()).toEqual({ ada: 'work', bob: 'work' })
   } finally {
     await shutdown()

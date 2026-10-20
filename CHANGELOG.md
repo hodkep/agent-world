@@ -13,6 +13,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 - Two projects can each have an agent with the same name. A name only has to be free inside its project, and an agent writing to another by name reaches the one in its own project first.
 - Hire an agent, Subagents and History open in grid mode too; they were drawn inside the side panel, which grid mode hides.
 
+### Fixed
+
+- Settings: after **Switch all agents here** the roster, the profile cards and the allowances showed the old accounts until the app was reloaded; they now follow as each agent is moved.
+
 ## [0.2.2] - 2026-10-20
 
 ### Added
