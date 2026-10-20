@@ -287,6 +287,7 @@ describe('workflow tools', () => {
     offered: (caller: string) => caller === 'a1',
     begin: (caller: string, title: string, followUp: boolean, workflow?: string) => {
       if (title === 'off') throw new Error('Workflows are off.')
+      if (title === 'added') return { planFirst: true, added: true, brief: 'Added as item 2 of the task in progress.' }
       if (title === 'none') return { planFirst: false, none: true, brief: 'No workflow applies in this project, so no task is recorded.' }
       calls.push(`${caller} begin ${title} ${followUp}${workflow ? ` workflow=${workflow}` : ''}`)
       return { planFirst: planFirst && !followUp, brief: `Workflow: ${workflow ?? 'Standard'}. Its steps, in order:` }
@@ -316,6 +317,13 @@ describe('workflow tools', () => {
     const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
     const said = text(await c.callTool({ name: 'task_begin', arguments: { title: 'none' } }))
     expect(said).toContain('No workflow applies')
+    expect(said).not.toContain('Task begun')
+  })
+  it('task_begin that became an item of the open task says it was added, not that a task was begun, and still asks for the plan', async () => {
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const said = text(await c.callTool({ name: 'task_begin', arguments: { title: 'added' } }))
+    expect(said).toContain('Added to the task in progress')
+    expect(said).toContain('Added as item 2')
     expect(said).not.toContain('Task begun')
   })
   it('say plainly when the recorder refuses', async () => {

@@ -50,7 +50,7 @@ const AUDIT_STEP = 'audit'
 const SAME_WORK_MS = 10 * 60_000
 /** What a run's ledger says of a push the pre-push hold never saw (`git push --no-verify`). */
 const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -110,6 +110,18 @@ export class Workflows {
   /** Whether a task of this agent follows a workflow at all: not in a project that uses none, unless the task asks for one that is there. */
   applies(agentId: string, requested?: string): boolean {
     return !this.deps.noWorkflow?.(agentId) || (!!requested && !!this.deps.pick(agentId, requested))
+  }
+
+  /**
+   * A new request while the agent's run is open is one more item of that run, not another run: one track, one audit of the whole branch, one pull request.
+   * Only a run that is still open counts: not one that was done, landed, stopped or started from a commit, and not a request that continues the last task.
+   */
+  addition(agentId: string, title: string, followUp = false): Run | undefined {
+    const open = this.openRun(agentId)
+    if (followUp || !open || open.auto || open.landed) return undefined
+    this.append({ k: 'item', t: this.deps.now(), run: open.id, title })
+    this.link(open.id, agentId, open.todos)
+    return this.runs().find((r) => r.id === open.id)
   }
 
   /** `followUp`: the request continues the agent's last task, so that run gets a new round instead of a new run. */

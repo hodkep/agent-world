@@ -189,6 +189,37 @@ describe('commits', () => {
     expect(wf.applies('a1')).toBe(true)
   })
 
+  describe('a new request while the agent\'s run is open', () => {
+    it('is an item of that run, not another run: its title is kept, the todo it is on is linked, and the run goes on', () => {
+      const { wf, state } = make()
+      wf.begin('a1', 'Fix the old-side numbers')
+      state.todoOf = () => '7'
+      const run = wf.addition('a1', 'Fold unchanged code')
+      expect(run?.id).toBe(wf.runs()[0]!.id)
+      expect(wf.runs()).toHaveLength(1)
+      expect(wf.runs()[0]).toMatchObject({ status: 'open', title: 'Fix the old-side numbers', items: [{ title: 'Fold unchanged code' }], todos: ['7'] })
+    })
+
+    it('is another run when there is none open, the run was done, landed, started from a commit or stopped, or the request continues the last task', () => {
+      const { wf } = make()
+      expect(wf.addition('a1', 'x')).toBeUndefined()
+      wf.begin('a1', 'One')
+      expect(wf.addition('a1', 'x', true)).toBeUndefined()
+      wf.landing('a1', 'h1', { anyway: true })
+      expect(wf.addition('a1', 'x')).toBeUndefined()
+      wf.done('a1')
+      expect(wf.addition('a1', 'x')).toBeUndefined()
+      const b = make()
+      b.wf.begin('a1', 'One')
+      b.wf.stopAll()
+      expect(b.wf.addition('a1', 'x')).toBeUndefined()
+      const c = make()
+      c.wf.commit('a1', 'sss', 'feat: from a commit', 1500)
+      expect(c.wf.runs()[0]!.auto).toBe(true)
+      expect(c.wf.addition('a1', 'x')).toBeUndefined()
+    })
+  })
+
   it('with workflows off only an open run takes a commit', () => {
     const { wf, state } = make()
     wf.begin('a1', 'Fix it')

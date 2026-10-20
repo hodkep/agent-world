@@ -35,6 +35,17 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   return (
     <div className="wf-tab">
       {track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold, landingKind(latest.workflow))} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
+      {latest.items && latest.items.length > 0 && (
+        <ol className="wt-items" aria-label="Items of this run">
+          {[{ title: latest.title }, ...latest.items].map((it, i) => (
+            <li key={`${i}-${it.title}`}>
+              <span className="n">{i + 1}</span>
+              <span className="s">{it.title}</span>
+              {i > 0 && <span className="muted">added</span>}
+            </li>
+          ))}
+        </ol>
+      )}
       <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
       <div className="wt-week" role="list" aria-label="This week">
         {weekDays(week, ctxFor, now).map((d) => (

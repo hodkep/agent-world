@@ -28,6 +28,8 @@ export type RunEvent =
   /** A model's review of the branch head against the plan, or why it could not be done. */
   | { k: 'audit'; t: number; run: string; head: string; state: 'done'; findings: Finding[]; files: number; lines: number; truncated: boolean; cost?: number; tokens?: number; model?: string }
   | { k: 'audit'; t: number; run: string; head: string; state: 'failed'; reason: string }
+  /** The agent was asked for more work while this run was open: an item of the run, not another run. */
+  | { k: 'item'; t: number; run: string; title: string }
   /** The person added this to the plan after approving it (from an out-of-scope finding): in scope for every audit of the run from now on. */
   | { k: 'scope'; t: number; run: string; text: string }
   /** The person has seen these findings (by position) of the audit of `head`. */
@@ -142,6 +144,8 @@ export interface Run {
   reopened?: number
   /** The audit of the branch head the person last looked at, if one ran. */
   audit?: RunAudit
+  /** More work asked for while the run was open, in the order asked (the run's own title is the first item). */
+  items?: { title: string; t: number }[]
   /** What the person added to the plan afterwards, in the order added. */
   additions?: string[]
   landed?: Landed
@@ -190,6 +194,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })
     } else if (e.k === 'audit') {
       r.audit = e.state === 'failed' ? { head: e.head, t: e.t, state: 'failed', reason: e.reason } : { head: e.head, t: e.t, state: 'done', findings: e.findings.map((f) => ({ ...f, seen: false })), files: e.files, lines: e.lines, truncated: e.truncated, ...(e.cost !== undefined && { cost: e.cost }), ...(e.tokens !== undefined && { tokens: e.tokens }), ...(e.model && { model: e.model }) }
+    } else if (e.k === 'item') {
+      r.items = [...(r.items ?? []), { title: e.title, t: e.t }]
     } else if (e.k === 'scope') {
       r.additions = [...(r.additions ?? []), e.text]
     } else if (e.k === 'seen') {

@@ -1342,6 +1342,18 @@ async function main() {
       begin: (caller, title, followUp, workflow) => {
         // A project that uses no workflow records no task: the agent is told there is nothing to follow.
         if (!workflows.applies(caller, workflow)) return { planFirst: false, none: true, brief: 'No workflow applies in this project, so no task is recorded and nothing is asked of you: work as usual.' }
+        // More work asked for while the run is open is one more item of it, not another run: one track, one audit of the whole branch, one pull request.
+        const added = workflows.addition(caller, title, followUp)
+        if (added) {
+          send('workflows')
+          const planFirst = workflows.planWanted(caller)
+          const n = (added.items?.length ?? 0) + 1
+          return {
+            planFirst,
+            added: true,
+            brief: `This is item ${n} of "${added.title}", the task in progress: one run, one audit of the whole branch, one pull request.${planFirst ? ' Your plan on file covers the earlier items: rewrite it so its goal, out of scope and questions cover this one too, then call plan_submit. Edits wait until the person approves it.' : ''}`
+          }
+        }
         const id = workflows.begin(caller, title, { followUp, workflow })
         send('workflows')
         const run = workflows.runs().find((r) => r.id === id)
