@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Workflows: an agent kept showing AUDIT (or another wait) beside its name because of an older run whose findings nobody had answered, with nothing in the chat to answer them. Only an agent's latest run can wait for you now.
+
 ## [0.2.2] - 2026-10-20
 
 ### Added
