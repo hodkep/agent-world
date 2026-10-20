@@ -74,6 +74,8 @@ test('an agent that pushes its branch from the chat is held by git itself while 
     expect((await o.push()).ok).toBe(true)
     expect(o.pushed()).toContain('aw/')
     await expect.poll(o.landed).toMatchObject({ how: 'anyway', held: ['2 audit findings have not been seen.'] })
+    // The push ended the run, as the agent is told it does.
+    await expect.poll(async () => (await o.page.evaluate(() => window.aw.workflows.summary())).runs[0]!.status).toBe('done')
     expect(await o.page.evaluate(() => window.aw.landingHolds())).toEqual([])
   } finally {
     await o.shutdown()
@@ -117,6 +119,8 @@ test('a held push shows in the chat as a card that says the push is held, and Se
     await expect(o.page.getByRole('note', { name: "ada's audit, set aside" })).toContainText('You set the audit aside · 2 things not looked at')
     expect((await o.push()).ok).toBe(true)
     expect(o.pushed()).toContain('aw/')
+    // Set aside is not a clean pass: the push is recorded as anyway, naming the review.
+    await expect.poll(o.landed).toMatchObject({ how: 'anyway', held: ['The review was set aside.'] })
   } finally {
     await o.shutdown()
   }
@@ -165,7 +169,7 @@ test('findings arrive grouped, one row for one cause with its files: Add to plan
     await expect(card.getByRole('listitem').filter({ hasText: 'No test for a 5-digit line count.' }).getByRole('button', { name: 'Add to plan' })).toHaveCount(0)
     await row.getByRole('button', { name: 'Add to plan' }).click()
     await expect(row).toHaveCount(0)
-    await expect.poll(async () => (await o.page.evaluate(() => window.aw.workflows.summary())).runs[0]!.additions).toEqual(['The fold feature.'])
+    await expect.poll(async () => (await o.page.evaluate(() => window.aw.workflows.summary())).runs[0]!.additions?.map((a) => a.text)).toEqual(['The fold feature.'])
     await card.getByRole('button', { name: 'Seen, fine', exact: true }).click()
     await expect(card).toHaveCount(0)
   } finally {

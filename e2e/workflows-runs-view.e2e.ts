@@ -52,7 +52,7 @@ test('the Runs tab is two charts (how often each workflow ran, how well each sta
     await expect(sheet).toContainText('Plan sent, then you lifted the hold after 25m without approving it')
     await expect(sheet).toContainText('Check failed once, passed on try 2')
     await expect(sheet).toContainText('Review found 1 thing you did not look at: “No test for empty export.”')
-    await expect(sheet).toContainText('Landed anyway, with review still holding it')
+    await expect(sheet).toContainText('Landed anyway. Not met: review.')
     await expect(sheet.locator('li.bad')).toHaveCount(3)
     await billing.getByRole('button', { name: /Billing export/ }).click()
     await expect(sheet).toHaveCount(0)
