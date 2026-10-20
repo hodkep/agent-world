@@ -51,18 +51,18 @@ describe('whether an installed app can install an update itself', () => {
 
 describe('when the app looks for a new version by itself', () => {
   afterEach(() => vi.useRealTimers())
-  it('looks once a little after it starts, and again every six hours while it is open', async () => {
+  it('looks once a little after it starts, and again every three hours while it is open', async () => {
     vi.useFakeTimers()
     const run = vi.fn(async () => undefined)
     const stop = startChecks(run)
     expect(run).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(20_000)
     expect(run).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(6 * 3600_000 - 21_000)
+    await vi.advanceTimersByTimeAsync(3 * 3600_000 - 21_000)
     expect(run).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(2_000)
     expect(run).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(6 * 3600_000)
+    await vi.advanceTimersByTimeAsync(3 * 3600_000)
     expect(run).toHaveBeenCalledTimes(3)
     stop()
     await vi.advanceTimersByTimeAsync(24 * 3600_000)
@@ -78,10 +78,10 @@ describe('when the app looks for a new version by itself', () => {
     })
     startChecks(run)
     await vi.advanceTimersByTimeAsync(20_000)
-    await vi.advanceTimersByTimeAsync(6 * 3600_000)
+    await vi.advanceTimersByTimeAsync(3 * 3600_000)
     expect(run).toHaveBeenCalledTimes(2)
     // the second look is still waiting when the third time comes round
-    await vi.advanceTimersByTimeAsync(6 * 3600_000 - 5_000)
+    await vi.advanceTimersByTimeAsync(3 * 3600_000 - 5_000)
     expect(run).toHaveBeenCalledTimes(2)
   })
 })
