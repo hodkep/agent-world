@@ -12,7 +12,7 @@ import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
 import { EventChips } from './EventChips'
-import { READER_MS, followsEnd } from './followEnd'
+import { NEAR_END, READER_MS, followsEnd } from './followEnd'
 import { JUMPED, SETTLED, fromView, lastJump, neighbour, place, show } from './userJump'
 import { back, fresh, newer, older, onFirstLine, onLastLine, type Recall } from './historyNav'
 import { pickedMessage, type ViewInfo } from '../panel/picker'
@@ -431,13 +431,17 @@ export function ChatView({
     el?.addEventListener(SETTLED, settled)
     return () => (el?.removeEventListener(JUMPED, left), el?.removeEventListener(SETTLED, settled))
   }, [])
+  const lastTop = useRef(0)
   const onScroll = () => {
     const el = log.current!
+    const up = el.scrollTop < lastTop.current
+    lastTop.current = el.scrollTop
     const now = { gap: el.scrollHeight - el.scrollTop - el.clientHeight }
     const byReader = pointerHeld.current || performance.now() - readerAt.current < READER_MS
-    const follow = jumping.current && !byReader ? false : followsEnd({ gap: now.gap, byReader, was: stick.current })
+    const follow = jumping.current && !byReader ? false : followsEnd({ gap: now.gap, byReader, was: stick.current, up })
     stick.current = follow
-    setAway(!follow)
+    // The Latest button is for when the end is out of reach, not for the few pixels a slow scroll up has just made.
+    setAway(!follow && now.gap >= NEAR_END)
   }
 
   const send = useCallback(
