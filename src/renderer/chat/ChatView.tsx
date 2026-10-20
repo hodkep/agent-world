@@ -526,16 +526,16 @@ export function ChatView({
   }
   const pickRef = useRef(pick)
   pickRef.current = pick
-  const quoteRef = useRef(quote)
-  quoteRef.current = quote
+  const askingNow = useRef(asking)
+  askingNow.current = asking
   const cancelAsk = () => (setAsking(null), setPick(null))
-  // The key does what the Ask button does with an empty question.
+  // The key does what the Ask button does: it opens the box for a question about the words (and leaves it be when it is already open).
   useEffect(() => {
     const on = (e: Event) => {
       const d = (e as CustomEvent<{ handled: boolean }>).detail
       if (d.handled || !pickRef.current) return
       d.handled = true
-      quoteRef.current()
+      if (askingNow.current === null) setAsking('')
     }
     window.addEventListener(ADD_SELECTION_EVENT, on)
     return () => window.removeEventListener(ADD_SELECTION_EVENT, on)
@@ -584,7 +584,7 @@ export function ChatView({
       {pick && (
         <div className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
           {asking === null ? (
-            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title={`Ask about the selected words (${keysOf('add-selection')} adds them as they are)`}>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title={`Ask about the selected words (${keysOf('add-selection')})`}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M2 3h12v8H8l-3.5 3v-3H2z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               </svg>
