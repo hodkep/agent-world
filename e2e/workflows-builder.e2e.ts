@@ -65,6 +65,11 @@ async function start(extra: { saved?: object; approved?: Record<string, unknown>
 /** What each launched agent was started with, newest launch last. */
 const launches = (argsLog: string) => readLog(argsLog).split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).filter((a) => a.includes('--settings'))
 const flag = (launch: string[], f: string) => launch[launch.indexOf(f) + 1]!
+/** The n-th launch, once it is in the log: the agent starts a moment after the app shows it, and a slow machine reads the log first. */
+const launchAt = async (argsLog: string, n: number) => {
+  await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBeGreaterThan(n)
+  return launches(argsLog)[n]!
+}
 
 async function asAgent(launch: string[]) {
   const cfg = JSON.parse(readFileSync(flag(launch, '--mcp-config'), 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
@@ -102,7 +107,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     // It is a Claude agent in the folder itself, read-only, with the builder's instructions and tools and no task tools.
     const [builder] = await page.evaluate(() => window.aw.listAgents())
     expect(builder).toMatchObject({ name: 'builder', builder: true, cwd: repo, branch: null, options: { role: 'Workflow builder', permissionMode: 'plan', inPlace: true } })
-    const launch = launches(argsLog)[0]!
+    const launch = await launchAt(argsLog, 0)
     expect(flag(launch, '--permission-mode')).toBe('plan')
     expect(flag(launch, '--append-system-prompt')).toContain('You are the workflow builder')
     expect(flag(launch, '--append-system-prompt')).not.toContain('task_begin')
@@ -146,7 +151,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     await win.getByRole('button', { name: 'Close' }).click()
     await hire(page, { name: 'ada' })
     await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBe(2)
-    const ada = await asAgent(launches(argsLog)[1]!)
+    const ada = await asAgent(await launchAt(argsLog, 1))
     const names = (await ada.client.listTools()).tools.map((t) => t.name)
     expect(names).toContain('task_begin')
     expect(names).not.toContain('workflow_propose')
@@ -169,7 +174,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await expect(win.getByText('editing Bug fix')).toBeVisible()
     await expect(win.getByRole('log', { name: 'Conversation with builder' })).toContainText('I want to change the workflow "bug-fix" (Bug fix).', { timeout: 20_000 })
 
-    const { client, call } = await asAgent(launches(argsLog)[0]!)
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
     expect(JSON.parse((await call('workflow_get', { id: 'bug-fix' })).text)).toEqual(BUG_FIX)
     expect((await call('workflow_get', { id: 'nope' })).error).toBe(true)
 
@@ -214,7 +219,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     // Each edit starts a fresh conversation: the builder is started again on a new session, and the person's earlier chat is not carried into it.
     await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBe(2)
     expect(flag(launches(argsLog)[1]!, '--session-id')).not.toBe(flag(launches(argsLog)[0]!, '--session-id'))
-    const again = await asAgent(launches(argsLog)[1]!)
+    const again = await asAgent(await launchAt(argsLog, 1))
     await again.call('workflow_propose', { file: JSON.stringify({ ...next, name: 'Fix a bug' }) })
     await expect(win.getByRole('region', { name: 'Workflow proposal' })).toContainText('Fix a bug')
     writeFileSync(join(dir, 'bug-fix.json'), JSON.stringify({ ...next, name: 'Edited by hand' }, null, 2) + '\n')
@@ -237,7 +242,7 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     const win = await openWorkflows(page)
     await win.getByRole('button', { name: 'Open the builder' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
-    const { client, call } = await asAgent(launches(argsLog)[0]!)
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
