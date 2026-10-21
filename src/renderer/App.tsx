@@ -1756,8 +1756,8 @@ export function App() {
               onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}
             />
           )}
-          {/* A Preview that has been opened stays mounted, hidden, so its page is not loaded again each time you come back to the tab. */}
-          {agents.filter((a) => (previewed.includes(a.id) && (world[a.id]?.activity ?? 'asleep') !== 'asleep') || (view === 'preview' && a.id === current?.id)).map((a) => (
+          {/* A Preview that has been opened stays mounted, hidden, so its page is not loaded again each time you come back to the tab, or to the project (so every project's agents, not only the open one's). */}
+          {allAgents.filter((a) => (previewed.includes(a.id) && (world[a.id]?.activity ?? 'asleep') !== 'asleep') || (view === 'preview' && a.id === current?.id)).map((a) => (
             <div key={a.id} className="preview-keep" hidden={!(a.id === current?.id && view === 'preview')}>
               <PreviewView folder={a.repoPath} servers={servers[a.id] ?? []} agentName={a.name} agentId={a.id} target={previewTarget[a.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />
             </div>
