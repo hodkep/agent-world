@@ -44,7 +44,11 @@ test('drag the panel edge to resize it, and fold the agent list away for more ro
     await expect(page.getByRole('button', { name: /Hide agents|Show agents/ })).toHaveCount(0)
 
     // With the list folded but no agent selected (say it went to sleep and nothing is open), the list stays visible so one can be picked.
-    await page.evaluate(() => (localStorage.setItem('aw.compact', '1'), localStorage.setItem('aw.selected', '')))
+    // The app picks the agent again from the key of its folder, once the agents have loaded: that is the one to clear, not only the plain one.
+    await page.evaluate(() => {
+      localStorage.setItem('aw.compact', '1')
+      for (const k of Object.keys(localStorage)) if (k.startsWith('aw.selected')) localStorage.setItem(k, '')
+    })
     await page.reload()
     await expect(page.locator('.roster')).toBeVisible()
     await expect(page.locator('.roster')).toContainText('ada')
