@@ -34,7 +34,7 @@ To commit everything, type a message in **Message…** and click **Commit all**.
 
 ## Browse and edit files
 
-**Files** lists the worktree's files. Click one to open it in a tab, edit it, and click **Save** (⌘S). Edits go straight into the agent's worktree. A Markdown file has **Preview** and **Source** to read it formatted or as text, and so does an HTML file, which shows as the page the file makes (as last saved, with its own stylesheet and pictures; press Save to see an edit); this is not the **Preview** tab. A PDF opens as a PDF with **Open in Preview**, not as text, and cannot be edited here.
+**Files** lists the worktree's files. In a folder that is not a git repository the Code tab is just this list, with one line saying there are no changes to show; the folder is read directly, leaving out `.git`, `node_modules`, build folders and caches, up to 5,000 files. Click one to open it in a tab, edit it, and click **Save** (⌘S). Edits go straight into the agent's worktree. A Markdown file has **Preview** and **Source** to read it formatted or as text, and so does an HTML file, which shows as the page the file makes (as last saved, with its own stylesheet and pictures; press Save to see an edit); this is not the **Preview** tab. A PDF opens as a PDF with **Open in Preview**, not as text, and cannot be edited here.
 
 ## Reveal in Finder
 

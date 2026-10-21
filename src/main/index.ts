@@ -1,4 +1,5 @@
 import { readText, resolveEntry, resolveFile, startFileServer } from './files'
+import { listFolderFiles } from './folderFiles'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
 import { createTodoService } from './todos/service'
@@ -2185,6 +2186,13 @@ async function main() {
     if (!a.branch && !(await isGitRepo(a.cwd))) throw new Error(`${a.name} works directly in ${a.cwd}, not in a git worktree.`)
     return a
   }
+  // A folder that is not a repository has no git to list its files: they are read from the folder, and it has none of the rest of the Code tab (changes, commits).
+  const agentOf = (id: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    return a
+  }
+  const plainFolder = async (a: AgentRecord) => !a.branch && !(await isGitRepo(a.cwd))
   // Where an agent without a branch of its own works: whether git can say anything about it, and the branch the folder is on.
   ipcMain.handle('code:place', async (_, id: string) => {
     const a = byId(id)
@@ -2213,14 +2221,18 @@ async function main() {
     const current = await readWorktreeFile(a.cwd, path).catch(() => '')
     return { original: await originalContent(a.cwd, base, path), current }
   })
-  ipcMain.handle('code:files', async (_, id: string) => listFiles((await folderOf(id)).cwd))
+  ipcMain.handle('code:files', async (_, id: string) => {
+    const a = agentOf(id)
+    return (await plainFolder(a)) ? listFolderFiles(a.cwd) : listFiles((await folderOf(id)).cwd)
+  })
   // What typing @ offers. An agent working directly in a folder, or in one that is not a repository, has no list to give: that is an empty one, not a failure to report.
   ipcMain.handle('code:mention-files', async (_, id: string) => {
     const a = byId(id)
-    return a ? listFiles(a.cwd).catch(() => [] as string[]) : []
+    if (!a) return []
+    return (await plainFolder(a)) ? listFolderFiles(a.cwd) : listFiles(a.cwd).catch(() => [] as string[])
   })
-  ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile((await folderOf(id)).cwd, path))
-  ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile((await folderOf(id)).cwd, path, content))
+  ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile(agentOf(id).cwd, path))
+  ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile(agentOf(id).cwd, path, content))
   ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await folderOf(id)).cwd, message))
   ipcMain.handle('code:discard', async (_, id: string, path: string) => discardFile((await folderOf(id)).cwd, path))
   // What is not committed yet, and staging it; and the branch's commits, one commit's files, and a file of a commit.
