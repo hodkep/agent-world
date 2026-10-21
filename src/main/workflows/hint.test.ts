@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RunWorkflow } from '../../shared/runs'
-import { PLAN_INSTRUCTION, WORKFLOW_REMINDER, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './hint'
+import { PLAN_INSTRUCTION, PR_GO, WORKFLOW_HINT, WORKFLOW_REMINDER, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './hint'
 
 describe('what task_begin tells the agent about the plan, per dial', () => {
   it('balanced and max ask for the plan every time', () => {
@@ -38,6 +38,7 @@ describe('what task_begin tells the agent about its workflow', () => {
         '- plan "Plan": the person approves your plan before you edit. Name the symptom and the likely cause.\n' +
         '- fix "Fix, test first" (skill: tdd): Write a failing test, then make it pass.\n' +
         '- ok "Your review": the person approves this before it can land. Look at the diff.\n' +
+        'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.\n' +
         'Report each step you do with step_done and its id, for example step_done("fix"); with no id it reports the next one. The app audits the branch and the person lands it.'
     )
   })
@@ -108,5 +109,26 @@ describe('the reminder to announce a task, said at the start of a turn', () => {
     expect(workflowRemind({ ...ask, builder: true })).toBe('')
     expect(workflowRemind({ ...ask, subagent: true })).toBe('')
     expect(workflowRemind({ ...ask, open: true })).toBe('')
+  })
+})
+
+describe('the rules for work that ends in a pull request, in what the agent is told', () => {
+  const PR: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
+  it('says to work on its own branch, that commits elsewhere are refused, and that no push or pull request comes before the audit has passed and the app says so', () => {
+    const brief = workflowBrief(PR)
+    expect(brief).toContain('Work and commit only on your own branch')
+    expect(brief).toContain('refused')
+    expect(brief).toContain('Do not push or open a pull request until the app tells you the audit passed')
+    expect(brief).toContain('head is exactly that audited commit')
+  })
+  it('says the first two for a workflow that lands by merge, and nothing of either for one with no landing step', () => {
+    expect(workflowBrief(BUG_FIX)).toContain('Work and commit only on your own branch')
+    expect(workflowBrief(BUG_FIX)).not.toContain('pull request')
+    expect(workflowBrief({ id: 'q', name: 'Q', steps: [{ id: 'w', kind: 'work', name: 'W' }] })).not.toContain('own branch')
+  })
+  it('has a line in the opening text too, and the message the app sends once the audit has passed names the branch and the commit', () => {
+    expect(WORKFLOW_HINT).toContain('own branch')
+    expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('git push origin aw/ada:<name>')
+    expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('abcdef1')
   })
 })

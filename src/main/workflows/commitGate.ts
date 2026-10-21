@@ -41,13 +41,15 @@ state="$1"
 input=$(cat)
 if { [ "$state" = prepared ] || [ "$state" = committed ]; } && [ -n "$AW_MCP_URL" ] && [ -n "$AW_AGENT_TOKEN" ]; then
   refs=$(printf '%s\\n' "$input" | awk -v st="$state" 'substr($3,1,11)=="refs/heads/" || (st=="committed" && substr($3,1,13)=="refs/remotes/") { print $3 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
+  olds=$(printf '%s\\n' "$input" | awk -v st="$state" 'substr($3,1,11)=="refs/heads/" || (st=="committed" && substr($3,1,13)=="refs/remotes/") { print $1 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
+  news=$(printf '%s\\n' "$input" | awk -v st="$state" 'substr($3,1,11)=="refs/heads/" || (st=="committed" && substr($3,1,13)=="refs/remotes/") { print $2 }' | tr -d '"\\134' | sed 's/.*/"&"/' | paste -sd, -)
   if [ -n "$refs" ]; then
     case "$AW_MCP_URL" in
       http://127.0.0.1:*|http://localhost:*|http://\\[::1\\]:*)
         tok=$(printf '%s' "$AW_AGENT_TOKEN" | tr -cd 'A-Za-z0-9._~+/=-')
         here=$(pwd | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
         if [ "$state" = committed ]; then event=git-landed; else event=git-ref; fi
-        out=$(printf 'header = "Authorization: Bearer %s"\\n' "$tok" | curl -s --max-time 5 -X POST -K - -H "Content-Type: application/json" --data "{\\"cwd\\":\\"$here\\",\\"refs\\":[$refs]}" "\${AW_MCP_URL%/mcp}/hook/$event" 2>/dev/null)
+        out=$(printf 'header = "Authorization: Bearer %s"\\n' "$tok" | curl -s --max-time 5 -X POST -K - -H "Content-Type: application/json" --data "{\\"cwd\\":\\"$here\\",\\"refs\\":[$refs],\\"olds\\":[$olds],\\"news\\":[$news]}" "\${AW_MCP_URL%/mcp}/hook/$event" 2>/dev/null)
         reason=$(printf '%s' "$out" | sed -n 's/.*"block":"\\([^"]*\\)".*/\\1/p')
         if [ "$state" = prepared ] && [ -n "$reason" ]; then
           printf 'Agent World: this change to a branch is held. %s\\n' "$reason" >&2
@@ -157,6 +159,23 @@ export const holdsBranch = (branch: string | null, refs: string[]): boolean => !
 
 /** Whether an update of these references moves the base branch the agent's work lands on (an agent with no base of its own lands nothing). */
 export const movesBase = (base: string | null, refs: string[]): boolean => !!base && refs.includes(`refs/heads/${base}`)
+
+/**
+ * Which of the branches a push sends the office holds, for an agent with a branch of its own: that branch, and any other that points at the same commit (a pull request
+ * branch cut from the audited work), are one gate; any other branch holds commits the audit never looked at, so it is refused (`foreign`).
+ */
+export function pushGate(own: string, refs: string[], headOf: (branch: string) => string | null, ownHead: string | null): { gated: boolean; foreign: string | null } {
+  const sent = refs.filter((r) => r.startsWith('refs/heads/')).map((r) => r.slice('refs/heads/'.length))
+  const foreign = sent.find((b) => b !== own && (!ownHead || headOf(b) !== ownHead)) ?? null
+  return { gated: !foreign && sent.length > 0 && !!ownHead, foreign }
+}
+
+/** The first branch other than the agent's own that git is about to move onto commits the agent's own branch does not have (a commit made on it), or null. Making, deleting or bringing one to the agent's head is allowed. */
+export function foreignMove(o: { own: string; ownHead: string | null; refs: string[]; olds: string[]; news: string[] }): string | null {
+  const none = (sha: string | undefined) => !sha || /^0+$/.test(sha)
+  const at = o.refs.findIndex((r, i) => r.startsWith('refs/heads/') && r !== `refs/heads/${o.own}` && !none(o.olds[i]) && !none(o.news[i]) && o.news[i] !== o.ownHead)
+  return at < 0 ? null : o.refs[at]!.slice('refs/heads/'.length)
+}
 
 /** The commit a branch points at, or null when there is no such branch (or `cwd` is not a repository). */
 export const branchHead = (cwd: string, branch: string): string | null => git(cwd, 'rev-parse', '--verify', '-q', `refs/heads/${branch}`) || null
