@@ -157,6 +157,12 @@ export function keepOnly(root: Node | null, keep: (tile: string) => boolean): No
   return tilesOf(root).reduce<Node | null>((n, t) => (keep(t) ? n : remove(n, t)), root)
 }
 
+/** The same tiling with every tile id passed through `to` (a shell that ended is swapped for a new one in its cell). */
+export function mapTiles(n: Node | null, to: (tile: string) => string): Node | null {
+  if (!n) return null
+  return n.kind === 'leaf' ? leaf(to(n.tile)) : { ...n, a: mapTiles(n.a, to)!, b: mapTiles(n.b, to)! }
+}
+
 const isNode = (v: unknown): v is Node => {
   if (!v || typeof v !== 'object') return false
   const n = v as Record<string, unknown>

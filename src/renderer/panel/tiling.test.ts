@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { add, addAll, collapse, even, keepOnly, place, readLayout, rectsOf, remove, resizeAt, splitsOf, tilesOf, type Node } from './tiling'
+import { add, addAll, collapse, even, keepOnly, mapTiles, place, readLayout, rectsOf, remove, resizeAt, splitsOf, tilesOf, type Node } from './tiling'
 
 const rect = (n: Node | null, tile: string) => rectsOf(n).find((r) => r.tile === tile)!.rect
 const area = (n: Node | null) => rectsOf(n).reduce((sum, r) => sum + r.rect.w * r.rect.h, 0)
@@ -156,5 +156,14 @@ describe('hiding a tile for a while without touching the layout', () => {
     collapse(four, 'b')
     expect(JSON.stringify(four)).toBe(before)
     expect(rect(four, 'b')).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.5 })
+  })
+})
+
+describe('mapTiles', () => {
+  it('swaps tile ids and keeps the shape of the tiling', () => {
+    const root = place(even(['a1', 'term:old']), 'a2', 'a1', 'bottom')
+    expect(tilesOf(mapTiles(root, (t) => (t === 'term:old' ? 'term:new' : t)))).toEqual(tilesOf(root).map((t) => (t === 'term:old' ? 'term:new' : t)))
+    expect(mapTiles(root, (t) => t)).toEqual(root)
+    expect(mapTiles(null, (t) => t)).toBeNull()
   })
 })

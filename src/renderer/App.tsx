@@ -42,8 +42,9 @@ import { hint, keysOf, matches } from './shortcuts'
 import { next } from './cycle'
 import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
-import { AGENT_DRAG, PaneGrid, readLayout, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
-import { add, addAll, even, isTerm, keepOnly, place, tilesOf } from './panel/tiling'
+import { AGENT_DRAG, PaneGrid, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
+import { MEMORY_KEY, type Slot, readMemory, saveMemory, setSlot, slotOf, termTiles } from './panel/gridMemory'
+import { add, addAll, even, isTerm, mapTiles, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
@@ -248,16 +249,17 @@ export function App() {
   useEffect(() => {
     document.querySelector('.tabs [role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [view])
-  const [grid, setGrid] = useState(() => store('aw.grid') === '1')
-  // null shows the overview tiles; otherwise conversations side by side in this layout.
-  const [paneLayout, setPaneLayout] = useState<GridLayout | null>(() => {
-    try {
-      return readLayout(JSON.parse(store('aw.gridLayout') || 'null'))
-    } catch {
-      return null
-    }
+  // Each workspace is left as it was: office or grid, and the grid's layout. null layout shows the overview tiles, otherwise conversations side by side.
+  const [gridMemory, setGridMemory] = useState(() => readMemory(store(MEMORY_KEY), { grid: store('aw.grid'), layout: store('aw.gridLayout') }))
+  const slot = slotOf(gridMemory, folder ?? '')
+  const grid = slot.grid
+  const paneLayout: GridLayout | null = slot.layout
+  const rememberGrid = (patch: Partial<Slot>) => setGridMemory((m) => {
+    const next = setSlot(m, folder ?? '', patch)
+    keep(MEMORY_KEY, saveMemory(next))
+    return next
   })
-  const changeLayout = (l: GridLayout | null) => (setPaneLayout(l), keep('aw.gridLayout', l ? JSON.stringify(l) : ''))
+  const changeLayout = (l: GridLayout | null) => rememberGrid({ layout: l })
   // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
   const [peek, setPeek] = useState(false)
   // A local link clicked anywhere in a chat opens in that agent's Preview tab.
@@ -267,24 +269,36 @@ export function App() {
   const [fileTab, setFileTab] = useState<Record<string, string>>({})
   const [previewTarget, setPreviewTarget] = useState<Record<string, { url: string; n: number }>>({})
   const [previewed, setPreviewed] = useState<string[]>([])
-  // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good.
+  // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good, unless another workspace has it.
   const shellsOpen = useRef(new Set<string>())
   useEffect(() => {
-    const now = new Set(tilesOf(paneLayout?.root ?? null).filter(isTerm))
+    const now = new Set(termTiles(gridMemory))
     for (const id of shellsOpen.current) if (!now.has(id)) window.aw.closeShell(id)
     shellsOpen.current = now
-  }, [paneLayout])
-  // After a restart the shells of an earlier run are gone: their panes go too.
+  }, [gridMemory])
+  // After a restart the shells of an earlier run are gone: a workspace's grid gets a new shell in each of their cells when it is opened.
   useEffect(() => {
-    void window.aw.listShells().then((live) =>
-      setPaneLayout((l) => {
-        if (!l || !tilesOf(l.root).some((c) => isTerm(c) && !live.includes(c))) return l
-        const next = { root: keepOnly(l.root, (c) => !isTerm(c) || live.includes(c)) }
-        keep('aw.gridLayout', JSON.stringify(next))
+    if (!folder) return
+    const dead = tilesOf(slotOf(gridMemory, folder).layout?.root ?? null).filter(isTerm)
+    if (!dead.length) return
+    let stale = false
+    void window.aw.listShells().then(async (live) => {
+      const gone = dead.filter((t) => !live.includes(t))
+      if (!gone.length || stale) return
+      const fresh = new Map<string, string>()
+      for (const t of gone) fresh.set(t, await window.aw.openShell(folder))
+      if (stale) return void fresh.forEach((id) => window.aw.closeShell(id))
+      setGridMemory((m) => {
+        const next = setSlot(m, folder, { layout: { root: mapTiles(slotOf(m, folder).layout?.root ?? null, (t) => fresh.get(t) ?? t) } })
+        keep(MEMORY_KEY, saveMemory(next))
         return next
       })
-    )
-  }, [])
+    })
+    return () => {
+      stale = true
+    }
+    // Once for each workspace shown, not on every change to its layout.
+  }, [folder])
   const [prefs, setPrefs] = useState<Prefs | null>(null)
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
@@ -1345,7 +1359,7 @@ export function App() {
           <IconButton icon="crew" label={`Subagents${crewLive > 0 ? ` ${crewLive}` : ''}`} onClick={() => setCrewOpen(true)} haspopup tip="Every agent's subagents together" badge={crewLive > 0 ? crewLive : undefined} />
         )}
         {agents.length > 0 && (
-          <IconButton icon="grid" label="Grid" onClick={() => setGrid((g) => (keep('aw.grid', g ? '' : '1'), !g))} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
+          <IconButton icon="grid" label="Grid" onClick={() => rememberGrid({ grid: !grid })} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
         {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
         {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup badge={needsYou || undefined} tip={needsYou ? `${needsYou} thing${needsYou === 1 ? '' : 's'} waiting for you` : windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}

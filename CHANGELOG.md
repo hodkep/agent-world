@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Grid: each project keeps its own view and layout. Leave one on the office canvas and another on the grid, and each is as you left it when you come back, also after you quit. A terminal in a grid cell that ended with the earlier run comes back as a new one in the same cell.
+
 ## [0.2.4] - 2026-10-21
 
 ### Changed
