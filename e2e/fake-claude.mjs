@@ -374,8 +374,11 @@ if (process.env.FAKE_CHAT) {
     if (raw.includes('\x15')) typed = ''
     typed += raw.replace(/\x1b\[20[01]~/g, '').replace(/\x15/g, '')
     if (!typed.includes('\r')) return
-    const prompt = typed.split('\r')[0].trim()
-    typed = ''
+    const [first, ...rest] = typed.split('\r')
+    const prompt = first.trim()
+    // What came after that Enter (a second message sent straight after the first, read together with it) waits for its own turn, as in Claude's input box.
+    typed = rest.join('\r')
+    if (typed.includes('\r')) setImmediate(() => process.stdin.emit('data', ''))
     if (!prompt) return
     // /btw: a side question in an overlay that closes with Esc.
     if (prompt.startsWith('/btw ')) {
