@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdtempSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -52,6 +53,55 @@ test('the Preview tab keeps its page when you go to the chat and back: the page 
     // Something that only a page that is still the same page remembers.
     await run('window.__seen = 42')
     await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
+  } finally {
+    await shutdown()
+    dev.close()
+  }
+})
+
+test('the Preview page of a project is still the same page when you switch to another project and back', async () => {
+  const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<h1>kept across projects</h1>'))
+  await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+  const port = (dev.address() as AddressInfo).port
+  const home = mkdtempSync(join(tmpdir(), 'aw-keepws-'))
+  const repo = (name: string) => {
+    const dir = join(home, name)
+    mkdirSync(dir)
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+    return dir
+  }
+  const one = repo('project-one')
+  const two = repo('project-two')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_DEV_PORT: String(port), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), one)
+    await page.reload()
+    await hire(page)
+    // Each project has an agent, so each is listed in the project menu.
+    await page.evaluate((f) => window.aw.activateWorkspace(f), two)
+    await page.reload()
+    await hire(page, { name: 'bob' })
+    await page.evaluate((f) => window.aw.activateWorkspace(f), one)
+    await page.reload()
+    await expect(page.locator('.ws-button')).toContainText('project-one')
+    await expect(page.getByRole('tab', { name: /Preview ●/ })).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code)
+    await expect.poll(() => run('document.body.innerText'), { timeout: 10_000 }).toContain('kept across projects')
+    await run('window.__seen = 42')
+
+    // Another project is opened from the project menu without reloading the window, then the first again.
+    const open = async (name: RegExp, shown: string) => {
+      await page.locator('.ws-button').click()
+      await page.getByRole('menuitem', { name }).click()
+      await expect(page.locator('.ws-button')).toContainText(shown)
+    }
+    await open(/project-two/, 'project-two')
+    await open(/project-one/, 'project-one')
     await page.getByRole('tab', { name: /Preview/ }).click()
     await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
   } finally {
