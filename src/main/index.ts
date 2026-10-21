@@ -438,6 +438,16 @@ const send = (channel: string, ...args: unknown[]) => {
   for (const w of liveWindows()) w.webContents.send(channel, ...args)
 }
 const persist = () => saveAgents(AGENTS_FILE, agents)
+// An agent doing something, or being sent a message, is what the quick-switch lists order by; it is kept with the agent, but written out at most every 10 seconds.
+const activeSaved = new Map<string, number>()
+function touch(a: AgentRecord) {
+  const now = Date.now()
+  a.activeAt = now
+  if (now - (activeSaved.get(a.id) ?? 0) > 10_000) {
+    activeSaved.set(a.id, now)
+    persist()
+  }
+}
 const byId = (id: string) => agents.find((a) => a.id === id)
 // The global library of skills and instructions, and the playbooks (global, and one per workspace) that say how agents use it.
 const LIBRARY_DIR = join(HOME, 'library')
@@ -810,6 +820,7 @@ function trackTurns(e: AgentEvent) {
   if (e.type === 'session-start') mailbox.ready(a.id)
   else if (e.type === 'task' || e.type === 'plan') return
   else if (e.type === 'activity' && !e.subagentId) {
+    touch(a)
     // A conversation exists once a turn has begun; only then can a relaunch use --resume.
     if (!a.started) {
       a.started = true
@@ -1463,6 +1474,8 @@ async function main() {
     return mine
   })
   const sendChat = async (id: string, raw: string) => {
+    const mine = byId(id)
+    if (mine) touch(mine)
     const p = sessions.get(id)
     if (!p) throw new Error('That agent is not running. Wake it first.')
     const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()

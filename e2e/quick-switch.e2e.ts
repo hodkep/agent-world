@@ -252,3 +252,59 @@ test('a plan another agent of this project waits on shows in the agent number an
     await shutdown()
   }
 })
+
+test('the agents panel and the projects panel put what was active last first, and keep that order while they are open', async () => {
+  const { page, shutdown } = await office(['shop-a', 'shop-b', 'shop-c'], undefined, { FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' })
+  try {
+    // shop-b gets two agents and shop-c one; shop-a has none.
+    await pick(page, 'shop-b')
+    await hire(page, { name: 'ada' })
+    await hire(page, { name: 'bo' })
+    await pick(page, 'shop-c')
+    await hire(page, { name: 'cy' })
+    const idle = () => page.evaluate(() => window.aw.listAgents().then((l) => l.every((a) => a.activity === 'idle')))
+    await expect.poll(idle, { timeout: SLOW }).toBe(true)
+    const send = (name: string) => page.evaluate((n) => window.aw.listAgents().then((l) => window.aw.chatSend(l.find((a) => a.name === n)!.id, 'hello')), name)
+    const names = (menu: string) => page.getByRole('menu', { name: menu }).locator('.wt-name').allInnerTexts()
+    const projects = async () => {
+      await page.locator('.ws-button').hover()
+      const got = await expect.poll(() => names('Projects')).toHaveLength(3).then(() => names('Projects'))
+      await page.mouse.move(700, 600)
+      return got
+    }
+
+    // ada is spoken to last: shop-b first. Then cy: shop-c first.
+    await send('ada')
+    await expect.poll(async () => (await projects())[0]).toBe('shop-b')
+    expect(await projects()).toEqual(['shop-b', 'shop-c', 'shop-a'])
+    await send('cy')
+    await expect.poll(async () => (await projects())[0]).toBe('shop-c')
+    expect(await projects()).toEqual(['shop-c', 'shop-b', 'shop-a'])
+
+    // The agents of shop-b: ada, who was spoken to last, comes before bo.
+    await pick(page, 'shop-b')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const open = async () => {
+      await page.locator('.hc-switch').hover()
+      const got = await expect.poll(() => names('Agents')).toHaveLength(2).then(() => names('Agents'))
+      return got
+    }
+    expect(await open()).toEqual(['ada', 'bo'])
+    // While it is open the order does not move, even when bo is spoken to.
+    await send('bo')
+    await page.waitForTimeout(800)
+    expect(await names('Agents')).toEqual(['ada', 'bo'])
+    // Read again the next time it opens.
+    await page.mouse.move(300, 700)
+    await expect(page.getByRole('menu', { name: 'Agents' })).toBeHidden()
+    await expect.poll(async () => {
+      const got = await open()
+      await page.mouse.move(300, 700)
+      await expect(page.getByRole('menu', { name: 'Agents' })).toBeHidden()
+      return got
+    }).toEqual(['bo', 'ada'])
+  } finally {
+    await shutdown()
+  }
+})
+
