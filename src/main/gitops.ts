@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
@@ -80,12 +80,34 @@ function inside(cwd: string, path: string) {
   return full
 }
 
+/**
+ * `inside`, and for the real place too: a link in the folder that leads out of it is refused, for a file that exists and for a new one (where its nearest folder that exists
+ * really is). A link that leads nowhere is refused as well, since writing through it would make the file where it points. (Checked when asked: a link made in between is not caught.)
+ */
+async function contained(cwd: string, path: string) {
+  const full = inside(cwd, path)
+  const root = await realpath(cwd)
+  const leaves = (real: string) => {
+    const rel = relative(root, real)
+    if (rel.startsWith('..') || isAbsolute(rel)) throw new Error(`${path} is outside the agent's worktree`)
+  }
+  if ((await lstat(full).catch(() => null))?.isSymbolicLink()) leaves(await realpath(full).catch(() => '/'))
+  for (let probe = full; ; probe = dirname(probe)) {
+    const real = await realpath(probe).catch(() => null)
+    if (real) {
+      leaves(real)
+      return full
+    }
+    if (dirname(probe) === probe) return full
+  }
+}
+
 export async function readWorktreeFile(cwd: string, path: string) {
-  return readFile(inside(cwd, path), 'utf8')
+  return readFile(await contained(cwd, path), 'utf8')
 }
 
 export async function writeWorktreeFile(cwd: string, path: string, content: string) {
-  const full = inside(cwd, path)
+  const full = await contained(cwd, path)
   await mkdir(dirname(full), { recursive: true })
   await writeFile(full, content)
 }

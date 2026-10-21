@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -72,6 +72,33 @@ describe('editing files in the worktree', () => {
   it('refuses paths that escape the worktree', async () => {
     await expect(readWorktreeFile(wt.path, '../../etc/passwd')).rejects.toThrow(/outside/i)
     await expect(writeWorktreeFile(wt.path, '/tmp/evil', 'x')).rejects.toThrow(/outside/i)
+  })
+
+  it('refuses to read or write through a link that leads out of the folder, even though the path as written is inside it', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'aw-out-'))
+    writeFileSync(join(out, 'secret.txt'), 'secret\n')
+    symlinkSync(join(out, 'secret.txt'), join(wt.path, 'file-link'))
+    symlinkSync(out, join(wt.path, 'dir-link'))
+    await expect(readWorktreeFile(wt.path, 'file-link')).rejects.toThrow(/outside/i)
+    await expect(readWorktreeFile(wt.path, 'dir-link/secret.txt')).rejects.toThrow(/outside/i)
+    await expect(writeWorktreeFile(wt.path, 'file-link', 'changed')).rejects.toThrow(/outside/i)
+    await expect(writeWorktreeFile(wt.path, 'dir-link/new.txt', 'x')).rejects.toThrow(/outside/i)
+    expect(readFileSync(join(out, 'secret.txt'), 'utf8')).toBe('secret\n')
+    expect(existsSync(join(out, 'new.txt'))).toBe(false)
+    // A link that leads nowhere would make the file where it points.
+    symlinkSync(join(out, 'not-yet.txt'), join(wt.path, 'dangling'))
+    await expect(writeWorktreeFile(wt.path, 'dangling', 'x')).rejects.toThrow(/outside/i)
+    expect(existsSync(join(out, 'not-yet.txt'))).toBe(false)
+  })
+
+  it('still follows a link that stays inside the folder, and makes folders for a new file', async () => {
+    await writeWorktreeFile(wt.path, 'real/x.txt', 'one\n')
+    symlinkSync(join(wt.path, 'real'), join(wt.path, 'inner-link'))
+    expect(await readWorktreeFile(wt.path, 'inner-link/x.txt')).toBe('one\n')
+    await writeWorktreeFile(wt.path, 'inner-link/y.txt', 'two\n')
+    expect(readFileSync(join(wt.path, 'real', 'y.txt'), 'utf8')).toBe('two\n')
+    await writeWorktreeFile(wt.path, 'deep/er/z.txt', 'three\n')
+    expect(await readWorktreeFile(wt.path, 'deep/er/z.txt')).toBe('three\n')
   })
 })
 
