@@ -13,12 +13,17 @@ import { type Ambient, type Screen, drawFloors, drawFurniture } from './furnitur
 import { CAR_COLORS, GRASS, GROUNDS, Street, drawGrounds, drawHiringSign, drawLampPosts, paintBillboard, paintScoreboard } from './grounds'
 import { scoreboardRows } from './scoreboard'
 import { PLANT, PowerPlant } from './power'
-import { CoolerJar } from './cooler'
-import { Director, type Face, type Scene, type Then } from './staff'
+import { Carrom } from './carrom'
+import { CarromBoard } from './carromBoard'
+import { Cheers } from './cheers'
+import { CoffeeTank, CoolerJar, SinkFill } from './cooler'
+import { Confetti } from './confetti'
+import { Life } from './life'
+import { Director, type Face, type Place as StaffPlace, type Scene, type Then } from './staff'
 import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
-import { OFFICE, type Pt, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
+import { type Facing, OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
 import { nextZoom, wheelSteps } from './zoomSteps'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -54,6 +59,10 @@ export interface AgentView {
   cloneOf?: string
   /** Lines added and removed this session, from Claude's statusline feed. */
   linesChanged: number
+  /** How many tasks this agent has finished, so that one more is a cheer. */
+  tasksDone?: number
+  /** It announced a task and has not finished it. */
+  taskOpen?: boolean
   /** It has just read something from the library: it walks to the bookshelf and pulls the book out while it reads. */
   reading?: boolean
   /** The library item it is reading, for the pill over its head. */
@@ -116,6 +125,19 @@ export class OfficeWorld {
   private staff: StaffActor[] = []
   private cooler: CoolerJar | null = null
   private officeLife = true
+  private lifeOn = false
+  private places!: Scene['spots']
+  private tank: CoffeeTank | null = null
+  private sinkFx: SinkFill | null = null
+  private filling: { start: number; ms: number } | null = null
+  private carromBoard: CarromBoard | null = null
+  private readonly life = new Life(Math.random, staffSpeed())
+  private readonly cheers = new Cheers()
+  private readonly confetti = new Confetti()
+  private cheered = 0
+  private publishedLife = ''
+  private readonly errands = new Map<string, { kind: 'drink' | 'game'; what?: 'water' | 'coffee'; phase: 'go' | 'do'; left: number; spot: Spot }>()
+  private game: { carrom: Carrom; keys: string[]; started: boolean; endAt: number; waited: number } | null = null
   // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
   private shownWater = 1
   private jarIn = true
@@ -473,6 +495,12 @@ export class OfficeWorld {
   private route(c: Character, activity: Activity, intern: boolean, detail?: string, mode?: string, reading = false) {
     c.activity = activity
     c.detail = detail
+    // On an errand or at the carrom board it stays away from its seat while it has nothing to do; with work it is called back.
+    if (c.errand) {
+      if (activity === 'idle') return
+      c.errand = false
+      this.cancelErrand(c.key)
+    }
     const place = placeFor(activity, intern, mode, reading)
     if (place === 'gone') return
     c.goTo(place === 'desk' || place === 'intern' ? c.home : this.claim(c.key, place))
@@ -496,6 +524,8 @@ export class OfficeWorld {
       c.subagents = Object.keys(a.state.interns).length
       c.reading = a.reading ? a.readingName ?? 'library' : undefined
       this.route(c, a.state.activity, false, a.state.detail, a.state.mode, a.reading)
+      const cheer = this.cheers.observe(a.id, a.state.activity, a.tasksDone ?? 0, performance.now(), a.taskOpen ?? false)
+      if (cheer) this.celebrate(a.id, cheer === 'big', performance.now())
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
 
@@ -600,9 +630,9 @@ export class OfficeWorld {
   }
 
   /** The tile beside a piece of furniture where someone stands to use it, and the way he faces it. */
-  private standBy(f: { x: number; y: number; w: number; h: number }, prefer: Face = 'down'): { to: Pt; face: Face } {
+  private standBy(f: { x: number; y: number; w: number; h: number }, prefer: Face = 'down'): StaffPlace {
     const map = OFFICE.map
-    const around: { to: Pt; face: Face }[] = [
+    const around: StaffPlace[] = [
       { to: { x: f.x, y: f.y + f.h }, face: 'up' },
       { to: { x: f.x - 1, y: f.y }, face: 'right' },
       { to: { x: f.x + f.w, y: f.y }, face: 'left' },
@@ -612,6 +642,40 @@ export class OfficeWorld {
     return order.find((c) => map.walkable(c.to)) ?? { to: { x: OFFICE.door.x, y: OFFICE.door.y }, face: 'up' }
   }
 
+  /** The places the staff and idle agents go to, from the furniture and the walls: built once. */
+  private buildPlaces(): Scene['spots'] {
+    const map = OFFICE.map
+    const of = (kind: string) => OFFICE.furniture.filter((f) => f.kind === kind)
+    const walk = (ps: StaffPlace[]) => ps.filter((p) => map.walkable(p.to))
+    const counter = of('counter')[0]
+    const machine: StaffPlace | null = counter ? { to: { x: counter.x + 3, y: counter.y - 1 }, face: 'down' } : null
+    const door = { x: OFFICE.door.x, y: OFFICE.door.y }
+    const one = (kind: string) => {
+      const f = of(kind)[0]
+      return f ? this.standBy(f) : { to: door, face: 'up' as Face }
+    }
+    return {
+      door,
+      cooler: one('cooler'),
+      bin: one('bin'),
+      counter: one('counter'),
+      coffee: machine && map.walkable(machine.to) ? machine : one('counter'),
+      printer: one('printer'),
+            // The tap is on the counter's left, over the sink: he stands in front of it on the kitchen floor.
+      sink: counter && map.walkable({ x: counter.x + 1, y: counter.y - 1 }) ? { to: { x: counter.x + 1, y: counter.y - 1 }, face: 'down' } : one('counter'),
+      outside: walk([{ to: { x: OFFICE.door.x, y: OFFICE.door.y - 1 }, face: 'down' }, { to: { x: OFFICE.door.x + 1, y: OFFICE.door.y - 1 }, face: 'down' }]),
+      corner: this.standBy({ x: 21, y: 12, w: 1, h: 1 }, 'down').to,
+      plants: of('plant').map((f) => this.standBy(f)),
+      // Only where nothing stands in front of him: a desk on the row below would hide the book he reads.
+      shelves: OFFICE.shelf.filter((s) => map.walkable({ x: s.x, y: s.y + 1 })).map((s) => ({ to: { x: s.x, y: s.y }, face: 'up' as Face })),
+      paintings: walk(OFFICE.decor.filter((d) => d.kind === 'frame').map((d) => ({ to: { x: d.x, y: 2 }, face: 'up' as Face }))),
+      tables: [...of('meeting'), ...of('bistro'), ...of('coffee-table')].map((f) => this.standBy(f)),
+      kanban: OFFICE.whiteboard.map((s) => ({ to: { x: s.x, y: s.y }, face: 'up' as Face })),
+      phone: walk([{ to: { x: 20, y: 6 }, face: 'right' }, { to: { x: 27, y: 9 }, face: 'left' }, { to: { x: 4, y: 6 }, face: 'right' }]),
+      sweep: [{ x: 5, y: 5 }, { x: 12, y: 5 }, { x: 5, y: 9 }, { x: 12, y: 9 }, { x: 9, y: 13 }, { x: 21, y: 6 }, { x: 27, y: 6 }, { x: 22, y: 9 }].filter((p) => map.walkable(p))
+    }
+  }
+
   private buildStaff() {
     const cooler = OFFICE.furniture.find((f) => f.kind === 'cooler')
     if (cooler) {
@@ -619,8 +683,25 @@ export class OfficeWorld {
       this.cooler.set(1)
       this.layer.addChild(this.cooler.view)
     }
+    const counter = OFFICE.furniture.find((f) => f.kind === 'counter')
+    if (counter) {
+      this.tank = new CoffeeTank(counter.x, counter.y)
+      this.tank.set(1)
+      this.layer.addChild(this.tank.view)
+      this.sinkFx = new SinkFill(counter.x, counter.y)
+      this.sinkFx.set(null)
+      this.layer.addChild(this.sinkFx.view)
+    }
+    const carrom = OFFICE.furniture.find((f) => f.kind === 'carrom')
+    if (carrom) {
+      this.carromBoard = new CarromBoard(carrom.x, carrom.y)
+      this.layer.addChild(this.carromBoard.view)
+    }
+    this.confetti.view.visible = false
+    this.overlays.addChild(this.confetti.view)
+    this.places = this.buildPlaces()
     const hover = (label: string) => (over: boolean) => (this.host.title = over ? label : '')
-    const door = { x: OFFICE.door.x, y: OFFICE.door.y }
+    const door = this.places.door
     const boy = new StaffActor('boy', 'the office boy', OFFICE.map, door, hover('the office boy'))
     const sup = new StaffActor('supervisor', 'the supervisor', OFFICE.map, door, hover('the supervisor'))
     this.staff = [boy, sup]
@@ -634,39 +715,215 @@ export class OfficeWorld {
     this.officeLife = on
   }
 
-  /** What the director is told when it plans: where agents work, how many are idle, and where the staff stand to do their jobs. */
+  /** A place beside an agent's seat, where someone can stand to talk to it, bring it something or watch it work. */
+  private besideOf(c: Character): StaffPlace | null {
+    const map = OFFICE.map
+    const at = c.at
+    return [{ to: { x: at.x + 2, y: at.y }, face: 'left' as Face }, { to: { x: at.x - 1, y: at.y }, face: 'right' as Face }].find((b) => map.walkable(b.to)) ?? null
+  }
+
+  /** What the director is told when it plans: where agents work or idle, how many are idle, and where the staff stand to do their jobs. */
   private sceneFor(boy: StaffActor): Scene {
     const map = OFFICE.map
-    const working: Scene['working'] = []
+    const working: StaffPlace[] = []
+    const idleAgents: StaffPlace[] = []
     let idle = 0
     for (const c of this.chars.values()) {
       if (c.role === 'intern' || c.leaving || c.waiting || !c.arrived) continue
       if (c.activity === 'idle') idle++
-      if (!['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(c.activity)) continue
-      const at = c.at
-      const beside = [
-        { to: { x: at.x + 2, y: at.y }, face: 'left' as const },
-        { to: { x: at.x - 1, y: at.y }, face: 'right' as const }
-      ].find((b) => map.walkable(b.to))
-      if (beside) working.push(beside)
+      const beside = this.besideOf(c)
+      if (!beside) continue
+      if (['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(c.activity)) working.push(beside)
+      else if (c.activity === 'idle' && !c.errand && c.doing === '') idleAgents.push(beside)
     }
-    const bin = OFFICE.furniture.find((f) => f.kind === 'bin')
-    const counter = OFFICE.furniture.find((f) => f.kind === 'counter')
-    const cooler = OFFICE.furniture.find((f) => f.kind === 'cooler')
-    const near = (f: { x: number; y: number; w: number; h: number } | undefined) => (f ? this.standBy(f) : { to: { x: OFFICE.door.x, y: OFFICE.door.y }, face: 'up' as const })
     const bt = boy.at
-    const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as const }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as const }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as const }
-    return { working, idle, spots: { door: { x: OFFICE.door.x, y: OFFICE.door.y }, cooler: near(cooler), bin: near(bin), counter: near(counter), corner: this.standBy({ x: 21, y: 12, w: 1, h: 1 }, 'down').to }, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet }
+    const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as Face }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as Face }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as Face }
+    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents }
+  }
+
+  /** Staff and idle agents put away: no game, no errand, no confetti. */
+  private lifeOff() {
+    for (const key of [...this.errands.keys()]) this.cancelErrand(key)
+    this.game = null
+    this.carromBoard?.setCoins(null)
+    this.confetti.update(1e6)
+  }
+
+  private cancelErrand(key: string) {
+    const c = this.chars.get(key)
+    this.errands.delete(key)
+    if (c) {
+      c.errand = false
+      if (c.doing === 'sip' || c.doing === 'coffee' || c.doing === 'play') c.doing = ''
+      this.route(c, c.activity, false)
+    }
+    const g = this.game
+    if (g?.keys.includes(key)) {
+      g.keys = g.keys.filter((k) => k !== key)
+      // A game is for two or four: with one gone the rest stop.
+      if (g.keys.length < 2 || g.keys.length % 2 === 1) this.endGame()
+    }
+  }
+
+  private endGame() {
+    const g = this.game
+    this.game = null
+    this.carromBoard?.setCoins(null)
+    if (!g) return
+    for (const key of g.keys) {
+      const c = this.chars.get(key)
+      this.errands.delete(key)
+      if (c) {
+        c.errand = false
+        c.doing = ''
+        this.route(c, c.activity, false)
+      }
+    }
+  }
+
+  /** Idle agents now and then fetch a cup of water or coffee, or sit down to carrom; every one of them is called back the moment it has work. */
+  private lifeTick(dt: number, t: number) {
+    for (const key of [...this.errands.keys()]) {
+      const c = this.chars.get(key)
+      if (!c || c.activity !== 'idle' || c.leaving) this.cancelErrand(key)
+    }
+    const free = [...this.chars.entries()].filter(([, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null).map(([k]) => k)
+    const plan = this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee })
+    if (plan?.kind === 'drink') this.startDrink(plan.agent, plan.what)
+    else if (plan?.kind === 'game') this.startGame(plan.agents)
+    for (const [key, e] of this.errands) {
+      const c = this.chars.get(key)
+      if (!c || e.kind !== 'drink') continue
+      if (e.phase === 'go' && c.arrived) {
+        e.phase = 'do'
+        c.doing = e.what === 'coffee' ? 'coffee' : 'sip'
+        c.doingAt = t
+        this.director.sip(e.what!)
+      } else if (e.phase === 'do') {
+        e.left -= dt
+        if (e.left <= 0) {
+          this.errands.delete(key)
+          c.errand = false
+          c.doing = ''
+          this.route(c, c.activity, false)
+        }
+      }
+    }
+    const g = this.game
+    if (g) {
+      g.waited += dt
+      if (!g.started) {
+        const here = g.keys.every((k) => this.chars.get(k)?.arrived)
+        if (here) {
+          g.started = true
+          for (const k of g.keys) {
+            const c = this.chars.get(k)!
+            c.doing = 'play'
+            c.doingAt = t
+            const e = this.errands.get(k)
+            if (e) e.phase = 'do'
+          }
+          this.carromBoard?.setCoins(g.carrom.coins)
+        } else if (g.waited > 25_000) this.endGame()
+      } else if (g.endAt > 0) {
+        if (t >= g.endAt) this.endGame()
+      } else {
+        const say = (key: string, text: string, ms = 1200) => {
+          const c = this.chars.get(key)
+          if (c) this.shouts.say(`carrom:${key}`, text, ms, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+        }
+        for (const ev of g.carrom.update(dt)) {
+          if (ev.type === 'strike') {
+            const c = this.chars.get(g.keys[ev.player]!)
+            if (c) c.doingAt = t
+            this.carromBoard?.strike(ev.player, g.keys.length)
+          } else if (ev.type === 'pocket') {
+            this.carromBoard?.setCoins(g.carrom.coins)
+            if (ev.coin === 'queen') say(g.keys[ev.player]!, 'Queen!')
+          } else {
+            say(g.keys[ev.winner]!, 'Board!', 2200)
+            g.endAt = t + 2600
+          }
+        }
+      }
+    }
+    this.carromBoard?.update(dt)
+    // A cheer or a clap ends by itself.
+    for (const c of this.chars.values()) if ((c.doing === 'cheer' || c.doing === 'clap') && t >= c.doingUntil) c.doing = ''
+    this.confetti.update(dt)
+    const life = JSON.stringify({
+      errands: [...this.errands].map(([agent, e]) => ({ agent, kind: e.kind, what: e.what ?? '', phase: e.phase })),
+      game: this.game && { players: this.game.keys, started: this.game.started, strikes: this.game.carrom.strikes, scores: this.game.carrom.scores, over: this.game.carrom.over },
+      cheers: this.cheered,
+      coffee: Math.round(this.director.coffee * 100) / 100
+    })
+    if (life !== this.publishedLife) {
+      this.publishedLife = life
+      this.host.dataset.life = life
+    }
+  }
+
+  private startDrink(key: string, what: 'water' | 'coffee') {
+    const c = this.chars.get(key)
+    if (!c) return
+    const taken = new Set([...this.errands.values()].map((e) => `${e.spot.x},${e.spot.y}`))
+    const base = what === 'water' ? this.places.cooler : this.places.coffee
+    const at: StaffPlace[] = what === 'water' ? [base, { to: { x: base.to.x - 1, y: base.to.y }, face: base.face }] : [base, { to: { x: base.to.x - 1, y: base.to.y }, face: base.face }, { to: { x: base.to.x + 1, y: base.to.y }, face: base.face }]
+    const place = at.find((p) => OFFICE.map.walkable(p.to) && !taken.has(`${p.to.x},${p.to.y}`))
+    if (!place) return
+    const spot: Spot = { x: place.to.x, y: place.to.y, facing: place.face, ox: 0, seated: false }
+    c.errand = true
+    c.goTo(spot)
+    this.errands.set(key, { kind: 'drink', what, phase: 'go', left: 2600, spot })
+  }
+
+  private startGame(agents: string[]) {
+    if (this.game || !this.carromBoard) return
+    const n = agents.length
+    const seats: [number, number, Facing][] = n === 2 ? [[24, 5, 'right'], [27, 6, 'left']] : [[24, 6, 'right'], [27, 5, 'left'], [25, 4, 'down'], [26, 7, 'up']]
+    this.game = { carrom: new Carrom(n, Math.random, staffSpeed()), keys: [...agents], started: false, endAt: 0, waited: 0 }
+    agents.forEach((key, i) => {
+      const c = this.chars.get(key)
+      const [x, y, facing] = seats[i]!
+      const spot: Spot = { x, y, facing, ox: 0, seated: false }
+      if (!c) return
+      c.errand = true
+      c.goTo(spot)
+      this.errands.set(key, { kind: 'game', phase: 'go', left: 0, spot })
+    })
+  }
+
+  /** An agent has finished: it cheers (hops, arms up, a burst of confetti, a shout), the agents next to it clap. */
+  private celebrate(key: string, big: boolean, t: number) {
+    const c = this.chars.get(key)
+    if (!c || !this.lifeOn || c.role === 'intern') return
+    c.doing = 'cheer'
+    c.doingAt = t
+    c.doingUntil = t + (big ? 3200 : 2200)
+    this.confetti.burst(c.view.x + TILE / 2, c.view.y + 4, big ? 70 : 26)
+    this.shouts.say(`cheer:${key}`, big ? 'TASK DONE!' : 'DONE!', 1600, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 36 }))
+    for (const [k, o] of this.chars)
+      if (k !== key && o.role !== 'intern' && !o.errand && o.doing === '' && Math.hypot(o.at.x - c.at.x, o.at.y - c.at.y) <= 4) {
+        o.doing = 'clap'
+        o.doingAt = t
+        o.doingUntil = t + 2000
+      }
+    this.cheered++
   }
 
   private staffTick(dt: number, t: number) {
     const on = this.officeLife && this.chars.size > 0 && !calmMotion()
+    this.lifeOn = on
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     if (!on) {
       for (const a of this.staff) (a.setShown(false), a.fade(dt))
       this.cooler?.set(1)
+      this.tank?.set(1)
+      this.filling = null
+      this.sinkFx?.set(null)
       this.shownWater = 1
       this.jarIn = true
+      this.lifeOff()
       const none = JSON.stringify({ water: 1, staff: [] })
       if (none !== this.publishedStaff) (this.publishedStaff = none, (this.host.dataset.staff = none))
       return
@@ -678,19 +935,63 @@ export class OfficeWorld {
     const target = this.director.water
     this.shownWater = this.shownWater < target - 0.001 ? Math.min(target, this.shownWater + dt / 900) : target
     this.cooler?.set(this.shownWater, this.jarIn)
+    this.tank?.set(this.director.coffee)
+    this.sinkFx?.set(this.filling ? (t - this.filling.start) / this.filling.ms : null)
     const say = (a: StaffActor) => (text: string, ms: number) => this.shouts.say(`staff:${a.kind}`, text, ms, () => ({ x: a.view.x + TILE / 2, y: a.view.y - 28 }))
     const then = (a: StaffActor) => (what: Then) => {
-      if (what === 'fetch') a.carrying = 'jar'
-      else if (what === 'swapOut') this.jarIn = false
-      else if (what === 'swapIn') {
-        this.jarIn = true
-        this.shownWater = 0
-        this.director.refill()
-        a.carrying = ''
-      } else if (what === 'pickOld') a.carrying = 'old-jar'
-      else if (what === 'bag') a.carrying = 'bag'
-      else if (what === 'drop') a.carrying = ''
-      else boy.release()
+      switch (what) {
+        case 'fetch':
+          a.carrying = 'jar'
+          break
+        case 'swapOut':
+          this.jarIn = false
+          a.carrying = 'old-jar'
+          break
+        case 'fill':
+          // The empty jar is set under the tap, and fills.
+          a.carrying = ''
+          this.filling = { start: t, ms: Math.round(2200 / staffSpeed()) }
+          break
+        case 'takeJar':
+          this.filling = null
+          a.carrying = 'jar'
+          break
+        case 'swapIn':
+          this.jarIn = true
+          this.shownWater = 0
+          this.director.refill()
+          a.carrying = ''
+          break
+        case 'takeBook':
+        case 'putBook':
+          break
+        case 'pickOld':
+          a.carrying = 'old-jar'
+          break
+        case 'bag':
+          a.carrying = 'bag'
+          break
+        case 'parcel':
+          a.carrying = 'parcel'
+          break
+        case 'tray':
+          a.carrying = 'tray'
+          break
+        case 'drop':
+          a.carrying = ''
+          break
+        case 'sipWater':
+          this.director.sip('water')
+          break
+        case 'sipCoffee':
+          this.director.sip('coffee')
+          break
+        case 'brew':
+          this.director.brew()
+          break
+        default:
+          boy.release()
+      }
     }
     if (sup.free) {
       const plan = this.director.supervisorPlan(scene)
@@ -707,6 +1008,7 @@ export class OfficeWorld {
     }
     boy.update(dt, t, { then: then(boy), say: say(boy) })
     sup.update(dt, t, { then: then(sup), say: say(sup) })
+    this.lifeTick(dt, t)
     const state = JSON.stringify({ water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying })) })
     if (state !== this.publishedStaff) {
       this.publishedStaff = state

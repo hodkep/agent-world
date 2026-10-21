@@ -59,3 +59,96 @@ test('with agents in the office the supervisor goes to one that is working and s
     await o.shutdown()
   }
 })
+
+type Life = { errands: { agent: string; kind: string; what: string; phase: string }[]; game: { players: string[]; started: boolean; strikes: number; scores: number[]; over: boolean } | null; cheers: number; coffee: number }
+const life = async (page: import('@playwright/test').Page): Promise<Life | null> => {
+  const raw = await page.locator('.stage').getAttribute('data-life')
+  return raw ? (JSON.parse(raw) as Life) : null
+}
+const send = (app: import('@playwright/test').ElectronApplication, agentId: string, activity: string) =>
+  app.evaluate(({ BrowserWindow }, [id, a]) => BrowserWindow.getAllWindows()[0]!.webContents.send('agent-event', { type: 'activity', agentId: id, sessionId: 's1', activity: a }), [agentId, activity])
+
+test('idle agents fetch water and coffee (which falls with every cup) and play carrom in twos or fours, and a player with work leaves the game; the supervisor reads, drinks, admires a painting and takes calls; the staff are never still', async () => {
+  test.setTimeout(540_000)
+  const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle', eli: 'idle', fay: 'idle', bo: 'thinking', cy: 'implementing' } })
+  try {
+    const { page, app } = o
+    await page.evaluate(() => localStorage.setItem('aw.staffFast', '20'))
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    await page.evaluate(() => {
+      const w = window as unknown as { __life: { kinds: Set<string>; players: Set<number>; scored: boolean; poses: Set<string> } }
+      w.__life = { kinds: new Set(), players: new Set(), scored: false, poses: new Set() }
+      const stage = document.querySelector('.stage')!
+      new MutationObserver(() => {
+        const l = JSON.parse(stage.getAttribute('data-life') ?? 'null') as { errands: { kind: string; what: string }[]; game: { players: string[]; strikes: number; scores: number[] } | null } | null
+        for (const e of l?.errands ?? []) w.__life.kinds.add(`${e.kind}:${e.what}`)
+        if (l?.game && l.game.strikes > 0) (w.__life.players.add(l.game.players.length), l.game.scores.some((s) => s > 0) && (w.__life.scored = true))
+        const s = JSON.parse(stage.getAttribute('data-staff') ?? 'null') as { staff: { kind: string; pose: string; carrying: string }[] } | null
+        for (const x of s?.staff ?? []) (w.__life.poses.add(`${x.kind}: ${x.pose}`), x.carrying && w.__life.poses.add(`carry: ${x.carrying}`))
+      }).observe(stage, { attributes: true, attributeFilter: ['data-life', 'data-staff'] })
+    })
+    for (const name of ['ada', 'dee', 'eli', 'fay', 'bo', 'cy']) await hireNamed(page, name)
+    const seen = () => page.evaluate(() => { const w = window as unknown as { __life: { kinds: Set<string>; players: Set<number>; scored: boolean; poses: Set<string> } }; return { kinds: [...w.__life.kinds], players: [...w.__life.players], scored: w.__life.scored, poses: [...w.__life.poses] } })
+
+    // Idle agents fetch a cup of water and of coffee, and sit down to carrom, two or four of them, striking and scoring.
+    await expect.poll(async () => (await seen()).kinds, { timeout: 150_000 }).toEqual(expect.arrayContaining(['drink:water', 'drink:coffee']))
+    await expect.poll(async () => (await seen()).players.length > 0 && (await seen()).scored, { timeout: 200_000 }).toBe(true)
+    expect([2, 4]).toContain((await seen()).players[0])
+
+    // The supervisor does more than check on agents: he reads with a book, drinks, looks at a painting and takes a call; the office boy sweeps and carries things.
+    await expect.poll(async () => (await seen()).poses, { timeout: 240_000 }).toEqual(expect.arrayContaining(['supervisor: hold', 'supervisor: reach', 'supervisor: sip', 'supervisor: chin', 'supervisor: call', 'supervisor: clasp']))
+    await expect.poll(async () => (await seen()).poses.some((p) => p === 'carry: tray' || p === 'carry: parcel' || p === 'carry: bag'), { timeout: 240_000 }).toBe(true)
+
+    // Neither of them stands still for long: sampled every 400 ms, the longest stretch in one place, pose and hands is a few seconds at most.
+    const longest: Record<string, number> = { boy: 0, supervisor: 0 }
+    const was: Record<string, string> = {}
+    const run: Record<string, number> = { boy: 0, supervisor: 0 }
+    for (let i = 0; i < 60; i++) {
+      for (const x of (await staff(page))!.staff) {
+        const now = `${x.x},${x.y},${x.pose},${x.carrying}`
+        run[x.kind] = was[x.kind] === now ? run[x.kind]! + 1 : 0
+        was[x.kind] = now
+        longest[x.kind] = Math.max(longest[x.kind]!, run[x.kind]!)
+      }
+      await page.waitForTimeout(400)
+    }
+    expect(longest.boy! * 0.4).toBeLessThan(6)
+    expect(longest.supervisor! * 0.4).toBeLessThan(6)
+
+    // A player who gets work leaves the game, and the game stops when one is left over.
+    await expect.poll(async () => (await life(page))?.game?.started ?? false, { timeout: 240_000 }).toBe(true)
+    const game = (await life(page))!.game!
+    const agents = await page.evaluate(() => window.aw.listAgents())
+    const player = agents.find((a) => game.players.includes(a.id))!
+    await send(app, player.id, 'implementing')
+    await expect.poll(async () => (await life(page))?.game ?? null, { timeout: 15_000 }).toBeNull()
+    await expect.poll(async () => ((await life(page))?.errands ?? []).some((e) => e.agent === player.id), { timeout: 15_000 }).toBe(false)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('an agent that has worked for ten seconds and finishes cheers, with a shout and confetti, and the agent next to it claps', async () => {
+  test.setTimeout(120_000)
+  const o = await shotApp({ scenes: { ada: 'idle', bo: 'idle' } })
+  try {
+    const { page, app } = o
+    await page.locator('.stage').waitFor()
+    await page.evaluate(() => {
+      const w = window as unknown as { __shouts: string[] }
+      w.__shouts = []
+      const stage = document.querySelector('.stage')!
+      new MutationObserver(() => w.__shouts.push(stage.getAttribute('data-shouts') ?? '')).observe(stage, { attributes: true, attributeFilter: ['data-shouts'] })
+    })
+    for (const name of ['ada', 'bo']) await hireNamed(page, name)
+    const [ada] = (await page.evaluate(() => window.aw.listAgents())).filter((a) => a.name === 'ada')
+    await send(app, ada!.id, 'implementing')
+    await page.waitForTimeout(9500)
+    await send(app, ada!.id, 'idle')
+    await expect.poll(async () => (await life(page))?.cheers ?? 0, { timeout: 10_000 }).toBeGreaterThan(0)
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __shouts: string[] }).__shouts.some((s) => s.includes('DONE!'))), { timeout: 10_000 }).toBe(true)
+  } finally {
+    await o.shutdown()
+  }
+})

@@ -71,7 +71,7 @@ export interface Spot extends Pt {
 }
 
 export type Furniture =
-  | { kind: 'desk' | 'meeting' | 'sofa-top' | 'sofa-bottom' | 'coffee-table' | 'counter' | 'fridge' | 'arcade'; x: number; y: number; w: number; h: number }
+  | { kind: 'desk' | 'meeting' | 'sofa-top' | 'sofa-bottom' | 'coffee-table' | 'counter' | 'fridge' | 'arcade' | 'carrom'; x: number; y: number; w: number; h: number }
   | { kind: 'plant' | 'cooler' | 'printer' | 'bin' | 'bistro' | 'beanbag' | 'chair-desk' | 'chair-top' | 'chair-bottom'; x: number; y: number; w: number; h: number }
 
 export type WallDecor =
@@ -153,6 +153,8 @@ function buildOffice() {
     { kind: 'sofa-bottom', x: 22, y: 11, w: 4, h: 1 },
     { kind: 'plant', x: 19, y: 8, w: 1, h: 1 },
     { kind: 'plant', x: 28, y: 8, w: 1, h: 1 },
+    // The carrom board, where idle agents sit down to play: players stand on its four sides.
+    { kind: 'carrom', x: 25, y: 5, w: 2, h: 2 },
     { kind: 'counter', x: 22, y: 15, w: 6, h: 1 },
     { kind: 'fridge', x: 28, y: 14, w: 1, h: 2 },
     { kind: 'bistro', x: 20, y: 14, w: 1, h: 1 }
@@ -203,7 +205,7 @@ function buildOffice() {
     overflow: {
       desk: walkway([3, 5, 7, 9, 11, 13, 15], 5),
       intern: walkway([2, 3, 13, 15], 14),
-      lounge: walkway([20, 21, 23, 25, 26, 27], 6)
+      lounge: walkway([19, 20, 21, 22, 23, 28], 7)
     }
   }
 }

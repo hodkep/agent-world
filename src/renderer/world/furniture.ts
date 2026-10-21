@@ -395,6 +395,16 @@ function drawPiece(f: Furniture, layer: Container, built: Built, rand: () => num
       })
       break
     }
+    case 'carrom':
+      // A carrom board on a low table, seen from the front: the playing surface, its frame and its four legs. The coins and the striker are drawn over it as the game goes on.
+      place(layer, bottom, (g) => {
+        r(g, px + 3, py + 25, 3, 7, P.steel)
+        r(g, px + w - 6, py + 25, 3, 7, P.steel)
+        box(g, px + 1, py + 3, w - 2, 24, 0x8a5a2a)
+        box(g, px + 4, py + 6, w - 8, 18, 0xe8d8a8)
+        for (const [ox, oy] of [[5, 7], [w - 9, 7], [5, 20], [w - 9, 20]] as const) r(g, px + ox, py + oy, 4, 3, 0x2a2a32)
+      })
+      break
     case 'arcade':
       place(layer, bottom, (g) => {
         box(g, px + 1, py - 14, TILE - 2, 30, 0x2a2140)

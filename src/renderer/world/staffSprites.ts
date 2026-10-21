@@ -1,7 +1,8 @@
 import { type View, bodyPixels, clean, pixelTexture } from './sprites'
 
 export type StaffKind = 'boy' | 'supervisor'
-export type StaffPose = 'stand' | 'walk1' | 'walk2' | 'salute' | 'point' | 'wipe'
+/** reach: an arm straight up to a shelf · clasp: both hands behind the back · sip: a cup at the mouth · call: a hand at the ear · chin: a hand on the chin · hold: both hands in front, with a book, a can or a tray in them · wipe: an arm out in front, with a cloth or a broom */
+export type StaffPose = 'stand' | 'walk1' | 'walk2' | 'salute' | 'point' | 'wipe' | 'sip' | 'call' | 'chin' | 'hold' | 'reach' | 'clasp' | 'reach' | 'clasp'
 
 // 16x24, like the agents. Keys: o outline · h hair · s/S skin · e eye · c/C clothes · p trousers · k shoes · r/R gamcha · b belt · y lanyard · l badge
 const KEYS: Record<StaffKind, Record<string, number>> = {
@@ -17,6 +18,71 @@ const put = (rows: Rows, x: number, y: number, ch: string) => {
 const span = (rows: Rows, x0: number, x1: number, y: number, ch: string) => {
   for (let x = x0; x <= x1; x++) put(rows, x, y, ch)
 }
+/** An arm drawn as a line of pixels from the shoulder to the hand: sleeve for most of the way, then the skin of the hand. */
+function arm(rows: Rows, from: Pt, to: Pt, sleeve = 'c') {
+  const n = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y))
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(from.x + ((to.x - from.x) * i) / Math.max(1, n))
+    const y = Math.round(from.y + ((to.y - from.y) * i) / Math.max(1, n))
+    put(rows, x, y, i >= n - 1 ? 's' : sleeve)
+  }
+}
+interface Pt {
+  x: number
+  y: number
+}
+
+/** Where the hand is for each pose that lifts it, from the front and the side (facing right): the arm is drawn from the shoulder to there. */
+const HANDS: Partial<Record<StaffPose, { front: Pt[]; side: Pt[] }>> = {
+  sip: { front: [{ x: 5, y: 10 }], side: [{ x: 10, y: 10 }] },
+  call: { front: [{ x: 4, y: 8 }], side: [{ x: 8, y: 8 }] },
+  chin: { front: [{ x: 6, y: 11 }], side: [{ x: 10, y: 11 }] },
+  hold: { front: [{ x: 5, y: 16 }, { x: 10, y: 16 }], side: [{ x: 11, y: 16 }] }
+}
+const SHOULDERS = { front: [{ x: 3, y: 13 }, { x: 12, y: 13 }], side: [{ x: 7, y: 13 }] }
+
+/** Clears the hanging arms (front) and draws the ones the pose lifts. The back view keeps its hanging arms. */
+function raise(rows: Rows, view: View, pose: StaffPose) {
+  if (pose === 'reach') {
+    // One arm straight up above the head, to a shelf: on the viewer's right from the front and the back, forward from the side.
+    const side = view === 'side'
+    if (!side) for (let y = 13; y <= 17; y++) (put(rows, 12, y, '.'), put(rows, 13, y, '.'))
+    arm(rows, side ? { x: 7, y: 13 } : { x: 12, y: 13 }, side ? { x: 10, y: 1 } : { x: 12, y: 0 })
+    return
+  }
+  if (pose === 'clasp') {
+    // Hands behind the back: from the front only the elbows stick out; from behind the clasped hands show low on the back.
+    if (view === 'front') {
+      for (let y = 13; y <= 17; y++) (put(rows, 2, y, '.'), put(rows, 3, y, '.'), put(rows, 4, y, '.'), put(rows, 11, y, '.'), put(rows, 12, y, '.'), put(rows, 13, y, '.'))
+      put(rows, 2, 15, 'o')
+      put(rows, 3, 14, 'c')
+      put(rows, 3, 15, 'c')
+      put(rows, 13, 15, 'o')
+      put(rows, 12, 14, 'c')
+      put(rows, 12, 15, 'c')
+    } else if (view === 'back') {
+      for (let y = 13; y <= 17; y++) (put(rows, 3, y, '.'), put(rows, 12, y, '.'))
+      arm(rows, { x: 4, y: 13 }, { x: 7, y: 17 })
+      arm(rows, { x: 11, y: 13 }, { x: 8, y: 17 })
+    }
+    return
+  }
+  const hands = HANDS[pose]
+  if (!hands || view === 'back') return
+  const which = view === 'side' ? 'side' : 'front'
+  if (which === 'front') for (let y = 13; y <= 17; y++) (put(rows, 3, y, '.'), put(rows, 12, y, '.'), put(rows, 2, y, '.'), put(rows, 13, y, '.'))
+  hands[which].forEach((h, i) => arm(rows, SHOULDERS[which][i] ?? SHOULDERS[which][0]!, h))
+}
+
+/** Where a held thing is drawn for a pose, in the sprite's own pixels facing front or right, so the actor can put it in the hand. */
+export const HAND_AT: Record<'sip' | 'call' | 'chin' | 'hold' | 'wipe', { front: Pt; side: Pt }> = {
+  sip: { front: { x: 4, y: 8 }, side: { x: 10, y: 8 } },
+  call: { front: { x: 2, y: 6 }, side: { x: 7, y: 6 } },
+  chin: { front: { x: 6, y: 11 }, side: { x: 10, y: 11 } },
+  hold: { front: { x: 5, y: 14 }, side: { x: 11, y: 14 } },
+  wipe: { front: { x: 13, y: 12 }, side: { x: 13, y: 12 } }
+}
+
 const replace = (rows: Rows, top: number, layer: Rows) => layer.forEach((line, i) => (rows[top + i] = line))
 
 // ---- Supervisor: thin arms and legs under a round belly, a bald crown with patches of hair at the sides ----------------------------
@@ -77,6 +143,7 @@ function supervisor(view: View, pose: StaffPose): Rows {
   const walk = pose === 'walk1' || pose === 'walk2' ? pose : 'stand'
   replace(rows, 12, side ? SUP_SIDE_TOP : SUP_FRONT_TOP)
   replace(rows, 19, side ? SUP_SIDE_LEGS[walk] : SUP_FRONT_LEGS[walk])
+  raise(rows, view, pose)
   if (pose === 'point') {
     // One arm straight out in front of him, a finger at the end.
     if (side) {
@@ -109,6 +176,7 @@ function boy(view: View, pose: StaffPose): Rows {
     span(rows, 5, 10, 13, 'R')
   }
   if (pose === 'salute') salute(rows, view)
+  raise(rows, view, pose)
   if (pose === 'wipe' && view === 'side') {
     // The arm out in front, holding the cloth (drawn by the actor) against the counter.
     span(rows, 9, 10, 14, 'c')
