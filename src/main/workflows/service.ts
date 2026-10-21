@@ -109,6 +109,23 @@ export class Workflows {
     return this.runs().filter((r) => r.agent === agentId).reverse()
   }
 
+  /**
+   * The run the commits of `head` belong to: the agent's earlier run that recorded a commit with that sha, else its latest run. A commit counts for an earlier run only when the
+   * app recorded it before any later run of the agent began, by the order of the log and not by the commit's own date (git can be told any date), so work done under a later
+   * task cannot take the gate of an earlier one. A head no run recorded follows the latest run.
+   */
+  private ownerOf(agentId: string, head?: string): Run | undefined {
+    const runs = this.mine(agentId)
+    const latest = runs[0]
+    if (!head) return latest
+    const events = this.events()
+    const recorded = events.findIndex((e) => e.k === 'commit' && e.sha === head)
+    const owner = recorded < 0 ? undefined : runs.find((r) => r.id === events[recorded]!.run)
+    if (!owner || owner === latest) return latest
+    const began = (r: Run) => events.findIndex((e) => e.k === 'begin' && e.run === r.id)
+    return runs.filter((r) => began(r) > began(owner)).every((r) => began(r) > recorded) ? owner : latest
+  }
+
   /** Whether a task of this agent follows a workflow at all: not in a project that uses none, unless the task asks for one that is there. */
   applies(agentId: string, requested?: string): boolean {
     return !this.deps.noWorkflow?.(agentId) || (!!requested && !!this.deps.pick(agentId, requested))
@@ -183,7 +200,7 @@ export class Workflows {
    * so a run that commits again does not pay for another on every new head; the person's "Run the audit now" audits the new one.
    */
   auditDue(agentId: string, head: string): boolean {
-    const run = this.mine(agentId)[0]
+    const run = this.ownerOf(agentId, head)
     const tried = !!run?.audit && run.audit.t >= run.rounds[run.rounds.length - 1]!.startedAt
     return !!run && !tried && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
   }
@@ -469,7 +486,7 @@ export class Workflows {
 
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */
   mergeCheck(agentId: string, head: string, o: { auditable?: boolean } = {}): MergeCheck | null {
-    const run = this.mine(agentId)[0]
+    const run = this.ownerOf(agentId, head)
     if (!this.deps.enabled() || !run) return null
     // A merge step with gate auto turns off the plan and audit rules; a check that must pass and a step the person must approve still hold landing.
     const gated = this.mergeRequired(run)
@@ -538,7 +555,7 @@ export class Workflows {
 
   /** The audit of `head` against the agent's plan: one question to a model, its findings logged with what it cost. */
   runAudit(agentId: string, head: string, diff: string): Promise<void> {
-    const run = this.mine(agentId)[0]
+    const run = this.ownerOf(agentId, head)
     if (!run || !this.planOf(run) || this.deps.dial() === 'economy' || (run.workflow && !run.workflow.steps.some((s) => s.kind === 'audit')) || (run.audit?.head === head && run.audit.state === 'done')) return Promise.resolve()
     const key = `${run.id} ${head}`
     const running = this.auditing.get(key)
@@ -565,7 +582,7 @@ export class Workflows {
 
   /** The person has looked at these findings (by position) of the audit of `head`. */
   seen(agentId: string, head: string, which: number[]) {
-    const run = this.mine(agentId)[0]
+    const run = this.ownerOf(agentId, head)
     if (!run) throw new Error('No such run.')
     this.append({ k: 'seen', t: this.deps.now(), run: run.id, head, which })
   }
@@ -575,7 +592,7 @@ export class Workflows {
    * and counts as seen. Only out-of-scope work can be added, since the other kinds are about the goal and the guesses, not about what the plan covers.
    */
   addToPlan(agentId: string, head: string, which: number[]) {
-    const run = this.mine(agentId)[0]
+    const run = this.ownerOf(agentId, head)
     if (!run) throw new Error('No such run.')
     const a = run.audit
     if (a?.state !== 'done' || a.head !== head) throw new Error('That audit is not the latest.')
@@ -586,17 +603,17 @@ export class Workflows {
   }
 
   /** The person sets the review aside: not followed, by their choice, and nothing it found or has not yet found holds landing. */
-  asideAudit(agentId: string) {
-    this.auditStep(agentId, 'skipped')
+  asideAudit(agentId: string, head?: string) {
+    this.auditStep(agentId, 'skipped', head)
   }
 
   /** The person takes it back: the review's findings hold landing again. */
-  undoAsideAudit(agentId: string) {
-    this.auditStep(agentId, 'rerun')
+  undoAsideAudit(agentId: string, head?: string) {
+    this.auditStep(agentId, 'rerun', head)
   }
 
-  private auditStep(agentId: string, state: 'skipped' | 'rerun') {
-    const run = this.mine(agentId)[0]
+  private auditStep(agentId: string, state: 'skipped' | 'rerun', head?: string) {
+    const run = this.ownerOf(agentId, head)
     if (!run) throw new Error('No such run.')
     // A run that follows no workflow has no audit step of its own: its audit is the one the gate runs, and sets aside under that name.
     const step = run.workflow ? run.workflow.steps.find((s) => s.kind === 'audit')?.id : AUDIT_STEP
@@ -633,7 +650,7 @@ export class Workflows {
     const skipped = o.unchecked ? [SKIPPED_HOLD] : []
     if (!check) {
       // Nothing holds a push that ends in a pull request with its gate auto, but the run still ends there.
-      const run = this.mine(agentId)[0]
+      const run = this.ownerOf(agentId, head)
       if (this.deps.enabled() && run && landingKind(run.workflow) === 'pr') {
         this.append({ k: 'merge', t: this.deps.now(), run: run.id, head, how: skipped.length ? 'anyway' : 'checked', held: skipped })
         this.endAtPush(agentId)
@@ -654,6 +671,6 @@ export class Workflows {
 
   /** Whether this head of the agent's latest run is already recorded as landed or pushed. */
   landedHead(agentId: string, head: string): boolean {
-    return this.mine(agentId)[0]?.landed?.head === head
+    return this.ownerOf(agentId, head)?.landed?.head === head
   }
 }

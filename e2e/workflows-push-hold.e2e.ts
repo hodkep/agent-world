@@ -54,7 +54,7 @@ async function office(name: string, findings = FINDINGS) {
   const merge = () => asAgent(repo, 'merge', '--ff-only', ada!.branch!)
   const pushed = () => git(remote, 'branch', '--list', ada!.branch!)
   const landed = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.landed as { how: string; held: string[] } | undefined
-  return { repo, git, page, ada: ada!, shutdown, merge, push, pushed, landed }
+  return { repo, home, git, page, ada: ada!, shutdown, merge, push, pushed, landed }
 }
 
 test('an agent that pushes its branch from the chat is held by git itself while the review has findings the person has not seen, and the push goes through once the person allows it, which ends the run', async () => {
@@ -172,6 +172,28 @@ test('findings arrive grouped, one row for one cause with its files: Add to plan
     await expect.poll(async () => (await o.page.evaluate(() => window.aw.workflows.summary())).runs[0]!.additions?.map((a) => a.text)).toEqual(['The fold feature.'])
     await card.getByRole('button', { name: 'Seen, fine', exact: true }).click()
     await expect(card).toHaveCount(0)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a push of finished work is held by that work\'s own run, not by a task begun since: its approved plan and passed audit stand, and the new task\'s missing plan does not hold it', async () => {
+  const o = await office('wfowner', JSON.stringify({ findings: [] }))
+  try {
+    const log = join(o.home, 'runs.jsonl')
+    const head = o.git(o.ada.cwd, 'rev-parse', 'HEAD')
+    const t = Date.now()
+    // The first task is finished and audited with nothing found; a second one was begun before its branch was pushed, and has no plan.
+    appendFileSync(log, [
+      { k: 'commit', t: t - 2500, run: 'r1', round: 1, sha: head, subject: 'add toggle' },
+      { k: 'audit', t: t - 2000, run: 'r1', head, state: 'done', findings: [], files: 1, lines: 1, truncated: false },
+      { k: 'done', t: t - 1500, run: 'r1' },
+      { k: 'begin', t: t - 1000, run: 'r2', agent: o.ada.id, name: 'ada', project: o.repo, title: 'A second task', workflow: PULL }
+    ].map((e) => JSON.stringify(e)).join('\n') + '\n')
+    const r = await o.push()
+    expect(r.out).not.toContain('this push is held')
+    expect(r.ok).toBe(true)
+    expect(o.pushed()).toContain('aw/')
   } finally {
     await o.shutdown()
   }

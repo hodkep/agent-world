@@ -2325,13 +2325,15 @@ async function main() {
     send('workflows')
     send('landing')
   })
-  ipcMain.handle('finish:aside', (_, id: string) => {
-    workflows.asideAudit(id)
+  ipcMain.handle('finish:aside', async (_, id: string) => {
+    const { a } = await worktreeOf(id)
+    workflows.asideAudit(id, await git(a.cwd, 'rev-parse', a.branch!))
     send('workflows')
     send('landing')
   })
-  ipcMain.handle('finish:undo-aside', (_, id: string) => {
-    workflows.undoAsideAudit(id)
+  ipcMain.handle('finish:undo-aside', async (_, id: string) => {
+    const { a } = await worktreeOf(id)
+    workflows.undoAsideAudit(id, await git(a.cwd, 'rev-parse', a.branch!))
     send('workflows')
     send('landing')
   })
