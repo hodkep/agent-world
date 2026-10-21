@@ -19,7 +19,7 @@ The default is **Standard** (**Plan**, **Build**, **Audit**, **Pull request**), 
 2. Writes a plan to `.agent-world/plan.md` (goal, assumptions, out of scope, questions).
 3. Waits for your approval, then builds.
 4. Has any **check** steps run, and its branch reviewed against the plan (not at **Economy**).
-5. Pushes the branch for a pull request when you ask.
+5. Is told to open the pull request once the audit has passed (the app says so in the chat, so you do not have to ask): it pushes a branch whose head is exactly the audited commit, under any name. Commits go on its own branch only; a commit on another branch of its worktree is refused, and a push of a branch with other commits is held.
 
 While a run is open, a new request the agent announces is an **item** of that run, not another run: one track, one audit of the whole branch, one pull request. The agent is told to rewrite its plan to cover the item and call `plan_submit`, which you approve as the whole plan. The **Workflow** tab lists the items. A task begun after the run was done, landed or stopped, or a request that continues the last task (`follow_up`), is as before.
 

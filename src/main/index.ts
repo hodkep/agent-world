@@ -73,7 +73,7 @@ import { Builder, Proposals } from './workflows/builder'
 import { HeldMerges } from './workflows/heldMerges'
 import { WorkflowHistory } from './workflows/history'
 import { WaitNotices } from './workflows/waitNotice'
-import { blockText, branchHead, currentBranch, gitEnv, holdsBranch, isInside, movesBase, originalHooks, refHead, stagedFiles, writeGitHooks } from './workflows/commitGate'
+import { blockText, branchHead, currentBranch, foreignMove, gitEnv, holdsBranch, isInside, movesBase, originalHooks, pushGate, refHead, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
@@ -85,7 +85,7 @@ import { runSpend } from '../shared/runStats'
 import { planReply } from '../shared/plan'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
 import { cancelNeed } from './needCancel'
-import { WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
+import { PR_GO, WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
@@ -1248,6 +1248,11 @@ async function main() {
         const where = typeof payload.cwd === 'string' ? payload.cwd : ''
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
         if (!where) return {}
+        // The work is done on the agent's own branch, which is the one the audit looks at: a commit on any other branch in its worktree is refused.
+        const own = a.branch ?? currentBranch(a.cwd)
+        const listOf = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+        const foreign = own && isInside(a.cwd, where) && workflows.landKind(id) ? foreignMove({ own, ownHead: branchHead(a.cwd, own), refs, olds: listOf(payload.olds), news: listOf(payload.news) }) : null
+        if (foreign) return { block: blockText(`Commit on your own branch, ${own}, not on ${foreign}: the app audits ${own}, and only audited work goes into a pull request. To make a pull request branch, create it from ${own}'s head and push that.`) }
         if (isInside(a.cwd, where) && holdsBranch(a.branch ?? currentBranch(a.cwd), refs)) {
           const why = workflows.commitBlock(id, where, stagedFiles(where))
           if (why) return { block: blockText(why) }
@@ -1272,9 +1277,12 @@ async function main() {
         const where = typeof payload.cwd === 'string' ? payload.cwd : ''
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
         const branch = a.branch ?? currentBranch(a.cwd)
-        if (!where || !isInside(a.cwd, where) || workflows.landKind(id) !== 'pr' || !branch || !holdsBranch(branch, refs)) return {}
+        if (!where || !isInside(a.cwd, where) || workflows.landKind(id) !== 'pr' || !branch) return {}
         const head = branchHead(a.cwd, branch)
-        if (!head) return {}
+        // Every branch sent counts, not only the agent's own: a pull request branch is let through when it is exactly the audited work, and refused when it is anything else.
+        const gate = pushGate(branch, refs, (b) => branchHead(a.cwd, b), head)
+        if (gate.foreign) return { block: blockText(`Not yet: ${gate.foreign} holds commits the audit has not looked at. Commit on your own branch, ${branch}, let the audit pass, then push a branch at that head (git push origin ${branch}:${gate.foreign}).`) }
+        if (!gate.gated || !head) return {}
         const held = workflows.landingHold(id, head)
         if (held) {
           if (a.base && held.some((h) => h.startsWith('The review has not run'))) void startAudit(id, a, a.base, head).catch(() => undefined)
@@ -2243,6 +2251,22 @@ async function main() {
   const startAudit = async (id: string, a: AgentRecord, base: string, head: string) => {
     await workflows.runAudit(id, head, await branchDiff(a.cwd, base, a.branch!))
     send('workflows')
+    void askForPr(id)
+  }
+  // The gate after the audit: once nothing holds the push for a run that ends in a pull request, the agent is told to open it, once for each head, so no one has to ask.
+  const prAsked = new Set<string>()
+  const askForPr = async (id: string) => {
+    const a = byId(id)
+    if (!a?.branch || workflows.landKind(id) !== 'pr') return
+    try {
+      const head = await git(a.cwd, 'rev-parse', a.branch)
+      const check = workflows.mergeCheck(id, head, { auditable: (await readyAskers()).length > 0 })
+      if (!check || check.commits === 0 || check.audit.state !== 'done' || workflows.landedHead(id, head) || workflows.landingHold(id, head) || prAsked.has(`${id}:${head}`)) return
+      prAsked.add(`${id}:${head}`)
+      mailbox.fromPerson(id, PR_GO(a.branch, head))
+    } catch {
+      // Not ready to be asked about (git failed): the next change to the audit asks again.
+    }
   }
   autoAudit = async (id) => {
     const a = byId(id)
@@ -2318,17 +2342,20 @@ async function main() {
     const { a } = await worktreeOf(id)
     workflows.seen(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
     send('workflows')
+    void askForPr(id)
   })
   ipcMain.handle('finish:add-to-plan', async (_, id: string, which: number[]) => {
     const { a } = await worktreeOf(id)
     workflows.addToPlan(id, await git(a.cwd, 'rev-parse', a.branch!), which.filter((i) => Number.isInteger(i) && i >= 0).slice(0, 20))
     send('workflows')
     send('landing')
+    void askForPr(id)
   })
   ipcMain.handle('finish:aside', (_, id: string) => {
     workflows.asideAudit(id)
     send('workflows')
     send('landing')
+    void askForPr(id)
   })
   ipcMain.handle('finish:undo-aside', (_, id: string) => {
     workflows.undoAsideAudit(id)

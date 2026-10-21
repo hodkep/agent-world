@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Workflows: a pull request waits for the audit on every branch an agent pushes, not only its own: a branch at the audited commit goes through under any name, a branch with other commits is held, and a commit on a branch other than the agent's own in its worktree is refused. Once the audit has passed the app tells the agent to open the pull request, and the rules are part of what the agent is told for a workflow.
+
 ## [0.2.5] - 2026-10-21
 
 ### Added

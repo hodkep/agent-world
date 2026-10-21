@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HOOK_NAMES, blockText, branchHead, currentBranch, refHead, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
+import { HOOK_NAMES, blockText, branchHead, currentBranch, foreignMove, pushGate, refHead, gitEnv, holdsBranch, isInside, movesBase, originalHooks, stagedFiles, writeGitHooks } from './commitGate'
 
 const dirs: string[] = []
 const servers: Server[] = []
@@ -206,7 +206,7 @@ describe('a branch update with the office\'s hooks in place', () => {
     expect(r.out).toContain('Agent World: this change to a branch is held. Not yet: your plan is waiting for the person to approve it.')
     expect((await run(work, {}, 'log', '--format=%s')).out.trim()).toBe('init')
     const asked = office.seen.find((x) => x.url === '/hook/git-ref')!
-    expect(JSON.parse(asked.body!)).toEqual({ cwd: work, refs: ['refs/heads/main'] })
+    expect(JSON.parse(asked.body!)).toMatchObject({ cwd: work, refs: ['refs/heads/main'], news: [expect.stringMatching(/^[0-9a-f]{40,64}$/)], olds: [expect.stringMatching(/^[0-9a-f]{40,64}$/)] })
   })
 
   it('is let through when the office says nothing holds it, and the office is asked once for a commit, not for each step git takes', async () => {
@@ -293,7 +293,7 @@ describe('a merge into the base branch with the office\'s hooks in place', () =>
     expect((await run(work, agentEnv(hooks, office.url), 'merge', '--ff-only', 'feat')).ok).toBe(true)
     const told = office.seen.filter((x) => x.url === '/hook/git-landed')
     expect(told).toHaveLength(1)
-    expect(JSON.parse(told[0]!.body!)).toEqual({ cwd: work, refs: ['refs/heads/main'] })
+    expect(JSON.parse(told[0]!.body!)).toMatchObject({ cwd: work, refs: ['refs/heads/main'] })
     expect(told[0]!.auth).toBe('Bearer tok-1')
   })
 })
@@ -443,5 +443,36 @@ describe('whether a commit was made in the agent\'s own work tree', () => {
 describe('what the person\'s hold says to the agent', () => {
   it('has no quote, backslash or line break, so the hook can read it back from JSON with sed', () => {
     expect(blockText('Not "yet": see C:\\x\nplease')).toBe("Not 'yet': see C:/x please")
+  })
+})
+
+describe('which pushed branches the office holds, in a worktree that has its own branch', () => {
+  const heads: Record<string, string> = { 'aw/ada': 'h1', 'fix/x': 'h1', 'fix/y': 'h2' }
+  const gate = (refs: string[]) => pushGate('aw/ada', refs, (b) => heads[b] ?? null, 'h1')
+  it('holds the agent\'s own branch, and any other branch that points at the same commit, as the one gate', () => {
+    expect(gate(['refs/heads/aw/ada'])).toEqual({ gated: true, foreign: null })
+    expect(gate(['refs/heads/fix/x'])).toEqual({ gated: true, foreign: null })
+  })
+  it('refuses a branch that holds other commits, whatever it is named, even with the agent\'s own beside it', () => {
+    expect(gate(['refs/heads/fix/y'])).toEqual({ gated: false, foreign: 'fix/y' })
+    expect(gate(['refs/heads/aw/ada', 'refs/heads/fix/y'])).toMatchObject({ foreign: 'fix/y' })
+  })
+  it('says nothing of a push of tags or deletions, which send no branch', () => {
+    expect(gate([])).toEqual({ gated: false, foreign: null })
+  })
+})
+
+describe('a branch other than the agent\'s own, moving inside its worktree', () => {
+  const Z = '0'.repeat(40)
+  const move = (ref: string, old: string, now: string) => foreignMove({ own: 'aw/ada', ownHead: 'h1', refs: [ref], olds: [old], news: [now] })
+  it('is refused when it takes a commit the agent\'s branch does not have', () => {
+    expect(move('refs/heads/fix/x', 'h0', 'h9')).toBe('fix/x')
+  })
+  it('is let through when it is made (at any commit, the push is checked later), deleted, or brought to the agent\'s own head, and for the agent\'s own branch and a remote one', () => {
+    expect(move('refs/heads/fix/x', Z, 'h9')).toBeNull()
+    expect(move('refs/heads/fix/x', 'h0', Z)).toBeNull()
+    expect(move('refs/heads/fix/x', 'h0', 'h1')).toBeNull()
+    expect(move('refs/heads/aw/ada', 'h0', 'h9')).toBeNull()
+    expect(move('refs/remotes/origin/fix/x', 'h0', 'h9')).toBeNull()
   })
 })
