@@ -317,6 +317,8 @@ export function App() {
   // Everything a run waits for the person for (a plan, check commands, an approval, audit findings, Land): the Workflows count, and the same sign beside the agent that a permission request gets.
   const waits = waitsForPerson(wf.runs, ctxFor, landingHolds, folder ? { project: folder, agents: new Set(agents.map((a) => a.id)) } : undefined)
   const needsYou = waits.length
+  // What every project's runs wait on, for the project switcher: the list above is the open project's alone, but another project's plan or approval is a wait for you too.
+  const waitsEverywhere = waitsForPerson(wf.runs, ctxFor, landingHolds)
   const patchPrefs = (patch: Partial<Prefs>) => {
     const next = { ...prefsNow.current!, ...patch }
     prefsNow.current = next
@@ -720,7 +722,7 @@ export function App() {
   for (const a of allAgents) {
     const w = (wsActivity[a.repoPath] ??= { waiting: 0, working: 0 })
     const act = world[a.id]?.activity ?? 'asleep'
-    if (needsOf(a.id).length > 0 || act === 'permission' || waits.some((x) => x.agentId === a.id)) w.waiting++
+    if (needsOf(a.id).length > 0 || act === 'permission' || waitsEverywhere.some((x) => x.agentId === a.id)) w.waiting++
     else if (['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(act)) w.working++
   }
   talkRef.current = talk
