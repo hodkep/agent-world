@@ -4,9 +4,16 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-21
+
 ### Added
 
 - Workflows: while an agent's work is being audited, its chat shows a card saying so, with the number of commits and the seconds so far, and Set aside; it turns into the findings, or, for an audit that found nothing, into one line that goes away after a few seconds. Before, nothing showed until the audit had findings.
+
+### Fixed
+
+- Preview: the page of an agent that is asleep is kept too, so it stays loaded, as you left it, when you go to another tab or another project and back. Before, only an awake agent's page was kept, and an agent that has been idle starts asleep, so the page was usually lost.
+- Tests: the fake chat agent keeps a message that is read together with the one before it, which dropped the second of two sent at once and made a chat spec fail at random.
 
 ## [0.2.6] - 2026-10-21
 
@@ -185,7 +192,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.6...HEAD
+[Unreleased]: ../../compare/v0.2.7...HEAD
+[0.2.7]: ../../compare/v0.2.6...v0.2.7
 [0.2.6]: ../../compare/v0.2.5...v0.2.6
 [0.2.5]: ../../compare/v0.2.4...v0.2.5
 [0.2.4]: ../../compare/v0.2.3...v0.2.4
