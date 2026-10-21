@@ -12,6 +12,7 @@ import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
+import { agentsByRecent } from '../shared/recent'
 import { useHoverMenu } from './panel/hoverMenu'
 import { agentDot, createDoneTracker, projectDot } from '../shared/attention'
 import { WorkspacePicker } from './panel/WorkspacePicker'
@@ -348,6 +349,16 @@ export function App() {
   const [panelW, setPanelW] = useState<number | null>(() => Number(store('aw.panelw')) || null)
   // The agent switcher in the slim header: resting on it opens a grid of the agents, a click keeps it open until a click elsewhere.
   const sw = useHoverMenu()
+  // When each agent last did something, read as the Agents panel opens and left alone while it is open: the tiles do not move under the pointer.
+  const [seenAt, setSeenAt] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!sw.open) return setSeenAt({})
+    let alive = true
+    void window.aw.listAgents().then((list) => alive && setSeenAt(Object.fromEntries(list.map((a) => [a.id, a.activeAt ?? 0]))))
+    return () => {
+      alive = false
+    }
+  }, [sw.open])
   const openSwitcher = () => !sw.pinned && sw.menu.click()
   const [renaming, setRenaming] = useState<string | null>(null)
   const [grouping, setGrouping] = useState(false)
@@ -1571,7 +1582,7 @@ export function App() {
                         </>
                       }
                     >
-                      {[...agents].sort((x, y) => (x.group ?? '').localeCompare(y.group ?? '')).map((a, i, all) => {
+                      {agentsByRecent(agents.map((a) => ({ ...a, activeAt: seenAt[a.id] ?? a.activeAt }))).map((a, i, all) => {
                         const activity = world[a.id]?.activity ?? 'asleep'
                         const ask = askWord(a.id)
                         return (

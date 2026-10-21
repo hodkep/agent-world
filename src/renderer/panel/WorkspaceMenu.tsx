@@ -1,4 +1,5 @@
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useEffect, useState } from 'react'
+import { projectsByRecent } from '../../shared/recent'
 import type { WorkspaceInfo, Workspaces } from '../../shared/api'
 import type { Dot } from '../../shared/attention'
 import { Identicon } from './Identicon'
@@ -45,7 +46,22 @@ export function WorkspaceMenu({
   const { open, pinned, menu, wrap } = useHoverMenu()
   const [find, setFind] = useState('')
   const active = workspaces?.items.find((w) => w.path === workspaces.active)
-  const items = workspaces?.items ?? []
+  // The projects whose agents did something last come first. Read when the panel opens and left alone while it is open, so tiles do not move under the pointer.
+  const [seen, setSeen] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    if (!open) return setSeen(null)
+    let alive = true
+    void window.aw.listAgents().then((list) => {
+      if (!alive) return
+      const at: Record<string, number> = {}
+      for (const a of list) at[a.repoPath] = Math.max(at[a.repoPath] ?? 0, a.activeAt ?? 0)
+      setSeen(at)
+    })
+    return () => {
+      alive = false
+    }
+  }, [open])
+  const items = projectsByRecent(workspaces?.items ?? [], seen ?? {})
   const shown = filterWorkspaces(items, find)
 
   const choose = (w: WorkspaceInfo) => {

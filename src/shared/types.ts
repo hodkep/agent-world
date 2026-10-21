@@ -186,6 +186,8 @@ export interface AgentRecord {
   builder?: boolean
   /** When it was hired (ms since 1970); older agents were hired before this was kept. */
   hiredAt?: number
+  /** When the agent last did something or was sent a message (not when it was opened): the quick-switch lists put the latest first. */
+  activeAt?: number
   /** Milliseconds it has spent working, added up as it goes. */
   workedMs?: number
   /** For a program that reports tokens: what was already counted into the history, so the next report adds only what is new. */
