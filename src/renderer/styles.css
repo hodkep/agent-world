@@ -3324,7 +3324,7 @@ svg.pxg { display: block; flex: none; }
 .wt-top { position: relative; display: block; margin-bottom: 4px; }
 .wt-name { font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wt-sub { font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center; max-width: 100%; }
-.wt-sub em { font-style: normal; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 4px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--muted); }
+.wt-sub em { font-style: normal; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 4px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); color: var(--muted); }
 .wt-sub em.git { color: var(--ok); }
 .wt-need { position: absolute; right: -6px; top: -6px; min-width: 16px; padding: 0 4px; font-size: 10px; font-weight: 700; color: var(--ink); background: var(--danger); box-shadow: 0 0 0 1px var(--ink); text-align: center; }
 .wt-live { position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; background: var(--think); box-shadow: 0 0 0 2px var(--panel-2); animation: wt-blink 1.4s steps(2) infinite; }
