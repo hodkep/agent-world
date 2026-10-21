@@ -66,8 +66,8 @@ export class Character {
   leaving = false
   /** On a short errand or at the carrom board: the office does not send it back to its seat until that is over. */
   errand = false
-  /** What its hands are doing away from the keyboard: sipping a cup of water or coffee, playing carrom, cheering, clapping. */
-  doing: '' | 'sip' | 'coffee' | 'play' | 'cheer' | 'clap' = ''
+  /** What its hands are doing away from the keyboard: sipping a cup of water or coffee, playing carrom, cheering, clapping, drawing at the whiteboard, eating, napping, stretching. */
+  doing: '' | 'sip' | 'coffee' | 'play' | 'cheer' | 'clap' | 'draw' | 'eat' | 'nap' | 'stretch' = ''
   /** When that began (a strike at carrom, the start of a cheer), and for a cheer or a clap until when. */
   doingAt = 0
   doingUntil = 0
@@ -185,7 +185,7 @@ export class Character {
       if (view === 'side') this.flip = this.goal.facing === 'left'
       if (seated) pose = 'sit'
     }
-    const blink = view !== 'back' && (asleep || (t + this.blinkPhase) % 4000 < 140)
+    const blink = view !== 'back' && (asleep || this.doing === 'nap' || (t + this.blinkPhase) % 4000 < 140)
     this.body.texture = characterTexture(this.key, this.role, view, pose, blink)
     const mirrored = view === 'side' && this.flip
     this.body.scale.x = mirrored ? -1 : 1
@@ -314,6 +314,36 @@ export class Character {
           rect(fx, 6 + wave, 1, 7 - wave, pal.c)
           rect(fx, 3 + wave, 2, 2, pal.s)
         }
+        break
+      }
+      case 'stretch': {
+        // Both arms slowly up and back down, a yawn's worth of time.
+        const up = Math.floor((t - this.doingAt) / 500) % 2
+        for (const fx of [1, 13]) {
+          rect(fx, 4 + up * 2, 2, 9 - up * 2, pal.o)
+          rect(fx, 5 + up * 2, 1, 8 - up * 2, pal.c)
+          rect(fx, 2 + up * 2, 2, 2, pal.s)
+        }
+        break
+      }
+      case 'eat': {
+        // A plate held up in one hand, a forkful to the mouth now and then.
+        const fx = view === 'side' ? 9 : 3
+        rect(fx, 10, 2, 5, pal.o)
+        rect(fx, 11, 1, 4, pal.c)
+        rect(fx + 1, 9, 2, 2, pal.s)
+        rect(fx + 1, 12, 7, 2, 0x1a1522)
+        rect(fx + 2, 12, 5, 1, 0xf4f4f8)
+        if (Math.floor(t / 600) % 2) rect(fx + 3, 10, 1, 2, 0xc8ccd8)
+        break
+      }
+      case 'draw': {
+        // Facing the board: one arm up on it, the hand wiggling a marker.
+        const w = Math.floor(t / 220) % 3
+        rect(11, 3 + (w === 1 ? 1 : 0), 2, 10, pal.o)
+        rect(11, 4 + (w === 1 ? 1 : 0), 1, 9, pal.c)
+        rect(11 + w - 1, 1, 2, 2, pal.s)
+        rect(11 + w - 1, 0, 1, 1, 0xe04040)
         break
       }
       case 'clap': {

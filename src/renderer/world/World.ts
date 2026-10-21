@@ -19,7 +19,12 @@ import { Cheers } from './cheers'
 import { CoffeeTank, CoolerJar, SinkFill } from './cooler'
 import { Confetti } from './confetti'
 import { Life } from './life'
-import { Director, type Face, type Place as StaffPlace, type Scene, type Then } from './staff'
+import { Ambience } from './ambience'
+import { Cat } from './cat'
+import { CatBrain } from './catBrain'
+import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
+import { Guests, type RareEvent, Rare, Rest, Weather, ritualAt } from './rituals'
+import { Director, type Face, type Place as StaffPlace, type Scene, type Step, type Then } from './staff'
 import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
@@ -44,6 +49,31 @@ const staffSpeed = (key = 'aw.staffFast', fallback = 1) => {
     return fallback
   }
 }
+/** The hour and minute: the real ones, or the ones a spec or a trial sets with aw.clockHour ("13" or "13:20"). */
+const clockNow = () => {
+  try {
+    const set = localStorage.getItem('aw.clockHour')
+    if (set) {
+      const [h, m] = set.split(':').map(Number)
+      if (Number.isFinite(h)) return { h: h!, m: Number.isFinite(m) ? m! : 0 }
+    }
+  } catch {
+    // no storage: the real clock
+  }
+  const d = new Date()
+  return { h: d.getHours(), m: d.getMinutes() }
+}
+/** A spec or a trial can start an event at once: aw.officeCall holds "drill", "cut", "pigeon", "courier" or "pizza", and is taken as soon as it is seen. */
+const takeCall = () => {
+  try {
+    const c = localStorage.getItem('aw.officeCall')
+    if (c) localStorage.removeItem('aw.officeCall')
+    return c
+  } catch {
+    return null
+  }
+}
+const HUDDLE_LINES = ['What if we split it?', 'Arrow goes here.', 'Ship it?', 'Draw the boxes first.']
 const calmMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export interface AgentView {
@@ -136,7 +166,24 @@ export class OfficeWorld {
   private readonly confetti = new Confetti()
   private cheered = 0
   private publishedLife = ''
-  private readonly errands = new Map<string, { kind: 'drink' | 'game'; what?: 'water' | 'coffee'; phase: 'go' | 'do'; left: number; spot: Spot }>()
+  private readonly errands = new Map<string, { kind: 'drink' | 'game' | 'eat' | 'huddle' | 'drill'; what?: 'water' | 'coffee'; phase: 'go' | 'do'; left: number; spot: Spot }>()
+  // The second batch: the hour and the weather, the cat, the people at the door, the once-an-hour events, and who naps or stretches.
+  private readonly ambience = new Ambience(Math.random, staffSpeed())
+  private readonly weather = new Weather(Math.random, staffSpeed())
+  private readonly rare = new Rare(Math.random, staffSpeed())
+  private readonly comers = new Guests(Math.random, staffSpeed())
+  private readonly rest = new Rest()
+  private cat: Cat | null = null
+  private guard: StaffActor | null = null
+  private readonly callers = new Map<StaffActor, number>()
+  private cut: { start: number } | null = null
+  private drill: { start: number; until: number } | null = null
+  private event = ''
+  private clock = { h: 12, m: 0, at: -1e9 }
+  private bistro: StaffPlace[] = []
+  private ritual: ReturnType<typeof ritualAt> = null
+  private readonly napOff = new Map<string, number>()
+  private publishedAmbience = ''
   private game: { carrom: Carrom; keys: string[]; started: boolean; endAt: number; waited: number } | null = null
   // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
   private shownWater = 1
@@ -200,7 +247,7 @@ export class OfficeWorld {
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
-    this.overlays.addChild(this.mail, this.visitors.bubbles)
+    this.overlays.addChild(this.ambience.tint, this.mail, this.visitors.bubbles)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
     this.pulledBook.zIndex = TILE * 2
@@ -497,7 +544,8 @@ export class OfficeWorld {
     c.detail = detail
     // On an errand or at the carrom board it stays away from its seat while it has nothing to do; with work it is called back.
     if (c.errand) {
-      if (activity === 'idle') return
+      // A fire drill takes everyone out, those at work too.
+      if (activity === 'idle' || this.errands.get(c.key)?.kind === 'drill') return
       c.errand = false
       this.cancelErrand(c.key)
     }
@@ -525,7 +573,16 @@ export class OfficeWorld {
       c.reading = a.reading ? a.readingName ?? 'library' : undefined
       this.route(c, a.state.activity, false, a.state.detail, a.state.mode, a.reading)
       const cheer = this.cheers.observe(a.id, a.state.activity, a.tasksDone ?? 0, performance.now(), a.taskOpen ?? false)
-      if (cheer) this.celebrate(a.id, cheer === 'big', performance.now())
+      const now = performance.now()
+      // After a long turn the agent stretches instead of the small cheer; a finished task is still cheered.
+      const tired = this.rest.observe(a.id, a.state.activity, now * staffSpeed()) === 'stretch'
+      if (cheer && !(tired && cheer === 'small')) this.celebrate(a.id, cheer === 'big', now)
+      if (tired && this.lifeOn && c.doing === '' && !c.errand) {
+        c.doing = 'stretch'
+        c.doingAt = now
+        c.doingUntil = now + 3200
+        this.shouts.say(`stretch:${a.id}`, 'Yaaawn...', 2200, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+      }
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
 
@@ -698,8 +755,23 @@ export class OfficeWorld {
       this.layer.addChild(this.carromBoard.view)
     }
     this.confetti.view.visible = false
-    this.overlays.addChild(this.confetti.view)
+    this.overlays.addChild(this.confetti.view, this.ambience.flyer)
+    this.ambience.windows.zIndex = 1
+    this.layer.addChild(this.ambience.windows)
     this.places = this.buildPlaces()
+    const bistro = OFFICE.furniture.find((f) => f.kind === 'bistro')
+    const fridge = OFFICE.furniture.find((f) => f.kind === 'fridge')
+    this.bistro = [bistro && this.standBy(bistro, 'up'), fridge && this.standBy(fridge, 'right')].filter((p): p is StaffPlace => !!p)
+    const free = (p: { x: number; y: number }) => OFFICE.map.walkable(p)
+    const spots = {
+      nap: [{ x: 21, y: 5 }, { x: 23, y: 5 }, { x: 19, y: 6 }, { x: 22, y: 6 }].filter(free),
+      roam: [...this.places.sweep, this.places.corner],
+      desks: OFFICE.furniture.filter((f) => f.kind === 'desk').map((f) => ({ x: f.x, y: f.y - 1 })).filter(free)
+    }
+    this.cat = new Cat(OFFICE.map, new CatBrain(Math.random, staffSpeed()), spots, spots.nap[0] ?? this.places.corner)
+    this.layer.addChild(this.cat.view)
+    this.guard = new StaffActor('guard', 'the guard', OFFICE.map, { x: OFFICE.door.x + 1, y: OFFICE.door.y }, (over) => (this.host.title = over ? 'the guard' : ''))
+    this.layer.addChild(this.guard.view)
     const hover = (label: string) => (over: boolean) => (this.host.title = over ? label : '')
     const door = this.places.door
     const boy = new StaffActor('boy', 'the office boy', OFFICE.map, door, hover('the office boy'))
@@ -734,11 +806,11 @@ export class OfficeWorld {
       const beside = this.besideOf(c)
       if (!beside) continue
       if (['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(c.activity)) working.push(beside)
-      else if (c.activity === 'idle' && !c.errand && c.doing === '') idleAgents.push(beside)
+      else if (c.activity === 'idle' && !c.errand && (c.doing === '' || c.doing === 'nap')) idleAgents.push(beside)
     }
     const bt = boy.at
     const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as Face }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as Face }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as Face }
-    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents }
+    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents, ritual: this.ritual }
   }
 
   /** Staff and idle agents put away: no game, no errand, no confetti. */
@@ -747,6 +819,9 @@ export class OfficeWorld {
     this.game = null
     this.carromBoard?.setCoins(null)
     this.confetti.update(1e6)
+    this.drill = null
+    this.cut = null
+    for (const c of this.chars.values()) if (c.doing === 'nap' || c.doing === 'stretch' || c.doing === 'eat' || c.doing === 'draw') c.doing = ''
   }
 
   private cancelErrand(key: string) {
@@ -754,7 +829,7 @@ export class OfficeWorld {
     this.errands.delete(key)
     if (c) {
       c.errand = false
-      if (c.doing === 'sip' || c.doing === 'coffee' || c.doing === 'play') c.doing = ''
+      if (c.doing === 'sip' || c.doing === 'coffee' || c.doing === 'play' || c.doing === 'eat' || c.doing === 'draw') c.doing = ''
       this.route(c, c.activity, false)
     }
     const g = this.game
@@ -783,22 +858,31 @@ export class OfficeWorld {
 
   /** Idle agents now and then fetch a cup of water or coffee, or sit down to carrom; every one of them is called back the moment it has work. */
   private lifeTick(dt: number, t: number) {
-    for (const key of [...this.errands.keys()]) {
+    for (const [key, e] of [...this.errands]) {
       const c = this.chars.get(key)
-      if (!c || c.activity !== 'idle' || c.leaving) this.cancelErrand(key)
+      if (!c || c.leaving || (e.kind !== 'drill' && c.activity !== 'idle')) this.cancelErrand(key)
     }
     const free = [...this.chars.entries()].filter(([, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null).map(([k]) => k)
-    const plan = this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee })
+    const huddle = [...this.errands.values()].some((e) => e.kind === 'huddle')
+    const plan = this.drill ? null : this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle })
     if (plan?.kind === 'drink') this.startDrink(plan.agent, plan.what)
     else if (plan?.kind === 'game') this.startGame(plan.agents)
+    else if (plan?.kind === 'eat') this.startEat(plan.agent)
+    else if (plan?.kind === 'huddle') this.startHuddle(plan.agents)
     for (const [key, e] of this.errands) {
       const c = this.chars.get(key)
-      if (!c || e.kind !== 'drink') continue
+      if (!c || e.kind === 'game' || e.kind === 'drill') continue
       if (e.phase === 'go' && c.arrived) {
         e.phase = 'do'
-        c.doing = e.what === 'coffee' ? 'coffee' : 'sip'
         c.doingAt = t
-        this.director.sip(e.what!)
+        if (e.kind === 'drink') {
+          c.doing = e.what === 'coffee' ? 'coffee' : 'sip'
+          this.director.sip(e.what!)
+        } else {
+          c.doing = e.kind === 'eat' ? 'eat' : 'draw'
+          e.left = e.kind === 'eat' ? 7000 : 9000
+          if (e.kind === 'huddle' && Math.random() < 0.5) this.shouts.say(`huddle:${key}`, HUDDLE_LINES[Math.floor(Math.random() * HUDDLE_LINES.length)]!, 2400, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+        }
       } else if (e.phase === 'do') {
         e.left -= dt
         if (e.left <= 0) {
@@ -849,12 +933,15 @@ export class OfficeWorld {
     }
     this.carromBoard?.update(dt)
     // A cheer or a clap ends by itself.
-    for (const c of this.chars.values()) if ((c.doing === 'cheer' || c.doing === 'clap') && t >= c.doingUntil) c.doing = ''
+    for (const c of this.chars.values()) if ((c.doing === 'cheer' || c.doing === 'clap' || c.doing === 'stretch') && t >= c.doingUntil) c.doing = ''
+    this.restTick(dt, t)
+    this.drillTick(t)
     this.confetti.update(dt)
     const life = JSON.stringify({
       errands: [...this.errands].map(([agent, e]) => ({ agent, kind: e.kind, what: e.what ?? '', phase: e.phase })),
       game: this.game && { players: this.game.keys, started: this.game.started, strikes: this.game.carrom.strikes, scores: this.game.carrom.scores, over: this.game.carrom.over },
       cheers: this.cheered,
+      doing: [...this.chars].filter(([, c]) => c.doing === 'nap' || c.doing === 'stretch').map(([agent, c]) => ({ agent, doing: c.doing })),
       coffee: Math.round(this.director.coffee * 100) / 100
     })
     if (life !== this.publishedLife) {
@@ -893,6 +980,189 @@ export class OfficeWorld {
     })
   }
 
+
+  /** An idle agent goes for its lunch to the bistro table or the fridge. */
+  private startEat(key: string) {
+    const c = this.chars.get(key)
+    if (!c) return
+    const taken = new Set([...this.errands.values()].map((e) => `${e.spot.x},${e.spot.y}`))
+    const spots = this.bistro.flatMap((p) => [p, { to: { x: p.to.x - 1, y: p.to.y }, face: p.face }, { to: { x: p.to.x + 1, y: p.to.y }, face: p.face }])
+    const place = spots.find((p) => OFFICE.map.walkable(p.to) && !taken.has(`${p.to.x},${p.to.y}`))
+    if (!place) return
+    const spot: Spot = { x: place.to.x, y: place.to.y, facing: place.face, ox: 0, seated: false }
+    c.errand = true
+    c.goTo(spot)
+    this.errands.set(key, { kind: 'eat', phase: 'go', left: 0, spot })
+  }
+
+  /** Two or three idle agents go to the whiteboard and draw on it together. */
+  private startHuddle(agents: string[]) {
+    const board = OFFICE.whiteboard.filter((s) => OFFICE.map.walkable(s) && ![...this.errands.values()].some((e) => e.spot.x === s.x && e.spot.y === s.y))
+    agents.slice(0, board.length).forEach((key, i) => {
+      const c = this.chars.get(key)
+      if (!c) return
+      const spot = board[i]!
+      c.errand = true
+      c.goTo(spot)
+      this.errands.set(key, { kind: 'huddle', phase: 'go', left: 0, spot })
+    })
+  }
+
+  /** Everyone out of the building for a fire drill: they gather in front of the door, wait a few seconds, and go back to what they were doing. */
+  private startDrill(t: number) {
+    const keys = [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived).map(([k]) => k)
+    if (!keys.length || this.drill) return
+    const row = [4, 5, 6, 7, 10, 11, 12, 13, 3, 14].map((x) => ({ x, y: 15 })).filter((p) => OFFICE.map.walkable(p))
+    if (!row.length) return
+    this.drill = { start: t, until: 0 }
+    keys.forEach((key, i) => {
+      const c = this.chars.get(key)!
+      const p = row[i % row.length]!
+      const spot: Spot = { x: p.x, y: p.y, facing: 'down', ox: 0, seated: false }
+      this.cancelErrand(key)
+      c.errand = true
+      c.doing = ''
+      c.goTo(spot)
+      this.errands.set(key, { kind: 'drill', phase: 'go', left: 0, spot })
+    })
+    const door = this.places.door
+    this.shouts.say('drill', 'FIRE DRILL!', 3200, () => ({ x: door.x * TILE + TILE, y: door.y * TILE - 46 }))
+  }
+
+  private drillTick(t: number) {
+    const dr = this.drill
+    if (!dr) return
+    const mine = [...this.errands].filter(([, e]) => e.kind === 'drill')
+    const speed = staffSpeed()
+    if (!dr.until) {
+      if (mine.every(([k]) => this.chars.get(k)?.arrived) || t - dr.start > 15_000 / speed) dr.until = t + 6000 / speed
+    } else if (t >= dr.until) {
+      this.drill = null
+      for (const [key] of mine) {
+        const c = this.chars.get(key)
+        this.errands.delete(key)
+        if (c) {
+          c.errand = false
+          this.route(c, c.activity, false)
+        }
+      }
+      const door = this.places.door
+      this.shouts.say('drill', 'All clear', 2200, () => ({ x: door.x * TILE + TILE, y: door.y * TILE - 46 }))
+    }
+  }
+
+  /** Idle agents doze off after a while (two idle minutes, then at a random moment), snore now and then, and wake after a minute or so. */
+  private restTick(dt: number, t: number) {
+    const speed = staffSpeed()
+    const sT = t * speed
+    for (const [key, c] of this.chars) {
+      if (c.role === 'intern' || c.leaving) continue
+      if (c.doing === 'nap') {
+        if (c.activity !== 'idle' || c.errand || t >= (this.napOff.get(key) ?? 0)) {
+          c.doing = ''
+          this.napOff.set(key, t + 30_000 / speed)
+        } else if (t >= c.doingUntil) {
+          c.doingUntil = t + 4500 / speed
+          this.shouts.say(`nap:${key}`, 'Zzz...', 1800, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+        }
+      } else if (c.doing === '' && !c.errand && c.arrived && c.activity === 'idle' && c.gathered === null && this.rest.napping(key, sT) && t >= (this.napOff.get(key) ?? 0) && Math.random() < (dt * speed) / 20_000) {
+        c.doing = 'nap'
+        c.doingAt = t
+        c.doingUntil = t + 1500 / speed
+        this.napOff.set(key, t + (40_000 + Math.random() * 30_000) / speed)
+      }
+    }
+  }
+
+  /** A courier or a pizza delivery comes in at the door, does its errand and goes out again; one of each kind at a time. */
+  private spawnGuest(kind: 'courier' | 'pizza', steps: Step[]) {
+    if (!this.lifeOn || [...this.callers.keys()].some((a) => a.kind === kind)) return
+    const label = kind === 'courier' ? 'the courier' : 'the pizza delivery'
+    const a = new StaffActor(kind, label, OFFICE.map, this.places.door, (over) => (this.host.title = over ? label : ''))
+    a.setShown(true)
+    a.give(steps)
+    this.layer.addChild(a.view)
+    this.callers.set(a, performance.now())
+  }
+
+  private callersTick(dt: number, t: number) {
+    for (const [a, since] of [...this.callers]) {
+      const say = (text: string, ms: number) => this.shouts.say(`guest:${a.kind}`, text, ms, () => ({ x: a.view.x + TILE / 2, y: a.view.y - 28 }))
+      const then = (what: Then) => {
+        if (what === 'parcel') a.carrying = 'parcel'
+        else if (what === 'drop') a.carrying = ''
+      }
+      a.update(dt, t, { then, say })
+      if (a.free && t - since > 800) a.setShown(false)
+      if (a.faded) {
+        a.view.destroy({ children: true })
+        this.callers.delete(a)
+      }
+    }
+  }
+
+  /** The hour, the weather, the cat, the guard, the people at the door and the rare events: everything the second batch adds to the office. */
+  private ambientTick(dt: number, t: number, on: boolean) {
+    if (t - this.clock.at > 500) this.clock = { ...clockNow(), at: t }
+    const hour = on ? this.clock.h : 12
+    this.ritual = on ? ritualAt(this.clock.h, this.clock.m) : null
+    const speed = staffSpeed()
+    if (on) {
+      this.weather.tick(dt)
+      const call = takeCall()
+      if (call === 'courier') this.spawnGuest('courier', courierSteps(this.places.door, this.places.printer))
+      else if (call === 'pizza') this.spawnGuest('pizza', pizzaSteps(this.places.door, this.places.counter))
+      let ev: RareEvent | null = null
+      if (call === 'drill' || call === 'cut' || call === 'pigeon') ev = this.rare.call(call)
+      else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(dt)
+      if (ev === 'cut') {
+        this.cut = { start: t }
+        this.shouts.say('cut', 'Power cut!', 2400, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
+      } else if (ev === 'drill') this.startDrill(t)
+      else if (ev === 'pigeon') {
+        this.ambience.pigeon(t)
+        this.shouts.say('pigeon', 'Coo!', 1600, () => ({ x: this.ambience.pos.x + 6, y: this.ambience.pos.y - 8 }))
+      }
+      if (this.comers.tick(dt, this.clock.h) === 'courier') this.spawnGuest('courier', courierSteps(this.places.door, this.places.printer))
+    }
+    let dark = 0
+    if (this.cut) {
+      const dur = 12_000 / speed
+      const e = t - this.cut.start
+      if (e > dur) {
+        this.cut = null
+        this.shouts.say('cut', 'Lights are back', 2000, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
+      } else dark = e < 600 / speed ? e / (600 / speed) : e > dur - 800 / speed ? Math.max(0, (dur - e) / (800 / speed)) : 1
+    }
+    this.ambience.update(dt, t, { hour, weather: on ? this.weather.now : 'clear', dark, alarm: !!this.drill })
+    this.cat?.setShown(on)
+    this.cat?.update(dt, t)
+    const guard = this.guard
+    if (guard) {
+      const post = on && Guests.guardOn(this.clock.h)
+      guard.setShown(post)
+      if (post && guard.free) guard.give(guardSteps())
+      guard.update(dt, t, { then: () => {}, say: () => {} })
+    }
+    if (!on) for (const a of this.callers.keys()) a.setShown(false)
+    this.callersTick(dt, t)
+    const event = this.drill ? 'drill' : this.cut ? 'cut' : this.ambience.flying ? 'pigeon' : ''
+    const json = JSON.stringify({
+      hour,
+      ritual: this.ritual ?? '',
+      event,
+      ...this.ambience.data(),
+      weather: on ? this.weather.now : 'clear',
+      cat: on && this.cat ? { state: this.cat.state, x: this.cat.at.x, y: this.cat.at.y } : null,
+      guard: on && Guests.guardOn(this.clock.h),
+      callers: [...this.callers.keys()].map((a) => a.kind)
+    })
+    if (json !== this.publishedAmbience) {
+      this.publishedAmbience = json
+      this.host.dataset.ambience = json
+    }
+  }
+
   /** An agent has finished: it cheers (hops, arms up, a burst of confetti, a shout), the agents next to it clap. */
   private celebrate(key: string, big: boolean, t: number) {
     const c = this.chars.get(key)
@@ -909,11 +1179,13 @@ export class OfficeWorld {
         o.doingUntil = t + 2000
       }
     this.cheered++
+    if (big && this.comers.pizzaAfterTask(this.clock.h)) this.spawnGuest('pizza', pizzaSteps(this.places.door, this.besideOf(c) ?? this.places.counter))
   }
 
   private staffTick(dt: number, t: number) {
     const on = this.officeLife && this.chars.size > 0 && !calmMotion()
     this.lifeOn = on
+    this.ambientTick(dt, t, on)
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     if (!on) {
       for (const a of this.staff) (a.setShown(false), a.fade(dt))
@@ -1238,6 +1510,8 @@ export class OfficeWorld {
     c.view.destroy({ children: true })
     c.overlay.destroy({ children: true })
     this.chars.delete(key)
+    this.rest.forget(key)
+    this.napOff.delete(key)
   }
 
   /** The passenger's moment: the car has parked, and they jump out and rush in to their seat. */

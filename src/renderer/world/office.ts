@@ -171,8 +171,11 @@ function buildOffice() {
   const decor: WallDecor[] = [
     { kind: 'vine', x: 1, y: 0, w: 1 },
     { kind: 'shelf', x: 2, y: 0, w: 3, variant: 1 },
+    { kind: 'window', x: 5, y: 0, w: 1 },
     { kind: 'clock', x: 6, y: 0, w: 1 },
+    { kind: 'window', x: 7, y: 0, w: 1 },
     { kind: 'kanban', x: 8, y: 0, w: 5 },
+    { kind: 'window', x: 13, y: 0, w: 1 },
     { kind: 'shelf', x: 14, y: 0, w: 3, variant: 2 },
     { kind: 'vine', x: 17, y: 0, w: 1 },
     { kind: 'frame', x: 19, y: 0, w: 1, variant: 0 },
