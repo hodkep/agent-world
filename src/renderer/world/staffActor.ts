@@ -71,6 +71,11 @@ export class StaffActor {
     return this.tile
   }
 
+  /** Gone from view after leaving: the world can drop him. */
+  get faded() {
+    return !this.shown && this.alpha === 0
+  }
+
   /** Nothing left to do: the director gives it the next thing. */
   get free() {
     return this.held === 0 && this.current === null && this.steps.length === 0 && this.path.length === 0
