@@ -148,6 +148,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </label>
               <Switch checked={prefs.keepAwake} onChange={(keepAwake) => set({ keepAwake })} title="Keep the computer awake while an agent works" hint="Sleep is stopped only while something is running." />
               <Switch checked={prefs.openPagesInApp} onChange={(openPagesInApp) => set({ openPagesInApp })} title="Open pages in the app preview" hint="When an agent opens an HTML page in a browser, also show it in that agent's Preview tab. The command it ran still runs." />
+              <Switch checked={prefs.officeLife} onChange={(officeLife) => set({ officeLife })} title="Office life" hint="An office boy and a supervisor walk about while agents work, and the cooler's water goes down and is refilled. Off: the office stays as still as the agents. Also off while your system asks for reduced motion." />
               <Switch checked={prefs.wrapUp} onChange={(wrapUp) => set({ wrapUp })} title="When I quit, stop the agents' running commands and commit their unfinished work" hint="Leaves every branch tidy." />
             </>
           )}

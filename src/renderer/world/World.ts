@@ -13,9 +13,12 @@ import { type Ambient, type Screen, drawFloors, drawFurniture } from './furnitur
 import { CAR_COLORS, GRASS, GROUNDS, Street, drawGrounds, drawHiringSign, drawLampPosts, paintBillboard, paintScoreboard } from './grounds'
 import { scoreboardRows } from './scoreboard'
 import { PLANT, PowerPlant } from './power'
+import { CoolerJar } from './cooler'
+import { Director, type Face, type Scene, type Then } from './staff'
+import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
-import { OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
+import { OFFICE, type Pt, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
 import { nextZoom, wheelSteps } from './zoomSteps'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -28,6 +31,14 @@ const MAP_H = OFFICE.map.h * TILE
 const LOT: Lot = { doorX: OFFICE.door.x * TILE + OFFICE.door.ox + TILE / 2, laneY: MAP_H + 40, slotY: MAP_H + 18, left: -GROUNDS.west - 40, right: MAP_W + GROUNDS.east + 40 }
 /** Where a person is when they are at the door on the pavement side (feet y). */
 const FRONT_OF_DOOR = { x: LOT.doorX, y: MAP_H + 14 }
+/** How much faster than real time the staff's waits (aw.staffFast) and the cooler's water (aw.waterFast, else the same) run: 1, unless a spec sets it. */
+const staffSpeed = (key = 'aw.staffFast', fallback = 1) => {
+  try {
+    return Number(localStorage.getItem(key)) || fallback
+  } catch {
+    return fallback
+  }
+}
 const calmMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export interface AgentView {
@@ -100,6 +111,15 @@ export class OfficeWorld {
   private readonly retinue = new Map<string, number>()
   private readonly stools = new Map<string, Graphics>()
   private publishedBooks = -1
+  // The office boy and the supervisor: who they are, what they do next (the director), and the water in the cooler's jar. They stay out when "Office life" is off, or motion is turned down.
+  private readonly director = new Director(Math.random, staffSpeed(), staffSpeed('aw.waterFast', staffSpeed()))
+  private staff: StaffActor[] = []
+  private cooler: CoolerJar | null = null
+  private officeLife = true
+  // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
+  private shownWater = 1
+  private jarIn = true
+  private publishedStaff = ''
   private publishedCrew = ''
   private plant!: PowerPlant
   private readonly sign = drawHiringSign(OFFICE.map)
@@ -166,6 +186,7 @@ export class OfficeWorld {
     const f = drawFurniture(OFFICE.furniture, OFFICE.decor, this.layer, shadows, COFFEE_SPOUT)
     this.screens = f.screens
     this.ambient = f.ambient
+    this.buildStaff()
     this.app.stage.addChild(this.root)
     this.app.ticker.add((tk) => this.tick(tk.deltaMS))
     this.app.ticker.stop() // driven by pace() instead, see drive()
@@ -578,6 +599,121 @@ export class OfficeWorld {
     }
   }
 
+  /** The tile beside a piece of furniture where someone stands to use it, and the way he faces it. */
+  private standBy(f: { x: number; y: number; w: number; h: number }, prefer: Face = 'down'): { to: Pt; face: Face } {
+    const map = OFFICE.map
+    const around: { to: Pt; face: Face }[] = [
+      { to: { x: f.x, y: f.y + f.h }, face: 'up' },
+      { to: { x: f.x - 1, y: f.y }, face: 'right' },
+      { to: { x: f.x + f.w, y: f.y }, face: 'left' },
+      { to: { x: f.x, y: f.y - 1 }, face: 'down' }
+    ]
+    const order = prefer === 'down' ? around : [...around].sort((a, b) => (a.face === prefer ? -1 : b.face === prefer ? 1 : 0))
+    return order.find((c) => map.walkable(c.to)) ?? { to: { x: OFFICE.door.x, y: OFFICE.door.y }, face: 'up' }
+  }
+
+  private buildStaff() {
+    const cooler = OFFICE.furniture.find((f) => f.kind === 'cooler')
+    if (cooler) {
+      this.cooler = new CoolerJar(cooler.x, cooler.y)
+      this.cooler.set(1)
+      this.layer.addChild(this.cooler.view)
+    }
+    const hover = (label: string) => (over: boolean) => (this.host.title = over ? label : '')
+    const door = { x: OFFICE.door.x, y: OFFICE.door.y }
+    const boy = new StaffActor('boy', 'the office boy', OFFICE.map, door, hover('the office boy'))
+    const sup = new StaffActor('supervisor', 'the supervisor', OFFICE.map, door, hover('the supervisor'))
+    this.staff = [boy, sup]
+    for (const a of this.staff) {
+      a.view.visible = false
+      this.layer.addChild(a.view)
+    }
+  }
+
+  setOfficeLife(on: boolean) {
+    this.officeLife = on
+  }
+
+  /** What the director is told when it plans: where agents work, how many are idle, and where the staff stand to do their jobs. */
+  private sceneFor(boy: StaffActor): Scene {
+    const map = OFFICE.map
+    const working: Scene['working'] = []
+    let idle = 0
+    for (const c of this.chars.values()) {
+      if (c.role === 'intern' || c.leaving || c.waiting || !c.arrived) continue
+      if (c.activity === 'idle') idle++
+      if (!['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(c.activity)) continue
+      const at = c.at
+      const beside = [
+        { to: { x: at.x + 2, y: at.y }, face: 'left' as const },
+        { to: { x: at.x - 1, y: at.y }, face: 'right' as const }
+      ].find((b) => map.walkable(b.to))
+      if (beside) working.push(beside)
+    }
+    const bin = OFFICE.furniture.find((f) => f.kind === 'bin')
+    const counter = OFFICE.furniture.find((f) => f.kind === 'counter')
+    const cooler = OFFICE.furniture.find((f) => f.kind === 'cooler')
+    const near = (f: { x: number; y: number; w: number; h: number } | undefined) => (f ? this.standBy(f) : { to: { x: OFFICE.door.x, y: OFFICE.door.y }, face: 'up' as const })
+    const bt = boy.at
+    const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as const }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as const }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as const }
+    return { working, idle, spots: { door: { x: OFFICE.door.x, y: OFFICE.door.y }, cooler: near(cooler), bin: near(bin), counter: near(counter), corner: this.standBy({ x: 21, y: 12, w: 1, h: 1 }, 'down').to }, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet }
+  }
+
+  private staffTick(dt: number, t: number) {
+    const on = this.officeLife && this.chars.size > 0 && !calmMotion()
+    const [boy, sup] = this.staff as [StaffActor, StaffActor]
+    if (!on) {
+      for (const a of this.staff) (a.setShown(false), a.fade(dt))
+      this.cooler?.set(1)
+      this.shownWater = 1
+      this.jarIn = true
+      const none = JSON.stringify({ water: 1, staff: [] })
+      if (none !== this.publishedStaff) (this.publishedStaff = none, (this.host.dataset.staff = none))
+      return
+    }
+    for (const a of this.staff) a.setShown(true)
+    const scene = this.sceneFor(boy)
+    this.director.tick(dt, scene.idle)
+    // A new jar fills over a moment; otherwise the jar shows what is in it.
+    const target = this.director.water
+    this.shownWater = this.shownWater < target - 0.001 ? Math.min(target, this.shownWater + dt / 900) : target
+    this.cooler?.set(this.shownWater, this.jarIn)
+    const say = (a: StaffActor) => (text: string, ms: number) => this.shouts.say(`staff:${a.kind}`, text, ms, () => ({ x: a.view.x + TILE / 2, y: a.view.y - 28 }))
+    const then = (a: StaffActor) => (what: Then) => {
+      if (what === 'fetch') a.carrying = 'jar'
+      else if (what === 'swapOut') this.jarIn = false
+      else if (what === 'swapIn') {
+        this.jarIn = true
+        this.shownWater = 0
+        this.director.refill()
+        a.carrying = ''
+      } else if (what === 'pickOld') a.carrying = 'old-jar'
+      else if (what === 'bag') a.carrying = 'bag'
+      else if (what === 'drop') a.carrying = ''
+      else boy.release()
+    }
+    if (sup.free) {
+      const plan = this.director.supervisorPlan(scene)
+      sup.give(plan.steps)
+      if (plan.meetsBoy) boy.hold()
+    }
+    if (boy.free) {
+      const ordered = this.director.order !== null
+      const steps = this.director.boyPlan(scene)
+      // Told something, he turns to the one who told him before he salutes.
+      const first = steps[0]
+      if (ordered && first?.kind === 'wait') first.face = boy.faceTile(sup.at)
+      boy.give(steps)
+    }
+    boy.update(dt, t, { then: then(boy), say: say(boy) })
+    sup.update(dt, t, { then: then(sup), say: say(sup) })
+    const state = JSON.stringify({ water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying })) })
+    if (state !== this.publishedStaff) {
+      this.publishedStaff = state
+      this.host.dataset.staff = state
+    }
+  }
+
   private tick(dt: number) {
     const t = performance.now()
     const atScreen = new Map<string, Activity>()
@@ -601,6 +737,7 @@ export class OfficeWorld {
     }
     for (const e of this.fleet.update(dt)) this.onFleet(e)
     this.visitors.calm = calmMotion()
+    this.staffTick(dt, t)
     this.shouts.update(dt)
     this.visitors.update(dt)
     // Ordinary traffic keeps out of the way of a car that is racing through.

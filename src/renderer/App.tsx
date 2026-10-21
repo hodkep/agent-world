@@ -668,6 +668,9 @@ export function App() {
   useEffect(() => {
     office.current?.setWorkspace(folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : null)
   }, [folder, officeReady])
+  useEffect(() => {
+    office.current?.setOfficeLife(prefs?.officeLife !== false)
+  }, [prefs?.officeLife, officeReady])
   // The list only folds away while an agent is selected; with none selected it must stay, or there is no way to pick one.
   const folded = compact && !!current
   useEffect(() => {

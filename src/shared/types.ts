@@ -295,6 +295,8 @@ export interface Prefs {
   todoTracking: 'deferred' | 'full'
   /** The library of skills, instructions and prompts, and the playbook that says what agents are told. Off: agents are told nothing from it, and its window says so. */
   libraryEnabled: boolean
+  /** An office boy and a supervisor walk the office, and the cooler's water goes down and is refilled. */
+  officeLife: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
   wrapUp: boolean
   /** How agents starting agents as their subagents are held in: how many levels, and how many at once under one agent. */
