@@ -12,6 +12,13 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
   const [unrelated, setUnrelated] = useState<{ branch: string; base: string } | null>(null)
   const [open, setOpen] = useState<Set<number>>(new Set())
   const looking = useRef(false)
+  // What shows for a few seconds, or counts seconds (a running audit), needs the time now.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active])
   // A branch just moved onto its base: the card says so (with Undo) until it is closed, though the branch is landable now.
   const [moved, setMoved] = useState<Moved | null>(null)
   const load = useCallback(async () => {
@@ -36,7 +43,7 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
     const timer = setInterval(() => void load(), 5000)
     return () => (off.forEach((f) => f()), clearInterval(timer))
   }, [load, active, working, held])
-  const spec = stepCardOf({ merge, held, working, unrelated })
+  const spec = stepCardOf({ merge, held, working, unrelated, now })
   if (moved)
     return (
       <section className="step-card moved" role="region" aria-label={`${agentName}'s branch was moved onto ${moved.base}`}>
@@ -58,6 +65,13 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
   if (!merge) return null
   const unseen = merge.audit.state === 'done' ? merge.audit.findings.flatMap((f, i) => (f.seen ? [] : [i])) : []
   const then = (f: () => Promise<unknown>) => () => void f().then(load, load)
+  if (spec.kind === 'clean')
+    return (
+      <div className="step-card quiet" role="note" aria-label={`${agentName}'s audit found nothing`}>
+        <span className="tag ok">{spec.tag}</span>
+        <span className="sc-title">{spec.title}</span>
+      </div>
+    )
   if (spec.kind === 'aside')
     return (
       <div className="step-card quiet" role="note" aria-label={`${agentName}'s audit, set aside`}>
@@ -72,6 +86,16 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
         <span className="tag">{spec.tag}</span>
         <b className="sc-title">{spec.title}</b>
       </header>
+      {spec.kind === 'running' && (
+        <>
+          <div className="sc-bar" aria-hidden="true">
+            <i />
+          </div>
+          <div className="sc-wait">
+            <span className="sc-secs">{Math.max(0, Math.floor((now - spec.since!) / 1000))} s</span> The findings appear here.
+          </div>
+        </>
+      )}
       {spec.lines.length > 0 && (
         <ul>
           {spec.lines.map((l, i) => (

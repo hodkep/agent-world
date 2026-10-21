@@ -2274,7 +2274,10 @@ async function main() {
   // The merge gate: where the plan stands and what the audit found for the branch as it is now. The audit is started here when it has not
   // run for this head, and the window is told when it answers.
   const startAudit = async (id: string, a: AgentRecord, base: string, head: string) => {
-    await workflows.runAudit(id, head, await branchDiff(a.cwd, base, a.branch!))
+    const answer = workflows.runAudit(id, head, await branchDiff(a.cwd, base, a.branch!))
+    // It is running now: the chat's card says so at once, instead of at its next look.
+    send('workflows')
+    await answer
     send('workflows')
     void askForPr(id)
   }

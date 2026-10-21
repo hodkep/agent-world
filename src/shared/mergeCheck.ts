@@ -26,9 +26,9 @@ export interface MergeCheck {
 export type AuditState =
   | { state: 'off'; reason: 'economy' | 'no-model' | 'no-plan' | 'workflow' | 'gate' }
   | { state: 'not-run' }
-  | { state: 'running' }
+  | { state: 'running'; /** When it began, for how long it has taken. */ since: number }
   | { state: 'failed'; reason: string }
-  | { state: 'done'; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; tokens?: number; model?: string }
+  | { state: 'done'; /** When it answered. */ t: number; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; tokens?: number; model?: string }
 
 export interface CheckRow {
   id: string

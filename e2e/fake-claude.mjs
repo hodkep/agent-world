@@ -32,12 +32,13 @@ if (args[0] === 'plugin') {
   process.exit(0)
 }
 // The audit: one question on stdin, answered as claude's JSON output. FAKE_AUDIT is the reply text, FAKE_AUDIT_FAIL makes it an error,
-// FAKE_AUDIT_LOG=<file> keeps every question so a test can see what the model was shown.
+// FAKE_AUDIT_LOG=<file> keeps every question so a test can see what the model was shown, FAKE_AUDIT_DELAY_MS holds the answer back, as a model takes its time.
 if (args[0] === '-p' && args.includes('--output-format')) {
   let question = ''
   for await (const chunk of process.stdin) question += chunk
   if (process.env.FAKE_AUDIT_LOG) (await import('node:fs')).appendFileSync(process.env.FAKE_AUDIT_LOG, JSON.stringify(question) + '\n')
   const fail = !!process.env.FAKE_AUDIT_FAIL
+  if (process.env.FAKE_AUDIT_DELAY_MS) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_AUDIT_DELAY_MS)))
   console.log(JSON.stringify({ type: 'result', is_error: fail, result: fail ? process.env.FAKE_AUDIT_FAIL : (process.env.FAKE_AUDIT ?? '{"findings":[]}'), total_cost_usd: 0.004, modelUsage: { 'claude-haiku-5-5': { costUSD: 0.004 } } }))
   process.exit(fail ? 1 : 0)
 }

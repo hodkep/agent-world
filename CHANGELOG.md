@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Workflows: while an agent's work is being audited, its chat shows a card saying so, with the number of commits and the seconds so far, and Set aside; it turns into the findings, or, for an audit that found nothing, into one line that goes away after a few seconds. Before, nothing showed until the audit had findings.
+
 ## [0.2.6] - 2026-10-21
 
 ### Changed
