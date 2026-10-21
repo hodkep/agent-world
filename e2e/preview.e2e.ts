@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -106,6 +106,65 @@ test('the Preview page of a project is still the same page when you switch to an
     await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
   } finally {
     await shutdown()
+    dev.close()
+  }
+})
+
+test('the Preview page of an agent that is asleep is kept too, when you go to the chat and back and when you switch project and back', async () => {
+  const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<h1>asleep page</h1>'))
+  await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+  const port = (dev.address() as AddressInfo).port
+  const tmp = mkdtempSync(join(tmpdir(), 'aw-keepsleep-'))
+  const repo = (name: string) => {
+    const dir = join(tmp, name)
+    mkdirSync(dir)
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+    return dir
+  }
+  const one = repo('project-one')
+  const two = repo('project-two')
+  const env = { AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }
+  const first = await launchApp(env, join(tmp, 'unused'))
+  let last = first
+  try {
+    let page = await first.app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), one)
+    await page.reload()
+    await hire(page)
+    await page.evaluate((f) => window.aw.activateWorkspace(f), two)
+    await page.reload()
+    await hire(page, { name: 'bob' })
+    await page.evaluate((f) => window.aw.activateWorkspace(f), one)
+    await page.reload()
+    // A start after a longer gap: nothing was running a moment ago, so every agent starts asleep.
+    await page.evaluate(() => localStorage.removeItem('aw.folder'))
+    await first.shutdown()
+    writeFileSync(join(tmp, 'home', 'running.json'), '{}')
+    last = await launchApp(env, join(tmp, 'unused2'))
+    page = await last.app.firstWindow()
+    await page.getByRole('dialog', { name: 'Choose a project for this window' }).getByRole('button', { name: /^project-one/ }).click()
+    await expect(page.locator('.ws-button')).toContainText('project-one')
+
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    const bar = page.getByRole('combobox', { name: 'Local address to preview' })
+    await bar.fill(String(port))
+    await bar.press('Enter')
+    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code).catch(() => undefined)
+    await expect.poll(() => run('document.body.innerText'), { timeout: 15_000 }).toContain('asleep page')
+    await run('window.__seen = 42')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
+    for (const [name, shown] of [[/project-two/, 'project-two'], [/project-one/, 'project-one']] as const) {
+      await page.locator('.ws-button').click()
+      await page.getByRole('menuitem', { name }).click()
+      await expect(page.locator('.ws-button')).toContainText(shown)
+    }
+    await page.getByRole('tab', { name: /Preview/ }).click()
+    await expect.poll(() => run('window.__seen'), { timeout: 10_000 }).toBe(42)
+  } finally {
+    await last.shutdown()
     dev.close()
   }
 })
