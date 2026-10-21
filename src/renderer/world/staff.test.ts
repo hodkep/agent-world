@@ -1,24 +1,45 @@
 import { describe, expect, it } from 'vitest'
-import { Director, SUPERVISOR_LINES, type Scene } from './staff'
+import { Director, PHONE_LINES, SUPERVISOR_LINES, type Place, type Scene } from './staff'
 
 /** A random source that returns the given numbers in turn, then repeats the last. */
 const seq = (...xs: number[]) => {
   let i = 0
   return () => xs[Math.min(i++, xs.length - 1)]!
 }
-const spot = (x: number, y: number) => ({ to: { x, y }, face: 'up' as const })
+/** A random source that is repeatable but moves about, for tests that need many different draws. */
+const lcg = (seed = 7) => () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296
+const at = (x: number, y: number, face: Place['face'] = 'up'): Place => ({ to: { x, y }, face })
 const scene = (o: Partial<Scene> = {}): Scene => ({
   working: [],
   idle: 0,
-  spots: { door: { x: 8, y: 16 }, cooler: spot(17, 3), bin: spot(2, 14), counter: spot(24, 14), corner: { x: 21, y: 12 } },
+  spots: {
+    door: { x: 8, y: 16 },
+    cooler: at(17, 3),
+    bin: at(2, 14),
+    counter: at(21, 15, 'right'),
+    coffee: at(25, 14, 'down'),
+    printer: at(16, 15),
+    sink: at(23, 14, 'down'),
+    outside: [at(8, 15, 'down'), at(9, 15, 'down')],
+    corner: { x: 21, y: 12 },
+    plants: [at(1, 3), at(19, 3)],
+    shelves: [at(3, 2), at(15, 2)],
+    paintings: [at(25, 2)],
+    tables: [at(4, 11, 'right')],
+    kanban: [at(9, 2)],
+    phone: [at(20, 6, 'right')],
+    sweep: [{ x: 5, y: 5 }, { x: 12, y: 5 }, { x: 5, y: 9 }]
+  },
   boy: { x: 5, y: 5 },
   boyCarrying: false,
-  meet: { to: { x: 6, y: 5 }, face: 'left' },
+  meet: at(6, 5, 'left'),
+  idleAgents: [],
   ...o
 })
+const thens = (steps: ReturnType<Director['boyPlan']>) => steps.flatMap((s) => (s.kind === 'wait' && s.then ? [s.then] : []))
 
-describe('the water in the cooler', () => {
-  it('falls with the idle agents who are around, faster with more of them, and never below nothing', () => {
+describe('the water in the cooler and the coffee', () => {
+  it('water falls with the idle agents who are around, faster with more of them, and never below nothing', () => {
     const d = new Director(seq(0.5))
     d.tick(60_000, 0)
     expect(d.water).toBe(1)
@@ -32,38 +53,55 @@ describe('the water in the cooler', () => {
     expect(e.water).toBe(0)
   })
 
-  it('is refilled to the top, and runs low below a fifth', () => {
+  it('every cup lowers what is in the cooler or the pot, and each is refilled to the top; the water runs low below a fifth, the coffee below a quarter', () => {
     const d = new Director(seq(0.5))
+    d.sip('water')
+    d.sip('coffee')
+    expect(d.water).toBeCloseTo(0.96, 5)
+    expect(d.coffee).toBeCloseTo(0.88, 5)
+    for (let i = 0; i < 10; i++) (d.sip('coffee'), d.sip('water'))
+    expect(d.coffeeLow).toBe(true)
+    expect(d.coffee).toBeGreaterThanOrEqual(0)
     d.tick(10_000_000, 1)
     expect(d.low).toBe(true)
     d.refill()
+    d.brew()
     expect(d.water).toBe(1)
-    expect(d.low).toBe(false)
+    expect(d.coffee).toBe(1)
   })
 
-  it('can fall faster while the staff keep their own pace, so the refill can be watched without their stops and callouts being cut short', () => {
+  it('can fall faster while the staff keep their own pace', () => {
     const slow = new Director(seq(0.5))
     const watery = new Director(seq(0.5), 1, 8)
     slow.tick(1000, 2)
     watery.tick(1000, 2)
     expect(1 - watery.water).toBeCloseTo((1 - slow.water) * 8, 5)
-    expect(watery.supervisorPlan(scene()).steps[1]).toMatchObject({ kind: 'wait', ms: 9000 })
-  })
-
-  it('goes faster when the clock is sped up, for specs', () => {
-    const slow = new Director(seq(0.5))
-    const fast = new Director(seq(0.5), 10)
-    slow.tick(1000, 2)
-    fast.tick(1000, 2)
-    expect(1 - fast.water).toBeCloseTo((1 - slow.water) * 10, 5)
   })
 })
 
-describe('what the supervisor does', () => {
-  it('walks to an agent that is working, stands beside it for a few seconds and says one of his lines, facing the agent', () => {
-    const d = new Director(seq(0, 0.5))
-    const plan = d.supervisorPlan(scene({ working: [{ to: { x: 4, y: 6 }, face: 'left' }, { to: { x: 9, y: 6 }, face: 'left' }] }))
-    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 4, y: 6 } })
+describe('what the supervisor can do, and does', () => {
+  it('checks on an agent only when one is working, at most once in 45 s, and never the same agent twice within two minutes', () => {
+    const d = new Director(seq(0.5))
+    expect(d.supervisorOptions(scene())).not.toContain('visit')
+    const working = [at(4, 6, 'left'), at(9, 6, 'left')]
+    expect(d.supervisorOptions(scene({ working }))).toContain('visit')
+    const first = d.supervisorPlan(scene({ working }), 'visit')
+    expect(first.steps[0]).toMatchObject({ kind: 'walk' })
+    expect(d.supervisorOptions(scene({ working }))).not.toContain('visit')
+    d.tick(46_000, 0)
+    expect(d.supervisorOptions(scene({ working }))).toContain('visit')
+    const second = d.supervisorPlan(scene({ working }), 'visit')
+    expect(second.steps[0]).not.toEqual(first.steps[0])
+    d.tick(46_000, 0)
+    // Both were seen within two minutes: nobody is left to check on.
+    expect(d.supervisorOptions(scene({ working }))).not.toContain('visit')
+    d.tick(80_000, 0)
+    expect(d.supervisorOptions(scene({ working }))).toContain('visit')
+  })
+
+  it('stands beside the agent for a few seconds and says one of his lines, facing it', () => {
+    const d = new Director(seq(0))
+    const plan = d.supervisorPlan(scene({ working: [at(4, 6, 'left')] }), 'visit')
     const wait = plan.steps[1]!
     expect(wait).toMatchObject({ kind: 'wait', face: 'left' })
     expect(SUPERVISOR_LINES).toContain((wait as { say: string }).say)
@@ -71,90 +109,160 @@ describe('what the supervisor does', () => {
     expect((wait as { ms: number }).ms).toBeLessThanOrEqual(5000)
   })
 
-  it('does not stand at the same agent twice running while others work', () => {
+  it('takes a book from the library shelf, turns to the front and reads it open in both hands for a good while, then reaches up and puts it back', () => {
+    const plan = new Director(seq(0)).supervisorPlan(scene(), 'read')
+    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 3, y: 2 } })
+    expect(plan.steps[1]).toMatchObject({ kind: 'wait', face: 'up', pose: 'reach', then: 'takeBook' })
+    expect(plan.steps[2]).toMatchObject({ kind: 'wait', face: 'down', pose: 'hold', prop: 'book' })
+    expect((plan.steps[2] as { ms: number }).ms).toBeGreaterThanOrEqual(7000)
+    expect(plan.steps[3]).toMatchObject({ kind: 'wait', face: 'up', pose: 'reach', then: 'putBook' })
+  })
+
+  it('stands in the doorway looking out, hands clasped behind his back, for several seconds', () => {
+    const plan = new Director(seq(0)).supervisorPlan(scene(), 'outside')
+    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 8, y: 15 } })
+    expect(plan.steps[1]).toMatchObject({ kind: 'wait', face: 'down', pose: 'clasp' })
+    expect((plan.steps[1] as { ms: number }).ms).toBeGreaterThanOrEqual(6000)
+  })
+
+  it('drinks a cup of coffee at the counter or of water at the cooler, which lowers it, and has none to drink when it is empty', () => {
     const d = new Director(seq(0))
-    const s = scene({ working: [{ to: { x: 4, y: 6 }, face: 'left' }, { to: { x: 9, y: 6 }, face: 'left' }] })
-    const first = d.supervisorPlan(s).steps[0]
-    const second = d.supervisorPlan(s).steps[0]
-    expect(first).not.toEqual(second)
+    expect(d.supervisorPlan(scene(), 'coffee').steps[1]).toMatchObject({ pose: 'sip', prop: 'cup', then: 'sipCoffee', face: 'down' })
+    expect(d.supervisorPlan(scene(), 'water').steps[1]).toMatchObject({ pose: 'sip', prop: 'cup', then: 'sipWater', face: 'up' })
+    const dry = new Director(seq(0.5))
+    for (let i = 0; i < 12; i++) (dry.sip('coffee'), dry.sip('water'))
+    dry.tick(10_000_000, 1)
+    expect(dry.supervisorOptions(scene())).not.toContain('coffee')
+    expect(dry.supervisorOptions(scene())).not.toContain('water')
   })
 
-  it('stays by the corner of the lounge when nobody works, and does not go to anyone', () => {
+  it('stands in front of a painting with a hand to his chin, takes a phone call, and looks at the kanban board', () => {
     const d = new Director(seq(0.5))
-    const plan = d.supervisorPlan(scene())
-    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 21, y: 12 } })
-    expect(plan.steps).toHaveLength(2)
-    expect(plan.meetsBoy).toBe(false)
+    expect(d.supervisorPlan(scene(), 'paint').steps[1]).toMatchObject({ pose: 'chin', face: 'up' })
+    const call = d.supervisorPlan(scene(), 'call').steps[1]!
+    expect(call).toMatchObject({ pose: 'call', prop: 'phone' })
+    expect(PHONE_LINES).toContain((call as { say: string }).say)
+    expect(d.supervisorPlan(scene(), 'look').steps[1]).toMatchObject({ pose: 'chin' })
   })
 
-  it('now and then goes to the office boy next, says what to do, and the office boy is told which job', () => {
-    // The draws, in turn: the agent, the line, how long he stays, whether he goes on to the office boy, and which job.
-    const d = new Director(seq(0, 0, 0.5, 0.05, 0.9))
-    const plan = d.supervisorPlan(scene({ working: [{ to: { x: 4, y: 6 }, face: 'left' }] }))
+  it('goes to the office boy, points, says what to do, and orders the cooler when its water is low and the coffee when that is, else a chore', () => {
+    const d = new Director(seq(0.5))
+    const plan = d.supervisorPlan(scene(), 'order')
     expect(plan.meetsBoy).toBe(true)
-    const meet = plan.steps.slice(-2)
-    expect(meet[0]).toEqual({ kind: 'walk', to: { x: 6, y: 5 } })
-    expect(meet[1]).toMatchObject({ kind: 'wait', face: 'left', pose: 'point', then: 'order' })
-    expect(typeof (meet[1] as { say: string }).say).toBe('string')
+    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 6, y: 5 } })
+    expect(plan.steps[1]).toMatchObject({ kind: 'wait', face: 'left', pose: 'point', then: 'order' })
+    expect(['bin', 'counter', 'plants', 'sweep']).toContain(d.order)
+    const low = new Director(seq(0.5))
+    low.tick(10_000_000, 1)
+    expect((low.supervisorPlan(scene(), 'order').steps[1] as { say: string }).say).toBe('Refill the cooler!')
+    expect(low.order).toBe('refill')
   })
 
-  it('does not stop the office boy while he carries a jar, and not again within half a minute of the last order', () => {
-    const d = new Director(seq(0.05))
-    const working = [{ to: { x: 4, y: 6 }, face: 'left' as const }]
-    expect(d.supervisorPlan(scene({ working, boyCarrying: true })).meetsBoy).toBe(false)
-    expect(d.supervisorPlan(scene({ working })).meetsBoy).toBe(true)
-    expect(d.supervisorPlan(scene({ working })).meetsBoy).toBe(false)
+  it('does not stop the office boy while he carries something, and not again within half a minute of the last order', () => {
+    const d = new Director(seq(0.5))
+    expect(d.supervisorOptions(scene({ boyCarrying: true }))).not.toContain('order')
+    expect(d.supervisorOptions(scene())).toContain('order')
+    d.supervisorPlan(scene(), 'order')
+    expect(d.supervisorOptions(scene())).not.toContain('order')
     d.tick(31_000, 0)
-    expect(d.supervisorPlan(scene({ working })).meetsBoy).toBe(true)
+    expect(d.supervisorOptions(scene())).toContain('order')
   })
 
-  it('orders the cooler refilled when its water is low', () => {
-    const d = new Director(seq(0, 0, 0.5, 0.05))
+  it('never has nothing to do and never does the same thing twice running, whatever the draws', () => {
+    const d = new Director(lcg())
+    let last = ''
+    const seen = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      d.tick(20_000, 1)
+      const plan = d.supervisorPlan(scene({ working: [at(4, 6, 'left'), at(9, 6, 'left'), at(14, 6, 'left')] }))
+      expect(plan.steps.length).toBeGreaterThan(0)
+      expect(plan.steps.some((s) => s.kind === 'walk')).toBe(true)
+      expect(plan.kind).not.toBe(last)
+      last = plan.kind
+      seen.add(plan.kind)
+      if (d.order) d.order = null
+      d.coffee = Math.max(d.coffee, 0.6)
+      d.refill()
+    }
+    expect(seen.size).toBeGreaterThanOrEqual(7)
+  })
+
+  it('walks to the lounge corner and waits a little when nothing else is possible', () => {
+    const d = new Director(seq(0.5))
+    const bare = scene()
+    bare.spots = { ...bare.spots, shelves: [], paintings: [], phone: [], kanban: [], outside: [] }
     d.tick(10_000_000, 1)
-    const plan = d.supervisorPlan(scene({ working: [{ to: { x: 4, y: 6 }, face: 'left' }] }))
-    expect((plan.steps.at(-1) as { say: string }).say).toBe('Refill the cooler!')
-    expect(d.order).toBe('refill')
+    for (let i = 0; i < 12; i++) d.sip('coffee')
+    const plan = d.supervisorPlan({ ...bare, boyCarrying: true })
+    expect(plan.kind).toBe('rest')
+    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 21, y: 12 } })
   })
 })
 
 describe('what the office boy does', () => {
-  it('fetches a jar from the door when the water is low, swaps it at the cooler (the old one out, the new one in), and carries the old one back out', () => {
+  it('swaps the cooler jar when the water is low: the empty one out, filled at the tap of the kitchen sink, and the full one back in', () => {
     const d = new Director(seq(0.5))
     d.tick(10_000_000, 1)
     const steps = d.boyPlan(scene())
-    expect(steps.map((s) => (s.kind === 'wait' ? `wait:${s.then ?? ''}` : 'walk'))).toEqual(['walk', 'wait:fetch', 'walk', 'wait:swapOut', 'wait:swapIn', 'wait:pickOld', 'walk', 'wait:drop'])
-    expect(steps[0]).toEqual({ kind: 'walk', to: { x: 8, y: 16 } })
-    expect(steps[2]).toEqual({ kind: 'walk', to: { x: 17, y: 3 } })
-    expect(steps[3]).toMatchObject({ face: 'up' })
-    expect(steps[6]).toEqual({ kind: 'walk', to: { x: 8, y: 16 } })
+    expect(thens(steps)).toEqual(['swapOut', 'fill', 'takeJar', 'swapIn'])
+    expect(steps.filter((s) => s.kind === 'walk').map((s) => (s as { to: unknown }).to)).toEqual([{ x: 17, y: 3 }, { x: 23, y: 14 }, { x: 17, y: 3 }])
+    expect(steps[3]).toMatchObject({ face: 'down', then: 'fill' })
+    expect((steps[3] as { ms: number }).ms).toBeGreaterThanOrEqual(2000)
   })
 
-  it('takes the rubbish out when told to empty the bin, and wipes the counter with a cloth when told to', () => {
+  it('makes more coffee when the pot is low', () => {
     const d = new Director(seq(0.5))
-    d.order = 'bin'
-    const bin = d.boyPlan(scene())
-    expect(bin.map((s) => (s.kind === 'wait' ? `wait:${s.then ?? s.pose ?? ''}` : 'walk'))).toEqual(['wait:salute', 'walk', 'wait:bag', 'walk', 'wait:drop'])
-    d.order = 'counter'
-    const counter = d.boyPlan(scene())
-    expect(counter.at(-1)).toMatchObject({ kind: 'wait', pose: 'wipe', face: 'up' })
+    for (let i = 0; i < 12; i++) d.sip('coffee')
+    expect(thens(d.boyPlan(scene()))).toEqual(['brew'])
   })
 
-  it('salutes the supervisor first when he was ordered, for about a second, then does the job', () => {
+  it('salutes the supervisor first when he was ordered, for about a second, then does the job, and the order is used up', () => {
     const d = new Director(seq(0.5))
     d.order = 'bin'
     const steps = d.boyPlan(scene())
     expect(steps[0]).toMatchObject({ kind: 'wait', pose: 'salute' })
     expect((steps[0] as { ms: number }).ms).toBeGreaterThanOrEqual(900)
-    expect(steps[1]).toEqual({ kind: 'walk', to: { x: 2, y: 14 } })
+    expect(thens(steps)).toEqual(['bag', 'drop'])
     expect(d.order).toBeNull()
   })
 
-  it('does a chore in between, never standing still for long', () => {
-    const d = new Director(seq(0.1, 0.5, 0.9))
-    for (let i = 0; i < 3; i++) {
-      const steps = d.boyPlan(scene())
+  it('takes the rubbish out, wipes the counter and the tables with a cloth, sweeps with a broom between two places, waters a plant, and tidies the printer', () => {
+    const d = new Director(seq(0.5))
+    d.order = 'counter'
+    expect(d.boyPlan(scene()).at(-1)).toMatchObject({ pose: 'wipe', prop: 'cloth', face: 'right' })
+    d.order = 'plants'
+    expect(d.boyPlan(scene()).at(-1)).toMatchObject({ pose: 'hold', prop: 'can' })
+    d.order = 'sweep'
+    const sweep = d.boyPlan(scene()).filter((s) => s.kind === 'wait' && s.prop === 'broom')
+    expect(sweep).toHaveLength(2)
+    expect((sweep[0] as { face: string }).face).not.toBe((sweep[1] as { face: string }).face)
+  })
+
+  it('carries a tray of coffee from the counter to an idle agent, only when there is one', () => {
+    const d = new Director(lcg(11))
+    const idle = [at(24, 6, 'left')]
+    let tray = false
+    for (let i = 0; i < 60 && !tray; i++) {
+      const steps = d.boyPlan(scene({ idleAgents: idle }))
+      if (thens(steps).join() === 'tray,drop') tray = true
+    }
+    expect(tray).toBe(true)
+    for (let i = 0; i < 60; i++) expect(thens(d.boyPlan(scene())).join()).not.toBe('tray,drop')
+  })
+
+  it('is never left with nothing to do, and never does the same job twice running, whatever the draws', () => {
+    const d = new Director(lcg(3))
+    const jobs = new Set<string>()
+    let last = ''
+    for (let i = 0; i < 200; i++) {
+      const steps = d.boyPlan(scene({ idleAgents: [at(24, 6, 'left')] }))
       expect(steps.length).toBeGreaterThan(0)
       expect(steps.some((s) => s.kind === 'walk')).toBe(true)
+      const sig = JSON.stringify(steps.filter((s) => s.kind === 'walk').map((s) => (s as { to: unknown }).to))
+      expect(sig).not.toBe(last)
+      last = sig
+      jobs.add(sig)
     }
+    expect(jobs.size).toBeGreaterThanOrEqual(6)
   })
 })

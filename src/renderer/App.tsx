@@ -639,7 +639,7 @@ export function App() {
   const askedOffice = <T extends { activity: string }>(id: string, st: T): T => (['idle', 'waiting'].includes(st.activity) && waits.some((w) => w.agentId === id) ? { ...st, activity: 'permission' } : st)
   useEffect(() => {
     office.current?.sync(
-      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, contextPct: stats[a.id]?.contextPct ?? null, state: askedOffice(a.id, world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }), inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id]?.until ?? 0) > Date.now(), readingName: reading[a.id]?.item }))
+      agents.map((a) => ({ id: a.id, name: a.name, selected: a.id === selected, tasksDone: wf.runs.filter((r) => r.agent === a.id && r.status === 'done').length, taskOpen: wf.runs.some((r) => r.agent === a.id && r.status === 'open'), contextPct: stats[a.id]?.contextPct ?? null, state: askedOffice(a.id, world[a.id] ?? { activity: 'asleep', interns: {}, files: 0 }), inbox: messages.filter((m) => m.toId === a.id && m.status === 'queued').length, cloneOf: a.cloneOf, linesChanged: (stats[a.id]?.linesAdded ?? 0) + (stats[a.id]?.linesRemoved ?? 0), reading: (reading[a.id]?.until ?? 0) > Date.now(), readingName: reading[a.id]?.item }))
     )
   })
 

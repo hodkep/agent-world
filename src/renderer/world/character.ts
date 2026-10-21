@@ -64,6 +64,13 @@ export class Character {
   tagDy = 0
   bubbleDy = 0
   leaving = false
+  /** On a short errand or at the carrom board: the office does not send it back to its seat until that is over. */
+  errand = false
+  /** What its hands are doing away from the keyboard: sipping a cup of water or coffee, playing carrom, cheering, clapping. */
+  doing: '' | 'sip' | 'coffee' | 'play' | 'cheer' | 'clap' = ''
+  /** When that began (a strike at carrom, the start of a cheer), and for a cheer or a clap until when. */
+  doingAt = 0
+  doingUntil = 0
   /** How much faster than a walk it moves (a subagent rushing to or from its car). */
   speedMul = 1
   /** Out of sight and still: a subagent whose car has not parked yet. */
@@ -186,6 +193,8 @@ export class Character {
     const breathe = !moving && !asleep && Math.floor((t + this.blinkPhase) / 700) % 2 === 0 ? 1 : 0
     this.top = pose === 'sit' ? SIT_Y : STAND_Y
     this.body.y = this.top + (moving ? 0 : breathe) + (asleep && seated ? 1 : 0)
+    // A cheer is two hops.
+    if (this.doing === 'cheer') this.body.y -= Math.round(Math.abs(Math.sin((t - this.doingAt) / 170)) * 3)
 
     this.view.x = Math.round(this.px)
     this.view.y = Math.round(this.py)
@@ -213,6 +222,7 @@ export class Character {
     }
     this.seated = seated
     this.drawArms(seated, view, t)
+    this.drawDoing(view, t)
     this.drawEffect(t)
     this.drawBubble(t)
     this.drawMarker(t)
@@ -273,6 +283,67 @@ export class Character {
     } else {
       this.px += (dx / dist) * move
       this.py += (dy / dist) * move
+    }
+  }
+
+  /** The hands when it is not typing: a cup at the mouth, a flick at the carrom board, both arms up, a clap. Drawn over the body, in its own clothes and skin. */
+  private drawDoing(view: View, t: number) {
+    if (!this.doing) return
+    const g = this.arms
+    const pal = paletteFor(this.key, this.role)
+    const top = this.top
+    const mirrored = view === 'side' && this.flip
+    const x = (px: number, w: number) => (mirrored ? TILE - px - w : px)
+    const rect = (px: number, py: number, w: number, h: number, c: number) => g.rect(x(px, w), top + py, w, h).fill(c)
+    switch (this.doing) {
+      case 'sip':
+      case 'coffee': {
+        const fx = view === 'side' ? 9 : 3
+        rect(fx, 10, 2, 5, pal.o)
+        rect(fx, 11, 1, 4, pal.c)
+        rect(fx + 1, 9, 2, 2, pal.s)
+        rect(fx + 2, 7, 4, 4, pal.o)
+        rect(fx + 3, 8, 2, 2, 0xf4f4f8)
+        if (this.doing === 'coffee' && Math.floor(t / 300) % 2) rect(fx + 3, 5, 1, 2, 0xdcdcec)
+        break
+      }
+      case 'cheer': {
+        const wave = Math.floor((t - this.doingAt) / 150) % 2
+        for (const fx of [1, 13]) {
+          rect(fx, 5 + wave, 2, 8 - wave, pal.o)
+          rect(fx, 6 + wave, 1, 7 - wave, pal.c)
+          rect(fx, 3 + wave, 2, 2, pal.s)
+        }
+        break
+      }
+      case 'clap': {
+        const gap = Math.floor(t / 150) % 2 ? 1 : 4
+        rect(2, 13, 4, 2, pal.c)
+        rect(10, 13, 4, 2, pal.c)
+        rect(6 - gap + 1, 13, 2, 2, pal.s)
+        rect(8 + gap - 1, 13, 2, 2, pal.s)
+        break
+      }
+      case 'play': {
+        // Leans a hand towards the board it faces; a strike pushes it out for a moment.
+        const reach = t - this.doingAt < 300 ? 2 : 0
+        const f = this.goal.facing
+        if (f === 'right' || f === 'left') {
+          const dir = f === 'left' ? -1 : 1
+          const base = dir === 1 ? 9 : 5
+          const len = 3 + reach
+          const x0 = dir === 1 ? base : base - len
+          g.rect(x0, top + 14, len, 2).fill(pal.c)
+          g.rect(dir === 1 ? x0 + len : x0 - 2, top + 14, 2, 2).fill(pal.s)
+        } else if (f === 'down') {
+          g.rect(7, top + 16, 2, 3 + reach).fill(pal.c)
+          g.rect(7, top + 19 + reach, 2, 2).fill(pal.s)
+        } else {
+          g.rect(7, top + 8 - reach, 2, 4).fill(pal.c)
+          g.rect(7, top + 6 - reach, 2, 2).fill(pal.s)
+        }
+        break
+      }
     }
   }
 

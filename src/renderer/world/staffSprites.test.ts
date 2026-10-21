@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STAFF_KEYS, type StaffKind, type StaffPose, staffPixels } from './staffSprites'
 
 const KINDS: StaffKind[] = ['boy', 'supervisor']
-const POSES: StaffPose[] = ['stand', 'walk1', 'walk2', 'salute', 'point', 'wipe']
+const POSES: StaffPose[] = ['stand', 'walk1', 'walk2', 'salute', 'point', 'wipe', 'sip', 'call', 'chin', 'hold', 'reach', 'clasp']
 
 describe('the office boy and the supervisor', () => {
   it('are 16x24 in every view and pose, drawn only in the colours they have', () => {
@@ -26,6 +26,8 @@ describe('the office boy and the supervisor', () => {
     expect(staffPixels('boy', 'front', 'walk1')).not.toEqual(staffPixels('boy', 'front', 'walk2'))
     expect(staffPixels('boy', 'side', 'wipe')).not.toEqual(staffPixels('boy', 'side', 'stand'))
     expect(staffPixels('boy', 'back', 'salute')).not.toEqual(staffPixels('boy', 'back', 'stand'))
+    for (const kind of KINDS) for (const pose of ['sip', 'call', 'chin', 'hold'] as const) for (const view of ['front', 'side'] as const) expect(staffPixels(kind, view, pose), `${kind} ${view} ${pose}`).not.toEqual(staffPixels(kind, view, 'stand'))
+    for (const kind of KINDS) for (const pose of ['reach', 'clasp'] as const) for (const view of ['front', 'back', 'side'] as const) if (!(pose === 'clasp' && view === 'side')) expect(staffPixels(kind, view, pose), `${kind} ${view} ${pose}`).not.toEqual(staffPixels(kind, view, 'stand'))
     expect(staffPixels('boy', 'back', 'salute')).not.toEqual(staffPixels('boy', 'front', 'salute'))
   })
 
