@@ -4,13 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-21
+
+### Added
+
+- Code: an **.html file** gets the same **Preview** / **Source** button a Markdown file has. Preview shows the file as the page it makes, as last saved, so its own stylesheet and pictures load; scripts run in a sandboxed frame that cannot reach the app, and Save refreshes it.
+- Code: a **.pdf file** opened from the file tree shows as a PDF instead of unreadable text. It is never opened in the editor, so it cannot be overwritten, and **Open in Preview** sends it to the Preview tab.
+- Right-click **Reveal in Finder**, for files and folders, wherever a path is shown: Files and Changes in the Code tab, open-file tabs, the Code and Terminal tabs (the agent's folder), file links and tool cards in the chat, the profile card, skills, projects, attachments, an account's folder, and a local file in Preview. A folder an agent names in chat is now a link too; a click reveals it.
+
 ### Fixed
 
-- Grid: each project keeps its own view and layout. Leave one on the office canvas and another on the grid, and each is as you left it when you come back, also after you quit. A terminal in a grid cell that ended with the earlier run comes back as a new one in the same cell.
-
-### Fixed
-
+- Grid: each project keeps its own view (office canvas or grid) and its own grid layout, also after you quit. Before, the choice was one setting for the whole app, so leaving one project on the canvas and putting another in grid mode brought the first back as a grid. A terminal cell whose shell ended with the earlier run opens a new shell.
 - Office: a plan, approval, audit or push that waits for you in another project now counts in that project's tile in the project menu and in the red dot on the project button, as a permission does. Before, only the project you were in counted its workflow waits.
+- Office: the small tag in the Workflow tab and the project lists is 10px, the documented micro size.
 
 ## [0.2.4] - 2026-10-21
 
@@ -160,7 +166,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.4...HEAD
+[Unreleased]: ../../compare/v0.2.5...HEAD
+[0.2.5]: ../../compare/v0.2.4...v0.2.5
 [0.2.4]: ../../compare/v0.2.3...v0.2.4
 [0.2.3]: ../../compare/v0.2.2...v0.2.3
 [0.2.2]: ../../compare/v0.2.1...v0.2.2
