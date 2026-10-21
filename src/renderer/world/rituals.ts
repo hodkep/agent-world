@@ -21,6 +21,19 @@ const TINTS: Record<Phase, { color: number; alpha: number }> = {
 /** The colour laid over the office floor at this hour. */
 export const tintFor = (hour: number) => TINTS[phaseOf(hour)]
 
+const ADDS: Record<Phase, { color: number; alpha: number } | null> = { dawn: { color: 0x2a2030, alpha: 0.55 }, day: { color: 0x243a2a, alpha: 0.9 }, dusk: { color: 0x2c1a0e, alpha: 0.6 }, night: null }
+
+/**
+ * The light on the grounds: a colour added to the lawn and the road (so they brighten from the night scene they are drawn as), a grey laid over them for cloud and rain,
+ * whether the street lamps are lit, and whether rain falls.
+ */
+export function outsideLight(hour: number, weather: WeatherNow) {
+  const phase = phaseOf(hour)
+  const dim = weather === 'rain' ? 0.18 : weather === 'cloud' ? 0.08 : 0
+  const base = phase === 'night' ? 0.18 : 0
+  return { add: ADDS[phase], dim: { color: phase === 'night' ? 0x10182e : 0x6a7488, alpha: Math.max(dim, base) }, lamps: phase !== 'day', rain: weather === 'rain' }
+}
+
 /** The lunch bell rings from one to two, chai is called from four to half past, and the cleaner works from ten at night to five. */
 export function ritualAt(hour: number, minute: number): Ritual | null {
   if (hour === 13) return 'lunch'

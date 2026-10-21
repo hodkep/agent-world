@@ -1,7 +1,8 @@
 import { Container, Graphics, Sprite } from 'pixi.js'
 import { birdTexture, BIRD_KEYS, BIRD } from './critters'
 import { OFFICE, TILE } from './office'
-import { type Phase, type WeatherNow, phaseOf, tintFor } from './rituals'
+import { drawLampGlows, GROUNDS } from './grounds'
+import { type Phase, type WeatherNow, outsideLight, phaseOf, tintFor } from './rituals'
 
 const INK = 0x1a1522
 const SKY: Record<Phase, [number, number]> = { dawn: [0x5a4a7a, 0xd89a78], day: [0x6aaee0, 0xbfe4f6], dusk: [0x4a3a7a, 0xe0805a], night: [0x10122a, 0x2a2a5a] }
@@ -13,6 +14,8 @@ export interface Sky {
   /** 0 to 1: how dark the power cut has made it. */
   dark: number
   alarm: boolean
+  /** Office life is on: the grounds follow the hour and the weather; off, they stay the night scene they are drawn as. */
+  live: boolean
 }
 
 /**
@@ -23,6 +26,18 @@ export class Ambience {
   readonly tint = new Graphics()
   readonly windows = new Container()
   readonly flyer = new Container()
+  /** What lies over the grounds (lawn, street, trees) and under the office: the light of the hour, the grey of the weather, the rain, the lamps' glow. */
+  readonly outside = new Container()
+  private readonly add = new Graphics()
+  private readonly dim = new Graphics()
+  private readonly rain = new Graphics()
+  private readonly glow = drawLampGlows(OFFICE.map)
+  private addShown = 0
+  private dimShown = 0
+  private addColor = 0
+  private dimColor = 0
+  private rainFrame = -1
+  private readonly drawn = { add: '', dim: '' }
   private readonly panes: { x: number; g: Graphics; key: string }[] = []
   private readonly bird = new Sprite()
   private shown = 0
@@ -42,6 +57,8 @@ export class Ambience {
       this.windows.addChild(g)
       this.panes.push({ x: d.x, g, key: '' })
     }
+    this.add.blendMode = 'add'
+    this.outside.addChild(this.add, this.dim, this.glow, this.rain)
     this.bird.texture = birdTexture('fly1')
     this.bird.visible = false
     this.flyer.addChild(this.bird)
@@ -68,7 +85,7 @@ export class Ambience {
   }
 
   data() {
-    return { phase: this.phase, weather: this.weather, ledge: this.ledge, flying: this.flying, tint: Math.round(this.shown * 100) / 100 }
+    return { phase: this.phase, weather: this.weather, ledge: this.ledge, flying: this.flying, tint: Math.round(this.shown * 100) / 100, outside: { add: Math.round(this.addShown * 100) / 100, dim: Math.round(this.dimShown * 100) / 100, lamps: this.glow.visible, rain: this.rainFrame >= 0 } }
   }
 
   update(dtMs: number, t: number, sky: Sky) {
@@ -83,6 +100,8 @@ export class Ambience {
     this.tint.clear()
     this.tint.rect(0, 0, OFFICE.map.w * TILE, OFFICE.map.h * TILE).fill({ color: sky.dark > 0 ? 0x000010 : base.color, alpha: this.shown * flicker })
     if (pulse > 0) this.tint.rect(0, 0, OFFICE.map.w * TILE, OFFICE.map.h * TILE).fill({ color: 0xe02020, alpha: pulse })
+
+    this.updateOutside(dtMs, t, sky)
 
     // A pigeon lands on one window's ledge now and then, stays a little, and goes.
     if (this.perch && t >= this.perch.until) this.perch = null
@@ -112,6 +131,41 @@ export class Ambience {
       this.bird.x = Math.round(TILE * 2 + k * (OFFICE.map.w * TILE - TILE * 4))
       this.bird.y = Math.round(TILE * 4 + Math.sin(k * Math.PI * 3) * 14 + k * 18)
       this.flight.at = Math.round(this.bird.x)
+    }
+  }
+
+  /** One huge rectangle over the grounds, redrawn only when its colour or its alpha has moved. */
+  private paint(g: Graphics, color: number, alpha: number, which: 'add' | 'dim') {
+    const a = alpha > 0.004 ? Math.round(alpha * 250) / 250 : 0
+    const key = `${color}/${a}`
+    if (key === this.drawn[which]) return
+    this.drawn[which] = key
+    g.clear()
+    if (a) g.rect(-GROUNDS.west - 2400, -GROUNDS.north - 2400, OFFICE.map.w * TILE + GROUNDS.west + GROUNDS.east + 4800, OFFICE.map.h * TILE + GROUNDS.north + GROUNDS.south + 4800).fill({ color, alpha: a })
+  }
+
+  private updateOutside(dtMs: number, t: number, sky: Sky) {
+    const light = sky.live ? outsideLight(sky.hour, sky.weather) : null
+    const k = Math.min(1, dtMs / 800)
+    const addTo = light?.add?.alpha ?? 0
+    const dimTo = light?.dim.alpha ?? 0
+    if (light?.add) this.addColor = light.add.color
+    if (light) this.dimColor = light.dim.color
+    this.addShown += (addTo - this.addShown) * k
+    this.dimShown += (dimTo - this.dimShown) * k
+    this.paint(this.add, this.addColor, this.addShown, 'add')
+    this.paint(this.dim, this.dimColor, this.dimShown, 'dim')
+    this.glow.visible = !!light?.lamps
+    // Rain: short streaks falling over the whole grounds, redrawn four times a second.
+    const frame = light?.rain ? Math.floor(t / 130) : -2
+    if (frame !== this.rainFrame) {
+      this.rainFrame = frame
+      this.rain.clear()
+      if (frame >= 0) {
+        const w = OFFICE.map.w * TILE + GROUNDS.west + GROUNDS.east
+        const h = OFFICE.map.h * TILE + GROUNDS.north + GROUNDS.south
+        for (let i = 0; i < 480; i++) this.rain.rect(-GROUNDS.west + ((i * 97 + frame * 5) % w), -GROUNDS.north + ((i * 61 + frame * 11) % h), 1, 3).fill({ color: 0x9ac4f0, alpha: 0.7 })
+      }
     }
   }
 

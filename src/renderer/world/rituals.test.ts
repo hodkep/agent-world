@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Guests, Rare, Rest, Weather, phaseOf, ritualAt, tintFor } from './rituals'
+import { Guests, Rare, Rest, Weather, outsideLight, phaseOf, ritualAt, tintFor } from './rituals'
 
 const lcg = (seed = 3) => () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296
 const MIN = 60_000
@@ -107,5 +107,26 @@ describe('rest', () => {
     expect(r.observe('a', 'idle', 12 * MIN)).toBeNull()
     r.observe('b', 'implementing', 0)
     expect(r.observe('b', 'idle', 5 * MIN)).toBeNull()
+  })
+})
+
+describe('the grounds outside', () => {
+  it('are lit by day, with the lamps off, dim at night with the lamps on, and the lamps are on at dawn and dusk', () => {
+    expect(outsideLight(12, 'clear')).toMatchObject({ lamps: false, rain: false })
+    expect(outsideLight(12, 'clear').add!.alpha).toBeGreaterThan(0.5)
+    expect(outsideLight(23, 'clear')).toMatchObject({ lamps: true, add: null })
+    expect(outsideLight(23, 'clear').dim.alpha).toBeGreaterThan(0)
+    expect(outsideLight(6, 'clear').lamps).toBe(true)
+    expect(outsideLight(18, 'clear').lamps).toBe(true)
+  })
+
+  it('go grey in cloud and greyer in rain, and only rain draws streaks', () => {
+    const clear = outsideLight(12, 'clear').dim.alpha
+    const cloud = outsideLight(12, 'cloud').dim.alpha
+    const rain = outsideLight(12, 'rain')
+    expect(clear).toBe(0)
+    expect(cloud).toBeGreaterThan(clear)
+    expect(rain.dim.alpha).toBeGreaterThan(cloud)
+    expect([outsideLight(12, 'cloud').rain, rain.rain]).toEqual([false, true])
   })
 })
