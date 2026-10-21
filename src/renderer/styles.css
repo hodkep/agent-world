@@ -1135,6 +1135,7 @@ button.file-link.as-link { background: none; border: 0; padding: 0; font: inheri
 button.file-link.as-link:hover:not(:disabled) { background: none; color: var(--accent); }
 a.file-link::before { content: ''; display: inline-block; width: .7em; height: .85em; margin-right: .3em; background: currentColor; clip-path: polygon(0 0, 65% 0, 100% 30%, 100% 100%, 0 100%); opacity: .8; vertical-align: -0.05em; }
 code a.file-link { font: inherit; }
+a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 100%, 0 100%); }
 
 /* The File tab */
 .fileview { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--well); }

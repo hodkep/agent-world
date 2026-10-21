@@ -147,7 +147,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
               <ol className="wfl-steps" aria-label="Steps">
                 {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} skills={shown.skills} />)}
               </ol>
-              {shown.file && <span className="mono muted">{shown.file}</span>}
+              {shown.file && <span className="mono muted" data-reveal={shown.file} title="Right-click to reveal this file">{shown.file}</span>}
               {removing ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>
                   <span>Remove {wf.name} for {here}? Agents will then work with no workflow: no plan hold, no track, no gate. You can bring it back from the list.</span>

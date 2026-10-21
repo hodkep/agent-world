@@ -256,7 +256,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
     const dir = f.path.slice(0, Math.max(0, f.path.length - name.length - 1))
     return (
       <li key={f.path} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
-        <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path}>
+        <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path} data-reveal={f.path}>
           <span className="mark">{STATUS_MARK[f.status]}</span>
           <span className="nm">{name}</span>
           {view === 'list' && dir && <span className="dir">{dir}</span>}
@@ -273,7 +273,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
   }
 
   return (
-    <div className="changes">
+    <div className="changes" data-reveal-agent={agentId}>
       <div className="change-list ch" style={side.style}>
         <div className="ch-top">
           {place ? (
@@ -415,7 +415,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
       <div className="files-ed">
         {path && (
           <div className="fcrumb">
-            <span className="fpath" title={path}>{path}</span>
+            <span className="fpath" data-reveal={path} title={path}>{path}</span>
             <span aria-hidden="true">·</span>
             <span className="flang">
               {mode === 'dirty' ? 'uncommitted' : mode === 'history' ? `in commit ${commit?.slice(0, 7) ?? ''}` : `${{ added: 'new file', modified: 'changed', deleted: 'deleted' }[data?.files.find((f) => f.path === path)?.status ?? 'modified']} vs ${data?.base ?? 'base'}`}
@@ -639,7 +639,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const rows = visibleRows(files, openDirs, filter)
   const dirty = !!active && dirtyOf(active)
   return (
-    <div className="changes">
+    <div className="changes" data-reveal-agent={agentId}>
       <div className="change-list" style={side.style}>
         <div className="tree-head">
           <span>Files</span>
@@ -656,6 +656,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 style={{ paddingLeft: 6 + r.depth * 14 }}
                 onClick={() => (r.dir ? toggle(r.path) : open(r.path))}
                 title={r.path}
+                data-reveal={r.path}
               >
                 <span className="chev">{r.dir ? (filter !== '' || openDirs.has(r.path) ? '▾' : '▸') : ''}</span>
                 {r.name}
@@ -678,6 +679,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 tabIndex={0}
                 aria-selected={p === active}
                 title={p}
+                data-reveal={p}
                 onClick={() => switchTo(p)}
                 onAuxClick={(e) => e.button === 1 && (e.preventDefault(), close(p))}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), switchTo(p))}
@@ -693,7 +695,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
         )}
         {active && (
           <div className="fcrumb">
-            <span className="fpath" title={active}>{active}</span>
+            <span className="fpath" data-reveal={active} title={active}>{active}</span>
             <span aria-hidden="true">·</span>
             <span className="flang">{shows === 'pdf' ? 'pdf' : languageFor(active)}</span>
             {(shows === 'markdown' || shows === 'html') && (

@@ -91,7 +91,7 @@ export function WorkspaceMenu({
                 const a = activity[w.path]
                 const sub = !w.exists ? 'folder is missing' : w.agents > 0 ? `${w.agents} agent${w.agents === 1 ? '' : 's'}` : 'no agents'
                 return (
-                  <div key={w.path} className={`wt-cell ${w.path === workspaces?.active ? 'on' : ''}`}>
+                  <div key={w.path} className={`wt-cell ${w.path === workspaces?.active ? 'on' : ''}`} data-reveal={w.exists ? w.path : undefined}>
                     <button role="menuitem" className={`wt ${w.path === workspaces?.active ? 'on' : ''} ${w.exists ? '' : 'miss'}`} data-n={i < 9 ? String(i + 1) : undefined} onClick={() => choose(w)} disabled={!w.exists} aria-current={w.path === workspaces?.active} title={w.exists ? w.path : `${w.path} (missing)`}>
                       {i < 9 && <kbd aria-hidden="true">{i + 1}</kbd>}
                       <span className="wt-top">

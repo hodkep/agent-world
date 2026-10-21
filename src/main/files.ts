@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { randomBytes } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { homedir } from 'node:os'
-import { createReadStream, statSync } from 'node:fs'
+import { createReadStream, realpathSync, statSync } from 'node:fs'
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FileInfo, FileKind } from '../shared/files'
@@ -38,6 +38,28 @@ export async function resolveFile(cwd: string, written: string): Promise<FileInf
       /* the folder is gone; nothing is inside it */
     }
     return { path: real, name: basename(real), kind: kindOf(real), size: st.size, inside: rel !== undefined, ...(rel && { rel }) }
+  } catch {
+    return null
+  }
+}
+
+/** A file or a folder an agent mentioned, resolved the same way; a folder comes back as kind `folder` (it cannot be opened in the viewer, only shown in Finder). */
+export async function resolveEntry(cwd: string, written: string): Promise<FileInfo | null> {
+  const file = await resolveFile(cwd, written)
+  if (file) return file
+  const p = written.replace(/^file:\/\//, '')
+  const full = p.startsWith('~/') ? join(homedir(), p.slice(2)) : isAbsolute(p) ? p : resolve(cwd, p)
+  try {
+    const real = await realpath(full)
+    if (!(await stat(real)).isDirectory()) return null
+    let rel: string | undefined
+    try {
+      const r = relative(await realpath(cwd), real)
+      if (r && !r.startsWith('..') && !isAbsolute(r)) rel = r
+    } catch {
+      /* the folder is gone; nothing is inside it */
+    }
+    return { path: real, name: basename(real), kind: 'folder', size: 0, inside: rel !== undefined, ...(rel && { rel }) }
   } catch {
     return null
   }
@@ -94,6 +116,20 @@ export async function startFileServer() {
   const { port } = server.address() as AddressInfo
   return {
     port,
+    /** The file on disk behind an address this server handed out (the page, or what sits beside it); null for any other address or a file that is gone. */
+    pathOf(address: string): string | null {
+      try {
+        const u = new URL(address)
+        const m = /^\/([0-9a-f]{32})\/(.*)$/.exec(u.pathname)
+        const share = u.hostname === '127.0.0.1' && Number(u.port) === port && m && shares.get(m[1]!)
+        if (!share) return null
+        const file = resolve(share.root, decodeURIComponent(m[2]!))
+        if ((file !== share.root && !file.startsWith(share.root + sep)) || (share.only && file !== share.only)) return null
+        return statSync(file).isFile() ? realpathSync(file) : null
+      } catch {
+        return null
+      }
+    },
     urlFor(file: string): string {
       const dir = dirname(file)
       const broad = dir === homedir() || dir === sep

@@ -76,7 +76,7 @@ export function WorkspacePicker({ workspaces, onOpen, onPick, onForget }: { work
         {many && <input className="lobby-filter" autoFocus value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a project…" aria-label="Find a project" />}
         <ul className="floors" ref={grid} aria-label="Projects">
           {items.map((w, i) => (
-            <li key={w.path} className={w.exists ? '' : 'gone'}>
+            <li key={w.path} className={w.exists ? '' : 'gone'} data-reveal={w.exists ? w.path : undefined}>
               <button className="floor" onClick={() => open(w)} disabled={!w.exists} title={w.exists ? w.path : `${w.path} (missing)`}>
                 <FloorThumb path={w.path} agents={w.agents} />
                 {i < 9 && <kbd className="floor-key" aria-hidden="true">{i + 1}</kbd>}

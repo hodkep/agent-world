@@ -1,4 +1,4 @@
-import { readText, resolveFile, startFileServer } from './files'
+import { readText, resolveEntry, resolveFile, startFileServer } from './files'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
 import { createTodoService } from './todos/service'
@@ -29,7 +29,7 @@ import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
 import { installCommand, installLaunch } from './installRun'
 import { createMenuTracker } from './menuTracker'
 import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
-import { contextItems } from './contextMenu'
+import { contextItems, revealItem } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
@@ -990,10 +990,13 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
 }
 
+// The file on disk behind a page the file server handed out; set once the server is up, so a local file shown in Preview can be revealed.
+let pagePathOf: (url: string) => string | null = () => null
 // Electron draws no right-click menu by itself; give the app's pages and the preview panes the system's own.
 const rightClick = (contents: Electron.WebContents) =>
   contents.on('context-menu', (_e, params) => {
-    const items = contextItems(params, (u) => void clipboard.writeText(u), () => contents.copyImageAt(params.x, params.y))
+    const page = pagePathOf(contents.getURL())
+    const items = contextItems(params, (u) => void clipboard.writeText(u), () => contents.copyImageAt(params.x, params.y), page ? revealItem(page, (f) => shell.showItemInFolder(f)) : undefined)
     if (items.length) Menu.buildFromTemplate(items).popup()
   })
 
@@ -1410,6 +1413,7 @@ async function main() {
     }
   })
   const pages = await startFileServer()
+  pagePathOf = pages.pathOf
   office = { mcpUrl: mcp.url }
   for (const u of [mcp.url, ...[...eventHandles.values()].map((h) => h.url)]) if (u) ownPorts.push(Number(new URL(u).port))
 
@@ -1573,7 +1577,26 @@ async function main() {
   ipcMain.handle('file:info', async (_, agentId: string, paths: string[]) => {
     const a = byId(agentId)
     if (!a) return paths.map(() => null)
-    return Promise.all(paths.slice(0, 60).map((p) => resolveFile(a.cwd, p)))
+    return Promise.all(paths.slice(0, 60).map((p) => resolveEntry(a.cwd, p)))
+  })
+  // Right-click on a path shown anywhere in the app (a file or a folder, written as the page shows it, relative to the agent's folder when an agent is named): the system's menu with Reveal in Finder.
+  const revealTarget = async (agentId: string, written: unknown) => (typeof written === 'string' && written.length < 4096 ? resolveEntry(byId(agentId)?.cwd ?? homedir(), written) : null)
+  ipcMain.handle('reveal:menu', async (e, agentId: string, written: string) => {
+    const info = await revealTarget(agentId, written)
+    if (!info) return false
+    // A test run records the choice instead of opening a menu it cannot click.
+    if (process.env.AW_REVEAL_LOG && !app.isPackaged) {
+      appendFileSync(process.env.AW_REVEAL_LOG, `menu ${info.path}\n`)
+      return true
+    }
+    Menu.buildFromTemplate([revealItem(info.path, (f) => shell.showItemInFolder(f))]).popup({ window: BrowserWindow.fromWebContents(e.sender) ?? undefined })
+    return true
+  })
+  ipcMain.handle('reveal:show', async (_, agentId: string, written: string) => {
+    const info = await revealTarget(agentId, written)
+    if (info && process.env.AW_REVEAL_LOG && !app.isPackaged) appendFileSync(process.env.AW_REVEAL_LOG, `show ${info.path}\n`)
+    else if (info) shell.showItemInFolder(info.path)
+    return !!info
   })
   ipcMain.handle('file:read', async (_, agentId: string, path: string) => {
     const info = await fileFor(agentId, path)

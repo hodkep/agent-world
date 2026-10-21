@@ -36,7 +36,7 @@ export function ViewSwitch({ mode, onMode, counts, inPlace }: { mode: ChangeMode
 function Files({ group, files, view, closed, toggle, path, onPick, actions }: { group: string; files: File[]; view: 'tree' | 'list'; closed: Set<string>; toggle: (key: string) => void; path: string | null; onPick: (p: string) => void; actions: (f: File) => React.ReactNode }) {
   const row = (f: File, depth: number) => (
     <li key={`${group}:${f.path}`} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
-      <button className={`file is-${f.status}`} onClick={() => onPick(f.path)} title={f.path}>
+      <button className={`file is-${f.status}`} onClick={() => onPick(f.path)} title={f.path} data-reveal={f.path}>
         <span className="mark">{MARK[f.status]}</span>
         <span className="nm">{baseName(f.path)}</span>
         {view === 'list' && dirName(f.path) && <span className="dir">{dirName(f.path)}</span>}
@@ -56,7 +56,7 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
       ).map((r) =>
         r.dir ? (
           <li key={`${group}:d:${r.path}`} role="treeitem" aria-expanded={!mine.has(r.path)} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
-            <button className="file" title={r.path} onClick={() => toggle(`${group}\0${r.path}`)}>
+            <button className="file" title={r.path} data-reveal={r.path} onClick={() => toggle(`${group}\0${r.path}`)}>
               <span className="chev">{mine.has(r.path) ? '▸' : '▾'}</span>
               <span className="nm dirname">{r.name}</span>
               <span className="n">{r.count}</span>

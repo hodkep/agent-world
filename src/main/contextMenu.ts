@@ -11,8 +11,11 @@ export interface ContextParams {
 
 const SEP: MenuItemConstructorOptions = { type: 'separator' }
 
-/** What a right-click offers, using the system's own commands so it feels like any other Mac app. */
-export function contextItems(p: ContextParams, copyLink: (url: string) => void = () => {}, copyImage: () => void = () => {}): MenuItemConstructorOptions[] {
+/** The item that shows a file or folder in Finder, selected in the folder it is in. */
+export const revealItem = (path: string, show: (path: string) => void): MenuItemConstructorOptions => ({ label: 'Reveal in Finder', click: () => show(path) })
+
+/** What a right-click offers, using the system's own commands so it feels like any other Mac app. `reveal` goes first, for a page that is a local file. */
+export function contextItems(p: ContextParams, copyLink: (url: string) => void = () => {}, copyImage: () => void = () => {}, reveal?: MenuItemConstructorOptions): MenuItemConstructorOptions[] {
   const f = p.editFlags
   const items: MenuItemConstructorOptions[] = []
   if (p.linkURL) items.push({ label: 'Copy Link', click: () => copyLink(p.linkURL) })
@@ -29,5 +32,5 @@ export function contextItems(p: ContextParams, copyLink: (url: string) => void =
     if (items.length) items.push(SEP)
     items.push({ role: 'copy' }, SEP, { role: 'selectAll' })
   }
-  return items
+  return reveal ? (items.length ? [reveal, SEP, ...items] : [reveal]) : items
 }

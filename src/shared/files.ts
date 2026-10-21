@@ -1,4 +1,4 @@
-export type FileKind = 'html' | 'markdown' | 'pdf' | 'image' | 'code' | 'text' | 'other'
+export type FileKind = 'html' | 'markdown' | 'pdf' | 'image' | 'code' | 'text' | 'other' | 'folder'
 
 /** A file an agent mentioned, once it is known to exist. */
 export interface FileInfo {
