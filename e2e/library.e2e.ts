@@ -29,7 +29,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
   const envLog = join(home, 'env.log')
   const agyHome = join(home, 'agy')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_USER_HOME: user, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, FAKE_ENV_FILE: envLog, FAKE_ARGS: args, FAKE_DELAY_MS: '300' },
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: user, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, FAKE_ENV_FILE: envLog, FAKE_ARGS: args, FAKE_DELAY_MS: '300', FAKE_CHAT: '1' },
     home
   )
   try {
@@ -141,6 +141,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
     const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
+    // The agent is the fake's chat one, which sends no prompt of its own: a prompt landing in the middle of the six below (the scripted one did, on a slow machine) would count as a seventh and make two of them due.
     // Each message it is sent is answered through its hook with the rulebook line for the rules that push (the message is not read), and the first one carries the medium rules too.
     const hook = JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).hooks.UserPromptSubmit[0].hooks[0] as { url: string; headers: Record<string, string> }
     const prompt = async (text: string) =>

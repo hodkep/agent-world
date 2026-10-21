@@ -65,6 +65,8 @@ test('Shift+Mod+L opens the Ask box on the selected words in a reply, as the Ask
 
     // A second selection: the plain Ctrl+L opens nothing; the key opens the box, and Enter with no question adds the words alone.
     await select(page, 'rollback')
+    // The key acts on the selection the chat has seen: wait for its Ask button, as for the first one, or a slow machine presses it too early.
+    await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible()
     await page.keyboard.press('Control+L')
     await expect(here).toHaveCount(0)
     await page.keyboard.press('Control+Shift+L')

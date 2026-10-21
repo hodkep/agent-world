@@ -58,7 +58,8 @@ test('in the terminal, Cmd+F finds text, Cmd+Up jumps to the previous command, C
 
     // The prompt before the long output is what Cmd+Up scrolls to.
     await page.keyboard.press('Meta+ArrowUp')
-    await expect(term.locator('.xterm-rows')).toContainText('seq 1 120')
+    // The prompt line can wrap where the machine's name is long (the 's' ends one row, 'eq 1 120' starts the next), so only what is always together is looked for.
+    await expect(term.locator('.xterm-rows')).toContainText('eq 1 120')
     await expect(page.getByRole('button', { name: 'Scroll to the latest output' })).toBeVisible()
     await page.getByRole('button', { name: 'Scroll to the latest output' }).click()
     await expect(term.locator('.xterm-rows')).toContainText('120')
