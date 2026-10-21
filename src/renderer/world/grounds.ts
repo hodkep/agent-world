@@ -46,10 +46,6 @@ function lampPost(g: G, x: number, y: number) {
   r(g, x, y - 12, 2, 20, 0x2a2c33)
   r(g, x - 2, y - 14, 6, 3, 0xf6e2a0)
 }
-function lamp(g: G, x: number, y: number) {
-  lampGlow(g, x, y)
-  lampPost(g, x, y)
-}
 
 /** Where the lamps on the far pavement, across the road, stand. They are nearer to us than the cars, and their posts reach up into the road. */
 export function lampsAcross(map: OfficeMap): { x: number; y: number }[] {
@@ -158,7 +154,15 @@ export function drawGrounds(map: OfficeMap): G {
   // Trees on the lawn at the sides and along the back.
   for (let x = x0 + 16; x < x1; x += 34) tree(g, x + Math.floor(rand() * 10), -42 + Math.floor(rand() * 8), 1 + rand() * 0.4)
   for (const [x, y] of [[x0 + 10, 40], [x0 + 24, 150], [x0 + 12, 230], [x1 - 14, 60], [x1 - 22, 170], [x1 - 12, 240]] as const) tree(g, x, y, 1.1)
-  for (let x = 20; x < W; x += 136) lamp(g, x, walkY - 4)
+  for (let x = 20; x < W; x += 136) lampPost(g, x, walkY - 4)
+  return g
+}
+
+/** The glow under each street lamp, near and across the road, on a layer of its own so it can be switched off by day. */
+export function drawLampGlows(map: OfficeMap): G {
+  const g = new Graphics()
+  const walkY = map.h * TILE + 8
+  for (let x = 20; x < map.w * TILE; x += 136) lampGlow(g, x, walkY - 4)
   for (const l of lampsAcross(map)) lampGlow(g, l.x, l.y)
   return g
 }

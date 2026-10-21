@@ -21,6 +21,8 @@ import { Confetti } from './confetti'
 import { Life } from './life'
 import { Ambience } from './ambience'
 import { Cat } from './cat'
+import { RiderView } from './riders'
+import { Trip } from './trip'
 import { CatBrain } from './catBrain'
 import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
 import { Guests, type RareEvent, Rare, Rest, Weather, ritualAt } from './rituals'
@@ -73,6 +75,8 @@ const takeCall = () => {
     return null
   }
 }
+/** The road in front of the door, in the world's pixels: where a scooter rides in and parks, and where the rider walks to the door. */
+const TRIP = { left: LOT.left, right: LOT.right, laneY: MAP_H + 8 + 27, doorX: LOT.doorX, doorY: MAP_H + 4 }
 const HUDDLE_LINES = ['What if we split it?', 'Arrow goes here.', 'Ship it?', 'Draw the boxes first.']
 const calmMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -175,7 +179,9 @@ export class OfficeWorld {
   private readonly rest = new Rest()
   private cat: Cat | null = null
   private guard: StaffActor | null = null
-  private readonly callers = new Map<StaffActor, number>()
+  // Visitors by scooter: where each is on the street (the trip), how it is drawn, and, once it is at the door, the office's own actor for what it does inside.
+  private readonly callers = new Map<Trip, { kind: 'courier' | 'pizza'; view: RiderView; plan: () => Step[]; actor: StaffActor | null; since: number }>()
+  private readonly riders = new Container({ sortableChildren: true })
   private cut: { start: number } | null = null
   private drill: { start: number; until: number } | null = null
   private event = ''
@@ -247,7 +253,7 @@ export class OfficeWorld {
     this.street = new Street(OFFICE.map)
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
-    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
+    this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, this.riders, this.ambience.outside, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.ambience.tint, this.mail, this.visitors.bubbles)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
@@ -788,7 +794,15 @@ export class OfficeWorld {
   private besideOf(c: Character): StaffPlace | null {
     const map = OFFICE.map
     const at = c.at
-    return [{ to: { x: at.x + 2, y: at.y }, face: 'left' as Face }, { to: { x: at.x - 1, y: at.y }, face: 'right' as Face }].find((b) => map.walkable(b.to)) ?? null
+    // Beside a desk, else (on a sofa, where the seats run side by side) in front of it or behind it.
+    return (
+      [
+        { to: { x: at.x + 2, y: at.y }, face: 'left' as Face },
+        { to: { x: at.x - 1, y: at.y }, face: 'right' as Face },
+        { to: { x: at.x, y: at.y + 1 }, face: 'up' as Face },
+        { to: { x: at.x, y: at.y - 1 }, face: 'down' as Face }
+      ].find((b) => map.walkable(b.to)) ?? null
+    )
   }
 
   /** What the director is told when it plans: where agents work or idle, how many are idle, and where the staff stand to do their jobs. */
@@ -1081,30 +1095,53 @@ export class OfficeWorld {
     }
   }
 
-  /** A courier or a pizza delivery comes in at the door, does its errand and goes out again; one of each kind at a time. */
-  private spawnGuest(kind: 'courier' | 'pizza', steps: Step[]) {
-    if (!this.lifeOn || [...this.callers.keys()].some((a) => a.kind === kind)) return
-    const label = kind === 'courier' ? 'the courier' : 'the pizza delivery'
-    const a = new StaffActor(kind, label, OFFICE.map, this.places.door, (over) => (this.host.title = over ? label : ''))
-    a.setShown(true)
-    a.give(steps)
-    this.layer.addChild(a.view)
-    this.callers.set(a, performance.now())
+  /** A courier or a pizza delivery rides in along the road on a scooter, parks in front of the door and walks in; one of each kind at a time. */
+  private spawnGuest(kind: 'courier' | 'pizza', plan: () => Step[]) {
+    if (!this.lifeOn || [...this.callers.values()].some((c) => c.kind === kind)) return
+    const trip = new Trip(TRIP, staffSpeed())
+    const view = new RiderView(kind)
+    this.riders.addChild(view.view)
+    this.callers.set(trip, { kind, view, plan, actor: null, since: performance.now() })
+  }
+
+  private dropCaller(trip: Trip) {
+    const c = this.callers.get(trip)
+    if (!c) return
+    c.actor?.view.destroy({ children: true })
+    c.view.destroy()
+    this.callers.delete(trip)
   }
 
   private callersTick(dt: number, t: number) {
-    for (const [a, since] of [...this.callers]) {
-      const say = (text: string, ms: number) => this.shouts.say(`guest:${a.kind}`, text, ms, () => ({ x: a.view.x + TILE / 2, y: a.view.y - 28 }))
-      const then = (what: Then) => {
-        if (what === 'parcel') a.carrying = 'parcel'
-        else if (what === 'drop') a.carrying = ''
+    for (const [trip, c] of [...this.callers]) {
+      trip.update(dt)
+      c.view.update(trip, t)
+      if (trip.mode === 'inside' && !c.actor) {
+        // At the door: the office's own actor takes over, comes in, does its errand, and goes out again.
+        const label = c.kind === 'courier' ? 'the courier' : 'the pizza delivery'
+        const a = new StaffActor(c.kind, label, OFFICE.map, this.places.door, (over) => (this.host.title = over ? label : ''))
+        a.setShown(true)
+        a.give(c.plan())
+        this.layer.addChild(a.view)
+        c.actor = a
       }
-      a.update(dt, t, { then, say })
-      if (a.free && t - since > 800) a.setShown(false)
-      if (a.faded) {
-        a.view.destroy({ children: true })
-        this.callers.delete(a)
+      const a = c.actor
+      if (a) {
+        const say = (text: string, ms: number) => this.shouts.say(`guest:${a.kind}`, text, ms, () => ({ x: a.view.x + TILE / 2, y: a.view.y - 28 }))
+        const then = (what: Then) => {
+          if (what === 'parcel') a.carrying = 'parcel'
+          else if (what === 'drop') a.carrying = ''
+        }
+        a.update(dt, t, { then, say })
+        if (a.free && t - c.since > 800) a.setShown(false)
+        if (a.faded) {
+          a.view.destroy({ children: true })
+          c.actor = null
+          c.since = Infinity
+          trip.finish()
+        }
       }
+      if (trip.mode === 'gone') this.dropCaller(trip)
     }
   }
 
@@ -1117,8 +1154,8 @@ export class OfficeWorld {
     if (on) {
       this.weather.tick(dt)
       const call = takeCall()
-      if (call === 'courier') this.spawnGuest('courier', courierSteps(this.places.door, this.places.printer))
-      else if (call === 'pizza') this.spawnGuest('pizza', pizzaSteps(this.places.door, this.places.counter))
+      if (call === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
+      else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
       let ev: RareEvent | null = null
       if (call === 'drill' || call === 'cut' || call === 'pigeon') ev = this.rare.call(call)
       else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(dt)
@@ -1130,7 +1167,7 @@ export class OfficeWorld {
         this.ambience.pigeon(t)
         this.shouts.say('pigeon', 'Coo!', 1600, () => ({ x: this.ambience.pos.x + 6, y: this.ambience.pos.y - 8 }))
       }
-      if (this.comers.tick(dt, this.clock.h) === 'courier') this.spawnGuest('courier', courierSteps(this.places.door, this.places.printer))
+      if (this.comers.tick(dt, this.clock.h) === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
     }
     let dark = 0
     if (this.cut) {
@@ -1141,7 +1178,7 @@ export class OfficeWorld {
         this.shouts.say('cut', 'Lights are back', 2000, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
       } else dark = e < 600 / speed ? e / (600 / speed) : e > dur - 800 / speed ? Math.max(0, (dur - e) / (800 / speed)) : 1
     }
-    this.ambience.update(dt, t, { hour, weather: on ? this.weather.now : 'clear', dark, alarm: !!this.drill })
+    this.ambience.update(dt, t, { hour, weather: on ? this.weather.now : 'clear', dark, alarm: !!this.drill, live: on })
     this.cat?.setShown(on)
     this.cat?.update(dt, t)
     const guard = this.guard
@@ -1151,7 +1188,7 @@ export class OfficeWorld {
       if (post && guard.free) guard.give(guardSteps())
       guard.update(dt, t, { then: () => {}, say: () => {} })
     }
-    if (!on) for (const a of this.callers.keys()) a.setShown(false)
+    if (!on) for (const trip of [...this.callers.keys()]) this.dropCaller(trip)
     this.callersTick(dt, t)
     const event = this.drill ? 'drill' : this.cut ? 'cut' : this.ambience.flying ? 'pigeon' : ''
     const json = JSON.stringify({
@@ -1162,7 +1199,8 @@ export class OfficeWorld {
       weather: on ? this.weather.now : 'clear',
       cat: on && this.cat ? { state: this.cat.state, x: this.cat.at.x, y: this.cat.at.y } : null,
       guard: on && Guests.guardOn(this.clock.h),
-      callers: [...this.callers.keys()].map((a) => a.kind)
+      callers: [...this.callers.values()].map((c) => c.kind),
+      trips: [...this.callers].map(([trip, c]) => ({ kind: c.kind, mode: trip.mode, x: Math.round(trip.scooter.x), y: Math.round(trip.scooter.y) }))
     })
     if (json !== this.publishedAmbience) {
       this.publishedAmbience = json
@@ -1186,7 +1224,10 @@ export class OfficeWorld {
         o.doingUntil = t + 2000
       }
     this.cheered++
-    if (big && this.comers.pizzaAfterTask(this.clock.h)) this.spawnGuest('pizza', pizzaSteps(this.places.door, this.besideOf(c) ?? this.places.counter))
+    if (big && this.comers.pizzaAfterTask(this.clock.h)) {
+      const to = this.besideOf(c) ?? this.places.counter
+      this.spawnGuest('pizza', () => pizzaSteps(this.places.door, to))
+    }
   }
 
   private staffTick(dt: number, t: number) {

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { hireNamed, shotApp } from './shotsKit'
 
 type Page = import('@playwright/test').Page
-type Amb = { hour: number; ritual: string; event: string; phase: string; weather: string; ledge: boolean; flying: boolean; tint: number; cat: { state: string; x: number; y: number } | null; guard: boolean; callers: string[] }
+type Amb = { hour: number; ritual: string; event: string; phase: string; weather: string; ledge: boolean; flying: boolean; tint: number; cat: { state: string; x: number; y: number } | null; guard: boolean; callers: string[]; outside: { add: number; dim: number; lamps: boolean; rain: boolean }; trips: { kind: string; mode: string; x: number; y: number }[] }
 const ambience = async (page: Page): Promise<Amb | null> => {
   const raw = await page.locator('.stage').getAttribute('data-ambience')
   return raw ? (JSON.parse(raw) as Amb) : null
@@ -14,8 +14,8 @@ const setItem = (page: Page, k: string, v: string) => page.evaluate(([key, val])
 /** Keeps a record of what the page published, since many of these moments are brief: the events, cat states, callers, errand kinds, the largest tint and what agents did. */
 const record = (page: Page) =>
   page.evaluate(() => {
-    const w = window as unknown as { __seen: { events: Set<string>; cat: Set<string>; callers: Set<string>; errands: Set<string>; doing: Set<string>; carried: Set<string>; shouts: Set<string>; tint: number; ledge: boolean; weather: Set<string> } }
-    w.__seen = { events: new Set(), cat: new Set(), callers: new Set(), errands: new Set(), doing: new Set(), carried: new Set(), shouts: new Set(), tint: 0, ledge: false, weather: new Set() }
+    const w = window as unknown as { __seen: { events: Set<string>; cat: Set<string>; callers: Set<string>; trips: Set<string>; errands: Set<string>; doing: Set<string>; carried: Set<string>; shouts: Set<string>; tint: number; ledge: boolean; weather: Set<string> } }
+    w.__seen = { events: new Set(), cat: new Set(), callers: new Set(), trips: new Set(), errands: new Set(), doing: new Set(), carried: new Set(), shouts: new Set(), tint: 0, ledge: false, weather: new Set() }
     const stage = document.querySelector('.stage')!
     const read = (name: string) => JSON.parse(stage.getAttribute(name) ?? 'null')
     new MutationObserver(() => {
@@ -24,6 +24,7 @@ const record = (page: Page) =>
         if (a.event) w.__seen.events.add(a.event)
         if (a.cat) w.__seen.cat.add(a.cat.state)
         for (const c of a.callers) w.__seen.callers.add(c)
+        for (const t of a.trips) w.__seen.trips.add(`${t.kind}:${t.mode}`)
         w.__seen.tint = Math.max(w.__seen.tint, a.tint)
         w.__seen.ledge ||= a.ledge
         w.__seen.weather.add(a.weather)
@@ -38,8 +39,8 @@ const record = (page: Page) =>
   })
 const seen = (page: Page) =>
   page.evaluate(() => {
-    const s = (window as unknown as { __seen: Record<string, unknown> }).__seen as { events: Set<string>; cat: Set<string>; callers: Set<string>; errands: Set<string>; doing: Set<string>; carried: Set<string>; shouts: Set<string>; tint: number; ledge: boolean; weather: Set<string> }
-    return { events: [...s.events], cat: [...s.cat], callers: [...s.callers], errands: [...s.errands], doing: [...s.doing], carried: [...s.carried], shouts: [...s.shouts], tint: s.tint, ledge: s.ledge, weather: [...s.weather] }
+    const s = (window as unknown as { __seen: Record<string, unknown> }).__seen as { events: Set<string>; cat: Set<string>; callers: Set<string>; trips: Set<string>; errands: Set<string>; doing: Set<string>; carried: Set<string>; shouts: Set<string>; tint: number; ledge: boolean; weather: Set<string> }
+    return { events: [...s.events], cat: [...s.cat], callers: [...s.callers], trips: [...s.trips], errands: [...s.errands], doing: [...s.doing], carried: [...s.carried], shouts: [...s.shouts], tint: s.tint, ledge: s.ledge, weather: [...s.weather] }
   })
 
 test('the room light and the windows follow the hour, idle agents lunch at one and have chai at four, the office boy only cleans at night and the guard stands at the door in the evening', async () => {
@@ -55,11 +56,17 @@ test('the room light and the windows follow the hour, idle agents lunch at one a
     for (const name of ['ada', 'dee', 'eli']) await hireNamed(page, name)
     await expect.poll(async () => (await ambience(page))?.phase, { timeout: 15_000 }).toBe('day')
     expect((await ambience(page))!.guard).toBe(false)
+    // By day the grounds are lit and the lamps are off.
+    await expect.poll(async () => (await ambience(page))?.outside.add ?? 0, { timeout: 15_000 }).toBeGreaterThan(0.5)
+    expect((await ambience(page))!.outside.lamps).toBe(false)
 
     await setItem(page, 'aw.clockHour', '21')
     await expect.poll(async () => (await ambience(page))?.phase, { timeout: 15_000 }).toBe('night')
     await expect.poll(async () => (await ambience(page))?.tint ?? 0, { timeout: 15_000 }).toBeGreaterThan(0.25)
     await expect.poll(async () => (await ambience(page))?.guard, { timeout: 15_000 }).toBe(true)
+    // At night the lamps are lit and the added daylight has gone.
+    await expect.poll(async () => (await ambience(page))?.outside.lamps, { timeout: 15_000 }).toBe(true)
+    await expect.poll(async () => (await ambience(page))?.outside.add, { timeout: 15_000 }).toBe(0)
 
     await setItem(page, 'aw.clockHour', '13')
     await expect.poll(async () => (await ambience(page))?.ritual, { timeout: 15_000 }).toBe('lunch')
@@ -131,6 +138,8 @@ test('a power cut darkens the office and ends, a fire drill takes everyone out, 
 
     await setItem(page, 'aw.officeCall', 'courier')
     await expect.poll(async () => (await seen(page)).callers, { timeout: 20_000 }).toContain('courier')
+    // It comes by scooter along the road, parks, and walks up to the door before it is inside.
+    await expect.poll(async () => (await seen(page)).trips, { timeout: 40_000 }).toEqual(expect.arrayContaining(['courier:ride', 'courier:park', 'courier:walk', 'courier:inside', 'courier:leave']))
     await setItem(page, 'aw.officeCall', 'pizza')
     await expect.poll(async () => (await seen(page)).callers, { timeout: 20_000 }).toContain('pizza')
     await expect.poll(async () => (await ambience(page))?.callers, { timeout: 90_000 }).toEqual([])
