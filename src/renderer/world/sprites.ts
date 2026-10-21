@@ -132,7 +132,7 @@ function hash(s: string) {
   return h >>> 0
 }
 
-function stamp(rows: string[], layer: string[], top = 0) {
+export function stamp(rows: string[], layer: string[], top = 0) {
   layer.forEach((line, i) => {
     const y = top + i
     if (!line || !rows[y]) return
@@ -141,9 +141,10 @@ function stamp(rows: string[], layer: string[], top = 0) {
 }
 
 // Authoring guard: a stray non-ASCII lookalike in the tables above must never ship as a broken pixel.
-const clean = (rows: string[]) => rows.map((r) => r.replace(/[^\x20-\x7e]/g, 'o'))
+export const clean = (rows: string[]) => rows.map((r) => r.replace(/[^\x20-\x7e]/g, 'o'))
 
-export function characterPixels(key: string, role: Role, view: View, pose: Pose): string[] {
+/** Head, torso and legs with the hair the key picks, before any role's clothes: what the staff are dressed from too. */
+export function bodyPixels(key: string, view: View, pose: Pose): string[] {
   const side = view === 'side'
   const head = side ? HEAD_SIDE : HEAD_FRONT
   const torso = side ? TORSO_SIDE : TORSO_FRONT
@@ -152,8 +153,13 @@ export function characterPixels(key: string, role: Role, view: View, pose: Pose)
   // The back view is the front silhouette with the face painted over by hair.
   const style = hash(key) % 5
   stamp(rows, clean(HAIR[view][style]!))
+  return rows
+}
+
+export function characterPixels(key: string, role: Role, view: View, pose: Pose): string[] {
+  const rows = bodyPixels(key, view, pose)
   if (role === 'intern') stamp(rows, clean(CAP[view]))
-  if (role === 'boss') stamp(rows, side ? CROWN_SIDE : CROWN)
+  if (role === 'boss') stamp(rows, view === 'side' ? CROWN_SIDE : CROWN)
   if (role === 'senior') stamp(rows, HOOD[view], 10)
   stamp(rows, clean(OUTFIT[role][view]), 12)
   if (view === 'back') for (let y = 0; y < 12; y++) rows[y] = rows[y]!.replace(/e/g, 'h')

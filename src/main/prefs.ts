@@ -4,7 +4,7 @@ import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -19,6 +19,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     wrapUp: typeof r.wrapUp === 'boolean' ? r.wrapUp : base.wrapUp,
     openPagesInApp: typeof r.openPagesInApp === 'boolean' ? r.openPagesInApp : base.openPagesInApp,
     libraryEnabled: typeof r.libraryEnabled === 'boolean' ? r.libraryEnabled : base.libraryEnabled,
+    officeLife: typeof r.officeLife === 'boolean' ? r.officeLife : base.officeLife,
     todoTracking: r.todoTracking === 'full' || r.todoTracking === 'deferred' ? r.todoTracking : base.todoTracking,
     subagents: cleanSubagents(r.subagents, base.subagents),
     setup: cleanSetup(r.setup, base.setup),
