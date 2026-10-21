@@ -4,9 +4,20 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-21
+
+### Changed
+
+- Office: the **Projects** panel (the project button) and the **Agents** panel (the agent number) list what was active last first. An agent is active when a turn starts or ends or when you send it a message; opening it does not count. The order is kept after a restart and does not move while a panel is open, and the number keys follow it, so 1 is the most recent.
+
 ### Fixed
 
-- Workflows: a pull request waits for the audit on every branch an agent pushes, not only its own: a branch at the audited commit goes through under any name, a branch with other commits is held, and a commit on a branch other than the agent's own in its worktree is refused. Once the audit has passed the app tells the agent to open the pull request, and the rules are part of what the agent is told for a workflow.
+- Preview: a page that has been opened stays loaded when you switch to another project and come back, as you left it, without reloading. At most three pages are kept loaded, counted across projects.
+- Notifications: clicking the notice of an agent in another project opens that project with the agent selected, instead of showing the open project's agent list.
+- Code: an agent working in a folder that is not a git repository now has its files listed in the Code tab, to open, edit and save, with no Changes tab (there is nothing to compare). Before it said there were no files to list. The folder is read directly, leaving out `.git`, `node_modules`, build folders and caches, up to 5,000 files, and `@` in the message box offers them too.
+- Code: opening or saving a file in the Code tab no longer follows a link inside the folder that leads out of it (or leads nowhere): the file is refused, as a path that escapes the folder always was.
+- Workflows: a pull request waits for the audit on every branch an agent pushes, not only its own: a branch at the audited commit goes through under any name, a branch with other commits is held, and a commit on any other branch of the agent's worktree is refused. The agent is told to open the pull request once the audit has passed.
+- Workflows: starting a new task before the pull request of the last one is raised no longer re-gates the old work against the new task's plan. The audit, its findings and the push hold follow the run that owns the commits on the branch, not the agent's latest run.
 
 ## [0.2.5] - 2026-10-21
 
@@ -170,7 +181,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.5...HEAD
+[Unreleased]: ../../compare/v0.2.6...HEAD
+[0.2.6]: ../../compare/v0.2.5...v0.2.6
 [0.2.5]: ../../compare/v0.2.4...v0.2.5
 [0.2.4]: ../../compare/v0.2.3...v0.2.4
 [0.2.3]: ../../compare/v0.2.2...v0.2.3
