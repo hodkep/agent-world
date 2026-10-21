@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, noMergeBase, moveOntoBase, undoMove, unrelatedPlan, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { constants } from 'node:fs'
+import { openNoFollow, assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, noMergeBase, moveOntoBase, undoMove, unrelatedPlan, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 import { useGit } from './gitProgram'
 import { chmodSync } from 'node:fs'
@@ -89,6 +90,17 @@ describe('editing files in the worktree', () => {
     symlinkSync(join(out, 'not-yet.txt'), join(wt.path, 'dangling'))
     await expect(writeWorktreeFile(wt.path, 'dangling', 'x')).rejects.toThrow(/outside/i)
     expect(existsSync(join(out, 'not-yet.txt'))).toBe(false)
+  })
+
+  it('opens a file without following a link at the end of its path, so one swapped in after the check is refused too', async () => {
+    const out = mkdtempSync(join(tmpdir(), 'aw-out-'))
+    writeFileSync(join(out, 'secret.txt'), 'secret\n')
+    symlinkSync(join(out, 'secret.txt'), join(wt.path, 'swapped'))
+    await expect(openNoFollow(join(wt.path, 'swapped'), constants.O_RDONLY)).rejects.toThrow()
+    writeFileSync(join(wt.path, 'plain.txt'), 'plain\n')
+    const h = await openNoFollow(join(wt.path, 'plain.txt'), constants.O_RDONLY)
+    expect(await h.readFile('utf8')).toBe('plain\n')
+    await h.close()
   })
 
   it('still follows a link that stays inside the folder, and makes folders for a new file', async () => {
