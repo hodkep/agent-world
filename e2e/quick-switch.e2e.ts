@@ -1,26 +1,27 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { hire, launchApp } from './launch'
+import { approve, hire, launchApp } from './launch'
 import { SLOW } from './waits'
 import { shot } from './wf-helpers'
 
 // Resting on the project button (or the agent number) opens a grid panel; one click on a tile switches; a click on the button keeps it open until a click elsewhere.
-async function office(names: string[], missing?: string, env: Record<string, string> = {}) {
+async function office(names: string[], missing?: string, env: Record<string, string> = {}, prefs?: object) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-quick-')))
   const home = join(tmp, 'home')
   mkdirSync(home)
   const paths = names.map((n) => join(tmp, n))
   for (const p of paths) if (!p.endsWith(missing ?? '\0')) (mkdirSync(p), execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: p }))
   writeFileSync(join(home, 'workspaces.json'), JSON.stringify({ active: paths[0], recent: paths }))
+  if (prefs) writeFileSync(join(home, 'preferences.json'), JSON.stringify(prefs))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', ...env }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 900 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), paths[0]!)
   await page.reload()
-  return { page, shutdown }
+  return { page, shutdown, home }
 }
 
 test('the project switcher opens on hover, switches in one click, closes when the pointer leaves, and a click keeps it open until a click elsewhere', async () => {
@@ -196,3 +197,58 @@ test('the agent number shows a red dot while another agent of this project waits
   }
 })
 
+
+// What a run waits for the person for (a plan, an approval, audit findings, a push) counts like a permission: in the project's tile, the dot on the project button, the agent's pill and the agent number.
+const WF_PREFS = { setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: {} } }
+const PLAN = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }] }
+const waitingPlan = (home: string, agent: string, project: string) => {
+  const t = Date.now()
+  const readback = { goal: 'Add a toggle.', assumptions: [], outOfScope: [], questions: [] }
+  appendFileSync(join(home, 'runs.jsonl'), [
+    { k: 'begin', t: t - 2000, run: 'r1', agent, name: 'ada', project, title: 'Add a toggle', workflow: PLAN },
+    { k: 'plan', t: t - 1000, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback }
+  ].map((e) => JSON.stringify(e)).join('\n') + '\n')
+}
+
+test('a plan or approval another project waits on is counted in that project\'s tile and in the dot on the project button, as a permission is', async () => {
+  const { page, shutdown, home } = await office(['shop-a', 'shop-b'], undefined, {}, WF_PREFS)
+  try {
+    await pick(page, 'shop-b')
+    await hire(page, { name: 'ada' })
+    // Her permission request is answered, so only the plan will wait.
+    await approve(page)
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    await pick(page, 'shop-a')
+    await expect(page.getByTestId('project-dot')).toHaveCount(0)
+    waitingPlan(home, ada!.id, ada!.repoPath)
+    await page.reload()
+    await expect(page.getByTestId('project-dot')).toHaveClass(/need/, { timeout: SLOW })
+    await page.locator('.ws-button').hover()
+    const tile = page.getByRole('menu', { name: 'Projects' }).getByRole('menuitem', { name: /shop-b/ })
+    await expect(tile.locator('.wt-need')).toHaveText('1')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('a plan another agent of this project waits on shows in the agent number and as a pill on its tile in the agents panel', async () => {
+  const { page, shutdown, home } = await office(['shop'], undefined, {}, WF_PREFS)
+  try {
+    await hire(page, { name: 'ada' })
+    await approve(page)
+    await hire(page, { name: 'bo' })
+    await approve(page)
+    const agents = await page.evaluate(() => window.aw.listAgents())
+    const ada = agents.find((a) => a.name === 'ada')!
+    await expect(page.getByTestId('agents-dot')).toHaveCount(0)
+    waitingPlan(home, ada.id, ada.repoPath)
+    await page.reload()
+    // bo is the one on screen; ada waits on her plan.
+    await page.locator('.hc-switch').hover()
+    const panel = page.getByRole('menu', { name: 'Agents' })
+    await expect(panel.getByRole('menuitem', { name: /ada/ }).locator('.ask-pill')).toHaveText('plan', { timeout: SLOW })
+    await expect(page.getByTestId('agents-dot')).toHaveClass(/need/)
+  } finally {
+    await shutdown()
+  }
+})

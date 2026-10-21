@@ -8,6 +8,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 - Grid: each project keeps its own view and layout. Leave one on the office canvas and another on the grid, and each is as you left it when you come back, also after you quit. A terminal in a grid cell that ended with the earlier run comes back as a new one in the same cell.
 
+### Fixed
+
+- Office: a plan, approval, audit or push that waits for you in another project now counts in that project's tile in the project menu and in the red dot on the project button, as a permission does. Before, only the project you were in counted its workflow waits.
+
 ## [0.2.4] - 2026-10-21
 
 ### Changed
