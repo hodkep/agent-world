@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
-import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open, realpath, rm } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
 import { checkedOutBranch, git, hasCommits, isGitRepo } from './worktree'
@@ -82,7 +83,8 @@ function inside(cwd: string, path: string) {
 
 /**
  * `inside`, and for the real place too: a link in the folder that leads out of it is refused, for a file that exists and for a new one (where its nearest folder that exists
- * really is). A link that leads nowhere is refused as well, since writing through it would make the file where it points. (Checked when asked: a link made in between is not caught.)
+ * really is). A link that leads nowhere is refused as well, since writing through it would make the file where it points. Gives the real path, which is then opened without
+ * following a link at its end (`openNoFollow`), so a file swapped for a link after this check is refused too. (A folder on the way swapped after the check is not caught.)
  */
 async function contained(cwd: string, path: string) {
   const full = inside(cwd, path)
@@ -96,20 +98,33 @@ async function contained(cwd: string, path: string) {
     const real = await realpath(probe).catch(() => null)
     if (real) {
       leaves(real)
-      return full
+      return join(real, relative(probe, full))
     }
     if (dirname(probe) === probe) return full
   }
 }
 
+/** Opens a file, refusing it when its last part is a link (the places that call it have resolved the path already). */
+export const openNoFollow = (path: string, flags: number) => open(path, flags | constants.O_NOFOLLOW)
+
 export async function readWorktreeFile(cwd: string, path: string) {
-  return readFile(await contained(cwd, path), 'utf8')
+  const h = await openNoFollow(await contained(cwd, path), constants.O_RDONLY)
+  try {
+    return await h.readFile('utf8')
+  } finally {
+    await h.close()
+  }
 }
 
 export async function writeWorktreeFile(cwd: string, path: string, content: string) {
-  const full = await contained(cwd, path)
-  await mkdir(dirname(full), { recursive: true })
-  await writeFile(full, content)
+  const real = await contained(cwd, path)
+  await mkdir(dirname(real), { recursive: true })
+  const h = await openNoFollow(real, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC)
+  try {
+    await h.writeFile(content)
+  } finally {
+    await h.close()
+  }
 }
 
 /** The plan the plan gate asks an agent to write: it is read by the office, and is not the agent's work. */
