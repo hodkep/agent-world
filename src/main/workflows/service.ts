@@ -74,6 +74,8 @@ export function parseRuns(text: string): RunEvent[] {
 export class Workflows {
   /** Audits being asked for right now, by run and head, so two views of the same head share one model call. */
   private auditing = new Map<string, Promise<void>>()
+  /** When each running audit began, for the card that says how long it has taken. */
+  private auditStarted = new Map<string, number>()
 
   constructor(
     private file: string,
@@ -547,10 +549,10 @@ export class Workflows {
     if (this.deps.dial() === 'economy') return { state: 'off', reason: 'economy' }
     if (!auditable) return { state: 'off', reason: 'no-model' }
     if (!this.planOf(run)) return { state: 'off', reason: 'no-plan' }
-    if (this.auditing.has(`${run.id} ${head}`)) return { state: 'running' }
+    if (this.auditing.has(`${run.id} ${head}`)) return { state: 'running', since: this.auditStarted.get(`${run.id} ${head}`) ?? this.deps.now() }
     const a = run.audit
     if (a?.head !== head) return { state: 'not-run' }
-    return a.state === 'failed' ? { state: 'failed', reason: a.reason } : { state: 'done', findings: a.findings, files: a.files, lines: a.lines, truncated: a.truncated, ...(a.cost !== undefined && { cost: a.cost }), ...(a.tokens !== undefined && { tokens: a.tokens }), ...(a.model && { model: a.model }) }
+    return a.state === 'failed' ? { state: 'failed', reason: a.reason } : { state: 'done', t: a.t, findings: a.findings, files: a.files, lines: a.lines, truncated: a.truncated, ...(a.cost !== undefined && { cost: a.cost }), ...(a.tokens !== undefined && { tokens: a.tokens }), ...(a.model && { model: a.model }) }
   }
 
   /** The audit of `head` against the agent's plan: one question to a model, its findings logged with what it cost. */
@@ -560,7 +562,8 @@ export class Workflows {
     const key = `${run.id} ${head}`
     const running = this.auditing.get(key)
     if (running) return running
-    const p = this.audit(agentId, run, head, diff).finally(() => this.auditing.delete(key))
+    this.auditStarted.set(key, this.deps.now())
+    const p = this.audit(agentId, run, head, diff).finally(() => (this.auditing.delete(key), this.auditStarted.delete(key)))
     this.auditing.set(key, p)
     return p
   }

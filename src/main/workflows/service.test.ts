@@ -556,6 +556,26 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h3')).toMatchObject({ run: { title: 'Second task' }, plan: 'none', blocking: ['No plan was approved for this task.'] })
   })
 
+  it('says when the audit began while it runs, and when it was done once it has', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    wf.commit('a1', 'h1', 'toggle')
+    let release!: () => void
+    state.reply = () => new Promise((r) => (release = () => r({ text: '{"findings":[]}' })))
+    const before = state.t
+    const audit = wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    const running = wf.mergeCheck('a1', 'h1')!.audit
+    expect(running).toMatchObject({ state: 'running' })
+    expect((running as { since: number }).since).toBeGreaterThan(before)
+    release()
+    await audit
+    const done = wf.mergeCheck('a1', 'h1')!.audit as { state: string; t: number }
+    expect(done.state).toBe('done')
+    expect(done.t).toBeGreaterThan((running as { since: number }).since)
+  })
+
   it('audits the diff against the approved plan, shows the findings, and holds Land until each was seen', async () => {
     const { wf, state } = make()
     wf.begin('a1', 'Add a toggle')
@@ -861,7 +881,7 @@ describe('the merge gate', () => {
     let answer!: (r: Reply) => void
     state.reply = () => new Promise<Reply>((r) => (answer = r))
     const pending = wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
-    expect(wf.mergeCheck('a1', 'h1')!.audit).toEqual({ state: 'running' })
+    expect(wf.mergeCheck('a1', 'h1')!.audit).toMatchObject({ state: 'running' })
     answer({ text: '{"findings":[]}' })
     await pending
     expect(wf.mergeCheck('a1', 'h1')!.audit.state).toBe('done')

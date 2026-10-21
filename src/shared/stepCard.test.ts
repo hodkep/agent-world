@@ -3,8 +3,8 @@ import type { MergeCheck } from './mergeCheck'
 import { stepCardOf } from './stepCard'
 
 const check = (o: Partial<MergeCheck> = {}): MergeCheck => ({ run: { id: 'r1', title: 'Add a toggle' }, plan: 'approved', planned: null, commits: 2, flagged: 0, audit: { state: 'not-run' }, asideAudit: false, checks: [], blocking: [], notes: [], ...o })
-const done = (findings: { kind: 'out-of-scope' | 'goal-unmet' | 'guess-wrong'; text: string; file?: string; files?: string[]; seen?: boolean }[]): MergeCheck['audit'] => ({ state: 'done', findings: findings.map((f) => ({ seen: false, ...f })), files: 3, lines: 40, truncated: false })
-const ask = (o: { merge?: MergeCheck | null; held?: boolean; working?: boolean; unrelated?: { branch: string; base: string } | null } = {}) => stepCardOf({ merge: check(), held: false, working: false, unrelated: null, ...o })
+const done = (findings: { kind: 'out-of-scope' | 'goal-unmet' | 'guess-wrong'; text: string; file?: string; files?: string[]; seen?: boolean }[], t = 0): MergeCheck['audit'] => ({ state: 'done', t, findings: findings.map((f) => ({ seen: false, ...f })), files: 3, lines: 40, truncated: false })
+const ask = (o: { merge?: MergeCheck | null; held?: boolean; working?: boolean; unrelated?: { branch: string; base: string } | null; now?: number } = {}) => stepCardOf({ merge: check(), held: false, working: false, unrelated: null, now: 100_000, ...o })
 
 describe('the card of the step that waits for the person', () => {
   it('is nothing with no gate, while the agent works, or when nothing is waiting', () => {
@@ -13,7 +13,6 @@ describe('the card of the step that waits for the person', () => {
     expect(ask({ merge: check() })).toBeNull()
     expect(ask({ merge: check({ audit: done([]) }) })).toBeNull()
     expect(ask({ merge: check({ audit: done([{ kind: 'out-of-scope', text: 'a', seen: true }]) }) })).toBeNull()
-    expect(ask({ merge: check({ audit: { state: 'running' } }) })).toBeNull()
   })
 
   it('is the audit with what is left to look at, and the two answers: all seen, or set aside', () => {
@@ -61,6 +60,23 @@ describe('the card of the step that waits for the person', () => {
       { text: 'No test for a 5-digit line count.', where: 'goal not met', index: 1, kind: 'goal-unmet', files: [] }
     ])
     expect(card.more).toBe(0)
+  })
+
+  it('is a card while the audit runs, saying how many commits it reviews and how long it has taken, with the one word to set it aside, and nothing before it starts', () => {
+    const card = ask({ merge: check({ commits: 3, audit: { state: 'running', since: 78_000 } }) })!
+    expect(card).toMatchObject({ kind: 'running', tag: 'AUDIT', title: 'Reviewing 3 commits against your plan', since: 78_000, actions: { aside: true, seenAll: false, again: false, undo: false } })
+    expect(ask({ merge: check({ commits: 1, audit: { state: 'running', since: 99_000 } }) })!.title).toBe('Reviewing 1 commit against your plan')
+    expect(ask({ merge: check({ audit: { state: 'not-run' } }) })).toBeNull()
+    expect(ask({ merge: check({ audit: { state: 'running', since: 1 } }), working: true })).toBeNull()
+    expect(ask({ merge: check({ audit: { state: 'running', since: 1 }, asideAudit: true }) })).toMatchObject({ kind: 'aside' })
+  })
+
+  it('is one quiet line for a few seconds after an audit that found nothing, then nothing, and never for one that found something or is old', () => {
+    const clean = (t: number) => check({ commits: 3, audit: done([], t) })
+    expect(ask({ merge: clean(97_000) })).toMatchObject({ kind: 'clean', tag: 'AUDIT', title: 'Found nothing in 3 commits', lines: [], actions: { aside: false } })
+    expect(ask({ merge: clean(93_900) })).toBeNull()
+    expect(ask({ merge: check({ audit: done([{ kind: 'out-of-scope', text: 'a', seen: true }], 99_000) }) })).toBeNull()
+    expect(ask({ merge: check({ audit: done([{ kind: 'out-of-scope', text: 'a' }], 99_000) }) })).toMatchObject({ kind: 'audit' })
   })
 
   it('offers to run the audit when git holds the merge for a review that has not run for this branch', () => {

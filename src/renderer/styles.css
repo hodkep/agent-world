@@ -3365,6 +3365,12 @@ svg.pxg { display: block; flex: none; }
 .step-card .sc-acts { display: flex; gap: 8px; align-items: center; margin-top: 7px; }
 .step-card .ghost { background: none; box-shadow: none; border: 0; color: var(--muted); }
 .step-card .ghost:hover { color: var(--text); }
+.step-card .sc-bar { height: 6px; margin: 6px 0; position: relative; overflow: hidden; background: var(--well); border: 1px solid var(--ink); }
+.step-card .sc-bar i { position: absolute; top: 0; bottom: 0; width: 28%; background: var(--accent); animation: sc-run 1.4s steps(8) infinite; }
+@keyframes sc-run { from { left: -28%; } to { left: 100%; } }
+.step-card .sc-wait { color: var(--muted); }
+.step-card .sc-secs { color: var(--accent); font-family: Menlo, Consolas, monospace; margin-right: 6px; }
+.step-card .tag.ok { background: var(--ok-text, #4f9d5d); color: var(--ink); }
 .step-card.quiet { display: flex; gap: 8px; align-items: center; padding: 5px 8px; box-shadow: 0 0 0 1px var(--line); }
 .step-card.quiet .sc-title { flex: 1; font-weight: 400; }
 .reach-rem { display: block; color: var(--dim); font-weight: 400; font-size: 11px; margin-top: 2px; }
