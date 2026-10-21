@@ -137,6 +137,8 @@ export function App() {
   const [asks, setAsks] = useState<PermissionRequest[]>([])
   const [workspaces, setWorkspaces] = useState<Workspaces | null>(null)
   const folder = workspaces?.active ?? null
+  const folderRef = useRef(folder)
+  folderRef.current = folder
   // Each agent belongs to the folder it was hired in: switching folders shows that folder's crew, and the rest keep working in the background.
   const agents = useMemo(() => (folder ? allAgents.filter((a) => a.repoPath === folder) : allAgents), [allAgents, folder])
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
@@ -581,7 +583,12 @@ export function App() {
       }),
       window.aw.onAgentStats((id, s) => setStats((all) => ({ ...all, [id]: s }))),
       window.aw.onBudgetAlert((id, level) => setBudgetAlerts((all) => ({ ...all, [id]: level }))),
-      window.aw.onSelectAgent((id) => select(id)),
+      // A notice clicked for an agent of another project opens that project first: its agent is not in the open project's list.
+      window.aw.onSelectAgent(async (id) => {
+        const to = agentsRef.current.find((a) => a.id === id)?.repoPath
+        if (to && to !== folderRef.current) setWorkspaces(await window.aw.activateWorkspace(to))
+        select(id)
+      }),
       window.aw.onPlanMenu((id, open) => setPlanMenus((m) => ({ ...m, [id]: open }))),
       window.aw.onTrustPrompt((agentId, path) =>
         setTrusts((t) => {
