@@ -164,7 +164,7 @@ export class Ambience {
       if (frame >= 0) {
         const w = OFFICE.map.w * TILE + GROUNDS.west + GROUNDS.east
         const h = OFFICE.map.h * TILE + GROUNDS.north + GROUNDS.south
-        for (let i = 0; i < 480; i++) this.rain.rect(-GROUNDS.west + ((i * 97 + frame * 5) % w), -GROUNDS.north + ((i * 61 + frame * 11) % h), 1, 3).fill({ color: 0x9ac4f0, alpha: 0.7 })
+        for (let i = 0; i < 700; i++) this.rain.rect(-GROUNDS.west + ((i * 97 + frame * 7) % w), -GROUNDS.north + ((i * 61 + frame * 17) % h), 2, 7).fill({ color: 0xb4d4f8, alpha: 0.75 })
       }
     }
   }

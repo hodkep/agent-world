@@ -25,7 +25,7 @@ import { RiderView } from './riders'
 import { Trip } from './trip'
 import { CatBrain } from './catBrain'
 import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
-import { Guests, type RareEvent, Rare, Rest, Weather, ritualAt } from './rituals'
+import { Guests, type RareEvent, Rare, Rest, type WeatherNow, Weather, ritualAt } from './rituals'
 import { Director, type Face, type Place as StaffPlace, type Scene, type Step, type Then } from './staff'
 import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
@@ -64,6 +64,16 @@ const clockNow = () => {
   }
   const d = new Date()
   return { h: d.getHours(), m: d.getMinutes() }
+}
+/** The weather outside: the made-up one, unless a spec or a trial sets aw.weather to clear, cloud or rain. */
+const weatherNow = (made: WeatherNow): WeatherNow => {
+  try {
+    const set = localStorage.getItem('aw.weather')
+    if (set === 'clear' || set === 'cloud' || set === 'rain') return set
+  } catch {
+    // no storage: the made-up weather
+  }
+  return made
 }
 /** A spec or a trial can start an event at once: aw.officeCall holds "drill", "cut", "pigeon", "courier" or "pizza", and is taken as soon as it is seen. */
 const takeCall = () => {
@@ -1178,7 +1188,7 @@ export class OfficeWorld {
         this.shouts.say('cut', 'Lights are back', 2000, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
       } else dark = e < 600 / speed ? e / (600 / speed) : e > dur - 800 / speed ? Math.max(0, (dur - e) / (800 / speed)) : 1
     }
-    this.ambience.update(dt, t, { hour, weather: on ? this.weather.now : 'clear', dark, alarm: !!this.drill, live: on })
+    this.ambience.update(dt, t, { hour, weather: on ? weatherNow(this.weather.now) : 'clear', dark, alarm: !!this.drill, live: on })
     this.cat?.setShown(on)
     this.cat?.update(dt, t)
     const guard = this.guard
@@ -1196,7 +1206,7 @@ export class OfficeWorld {
       ritual: this.ritual ?? '',
       event,
       ...this.ambience.data(),
-      weather: on ? this.weather.now : 'clear',
+      weather: on ? weatherNow(this.weather.now) : 'clear',
       cat: on && this.cat ? { state: this.cat.state, x: this.cat.at.x, y: this.cat.at.y } : null,
       guard: on && Guests.guardOn(this.clock.h),
       callers: [...this.callers.values()].map((c) => c.kind),
