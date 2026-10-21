@@ -1546,7 +1546,7 @@ function Composer({
       {attached.length > 0 && (
         <ul className="attached" aria-label="Attached files">
           {attached.map((a) => (
-            <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text}>
+            <li key={a.id} className={a.context ? 'chip-context' : undefined} title={a.context?.text} data-reveal={a.context ? undefined : a.path}>
               {a.context && <span className="chip-from">{a.context.source ?? 'Preview'}</span>}
               {a.context?.view && <span className="chip-view" title={`Seen at ${a.context.view.label} ${a.context.view.w}×${a.context.view.h}`}>{a.context.view.label}</span>}
               {a.preview ? (

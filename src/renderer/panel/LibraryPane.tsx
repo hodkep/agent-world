@@ -251,7 +251,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                     {row.map((i) => {
                       const look = spineLook(i, true)
                       return (
-                        <button key={i.id} className={`spine${open === i.id ? ' sel' : ''}`} data-name={i.name} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} style={{ height: look.height, background: look.colour }} onClick={() => (setOpen(i.id), setDraft(null))}>
+                        <button key={i.id} className={`spine${open === i.id ? ' sel' : ''}`} data-name={i.name} data-reveal={i.dir || undefined} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} style={{ height: look.height, background: look.colour }} onClick={() => (setOpen(i.id), setDraft(null))}>
                           <PixelIcon name={KIND_ICON[i.kind]} scale={1} />
                         </button>
                       )

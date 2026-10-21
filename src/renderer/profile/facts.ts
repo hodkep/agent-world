@@ -14,6 +14,8 @@ export interface CardData {
   mode: string
   /** Empty for an agent that works in the folder itself. */
   branch: string
+  /** The folder the agent works in, for Reveal in Finder. */
+  cwd?: string
   ctx: number | null
   costUsd: number
   /** For a program that counts tokens rather than dollars. */

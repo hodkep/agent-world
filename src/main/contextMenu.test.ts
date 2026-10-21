@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contextItems } from './contextMenu'
+import { contextItems, revealItem } from './contextMenu'
 
 const flags = { canUndo: true, canRedo: false, canCut: true, canCopy: true, canPaste: true, canSelectAll: true }
 const p = (o: object) => ({ isEditable: false, selectionText: '', linkURL: '', editFlags: flags, ...o })
@@ -31,5 +31,18 @@ describe('the right-click menu', () => {
   })
   it('offers copying a link', () => {
     expect(roles({ linkURL: 'http://localhost:3000/' })).toEqual(['Copy Link'])
+  })
+})
+
+describe('Reveal in Finder in the right-click menu', () => {
+  it('is first when the page is a local file, ahead of the editing commands, with a line between', () => {
+    let shown = ''
+    const items = contextItems(p({ selectionText: 'hello' }), () => {}, () => {}, revealItem('/a/b.html', (f) => void (shown = f)))
+    expect(items.map((i) => ('role' in i ? i.role : i.type === 'separator' ? '-' : i.label))).toEqual(['Reveal in Finder', '-', 'copy', '-', 'selectAll'])
+    ;(items[0] as { click: () => void }).click()
+    expect(shown).toBe('/a/b.html')
+  })
+  it('is the only item on plain ground, with no line after it', () => {
+    expect(contextItems(p({}), () => {}, () => {}, revealItem('/a/b.html', () => {})).map((i) => ('label' in i ? i.label : '-'))).toEqual(['Reveal in Finder'])
   })
 })

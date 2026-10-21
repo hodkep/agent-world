@@ -1,5 +1,5 @@
 import { openFileEvent } from './context'
-import { findPathCandidates, linkName } from './links'
+import { findFolderCandidates, findPathCandidates, linkName } from './links'
 
 type Info = Awaited<ReturnType<typeof window.aw.fileInfo>>[number]
 const known = new Map<string, Promise<Info>>()
@@ -16,11 +16,15 @@ async function check(agentId: string, paths: string[]): Promise<Map<string, Info
   return out
 }
 
-function makeLink(path: string): HTMLAnchorElement {
+function makeLink(path: string, agentId: string, info: Info): HTMLAnchorElement {
   const a = document.createElement('a')
-  a.className = 'file-link'
+  a.className = info?.kind === 'folder' ? 'file-link folder-link' : 'file-link'
   a.href = '#'
   a.dataset.path = path
+  // Right-click offers Reveal in Finder; a folder has nothing to open in the Code tab, so a click on it reveals it.
+  a.dataset.reveal = path
+  a.dataset.revealAgent = agentId
+  if (info?.kind === 'folder') a.dataset.kind = 'folder'
   a.title = path
   a.textContent = linkName(path)
   return a
@@ -44,12 +48,12 @@ export async function linkifyFiles(root: HTMLElement, agentId: string) {
       // An inline code span that is just a path is also a link.
       continue
     }
-    for (const c of findPathCandidates(t.data)) spots.push({ node: t, ...c })
+    for (const c of [...findPathCandidates(t.data), ...findFolderCandidates(t.data)]) spots.push({ node: t, ...c })
   }
   const inline = [...root.querySelectorAll<HTMLElement>('code')].filter((c) => !c.closest('pre, a') && !c.querySelector('a'))
   const wholeCode = inline.flatMap((c) => {
     const text = c.textContent?.trim() ?? ''
-    const found = findPathCandidates(text)
+    const found = [...findPathCandidates(text), ...findFolderCandidates(text)]
     return found.length === 1 && found[0]!.start === 0 && found[0]!.end === text.length ? [{ el: c, text }] : []
   })
   const wanted = [...new Set([...spots.map((s) => s.text), ...wholeCode.map((c) => c.text)])].slice(0, 40)
@@ -58,7 +62,7 @@ export async function linkifyFiles(root: HTMLElement, agentId: string) {
   if (!root.isConnected) return
   for (const { el, text } of wholeCode) {
     const info = infos.get(text)
-    if (info) el.replaceChildren(makeLink(text))
+    if (info) el.replaceChildren(makeLink(text, agentId, info))
   }
   // Right to left inside each text node, so earlier offsets stay valid as the node is split.
   const byNode = new Map<Text, typeof spots>()
@@ -67,7 +71,7 @@ export async function linkifyFiles(root: HTMLElement, agentId: string) {
     for (const sp of list.sort((a, b) => b.start - a.start)) {
       const mid = node.splitText(sp.start)
       mid.splitText(sp.end - sp.start)
-      mid.replaceWith(makeLink(sp.text))
+      mid.replaceWith(makeLink(sp.text, agentId, infos.get(sp.text)!))
     }
   }
 }
@@ -78,6 +82,7 @@ export function handleFileClick(e: { target: EventTarget | null; preventDefault(
   const path = a?.dataset.path
   if (!path) return false
   e.preventDefault()
-  openFileEvent(agentId, path)
+  if (a?.dataset.kind === 'folder') void window.aw.revealShow(agentId, path)
+  else openFileEvent(agentId, path)
   return true
 }

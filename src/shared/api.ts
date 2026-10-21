@@ -289,6 +289,10 @@ export interface AwApi {
   memoryForget(agentId: string, entryId: string): Promise<void>
   /** Which of these paths (as an agent wrote them) are real files, with what kind each is. */
   fileInfo(agentId: string, paths: string[]): Promise<(import('./files').FileInfo | null)[]>
+  /** The system menu with Reveal in Finder for a file or folder (a path as the page shows it; relative to the agent's folder when an agent is named); false when it is not there. */
+  revealMenu(agentId: string, path: string): Promise<boolean>
+  /** Shows a file or folder in Finder at once. */
+  revealShow(agentId: string, path: string): Promise<boolean>
   fileRead(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; text: string; truncated: boolean }>
   fileUrl(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; url: string }>
   fileImage(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; src: string }>

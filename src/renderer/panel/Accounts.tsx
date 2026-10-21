@@ -117,7 +117,7 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
                       {isDefault && <span className="acct-tag">Default for new agents</span>}
                     </b>
                     <span>{list ? (x.loggedIn ? x.email || 'Signed in' : 'Not signed in') : 'Checking…'}</span>
-                    <small>
+                    <small data-reveal={x.dir || undefined} title={x.dir ? 'Right-click to reveal this folder' : undefined}>
                       {x.dir}
                       {x.agents > 0 && ` · ${x.agents} ${x.agents === 1 ? 'agent' : 'agents'}`}
                     </small>

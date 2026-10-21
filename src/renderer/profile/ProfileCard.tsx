@@ -341,7 +341,7 @@ export function ProfileCard({ data, variant, now, edit, onClose, onToggleSize }:
         <>
           <h3 className="pc-h">So far</h3>
           <p className="pc-branch" title="The git branch it works on">
-            <span>Branch</span> <b>{data.branch || 'works in the folder itself'}</b>
+            <span>Branch</span> <b data-reveal={data.cwd} title={data.cwd ? "Right-click to reveal this agent's folder" : undefined}>{data.branch || 'works in the folder itself'}</b>
           </p>
           <div className="pc-tiles">
             <Tile value={p ? durationLabel(p.workedMs) : '…'} label="Worked" hint="Time spent actually working, not waiting for you" />

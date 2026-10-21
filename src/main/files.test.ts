@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { kindOf, readText, resolveFile, startFileServer } from './files'
+import { kindOf, readText, resolveEntry, resolveFile, startFileServer } from './files'
 
 describe('what kind of file it is', () => {
   it('sorts by extension', () => {
@@ -33,6 +33,15 @@ describe('finding a file an agent mentioned', () => {
     expect(await resolveFile(dir, 'nope.txt')).toBeNull()
     expect(await resolveFile(dir, 'src')).toBeNull()
   })
+  it('resolves a folder too, as an entry of kind folder, inside the folder or not', async () => {
+    expect(await resolveEntry(dir, 'src')).toMatchObject({ name: 'src', kind: 'folder', inside: true, rel: 'src' })
+    expect(await resolveEntry(dir, 'src/')).toMatchObject({ kind: 'folder' })
+    expect(await resolveEntry(dir, outside)).toMatchObject({ kind: 'folder', inside: false })
+    expect(await resolveEntry(dir, 'src/app.ts')).toMatchObject({ kind: 'code' })
+    expect(await resolveEntry(dir, 'nope')).toBeNull()
+    // the folder the agent works in is not "inside" itself
+    expect(await resolveEntry(dir, '.')).toMatchObject({ kind: 'folder', inside: false })
+  })
   it('reads text, cutting very large files', async () => {
     writeFileSync(join(dir, 'big.txt'), 'a'.repeat(3 * 1024 * 1024))
     const r = await readText(join(dir, 'big.txt'))
@@ -60,6 +69,23 @@ describe('the local page server', () => {
     expect((await fetch(base + '..%2Faw-secret.txt')).status).toBe(403)
     expect((await fetch(base + '../aw-secret.txt')).status).not.toBe(200)
     expect((await fetch(url.replace(/[0-9a-f]{32}/, '0'.repeat(32)))).status).toBe(404)
+  })
+  it('says which file on disk an address it handed out is, for the page and what sits beside it, and nothing otherwise', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aw-pathof-'))
+    mkdirSync(join(dir, 'assets'))
+    writeFileSync(join(dir, 'index.html'), '<h1>hi</h1>')
+    writeFileSync(join(dir, 'assets', 'a.css'), 'x')
+    server = await startFileServer()
+    const url = server.urlFor(join(dir, 'index.html'))
+    const base = url.slice(0, url.lastIndexOf('/') + 1)
+    const real = (await import('node:fs')).realpathSync
+    expect(server.pathOf(url)).toBe(join(real(dir), 'index.html'))
+    expect(server.pathOf(base + 'assets/a.css')).toBe(join(real(dir), 'assets', 'a.css'))
+    expect(server.pathOf(base + 'missing.css')).toBeNull()
+    expect(server.pathOf(base + '..%2Fx')).toBeNull()
+    expect(server.pathOf('http://localhost:3000/')).toBeNull()
+    expect(server.pathOf(url.replace(/[0-9a-f]{32}/, '0'.repeat(32)))).toBeNull()
+    expect(server.pathOf('not a url')).toBeNull()
   })
   it('serves only the one file when it sits straight in the home folder', async () => {
     const { homedir } = await import('node:os')

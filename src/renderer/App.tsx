@@ -84,6 +84,7 @@ import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout, cardMaxHeight } from './profile/layout'
+import { onRevealRightClick } from './files/reveal'
 import { type CardEdit, ProfileCard } from './profile/ProfileCard'
 import { accountColor, accountName } from './accounts'
 import { LimitBoard } from './panel/LimitBoard'
@@ -164,6 +165,11 @@ export function App() {
   const [termCount, setTermCount] = useState(0)
   const showTerm = useCallback(() => (keep('aw.term', '1'), setTermOpen(true)), [])
   const toggleTerm = useCallback(() => setTermOpen((o) => (keep('aw.term', o ? '' : '1'), !o)), [])
+  // Right-click on a path anywhere in the app offers Reveal in Finder.
+  useEffect(() => {
+    document.addEventListener('contextmenu', onRevealRightClick)
+    return () => document.removeEventListener('contextmenu', onRevealRightClick)
+  }, [])
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === '`') (e.preventDefault(), e.stopPropagation(), toggleTerm())
@@ -806,6 +812,7 @@ export function App() {
         effort: cur?.effort ?? current.options?.effort ?? '',
         mode: world[current.id]?.mode ? modeInfo(world[current.id]!.mode!).label : '',
         branch: current.branch ?? '',
+        cwd: current.cwd,
         ctx: cur?.contextPct ?? null,
         costUsd: cur?.costUsd ?? 0,
         tokens: cur?.tokens ?? null,
@@ -1686,10 +1693,10 @@ export function App() {
               <button role="tab" aria-selected={view === 'chat'} onClick={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}>
                 Chat
               </button>
-              <button role="tab" aria-selected={view === 'terminal'} onClick={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}>
+              <button role="tab" aria-selected={view === 'terminal'} data-reveal={current?.cwd} onClick={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}>
                 Terminal
               </button>
-              <button role="tab" aria-selected={view === 'code'} onClick={() => setView('code')}>
+              <button role="tab" aria-selected={view === 'code'} data-reveal={current?.cwd} onClick={() => setView('code')}>
                 Code
               </button>
               <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>

@@ -36,6 +36,10 @@ To commit everything, type a message in **Message…** and click **Commit all**.
 
 **Files** lists the worktree's files. Click one to open it in a tab, edit it, and click **Save** (⌘S). Edits go straight into the agent's worktree. A Markdown file has **Preview** and **Source** to read it formatted or as text, and so does an HTML file, which shows as the page the file makes (as last saved, with its own stylesheet and pictures; press Save to see an edit); this is not the **Preview** tab. A PDF opens as a PDF with **Open in Preview**, not as text, and cannot be edited here.
 
+## Reveal in Finder
+
+Right-click a path anywhere it is shown and choose **Reveal in Finder**: a file or folder in **Files** or **Changes**, an open file's tab, the **Code** and **Terminal** tabs (the agent's folder), a file link or tool card in the chat, a folder an agent names (it is a link; a click reveals it), the profile card, a skill, a project, an attachment, an account's folder in Settings, and a local file in **Preview**.
+
 ## Send code to the agent
 
 Select code in a diff or a file, then click **Ask** and the agent's name, or press ⌘L (Ctrl+L), or ⇧⌘L (Ctrl+Shift+L), the key that does this in every place that offers it. The code goes into that agent's message box as a chip. Chips waiting there show under the editor as **In the message**.

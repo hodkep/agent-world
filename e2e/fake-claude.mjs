@@ -546,6 +546,12 @@ if (process.env.FAKE_CHAT) {
       fs.writeFileSync(`${process.cwd()}/tool.ts`, 'export const answer = 42\n')
       say(`I made ${process.cwd()}/out/report.html, \`notes.md\`, deck.pptx and tool.ts. See also https://example.com/docs/page.html and missing/nothing.md.`)
     }
+    // FAKE_FOLDERS=1: the agent names a folder of the project, and one outside it, as a real one does.
+    if (process.env.FAKE_FOLDERS) {
+      const fs = await import('node:fs')
+      fs.mkdirSync(`${process.cwd()}/docs/guide`, { recursive: true })
+      say(`The pages are in docs/guide/ and the build output is in ${process.cwd()}/src/lib, not in missing/dir/.`)
+    }
     const edit = { file_path: `${process.cwd()}/src/health.ts`, old_string: 'export const ok = false', new_string: 'export const ok = true' }
     const eid = use('Edit', edit)
     done(eid, 'The file has been updated')
