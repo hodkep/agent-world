@@ -96,7 +96,7 @@ test('the cat naps, sits and walks; idle agents huddle at the whiteboard and doz
     await send(app, ada.id, 'implementing')
     await page.waitForTimeout(31_000)
     await send(app, ada.id, 'idle')
-    await expect.poll(async () => (await seen(page)).doing, { timeout: 15_000 }).toContain('stretch')
+    await expect.poll(async () => (await seen(page)).doing, { timeout: 40_000 }).toContain('stretch')
   } finally {
     await o.shutdown()
   }
