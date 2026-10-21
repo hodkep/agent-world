@@ -1,3 +1,4 @@
+import type { Ritual } from './rituals'
 import type { StaffPose } from './staffSprites'
 
 export interface Pt {
@@ -63,6 +64,8 @@ export interface Scene {
   meet: Place
   /** A place beside each idle agent, where a tray can be put down. */
   idleAgents: Place[]
+  /** The hour's ritual: at chai time the office boy brings trays; at night he only cleans. */
+  ritual?: Ritual | null
 }
 
 export const SUPERVISOR_LINES = ['Any blockers?', 'ETA?', 'Is it in the sprint?', 'Per my last email']
@@ -83,6 +86,9 @@ const VISIT_GAP_MS = 45_000
 const SAME_AGENT_MS = 120_000
 const WEIGHTS: Record<SupervisorKind, number> = { visit: 3, read: 3, coffee: 2, water: 2, paint: 2, call: 2, look: 1, outside: 1.5, order: 1.5 }
 const BOY_WEIGHTS: Record<Exclude<Job, 'refill' | 'coffee'>, number> = { bin: 1, counter: 1, plants: 1.5, sweep: 1.5, printer: 1, tables: 1, parcel: 1, tray: 1.5 }
+
+/** What he does when the office is shut for the night. */
+const NIGHT_JOBS: Job[] = ['sweep', 'counter', 'bin', 'tables']
 
 const key = (p: Pt) => `${p.x},${p.y}`
 
@@ -246,6 +252,8 @@ export class Director {
     if (ordered) job = ordered
     else if (this.low) job = 'refill'
     else if (this.coffeeLow) job = 'coffee'
+    else if (scene.ritual === 'chai' && scene.idleAgents.length > 0) job = 'tray'
+    else if (scene.ritual === 'night') job = this.weighted(NIGHT_JOBS, (j) => (j === 'sweep' ? 3 : 1), this.lastJob)
     else {
       const chores = (Object.keys(BOY_WEIGHTS) as (keyof typeof BOY_WEIGHTS)[]).filter((j) => j !== 'tray' || scene.idleAgents.length > 0)
       job = this.weighted(chores, (j) => BOY_WEIGHTS[j], this.lastJob as keyof typeof BOY_WEIGHTS | null)

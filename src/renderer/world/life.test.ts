@@ -19,7 +19,7 @@ describe('what idle agents do with their time', () => {
       const plan = l.decide(20_000, ['a', 'b', 'c', 'd', 'e'], free)
       if (!plan) continue
       if (plan.kind === 'drink') seen.add(plan.what)
-      else {
+      else if (plan.kind === 'game') {
         expect([2, 4]).toContain(plan.agents.length)
         expect(new Set(plan.agents).size).toBe(plan.agents.length)
         seen.add('game')
@@ -56,5 +56,38 @@ describe('what idle agents do with their time', () => {
     for (let i = 0; i < 50 && !first; i++) first = l.decide(2000, ['a', 'b'], free)
     expect(first).not.toBeNull()
     expect(l.decide(1000, ['a', 'b'], free)).toBeNull()
+  })
+
+  it('at lunch time idle agents go for their lunch, and at chai time for a cup of coffee', () => {
+    const count = (ritual: 'lunch' | 'chai') => {
+      const l = new Life(lcg(11))
+      const kinds: string[] = []
+      for (let i = 0; i < 60; i++) {
+        const plan = l.decide(20_000, ['a', 'b', 'c'], { ...free, ritual })
+        if (plan) kinds.push(plan.kind === 'drink' ? `drink:${plan.what}` : plan.kind)
+      }
+      return kinds
+    }
+    const lunch = count('lunch')
+    expect(lunch.filter((k) => k === 'eat').length).toBeGreaterThan(lunch.length / 2)
+    const chai = count('chai')
+    expect(chai.filter((k) => k === 'drink:coffee').length).toBeGreaterThan(chai.length / 2)
+  })
+
+  it('two or three idle agents now and then huddle at the whiteboard, never while one is on or when only one is idle', () => {
+    const l = new Life(lcg(13))
+    const sizes = new Set<number>()
+    for (let i = 0; i < 200; i++) {
+      const plan = l.decide(20_000, ['a', 'b', 'c', 'd'], { ...free, huddle: false })
+      if (plan?.kind === 'huddle') {
+        sizes.add(plan.agents.length)
+        expect(new Set(plan.agents).size).toBe(plan.agents.length)
+      }
+      const busy = l.decide(20_000, ['a', 'b', 'c', 'd'], { ...free, huddle: true })
+      expect(busy?.kind).not.toBe('huddle')
+      const lone = l.decide(20_000, ['a'], { ...free, huddle: false })
+      expect(lone?.kind).not.toBe('huddle')
+    }
+    expect([...sizes].sort()).toEqual([2, 3])
   })
 })
