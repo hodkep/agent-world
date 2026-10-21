@@ -641,7 +641,7 @@ export function App() {
 
   const current = agents.find((a) => a.id === selected) ?? null
   useEffect(() => {
-    if (view === 'preview' && current) setPreviewed((p) => keepPreviews(p, current.id, (id) => (world[id]?.activity ?? 'asleep') === 'asleep'))
+    if (view === 'preview' && current) setPreviewed((p) => keepPreviews(p, current.id))
   }, [view, current?.id])
   // The Library tab appears once the library has done something for the agent, so an agent that never uses it keeps the usual six tabs.
   const hasLibrary = useLibraryUses(current?.id ?? '').uses.some((u) => u.how !== 'started' || !!u.words)
@@ -1764,7 +1764,7 @@ export function App() {
             />
           )}
           {/* A Preview that has been opened stays mounted, hidden, so its page is not loaded again each time you come back to the tab, or to the project (so every project's agents, not only the open one's). */}
-          {allAgents.filter((a) => (previewed.includes(a.id) && (world[a.id]?.activity ?? 'asleep') !== 'asleep') || (view === 'preview' && a.id === current?.id)).map((a) => (
+          {allAgents.filter((a) => previewed.includes(a.id) || (view === 'preview' && a.id === current?.id)).map((a) => (
             <div key={a.id} className="preview-keep" hidden={!(a.id === current?.id && view === 'preview')}>
               <PreviewView folder={a.repoPath} servers={servers[a.id] ?? []} agentName={a.name} agentId={a.id} target={previewTarget[a.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />
             </div>
