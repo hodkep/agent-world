@@ -183,6 +183,7 @@ export class OfficeWorld {
   private bistro: StaffPlace[] = []
   private ritual: ReturnType<typeof ritualAt> = null
   private readonly napOff = new Map<string, number>()
+  private readonly tired = new Set<string>()
   private publishedAmbience = ''
   private game: { carrom: Carrom; keys: string[]; started: boolean; endAt: number; waited: number } | null = null
   // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
@@ -577,12 +578,8 @@ export class OfficeWorld {
       // After a long turn the agent stretches instead of the small cheer; a finished task is still cheered.
       const tired = this.rest.observe(a.id, a.state.activity, now * staffSpeed()) === 'stretch'
       if (cheer && !(tired && cheer === 'small')) this.celebrate(a.id, cheer === 'big', now)
-      if (tired && this.lifeOn && c.doing === '' && !c.errand) {
-        c.doing = 'stretch'
-        c.doingAt = now
-        c.doingUntil = now + 3200
-        this.shouts.say(`stretch:${a.id}`, 'Yaaawn...', 2200, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
-      }
+      // It stretches once it has settled at its place, not on the way there.
+      if (tired) this.tired.add(a.id)
       this.files.set(a.id, a.state.files)
       this.inbox.set(a.id, a.inbox)
 
@@ -1057,6 +1054,16 @@ export class OfficeWorld {
     const sT = t * speed
     for (const [key, c] of this.chars) {
       if (c.role === 'intern' || c.leaving) continue
+      if (this.tired.has(key)) {
+        if (c.activity !== 'idle') this.tired.delete(key)
+        else if (c.arrived && c.doing === '' && !c.errand) {
+          this.tired.delete(key)
+          c.doing = 'stretch'
+          c.doingAt = t
+          c.doingUntil = t + 5000
+          this.shouts.say(`stretch:${key}`, 'Yaaawn...', 3600, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+        }
+      }
       if (c.doing === 'nap') {
         if (c.activity !== 'idle' || c.errand || t >= (this.napOff.get(key) ?? 0)) {
           c.doing = ''
@@ -1511,6 +1518,7 @@ export class OfficeWorld {
     c.overlay.destroy({ children: true })
     this.chars.delete(key)
     this.rest.forget(key)
+    this.tired.delete(key)
     this.napOff.delete(key)
   }
 
