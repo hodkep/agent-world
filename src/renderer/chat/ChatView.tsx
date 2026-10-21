@@ -531,6 +531,15 @@ export function ChatView({
     setAsking(null)
     setPick(null)
   }
+  // The box that opens in place of the button is wider than the button: once it is open it is moved so that it lies inside the conversation, with the notch still under the middle of the words.
+  const askBox = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = askBox.current
+    const root = chatEl.current
+    if (asking === null || !pick || !el || !root) return
+    const x = Math.max(8, Math.min(root.clientWidth - el.offsetWidth - 8, pick.x + pick.nx - 64))
+    if (Math.abs(x - pick.x) >= 1) setPick({ ...pick, x, nx: pick.x + pick.nx - x })
+  }, [asking === null, pick?.x])
   const pickRef = useRef(pick)
   pickRef.current = pick
   const askingNow = useRef(asking)
@@ -591,7 +600,7 @@ export function ChatView({
       }}
     >
       {pick && (
-        <div className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
+        <div ref={askBox} className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
           {asking === null ? (
             <button onMouseDown={(e) => e.preventDefault()} onClick={() => setAsking('')} title={`Ask about the selected words (${keysOf('add-selection')})`}>
               <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">

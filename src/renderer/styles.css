@@ -1072,10 +1072,10 @@ svg.pxi { display: block; flex: none; }
 .msg.user .bubble a { color: var(--think); }
 
 /* Words selected in an agent's reply offer to be asked about: a small button above the selection. */
-.ask-selection { position: absolute; z-index: 8; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 0; background: var(--panel-3); color: var(--text); font-weight: 600; border: 1px solid var(--accent); box-shadow: 0 3px 0 var(--ink), 0 6px 14px rgb(0 0 0 / 0.55); white-space: nowrap; }
+.ask-selection { position: absolute; max-width: calc(100% - 16px); z-index: 8; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 0; background: var(--panel-3); color: var(--text); font-weight: 600; border: 1px solid var(--accent); box-shadow: 0 3px 0 var(--ink), 0 6px 14px rgb(0 0 0 / 0.55); white-space: nowrap; }
 .ask-selection > button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: none; border: 0; box-shadow: none; color: inherit; font: inherit; }
-.ask-selection form { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; }
-.ask-selection input { width: min(260px, 60vw); background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 8px; font: 13px ui-sans-serif, system-ui, sans-serif; }
+.ask-selection form { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; min-width: 0; }
+.ask-selection input { width: min(260px, 60vw); min-width: 0; flex: 1 1 auto; background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 8px; font: 13px ui-sans-serif, system-ui, sans-serif; }
 .ask-selection form button { padding: 4px 10px; font-size: 12px; }
 .ask-selection svg { color: var(--accent); flex: none; }
 /* A small notch pointing down at the selection. */
