@@ -265,4 +265,24 @@ describe('what the office boy does', () => {
     }
     expect(jobs.size).toBeGreaterThanOrEqual(6)
   })
+
+  it('at night the office boy only cleans: he sweeps, wipes and empties the bin, and brings nothing to anyone', () => {
+    const d = new Director(lcg(5))
+    let brooms = 0
+    for (let i = 0; i < 80; i++) {
+      const steps = d.boyPlan(scene({ ritual: 'night', idleAgents: [at(24, 6, 'left')] }))
+      const t = thens(steps)
+      expect(t).not.toContain('tray')
+      expect(t).not.toContain('parcel')
+      if (steps.some((s) => s.kind === 'wait' && s.prop === 'broom')) brooms++
+    }
+    expect(brooms).toBeGreaterThan(80 / 3)
+  })
+
+  it('at chai time he carries a tray of cups to an idle agent each time he is free, unless the cooler or the pot is low', () => {
+    const d = new Director(lcg(6))
+    for (let i = 0; i < 20; i++) expect(thens(d.boyPlan(scene({ ritual: 'chai', idleAgents: [at(24, 6, 'left')] }))).join()).toBe('tray,drop')
+    d.water = 0.05
+    expect(thens(d.boyPlan(scene({ ritual: 'chai', idleAgents: [at(24, 6, 'left')] })))).toContain('fill')
+  })
 })
