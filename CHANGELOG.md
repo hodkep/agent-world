@@ -4,6 +4,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Chat: the box that opens when you press **Ask** on selected words in a reply stays inside the conversation, in the side panel and in a grid pane, instead of running out past the edge; in a narrow chat its text field shrinks to fit.
+
 ### Added
 
 - Chat: ⌘⌥↓ (Ctrl+Alt+↓) jumps to the latest message, as the **Latest** button does, and works from the message box too. The button's hint names the keys.
