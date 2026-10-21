@@ -514,6 +514,48 @@ describe('the merge gate', () => {
     expect('cost' in audit).toBe(false)
   })
 
+  it('follows the run that owns the head, not the agent\'s latest: a finished task keeps its approved plan, its audit and its findings when another task begins, and a head no run saw committed follows the latest', async () => {
+    const { wf, state } = make()
+    wf.begin('a1', 'First task')
+    const first = wf.runs()[0]!.id
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(first, 'approved')
+    wf.commit('a1', 'h1', 'first work')
+    state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","file":"a.ts","text":"Adds a project key."}]}' })
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    wf.done('a1')
+    // Another task begins before the first one's branch is pushed, and has no plan yet.
+    wf.begin('a1', 'Second task')
+    wf.commit('a1', 'h2', 'second work')
+
+    expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ run: { title: 'First task' }, plan: 'approved', audit: { state: 'done', findings: [{ seen: false }] }, blocking: ['1 audit finding has not been seen.'] })
+    wf.seen('a1', 'h1', [0])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual([])
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+    // The second task's own head is held by the second task's missing plan, and a head nobody recorded follows the latest run.
+    expect(wf.mergeCheck('a1', 'h2')).toMatchObject({ run: { title: 'Second task' }, plan: 'none', blocking: ['No plan was approved for this task.'] })
+    expect(wf.mergeCheck('a1', 'h9')).toMatchObject({ run: { title: 'Second task' } })
+    // Landing the first head is recorded on the first run.
+    wf.landing('a1', 'h1')
+    expect(wf.landedHead('a1', 'h1')).toBe(true)
+    expect(wf.landedHead('a1', 'h2')).toBe(false)
+    expect(wf.runs().find((r) => r.id === first)!.landed).toMatchObject({ head: 'h1' })
+  })
+
+  it('does not let a commit that was recorded after a later task began, however it is dated, take the gate of an earlier task: it follows the later one', () => {
+    const { wf } = make()
+    wf.begin('a1', 'First task')
+    const first = wf.runs()[0]!
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(first.id, 'approved')
+    wf.done('a1')
+    wf.begin('a1', 'Second task')
+    // A commit dated inside the first task's time, seen by the app only now (a date git was told to use).
+    wf.commit('a1', 'h3', 'backdated', first.rounds[0]!.startedAt + 1)
+    expect(wf.runs().find((r) => r.id === first.id)!.rounds[0]!.commits.map((c) => c.sha)).toEqual(['h3'])
+    expect(wf.mergeCheck('a1', 'h3')).toMatchObject({ run: { title: 'Second task' }, plan: 'none', blocking: ['No plan was approved for this task.'] })
+  })
+
   it('audits the diff against the approved plan, shows the findings, and holds Land until each was seen', async () => {
     const { wf, state } = make()
     wf.begin('a1', 'Add a toggle')
