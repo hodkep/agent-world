@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -93,7 +93,7 @@ test('a Claude agent starts an agy subagent and gets its answer back', async () 
   }
 })
 
-test('an agent working directly in a folder is not an error for the message box: it just has no files to offer', async () => {
+test('an agent working directly in a folder that is not a repository is not an error for the message box or the Code tab: both list the folder\'s files', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-mention-'))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
   try {
@@ -102,9 +102,15 @@ test('an agent working directly in a folder is not an error for the message box:
     await page.reload()
     await hire(page)
     const [ada] = await page.evaluate(() => window.aw.listAgents())
-    // The Code tab's own list still says why there is none; the message box's is empty and quiet.
-    await expect(page.evaluate((id) => window.aw.code.mentionFiles(id), ada!.id)).resolves.toEqual([])
-    await expect(page.evaluate((id) => window.aw.code.files(id), ada!.id)).rejects.toThrow(/not in a git worktree/)
+    // With no git to list them the folder is read: the message box and the Code tab offer the same files, and a folder nobody edits by hand is left out.
+    writeFileSync(join(home, 'notes.txt'), 'x')
+    mkdirSync(join(home, 'node_modules'), { recursive: true })
+    writeFileSync(join(home, 'node_modules', 'i.js'), 'x')
+    const mention = await page.evaluate((id) => window.aw.code.mentionFiles(id), ada!.id)
+    const files = await page.evaluate((id) => window.aw.code.files(id), ada!.id)
+    expect(mention).toContain('notes.txt')
+    expect(files).toEqual(mention)
+    expect(files.some((f) => f.startsWith('node_modules/'))).toBe(false)
   } finally {
     await shutdown()
   }
