@@ -51,12 +51,14 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
     if (openFile) (setTab(openFile.tab ?? 'files'), setRequest(openFile))
   }, [openFile])
   const jump = (j: CodeJump) => (setRequest({ path: j.path, tab: 'files', range: { from: j.from, to: j.to } }), setTab('files'))
+  // A folder that is not a git repository has no changes to track: its files, as in a repository, and one line that says why there is no Changes.
   if (inPlace && place && !place.git) {
     return (
-      <div className="code code-inplace" role="note" aria-label="No git worktree">
-        <b>{agentName} works directly in this folder</b>
-        <code>{inPlace.path}</code>
-        <p>It is not a git repository, so there are no changes or files to list. Run <code>git init</code> there and what is made in it shows here.</p>
+      <div className="code code-plain">
+        <p className="plain-note" role="note" aria-label="No git worktree">
+          <b>{agentName} works directly in this folder</b> · not a git repository, so no changes to show. Run <code>git init</code> to track them.
+        </p>
+        <FilesView agentId={agentId} agentName={agentName} openFile={request} onOpenChat={onOpenChat} />
       </div>
     )
   }
