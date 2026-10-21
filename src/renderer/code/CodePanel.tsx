@@ -3,6 +3,8 @@ import type { Changes } from '../../shared/api'
 import { ContextTray, type CodeJump, useAskSelection } from './askAgent'
 import { codeContext } from './codeContext'
 import { Markdown } from '../chat/markdown'
+import { openFileEvent } from '../files/context'
+import { fileShows } from './fileShows'
 import { ORIGINAL_NUMBER_CHARS, editorOptions, languageFor, monaco } from './monaco'
 import { CONTEXTS, CONTEXT_KEY, FOLD_KEY, type Context, type Fold, foldOptions, readFold } from './foldRule'
 import { closeTab, openTab, type TabState } from './tabs'
@@ -471,8 +473,25 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const [tabs, setTabs] = useState<TabState>(sess.tabs)
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const [asking, setAsking] = useState<string | null>(null)
-  // Markdown files can be read as the page they make, instead of as source.
+  // Markdown and html files can be read as the page they make, instead of as source.
   const [previewing, setPreviewing] = useState<Set<string>>(new Set())
+  // A page (an html file) or a pdf is shown by the app's own page server, as the Preview tab does; the address changes after a Save so the page is read again.
+  const [pageAt, setPageAt] = useState<Record<string, { url: string; n: number }>>({})
+  const [reload, setReload] = useState(0)
+  const shows = sess.tabs.active ? fileShows(sess.tabs.active) : 'source'
+  useEffect(() => {
+    const p = sess.tabs.active
+    if (!p || (shows !== 'pdf' && !(shows === 'html' && previewing.has(p)))) return
+    let alive = true
+    void window.aw.fileUrl(agentId, p).then(
+      (r) => alive && setPageAt((cur) => ({ ...cur, [p]: { url: r.url, n: reload } })),
+      () => undefined
+    )
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the file shown, its preview or a Save changes
+  }, [sess.tabs.active, shows, previewing, reload, agentId])
   const [, bump] = useState(0)
   const { error, run } = useErrors()
   const host = useRef<HTMLDivElement>(null)
@@ -506,9 +525,9 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   // Show a file (or nothing) in the editor, putting the cursor and scroll back where they were, or on the lines asked for.
   const show = (p: string | null, range?: { from: number; to: number }) => {
     const e = editor.current!
-    e.setModel(p ? model(p) : null)
-    if (!p) return
-    const m = model(p)!
+    const m = p ? model(p) : null
+    e.setModel(m)
+    if (!p || !m) return
     const view = sess.views.get(p)
     if (range) {
       e.setSelection(new monaco.Range(range.from, 1, range.to, m.getLineMaxColumn(range.to)))
@@ -524,7 +543,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
 
   const open = (p: string, range?: { from: number; to: number }) =>
     void run(async () => {
-      if (!model(p)) {
+      if (fileShows(p) !== 'pdf' && !model(p)) {
         const text = await window.aw.code.read(agentId, p)
         const m = monaco.editor.createModel(text, languageFor(p), uriOf(agentId, p))
         sess.saved.set(p, text)
@@ -572,6 +591,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
       await window.aw.code.write(agentId, p, text)
       sess.saved.set(p, text)
       bump((n) => n + 1)
+      setReload((n) => n + 1)
     })
   }
   const saveRef = useRef(save)
@@ -675,19 +695,25 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
           <div className="fcrumb">
             <span className="fpath" title={active}>{active}</span>
             <span aria-hidden="true">·</span>
-            <span className="flang">{languageFor(active)}</span>
-            {/\.(md|markdown|mdx)$/i.test(active) && (
+            <span className="flang">{shows === 'pdf' ? 'pdf' : languageFor(active)}</span>
+            {(shows === 'markdown' || shows === 'html') && (
               <button
                 aria-pressed={previewing.has(active)}
-                title={previewing.has(active) ? 'Back to the source' : 'Read it as formatted text'}
+                title={previewing.has(active) ? 'Back to the source' : shows === 'html' ? 'Read it as a page (the file as saved)' : 'Read it as formatted text'}
                 onClick={() => setPreviewing((s) => (s.has(active) ? new Set([...s].filter((x) => x !== active)) : new Set(s).add(active)))}
               >
                 {previewing.has(active) ? 'Source' : 'Preview'}
               </button>
             )}
-            <button onClick={() => void save()} disabled={!dirty} title="Save this file (⌘S)">
-              Save{dirty ? ' •' : ''}
-            </button>
+            {shows === 'pdf' ? (
+              <button title="Open it in the Preview tab" onClick={() => openFileEvent(agentId, active)}>
+                Open in Preview
+              </button>
+            ) : (
+              <button onClick={() => void save()} disabled={!dirty} title="Save this file (⌘S)">
+                Save{dirty ? ' •' : ''}
+              </button>
+            )}
           </div>
         )}
         {asking && (
@@ -702,12 +728,24 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
           </div>
         )}
         <div className="files-edwrap" ref={wrap}>
-          {active && previewing.has(active) && (
+          {active && shows === 'markdown' && previewing.has(active) && (
             <div className="md-preview" aria-label={`Preview of ${active}`}>
               <Markdown text={model(active)?.getValue() ?? ''} agentId={agentId} />
             </div>
           )}
-          <div className="diff" ref={host} style={active && previewing.has(active) ? { visibility: 'hidden' } : undefined} aria-label={active ? `Editing ${active}` : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
+          {active && ((shows === 'html' && previewing.has(active)) || shows === 'pdf') && (
+            <div className="md-preview page-frame">
+              {pageAt[active] &&
+                (shows === 'pdf' ? (
+                  // The browser's PDF viewer crashes the page when it opens in a frame of the app's own window; in a webview, as the Preview tab uses, it is fine.
+                  <webview key={`${active}:${pageAt[active]!.n}`} title={baseName(active)} src={pageAt[active]!.url} partition="preview" />
+                ) : (
+                  // A page runs in a sandbox of its own: scripts yes, the app and its storage no.
+                  <iframe key={`${active}:${pageAt[active]!.n}`} title={`Preview of ${active}`} src={pageAt[active]!.url} sandbox="allow-scripts allow-forms allow-popups" />
+                ))}
+            </div>
+          )}
+          <div className="diff" ref={host} style={active && (shows === 'pdf' || ((shows === 'markdown' || shows === 'html') && previewing.has(active))) ? { visibility: 'hidden' } : undefined} aria-label={active ? (shows === 'pdf' ? `Editor (${active} is a PDF)` : `Editing ${active}`) : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
           {ask.view}
         </div>
         <ContextTray agentId={agentId} onJump={(j) => open(j.path, { from: j.from, to: j.to })} onOpenChat={onOpenChat} />
