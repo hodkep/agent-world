@@ -4,13 +4,22 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
 ### Added
 
-- Chat: ⌘⌥↓ (Ctrl+Alt+↓) jumps to the latest message, as the **Latest** button does, and works from the message box too. The button's hint names the keys.
+- Remote control: a typed reply from a phone can answer an agent's plan, step, audit and held-push gates, but only when it comes from the agent's own program (off by default; agy's questions and file prompts show in the chat).
+- Chat: ⌘⌥↓ (Ctrl+Alt+↓) jumps to the latest message, also from the message box.
+- Switching: hold Ctrl+Tab or ⇧⌘[ ] to see a bar of agents or projects; each press steps on, letting go switches, Esc stays.
+- Office: staff walk about, idle agents drink and play carrom, and the room follows the hour and the weather (**Office life** in Settings turns it off).
 
 ### Fixed
 
-- Shortcuts: in the shortcuts sheet, the first heading of the second column no longer sits against the filter row.
+- Settings: **Switch all agents here** restarts three agents at a time and shows progress with **Stop after these**, so many agents no longer freeze the app.
+- Chat: the Ask box over selected words stays inside the conversation, in the side panel and in a grid pane.
+- Usage: asking for limits while a poll runs waits for it, so Usage is not empty.
+- Shortcuts: the second column's first heading keeps its gap above it.
+- Tests: four specs that failed at random are steady.
 
 ## [0.2.7] - 2026-10-21
 
@@ -200,7 +209,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.2.7...HEAD
+[Unreleased]: ../../compare/v0.3.0...HEAD
+[0.3.0]: ../../compare/v0.2.7...v0.3.0
 [0.2.7]: ../../compare/v0.2.6...v0.2.7
 [0.2.6]: ../../compare/v0.2.5...v0.2.6
 [0.2.5]: ../../compare/v0.2.4...v0.2.5
