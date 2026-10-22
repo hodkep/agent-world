@@ -4,6 +4,14 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Chat: ⌘⌥↓ (Ctrl+Alt+↓) jumps to the latest message, as the **Latest** button does, and works from the message box too. The button's hint names the keys.
+
+### Fixed
+
+- Shortcuts: in the shortcuts sheet, the first heading of the second column no longer sits against the filter row.
+
 ## [0.2.7] - 2026-10-21
 
 ### Added

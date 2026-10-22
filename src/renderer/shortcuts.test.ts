@@ -88,6 +88,18 @@ describe('a key press against the table', () => {
     }
   })
 
+  it('jumps to the latest message with Mod+Alt+↓, leaving Alt+↓ to your own messages and Cmd+↓ to the system', () => {
+    expect(matches(press('ArrowDown', { metaKey: true, altKey: true }), 'latest')).toBe(true)
+    expect(matches(press('ArrowDown', { ctrlKey: true, altKey: true }), 'latest')).toBe(true)
+    expect(matches(press('ArrowDown', { altKey: true }), 'latest')).toBe(false)
+    expect(matches(press('ArrowDown', { altKey: true }), 'jump-messages')).toBe(true)
+    expect(matches(press('ArrowDown', { metaKey: true }), 'latest')).toBe(false)
+    expect(matches(press('ArrowDown', { metaKey: true, altKey: true, shiftKey: true }), 'latest')).toBe(false)
+    expect(matches(press('ArrowUp', { metaKey: true, altKey: true }), 'latest')).toBe(false)
+    expect(hint('latest', true)).toBe('Jump to the latest message (⌘⌥↓)')
+    expect(hint('latest', false)).toBe('Jump to the latest message (Ctrl+Alt+↓)')
+  })
+
   it('needs the exact modifiers: no Mod, a stray Shift or Alt, or another key is not a match', () => {
     expect(matches(press('['), 'workspace-switch')).toBe(false)
     expect(matches(press('[', { metaKey: true }), 'workspace-switch')).toBe(false)

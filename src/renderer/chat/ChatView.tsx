@@ -36,7 +36,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
 import { ADD_SELECTION_EVENT } from '../addSelection'
-import { hint, keysOf } from '../shortcuts'
+import { hint, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import type { UsageLimits } from '../../shared/usage'
@@ -414,6 +414,8 @@ export function ChatView({
   const readerAt = useRef(0)
   const pointerHeld = useRef(false)
   const reader = () => (readerAt.current = performance.now())
+  // The Latest button and its shortcut: to the end, and follow it again.
+  const toLatest = () => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))
   useEffect(() => {
     const up = () => (pointerHeld.current = false)
     window.addEventListener('pointerup', up)
@@ -560,6 +562,8 @@ export function ChatView({
       onKeyDown={(e) => {
         if (['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) reader()
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
+        // Mod+Alt+↓ goes to the latest message, from the message box too (where Cmd+↓ is the caret's).
+        else if (matches(e, 'latest') && log.current) (e.preventDefault(), toLatest())
         // Alt+↑ / Alt+↓ jump between the messages you sent, from the one last jumped to or else from what is on screen.
         else if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && log.current) {
           e.preventDefault()
@@ -744,7 +748,7 @@ export function ChatView({
         onImage={showPicture}
         latest={
           away ? (
-            <button className="jump" onClick={() => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))}>
+            <button className="jump" title={hint('latest')} onClick={toLatest}>
               Latest
             </button>
           ) : null
