@@ -277,7 +277,7 @@ export class OfficeWorld {
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, this.riders, this.ambience.outside, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
-    this.overlays.addChild(this.ambience.tint, this.mail, this.visitors.bubbles)
+    this.overlays.addChild(this.ambience.tint, this.ambience.lights, this.mail, this.visitors.bubbles, this.ambience.banner)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
     this.pulledBook.zIndex = TILE * 2
@@ -796,9 +796,9 @@ export class OfficeWorld {
     }
     this.cat = new Cat(OFFICE.map, new CatBrain(Math.random, staffSpeed()), spots, spots.nap[0] ?? this.places.corner)
     this.layer.addChild(this.cat.view)
-    this.guard = new StaffActor('guard', 'the guard', OFFICE.map, { x: OFFICE.door.x + 1, y: OFFICE.door.y }, (over) => (this.host.title = over ? 'the guard' : ''))
+    this.guard = new StaffActor('guard', 'the guard', OFFICE.map, { x: OFFICE.door.x + 1, y: OFFICE.door.y }, () => {})
     this.layer.addChild(this.guard.view)
-    const hover = (label: string) => (over: boolean) => (this.host.title = over ? label : '')
+    const hover = (_label: string) => () => {}
     const door = this.places.door
     const boy = new StaffActor('boy', 'the office boy', OFFICE.map, door, hover('the office boy'))
     const sup = new StaffActor('supervisor', 'the supervisor', OFFICE.map, door, hover('the supervisor'))
@@ -1235,7 +1235,7 @@ export class OfficeWorld {
       if (trip.mode === 'inside' && !c.actor) {
         // At the door: the office's own actor takes over, comes in, does its errand, and goes out again.
         const label = c.kind === 'courier' ? 'the courier' : 'the pizza delivery'
-        const a = new StaffActor(c.kind, label, OFFICE.map, this.places.door, (over) => (this.host.title = over ? label : ''))
+        const a = new StaffActor(c.kind, label, OFFICE.map, this.places.door, () => {})
         a.setShown(true)
         a.give(c.plan())
         this.layer.addChild(a.view)
@@ -1299,7 +1299,7 @@ export class OfficeWorld {
         this.shouts.say('cut', 'Lights are back', 2000, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
       } else dark = e < 600 / speed ? e / (600 / speed) : e > dur - 800 / speed ? Math.max(0, (dur - e) / (800 / speed)) : 1
     }
-    this.ambience.update(dt, t, { hour, weather: on ? weatherNow(this.weather.now) : 'clear', dark, alarm: !!this.drill, live: on })
+    this.ambience.update(dt, t, { hour, weather: on ? weatherNow(this.weather.now) : 'clear', dark, alarm: !!this.drill, live: on, event: this.drill ? 'drill' : this.cut ? 'cut' : '', t })
     this.cat?.setShown(on)
     this.cat?.update(dt, t)
     const guard = this.guard
@@ -1318,7 +1318,7 @@ export class OfficeWorld {
       event,
       ...this.ambience.data(),
       weather: on ? weatherNow(this.weather.now) : 'clear',
-      cat: on && this.cat ? { state: this.cat.state, x: this.cat.at.x, y: this.cat.at.y } : null,
+      cat: on && this.cat ? { state: this.cat.state, x: this.cat.at.x, y: this.cat.at.y, label: this.cat.labelShown } : null,
       guard: on && Guests.guardOn(this.clock.h),
       callers: [...this.callers.values()].map((c) => c.kind),
       trips: [...this.callers].map(([trip, c]) => ({ kind: c.kind, mode: trip.mode, x: Math.round(trip.scooter.x), y: Math.round(trip.scooter.y) }))
@@ -1453,7 +1453,7 @@ export class OfficeWorld {
     boy.update(dt, t, { then: then(boy), say: say(boy) })
     sup.update(dt, t, { then: then(sup), say: say(sup) })
     this.lifeTick(dt, t)
-    const state = JSON.stringify({ water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying })) })
+    const state = JSON.stringify({ water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying, label: a.labelShown })) })
     if (state !== this.publishedStaff) {
       this.publishedStaff = state
       this.host.dataset.staff = state

@@ -97,3 +97,48 @@ test('an office boy who faces the supervisor sees him, says "Boss!", leaves the 
     await o.shutdown()
   }
 })
+
+test('a label with the role shows over the supervisor, the office boy and the cat while the pointer is on them, and not otherwise', async () => {
+  test.setTimeout(240_000)
+  const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle' } })
+  try {
+    const { page } = o
+    await setItem(page, 'aw.clockHour', '11')
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    for (const name of ['ada', 'dee']) await hireNamed(page, name)
+    const stage = page.locator('.stage')
+    const staff = async () => JSON.parse((await stage.getAttribute('data-staff')) ?? 'null') as { staff: { kind: string; x: number; y: number; label: boolean }[] }
+    await expect.poll(async () => (await staff())?.staff.length, { timeout: 30_000 }).toBe(2)
+    // Where a tile is on the screen: the stage's corner, the view's pan and scale, then the tile's middle.
+    const at = async (x: number, y: number) => {
+      const box = (await stage.boundingBox())!
+      const v = JSON.parse((await stage.getAttribute('data-view'))!) as { scale: number; x: number; y: number }
+      return { x: box.x + v.x + (x * 16 + 8) * v.scale, y: box.y + v.y + (y * 16 + 4) * v.scale }
+    }
+    for (const [kind, name] of [['boy', 'the office boy'], ['supervisor', 'the supervisor']] as const) {
+      // Resting, they are standing; follow the figure until the pointer is over it and its label is up.
+      await expect
+        .poll(async () => {
+          const me = (await staff()).staff.find((s) => s.kind === kind)!
+          const p = await at(me.x, me.y)
+          await page.mouse.move(p.x, p.y)
+          return (await staff()).staff.find((s) => s.kind === kind)!.label
+        }, { timeout: 30_000, message: name })
+        .toBe(true)
+      await page.mouse.move(2, 2)
+      await expect.poll(async () => (await staff()).staff.find((s) => s.kind === kind)!.label, { timeout: 5000 }).toBe(false)
+    }
+    const cat = async () => JSON.parse((await stage.getAttribute('data-ambience')) ?? 'null').cat as { x: number; y: number; label: boolean } | null
+    await expect
+      .poll(async () => {
+        const c = (await cat())!
+        const p = await at(c.x, c.y)
+        await page.mouse.move(p.x, p.y + 4)
+        return (await cat())!.label
+      }, { timeout: 30_000 })
+      .toBe(true)
+  } finally {
+    await o.shutdown()
+  }
+})
