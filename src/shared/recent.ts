@@ -13,3 +13,10 @@ export function projectsByRecent<T extends { path: string }>(items: T[], activeA
     .sort((x, y) => (activeAt[y.w.path] ?? -1) - (activeAt[x.w.path] ?? -1) || x.i - y.i)
     .map((x) => x.w)
 }
+
+/** When each project last did something: the latest of its agents' times, by project path. */
+export function activityByProject(agents: { repoPath: string; activeAt?: number }[]): Record<string, number> {
+  const at: Record<string, number> = {}
+  for (const a of agents) at[a.repoPath] = Math.max(at[a.repoPath] ?? 0, a.activeAt ?? 0)
+  return at
+}
