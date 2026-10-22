@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useEffect, useState } from 'react'
-import { projectsByRecent } from '../../shared/recent'
+import { activityByProject, projectsByRecent } from '../../shared/recent'
 import type { WorkspaceInfo, Workspaces } from '../../shared/api'
 import type { Dot } from '../../shared/attention'
 import { Identicon } from './Identicon'
@@ -53,9 +53,7 @@ export function WorkspaceMenu({
     let alive = true
     void window.aw.listAgents().then((list) => {
       if (!alive) return
-      const at: Record<string, number> = {}
-      for (const a of list) at[a.repoPath] = Math.max(at[a.repoPath] ?? 0, a.activeAt ?? 0)
-      setSeen(at)
+      setSeen(activityByProject(list))
     })
     return () => {
       alive = false

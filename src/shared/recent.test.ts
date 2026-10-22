@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentsByRecent, projectsByRecent } from './recent'
+import { activityByProject, agentsByRecent, projectsByRecent } from './recent'
 
 const ag = (name: string, activeAt?: number, group?: string) => ({ id: name, name, activeAt, group })
 
@@ -34,5 +34,15 @@ describe('projects, the one whose agents did something last first', () => {
   it('keeps the given order for projects with no activity, after the active ones', () => {
     const items = [p('/a'), p('/b'), p('/c'), p('/d')]
     expect(projectsByRecent(items, { '/c': 1 }).map((w) => w.path)).toEqual(['/c', '/a', '/b', '/d'])
+  })
+})
+
+describe('when each project last did something', () => {
+  it('is the latest of its agents, and 0 for one whose agents have no time', () => {
+    expect(activityByProject([{ repoPath: '/a', activeAt: 5 }, { repoPath: '/a', activeAt: 9 }, { repoPath: '/b' }, { repoPath: '/a' }])).toEqual({ '/a': 9, '/b': 0 })
+  })
+
+  it('is empty for no agents', () => {
+    expect(activityByProject([])).toEqual({})
   })
 })
