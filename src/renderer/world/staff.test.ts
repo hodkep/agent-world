@@ -80,7 +80,7 @@ describe('the water in the cooler and the coffee', () => {
 })
 
 describe('what the supervisor can do, and does', () => {
-  it('checks on an agent only when one is working, at most once in 45 s, and never the same agent twice within two minutes', () => {
+  it('checks on an agent only when one is working, at most once in 150 s, and never the same agent twice within five minutes', () => {
     const d = new Director(seq(0.5))
     expect(d.supervisorOptions(scene())).not.toContain('visit')
     const working = [at(4, 6, 'left'), at(9, 6, 'left')]
@@ -88,14 +88,14 @@ describe('what the supervisor can do, and does', () => {
     const first = d.supervisorPlan(scene({ working }), 'visit')
     expect(first.steps[0]).toMatchObject({ kind: 'walk' })
     expect(d.supervisorOptions(scene({ working }))).not.toContain('visit')
-    d.tick(46_000, 0)
+    d.tick(151_000, 0)
     expect(d.supervisorOptions(scene({ working }))).toContain('visit')
     const second = d.supervisorPlan(scene({ working }), 'visit')
     expect(second.steps[0]).not.toEqual(first.steps[0])
-    d.tick(46_000, 0)
-    // Both were seen within two minutes: nobody is left to check on.
+    d.tick(100_000, 0)
     expect(d.supervisorOptions(scene({ working }))).not.toContain('visit')
-    d.tick(80_000, 0)
+    // Five minutes after the first visit it is eligible again.
+    d.tick(60_000, 0)
     expect(d.supervisorOptions(scene({ working }))).toContain('visit')
   })
 
@@ -158,13 +158,13 @@ describe('what the supervisor can do, and does', () => {
     expect(low.order).toBe('refill')
   })
 
-  it('does not stop the office boy while he carries something, and not again within half a minute of the last order', () => {
+  it('does not stop the office boy while he carries something, and not again within two minutes of the last order', () => {
     const d = new Director(seq(0.5))
     expect(d.supervisorOptions(scene({ boyCarrying: true }))).not.toContain('order')
     expect(d.supervisorOptions(scene())).toContain('order')
     d.supervisorPlan(scene(), 'order')
     expect(d.supervisorOptions(scene())).not.toContain('order')
-    d.tick(31_000, 0)
+    d.tick(121_000, 0)
     expect(d.supervisorOptions(scene())).toContain('order')
   })
 
@@ -205,7 +205,7 @@ describe('what the office boy does', () => {
     d.tick(10_000_000, 1)
     const steps = d.boyPlan(scene())
     expect(thens(steps)).toEqual(['swapOut', 'fill', 'takeJar', 'swapIn'])
-    expect(steps.filter((s) => s.kind === 'walk').map((s) => (s as { to: unknown }).to)).toEqual([{ x: 17, y: 3 }, { x: 23, y: 14 }, { x: 17, y: 3 }])
+    expect(steps.filter((s) => s.kind === 'walk').map((s) => (s as { to: unknown }).to)).toEqual([{ x: 17, y: 3 }, { x: 23, y: 14 }, { x: 17, y: 3 }, { x: 21, y: 15 }])
     expect(steps[3]).toMatchObject({ face: 'down', then: 'fill' })
     expect((steps[3] as { ms: number }).ms).toBeGreaterThanOrEqual(2000)
   })
@@ -229,9 +229,9 @@ describe('what the office boy does', () => {
   it('takes the rubbish out, wipes the counter and the tables with a cloth, sweeps with a broom between two places, waters a plant, and tidies the printer', () => {
     const d = new Director(seq(0.5))
     d.order = 'counter'
-    expect(d.boyPlan(scene()).at(-1)).toMatchObject({ pose: 'wipe', prop: 'cloth', face: 'right' })
+    expect(d.boyPlan(scene()).at(-3)).toMatchObject({ pose: 'wipe', prop: 'cloth', face: 'right' })
     d.order = 'plants'
-    expect(d.boyPlan(scene()).at(-1)).toMatchObject({ pose: 'hold', prop: 'can' })
+    expect(d.boyPlan(scene()).at(-3)).toMatchObject({ pose: 'hold', prop: 'can' })
     d.order = 'sweep'
     const sweep = d.boyPlan(scene()).filter((s) => s.kind === 'wait' && s.prop === 'broom')
     expect(sweep).toHaveLength(2)
@@ -284,5 +284,75 @@ describe('what the office boy does', () => {
     for (let i = 0; i < 20; i++) expect(thens(d.boyPlan(scene({ ritual: 'chai', idleAgents: [at(24, 6, 'left')] }))).join()).toBe('tray,drop')
     d.water = 0.05
     expect(thens(d.boyPlan(scene({ ritual: 'chai', idleAgents: [at(24, 6, 'left')] })))).toContain('fill')
+  })
+
+  it('the office boy rests by the counter for 45 to 90 seconds after every job, and a job itself takes a good while', () => {
+    const d = new Director(lcg(31))
+    for (let i = 0; i < 60; i++) {
+      const steps = d.boyPlan(scene({ idleAgents: [at(24, 6, 'left')] }))
+      const rest = steps[steps.length - 1]!
+      expect(rest).toMatchObject({ kind: 'wait', face: 'right' })
+      expect((rest as { ms: number }).ms).toBeGreaterThanOrEqual(45_000)
+      expect((rest as { ms: number }).ms).toBeLessThanOrEqual(90_000)
+      expect(steps[steps.length - 2]).toEqual({ kind: 'walk', to: { x: 21, y: 15 } })
+      const work = steps.slice(0, -2).filter((x) => x.kind === 'wait' && x.prop).map((x) => (x as { ms: number }).ms)
+      for (const ms of work) expect(ms).toBeGreaterThanOrEqual(5000)
+    }
+  })
+
+  it('the supervisor rests at the corner for 40 to 90 seconds after each round, but not after giving an order, which the boy answers', () => {
+    const d = new Director(lcg(32))
+    for (const kind of ['read', 'coffee', 'water', 'paint', 'call', 'look', 'outside'] as const) {
+      const steps = d.supervisorPlan(scene(), kind).steps
+      const rest = steps[steps.length - 1] as { kind: string; ms: number }
+      expect(rest.kind).toBe('wait')
+      expect(rest.ms).toBeGreaterThanOrEqual(40_000)
+      expect(rest.ms).toBeLessThanOrEqual(90_000)
+      expect(steps[steps.length - 2]).toEqual({ kind: 'walk', to: { x: 21, y: 12 } })
+    }
+    const order = d.supervisorPlan(scene(), 'order').steps
+    expect((order[order.length - 1] as { ms: number }).ms).toBeLessThan(5000)
+  })
+
+  it('the supervisor checks on a working agent at most once in 150 seconds, and gives an order at most once in two minutes', () => {
+    const d = new Director(lcg(33))
+    const working = [at(5, 5, 'left'), at(9, 5, 'left')]
+    d.supervisorPlan(scene({ working }), 'visit')
+    d.supervisorPlan(scene(), 'order')
+    d.tick(60_000, 0)
+    expect(d.supervisorOptions(scene({ working }))).not.toContain('visit')
+    expect(d.supervisorOptions(scene({ working }))).not.toContain('order')
+    d.tick(100_000, 0)
+    expect(d.supervisorOptions(scene({ working }))).toContain('visit')
+    expect(d.supervisorOptions(scene({ working }))).toContain('order')
+  })
+
+  it('goes to catch the office boy only while he plays carrom: he walks to the place the world names, and it ends in no order', () => {
+    const d = new Director(lcg(41))
+    expect(d.supervisorOptions(scene())).not.toContain('catch')
+    const sc = scene({ catchAt: { x: 20, y: 5 } })
+    expect(d.supervisorOptions(sc)).toContain('catch')
+    const plan = d.supervisorPlan(sc, 'catch')
+    expect(plan).toMatchObject({ kind: 'catch', meetsBoy: false })
+    expect(plan.steps[0]).toEqual({ kind: 'walk', to: { x: 20, y: 5 } })
+    expect(plan.steps.filter((x) => x.kind === 'wait').length).toBeLessThanOrEqual(1)
+  })
+
+  it('cleans the room for as long as it is asked: sweeping and wiping, one after the other, with nothing handed out', () => {
+    const d = new Director(lcg(42))
+    const steps = d.cleaning(scene(), 90_000)
+    const waited = steps.reduce((n, x) => n + (x.kind === 'wait' ? x.ms : 0), 0)
+    expect(waited).toBeGreaterThanOrEqual(90_000)
+    expect(waited).toBeLessThan(120_000)
+    expect(steps.some((x) => x.kind === 'wait' && x.prop === 'broom')).toBe(true)
+    for (const x of steps) if (x.kind === 'wait') expect(x.then).toBeUndefined()
+    expect(thens(steps)).toEqual([])
+  })
+
+  it('cleans faster to the clock when sped up', () => {
+    const d = new Director(lcg(43), 10)
+    const waited = d.cleaning(scene(), 90_000).reduce((n, x) => n + (x.kind === 'wait' ? x.ms : 0), 0)
+    expect(waited).toBeGreaterThanOrEqual(9000)
+    expect(waited).toBeLessThan(13_000)
   })
 })

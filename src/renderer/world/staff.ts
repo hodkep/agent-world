@@ -24,12 +24,12 @@ export type Step =
  * What happens when a wait starts: the cooler's empty jar lifted out, set under the tap (it fills) and taken up full, then put in; a book taken from the shelf or put back; a jar fetched, the old one picked up, a bag, a parcel or a tray taken up,
  * what he carried put down, a sip of water or coffee, a pot of coffee made, or an order given.
  */
-export type Then = 'fetch' | 'swapOut' | 'fill' | 'takeJar' | 'takeBook' | 'putBook' | 'swapIn' | 'pickOld' | 'bag' | 'parcel' | 'tray' | 'drop' | 'sipWater' | 'sipCoffee' | 'brew' | 'order'
+export type Then = 'fetch' | 'swapOut' | 'fill' | 'takeJar' | 'takeBook' | 'putBook' | 'swapIn' | 'pickOld' | 'bag' | 'parcel' | 'tray' | 'drop' | 'sipWater' | 'sipCoffee' | 'brew' | 'order' | 'hit'
 
 export type Job = 'refill' | 'coffee' | 'bin' | 'counter' | 'plants' | 'sweep' | 'printer' | 'tables' | 'parcel' | 'tray'
 /** The jobs the supervisor can give. */
 const ORDERABLE: Job[] = ['bin', 'counter', 'plants', 'sweep']
-export type SupervisorKind = 'visit' | 'read' | 'coffee' | 'water' | 'paint' | 'call' | 'look' | 'outside' | 'order'
+export type SupervisorKind = 'visit' | 'read' | 'coffee' | 'water' | 'paint' | 'call' | 'look' | 'outside' | 'order' | 'catch'
 
 /** What the world tells the director each time a staff member needs something to do. */
 export interface Scene {
@@ -64,6 +64,8 @@ export interface Scene {
   meet: Place
   /** A place beside each idle agent, where a tray can be put down. */
   idleAgents: Place[]
+  /** While the office boy plays carrom: where the supervisor walks to, to come upon him. */
+  catchAt?: Pt | null
   /** The hour's ritual: at chai time the office boy brings trays; at night he only cleans. */
   ritual?: Ritual | null
 }
@@ -81,10 +83,13 @@ const COFFEE_CUP = 0.12
 const COFFEE_LOW = 0.25
 const VISIT_MS: [number, number] = [3000, 5000]
 /** At least this long between one order and the next, between one round of the supervisor's and the next, and before he stands at the same agent again. */
-const MEET_GAP_MS = 30_000
-const VISIT_GAP_MS = 45_000
-const SAME_AGENT_MS = 120_000
-const WEIGHTS: Record<SupervisorKind, number> = { visit: 3, read: 3, coffee: 2, water: 2, paint: 2, call: 2, look: 1, outside: 1.5, order: 1.5 }
+const MEET_GAP_MS = 120_000
+const VISIT_GAP_MS = 150_000
+const SAME_AGENT_MS = 300_000
+/** How long each of them rests (standing by the counter or in the corner) after a job or a round, so the office is not on the move all the time. */
+const BOY_REST_MS: [number, number] = [45_000, 90_000]
+const SUPERVISOR_REST_MS: [number, number] = [40_000, 90_000]
+const WEIGHTS: Record<SupervisorKind, number> = { visit: 3, read: 3, coffee: 2, water: 2, paint: 2, call: 2, look: 1, outside: 1.5, order: 1.5, catch: 6 }
 const BOY_WEIGHTS: Record<Exclude<Job, 'refill' | 'coffee'>, number> = { bin: 1, counter: 1, plants: 1.5, sweep: 1.5, printer: 1, tables: 1, parcel: 1, tray: 1.5 }
 
 /** What he does when the office is shut for the night. */
@@ -186,6 +191,7 @@ export class Director {
     if (s.kanban.length) out.push('look')
     if (s.outside.length) out.push('outside')
     if (!scene.boyCarrying && this.sinceOrder >= MEET_GAP_MS) out.push('order')
+    if (scene.catchAt) out.push('catch')
     return out
   }
 
@@ -194,9 +200,20 @@ export class Director {
    * He never has nothing to do: when nothing else is possible he walks to the lounge corner for a few seconds.
    */
   supervisorPlan(scene: Scene, only?: SupervisorKind): { steps: Step[]; meetsBoy: boolean; kind: SupervisorKind | 'rest' } {
+    const round = this.supervisorRound(scene, only)
+    // After a round he rests in the corner for a while; after an order he does not, since the office boy answers it.
+    return round.kind === 'order' || round.kind === 'rest' || round.kind === 'catch' ? round : { ...round, steps: [...round.steps, ...this.rest(scene.spots.corner, undefined, SUPERVISOR_REST_MS)] }
+  }
+
+  /** Stands at a place for a long while, doing nothing: the walk there, then the wait. */
+  private rest(to: Pt, face: Face | undefined, [lo, hi]: [number, number]): Step[] {
+    return [{ kind: 'walk', to }, this.wait(this.span(lo, hi), face && { face })]
+  }
+
+  private supervisorRound(scene: Scene, only?: SupervisorKind): { steps: Step[]; meetsBoy: boolean; kind: SupervisorKind | 'rest' } {
     const options = this.supervisorOptions(scene)
     const kind = only ?? (options.length ? this.weighted(options, (k) => WEIGHTS[k], this.lastKind) : null)
-    if (!kind) return { steps: [{ kind: 'walk', to: scene.spots.corner }, { kind: 'wait', ms: this.ms(4000, 7000) }], meetsBoy: false, kind: 'rest' }
+    if (!kind) return { steps: this.rest(scene.spots.corner, undefined, SUPERVISOR_REST_MS), meetsBoy: false, kind: 'rest' }
     this.lastKind = kind
     const s = scene.spots
     const at = (p: Place, ms: number, more: Omit<Extract<Step, { kind: 'wait' }>, 'kind' | 'ms' | 'face'> = {}): Step[] => [{ kind: 'walk', to: p.to }, this.wait(ms, { face: p.face, ...more })]
@@ -235,6 +252,8 @@ export class Director {
         return { steps: at(this.pick(s.kanban), this.span(3500, 5500), { pose: 'chin' }), meetsBoy: false, kind }
       case 'call':
         return { steps: at(this.pick(s.phone), this.span(5000, 7500), { pose: 'call', prop: 'phone', say: this.pick(PHONE_LINES) }), meetsBoy: false, kind }
+      case 'catch':
+        return { steps: [{ kind: 'walk', to: scene.catchAt! }], meetsBoy: false, kind }
       default: {
         const job: Job = this.low ? 'refill' : this.coffeeLow ? 'coffee' : this.pick(ORDERABLE)
         this.order = job
@@ -246,6 +265,26 @@ export class Director {
 
   /** The office boy's next job: the one he was ordered (after a salute), the cooler or the coffee when they run low, or a chore. Never nothing. */
   boyPlan(scene: Scene): Step[] {
+    // Every job is followed by a long rest by the counter, so he is not on the move all the time.
+    return [...this.boyJob(scene), ...this.rest(scene.spots.counter.to, scene.spots.counter.face, BOY_REST_MS)]
+  }
+
+  /** The office boy cleans for about `ms` of the clock, sweeping from one place to the next: for when he was caught playing, or saw the supervisor coming. */
+  cleaning(scene: Scene, ms: number): Step[] {
+    const out: Step[] = []
+    let waited = 0
+    let from: Pt | null = null
+    while (waited < ms / this.speed) {
+      const to = this.pick(scene.spots.sweep.filter((p) => !from || key(p) !== key(from)).length ? scene.spots.sweep.filter((p) => !from || key(p) !== key(from)) : scene.spots.sweep)
+      const step = this.wait(6500, { face: from && to.x < from.x ? 'left' : 'right', pose: 'wipe', prop: 'broom' })
+      out.push({ kind: 'walk', to }, step)
+      waited += (step as { ms: number }).ms
+      from = to
+    }
+    return out
+  }
+
+  private boyJob(scene: Scene): Step[] {
     const ordered = this.order
     this.order = null
     let job: Job
@@ -281,19 +320,19 @@ export class Director {
       case 'bin':
         return [...salute, ...go(s.bin, 900, { then: 'bag' }), ...out]
       case 'counter':
-        return [...salute, ...go(s.counter, 2400, { pose: 'wipe', prop: 'cloth' })]
+        return [...salute, ...go(s.counter, 7000, { pose: 'wipe', prop: 'cloth' })]
       case 'plants':
-        return [...salute, ...go(this.pick(s.plants), 2400, { pose: 'hold', prop: 'can' })]
+        return [...salute, ...go(this.pick(s.plants), 7000, { pose: 'hold', prop: 'can' })]
       case 'sweep': {
         const a = this.pick(s.sweep)
         const b = this.pick(s.sweep.filter((p) => key(p) !== key(a)).length ? s.sweep.filter((p) => key(p) !== key(a)) : s.sweep)
         const face = (from: Pt, to: Pt): Face => (to.x >= from.x ? 'right' : 'left')
-        return [...salute, { kind: 'walk', to: a }, this.wait(2200, { face: face(a, b), pose: 'wipe', prop: 'broom' }), { kind: 'walk', to: b }, this.wait(2200, { face: face(b, a), pose: 'wipe', prop: 'broom' })]
+        return [...salute, { kind: 'walk', to: a }, this.wait(6500, { face: face(a, b), pose: 'wipe', prop: 'broom' }), { kind: 'walk', to: b }, this.wait(6500, { face: face(b, a), pose: 'wipe', prop: 'broom' })]
       }
       case 'printer':
-        return [...salute, ...go(s.printer, 2200, { pose: 'hold' })]
+        return [...salute, ...go(s.printer, 6000, { pose: 'hold' })]
       case 'tables':
-        return [...salute, ...go(this.pick(s.tables), 2400, { pose: 'wipe', prop: 'cloth' })]
+        return [...salute, ...go(this.pick(s.tables), 7000, { pose: 'wipe', prop: 'cloth' })]
       case 'parcel':
         return [{ kind: 'walk', to: s.door }, this.wait(900, { then: 'parcel' }), ...go(s.printer, 800, { then: 'drop' })]
       case 'tray': {

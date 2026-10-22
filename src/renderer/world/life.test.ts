@@ -20,7 +20,7 @@ describe('what idle agents do with their time', () => {
       if (!plan) continue
       if (plan.kind === 'drink') seen.add(plan.what)
       else if (plan.kind === 'game') {
-        expect([2, 4]).toContain(plan.agents.length)
+        expect(plan.agents.length).toBe(2)
         expect(new Set(plan.agents).size).toBe(plan.agents.length)
         seen.add('game')
       }
@@ -74,7 +74,7 @@ describe('what idle agents do with their time', () => {
     expect(chai.filter((k) => k === 'drink:coffee').length).toBeGreaterThan(chai.length / 2)
   })
 
-  it('two or three idle agents now and then huddle at the whiteboard, never while one is on or when only one is idle', () => {
+  it('two idle agents now and then huddle at the whiteboard, never while one is on or when only one is idle', () => {
     const l = new Life(lcg(13))
     const sizes = new Set<number>()
     for (let i = 0; i < 200; i++) {
@@ -88,6 +88,30 @@ describe('what idle agents do with their time', () => {
       const lone = l.decide(20_000, ['a'], { ...free, huddle: false })
       expect(lone?.kind).not.toBe('huddle')
     }
-    expect([...sizes].sort()).toEqual([2, 3])
+    expect([...sizes]).toEqual([2])
+  })
+
+  it('leaves at least 25 seconds between one plan and the next, so the office is not busy all the time', () => {
+    const l = new Life(lcg(21))
+    let first = null
+    for (let i = 0; i < 200 && !first; i++) first = l.decide(1000, ['a', 'b'], free)
+    expect(first).not.toBeNull()
+    for (let i = 0; i < 24; i++) expect(l.decide(1000, ['a', 'b'], free)).toBeNull()
+  })
+
+  it('plans nothing while two agents are already away from their seats', () => {
+    const l = new Life(lcg(22))
+    for (let i = 0; i < 100; i++) expect(l.decide(60_000, ['a', 'b', 'c'], { ...free, away: 2 })).toBeNull()
+    let any = null
+    for (let i = 0; i < 100 && !any; i++) any = l.decide(60_000, ['a', 'b', 'c'], { ...free, away: 1 })
+    expect(any).not.toBeNull()
+  })
+
+  it('with one already away only one more goes, so never more than two are away: no game or huddle then', () => {
+    const l = new Life(lcg(23))
+    for (let i = 0; i < 300; i++) {
+      const plan = l.decide(60_000, ['a', 'b', 'c', 'd'], { ...free, away: 1, huddle: false })
+      expect(['game', 'huddle']).not.toContain(plan?.kind)
+    }
   })
 })

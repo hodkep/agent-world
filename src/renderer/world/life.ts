@@ -11,10 +11,15 @@ export interface LifeState {
   ritual?: Ritual | null
   /** Whether a whiteboard huddle is on; left out when the office has none to offer. */
   huddle?: boolean
+  /** How many agents are away from their seats now (an errand, a game, a huddle): at most two at once. */
+  away?: number
 }
 
-const GAP_MS: [number, number] = [8000, 16000]
-const FIRST_MS = 6000
+/** The office is calm: at least this long between one plan and the next, and never more than MAX_AWAY agents away from their seats at once. */
+const GAP_MS: [number, number] = [25_000, 50_000]
+const FIRST_MS = 15_000
+const MAX_AWAY = 2
+const RETRY_MS = 5000
 const GAME_CHANCE = 0.45
 const HUDDLE_CHANCE = 0.3
 const RITUAL_CHANCE = 0.7
@@ -36,18 +41,20 @@ export class Life {
   decide(dtMs: number, idle: string[], state: LifeState): LifePlan | null {
     this.wait -= dtMs
     if (this.wait > 0 || idle.length === 0) return null
+    if ((state.away ?? 0) >= MAX_AWAY) return ((this.wait = RETRY_MS / this.speed), null)
+    const room = MAX_AWAY - (state.away ?? 0)
     this.wait = (GAP_MS[0] + this.rand() * (GAP_MS[1] - GAP_MS[0])) / this.speed
     if (state.ritual === 'lunch' && this.rand() < RITUAL_CHANCE) return { kind: 'eat', agent: idle[Math.floor(this.rand() * idle.length)]! }
     if (state.ritual === 'chai' && state.coffee > 0.15 && this.rand() < RITUAL_CHANCE) return { kind: 'drink', agent: idle[Math.floor(this.rand() * idle.length)]!, what: 'coffee' }
-    if (state.huddle === false && idle.length >= 2 && this.rand() < HUDDLE_CHANCE) {
+    if (room >= 2 && state.huddle === false && idle.length >= 2 && this.rand() < HUDDLE_CHANCE) {
       const pool = [...idle]
-      const size = idle.length >= 3 && this.rand() < 0.5 ? 3 : 2
+      const size = 2
       const agents: string[] = []
       while (agents.length < size) agents.push(pool.splice(Math.floor(this.rand() * pool.length), 1)[0]!)
       return { kind: 'huddle', agents }
     }
-    if (!state.game && idle.length >= 2 && this.rand() < GAME_CHANCE) {
-      const seats = idle.length >= 4 && this.rand() < 0.5 ? 4 : 2
+    if (room >= 2 && !state.game && idle.length >= 2 && this.rand() < GAME_CHANCE) {
+      const seats = 2
       const pool = [...idle]
       const agents: string[] = []
       while (agents.length < seats) agents.push(pool.splice(Math.floor(this.rand() * pool.length), 1)[0]!)

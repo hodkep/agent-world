@@ -85,6 +85,35 @@ export class StaffActor {
     return this.held > 0
   }
 
+  /** Standing where he is, not walking. */
+  get standing() {
+    return this.path.length === 0
+  }
+
+  /** Doing nothing but rest: a wait with no pose, prop or job to it, and nothing in his hands. He can be called away from it. */
+  get isResting() {
+    const c = this.current
+    return c?.kind === 'wait' && !c.pose && !c.prop && !c.then && !c.say && this.carrying === ''
+  }
+
+  /** Puts him on a tile at once (for a trial that starts him somewhere). */
+  place(p: Pt) {
+    this.tile = { ...p }
+    this.px = p.x * TILE
+    this.py = p.y * TILE
+  }
+
+  /** Drops whatever he was doing and every step after it, and is free for the director's next job (or the next steps given). */
+  cancel() {
+    this.steps = []
+    this.current = null
+    this.waitLeft = 0
+    this.path = []
+    this.pose = 'stand'
+    this.said = ''
+    this.carrying = ''
+  }
+
   give(steps: Step[]) {
     this.steps.push(...steps)
   }
@@ -225,11 +254,14 @@ export class StaffActor {
           }
           break
         }
-        case 'can':
-          box(x + 2, spot.y, 6, 5, 0x1a1522)
-          box(x + 3, spot.y + 1, 4, 3, 0x6aa0c8)
-          box(x + 8, spot.y + 1, 3, 1, 0x6aa0c8)
+        case 'can': {
+          // Held out in the wipe pose, it is swung: at the office boy.
+          const sw = this.pose === 'wipe' ? Math.round(Math.sin(t / 110) * 3) : 0
+          box(x + 2 + sw, spot.y, 6, 5, 0x1a1522)
+          box(x + 3 + sw, spot.y + 1, 4, 3, 0x6aa0c8)
+          box(x + 8 + sw, spot.y + 1, 3, 1, 0x6aa0c8)
           break
+        }
         case 'cloth': {
           const dx = Math.round(Math.sin(t / 90) * 3)
           box(x + dx, spot.y + 1, 4, 4, 0x1a1522)

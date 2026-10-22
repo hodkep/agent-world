@@ -1,0 +1,99 @@
+import { expect, test } from '@playwright/test'
+import { hireNamed, shotApp } from './shotsKit'
+
+type Page = import('@playwright/test').Page
+const setItem = (page: Page, k: string, v: string) => page.evaluate(([key, val]) => localStorage.setItem(key!, val!), [k, v])
+type Life = { errands: { agent: string; kind: string }[]; boy: { joined: number; noticed: number; caught: number; playing: boolean } }
+
+/** Keeps a record of the errands (most at once, the shortest rest of an agent between two) and the shouts, as the page publishes them. */
+const record = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __calm: { most: number; gap: number; shouts: Set<string>; last: Record<string, number>; was: Set<string> } }
+    w.__calm = { most: 0, gap: Infinity, shouts: new Set(), last: {}, was: new Set() }
+    const stage = document.querySelector('.stage')!
+    new MutationObserver(() => {
+      const l = JSON.parse(stage.getAttribute('data-life') ?? 'null') as Life | null
+      const now = Date.now()
+      const away = new Set((l?.errands ?? []).filter((e) => e.kind !== 'drill').map((e) => e.agent))
+      w.__calm.most = Math.max(w.__calm.most, away.size)
+      for (const a of w.__calm.was) if (!away.has(a)) w.__calm.last[a] = now
+      for (const a of away) if (!w.__calm.was.has(a) && w.__calm.last[a] !== undefined) w.__calm.gap = Math.min(w.__calm.gap, now - w.__calm.last[a]!)
+      w.__calm.was = away
+      for (const x of JSON.parse(stage.getAttribute('data-shouts') ?? '[]') as string[]) w.__calm.shouts.add(x)
+    }).observe(stage, { attributes: true, attributeFilter: ['data-life', 'data-shouts'] })
+  })
+const calm = (page: Page) => page.evaluate(() => { const c = (window as unknown as { __calm: { most: number; gap: number; shouts: Set<string> } }).__calm; return { most: c.most, gap: c.gap, shouts: [...c.shouts] } })
+const life = async (page: Page) => JSON.parse((await page.locator('.stage').getAttribute('data-life')) ?? 'null') as Life | null
+
+test('the office is calm: no more than two agents away at once, and an agent that came back sits for a good while before it goes off again', async () => {
+  test.setTimeout(240_000)
+  const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle', eli: 'idle', fay: 'idle' } })
+  try {
+    const { page } = o
+    // Ten times faster than real, so a minute's rest is six seconds.
+    await setItem(page, 'aw.staffFast', '10')
+    await setItem(page, 'aw.clockHour', '11')
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    await record(page)
+    for (const name of ['ada', 'dee', 'eli', 'fay']) await hireNamed(page, name)
+    await page.waitForTimeout(90_000)
+    const c = await calm(page)
+    expect(c.most).toBeLessThanOrEqual(2)
+    // At least a minute (six seconds here, less a margin) between one errand of an agent and its next.
+    expect(c.gap).toBeGreaterThanOrEqual(5000)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('the office boy joins an idle agent at the carrom board; the supervisor coming from behind catches him, from the front he sees him and leaves', async () => {
+  test.setTimeout(240_000)
+  const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle' } })
+  try {
+    const { page } = o
+    await setItem(page, 'aw.staffFast', '3')
+    await setItem(page, 'aw.clockHour', '11')
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    await record(page)
+    for (const name of ['ada', 'dee']) await hireNamed(page, name)
+    await page.waitForTimeout(3000)
+
+    // He joins an agent at the board.
+    await setItem(page, 'aw.officeCall', 'boyplay')
+    await expect.poll(async () => (await life(page))?.boy.joined, { timeout: 30_000 }).toBe(1)
+    await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 40_000 }).toBe(true)
+
+    // The supervisor comes from the west door, behind him: the can, "Get back to work!", "Ouch!".
+    await setItem(page, 'aw.officeCall', 'boss')
+    await expect.poll(async () => (await life(page))?.boy.caught, { timeout: 60_000 }).toBe(1)
+    await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Get back to work!', 'Ouch!']))
+    expect((await life(page))!.boy.playing).toBe(false)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('an office boy who faces the supervisor sees him, says "Boss!", leaves the game, and the agent says "Hey!"', async () => {
+  test.setTimeout(240_000)
+  const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle' } })
+  try {
+    const { page } = o
+    await setItem(page, 'aw.staffFast', '3')
+    await setItem(page, 'aw.clockHour', '11')
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    await record(page)
+    for (const name of ['ada', 'dee']) await hireNamed(page, name)
+    await page.waitForTimeout(3000)
+    await setItem(page, 'aw.officeCall', 'boyplay')
+    await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 70_000 }).toBe(true)
+    await setItem(page, 'aw.officeCall', 'bosseast')
+    await expect.poll(async () => (await life(page))?.boy.noticed, { timeout: 30_000 }).toBe(1)
+    await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Boss!', 'Hey!']))
+    expect((await life(page))!.boy.playing).toBe(false)
+  } finally {
+    await o.shutdown()
+  }
+})

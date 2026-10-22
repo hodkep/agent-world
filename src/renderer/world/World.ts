@@ -24,6 +24,7 @@ import { Cat } from './cat'
 import { RiderView } from './riders'
 import { Trip } from './trip'
 import { CatBrain } from './catBrain'
+import { bossSees } from './bossSees'
 import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
 import { Guests, type RareEvent, Rare, Rest, type WeatherNow, Weather, ritualAt } from './rituals'
 import { Director, type Face, type Place as StaffPlace, type Scene, type Step, type Then } from './staff'
@@ -87,6 +88,9 @@ const takeCall = () => {
 }
 /** The road in front of the door, in the world's pixels: where a scooter rides in and parks, and where the rider walks to the door. */
 const TRIP = { left: LOT.left, right: LOT.right, laneY: MAP_H + 8 + 27, doorX: LOT.doorX, doorY: MAP_H + 4 }
+/** The boy's seat at the carrom board (the left side, facing it, his back to the west door) and where the supervisor comes from to find him. */
+const BOY_SEAT = { x: 24, y: 5 }
+const BOARD_WEST = { x: 19, y: 5 }
 const HUDDLE_LINES = ['What if we split it?', 'Arrow goes here.', 'Ship it?', 'Draw the boxes first.']
 const calmMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -200,6 +204,15 @@ export class OfficeWorld {
   private ritual: ReturnType<typeof ritualAt> = null
   private readonly napOff = new Map<string, number>()
   private readonly tired = new Set<string>()
+  private readonly cool = new Map<string, number>()
+  // The office boy at the carrom board: how often he joined, saw the supervisor coming, or was caught; when he may play again; and whether the supervisor is on his way to him.
+  private readonly boyStats = { joined: 0, noticed: 0, caught: 0 }
+  private boyBanUntil = 0
+  private boyNextPlay = 0
+  private catching = false
+  private lastFree: string[] = []
+  /** A trial asked for the office boy to join a game as soon as an agent is free. */
+  private wantBoy = false
   private publishedAmbience = ''
   private game: { carrom: Carrom; keys: string[]; started: boolean; endAt: number; waited: number } | null = null
   // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
@@ -779,7 +792,7 @@ export class OfficeWorld {
     const spots = {
       nap: [{ x: 21, y: 5 }, { x: 23, y: 5 }, { x: 19, y: 6 }, { x: 22, y: 6 }].filter(free),
       roam: [...this.places.sweep, this.places.corner],
-      desks: OFFICE.furniture.filter((f) => f.kind === 'desk').map((f) => ({ x: f.x, y: f.y - 1 })).filter(free)
+      desks: OFFICE.furniture.filter((f) => f.kind === 'desk').map((f) => ({ x: f.x + 1, y: f.y - 1 })).filter(free)
     }
     this.cat = new Cat(OFFICE.map, new CatBrain(Math.random, staffSpeed()), spots, spots.nap[0] ?? this.places.corner)
     this.layer.addChild(this.cat.view)
@@ -831,13 +844,15 @@ export class OfficeWorld {
     }
     const bt = boy.at
     const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as Face }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as Face }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as Face }
-    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents, ritual: this.ritual }
+    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents, ritual: this.ritual, catchAt: this.game?.keys.includes('boy') && this.game.started && !this.catching ? BOARD_WEST : null }
   }
 
   /** Staff and idle agents put away: no game, no errand, no confetti. */
   private lifeOff() {
     for (const key of [...this.errands.keys()]) this.cancelErrand(key)
     this.game = null
+    this.catching = false
+    this.staff[0]?.cancel()
     this.carromBoard?.setCoins(null)
     this.confetti.update(1e6)
     this.drill = null
@@ -864,11 +879,18 @@ export class OfficeWorld {
   private endGame() {
     const g = this.game
     this.game = null
+    this.catching = false
     this.carromBoard?.setCoins(null)
     if (!g) return
+    if (g.keys.includes('boy')) {
+      // The office boy gets up and is the director's again; he does not play again for five minutes.
+      this.staff[0]?.cancel()
+      this.boyNextPlay = performance.now() + 300_000 / staffSpeed()
+    }
     for (const key of g.keys) {
       const c = this.chars.get(key)
       this.errands.delete(key)
+      this.restAfter(key)
       if (c) {
         c.errand = false
         c.doing = ''
@@ -877,19 +899,36 @@ export class OfficeWorld {
     }
   }
 
+  /** After anything it did away from its seat an agent sits for one to three minutes before it goes off again, so the office is not on the move all the time. */
+  private restAfter(key: string) {
+    this.cool.set(key, performance.now() + (60_000 + Math.random() * 120_000) / staffSpeed())
+  }
+
   /** Idle agents now and then fetch a cup of water or coffee, or sit down to carrom; every one of them is called back the moment it has work. */
   private lifeTick(dt: number, t: number) {
     for (const [key, e] of [...this.errands]) {
       const c = this.chars.get(key)
       if (!c || c.leaving || (e.kind !== 'drill' && c.activity !== 'idle')) this.cancelErrand(key)
     }
-    const free = [...this.chars.entries()].filter(([, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null).map(([k]) => k)
+    const free = [...this.chars.entries()].filter(([k, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null && (this.cool.get(k) ?? 0) <= t).map(([k]) => k)
     const huddle = [...this.errands.values()].some((e) => e.kind === 'huddle')
-    const plan = this.drill ? null : this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle })
+    const plan = this.drill ? null : this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle, away: [...this.errands.values()].filter((e) => e.kind !== 'drill').length })
     if (plan?.kind === 'drink') this.startDrink(plan.agent, plan.what)
     else if (plan?.kind === 'game') this.startGame(plan.agents)
     else if (plan?.kind === 'eat') this.startEat(plan.agent)
     else if (plan?.kind === 'huddle') this.startHuddle(plan.agents)
+    this.lastFree = free
+    // A trial asks for the boy at the board now: a game of the agents' own makes way for it.
+    if (this.wantBoy && this.game && !this.game.keys.includes('boy')) this.endGame()
+    else if (this.wantBoy && !this.game) {
+      // For a trial an agent's rest after its last errand does not count.
+      const idle = [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '').map(([k]) => k)
+      if (idle.length) ((this.wantBoy = false), this.startBoyGame(idle))
+    }
+    // The office boy, resting, sometimes joins an idle agent at the board: when the supervisor is far off, and not for a while after he was caught or saw him coming.
+    const [boy, sup] = this.staff as [StaffActor, StaffActor]
+    const away = [...this.errands.values()].filter((e) => e.kind !== 'drill').length
+    if (!this.game && !this.drill && away < 2 && t >= this.boyBanUntil && t >= this.boyNextPlay && boy.isResting && Math.hypot(sup.at.x - BOY_SEAT.x, sup.at.y - BOY_SEAT.y) >= 10 && Math.random() < (dt * staffSpeed()) / 120_000) this.startBoyGame(free)
     for (const [key, e] of this.errands) {
       const c = this.chars.get(key)
       if (!c || e.kind === 'game' || e.kind === 'drill') continue
@@ -901,7 +940,7 @@ export class OfficeWorld {
           this.director.sip(e.what!)
         } else {
           c.doing = e.kind === 'eat' ? 'eat' : 'draw'
-          e.left = e.kind === 'eat' ? 7000 : 9000
+          e.left = 30_000 / staffSpeed()
           if (e.kind === 'huddle' && Math.random() < 0.5) this.shouts.say(`huddle:${key}`, HUDDLE_LINES[Math.floor(Math.random() * HUDDLE_LINES.length)]!, 2400, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
         }
       } else if (e.phase === 'do') {
@@ -910,6 +949,7 @@ export class OfficeWorld {
           this.errands.delete(key)
           c.errand = false
           c.doing = ''
+          this.restAfter(key)
           this.route(c, c.activity, false)
         }
       }
@@ -918,11 +958,12 @@ export class OfficeWorld {
     if (g) {
       g.waited += dt
       if (!g.started) {
-        const here = g.keys.every((k) => this.chars.get(k)?.arrived)
+        const here = g.keys.every((k) => (k === 'boy' ? this.boyAtSeat() : this.chars.get(k)?.arrived))
         if (here) {
           g.started = true
           for (const k of g.keys) {
-            const c = this.chars.get(k)!
+            const c = this.chars.get(k)
+            if (!c) continue
             c.doing = 'play'
             c.doingAt = t
             const e = this.errands.get(k)
@@ -957,11 +998,13 @@ export class OfficeWorld {
     for (const c of this.chars.values()) if ((c.doing === 'cheer' || c.doing === 'clap' || c.doing === 'stretch') && t >= c.doingUntil) c.doing = ''
     this.restTick(dt, t)
     this.drillTick(t)
+    this.bossWatch(t)
     this.confetti.update(dt)
     const life = JSON.stringify({
       errands: [...this.errands].map(([agent, e]) => ({ agent, kind: e.kind, what: e.what ?? '', phase: e.phase })),
       game: this.game && { players: this.game.keys, started: this.game.started, strikes: this.game.carrom.strikes, scores: this.game.carrom.scores, over: this.game.carrom.over },
       cheers: this.cheered,
+      boy: { ...this.boyStats, playing: !!this.game?.keys.includes('boy'), at: this.staff[0] ? { x: this.staff[0].at.x, y: this.staff[0].at.y } : null },
       doing: [...this.chars].filter(([, c]) => c.doing === 'nap' || c.doing === 'stretch').map(([agent, c]) => ({ agent, doing: c.doing })),
       coffee: Math.round(this.director.coffee * 100) / 100
     })
@@ -982,7 +1025,7 @@ export class OfficeWorld {
     const spot: Spot = { x: place.to.x, y: place.to.y, facing: place.face, ox: 0, seated: false }
     c.errand = true
     c.goTo(spot)
-    this.errands.set(key, { kind: 'drink', what, phase: 'go', left: 2600, spot })
+    this.errands.set(key, { kind: 'drink', what, phase: 'go', left: (25_000 + Math.random() * 20_000) / staffSpeed(), spot })
   }
 
   private startGame(agents: string[]) {
@@ -994,6 +1037,7 @@ export class OfficeWorld {
       const c = this.chars.get(key)
       const [x, y, facing] = seats[i]!
       const spot: Spot = { x, y, facing, ox: 0, seated: false }
+      if (key === 'boy') return this.boySits(spot)
       if (!c) return
       c.errand = true
       c.goTo(spot)
@@ -1001,6 +1045,68 @@ export class OfficeWorld {
     })
   }
 
+
+  private boyAtSeat() {
+    const boy = this.staff[0]!
+    return boy.at.x === BOY_SEAT.x && boy.at.y === BOY_SEAT.y && boy.standing
+  }
+
+  /** The office boy walks to his seat at the board and stays there, in the pose of one playing, until the game ends or he is called away. */
+  private boySits(spot: Spot) {
+    const boy = this.staff[0]!
+    this.boyStats.joined++
+    boy.cancel()
+    boy.give([{ kind: 'walk', to: { x: spot.x, y: spot.y } }, { kind: 'wait', ms: 3_600_000, face: 'right', pose: 'wipe' }])
+  }
+
+  /** He joins an idle agent at the board. */
+  private startBoyGame(free: string[]) {
+    if (this.game || !free.length) return
+    this.startGame(['boy', free[Math.floor(Math.random() * free.length)]!])
+  }
+
+  /** He sees the supervisor coming: "Boss!", he leaves the game (the agent says "Hey!") and cleans for a while. */
+  private boyNotices(t: number) {
+    const g = this.game
+    if (!g) return
+    const boy = this.staff[0]!
+    const other = g.keys.find((k) => k !== 'boy')
+    this.shouts.say('boy-boss', 'Boss!', 1600, () => ({ x: boy.view.x + TILE / 2, y: boy.view.y - 28 }))
+    const c = other ? this.chars.get(other) : undefined
+    if (c) this.shouts.say('boy-hey', 'Hey!', 1600, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
+    this.boyStats.noticed++
+    this.boyBanUntil = t + 90_000 / staffSpeed()
+    this.endGame()
+    boy.give(this.director.cleaning(this.sceneFor(boy), 90_000))
+  }
+
+  /** The supervisor's can has landed on the office boy, who had his back to him: "Ouch!", a salute, and back to work, with no carrom for three minutes. */
+  private boyCaught(t: number) {
+    const g = this.game
+    this.catching = false
+    if (!g?.keys.includes('boy')) return
+    const boy = this.staff[0]!
+    this.shouts.say('boy-ouch', 'Ouch!', 1600, () => ({ x: boy.view.x + TILE / 2, y: boy.view.y - 28 }))
+    this.boyStats.caught++
+    this.boyBanUntil = t + 180_000 / staffSpeed()
+    this.endGame()
+    boy.give([{ kind: 'wait', ms: Math.round(1100 / staffSpeed()), face: 'down', pose: 'salute' }, ...this.director.cleaning(this.sceneFor(boy), 90_000)])
+  }
+
+  /** While the office boy plays, the supervisor's walk towards him is watched: the boy sees him or does not. */
+  private bossWatch(t: number) {
+    const g = this.game
+    if (!g?.keys.includes('boy') || !g.started || this.catching) return
+    const [boy, sup] = this.staff as [StaffActor, StaffActor]
+    const n = bossSees(boy.at, 'right', sup.at)
+    if (n === 'sees') this.boyNotices(t)
+    else if (n === 'behind') {
+      // He has not seen him: the supervisor walks up behind him and swings his can.
+      this.catching = true
+      sup.cancel()
+      sup.give([{ kind: 'walk', to: { x: boy.at.x - 1, y: boy.at.y } }, { kind: 'wait', ms: Math.round(1400 / staffSpeed()), face: 'right', pose: 'wipe', prop: 'can', say: 'Get back to work!', then: 'hit' }])
+    }
+  }
 
   /** An idle agent goes for its lunch to the bistro table or the fridge. */
   private startEat(key: string) {
@@ -1166,6 +1272,11 @@ export class OfficeWorld {
       const call = takeCall()
       if (call === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
+      const sup = this.staff[1]!
+      if (call === 'boyplay') this.wantBoy = true
+      else if (call === 'boss') (sup.cancel(), sup.give([{ kind: 'walk', to: BOARD_WEST }]))
+      // From the east he is in front of the boy, who sees him.
+      else if (call === 'bosseast') (sup.cancel(), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
       let ev: RareEvent | null = null
       if (call === 'drill' || call === 'cut' || call === 'pigeon') ev = this.rare.call(call)
       else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(dt)
@@ -1318,6 +1429,9 @@ export class OfficeWorld {
           break
         case 'brew':
           this.director.brew()
+          break
+        case 'hit':
+          this.boyCaught(t)
           break
         default:
           boy.release()
@@ -1568,6 +1682,7 @@ export class OfficeWorld {
     c.view.destroy({ children: true })
     c.overlay.destroy({ children: true })
     this.chars.delete(key)
+    this.cool.delete(key)
     this.rest.forget(key)
     this.tired.delete(key)
     this.napOff.delete(key)
