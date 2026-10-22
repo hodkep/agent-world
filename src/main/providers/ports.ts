@@ -191,7 +191,9 @@ export interface EventSourceOptions {
   /** The provider found the name of the agent's conversation (its first one, or after a restart): the app keeps it to resume. */
   onSession?: (agentId: string, sessionId: string) => void
   /** Text to add to what an agent is told each time you send it a message (a rule it must not drift from, what its message points at), or null. */
-  reminderFor?: (agentId: string, prompt: string) => string | null
+  reminderFor?: (agentId: string, prompt: string, origin: HookOrigin) => string | null | Promise<string | null>
+  /** Is the process on the other end of this hook call (by its local port) the agent's own program, and not a command that program ran? */
+  callerIsProgram?: (agentId: string, clientPort: number) => Promise<boolean>
   /** The agent is about to edit `file` (in a session started in `cwd`): why it must wait, or null to let it. The program is told no, with the reason. */
   blockEdit?: (agentId: string, file: string, cwd: string) => string | null
   /** The agent is about to call a tool, with what it was given. */
@@ -257,6 +259,12 @@ export interface MailSetup {
   removeStale?(bin: string, name: string): Promise<void>
 }
 
+/** Where a hook call came from, asked for only when it matters. */
+export interface HookOrigin {
+  /** The call was made by the agent's own program, not by a command it ran. False when that cannot be told. */
+  fromProgram: () => Promise<boolean>
+}
+
 /** What a provider's hooks may ask of the library: the line to add for a message, and a note that a file was read. */
 export interface LibraryHookIO {
   remind(prompt: string): string
@@ -265,6 +273,8 @@ export interface LibraryHookIO {
   editBlock?(file: string): string | null
   /** The office's tools reach this agent, so its program may be told how to call them. */
   officeTools?: boolean
+  /** This agent's own saved conversation, which the app resolves from its record: used instead of any path the caller sends. */
+  transcriptPath?: string
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
@@ -295,6 +305,8 @@ export interface Provider {
   readonly bin: string
   readonly capabilities: Capabilities
   /** Answers this program's own hooks (a plugin it was given calls the office, which asks here), for one that has them. */
+  /** Where this program saves an agent's conversation as its hook reads it, resolved from the agent's record. */
+  readonly hookTranscript?: (agent: AgentRecord) => string
   readonly libraryHook?: (event: string, payload: Record<string, unknown>, io: LibraryHookIO) => Record<string, unknown>
   /** Is it here, and usable? `run` lets tests answer instead of starting a program. */
   detect(bin: string, run?: (file: string, args: string[]) => Promise<string>): Promise<Detection>

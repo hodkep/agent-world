@@ -86,6 +86,8 @@ import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { createRemoteGates } from './remoteGates'
+import { UNPROVEN } from './remoteReply'
+import { fromAgentProgram, peerPids } from './peerPid'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
 import { cancelNeed } from './needCancel'
 import { PR_GO, WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
@@ -1158,7 +1160,8 @@ async function main() {
       if (top && ![...childAsks.values()].includes(top)) send('agent-event', { type: 'activity', agentId: top, sessionId: byId(top)?.sessionId ?? '', activity: lastActivity.get(top) ?? 'delegating' })
     },
     onStatus: onStats,
-    reminderFor: (id, prompt) => promptContext(id, prompt) || null,
+    reminderFor: async (id, prompt, origin) => promptContext(id, prompt, remote.touches(id, prompt) ? await origin.fromProgram() : false) || null,
+    callerIsProgram: async (id, port) => fromAgentProgram((await peerPids(port)) ?? [], sessions.get(id)?.pid, process.pid),
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
     onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
     onCompact: (id) => libraryService.refresh(id),
@@ -1255,7 +1258,14 @@ async function main() {
   // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
   const landingHeld = new HeldMerges()
   // What is added to a message before the agent reads it, for any provider's prompt hook: the answer to a typed reply that decides a gate, then the library's reminder.
-  const promptContext = (id: string, prompt: string) => [remote.reply(id, prompt), libraryRemind(id, prompt)].filter(Boolean).join('\n\n')
+  // `proven`: a message that is, or looks like, a decision on a gate was shown to come from the person (see remoteReply); without it the gate is left alone.
+  // What the app itself reads in the provider's saved conversation (written by the program, not sent by the caller): does its latest user message say this?
+  const savedAs = (a: AgentRecord, prompt: string) => {
+    const said = providerOf(a).transcript.readAll(a).findLast((i) => i.kind === 'user')
+    const same = (x: string) => x.replace(/\s+/g, ' ').trim()
+    return said?.kind === 'user' && same(said.text) === same(prompt)
+  }
+  const promptContext = (id: string, prompt: string, proven: boolean) => [remote.touches(id, prompt) ? (proven ? remote.reply(id, prompt) : UNPROVEN) : null, libraryRemind(id, prompt)].filter(Boolean).join('\n\n')
   // The decisions a typed reply can make, and the hint that tells the agent their words: one for every provider's prompt hook and gate text.
   const remote = createRemoteGates({ workflows, held: landingHeld, send: (c) => send(c), afterAudit: (id) => void askForPr(id), isRemote: (id) => !!byId(id)?.options?.remote })
   const mcp = await startMcpServer({
@@ -1373,7 +1383,7 @@ async function main() {
         return {}
       }
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), remind: (prompt) => promptContext(id, prompt), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), transcriptPath: providerOf(a).hookTranscript?.(a), remind: (prompt) => promptContext(id, prompt, remote.touches(id, prompt) && savedAs(a, prompt)), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,

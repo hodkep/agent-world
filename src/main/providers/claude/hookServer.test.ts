@@ -6,7 +6,7 @@ type Server = Awaited<ReturnType<typeof startHookServer>>
 let server: Server | undefined
 afterEach(() => server?.close())
 
-async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, prompt: string) => string | null, blockEdit?: (id: string, file: string, cwd: string) => string | null) {
+async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, prompt: string, origin: { fromProgram: () => Promise<boolean> }) => string | null | Promise<string | null>, blockEdit?: (id: string, file: string, cwd: string) => string | null, callerIsProgram?: (id: string, port: number) => Promise<boolean>) {
   const tools: [string, string, unknown][] = []
   const compacted: string[] = []
   const toolInputs: [string, string][] = []
@@ -17,6 +17,7 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
   server = await startHookServer({
     reminderFor,
     blockEdit,
+    callerIsProgram,
     onToolUse: (id, tool, input) => tools.push([id, tool, input]),
     onCompact: (id) => compacted.push(id),
     onStatus: (s) => stats.push(s),
@@ -175,6 +176,16 @@ describe('hook server', () => {
     expect(events.at(-1)).toMatchObject({ activity: 'running', tool: 'Bash', detail: 'rm -rf build' })
   })
 
+  it('lets the reminder ask where the call came from: the port of its connection goes to the app, which says whether it is the program\'s own', async () => {
+    const asked: [string, number][] = []
+    const { server: s } = await setup(5_000, async (_id, _prompt, origin) => ((await origin.fromProgram()) ? 'from the program' : 'not the program'), undefined, async (id, port) => (asked.push([id, port]), port > 0 && asked.length === 1))
+    const first = await post(s.url, { hook_event_name: 'UserPromptSubmit', prompt: 'x' })
+    expect(await first.text()).toContain('from the program')
+    const second = await post(s.url, { hook_event_name: 'UserPromptSubmit', prompt: 'x' })
+    expect(await second.text()).toContain('not the program')
+    expect(asked[0]![0]).toBe('a1')
+    expect(Number.isInteger(asked[0]![1])).toBe(true)
+  })
   it('adds a reminder to what Claude is told each time a message is sent, for the agent that has one, and only then', async () => {
     const { server } = await setup(5_000, (id) => (id === 'a1' ? 'Reminder: terse (always).' : null))
     const res = await post(server.url, { session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'hi' })

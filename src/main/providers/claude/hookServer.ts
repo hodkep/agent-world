@@ -131,7 +131,9 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
       if (why) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: why } }))
     }
     if (hookEvent === 'PostCompact') o.onCompact?.(agentId)
-    const reminder = hookEvent === 'UserPromptSubmit' ? o.reminderFor?.(agentId, typeof p.prompt === 'string' ? p.prompt : '') : null
+    const clientPort = req.socket.remotePort
+    const origin = { fromProgram: async () => clientPort !== undefined && !!(await o.callerIsProgram?.(agentId, clientPort)) }
+    const reminder = hookEvent === 'UserPromptSubmit' ? await o.reminderFor?.(agentId, typeof p.prompt === 'string' ? p.prompt : '', origin) : null
     if (reminder) return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: reminder } }))
     res.writeHead(200).end()
   })

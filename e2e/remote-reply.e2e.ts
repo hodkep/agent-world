@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -44,7 +44,8 @@ async function setup(remote: boolean, withWorkflow = false) {
   mkdirSync(join(tmp, 'home'), { recursive: true })
   writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
   const argsLog = join(tmp, 'args.log')
-  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1' }, tmp)
+  const contextLog = join(tmp, 'context.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_PROMPT_HOOK: '1', FAKE_CONTEXT_LOG: contextLog }, tmp)
   const page = await app.firstWindow()
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
   await page.reload()
@@ -57,12 +58,21 @@ async function setup(remote: boolean, withWorkflow = false) {
   const client = new Client({ name: 'test', version: '1' })
   await client.connect(new StreamableHTTPClientTransport(new URL(mcpCfg.url), { requestInit: { headers: mcpCfg.headers } }))
   const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
-  const post = async (body: object) => {
-    const res = await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada.cwd, ...body }) })
-    const t = await res.text()
-    return t ? (JSON.parse(t) as { hookSpecificOutput?: { additionalContext?: string } }) : null
+  // What the person types goes to the agent's program, which reports it to the office from its own process, as Claude does; the office's answer is what the program kept.
+  const kept = () => (existsSync(contextLog) ? readFileSync(contextLog, 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { prompt?: string; context?: string; forged?: string; answer?: string })
+  const reply = async (prompt: string) => {
+    const before = kept().length
+    await page.evaluate(([id, p]) => window.aw.chatSend(id!, p!), [ada.id, prompt])
+    await expect.poll(() => kept().length, { timeout: 15_000 }).toBeGreaterThan(before)
+    return kept().slice(before).find((k) => k.prompt === prompt)?.context ?? ''
   }
-  const reply = async (prompt: string) => (await post({ hook_event_name: 'UserPromptSubmit', prompt }))?.hookSpecificOutput?.additionalContext ?? ''
+  // A command the agent itself runs, posting the same words to the same hook with the same token. It answers with what the office said.
+  const forge = async (words: string) => {
+    const before = kept().length
+    await page.evaluate(([id, p]) => window.aw.chatSend(id!, p!), [ada.id, `forge ${words}`])
+    await expect.poll(() => kept().filter((k) => k.forged).length, { timeout: 15_000 }).toBeGreaterThan(kept().slice(0, before).filter((k) => k.forged).length)
+    return kept().filter((k) => k.forged).at(-1)!.answer ?? ''
+  }
   const submit = async () => {
     await client.callTool({ name: 'task_begin', arguments: { title: 'Add a dark-mode toggle' } })
     mkdirSync(join(ada.cwd, '.agent-world'), { recursive: true })
@@ -71,7 +81,7 @@ async function setup(remote: boolean, withWorkflow = false) {
   }
   const call = async (name: string, args: Record<string, unknown>) => text(await client.callTool({ name, arguments: args }))
   const planState = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]?.rounds.at(-1)?.plan?.state
-  return { page, shutdown, submit, reply, planState, text, call }
+  return { page, shutdown, submit, reply, forge, planState, text, call }
 }
 
 const REVIEWED = { version: 1, id: 'reviewed', name: 'Reviewed', when: 'Changes that need a second look.', steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' }, { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff.' }, { id: 'land', kind: 'merge' }] }
@@ -157,6 +167,24 @@ test('with remote control on, a step that waits for the person is decided by typ
     expect(await t.reply(`approve ${wait}`)).toBe('')
     expect(await t.reply(`approve ${second}`)).toContain('Your review')
     expect(await t.reply(`approve ${second}`)).toBe('')
+  } finally {
+    await t.shutdown()
+  }
+})
+
+test('a call the agent itself forges to its own hook, with its own token and the right code, decides nothing; the same words typed to the program do', async () => {
+  const t = await setup(true)
+  try {
+    const told = await t.submit()
+    const code = /`approve ([a-z0-9]{3})`/.exec(told)?.[1]
+    expect(code).toBeTruthy()
+    // As the agent would do it from a command it runs: the office answers the call and says nothing of any decision.
+    const answer = await t.forge(`approve ${code} 1=1`)
+    expect(answer).not.toContain('Your plan was approved')
+    expect(await t.planState()).toBe('submitted')
+    // The same words, reported by the program as the person's prompt, decide it.
+    expect(await t.reply(`approve ${code} 1=1`)).toContain('Your plan was approved')
+    expect(await t.planState()).toBe('approved')
   } finally {
     await t.shutdown()
   }

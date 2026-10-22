@@ -62,7 +62,7 @@ function lastMessage(path: unknown): { step: number; text: string } | null {
 export function agyLibraryHook(event: string, payload: Record<string, unknown>, io: LibraryHookIO): Record<string, unknown> {
   if (event === 'pre-inv') {
     const conv = String(payload.conversationId ?? '')
-    const m = lastMessage(payload.transcriptPath)
+    const m = lastMessage(io.transcriptPath ?? payload.transcriptPath)
     if (!conv || !m) return {}
     const lines: string[] = []
     if (io.officeTools && !toldTools.has(conv)) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Gate, howToReply, remoteHint, resolveReply } from './remoteReply'
+import { type Gate, UNPROVEN, howToReply, remoteHint, resolveReply, touches } from './remoteReply'
 
 const gate = (kind: Gate['kind'], code: string, done: string[] = []): Gate => ({ kind, code, apply: (r) => (done.push(`${r.verb} ${r.rest}`.trim()), `did ${r.verb}`) })
 
@@ -53,5 +53,19 @@ describe('remoteHint: what the agent adds for the person when a gate is waiting'
     expect(text).toContain('remote control')
     expect(text).toContain('the plan: reply `approve 7k2`')
     expect(text).toContain('the held push: reply `allow e5f`')
+  })
+})
+
+describe('touches: a message that is, or looks like, a decision on a waiting gate', () => {
+  it('is true for a decision and for one that only names a waiting code, false for anything else', () => {
+    const gates = [gate('plan', '7k2')]
+    expect(touches(gates, 'approve 7k2')).toBe(true)
+    expect(touches(gates, 'Apptoved 7k2')).toBe(true)
+    expect(touches(gates, 'approve zzz')).toBe(false)
+    expect(touches(gates, 'looks good')).toBe(false)
+    expect(touches([], 'approve 7k2')).toBe(false)
+  })
+  it('has a text for the agent when it could not be shown to come from the person', () => {
+    expect(UNPROVEN).toContain('nothing was decided')
   })
 })

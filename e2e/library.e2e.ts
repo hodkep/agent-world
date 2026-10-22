@@ -190,7 +190,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     // agy's plugin calls the office's hook route with the token in its environment: it answers with a line to inject (the path of the skill, which agy can read without asking), once per message, and counts a read of the skill's file.
     await expect.poll(() => read(envLog).trim().split('\n').filter((l) => l.includes('"token":"')).length).toBeGreaterThan(0)
     const started = JSON.parse(read(envLog).trim().split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).at(-1)!) as { url: string; token: string }
-    const transcript = join(agyHome, 'brain', 'conv-1', '.system_generated', 'logs', 'transcript_full.jsonl')
+    // The conversation is the agent's own, which the app resolves from its record: a path named in the call is not used.
+    const bob = (await page.evaluate(() => window.aw.listAgents())).find((x) => x.name === 'bob')!
+    const transcript = join(agyHome, 'brain', bob.sessionId, '.system_generated', 'logs', 'transcript_full.jsonl')
     mkdirSync(join(transcript, '..'), { recursive: true })
     writeFileSync(transcript, JSON.stringify({ step_index: '0', type: 'USER_INPUT', content: '<USER_REQUEST>\nsplit this pdf into pages\n</USER_REQUEST>' }) + '\n')
     const call = async (event: string, body: object) =>
