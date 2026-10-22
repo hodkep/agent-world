@@ -16,6 +16,7 @@ import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, r
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { remoteState } from './remoteState'
+import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
@@ -156,7 +157,7 @@ const spawnedAt = new Map<string, number>()
 const LIMITS_FRESH_MS = 120_000
 const polled: LimitWindow[][] = []
 let limitsAt = 0
-async function pollLimits() {
+async function askLimits() {
   limitsAt = Date.now()
   polled.length = 0
   await Promise.all(
@@ -180,6 +181,8 @@ async function pollLimits() {
     })
   )
 }
+// Asking again while a poll runs waits for that poll: the list is emptied when it starts, so a second asker would otherwise be handed nothing.
+const pollLimits = singleFlight(askLimits)
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
 const lastStats = new Map<string, AgentStats>()
@@ -1479,7 +1482,7 @@ async function main() {
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => limitsBook.tightest())
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
-    if (refresh || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
+    if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
     const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
