@@ -3409,6 +3409,9 @@ svg.pxg { display: block; flex: none; }
 .swa-pick { padding-left: 22px; cursor: pointer; }
 .swa-pick input, .swa-proj input { flex: none; margin: 0; }
 .swa-note { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.swa-cap { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 6px; font-size: 12px; } .swa-cap span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+.swa-chip.blink { animation: wt-blink 1.4s steps(2) infinite; }
+@media (prefers-reduced-motion: reduce) { .swa-chip.blink { animation: none; } }
 .swa-bar { height: 8px; margin: 0 0 8px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
 .swa-bar i { display: block; height: 100%; background: var(--think); }
 .swa-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 2px solid var(--ink); }

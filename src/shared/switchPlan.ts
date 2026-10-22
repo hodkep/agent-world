@@ -21,11 +21,14 @@ export interface SwitchAgent {
 /** Mid-turn, or waiting on one of your permission requests: the account cannot change under it until it is stopped. Idle and waiting for your message are not. */
 export const isWorking = (a: SwitchAgent) => a.online && !['idle', 'waiting', null].includes(a.activity)
 
-/** What happened to one agent in a "switch all" run; `stopping` is progress, the rest are final. */
+/** How many agents a "switch all" run restarts at once: every one relaunching in the same moment swamped a computer with a big office. */
+export const SWITCH_BATCH = 3
+
+/** What happened to one agent in a "switch all" run; `stopping` and `starting` are progress, the rest are final. `left` is one the run never reached because the person stopped it. */
 export interface SwitchResult {
   id: string
   name: string
-  state: 'stopping' | 'moved' | 'continued' | 'failed'
+  state: 'stopping' | 'starting' | 'moved' | 'continued' | 'failed' | 'left'
   error?: string
 }
 

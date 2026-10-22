@@ -217,6 +217,8 @@ export interface AwApi {
   /** Moves every agent that can change account to `account`. With `stopWorking`, the agents mid-turn are stopped first and told to continue after the move; without it only the idle ones move. Says what happened to each. */
   /** `ids` limits it to those agents (one already on the account is restarted on it); without it every agent not on the account moves. */
   switchAllAgents(account: string, stopWorking: boolean, ids?: string[]): Promise<import('./switchPlan').SwitchResult[]>
+  /** Asks the run in progress to start no more agents: those running finish, the rest stay as they were. */
+  stopSwitch(): Promise<void>
   /** Progress of a switch-all run, one agent at a time. */
   onAccountsSwitch(cb: (r: import('./switchPlan').SwitchResult) => void): () => void
   /** Continue that conversation as a new agent. */
