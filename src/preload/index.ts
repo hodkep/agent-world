@@ -48,6 +48,7 @@ const api: AwApi = {
   setAccount: (id, account) => ipcRenderer.invoke('agent-set-account', id, account),
   accountAgents: () => ipcRenderer.invoke('accounts:agents'),
   switchAllAgents: (account, stopWorking, ids) => ipcRenderer.invoke('accounts:switch-all', account, stopWorking, ids),
+  stopSwitch: () => ipcRenderer.invoke('accounts:switch-stop'),
   onAccountsSwitch: on('accounts-switch'),
   resumeSession: (folder, id) => ipcRenderer.invoke('resume-session', folder, id),
   manageTools: (id, action) => ipcRenderer.invoke('manage-tools', id, action),

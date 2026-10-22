@@ -549,7 +549,7 @@ export function App() {
   useEffect(
     () =>
       window.aw.onAccountsSwitch((r) => {
-        if (r.state === 'stopping') return
+        if (r.state === 'stopping' || r.state === 'starting' || r.state === 'left') return
         void window.aw.listAgents().then(setAgents)
         void lookLimits(true)
       }),

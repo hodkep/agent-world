@@ -66,7 +66,8 @@ import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { Mailbox } from './mailbox'
-import { SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
+import { inBatches } from '../shared/pool'
+import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
 import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
@@ -2526,32 +2527,53 @@ async function main() {
     for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (!sessions.has(id) || ['idle', 'waiting', undefined].includes(lastActivity.get(id))) return true
     return false
   }
-  // Moves every agent of a program that keeps accounts to `account`. A working agent is stopped first (the move refuses mid-turn), and once it is back up on the new account it is told to continue.
+  // The agent has shown its input box again (or is gone): a relaunch is done. A slow one is not failed; the next just goes on after this long.
+  const waitReady = async (id: string, ms = 30_000) => {
+    for (const end = Date.now() + ms; Date.now() < end && sessions.has(id) && mailbox.isStarting(id); ) await new Promise((r) => setTimeout(r, 250))
+  }
+  // The run in progress, for "Stop after these".
+  let switching: { stop: boolean } | null = null
+  // Moves every agent of a program that keeps accounts to `account`, SWITCH_BATCH at a time: all of them relaunching at once swamped a computer. A working agent is stopped first (the move refuses mid-turn), and once it is back up on the new account it is told to continue.
   const switchAllAgents = async (account: string, stopWorking: boolean, ids?: string[]): Promise<SwitchResult[]> => {
     const plan = planSwitch(switchAgents(), account, (p) => !!accountsSvc.support(p as ProviderId), ids ? new Set(ids) : undefined)
     const working = new Set(plan.stop.map((a) => a.id))
+    const run = { stop: false }
+    switching = run
+    const report = (line: SwitchAgent, state: SwitchResult['state'], error?: string) => {
+      const r: SwitchResult = { id: line.id, name: line.name, state, ...(error ? { error } : {}) }
+      send('accounts-switch', r)
+      return r
+    }
     const one = async (line: SwitchAgent): Promise<SwitchResult> => {
-      const report = (state: SwitchResult['state'], error?: string) => {
-        const r: SwitchResult = { id: line.id, name: line.name, state, ...(error ? { error } : {}) }
-        send('accounts-switch', r)
-        return r
-      }
       try {
         const stopped = working.has(line.id)
         if (stopped) {
-          report('stopping')
+          report(line, 'stopping')
           interruptAgent(line.id)
-          if (!(await waitStopped(line.id))) return report('failed', 'It did not stop within 12 seconds, so it stays on its old account.')
+          if (!(await waitStopped(line.id))) return report(line, 'failed', 'It did not stop within 12 seconds, so it stays on its old account.')
         }
+        const live = sessions.has(line.id)
         moveAgentAccount(line.id, account, true)
+        // A running agent is relaunched: it holds its place until its input box is back, which is what keeps the next ones from starting with it.
+        if (live) {
+          report(line, 'starting')
+          await waitReady(line.id)
+        }
         if (stopped) mailbox.fromPerson(line.id, SWITCH_CONTINUE)
-        return report(stopped ? 'continued' : 'moved')
+        return report(line, stopped ? 'continued' : 'moved')
       } catch (e) {
-        return report('failed', (e as Error).message)
+        return report(line, 'failed', (e as Error).message)
       }
     }
-    return Promise.all((stopWorking ? [...plan.stop, ...plan.quiet] : plan.quiet).map(one))
+    const lines = stopWorking ? [...plan.stop, ...plan.quiet] : plan.quiet
+    try {
+      const done = await inBatches(lines, SWITCH_BATCH, one, () => run.stop)
+      return done.map((r, i) => r ?? report(lines[i]!, 'left'))
+    } finally {
+      if (switching === run) switching = null
+    }
   }
+  ipcMain.handle('accounts:switch-stop', () => void (switching && (switching.stop = true)))
   ipcMain.handle('accounts:agents', () => switchAgents())
   ipcMain.handle('accounts:switch-all', (_, account: string, stopWorking: boolean, ids?: string[]) => switchAllAgents(String(account ?? ''), !!stopWorking, Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : undefined))
   // Switch permission mode. The modes in Claude's Shift+Tab cycle change live; others need a relaunch between turns,
