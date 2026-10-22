@@ -32,11 +32,12 @@ export function waitsForPerson(runs: Run[], ctxFor: (run: Run) => StepContext, h
   const add = (run: Run, kind: WaitKind) => out.push({ agentId: run.agent, run, kind })
   for (const { run } of pendingPlans(runs)) if (run.status !== 'stopped') add(run, 'plan')
   for (const c of checkPanels(runs, ctxFor)) add(c.run, 'check')
-  for (const { run } of waitingSteps(runs, { auditOn: true })) add(run, 'approve')
+  for (const r of runs) for (const { run } of waitingSteps([r], ctxFor(r))) add(run, 'approve')
   for (const run of runs) {
     if (run.status === 'stopped' || !run.workflow) continue
     for (const s of stepStates(run, ctxFor(run))) {
-      if (s.state !== 'waiting') continue
+      // A step that waits for the person's approval was counted above, as an approval.
+      if (s.state !== 'waiting' || s.awaiting) continue
       if (s.kind === 'audit') add(run, 'audit')
       if (isLanding(s.kind)) add(run, landWait(run))
     }

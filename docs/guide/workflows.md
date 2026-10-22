@@ -8,7 +8,7 @@ Off by default: **Settings**, then **Features**.
 
 - **Workflows** adds a **Workflow** tab to each agent and a top bar button.
 - **Plan gate** (on by default): an agent waits for your approval of its plan before it edits.
-- **Merge gate** (on by default): the pull request waits for an approved plan and seen findings.
+- **Merge gate** (on by default): the pull request waits for an approved plan and seen findings, and then for your own approval: a **Pull request** step with no gate of its own follows this switch.
 - The dial sets how much care each task takes: [The three dials](#the-three-dials).
 
 ## What an agent does with a workflow
@@ -19,7 +19,7 @@ The default is **Standard** (**Plan**, **Build**, **Audit**, **Pull request**), 
 2. Writes a plan to `.agent-world/plan.md` (goal, assumptions, out of scope, questions).
 3. Waits for your approval, then builds.
 4. Has any **check** steps run, and its branch reviewed against the plan (not at **Economy**).
-5. Is told to open the pull request once the audit has passed (the app says so in the chat, so you do not have to ask): it pushes a branch whose head is exactly the audited commit, under any name. Commits go on its own branch only; a commit on another branch of its worktree is refused, and a push of a branch with other commits is held.
+5. Is told to open the pull request once the audit has passed and, when the step's gate asks for it, you approved (the app says so in the chat, so you do not have to ask): it pushes a branch whose head is exactly the audited commit, under any name. Commits go on its own branch only; a commit on another branch of its worktree is refused, and a push of a branch with other commits is held.
 
 While a run is open, a new request the agent announces is an **item** of that run, not another run: one track, one audit of the whole branch, one pull request. The agent is told to rewrite its plan to cover the item and call `plan_submit`, which you approve as the whole plan. The **Workflow** tab lists the items. A task begun after the run was done, landed or stopped, or a request that continues the last task (`follow_up`), is as before.
 
@@ -37,6 +37,8 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - Commits until the plan is approved, and, while the gate holds it, a push of its branch (a **Pull request** step) or a merge into the base branch (a **Land** step): by git, for every program.
 - Checks and the review: the app runs them.
 - **The pull request**: git holds the push unless the gate is met or you **Set aside** what holds it. A push that goes through ends the run.
+- **Approval**: a step whose gate is **approve** (an audit or a pull request; a pull request with no gate while the merge gate is on) shows the same card as any step you approve, with **Approve** and **Send back**. Nothing is pushed and the agent is not told to push until you approve; a commit made after your approval asks again. With gate **auto** the app acts at once and the bar says what it is doing. A merge needs no second approval: your click on Land is it.
+- A push the app did not see (git run with its settings off) is noticed when the audited commit shows up on a remote branch: the run is recorded as pushed without the hold, and the bar moves on.
 
 ![The audit card at the end of the conversation, with the findings to look at](../images/workflow-audit-card.png)
 

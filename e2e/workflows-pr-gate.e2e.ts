@@ -9,7 +9,7 @@ const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/
 
 const PULL = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
 
-async function office(name: string, findings = FINDINGS) {
+async function office(name: string, findings = FINDINGS, flow: object = PULL) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), `aw-${name}-`)))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -41,7 +41,7 @@ async function office(name: string, findings = FINDINGS) {
   const log = join(home, 'runs.jsonl')
   const t = Date.now()
   appendFileSync(log, [
-    { k: 'begin', t: t - 5000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a dark-mode toggle', workflow: PULL },
+    { k: 'begin', t: t - 5000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a dark-mode toggle', workflow: flow },
     { k: 'plan', t: t - 4000, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a dark-mode toggle to Settings.', assumptions: [], outOfScope: ['A theme per project.'], questions: [] } },
     { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' }
   ].map((e) => JSON.stringify(e)).join('\n') + '\n')
@@ -83,6 +83,13 @@ test('a pull request waits for the audit on every branch pushed: other commits a
 
     // Seen: nothing holds the push any more, and the app tells the agent to open the pull request.
     await page.evaluate((id) => window.aw.finishSeen(id, [0]), ada.id)
+    // The step has no gate of its own and the Settings merge gate is on, so the person approves the push; the agent is told to push only then.
+    appendFileSync(join(o.tmp, 'home', 'runs.jsonl'), [{ k: 'step', t: Date.now(), run: 'r1', round: 1, step: 'build', state: 'done' }, { k: 'done', t: Date.now() + 1, run: 'r1' }].map((e) => JSON.stringify(e)).join('\n') + '\n')
+    await expect.poll(() => page.evaluate(() => window.aw.workflows.summary().then((s) => s.runs[0]!.status)), { timeout: 20_000 }).toBe('done')
+    // The log was written by hand, so the window is not told: it is loaded again.
+    await page.reload()
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await page.getByRole('region', { name: 'Step from ada' }).getByRole('button', { name: 'Approve' }).click()
     await expect(page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user', { hasText: 'has passed' })).toBeVisible({ timeout: 20_000 })
 
     // Other commits are refused whatever the name; the audited head goes through as a copy.
@@ -97,6 +104,50 @@ test('a pull request waits for the audit on every branch pushed: other commits a
     expect(extra.out).toContain('fix/extra holds commits the audit has not looked at')
     expect((await o.as('push', 'origin', 'fix/copy')).ok).toBe(true)
     expect(o.git(o.tmp + '/remote.git', 'branch', '--list', 'fix/copy')).toContain('fix/copy')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a pull request step with gate approve waits for the person: the push is held and the agent is not told to push until Approve, and a push made with the hooks off is noticed', async () => {
+  test.setTimeout(120_000)
+  const gated = { ...PULL, steps: (PULL.steps as { kind: string }[]).map((s) => (s.kind === 'pr' ? { ...s, gate: 'approve' } : s)) }
+  const o = await office('wfprapprove', JSON.stringify({ findings: [] }), gated)
+  try {
+    const { ada, page } = o
+    // The audit finds nothing, so only the person's approval is left.
+    await expect.poll(async () => { const r = await o.as('push', 'origin', ada.branch!); return r.out }, { timeout: 30_000 }).toContain("'Pull request' has not been approved.")
+    // The agent says it is done: now the step's turn has come and the person is asked.
+    appendFileSync(join(o.tmp, 'home', 'runs.jsonl'), [{ k: 'step', t: Date.now(), run: 'r1', round: 1, step: 'build', state: 'done' }, { k: 'done', t: Date.now() + 1, run: 'r1' }].map((e) => JSON.stringify(e)).join('\n') + '\n')
+    // The log was written by hand, so the window is not told: it is loaded again.
+    await page.reload()
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const card = page.getByRole('region', { name: 'Step from ada' })
+    await expect(card).toContainText('nothing is pushed until you approve', { timeout: 20_000 })
+    await expect(page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user', { hasText: 'has passed' })).toHaveCount(0)
+    expect(o.pushed()).toBe('')
+
+    // Approved: the card goes, the agent is told to push, and the push goes through.
+    await card.getByRole('button', { name: 'Approve' }).click()
+    await expect(card).toHaveCount(0)
+    await expect(page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user', { hasText: 'has passed' })).toBeVisible({ timeout: 20_000 })
+    expect((await o.push()).ok).toBe(true)
+    await expect.poll(o.landed, { timeout: 20_000 }).toMatchObject({ how: 'checked' })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('a push made with the hooks off is noticed: the run is recorded as pushed without the hold, and the track moves on', async () => {
+  test.setTimeout(120_000)
+  const o = await office('wfprnotice', JSON.stringify({ findings: [] }))
+  try {
+    const { ada } = o
+    // git as an agent that unset the office's settings runs it: no hook sees the push.
+    execFileSync('git', ['push', 'origin', `${ada.branch!}:copy`], { cwd: ada.cwd, encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_CONFIG') && !k.startsWith('AW_'))) as NodeJS.ProcessEnv })
+    expect(o.git(o.remote, 'branch', '--list', 'copy')).toContain('copy')
+    await expect.poll(o.landed, { timeout: 40_000 }).toMatchObject({ how: 'anyway' })
+    expect(((await o.landed()) as { held: string[] }).held.join(' ')).toContain('hold')
   } finally {
     await o.shutdown()
   }

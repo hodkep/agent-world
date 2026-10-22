@@ -92,7 +92,22 @@ describe('where a run is on its track', () => {
     const run = reduceRuns([{ ...begin, workflow: PULL }, submitted(), planned('approved'), done('build'), { k: 'done', t: 700, run: 'r1' } as RunEvent])[0]!
     const t = trackOf(run, ctx)!
     expect(t.at).toBe(2)
-    expect(t.waiting).toBe('ready for a pull request: ask the agent')
+    // The audit has not run yet.
+    expect(t.waiting).toBe('waiting for the audit')
+  })
+
+  it('says what each landing step waits for by its gate: the person\'s approval, the push that follows it, or the office doing it by itself', () => {
+    const audited: RunEvent = { k: 'audit', t: 650, run: 'r1', head: 'h1', state: 'done', findings: [], files: 1, lines: 1, truncated: false }
+    const run = (wf: RunWorkflow, extra: RunEvent[] = []) => reduceRuns([{ ...begin, workflow: wf }, submitted(), planned('approved'), done('build'), audited, { k: 'done', t: 700, run: 'r1' } as RunEvent, ...extra])[0]!
+    const gated: RunWorkflow = { ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: 'approve' as const } : s)) }
+    const approved: RunEvent = { k: 'step', t: 800, run: 'r1', round: 1, step: 'pr', state: 'approved' }
+    expect(trackOf(run(gated), ctx)!.waiting).toBe('needs your approval')
+    expect(trackOf(run(PULL), { ...ctx, mergeGate: true })!.waiting).toBe('needs your approval')
+    expect(trackOf(run(gated, [approved]), ctx)!.waiting).toBe('approved: the agent pushes it')
+    expect(trackOf(run(PULL), { ...ctx, mergeGate: false })!.waiting).toBe('audit passed: the agent is told to push')
+    // A merge is the person's own click on Land: the bar only says it is ready.
+    const merge: RunWorkflow = { ...JOURNEY, steps: JOURNEY.steps.filter((x) => x.kind !== 'check') }
+    expect(trackOf(run(merge), ctx)!.waiting).toBe('ready to land: ask the agent')
   })
 
   it('has a pill for a push git held, not a land', () => {

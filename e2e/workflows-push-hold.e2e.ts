@@ -50,6 +50,8 @@ async function office(name: string, findings = FINDINGS, remote = false) {
   writeFileSync(join(ada!.cwd, 'toggle.ts'), 'export const dark = true\n')
   git(ada!.cwd, 'add', '-A')
   git(ada!.cwd, 'commit', '-qm', 'add toggle')
+  // These tests are about what else holds a push: the person already approved the pull request step (an hour ahead, so it is after any commit however late the app notes it).
+  appendFileSync(log, JSON.stringify({ k: 'step', t: t + 3_600_000, run: 'r1', round: 1, step: 'pr', state: 'approved' }) + '\n')
   const remoteDir = join(tmp, 'remote.git')
   git(tmp, 'init', '-q', '--bare', remoteDir)
   git(repo, 'remote', 'add', 'origin', remoteDir)

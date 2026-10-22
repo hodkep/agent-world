@@ -2002,9 +2002,13 @@ async function main() {
     const run = workflows.runs().find((r) => r.id === runId)
     const text = typeof note === 'string' ? note.slice(0, 2000).trim() : ''
     workflows.approveStep(runId, String(step), decision === 'changes' ? 'changes' : 'approved', { note: text })
-    const name = run?.workflow?.steps.find((s) => s.id === step)?.name ?? String(step)
-    if (run) mailbox.fromOffice(run.agent, stepReply(name, decision === 'changes' ? 'changes' : 'approved', text))
+    const target = run?.workflow?.steps.find((s) => s.id === step)
+    const name = target?.name ?? String(step)
+    const answer = decision === 'changes' ? 'changes' : 'approved'
+    // An approved pull request is answered by the go-ahead to push, which is sent below; every other answer is typed into the agent.
+    if (run && !(target?.kind === 'pr' && answer === 'approved')) mailbox.fromOffice(run.agent, stepReply(name, answer, text, target?.kind))
     send('workflows')
+    if (run && answer === 'approved') void askForPr(run.agent)
   })
   // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.
   ipcMain.handle('workflows:check-approval', (_, runId: string) => {
@@ -2354,6 +2358,29 @@ async function main() {
       // Not ready to be asked about (git failed): the next change to the audit asks again.
     }
   }
+  // A push the office never saw (git run with its hooks off): when the head of a run that ends in a pull request is already on a remote branch other than the base, it is recorded
+  // as pushed without the hold, so the track does not wait for a push that has happened.
+  const noticePushes = async () => {
+    for (const a of agents) {
+      if (!a.branch || workflows.landKind(a.id) !== 'pr') continue
+      try {
+        const head = await git(a.cwd, 'rev-parse', a.branch)
+        if (workflows.landedHead(a.id, head)) continue
+        const base = a.base ?? (await checkedOutBranch(a.repoPath))
+        if (Number(await git(a.cwd, 'rev-list', '--count', `${base}..${head}`)) === 0) continue
+        const remotes = (await git(a.cwd, 'for-each-ref', '--points-at', head, '--format=%(refname:short)', 'refs/remotes')).split('\n').filter((r) => r && !r.endsWith('/HEAD') && !r.endsWith(`/${base}`))
+        if (!remotes.length) continue
+        workflows.landing(a.id, head, { anyway: true, unchecked: true })
+        landingHeld.clear(a.id)
+        send('workflows')
+        send('landing')
+      } catch {
+        // Git failed for this agent (gone folder, no remote): the next look tries again.
+      }
+    }
+  }
+  const noticing = setInterval(() => void noticePushes(), 20_000)
+  app.on('before-quit', () => clearInterval(noticing))
   autoAudit = async (id) => {
     const a = byId(id)
     if (!a?.branch) return

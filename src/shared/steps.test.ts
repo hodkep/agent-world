@@ -110,6 +110,12 @@ describe('what the person\'s answer to a step says to the agent', () => {
     expect(stepReply('Your review', 'changes', 'Make it smaller.')).toBe('Your step "Your review" was sent back: Make it smaller. Make the change, then call step_done again.')
     expect(stepReply('Your review', 'changes')).toBe('Your step "Your review" was sent back. Make the change, then call step_done again.')
   })
+
+  it('a pull request, merge or audit that is sent back has no step_done to call: commit the change, and the audit and the approval come again', () => {
+    expect(stepReply('Pull request', 'changes', 'Smaller, please.', 'pr')).toBe('Your step "Pull request" was sent back: Smaller, please. Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.')
+    expect(stepReply('Audit', 'changes', undefined, 'audit')).toBe('Your step "Audit" was sent back. Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.')
+    expect(stepReply('Land', 'approved', undefined, 'merge')).toBe('Your step "Land" was approved.')
+  })
 })
 
 describe('the steps waiting for the person across runs', () => {
@@ -249,5 +255,67 @@ describe('when the app starts the audit by itself', () => {
     expect(ready([begin(REVIEWED), decided('released'), step('fix', 'done')])).toBe(false)
     const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'x' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
     expect(ready([begin(CHECKED), step('build', 'done')])).toBe(false)
+  })
+})
+
+describe('a step that needs the person\'s own approval: the audit, the pull request and the merge', () => {
+  const audit = (t = 500): RunEvent => ({ k: 'audit', t, run: 'r1', head: 'h1', state: 'done', findings: [], files: 1, lines: 4, truncated: false })
+  const commit = (t: number): RunEvent => ({ k: 'commit', t, run: 'r1', sha: `c${t}`, subject: 's' })
+  const landed = (t = 900): RunEvent => ({ k: 'merge', t, run: 'r1', head: 'h1', how: 'checked', held: [] })
+  const gated = (gate?: 'approve' | 'auto'): RunWorkflow => ({ ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, ...(gate && { gate }) } : s)) })
+  const flow = (wf: RunWorkflow, extra: RunEvent[] = []) => [begin(wf), decided('released'), step('build', 'done'), audit(), ...extra]
+  const last = (events: RunEvent[], ctx: Parameters<typeof stepStates>[1] = { auditOn: true }) => stepStates(reduceRuns(events)[0]!, ctx).at(-1)!
+
+  it('a pull request with gate approve waits for the person once the audit is met, and does not wait with gate auto', () => {
+    expect(last(flow(gated('approve')))).toMatchObject({ id: 'pr', state: 'waiting', awaiting: true })
+    expect(last(flow(gated('auto')))).toMatchObject({ id: 'pr', state: 'waiting' })
+    expect(last(flow(gated('auto'))).awaiting).toBeUndefined()
+  })
+
+  it('with no gate of its own it follows the Settings merge gate: on asks, off or unknown does not', () => {
+    expect(last(flow(gated()), { auditOn: true, mergeGate: true }).awaiting).toBe(true)
+    expect(last(flow(gated()), { auditOn: true, mergeGate: false }).awaiting).toBeUndefined()
+    expect(last(flow(gated())).awaiting).toBeUndefined()
+    // An own gate beats the switch.
+    expect(last(flow(gated('auto')), { auditOn: true, mergeGate: true }).awaiting).toBeUndefined()
+  })
+
+  it('once approved it no longer waits, and says so; a commit made after the approval takes the approval away', () => {
+    const ok = [commit(450), step('pr', 'approved', 700)]
+    expect(last(flow(gated('approve'), ok))).toMatchObject({ state: 'waiting', approved: true })
+    expect(last(flow(gated('approve'), ok)).awaiting).toBeUndefined()
+    expect(last(flow(gated('approve'), [...ok, commit(800)]))).toMatchObject({ state: 'waiting', awaiting: true })
+    expect(last(flow(gated('approve'), [...ok, commit(800)])).approved).toBeUndefined()
+  })
+
+  it('is gated before its turn too, so a push made while the build is still open is held', () => {
+    const open = [begin(gated('approve')), decided('released')]
+    expect(last(open)).toMatchObject({ id: 'pr', state: 'pending', gated: true })
+    expect(last(open).awaiting).toBeUndefined()
+    expect(last(flow(gated('approve'), [step('pr', 'approved', 700)])).gated).toBeUndefined()
+    expect(last(flow(gated('auto'))).gated).toBeUndefined()
+  })
+
+  it('met when it landed; a merge never asks for a second approval, since the person\'s click on Land is the approval', () => {
+    expect(last(flow(gated('approve'), [step('pr', 'approved', 700), landed()])).state).toBe('passed')
+    const merge: RunWorkflow = { ...STANDARD, steps: STANDARD.steps.map((s) => (s.kind === 'merge' ? { ...s, gate: 'approve' as const } : s)) }
+    expect(last(flow(merge), { auditOn: true, mergeGate: true })).toMatchObject({ id: 'land', state: 'waiting' })
+    expect(last(flow(merge), { auditOn: true, mergeGate: true }).awaiting).toBeUndefined()
+  })
+
+  it('an audit with gate approve waits for approval after its findings are looked at, and is met after it; with gate auto it is met at once', () => {
+    const wf = (gate?: 'approve' | 'auto'): RunWorkflow => ({ ...PULL, steps: PULL.steps.map((s) => (s.kind === 'audit' ? { ...s, ...(gate && { gate }) } : s)) })
+    const at = (g: 'approve' | 'auto' | undefined, extra: RunEvent[] = []) => stepStates(reduceRuns(flow(wf(g), extra))[0]!, { auditOn: true }).find((s) => s.kind === 'audit')!
+    expect(at('approve')).toMatchObject({ state: 'waiting', awaiting: true })
+    expect(at('approve', [step('review', 'approved', 700)]).state).toBe('passed')
+    expect(at('auto').state).toBe('passed')
+    expect(at(undefined).state).toBe('passed')
+  })
+
+  it('every step that waits for the person by approval is listed with the steps waiting for the person', () => {
+    const waiting = (events: RunEvent[], ctx = { auditOn: true, mergeGate: true }) => waitingSteps(reduceRuns(events), ctx).map((w) => w.step.id)
+    expect(waiting(flow(gated('approve')))).toEqual(['pr'])
+    expect(waiting(flow(gated('approve'), [step('pr', 'approved', 700)]))).toEqual([])
+    expect(waiting(flow(gated('auto')))).toEqual([])
   })
 })
