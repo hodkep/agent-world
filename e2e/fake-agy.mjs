@@ -96,12 +96,42 @@ const footer = (left) => {
   return left.padEnd(W - right.length) + right
 }
 const draw = (lines) => process.stdout.write('\x1b[2J\x1b[H' + lines.join('\r\n'))
-const idle = (shown = '') => draw(['', '  Antigravity CLI 1.2.17', '  Gemini 3.8 Flash (High)', '', rule, `> ${shown}`, rule, footer('? for shortcuts')])
+// --remote-control: like real agy, the screen says where the session can be taken over (FAKE_REMOTE_REFUSE=<text> says it cannot instead).
+const remoteLines = !args.includes('--remote-control') ? [] : process.env.FAKE_REMOTE_REFUSE ? [`  ${process.env.FAKE_REMOTE_REFUSE}`] : ['> /remote-control', '  ⎿  Remote control on for this session.', `     Open https://antigravity.google.com/r/${conv}-v2 on another device to take over.`]
+const idle = (shown = '') => draw(['', '  Antigravity CLI 1.2.17', '  Gemini 3.8 Flash (High)', ...remoteLines, '', rule, `> ${shown}`, rule, footer('? for shortcuts')])
 const working = (said) => draw(['', `> ${said}`, '⣷  Generating...', rule, '>', rule, footer('esc to cancel')])
 const asking = (cmd) => draw(['', '● Bash(' + cmd + ') (ctrl+o to expand)', 'Command', rule, 'Requesting permission for:', `   ${cmd}`, 'Run this command?', '> 1. Yes, run command', "  2. Yes, and always allow in this conversation for commands that start with 'x'", '  3. Yes, and always allow for commands that start with \'x\' (Persist to settings.json)', '  4. No, cancel', '  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command', footer('esc to cancel')])
 
 // /btw: a side question, answered in a box of "┃" lines over the screen while the agent stays free.
 const btwBox = (q, answer) => draw(['', `┃ /btw ${q}`, '┃ ', answer === null ? '┃ ⣽  Thinking...' : `┃   ${answer}`, ...(answer === null ? [] : ['┃ Tab to expand · Enter/Esc to dismiss']), rule, '>', rule, footer('? for shortcuts')])
+// A message with "ask" in it makes agy use ask_question (FAKE_ASK is its questions, FAKE_ASK_LOG gets what was chosen); one with "outside" makes it ask about a file
+// outside the workspace, with the three answers real agy gives (FAKE_FILE_LOG gets the number chosen).
+const ASK = JSON.parse(process.env.FAKE_ASK ?? JSON.stringify([{ question: 'Where?', options: ['A', 'B', 'C'], multi: false }, { question: 'Which channels?', options: ['X', 'Y', 'Z'], multi: true }]))
+let qi = 0
+let qat = 0
+let qticks = []
+let qtyping = null
+let qpicked = []
+const qreset = () => ((qat = 0), (qticks = (ASK[qi]?.options ?? []).map(() => false)), (qtyping = null))
+const askBox = () => {
+  const cur = ASK[qi]
+  const rows = [...cur.options, 'Write-in...'].map((l, i) => `${i === qat ? '>' : ' '} ${i + 1}. ${cur.multi && i < cur.options.length ? `[${qticks[i] ? 'x' : ' '}] ` : ''}${l}`)
+  const hint = qtyping !== null ? '  enter Submit · esc Back' : `  ↑/↓ Navigate · ${cur.multi ? '← Back · space Toggle · enter Submit All' : qi < ASK.length - 1 ? '→ Next · enter Select' : 'enter Select'} · esc Skip`
+  draw(['', ...ASK.map((x) => `? ${x.question}`), 'Question', rule, `Question ${qi + 1}/${ASK.length}: ${cur.question}`, ...rows, ...(qtyping !== null ? ['  Your answer:', `  ${qtyping}`] : []), hint, footer('esc to cancel')])
+}
+const askNext = (answer) => {
+  qpicked.push(answer)
+  qi++
+  qreset()
+  if (qi < ASK.length) return askBox()
+  if (process.env.FAKE_ASK_LOG) appendFileSync(process.env.FAKE_ASK_LOG, JSON.stringify(qpicked) + '\n')
+  addStep(132, 3, Buffer.concat([varint(1, 132), stamp(), msg(5, msg(4, str(1, 'call_q'), str(2, 'ask_question'))), msg(140, msg(2, str(1, qpicked.map((p, i) => `A${i + 1}: ${p}`).join('\n'))))]))
+  state = 'idle'
+  idle()
+}
+const FILE_ROWS = ['Yes, allow creation', 'Yes, and always allow non-workspace access', 'No, deny creation']
+let fileAt = 0
+const fileBox = () => draw(['', '● Edited 1 file (x.txt)', '', 'Create file', rule, '/private/tmp/x/x.txt  +1', '  1  +  hi', 'Reason: outside workspace', 'Allow creation of this file?', ...FILE_ROWS.map((r, i) => `${i === fileAt ? '>' : ' '} ${i + 1}. ${r}`), '  ↑/↓ Navigate · tab Amend · f full diff', footer('esc to cancel')])
 let typed = ''
 let state = 'idle'
 let timer
@@ -156,6 +186,19 @@ const submit = (text) => {
     }, Number(process.env.FAKE_SUB_MS ?? 9000))
     return
   }
+  if (/\bask_question\b/.test(text)) {
+    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(20, msg(7, str(1, 'call_q'), str(2, 'ask_question'), str(3, JSON.stringify({ questions: ASK.map((x) => ({ is_multi_select: x.multi, options: x.options, question: x.question })) }))))]))
+    qi = 0
+    qpicked = []
+    qreset()
+    state = 'question'
+    return askBox()
+  }
+  if (/outside/.test(text)) {
+    state = 'filing'
+    fileAt = 0
+    return fileBox()
+  }
   if (/permission/.test(text)) {
     state = 'asking'
     return asking('touch note.txt')
@@ -198,6 +241,32 @@ process.stdin.on('data', (d) => {
       return idle(typed)
     }
     return rewindPanel()
+  }
+  if (state === 'question') {
+    const cur = ASK[qi]
+    const last = cur.options.length
+    if (qtyping !== null) {
+      if (s === '\r') return askNext(qtyping)
+      qtyping += s
+    } else if (s === '\x1b[B') qat = Math.min(last, qat + 1)
+    else if (s === '\x1b[A') qat = Math.max(0, qat - 1)
+    else if (s === ' ' && cur.multi && qat < last) qticks[qat] = !qticks[qat]
+    else if (s === '\x1b[C' && cur.multi) return askNext(qticks.flatMap((t, i) => (t ? [cur.options[i]] : [])).join(', '))
+    else if (s === '\r') {
+      if (qat === last) qtyping = ''
+      else return askNext(cur.multi ? qticks.flatMap((t, i) => (t ? [cur.options[i]] : [])).join(', ') : cur.options[qat])
+    }
+    return askBox()
+  }
+  if (state === 'filing') {
+    if (s === '\x1b[B') fileAt = Math.min(2, fileAt + 1)
+    else if (s === '\x1b[A') fileAt = Math.max(0, fileAt - 1)
+    else if (s === '\r' || s === '\x1b') {
+      if (process.env.FAKE_FILE_LOG) appendFileSync(process.env.FAKE_FILE_LOG, `${s === '\x1b' ? 3 : fileAt + 1}\n`)
+      state = 'idle'
+      return idle()
+    }
+    return fileBox()
   }
   if (state === 'asking') {
     if (s === '\r') {

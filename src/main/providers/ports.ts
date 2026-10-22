@@ -61,6 +61,9 @@ export interface Btw {
 }
 
 
+/** What a screen says about remote control: the link, the program's refusal, or nothing yet. */
+export type RemoteRead = { link: string } | { unavailable: string } | null
+
 /** Reads one provider's terminal screen, and drives its menus with keys. A screen is the rendered text. */
 export interface ScreenAdapter {
   /** The "do you trust this folder?" menu of a first run. */
@@ -88,6 +91,8 @@ export interface ScreenAdapter {
   typedText?(screen: string): string
   /** The model and effort the screen's footer names, for a provider that reports no statistics itself. */
   readModel?(screen: string): { model: string; effort: string | null } | null
+  /** Whether the screen shows the remote-control link or the program refusing it (a provider with the `remote` capability). */
+  readRemote?(screen: string): RemoteRead
   /** The side-question overlay, if it is showing. */
   btwOverlay(screen: string): Btw | null
 }
@@ -220,6 +225,8 @@ export interface PastSession {
 export interface TranscriptSource {
   /** Follows the conversation, calling `onItems`; `replace` means the items are the whole conversation now (after a rewind). */
   follow(agent: AgentRecord, onItems: (items: ChatItem[], replace: boolean) => void): { start(): void; stop(): void; poll?(): void }
+  /** Whether the program has already saved a session file for this agent, which it will only reopen, never start again under the same id. */
+  exists?(agent: AgentRecord): boolean
   /** The whole saved conversation, read once. */
   readAll(agent: AgentRecord): ChatItem[]
   subagents(agent: AgentRecord): SubagentInfo[]
@@ -256,6 +263,8 @@ export interface LibraryHookIO {
   used(path: string): void
   /** Why an edit to this file must wait, or null when it may go ahead. */
   editBlock?(file: string): string | null
+  /** The office's tools reach this agent, so its program may be told how to call them. */
+  officeTools?: boolean
 }
 
 /** Everything the core needs from an agent program. The core never names a provider; it asks the registry for one. */
@@ -306,6 +315,8 @@ export interface Provider {
   readonly relaunchModes: string[]
   /** The file of standing project notes this program reads, which the Handbook button opens. */
   readonly handbook: string
+  /** What a person needs for remote control with this program, under the switch in the hire form (a provider with the `remote` capability). */
+  readonly remoteNote?: string
   /** How many tokens the named model keeps in context, where known: with it the context is a share, like Claude's, not just a count. */
   contextWindow?(model: string): number | null
   /** What the hire form offers for how much it may do alone; the empty value is the provider's own default. */

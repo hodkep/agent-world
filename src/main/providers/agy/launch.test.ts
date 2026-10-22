@@ -25,6 +25,11 @@ describe('starting agy', () => {
     expect(agyArgs({ agent, files: {}, options: { permissionMode: 'skip-permissions' as never } })).toEqual(['--dangerously-skip-permissions'])
     expect(agyArgs({ agent, files: {}, options: { permissionMode: 'request-review' as never } })).toEqual([])
   })
+  it('asks for a remote connection when the agent is under remote control, with no name for it, and keeps its conversation', () => {
+    expect(agyArgs({ agent, files: {}, options: { remote: true } })).toEqual(['--remote-control'])
+    expect(agyArgs({ agent: { ...agent, started: true }, files: {}, options: { remote: true } })).toEqual(['--conversation', 'conv-1', '--remote-control'])
+    expect(agyArgs({ agent, files: {}, options: { remote: false } })).toEqual([])
+  })
   it('sends the house rules and the job as its first message, only on the first start', () => {
     const first = agyArgs({ agent, files: {}, houseRules: 'Small commits.', options: { instructions: 'Review only.' } })
     expect(first[0]).toBe('-i')

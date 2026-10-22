@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { readdir, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -28,6 +28,7 @@ function file(a: AgentRecord) {
 const read = new Map<string, { size: number; items: ChatItem[] }>()
 
 export const claudeTranscript: TranscriptSource = {
+  exists: (a) => existsSync(file(a)),
   follow: (a, onItems) => new TranscriptTail(file(a), onItems),
   readAll(a) {
     const f = file(a)

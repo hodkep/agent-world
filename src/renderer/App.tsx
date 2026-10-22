@@ -1,7 +1,7 @@
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { BRAND } from '../shared/brand'
 import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Effort, PermissionRequest, Prefs, ProviderId, ProviderInfo, TerminalMenu } from '../shared/types'
+import type { LimitWindow, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, Effort, PermissionRequest, Prefs, ProviderId, ProviderInfo, RemoteState, TerminalMenu } from '../shared/types'
 import { CodePanel, type OpenRequest } from './code/CodePanel'
 import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
@@ -70,6 +70,7 @@ import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { PlanGate } from './workflows/PlanGate'
+import { RemoteHead } from './chat/RemoteControl'
 import { StepCard } from './workflows/StepCard'
 import { RunTrack } from './workflows/RunTrack'
 import { useLandingHolds } from './workflows/useLandingHolds'
@@ -230,6 +231,8 @@ export function App() {
   }, [])
   // What is installed here; first-run setup opens from it, and Settings can open it again.
   const [providers, setProviders] = useState<ProviderInfo[] | null>(null)
+  // Each agent's remote control as the main process last reported it; an agent not listed has it off.
+  const [remotes, setRemotes] = useState<Record<string, RemoteState>>({})
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [setupAgain, setSetupAgain] = useState(false)
   // A provider the hire form sent to setup: its install or sign-in starts as setup opens.
@@ -571,6 +574,7 @@ export function App() {
         if (e.type === 'activity' && !e.subagentId) setAgents((xs) => (xs.some((a) => a.id === e.agentId && !a.started) ? xs.map((a) => (a.id === e.agentId ? { ...a, started: true } : a)) : xs))
       }),
       window.aw.onTerminalMenu((id, m) => setTermMenus((t) => ({ ...t, [id]: m }))),
+      window.aw.onRemote((id, s) => setRemotes((r) => ({ ...r, [id]: s }))),
       window.aw.onQuestionMenu((id, open) => setQuestionMenus((m) => ({ ...m, [id]: open }))),
       window.aw.onPermission((r) => setAsks((q) => [...q, r])),
       window.aw.onPermissionSettled((id) => setAsks((q) => q.filter((r) => r.id !== id))),
@@ -800,6 +804,7 @@ export function App() {
       info={infoOf(a)}
       actions={actionsOf(a)}
       waitingSubagents={waitingOf(a.id)}
+      remote={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities.remote ? (remotes[a.id] ?? { state: 'off' }) : undefined}
       outgoing={outgoingOf(a)}
       onWake={() => wake(a)}
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
@@ -821,6 +826,7 @@ export function App() {
     })
   const cur = current ? stats[current.id] : undefined
   const curProv = current ? providers?.find((p) => p.id === (current.provider ?? DEFAULT_PROVIDER)) : undefined
+  const curRemote = curProv?.capabilities.remote && current ? (remotes[current.id] ?? ({ state: 'off' } as RemoteState)) : undefined
   const cardData: CardData | null = current
     ? {
         id: current.id,
@@ -961,16 +967,17 @@ export function App() {
       if (f) setWorkspaces(await window.aw.activateWorkspace(f))
     })
 
-  const hire = (options: AgentOptions, name: string, base?: string) =>
-    run(async () => {
-      if (!folder) return
-      const a = await window.aw.addAgent(folder, options, name, base)
-      setHiring(false)
-      void refreshWorkspaces()
-      setAgents((xs) => [...xs, a])
-      setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
-      select(a.id)
-    })
+  // A refusal is not caught here: the hire form shows it, where the person is looking.
+  const hire = async (options: AgentOptions, name: string, base?: string, leftover?: 'replace' | 'reuse') => {
+    if (!folder) return
+    setError(null)
+    const a = await window.aw.addAgent(folder, options, name, base, leftover)
+    setHiring(false)
+    void refreshWorkspaces()
+    setAgents((xs) => [...xs, a])
+    setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
+    select(a.id)
+  }
 
   const resume = (sessionId: string) =>
     run(async () => {
@@ -1231,7 +1238,7 @@ export function App() {
     cancelMenu: () => window.aw.cancelMenu(agentId),
     cancelNeed: () => window.aw.cancelNeed(agentId)
   })
-  const decideById = (id: string, d: 'allow' | 'deny') => {
+  const decideById = (id: string, d: Decision) => {
     window.aw.decide(id, d)
     setAsks((q) => q.filter((x) => x.id !== id))
   }
@@ -1357,6 +1364,7 @@ export function App() {
         <Palette
           agentId={current.id}
           agentName={current.name}
+          remote={curProv?.capabilities.remote ? (remotes[current.id] ?? { state: 'off' }) : undefined}
           onClose={() => {
             setPalette(false)
             setFocusTick((n) => n + 1)
@@ -1682,6 +1690,7 @@ export function App() {
                   {modeInfo(state.mode).label}
                 </span>
               )}
+              {curRemote && <RemoteHead agentId={current.id} agentName={current.name} working={!['idle', 'waiting', 'asleep'].includes(state?.activity ?? 'asleep')} remote={curRemote} />}
               {cur && <span className="hc-cost">${cur.costUsd.toFixed(2)}</span>}
               {agents.some((a) => a.id !== current.id && askWord(a.id)) && (
                 <button className="ask-pill" onClick={openSwitcher} title="Another agent is waiting for you">

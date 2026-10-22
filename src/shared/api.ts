@@ -7,7 +7,7 @@ import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
 import type { TodoBoard, TodoStatus } from './todos'
-import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer } from './types'
+import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer, RemoteState, HireLeftover } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
 export type ChangeStatus = 'added' | 'modified' | 'deleted'
@@ -157,7 +157,12 @@ export interface AwApi {
   newWindow(): Promise<void>
   listAgents(): Promise<AgentRecord[]>
   /** `base` starts the agent's branch from, and lands it on, another branch than the one the folder is on. */
-  addAgent(folder: string, options?: AgentOptions, name?: string, base?: string): Promise<AgentRecord>
+  /** `leftover` says what to do when an earlier agent left a branch or folder under the name: delete it and start fresh, or carry on from it. */
+  addAgent(folder: string, options?: AgentOptions, name?: string, base?: string, leftover?: 'replace' | 'reuse'): Promise<AgentRecord>
+  /** Reload this window (the page cannot do it itself: its navigation is locked). */
+  reloadWindow(): Promise<void>
+  /** What an earlier agent left under this name in the folder (null when nothing, or when the hire makes no branch). */
+  hireLeftover(folder: string, name: string, inPlace?: boolean): Promise<HireLeftover | null>
   repoBranches(folder: string): Promise<BranchList>
   /** Relaunch the agent's session with a different model or effort (between turns only). */
   reconfigure(agentId: string, change: Pick<AgentOptions, 'model' | 'effort'>): Promise<void>
@@ -328,6 +333,10 @@ export interface AwApi {
   readImage(agentId: string, path: string): Promise<string>
   /** Switch to a permission mode: live for the ones in Claude's Shift+Tab cycle, by relaunching (same conversation) for the rest. */
   setMode(agentId: string, mode: string): Promise<void>
+  /** Turn remote control (continuing the agent from a phone or the web) on or off; the agent restarts on its own session. */
+  setRemote(agentId: string, on: boolean): Promise<void>
+  /** An agent's remote control changed: waiting for its link, reachable at it, or refused by the program. */
+  onRemote(cb: (agentId: string, state: RemoteState) => void): () => void
   /** Shift+Tab: move to the next permission mode. */
   chatCycleMode(agentId: string): Promise<void>
   /** A choice menu Claude is showing in its own terminal appeared (or, with null, went away). */

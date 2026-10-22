@@ -75,11 +75,11 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
-    stepDone: (callerId: string, step?: string) => { done: string; waiting?: string; checking?: boolean }
+    stepDone: (callerId: string, step?: string) => { done: string; waiting?: string; checking?: boolean; hint?: string }
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
-    submitPlan: (callerId: string, path: string) => Promise<{ questions: number }>
+    submitPlan: (callerId: string, path: string) => Promise<{ questions: number; hint?: string }>
   }
 }
 
@@ -433,8 +433,8 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     },
     async ({ path }) => {
       try {
-        const { questions } = await wf.submitPlan(callerId, path ?? '.agent-world/plan.md')
-        return { content: [{ type: 'text' as const, text: `Plan handed in; it is waiting for the person${questions ? ` (${questions} open question${questions === 1 ? '' : 's'} for them to answer)` : ''}. Do not edit yet: their answer arrives as your next message.` }] }
+        const { questions, hint } = await wf.submitPlan(callerId, path ?? '.agent-world/plan.md')
+        return { content: [{ type: 'text' as const, text: `Plan handed in; it is waiting for the person${questions ? ` (${questions} open question${questions === 1 ? '' : 's'} for them to answer)` : ''}. Do not edit yet: their answer arrives as your next message.${hint ?? ''}` }] }
       } catch (err) {
         return fail(err)
       }
@@ -449,7 +449,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     async ({ step }) => {
       try {
         const r = wf.stepDone(callerId, step)
-        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}` }] }
+        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}${r.waiting ? (r.hint ?? '') : ''}` }] }
       } catch (err) {
         return fail(err)
       }

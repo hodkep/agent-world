@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DirtyWorktreeError, NoCommitsError, createWorktree, checkedOutBranch, hasCommits, isGitRepo, nameTaken, makesBranch, plainGitError, removeWorktree, worktreeFor } from './worktree'
+import { DirtyWorktreeError, NoCommitsError, attachLeftover, createWorktree, leftoverOf, removeLeftover, slug, checkedOutBranch, hasCommits, isGitRepo, nameTaken, makesBranch, plainGitError, removeWorktree, worktreeFor } from './worktree'
 import { repoInfo } from './gitops'
 
 let tmp: string
@@ -169,5 +169,59 @@ describe('whether a hire makes a branch', () => {
     expect(await makesBranch({ repoPath: repo, inPlace: true })).toBe(false)
     expect(await makesBranch({ repoPath: tmp })).toBe(false)
     expect(await makesBranch({ repoPath: fresh })).toBe(false)
+  })
+})
+
+describe('what an earlier agent left under a name', () => {
+  const commit = (cwd: string, file: string) => {
+    writeFileSync(join(cwd, file), 'x\n')
+    git(cwd, 'add', '.')
+    git(cwd, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', file)
+  }
+  it('is nothing when the name is free', async () => {
+    expect(await leftoverOf({ repoPath: repo, name: 'ada', rootDir: root })).toBeNull()
+  })
+  it('counts the commits not in the base and the files not committed, for a branch with its folder', async () => {
+    const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    commit(wt.path, 'a.txt')
+    commit(wt.path, 'b.txt')
+    writeFileSync(join(wt.path, 'c.txt'), 'loose\n')
+    expect(await leftoverOf({ repoPath: repo, name: 'ada', rootDir: root })).toMatchObject({ branch: 'aw/ada', path: wt.path, hasBranch: true, hasFolder: true, registered: true, unmerged: 2, dirty: 1 })
+  })
+  it('knows a branch whose folder is gone, and a folder git does not know', async () => {
+    const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    await removeWorktree({ repoPath: repo, path: wt.path })
+    expect(await leftoverOf({ repoPath: repo, name: 'ada', rootDir: root })).toMatchObject({ hasBranch: true, hasFolder: false, registered: false, unmerged: 0 })
+    const loose = join(root, slug(repo), 'bo')
+    mkdirSync(loose, { recursive: true })
+    writeFileSync(join(loose, 'f.txt'), '1')
+    expect(await leftoverOf({ repoPath: repo, name: 'bo', rootDir: root })).toMatchObject({ hasBranch: false, hasFolder: true, registered: false, dirty: 1 })
+  })
+  it('removes the folder and the branch, whatever was unmerged or uncommitted, so the name is free again', async () => {
+    const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    commit(wt.path, 'a.txt')
+    writeFileSync(join(wt.path, 'c.txt'), 'loose\n')
+    await removeLeftover({ repoPath: repo, name: 'ada', rootDir: root })
+    expect(await nameTaken({ repoPath: repo, name: 'ada', rootDir: root })).toBe(false)
+    expect(existsSync(wt.path)).toBe(false)
+    expect(git(repo, 'worktree', 'list')).not.toContain('ada')
+    // Removing a leftover that is only a branch, or only a loose folder, works too.
+    git(repo, 'branch', 'aw/solo')
+    await removeLeftover({ repoPath: repo, name: 'solo', rootDir: root })
+    expect(await nameTaken({ repoPath: repo, name: 'solo', rootDir: root })).toBe(false)
+  })
+  it('attaches a new hire to the branch with its work, with a new folder when the old one is gone', async () => {
+    const wt = await createWorktree({ repoPath: repo, name: 'ada', rootDir: root })
+    commit(wt.path, 'a.txt')
+    const same = await attachLeftover({ repoPath: repo, name: 'ada', rootDir: root })
+    expect(same).toEqual({ path: wt.path, branch: 'aw/ada', base: 'main' })
+    await removeWorktree({ repoPath: repo, path: wt.path })
+    const again = await attachLeftover({ repoPath: repo, name: 'ada', rootDir: root })
+    expect(again.path).toBe(wt.path)
+    expect(existsSync(join(again.path, 'a.txt'))).toBe(true)
+    expect(git(again.path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('aw/ada')
+  })
+  it('will not attach to a folder git does not know, or to a name with no branch', async () => {
+    await expect(attachLeftover({ repoPath: repo, name: 'ghost', rootDir: root })).rejects.toThrow(/no branch/)
   })
 })

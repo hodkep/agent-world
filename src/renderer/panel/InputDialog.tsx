@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PermissionRequest, Question, QuestionAnswer, TerminalMenu } from '../../shared/types'
+import { fileAccess } from './fileAccess'
+import type { Decision, PermissionRequest, Question, QuestionAnswer, TerminalMenu } from '../../shared/types'
 import { PixelWord } from '../PixelWord'
 import { Markdown } from '../chat/markdown'
 import { splitRecommended } from './recommended'
@@ -11,11 +12,11 @@ export type Need =
   | { kind: 'question'; questions: Question[] }
   | ({ kind: 'menu' } & TerminalMenu)
 
-export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? 'ALLOW?' : n.kind === 'plan' ? 'PLAN' : n.kind === 'menu' ? 'ASKS YOU' : 'QUESTION')
+export const needTitle = (n: Need) => (n.kind === 'trust' ? 'TRUST?' : n.kind === 'permission' ? (n.request.kind === 'file' ? 'FILE ACCESS' : 'ALLOW?') : n.kind === 'plan' ? 'PLAN' : n.kind === 'menu' ? 'ASKS YOU' : 'QUESTION')
 
 export interface NeedActions {
   trust: (yes: boolean) => void
-  decide: (id: string, d: 'allow' | 'deny') => void
+  decide: (id: string, d: Decision) => void
   plan: (choice: 0 | 1 | 2, feedback?: string) => Promise<void>
   answer: (answers: QuestionAnswer[]) => Promise<void>
   menu: (index: number) => Promise<void>
@@ -119,18 +120,51 @@ function Trust({ path, onAnswer }: { path: string; onAnswer: (yes: boolean) => v
   )
 }
 
-function Permission({ req, onDecide }: { req: PermissionRequest; onDecide: (id: string, d: 'allow' | 'deny') => void }) {
+function Permission({ req, onDecide }: { req: PermissionRequest; onDecide: (id: string, d: Decision) => void }) {
+  const file = req.kind === 'file' ? fileAccess(req.tool, req.detail) : null
   return (
     <>
-      <p className="dialog-line">
-        Wants to use <b>{req.tool}</b>
-      </p>
-      <pre className="dialog-code">{req.detail}</pre>
+      {file ? (
+        // A read, a new file or an edit: what is done, to which file, why it asks, and the change itself.
+        <>
+          <div className="fa-row">
+            <span className={`fa-tag ${file.kind === 'NEW FILE' ? 'new' : ''}`}>{file.kind}</span>
+            {file.reason && <span className="fa-tag warn">{file.reason}</span>}
+            {file.summary && <span className="fa-sum">{file.summary}</span>}
+          </div>
+          <div className="fa-path">{file.path}</div>
+          {file.diff.length > 0 && (
+            <pre className="fa-diff" aria-label="The change">
+              {file.diff.map((d, n) => (
+                <span key={n} className={d.sign === '+' ? 'add' : 'del'}>{`${d.sign === '+' ? '+' : '−'} ${d.n}  ${d.text}\n`}</span>
+              ))}
+            </pre>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="dialog-line">
+            Wants to use <b>{req.tool}</b>
+          </p>
+          <pre className="dialog-code">{req.detail}</pre>
+        </>
+      )}
       <div className="dialog-actions">
-        <button className="primary" onClick={() => onDecide(req.id, 'allow')}>
-          Allow
-        </button>
-        <button onClick={() => onDecide(req.id, 'deny')}>Deny</button>
+        {req.options?.length ? (
+          // The program's own answers, in its words and order: the first is the plain yes.
+          req.options.map((label, n) => (
+            <button key={n} className={n === 0 ? 'primary' : ''} onClick={() => onDecide(req.id, { option: n })}>
+              {label}
+            </button>
+          ))
+        ) : (
+          <>
+            <button className="primary" onClick={() => onDecide(req.id, 'allow')}>
+              Allow
+            </button>
+            <button onClick={() => onDecide(req.id, 'deny')}>Deny</button>
+          </>
+        )}
       </div>
     </>
   )

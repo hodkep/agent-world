@@ -65,9 +65,11 @@ test('a permission agy asks for shows as a card in the office, and allowing it c
     await box.press('Enter')
     const ask = page.getByRole('region', { name: 'ada is waiting for you' })
     await expect(ask).toContainText('touch note.txt', { timeout: 15_000 })
-    await ask.getByRole('button', { name: 'Allow' }).click()
+    // The card offers agy's own answers, as its menu words them.
+    await expect(ask.getByRole('button')).toContainText([/Yes, run command/, /always allow in this conversation/, /Persist to settings\.json/, /No, cancel/])
+    await ask.getByRole('button', { name: 'Yes, run command' }).click()
     await expect(ask).toHaveCount(0, { timeout: 10_000 })
-    // Allowing pressed "Yes, run command" in agy's own menu, so it ran and finished its turn.
+    // Choosing the first answer pressed "Yes, run command" in agy's own menu, so it ran and finished its turn.
     await expect(page.locator('.agent-row', { hasText: 'ada' })).toHaveClass(/is-idle/, { timeout: 15_000 })
   } finally {
     await shutdown()

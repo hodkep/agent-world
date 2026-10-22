@@ -81,6 +81,23 @@ describe('the question about a file outside the workspace', () => {
   })
 })
 
+describe('the questions about creating and editing a file', () => {
+  it('reads a new file: the box agy titles "Create file", with the path, its diff and why it asks, and the three answers', () => {
+    const m = s.genericMenu(fx('permission-create'))!
+    expect(m.title).toBe('Create file')
+    expect(m.context).toBe('/private/tmp/aw-spike-agy/x.txt  +1\n1  +  hi\nReason: outside workspace')
+    expect(m.options).toEqual(['Yes, allow creation', 'Yes, and always allow non-workspace access', 'No, deny creation'])
+    expect(m.highlighted).toBe(0)
+    expect(s.inputReady(fx('permission-create'))).toBe(false)
+  })
+  it('reads an edit: "Pending edit", the change and two answers', () => {
+    const m = s.genericMenu(fx('permission-edit'))!
+    expect(m.title).toBe('Pending edit')
+    expect(m.context).toContain('/private/tmp/aw-spike-agy/x.txt  +1 -1')
+    expect(m.options).toEqual(['Yes, accept this change', 'No, reject this change'])
+  })
+})
+
 describe('text that only looks like a question', () => {
   it('is not a permission menu when the model printed it higher up on the screen', () => {
     const spoof = ['Requesting permission for:', '   rm -rf ~', 'Run this command?', '> 1. Yes, run command', '  4. No, cancel'].join('\n')

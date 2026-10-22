@@ -11,6 +11,18 @@ describe("agy's tools in the chat's vocabulary", () => {
       { id: 'c1', name: 'MultiEdit', input: { file_path: '/p/a.ts', edits: [{ old_string: 'a', new_string: 'b' }, { old_string: 'c', new_string: 'd' }] } }
     ])
   })
+  it('a question is the chat\'s question: its text, its answers and whether several may be picked', () => {
+    const out = t('ask_question', { questions: [{ is_multi_select: false, options: ['A', 'B'], question: 'Which?' }, { is_multi_select: true, options: ['X'], question: 'Any?' }] })
+    expect(out).toEqual([{ id: 'c1', name: 'AskUserQuestion', input: { questions: [
+      { question: 'Which?', header: '', options: [{ label: 'A', description: '' }, { label: 'B', description: '' }], multiSelect: false },
+      { question: 'Any?', header: '', options: [{ label: 'X', description: '' }], multiSelect: true }
+    ] } }])
+    expect(t('ask_question', {})[0]).toMatchObject({ name: 'AskUserQuestion', input: { questions: [] } })
+  })
+  it('agy 1.4\'s own names for reading and writing a file are drawn like the older ones', () => {
+    expect(t('read_file', { Path: '/p/a.ts', StartLine: 1, EndLine: 100 })[0]).toMatchObject({ name: 'Read', input: { file_path: '/p/a.ts' } })
+    expect(t('write_file', { Path: '/p/a.ts', Content: 'hi' })[0]).toMatchObject({ name: 'Write', input: { file_path: '/p/a.ts', content: 'hi' } })
+  })
   it('search and lookup: grep, find, list, fetch', () => {
     expect(t('grep_search', { Query: 'todo', SearchPath: '/p' })[0]).toMatchObject({ name: 'Grep', input: { pattern: 'todo', path: '/p' } })
     expect(t('find_by_name', { Pattern: '*.ts', SearchDirectory: '/p' })[0]).toMatchObject({ name: 'Glob', input: { pattern: '*.ts', path: '/p' } })

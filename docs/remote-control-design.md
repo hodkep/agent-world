@@ -1,6 +1,6 @@
 # Remote control: working from a phone or the web without a platform of our own
 
-Status: findings from a spike (2026-10-22) and a proposed design. Nothing is built.
+Status: findings from a spike (2026-10-22) and the design. Built for Claude Code and agy: the setting and its toggles (hire switch, ⋯ menu, palette `/remote-*`, the tag and QR panel in the agent's name row), and typed replies for the four gates (below). Not built: the "also asked on your phone" strip, taking down the app's permission cards when answered on the phone.
 
 ## Why
 
@@ -51,3 +51,31 @@ Rejected: serving the office UI over the LAN or a tunnel of our own (a web platf
 3. The registry of pending decisions behind the existing cards, with the desktop card as its only resolver (a refactor with the same behaviour).
 4. The conversation resolver, with the instruction text for the gates and the code; unit tests for the grammar, an end-to-end spec with a fake program that sends a prompt as a remote client would.
 5. Take down the app's permission and question cards when the provider's prompt was answered elsewhere.
+
+## What is built: typed replies
+
+For an agent with its Remote option on (and only then), a prompt that is exactly a word, a three-character code and what the word takes decides the gate with that code. Nothing is stored: a code is a hash of what waits (plan: run and submission time; step: run, step and how many times it was logged; audit: run and head; push: agent and head), so it is the same after a restart.
+
+| Gate | Words |
+| --- | --- |
+| Plan | `approve CODE`, `approve CODE 1=2, 2=words` (answers to the open questions: option number or words), `changes CODE: what to change`, `release CODE` |
+| Step waiting for approval | `approve CODE`, `changes CODE: what to change` |
+| Audit findings | `seen CODE` or `seen CODE 1,3`, `plan CODE 2` (out-of-scope findings only), `aside CODE` |
+| Held push | `allow CODE`, `decline CODE` |
+
+The prompt hook (`UserPromptSubmit`) runs the reply first (`src/main/remoteReply.ts`) and answers with what the agent is told, the same words the card's button sends, as additional context, so the agent sees one prompt and one fact. A message that only names a waiting code ("Apptoved 7k2") decides nothing and tells the agent to give the person the exact words. The gate texts the agent reads (plan_submit, step_done, the push refusal) carry one more sentence naming each waiting decision and how to answer it, for a remote agent only.
+
+## agy
+
+agy 1.4.4 (spike, 2026-10-22, signed in): `agy --remote-control` takes no name and, after the trust question, prints "Remote control on for this session. … Open https://antigravity.google.com/r/<id>-v2 on another device to take over." The app reads that link as it does Claude's. Typed replies reach the same resolver through agy's `PreInvocation` hook (the plugin's `pre-inv`), which runs once per message and finds the message in the saved conversation. Whether that hook fires for a prompt typed on the remote page is checked by trying it, not assumed; the wording agy uses to refuse remote control is not known, so a refusal is read with the same generic pattern as Claude's.
+
+## Where the code lives
+
+- `src/shared/remoteReply.ts`: the words, the code, the grammar. No provider, no window.
+- `src/main/remoteReply.ts`: the resolver and the hint for the agent.
+- `src/main/remoteGates.ts`: the four gates, built from explicit dependencies; one instance serves every provider.
+- A provider supplies only: its launch switch (`launch`), the link pattern (`remoteReader` in `providers/shared/remoteScreen.ts`), its prompt hook (Claude's `UserPromptSubmit` or agy's `pre-inv`, both calling the app's one `promptContext`), `capabilities.remote`, and `remoteNote` for the hire form.
+
+## agy: questions and file prompts
+
+agy's `ask_question` is read from its saved conversation (the call carries every question and answer) and reported when its box is on the screen; the box ("Question n/m", numbered answers with ticks for several choices, "Write-in…" last) is read by `agy/ask.ts`, which also presses the keys that answer it. A prompt about a file ("File access", "Create file", "Pending edit") is a permission request that carries the program's own answers (`options`); the card shows them as its buttons and answers by position, looking at the screen before each key.

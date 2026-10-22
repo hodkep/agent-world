@@ -1,6 +1,8 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { Btw, GenericMenu, Menu, RewindList, ScreenAdapter, TerminalIO, TrustPrompt } from '../ports'
 import { answerMenu } from '../shared/menu'
+import { driveAnswers, parseAsk } from './ask'
+import { agyRemote } from './remote'
 
 // Direction overrides and zero-width characters let text read differently from what it says; they are never part of what is shown or matched.
 const INVISIBLE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g
@@ -11,7 +13,7 @@ const OPTION = /^\s*(>)?\s*(\d+)\.\s+(\S.*?)\s*$/
 
 const RULE = /^[─━]{8,}$/
 /** The only headings agy puts above the question; anything else above a rule is text, never a name the card may take. */
-const HEADINGS = new Set(['Command', 'MCP', 'File access'])
+const HEADINGS = new Set(['Command', 'MCP', 'File access', 'Create file', 'Pending edit'])
 const FIRST_OPTION = /^>?\s*1\.\s/
 
 /** Numbered answers with agy's hint and footer under them: some question is open and typing now would answer it, whatever it says. */
@@ -220,6 +222,7 @@ function readModel(screen: string) {
 
 export const agyScreen: ScreenAdapter = {
   readModel,
+  readRemote: agyRemote,
   trustPrompt,
   answerTrust: (io, trust) => answerMenu(io, trustMenu, trust ? 0 : 1),
   inputReady: idle,
@@ -229,8 +232,8 @@ export const agyScreen: ScreenAdapter = {
   planMenu: () => null,
   genericMenu: permission,
   answerMenu,
-  parseAsk: () => null,
-  driveAnswers: async () => false,
+  parseAsk,
+  driveAnswers,
   readMode,
   setMode,
   autoUnavailable: () => false,

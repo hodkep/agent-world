@@ -1,8 +1,12 @@
 import { useState } from 'react'
-import { answersOf, unanswered } from '../../shared/plan'
+import { answersOf, planCounts, unanswered } from '../../shared/plan'
 import type { Round, Run } from '../../shared/runs'
 import { checkText } from '../../shared/runStats'
 import { Markdown } from '../chat/markdown'
+import { OutlineIcon } from '../panel/IconButton'
+
+// Which plans the person folded, kept while the app runs: a plan sent again (a new submission) opens expanded.
+const folded = new Set<string>()
 
 type Decide = (state: 'approved' | 'changes' | 'released', o?: { note?: string; answers?: { question: string; answer: string }[] }) => void
 
@@ -14,6 +18,9 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
   const r = plan.readback
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [asking, setAsking] = useState(false)
+  const foldKey = `${run.id}:${plan.submittedAt}`
+  const [fold, setFold] = useState(folded.has(foldKey))
+  const setFolded = (v: boolean) => (v ? folded.add(foldKey) : folded.delete(foldKey), setFold(v))
   const [noting, setNoting] = useState(false)
   const [note, setNote] = useState('')
   const open = unanswered(r, answers)
@@ -24,7 +31,23 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
       <header className="dialog-bar">
         <span className="pg-tag">Plan gate</span>
         <b>Check what {agentName} understood before the build starts</b>
+        <button className="tip-btn pg-fold" aria-expanded={!fold} aria-label={fold ? 'Open the plan' : 'Collapse the plan'} data-tip={fold ? 'Open the plan' : 'Collapse the plan, keep the buttons'} onClick={() => setFolded(!fold)}>
+          <OutlineIcon name="chevron" />
+        </button>
       </header>
+      {fold ? (
+        <div className="pg-sum">
+          <span className="pg-k goal">Goal</span>
+          <div className="pg-sumtext">
+            <div className="pg-text">{md(r.goal)}</div>
+            <small>{planCounts(r, answers)}</small>
+          </div>
+          <div className="pg-acts">
+            <button className="primary" disabled={open.length > 0} title={open.length > 0 ? 'Answer the open question first' : undefined} onClick={() => onDecide('approved', { ...(note.trim() && { note: note.trim() }), answers: given })}>Approve plan</button>
+            <button onClick={() => (setAsking(true), setFolded(false))}>Request changes</button>
+          </div>
+        </div>
+      ) : (
       <div className="pg-body">
         <p className="pg-task">{run.title}</p>
         <div className="pg-row"><span className="pg-k goal">Goal</span><div className="pg-text">{md(r.goal)}</div></div>
@@ -77,6 +100,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
         {checkText(plan.check) && <small className="pg-foot">{checkText(plan.check)}</small>}
         <small className="pg-foot pg-text">{open.length > 0 ? `${open.length} open question${open.length === 1 ? '' : 's'} block approval · ` : ''}{md(`\`${plan.path || 'plan.md'}\``)}</small>
       </div>
+      )}
     </section>
   )
 }

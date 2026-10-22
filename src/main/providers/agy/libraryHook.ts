@@ -8,6 +8,15 @@ import { agyHome } from './transcript'
 const TAIL = 256 * 1024
 // Per conversation: the message (by its step number) the library was last asked about, so the model calls after a tool do not ask again.
 const asked = new Map<string, number>()
+// The conversations already told how to reach the office's tools.
+const toldTools = new Set<string>()
+
+/**
+ * The office's tools are not plain tools for agy: they are the tools of one MCP server, called through call_mcp_tool, with their schemas in files. Without this it
+ * searched the app's own folders, ports and processes for them (dozens of calls) and took "todo#5" for a file.
+ */
+const toolsNote = () =>
+  `The office's tools (task_begin, task_done, todo_update, todo_done, todo_get, todo_list, todo_search, plan_submit, step_done, recall, remember, and the others it names) are tools of the MCP server named agent-world: call them with call_mcp_tool, ServerName "agent-world", ToolName the tool's name, Arguments an object. A tool's arguments are described in ${join(agyHome(), 'mcp', 'agent-world', '<ToolName>.json')}; read that file once if you are unsure. A todo number such as todo#5 is the office's own: read it with todo_get, and never look for it in files, folders or processes outside your workspace.`
 
 function tail(file: string): string {
   const fd = openSync(file, 'r')
@@ -56,10 +65,14 @@ export function agyLibraryHook(event: string, payload: Record<string, unknown>, 
     const m = lastMessage(payload.transcriptPath)
     if (!conv || !m) return {}
     const lines: string[] = []
+    if (io.officeTools && !toldTools.has(conv)) {
+      toldTools.add(conv)
+      lines.push(toolsNote())
+    }
     if (asked.get(conv) !== m.step) {
       asked.set(conv, m.step)
       const line = io.remind(m.text)
-      if (line) lines.unshift(line)
+      if (line) lines.push(line)
     }
     return lines.length ? { injectSteps: lines.map((ephemeralMessage) => ({ ephemeralMessage })) } : {}
   }
