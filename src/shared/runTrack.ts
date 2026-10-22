@@ -1,5 +1,5 @@
 import type { Run } from './runs'
-import { type StepContext, stepStates } from './steps'
+import { type StepContext, type StepState, stepStates } from './steps'
 import { type StepKind, isLanding, landingKind } from './workflow'
 
 /** One station on a run's track: a step of its workflow, and how far the run has got with it. */
@@ -26,16 +26,22 @@ export interface Track {
   note?: string
 }
 
-/** The landing is the agent's to do when the person asks it in the chat; the office holds it until its gates are met. */
-const LAND_ASK = { merge: 'ready to land: ask the agent', pr: 'ready for a pull request: ask the agent' }
+/** The merge is the agent's to do when the person asks it in the chat; the office holds it until its gates are met. */
+const LAND_ASK = 'ready to land: ask the agent'
 
-function waitingFor(kind: StepKind, state: string, runDone: boolean, landing: 'pr' | 'merge' = 'merge'): string | undefined {
+/** What the run waits for from the person, or says is happening by itself, for the step it stands on. */
+function waitingFor(here: StepState, runDone: boolean, landing: 'pr' | 'merge' = 'merge'): string | undefined {
+  const { kind, state } = here
   if (kind === 'plan' && state === 'waiting') return 'needs your approval'
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
   if (kind === 'check' && state === 'waiting') return 'its commands need your approval'
   if (kind === 'check' && state === 'failed') return 'out of tries: your call'
-  if (kind === 'audit' && runDone) return LAND_ASK[landing]
-  if (isLanding(kind) && state === 'waiting') return LAND_ASK[landing]
+  if (here.awaiting) return 'needs your approval'
+  if (kind === 'audit' && runDone) return landing === 'pr' ? 'waiting for the audit' : LAND_ASK
+  if (isLanding(kind) && state === 'waiting') {
+    if (landing === 'pr') return here.approved ? 'approved: the agent pushes it' : 'audit passed: the agent is told to push'
+    return here.approved ? 'approved: ask the agent to land' : LAND_ASK
+  }
   return undefined
 }
 
@@ -58,7 +64,7 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
     return { ...base, state: i === at ? 'now' : 'next' }
   })
   const here = steps[at]!
-  const waiting = waitingFor(here.kind, here.state, run.status === 'done', landingKind(run.workflow))
+  const waiting = waitingFor(here, run.status === 'done', landingKind(run.workflow))
   const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
   return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }

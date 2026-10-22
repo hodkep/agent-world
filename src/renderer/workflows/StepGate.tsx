@@ -15,7 +15,12 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
       <div className="pg-body">
         <p className="pg-task">{run.title}</p>
         {step.brief && <div className="pg-text"><Markdown text={step.brief} agentId={run.agent} /></div>}
-        <p className="pg-task">{run.workflow?.name}: this must be approved before {agentName}'s work can land.</p>
+        <p className="pg-task">
+          {run.workflow?.name}:{' '}
+          {step.kind === 'pr' ? `nothing is pushed until you approve. Approving lets ${agentName} push this branch and open the pull request.`
+          : step.kind === 'audit' ? `approve the audit to go on; ${agentName} is not told to push before that.`
+          : `this must be approved before ${agentName}'s work can land.`}
+        </p>
         {asking && (
           <label className="pg-note">
             What should change?

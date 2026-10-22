@@ -9,6 +9,12 @@ export interface StepState {
   state: StepStatus
   /** For a check: how many times it has failed since it was last asked for again. */
   tries?: number
+  /** The step waits for the person's own approval (an audit, a pull request or a merge with gate approve): the same Approve and Send back as any step they approve. */
+  awaiting?: true
+  /** A pull request or merge whose approval was given for the branch as it is, so the agent may go ahead. */
+  approved?: true
+  /** A pull request that needs the person's approval and has not got it, whether or not its turn has come: a push before then is held. */
+  gated?: true
 }
 
 /**
@@ -26,6 +32,22 @@ export interface StepContext {
   approved?: boolean
   /** The branch as it is now: a check that passed for another head is due again. */
   head?: string
+  /** The Settings switch for the merge gate: a pull request or merge step with no gate of its own asks for the person's approval when it is on. Off when not given. */
+  mergeGate?: boolean
+}
+
+/** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
+export function needsApproval(step: { kind: StepKind; gate?: string }, ctx: StepContext): boolean {
+  if (step.kind === 'audit') return step.gate === 'approve'
+  // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
+  if (step.kind !== 'pr') return false
+  return step.gate === 'approve' || (step.gate === undefined && ctx.mergeGate === true)
+}
+
+/** Whether the person approved this step for the branch as it is now: their last answer was an approval, given after the round's last commit (and after `since`). */
+function approvedFor(round: Round, id: string, since = 0): boolean {
+  const last = round.steps.filter((s) => s.step === id && (s.state === 'approved' || s.state === 'changes')).at(-1)
+  return last?.state === 'approved' && last.t > Math.max(since, ...round.commits.map((c) => c.t))
 }
 
 export const DEFAULT_RETRIES = 2
@@ -73,7 +95,8 @@ function own(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: St
     const a = run.audit
     if (!a || a.t < round.startedAt) return 'later'
     if (a.state === 'failed') return 'skipped'
-    return a.findings.every((f) => f.seen) ? 'passed' : 'waiting'
+    if (!a.findings.every((f) => f.seen)) return 'waiting'
+    return needsApproval(step, ctx) && !approvedFor(round, id, a.t) ? 'waiting' : 'passed'
   }
   if (isLanding(kind)) return run.landed && run.landed.t >= round.startedAt ? 'passed' : 'later'
   if (kind === 'approve') {
@@ -105,7 +128,11 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     else if (held) state = 'pending'
     else if (o === 'waiting') (state = 'waiting', (held = true))
     else (state = 'running', (held = true))
-    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }) }
+    const audited = run.audit?.state === 'done' && run.audit.findings.every((f) => f.seen)
+    const asks = state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
+    const settled = asks && isLanding(s.kind) && approvedFor(round, s.id)
+    const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s, ctx) && !approvedFor(round, s.id)
+    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
   })
 }
 
@@ -125,17 +152,19 @@ export function readyForAudit(run: Run, ctx: StepContext): boolean {
 }
 
 /** What the person's answer to a step is typed into the agent as. */
-export function stepReply(name: string, decision: 'approved' | 'changes', note?: string): string {
+export function stepReply(name: string, decision: 'approved' | 'changes', note?: string, kind?: StepKind): string {
   if (decision === 'approved') return `Your step "${name}" was approved.${note ? ` They said: ${note}` : ''}`
+  // The steps the office does (the audit, a pull request, a merge) have no step_done: the agent changes the branch and the office asks again.
+  if (kind === 'audit' || kind === 'pr' || kind === 'merge') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.`
   return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change, then call step_done again.`
 }
 
-/** The steps of runs that wait for the person to approve them (a step they approve, not a plan, an audit or a landing), a stopped run's never. */
+/** The steps of runs that wait for the person to approve them (a step they approve, an audit, a pull request or a merge with gate approve; not a plan), a stopped run's never. */
 export function waitingSteps(runs: Run[], ctx: StepContext): { run: Run; step: RunStep }[] {
   return runs.flatMap((run) => {
     if (run.status === 'stopped' || !run.workflow) return []
     return stepStates(run, ctx)
-      .filter((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
+      .filter((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
       .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id).map((step) => ({ run, step })))
   })
 }

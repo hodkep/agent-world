@@ -329,7 +329,7 @@ export function App() {
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
   // The audit runs at every dial but economy; steps and plans waiting for the person are what the Workflows button counts.
-  const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true }
+  const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true, mergeGate: prefs?.workflows.mergeGate ?? true }
   // A project's workflow file whose check commands are not approved: its checks wait for the person.
   const ctxFor = (r: { id: string }) => ({ ...stepCtx, approved: !wf.unapproved.includes(r.id) })
   // The Workflows window and its count are about the project that is open, as the agent list is.

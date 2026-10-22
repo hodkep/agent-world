@@ -194,7 +194,7 @@ export class Workflows {
   }
 
   private states(run: Run, head?: string) {
-    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
+    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), mergeGate: this.deps.mergeGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
   }
 
   /**
@@ -370,7 +370,7 @@ export class Workflows {
     const run = this.runs().find((r) => r.id === runId)
     const round = run?.rounds[run.rounds.length - 1]
     if (!run || !round) throw new Error('No such run.')
-    const waiting = this.states(run).find((s) => s.id === step && s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
+    const waiting = this.states(run).find((s) => s.id === step && s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
     if (!waiting) throw new Error('Nothing is waiting for approval there.')
     if (decision === 'changes' && run.status === 'done') this.append({ k: 'reopen', t: this.deps.now(), run: runId })
     this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: decision, ...(o.note && { note: o.note }) })
@@ -523,7 +523,7 @@ export class Workflows {
     }
     // Steps the person must approve before landing: named, so they know which.
     const states = this.states(run, head)
-    for (const w of states) if (w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work')) blocking.push(`"${w.name}" has not been approved.`)
+    for (const w of states) if ((w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work' || w.awaiting)) || w.gated) blocking.push(`"${w.name}" has not been approved.`)
     // Checks: a row each, and landing held by name for one that has not passed or been skipped (unless its gate is auto, which only reports).
     const latest = run.rounds[run.rounds.length - 1]!
     const checks = states.flatMap((c) => {

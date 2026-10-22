@@ -627,11 +627,11 @@ describe('the merge gate', () => {
     wf.decide(wf.runs()[0]!.id, 'approved')
     state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","files":["a.ts","b.ts"],"text":"Folds unchanged code."},{"kind":"goal-unmet","text":"No test."},{"kind":"out-of-scope","text":"Adds a shortcut."}]}' })
     await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
-    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['3 audit findings have not been seen.'])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['3 audit findings have not been seen.', '"Pull request" has not been approved.'])
     expect(() => wf.addToPlan('a1', 'h1', [1])).toThrow('Only out-of-scope work can be added to the plan.')
     wf.addToPlan('a1', 'h1', [0, 2])
     expect(wf.runs()[0]!.additions?.map((a) => a.text)).toEqual(['Folds unchanged code.', 'Adds a shortcut.'])
-    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['1 audit finding has not been seen.'])
+    expect(wf.mergeCheck('a1', 'h1')!.blocking).toEqual(['1 audit finding has not been seen.', '"Pull request" has not been approved.'])
     state.asked.length = 0
     await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
     expect(state.asked[0]).toContain('## Added to the plan afterwards by the person: in scope')
@@ -774,15 +774,16 @@ describe('the merge gate', () => {
       }
       const wf = run(pull())
       expect(wf.landKind('a1')).toBe('pr')
-      expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ land: 'pr', blocking: ['No plan was approved for this task.'] })
-      expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
+      expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ land: 'pr', blocking: ['No plan was approved for this task.', '"Pull request" has not been approved.'] })
+      expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
       expect(run(pull(), false).landingHold('a1', 'h1')).toBeNull()
-      expect(run(pull('approve'), false).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.'])
+      expect(run(pull('approve'), false).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
       expect(run(pull('auto'), true).landingHold('a1', 'h1')).toBeNull()
     })
 
     it('ends the run when the push went through, recorded like a landing', () => {
       const { wf, state } = make()
+      state.mergeGate = false
       state.pick = () => pull()
       wf.begin('a1', 'Add a toggle')
       wf.decide(wf.runs()[0]!.id, 'released')
@@ -819,6 +820,8 @@ describe('the merge gate', () => {
       state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","text":"Adds a project key."}]}' })
       await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
       wf.asideAudit('a1')
+      wf.done('a1')
+      wf.approveStep(wf.runs()[0]!.id, 'pr', 'approved')
       wf.landing('a1', 'h1')
       expect(wf.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['The review was set aside.'] })
     })
@@ -840,7 +843,7 @@ describe('the merge gate', () => {
       }
       const held = run(pull())
       held.landing('a1', 'h1', { anyway: true, unchecked: true })
-      expect(held.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'anyway', held: ['No plan was approved for this task.', 'Pushed without the hold: git push --no-verify.'] })
+      expect(held.runs()[0]!.landed).toMatchObject({ head: 'h1', how: 'anyway', held: ['No plan was approved for this task.', '"Pull request" has not been approved.', 'Pushed without the hold: git push --no-verify.'] })
       const clear = run(pull('auto'))
       clear.landing('a1', 'h1', { anyway: true, unchecked: true })
       expect(clear.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['Pushed without the hold: git push --no-verify.'] })
@@ -1562,5 +1565,45 @@ describe('when the app starts the audit by itself', () => {
     // The person's own "Run the audit now" still audits the new head.
     await wf.runAudit('a1', 'h2', 'diff --git a/a.ts b/a.ts\n+y\n')
     expect(wf.mergeCheck('a1', 'h2')!.audit.state).toBe('done')
+  })
+})
+
+describe('a pull request step waits for the person\'s approval before the push', () => {
+  const PR: RunWorkflow = { id: 'pr', name: 'PR', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
+  const audited = async (o: { mergeGate?: boolean; gate?: 'approve' | 'auto' } = {}) => {
+    const { wf, state } = make()
+    state.mergeGate = o.mergeGate ?? true
+    state.pick = () => ({ ...PR, steps: PR.steps.map((s) => (s.kind === 'pr' && o.gate ? { ...s, gate: o.gate } : s)) })
+    wf.begin('a1', 'Add a toggle')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(wf.runs()[0]!.id, 'approved')
+    wf.commit('a1', 'h1', 'work')
+    wf.done('a1')
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    return { wf, id: wf.runs()[0]!.id }
+  }
+
+  it('holds the push until the person approves the step, and lets it through after', async () => {
+    const { wf, id } = await audited()
+    expect(wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+    wf.approveStep(id, 'pr', 'approved')
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+    expect(() => wf.approveStep(id, 'pr', 'approved')).toThrow('Nothing is waiting for approval there.')
+  })
+
+  it('asks again when the branch changes after the approval', async () => {
+    const { wf, id } = await audited()
+    wf.approveStep(id, 'pr', 'approved')
+    wf.commit('a1', 'h2', 'more work')
+    expect(wf.landingHold('a1', 'h2')).toContain('"Pull request" has not been approved.')
+  })
+
+  it('asks for nothing when the gate is auto, or has no gate of its own while the Settings switch is off', async () => {
+    expect((await audited({ gate: 'auto' })).wf.landingHold('a1', 'h1')).toBeNull()
+    expect((await audited({ mergeGate: false })).wf.landingHold('a1', 'h1')).toBeNull()
+  })
+
+  it('its own gate approve asks even with the Settings switch off', async () => {
+    expect((await audited({ mergeGate: false, gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
   })
 })
