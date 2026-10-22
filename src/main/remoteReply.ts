@@ -55,3 +55,14 @@ export function remoteHint(gates: Gate[]): string {
   if (!gates.length) return ''
   return `\n\nThis agent is under remote control, so the person may be on a phone: tell them in the conversation what is waiting. ${gates.map((g) => `For ${LABEL[g.kind]}: ${howToReply(g.kind, g.code)}.`).join(' ')}`
 }
+
+/** Is this message a decision on a waiting gate, or does it use a waiting code: the only messages whose origin matters. */
+export function touches(gates: Gate[], prompt: string): boolean {
+  if (!gates.length) return false
+  const reply = parseReply(prompt)
+  if (reply) return gates.some((g) => g.code === reply.code)
+  return mentionedCode(prompt, gates.map((g) => g.code)) !== null
+}
+
+/** What the agent is told when words that look like a decision could not be shown to come from the person: nothing was decided. */
+export const UNPROVEN = 'A message that looks like a decision on a waiting gate arrived, but it could not be shown to come from the person, so nothing was decided. Ask the person to answer in the app, or to type it again.'

@@ -82,7 +82,7 @@ test('when agy refuses remote control the tag says not available with its words'
   }
 })
 
-test('a plan an agy agent handed in is decided by a reply typed to it: agy\'s pre-invocation hook runs the same words and codes, and with remote control off it decides nothing', async () => {
+test('a plan an agy agent handed in is decided by a reply the person typed (agy\'s saved conversation holds it), not by a call that only says so; with remote control off it decides nothing', async () => {
   for (const remote of [true, false]) {
     const t = await start()
     try {
@@ -92,30 +92,51 @@ test('a plan an agy agent handed in is decided by a reply typed to it: agy\'s pr
       const headers = { authorization: `Bearer ${started.token}` }
       const client = new Client({ name: 'test', version: '1' })
       await client.connect(new StreamableHTTPClientTransport(new URL(started.url), { requestInit: { headers } }))
-      const [ada] = await t.page.evaluate(() => window.aw.listAgents())
+      const agent = async () => (await t.page.evaluate(() => window.aw.listAgents()))[0]!
+      // agy names its conversation when the first message is sent; the app then knows which one is the agent's.
+      await expect.poll(async () => (await agent()).activity, { timeout: 20_000 }).toBe('idle')
+      await t.page.evaluate((id) => window.aw.chatSend(id, 'hello'), (await agent()).id)
+      await expect.poll(async () => (await agent()).started, { timeout: 20_000 }).toBe(true)
+      const answered = (prompt: string) => expect.poll(() => t.page.evaluate(([id, p]) => window.aw.chatGet(id!).then((c) => c.items.some((i) => i.kind === 'assistant' && i.text.includes(`echo: ${p}`))), [started2.id, prompt]), { timeout: 15_000 }).toBe(true)
+      const started2 = await agent()
+      await answered('hello')
+      const ada = await agent()
       await client.callTool({ name: 'task_begin', arguments: { title: 'Add a dark-mode toggle' } })
-      mkdirSync(join(ada!.cwd, '.agent-world'), { recursive: true })
-      writeFileSync(join(ada!.cwd, '.agent-world', 'plan.md'), PLAN)
+      mkdirSync(join(ada.cwd, '.agent-world'), { recursive: true })
+      writeFileSync(join(ada.cwd, '.agent-world', 'plan.md'), PLAN)
       const told = ((await client.callTool({ name: 'plan_submit', arguments: {} })) as { content: { text: string }[] }).content[0]!.text
       const code = /`approve ([a-z0-9]{3})`/.exec(told)?.[1]
       expect(Boolean(code)).toBe(remote)
-      // The person's message is in agy's saved conversation; its hook is told only where that is.
-      const transcript = join(t.agyHome, 'brain', 'conv-1', '.system_generated', 'logs', 'transcript_full.jsonl')
+      // agy's own saved conversation (the file its hook reads) is where the message is; the call only says where.
+      const transcript = join(t.agyHome, 'brain', ada.sessionId, '.system_generated', 'logs', 'transcript_full.jsonl')
       mkdirSync(join(transcript, '..'), { recursive: true })
       let step = 0
-      const hook = async (prompt: string) => {
+      const hook = async (prompt: string, over: Record<string, unknown> = {}) => {
         writeFileSync(transcript, JSON.stringify({ step_index: String(step++), type: 'USER_INPUT', content: `<USER_REQUEST>\n${prompt}\n</USER_REQUEST>` }) + '\n')
-        const res = (await (await fetch(started.url.replace(/\/mcp$/, '/hook/pre-inv'), { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ conversationId: 'conv-1', transcriptPath: transcript }) })).json()) as { injectSteps?: { ephemeralMessage: string }[] }
-        return res.injectSteps?.map((s) => s.ephemeralMessage).join('\n') ?? ''
+        const res = (await (await fetch(started.url.replace(/\/mcp$/, '/hook/pre-inv'), { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ conversationId: ada.sessionId, transcriptPath: transcript, ...over }) })).json()) as { injectSteps?: { ephemeralMessage: string }[] }
+        return res.injectSteps?.map((x) => x.ephemeralMessage).join('\n') ?? ''
       }
       const planState = async () => (await t.page.evaluate(() => window.aw.workflows.summary())).runs[0]?.rounds.at(-1)?.plan?.state
+      // The person types it: agy saves it, then its hook runs.
+      const typed = async (prompt: string) => {
+        await t.page.evaluate(([id, p]) => window.aw.chatSend(id!, p!), [ada.id, prompt])
+        // agy has saved it, and answered, once the conversation the app reads has the answer: only then does it take another line.
+        await answered(prompt)
+        return hook(prompt)
+      }
       if (remote) {
-        expect(await hook(`approve ${code}`)).toContain('still open')
+        // A call that only says "approve" with nothing saved by agy behind it decides nothing, whatever the transcript file it names says.
+        expect(await hook(`approve ${code} 1=1`)).toContain('nothing was decided')
         expect(await planState()).toBe('submitted')
-        expect(await hook(`approve ${code} 1=1`)).toContain('Your plan was approved')
+        // A call that names another file for the conversation is not believed either.
+        expect(await hook(`approve ${code} 1=1`, { transcriptPath: join(t.agyHome, 'brain', 'elsewhere', '.system_generated', 'logs', 'transcript_full.jsonl') })).not.toContain('Your plan was approved')
+        expect(await planState()).toBe('submitted')
+        // Typed to the agent, saved by agy, then asked about by its hook: it decides.
+        expect(await typed(`approve ${code}`)).toContain('still open')
+        expect(await typed(`approve ${code} 1=1`)).toContain('Your plan was approved')
         expect(await planState()).toBe('approved')
       } else {
-        expect(await hook('approve abc 1=1')).toBe('')
+        expect(await typed('approve abc 1=1')).toBe('')
         expect(await planState()).toBe('submitted')
       }
       await client.close()

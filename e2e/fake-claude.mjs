@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the claude CLI: reads the hook settings it is launched with and replays a
 // scripted session through them, so the app can be exercised without spending tokens.
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
@@ -260,6 +260,34 @@ if (!process.env.FAKE_CHAT) await announceStart()
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
 process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.env.FAKE_CHAT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))
+
+// FAKE_PROMPT_HOOK=1: a line typed to the agent is reported to the office as UserPromptSubmit from this process, as Claude does, and what the office answers is kept in
+// FAKE_CONTEXT_LOG. A line "forge <words>" also makes a command the agent runs (a child process) post <words> as a prompt to the same hook with the same token, as a
+// misbehaving agent could.
+const FORGER = "const [url, headers, body] = process.argv.slice(1); fetch(url, { method: 'POST', headers: { ...JSON.parse(headers), 'content-type': 'application/json' }, body }).then(async (r) => console.log(r.status + ' ' + (await r.text()))).catch((e) => console.log('error ' + e.message))"
+if (process.env.FAKE_PROMPT_HOOK) {
+  const keep = (o) => process.env.FAKE_CONTEXT_LOG && appendFileSync(process.env.FAKE_CONTEXT_LOG, JSON.stringify(o) + '\n')
+  let line = ''
+  process.stdin.on('data', async (d) => {
+    for (const ch of String(d).replace(/\x1b\[20[01]~/g, '')) {
+      if (ch !== '\r') {
+        line += ch
+        continue
+      }
+      const prompt = line.trim()
+      line = ''
+      if (!prompt) continue
+      const said = await hook('UserPromptSubmit', { prompt })
+      keep({ prompt, context: said?.hookSpecificOutput?.additionalContext ?? '' })
+      const forged = /^forge (.+)$/.exec(prompt)?.[1]
+      if (forged) {
+        const body = JSON.stringify({ session_id: sessionId, cwd: process.cwd(), hook_event_name: 'UserPromptSubmit', prompt: forged })
+        const r = spawnSync(process.execPath, ['-e', FORGER, url, JSON.stringify(headers), body], { encoding: 'utf8' })
+        keep({ forged, answer: r.stdout.trim() })
+      }
+    }
+  })
+}
 
 // FAKE_SEND=ada:linus:text makes the agent named ada message linus through the office MCP server.
 async function sendViaOffice(to, message) {

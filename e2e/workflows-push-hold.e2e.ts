@@ -23,7 +23,8 @@ async function office(name: string, findings = FINDINGS, remote = false) {
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
   const envFile = join(tmp, 'env.log')
   const argsLog = join(tmp, 'args.log')
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings, FAKE_ARGS: argsLog }, tmp)
+  const contextLog = join(tmp, 'context.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings, FAKE_ARGS: argsLog, FAKE_PROMPT_HOOK: '1', FAKE_CONTEXT_LOG: contextLog }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 1000 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
@@ -56,14 +57,13 @@ async function office(name: string, findings = FINDINGS, remote = false) {
   const merge = () => asAgent(repo, 'merge', '--ff-only', ada!.branch!)
   const pushed = () => git(remoteDir, 'branch', '--list', ada!.branch!)
   const landed = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.landed as { how: string; held: string[] } | undefined
-  // What the person types is what the prompt hook is sent.
-  const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
-  const flag = (f: string) => launch[launch.indexOf(f) + 1]!
-  const hook = JSON.parse(readFileSync(flag('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0] as { url: string; headers: Record<string, string> }
+  // What the person types goes to the agent's program, which reports it to the office from its own process, as Claude does; the office's answer is what the program kept.
+  const kept = () => (existsSync(contextLog) ? readFileSync(contextLog, 'utf8') : '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { prompt?: string; context?: string })
   const reply = async (prompt: string) => {
-    const res = await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada!.cwd, hook_event_name: 'UserPromptSubmit', prompt }) })
-    const t = await res.text()
-    return t ? ((JSON.parse(t) as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? '') : ''
+    const before = kept().length
+    await page.evaluate(([id, p]) => window.aw.chatSend(id!, p!), [ada!.id, prompt])
+    await expect.poll(() => kept().length, { timeout: 15_000 }).toBeGreaterThan(before)
+    return kept().slice(before).find((k) => k.prompt === prompt)?.context ?? ''
   }
   return { repo, home, git, page, ada: ada!, shutdown, merge, push, pushed, landed, reply }
 }

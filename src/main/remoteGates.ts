@@ -4,7 +4,7 @@ import { pendingPlans } from '../shared/runs'
 import { auditSetAside, stepReply } from '../shared/steps'
 import type { Workflows } from './workflows/service'
 import type { HeldMerges } from './workflows/heldMerges'
-import { type Gate, remoteHint, resolveReply } from './remoteReply'
+import { type Gate, remoteHint, resolveReply, touches } from './remoteReply'
 
 /** What the gates need from the office; the module itself knows no provider and no window. */
 export interface RemoteGateDeps {
@@ -133,6 +133,8 @@ export function createRemoteGates(d: RemoteGateDeps) {
   return {
     decidePlan,
     gatesFor,
+    /** Whether a prompt is, or looks like, a decision on one of this agent's waiting gates (the only prompts whose origin has to be shown). */
+    touches: (agentId: string, prompt: string): boolean => d.isRemote(agentId) && touches(gatesFor(agentId), prompt),
     /** What a typed prompt does to a waiting gate: the text the agent is told, or null (not under remote control, or not a decision). */
     reply: (agentId: string, prompt: string): string | null => (d.isRemote(agentId) ? resolveReply(gatesFor(agentId), prompt) : null),
     /** The sentence a gate's text adds so the agent tells the person which words answer it; empty when not under remote control. */

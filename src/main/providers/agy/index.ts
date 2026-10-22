@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { join } from 'node:path'
 import type { Provider } from '../ports'
 import { agyCommands } from './commands'
 import { agyEvents } from './events'
@@ -9,7 +10,7 @@ import { agyArgs, agyContextWindow, agyModels, agyModes, parseUsage } from './la
 import { agyScreen } from './screen'
 import { agyTools } from './tools'
 import { agyCalls, agyCallSamples } from './toolTable'
-import { agyTranscript } from './transcript'
+import { agyHome, agyTranscript } from './transcript'
 
 const run = (file: string, args: string[]) =>
   new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 20_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
@@ -39,6 +40,7 @@ export const agy: Provider = {
   prepare: (i) => ({ env: { AW_MCP_URL: i.mcpUrl, AW_AGENT_TOKEN: i.agentToken } }),
   mail: agyMail,
   libraryHook: agyLibraryHook,
+  hookTranscript: (a) => join(agyHome(), 'brain', a.sessionId, '.system_generated', 'logs', 'transcript_full.jsonl'),
   tools: agyTools,
   commands: agyCommands,
   args: agyArgs,
