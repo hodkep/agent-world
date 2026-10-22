@@ -2,7 +2,10 @@ import { Container, Graphics, Sprite } from 'pixi.js'
 import { birdTexture, BIRD_KEYS, BIRD } from './critters'
 import { OFFICE, TILE } from './office'
 import { drawLampGlows, GROUNDS } from './grounds'
-import { type Phase, type WeatherNow, outsideLight, phaseOf, tintFor } from './rituals'
+import { bannerFor } from './banner'
+import { textPixels } from './pixelfont'
+import { falling, splashesAt, streakAt } from './rain'
+import { type Phase, type WeatherNow, lightStrength, outsideLight, phaseOf, tintFor } from './rituals'
 
 const INK = 0x1a1522
 const SKY: Record<Phase, [number, number]> = { dawn: [0x5a4a7a, 0xd89a78], day: [0x6aaee0, 0xbfe4f6], dusk: [0x4a3a7a, 0xe0805a], night: [0x10122a, 0x2a2a5a] }
@@ -14,6 +17,10 @@ export interface Sky {
   /** 0 to 1: how dark the power cut has made it. */
   dark: number
   alarm: boolean
+  /** What is going on: a fire drill, a power cut or a pigeon (or nothing): the first two have a sign over the office. */
+  event?: string
+  /** The page's time in ms, for what flashes. */
+  t?: number
   /** Office life is on: the grounds follow the hour and the weather; off, they stay the night scene they are drawn as. */
   live: boolean
 }
@@ -26,6 +33,13 @@ export class Ambience {
   readonly tint = new Graphics()
   readonly windows = new Container()
   readonly flyer = new Container()
+  /** The sign over the back wall during a fire drill or a power cut. */
+  readonly banner = new Graphics()
+  /** Warm pools of light over the desks, the table, the lounge and the kitchen at night. */
+  readonly lights = new Graphics()
+  private event = ''
+  private bannerKey = ''
+  private lightKey = ''
   /** What lies over the grounds (lawn, street, trees) and under the office: the light of the hour, the grey of the weather, the rain, the lamps' glow. */
   readonly outside = new Container()
   private readonly add = new Graphics()
@@ -58,7 +72,8 @@ export class Ambience {
       this.panes.push({ x: d.x, g, key: '' })
     }
     // What lies over the office and the grounds is only light: clicks go through it to the book on a desk, the agents and everything else.
-    for (const c of [this.tint, this.outside, this.flyer, this.windows]) c.eventMode = 'none'
+    for (const c of [this.tint, this.outside, this.flyer, this.windows, this.banner, this.lights]) c.eventMode = 'none'
+    this.lights.blendMode = 'add'
     this.add.blendMode = 'add'
     this.outside.addChild(this.add, this.dim, this.glow, this.rain)
     this.bird.texture = birdTexture('fly1')
@@ -87,7 +102,7 @@ export class Ambience {
   }
 
   data() {
-    return { phase: this.phase, weather: this.weather, ledge: this.ledge, flying: this.flying, tint: Math.round(this.shown * 100) / 100, outside: { add: Math.round(this.addShown * 100) / 100, dim: Math.round(this.dimShown * 100) / 100, lamps: this.glow.visible, rain: this.rainFrame >= 0 } }
+    return { phase: this.phase, weather: this.weather, ledge: this.ledge, flying: this.flying, tint: Math.round(this.shown * 100) / 100, lights: Number(this.lightKey) || 0, banner: bannerFor(this.event, 0)?.text ?? '', outside: { add: Math.round(this.addShown * 100) / 100, dim: Math.round(this.dimShown * 100) / 100, lamps: this.glow.visible, rain: this.rainFrame >= 0 } }
   }
 
   update(dtMs: number, t: number, sky: Sky) {
@@ -104,6 +119,9 @@ export class Ambience {
     if (pulse > 0) this.tint.rect(0, 0, OFFICE.map.w * TILE, OFFICE.map.h * TILE).fill({ color: 0xe02020, alpha: pulse })
 
     this.updateOutside(dtMs, t, sky)
+    this.event = sky.event ?? ''
+    this.updateBanner(this.event, t)
+    this.updateLights(sky.live ? lightStrength(sky.hour, sky.dark) : 0)
 
     // A pigeon lands on one window's ledge now and then, stays a little, and goes.
     if (this.perch && t >= this.perch.until) this.perch = null
@@ -136,6 +154,48 @@ export class Ambience {
     }
   }
 
+  /** The sign over the office, drawn in the pixel font: flashing red for a fire drill, amber for a power cut. */
+  private updateBanner(event: string, t: number) {
+    const b = bannerFor(event, t)
+    const key = b ? `${b.text}/${b.tone}/${b.lit}` : ''
+    if (key === this.bannerKey) return
+    this.bannerKey = key
+    this.banner.clear()
+    if (!b) return
+    const rows = textPixels(b.text)
+    const cell = 2
+    const w = rows[0]!.length * cell + 16
+    const h = rows.length * cell + 10
+    const x0 = Math.round((OFFICE.map.w * TILE - w) / 2)
+    const y0 = 5
+    const red = b.tone === 'red'
+    const bg = red ? (b.lit ? 0xc83a3a : 0x3a1418) : 0x2a2a38
+    const ink = red ? (b.lit ? 0xffffff : 0xc83a3a) : 0xf2c230
+    this.banner.rect(x0 - 1, y0 - 1, w + 2, h + 2).fill(0x08070c)
+    this.banner.rect(x0, y0, w, h).fill(bg)
+    if (!red) this.banner.rect(x0, y0, w, 1).fill(0xf2c230)
+    rows.forEach((row, y) => [...row].forEach((c, x) => c === '#' && this.banner.rect(x0 + 8 + x * cell, y0 + 5 + y * cell, cell, cell).fill(ink)))
+  }
+
+  /** Pools of warm light, one over each desk and the table, the lounge and the kitchen, as strong as `strength` (0 to 1). */
+  private updateLights(strength: number) {
+    const q = Math.round(strength * 20) / 20
+    const key = String(q)
+    if (key === this.lightKey) return
+    this.lightKey = key
+    this.lights.clear()
+    if (q === 0) return
+    const pool = (cx: number, cy: number, rx: number, ry: number) => {
+      for (let k = 4; k >= 1; k--) this.lights.ellipse(cx, cy, (rx * k) / 4, (ry * k) / 4).fill({ color: 0xf6d27a, alpha: 0.08 * q })
+    }
+    for (const f of OFFICE.furniture) {
+      if (f.kind === 'desk') pool(f.x * TILE + TILE, f.y * TILE + 8, 40, 26)
+      else if (f.kind === 'meeting') pool((f.x + f.w / 2) * TILE, (f.y + f.h / 2) * TILE, 56, 30)
+    }
+    pool(23 * TILE + 8, 9 * TILE, 70, 50)
+    pool(24 * TILE, 14 * TILE + 8, 60, 28)
+  }
+
   /** One huge rectangle over the grounds, redrawn only when its colour or its alpha has moved. */
   private paint(g: Graphics, color: number, alpha: number, which: 'add' | 'dim') {
     const a = alpha > 0.004 ? Math.round(alpha * 250) / 250 : 0
@@ -166,7 +226,24 @@ export class Ambience {
       if (frame >= 0) {
         const w = OFFICE.map.w * TILE + GROUNDS.west + GROUNDS.east
         const h = OFFICE.map.h * TILE + GROUNDS.north + GROUNDS.south
-        for (let i = 0; i < 700; i++) this.rain.rect(-GROUNDS.west + ((i * 97 + frame * 7) % w), -GROUNDS.north + ((i * 61 + frame * 17) % h), 2, 7).fill({ color: 0xb4d4f8, alpha: 0.75 })
+        const ox = -GROUNDS.west
+        const oy = -GROUNDS.north
+        // Each drop falls as a streak, and where it lands it splashes: a few drops thrown out, then a ring that widens and fades.
+        for (let i = 0; i < 700; i++) {
+          if (!falling(i, frame)) continue
+          const s = streakAt(i, frame, w, h)
+          this.rain.rect(ox + s.x, oy + s.y, 2, 7).fill({ color: 0xb4d4f8, alpha: 0.75 })
+        }
+        for (const sp of splashesAt(frame, 700, w, h)) {
+          const x = ox + sp.x
+          const y = oy + sp.y
+          const a = 0.85 - sp.age * 0.25
+          const r = 2 + sp.age
+          this.rain.rect(x - r, y, 1, 1).fill({ color: 0xdcecfc, alpha: a })
+          this.rain.rect(x + r, y, 1, 1).fill({ color: 0xdcecfc, alpha: a })
+          this.rain.rect(x - r + 1, y + 1, 2 * r - 1, 1).fill({ color: 0xdcecfc, alpha: a * 0.7 })
+          if (sp.age === 0) this.rain.rect(x, y - 2, 1, 1).fill({ color: 0xdcecfc, alpha: a })
+        }
       }
     }
   }

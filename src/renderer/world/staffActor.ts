@@ -2,6 +2,8 @@ import { Container, Graphics, Rectangle, Sprite } from 'pixi.js'
 import { type OfficeMap, type Pt, TILE, findPath } from './office'
 import type { Face, Step, Then } from './staff'
 import type { View } from './sprites'
+import { ROLE } from './banner'
+import { roleLabel } from './roleLabel'
 import { HAND_AT, type StaffKind, type StaffPose, staffTexture } from './staffSprites'
 
 const WALK_TILES_PER_SEC = 4
@@ -20,6 +22,8 @@ export class StaffActor {
   private alpha = 0
   private shown = false
   private readonly shadow = new Graphics()
+  /** What he is called, shown over his head while the pointer is on him. */
+  private readonly tag: Container
   private tile: Pt
   private px: number
   private py: number
@@ -47,13 +51,15 @@ export class StaffActor {
     this.tile = { ...start }
     this.px = start.x * TILE
     this.py = start.y * TILE
-    this.view.addChild(this.shadow, this.body, this.jar)
+    this.tag = roleLabel(ROLE[kind === 'boy' ? 'boy' : kind])
+    this.tag.position.set(TILE / 2, STAND_Y - 3)
+    this.view.addChild(this.shadow, this.body, this.jar, this.tag)
     this.view.visible = false
     this.view.eventMode = 'static'
     this.view.cursor = 'help'
     this.view.hitArea = new Rectangle(0, STAND_Y - 2, TILE, SPRITE_H + 2)
-    this.view.on('pointerover', () => onHover(true))
-    this.view.on('pointerout', () => onHover(false))
+    this.view.on('pointerover', () => ((this.tag.visible = true), onHover(true)))
+    this.view.on('pointerout', () => ((this.tag.visible = false), onHover(false)))
   }
 
   /** Comes into view or goes out of it, fading over about half a second. */
@@ -69,6 +75,11 @@ export class StaffActor {
 
   get at(): Pt {
     return this.tile
+  }
+
+  /** The role label is up: the pointer is on him. */
+  get labelShown() {
+    return this.tag.visible
   }
 
   /** Gone from view after leaving: the world can drop him. */

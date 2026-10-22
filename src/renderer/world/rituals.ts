@@ -34,6 +34,11 @@ export function outsideLight(hour: number, weather: WeatherNow) {
   return { add: ADDS[phase], dim: { color: phase === 'night' ? 0x10182e : 0x6a7488, alpha: Math.max(dim, base) }, lamps: phase !== 'day', rain: weather === 'rain' }
 }
 
+const LIGHTS: Record<Phase, number> = { dawn: 0.5, day: 0, dusk: 0.6, night: 1 }
+
+/** How strongly the lights over the desks shine at this hour (0 to 1): on at night, dimmer at dawn and dusk, off by day, and out as the power cut takes the light (`dark`, 0 to 1). */
+export const lightStrength = (hour: number, dark: number) => LIGHTS[phaseOf(hour)] * (1 - Math.min(1, Math.max(0, dark)))
+
 /** The lunch bell rings from one to two, chai is called from four to half past, and the cleaner works from ten at night to five. */
 export function ritualAt(hour: number, minute: number): Ritual | null {
   if (hour === 13) return 'lunch'

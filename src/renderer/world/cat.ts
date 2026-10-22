@@ -1,11 +1,15 @@
-import { Container, Graphics, Sprite } from 'pixi.js'
+import { Container, Graphics, Rectangle, Sprite } from 'pixi.js'
+import { ROLE } from './banner'
+import { roleLabel } from './roleLabel'
 import { CatBrain, type CatSpots, type CatStep } from './catBrain'
 import { type OfficeMap, type Pt, TILE, findPath } from './office'
 import { type CatPose, catTexture } from './critters'
 
 const WALK_TILES_PER_SEC = 2.6
 /** The cat walks to the tile above the right end of a desk and then climbs onto it: it is drawn this far down, at the desk's front edge, in front of the keyboard and clear of the monitor. */
-const DESK_DROP = TILE - 1
+const DESK_DROP = TILE - 3
+/** On the desk it sits this many pixels to the right of the tile's middle, at the desk's right end, clear of the keyboard and the mug. */
+const DESK_SHIFT = 5
 const SPRITE = { w: 16, h: 10 }
 
 /** The office cat: it naps, sits to wash and now and then climbs on a desk, as its brain decides. It has no seat, no name and no task. */
@@ -25,6 +29,7 @@ export class Cat {
   private alpha = 0
   private shown = false
   state: 'walk' | 'nap' | 'sit' | 'desk' = 'sit'
+  private readonly tag = roleLabel(ROLE.cat)
 
   constructor(
     private readonly map: OfficeMap,
@@ -35,12 +40,22 @@ export class Cat {
     this.tile = { ...start }
     this.px = start.x * TILE
     this.py = start.y * TILE
-    this.view.addChild(this.shadow, this.body)
+    this.tag.position.set(TILE / 2, TILE - SPRITE.h - 3)
+    this.view.addChild(this.shadow, this.body, this.tag)
     this.view.visible = false
+    this.view.eventMode = 'static'
+    this.view.hitArea = new Rectangle(0, TILE - SPRITE.h, TILE, SPRITE.h)
+    this.view.on('pointerover', () => (this.tag.visible = true))
+    this.view.on('pointerout', () => (this.tag.visible = false))
   }
 
   setShown(on: boolean) {
     this.shown = on
+  }
+
+  /** The role label is up: the pointer is on the cat. */
+  get labelShown() {
+    return this.tag.visible
   }
 
   get at(): Pt {
@@ -75,7 +90,7 @@ export class Cat {
     this.body.x = this.flip ? SPRITE.w : 0
     const drop = rest === 'desk' ? DESK_DROP : 0
     this.body.y = TILE - SPRITE.h
-    this.view.x = Math.round(this.px)
+    this.view.x = Math.round(this.px) + (drop ? DESK_SHIFT : 0)
     this.view.y = Math.round(this.py) + drop
     // Over the desk and its monitor, so nothing hides it.
     this.view.zIndex = this.py + drop + (drop ? 30 : 7)

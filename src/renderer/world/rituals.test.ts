@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Guests, Rare, Rest, Weather, outsideLight, phaseOf, ritualAt, tintFor } from './rituals'
+import { Guests, Rare, Rest, Weather, lightStrength, outsideLight, phaseOf, ritualAt, tintFor } from './rituals'
 
 const lcg = (seed = 3) => () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296
 const MIN = 60_000
@@ -128,5 +128,18 @@ describe('the grounds outside', () => {
     expect(cloud).toBeGreaterThan(clear)
     expect(rain.dim.alpha).toBeGreaterThan(cloud)
     expect([outsideLight(12, 'cloud').rain, rain.rain]).toEqual([false, true])
+  })
+})
+
+describe('the lights over the desks', () => {
+  it('are on at night, dimmer at dusk and dawn, off by day, and out in a power cut', () => {
+    expect(lightStrength(23, 0)).toBe(1)
+    expect(lightStrength(2, 0)).toBe(1)
+    expect(lightStrength(18, 0)).toBeGreaterThan(0.3)
+    expect(lightStrength(18, 0)).toBeLessThan(1)
+    expect(lightStrength(6, 0)).toBeGreaterThan(0.3)
+    expect(lightStrength(12, 0)).toBe(0)
+    expect(lightStrength(23, 1)).toBe(0)
+    expect(lightStrength(23, 0.5)).toBe(0.5)
   })
 })
