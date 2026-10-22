@@ -57,6 +57,8 @@ export class Ambience {
       this.windows.addChild(g)
       this.panes.push({ x: d.x, g, key: '' })
     }
+    // What lies over the office and the grounds is only light: clicks go through it to the book on a desk, the agents and everything else.
+    for (const c of [this.tint, this.outside, this.flyer, this.windows]) c.eventMode = 'none'
     this.add.blendMode = 'add'
     this.outside.addChild(this.add, this.dim, this.glow, this.rain)
     this.bird.texture = birdTexture('fly1')
