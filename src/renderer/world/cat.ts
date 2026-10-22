@@ -4,8 +4,8 @@ import { type OfficeMap, type Pt, TILE, findPath } from './office'
 import { type CatPose, catTexture } from './critters'
 
 const WALK_TILES_PER_SEC = 2.6
-/** The cat walks to the tile in front of a desk and then climbs onto the desk: it is drawn this far down, on the desk's top. */
-const DESK_DROP = TILE - 5
+/** The cat walks to the tile above the right end of a desk and then climbs onto it: it is drawn this far down, at the desk's front edge, in front of the keyboard and clear of the monitor. */
+const DESK_DROP = TILE - 1
 const SPRITE = { w: 16, h: 10 }
 
 /** The office cat: it naps, sits to wash and now and then climbs on a desk, as its brain decides. It has no seat, no name and no task. */
@@ -77,7 +77,8 @@ export class Cat {
     this.body.y = TILE - SPRITE.h
     this.view.x = Math.round(this.px)
     this.view.y = Math.round(this.py) + drop
-    this.view.zIndex = this.py + drop + 7
+    // Over the desk and its monitor, so nothing hides it.
+    this.view.zIndex = this.py + drop + (drop ? 30 : 7)
     this.shadow.clear()
     if (!drop) this.shadow.rect(2, TILE - 2, 12, 2).fill({ color: 0x000000, alpha: 0.35 })
   }

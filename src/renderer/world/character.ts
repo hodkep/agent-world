@@ -298,6 +298,8 @@ export class Character {
     switch (this.doing) {
       case 'sip':
       case 'coffee': {
+        // It stands with the cup for a long while: the cup comes up to the mouth for part of every few seconds, and the arm is down the rest.
+        if (((t - this.doingAt) % 4500) / 4500 > 0.4) break
         const fx = view === 'side' ? 9 : 3
         rect(fx, 10, 2, 5, pal.o)
         rect(fx, 11, 1, 4, pal.c)
