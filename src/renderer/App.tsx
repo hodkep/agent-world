@@ -40,7 +40,8 @@ import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
 import { requestAddSelection } from './addSelection'
 import { hint, keysOf, matches } from './shortcuts'
-import { next } from './cycle'
+import { Switcher, type Tile } from './panel/Switcher'
+import { useSwitcher, type Flight } from './panel/useSwitcher'
 import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
@@ -695,23 +696,10 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
-  // Ctrl+Tab steps through the agents of the open workspace (Shift goes back) and Cmd/Ctrl+Shift+[ and ] through the workspaces. They win over the terminal and message box. The Cmd+arrows are left to the system, which uses them to jump around text.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const byAgent = matches(e, 'agent-switch')
-      if ((!byAgent && !matches(e, 'workspace-switch')) || document.querySelector('dialog[open]')) return
-      e.preventDefault(), e.stopPropagation()
-      const dir = byAgent ? (e.shiftKey ? -1 : 1) : e.code === 'BracketLeft' || e.key === '[' || e.key === '{' ? -1 : 1
-      if (byAgent) {
-        const to = next(agents.map((a) => a.id), selected, dir)
-        if (to) select(to)
-      } else {
-        const to = next((workspaces?.items ?? []).filter((w) => w.exists).map((w) => w.path), folder, dir)
-        if (to) void run(async () => setWorkspaces(await window.aw.activateWorkspace(to)))
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+  // Ctrl+Tab through the agents of the open workspace and Shift+Cmd/Ctrl+[ and ] through the projects, in the order their dropdowns list them: hold the modifier to see the bar, let go to switch.
+  const flight = useSwitcher(() => ({ agents, workspaces: workspaces?.items ?? [], selected, folder }), {
+    agent: (id) => select(id),
+    space: (path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))
   })
   // A pending permission must never sit behind a collapsed panel.
   const needsOf = (id: string): Need[] => [
@@ -747,6 +735,59 @@ export function App() {
     if (needsOf(a.id).length > 0 || act === 'permission' || waitsEverywhere.some((x) => x.agentId === a.id)) w.waiting++
     else if (['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(act)) w.working++
   }
+  // The tiles of the switcher bar, drawn as the dropdowns draw theirs.
+  const switchTiles = (f: Flight): Tile[] =>
+    f.ids.flatMap((id): Tile[] => {
+      if (f.kind === 'agents') {
+        const a = agents.find((x) => x.id === id)
+        if (!a) return []
+        const activity = world[id]?.activity ?? 'asleep'
+        const ask = askWord(id)
+        return [
+          {
+            id,
+            group: a.group,
+            line: `${a.name} · ${ask ?? activity}${id === f.start ? ' · here now' : ''}`,
+            cls: `agent-tile is-${activity}`,
+            body: (
+              <>
+                <span className="wt-top">
+                  <Identicon name={a.name} />
+                  <span className="wt-state" aria-hidden="true" />
+                </span>
+                <span className="wt-name">{a.name}</span>
+                <span className="wt-sub">{ask ? <span className="ask-pill">{ask}</span> : activity}</span>
+              </>
+            )
+          }
+        ]
+      }
+      const w = workspaces?.items.find((x) => x.path === id)
+      if (!w) return []
+      const a = wsActivity[w.path]
+      const sub = w.agents > 0 ? `${w.agents} agent${w.agents === 1 ? '' : 's'}` : 'no agents'
+      return [
+        {
+          id,
+          line: `${w.name} · ${sub}${id === f.start ? ' · here now' : ''}`,
+          body: (
+            <>
+              <span className="wt-top">
+                <Identicon name={w.name} />
+                {a && a.waiting > 0 && <span className="wt-need">{a.waiting}</span>}
+                {a && a.waiting === 0 && finished.current.projects().has(w.path) && <span className="wt-done" />}
+                {a && a.waiting === 0 && !finished.current.projects().has(w.path) && a.working > 0 && <span className="wt-live" />}
+              </span>
+              <span className="wt-name">{w.name}</span>
+              <span className="wt-sub">
+                {sub}
+                <em className={w.git ? 'git' : ''}>{w.git ? 'git' : 'no git'}</em>
+              </span>
+            </>
+          )
+        }
+      ]
+    })
   talkRef.current = talk
   const dialogNeeds = dialogFor ? needsOf(dialogFor) : []
   useEffect(() => {
@@ -1255,6 +1296,7 @@ export function App() {
   }, [covered])
   return (
     <div className="app">
+      {flight?.shown && <Switcher kind={flight.kind} title={flight.kind === 'agents' ? 'Switch agent' : 'Switch project'} tiles={switchTiles(flight)} at={flight.at} />}
       {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
       {workspaces && !workspaces.active && workspaces.items.length > 0 && (
         <WorkspacePicker

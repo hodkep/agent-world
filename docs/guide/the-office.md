@@ -79,6 +79,8 @@ The liquid is what is left. It turns amber once 70% is used and red once 90% is 
 
 Select an agent with Ctrl+Tab (Shift+Ctrl+Tab goes back), then Tab to **Allow**, **Deny** or **Wake**. Cmd+/ lists all shortcuts.
 
+Hold Ctrl and press Tab again to see a bar of the agents in the order the **Agents** panel lists them (the latest first); each Tab steps on, Shift+Tab steps back, and letting go of Ctrl switches. Esc stays where you are, and a single tap switches at once with no bar. Shift+Cmd+[ and ] (Shift+Ctrl+[ and ] elsewhere) do the same for the projects, in the order of the project panel.
+
 To remove an agent, use **More actions**, then **Remove agent**. If its worktree has uncommitted changes, choose **Cancel (commit in terminal)**, **Remove, keep worktree** or **Discard changes**.
 
 Next: [Chat and dialogs](chat-and-dialogs.md)
