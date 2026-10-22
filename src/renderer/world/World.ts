@@ -1004,7 +1004,7 @@ export class OfficeWorld {
       errands: [...this.errands].map(([agent, e]) => ({ agent, kind: e.kind, what: e.what ?? '', phase: e.phase })),
       game: this.game && { players: this.game.keys, started: this.game.started, strikes: this.game.carrom.strikes, scores: this.game.carrom.scores, over: this.game.carrom.over },
       cheers: this.cheered,
-      boy: { ...this.boyStats, playing: !!this.game?.keys.includes('boy'), at: this.staff[0] ? { x: this.staff[0].at.x, y: this.staff[0].at.y } : null },
+      boy: { ...this.boyStats, playing: !!(this.game?.keys.includes('boy') && this.game.started), at: this.staff[0] ? { x: this.staff[0].at.x, y: this.staff[0].at.y } : null },
       doing: [...this.chars].filter(([, c]) => c.doing === 'nap' || c.doing === 'stretch').map(([agent, c]) => ({ agent, doing: c.doing })),
       coffee: Math.round(this.director.coffee * 100) / 100
     })
