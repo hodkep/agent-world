@@ -19,7 +19,7 @@ export const claude: Provider = {
   id: 'claude',
   label: 'Claude Code',
   bin: 'claude',
-  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true, nativeSkills: true },
+  capabilities: { permissionsInWorld: true, liveModeSwitch: true, subagents: true, rewind: true, compact: true, limits: true, accounts: true, liveLimits: true, tools: true, mail: true, clone: true, changeRole: true, chrome: true, budget: true, sideQuestion: true, nativeSkills: true, remote: true },
   // Whether it runs, and whether someone is signed in and its first questions were answered: setup does that in a terminal, so the chat never meets it.
   detect: (bin, run) => detectClaude(bin, { run: run ?? defaultRun }),
   // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
@@ -41,6 +41,7 @@ export const claude: Provider = {
   modes: MODES,
   rewindConfirms: true,
   handbook: 'CLAUDE.md',
+  remoteNote: 'Needs a claude.ai login on this account.',
   liveModes: ['default', 'acceptEdits', 'plan', 'auto'],
   relaunchModes: ['auto', 'dontAsk'],
   hireModes: [] = [

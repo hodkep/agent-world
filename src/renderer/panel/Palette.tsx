@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PaletteCommand } from '../../shared/api'
+import type { RemoteState } from '../../shared/types'
+import { askRemote, remoteCommands } from '../chat/remoteCommands'
+
+type Item = Omit<PaletteCommand, 'source'> & { source: PaletteCommand['source'] | 'office' }
 
 /** ⌘K: run a Claude built-in, skill or custom command in the selected agent. "review auth" = /review auth. */
-export function Palette({ agentId, agentName, onClose, onRun }: { agentId: string; agentName: string; onClose: () => void; onRun: (name: string, args: string) => Promise<void> }) {
-  const [commands, setCommands] = useState<PaletteCommand[]>([])
+export function Palette({ agentId, agentName, remote, onClose, onRun }: { agentId: string; agentName: string; /** Present when the agent's program can be continued from a phone: its verbs are listed with the commands. */ remote?: RemoteState; onClose: () => void; onRun: (name: string, args: string) => Promise<void> }) {
+  const [listed, setCommands] = useState<PaletteCommand[]>([])
+  const commands = useMemo<Item[]>(() => [...(remote ? remoteCommands(agentName, remote).map((c) => ({ name: c.name, description: c.description, source: 'office' as const, args: false })) : []), ...listed], [listed, remote, agentName])
   const [query, setQuery] = useState('')
   const [at, setAt] = useState(0)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -21,9 +26,11 @@ export function Palette({ agentId, agentName, onClose, onRun }: { agentId: strin
   }, [commands, word])
   useEffect(() => setAt(0), [word])
 
-  const run = async (c: PaletteCommand | undefined) => {
+  const run = async (c: Item | undefined) => {
     if (!c) return
-    await onRun(c.name, c.args ? args : '')
+    const own = remote && remoteCommands(agentName, remote).find((r) => r.name === c.name)
+    if (own) askRemote(agentId, own.action)
+    else await onRun(c.name, c.args ? args : '')
     onClose()
   }
 

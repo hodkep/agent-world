@@ -9,7 +9,7 @@ const FINDINGS = JSON.stringify({ findings: [{ kind: 'out-of-scope', file: 'src/
 
 const PULL = { id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
 
-async function office(name: string, findings = FINDINGS) {
+async function office(name: string, findings = FINDINGS, remote = false) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), `aw-${name}-`)))
   const repo = join(tmp, 'shop')
   mkdirSync(repo)
@@ -22,12 +22,14 @@ async function office(name: string, findings = FINDINGS) {
   mkdirSync(home, { recursive: true })
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
   const envFile = join(tmp, 'env.log')
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings }, tmp)
+  const argsLog = join(tmp, 'args.log')
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings, FAKE_ARGS: argsLog }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 1000 })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
   await page.reload()
-  await hire(page, { name: 'ada' })
+  if (remote) await page.evaluate((f) => window.aw.addAgent(f, { remote: true }, 'ada'), repo)
+  else await hire(page, { name: 'ada' })
   const [ada] = await page.evaluate(() => window.aw.listAgents())
   await expect.poll(() => (existsSync(envFile) ? readFileSync(envFile, 'utf8') : ''), { timeout: 20_000 }).toMatch(/"token":"[0-9a-f]{48}"/)
   const env = JSON.parse(readFileSync(envFile, 'utf8').trim().split('\n').filter((l) => /"token":"[0-9a-f]+"/.test(l)).at(-1)!) as { url: string; token: string; git: Record<string, string> }
@@ -47,14 +49,23 @@ async function office(name: string, findings = FINDINGS) {
   writeFileSync(join(ada!.cwd, 'toggle.ts'), 'export const dark = true\n')
   git(ada!.cwd, 'add', '-A')
   git(ada!.cwd, 'commit', '-qm', 'add toggle')
-  const remote = join(tmp, 'remote.git')
-  git(tmp, 'init', '-q', '--bare', remote)
-  git(repo, 'remote', 'add', 'origin', remote)
+  const remoteDir = join(tmp, 'remote.git')
+  git(tmp, 'init', '-q', '--bare', remoteDir)
+  git(repo, 'remote', 'add', 'origin', remoteDir)
   const push = (...extra: string[]) => asAgent(ada!.cwd, 'push', ...extra, 'origin', ada!.branch!)
   const merge = () => asAgent(repo, 'merge', '--ff-only', ada!.branch!)
-  const pushed = () => git(remote, 'branch', '--list', ada!.branch!)
+  const pushed = () => git(remoteDir, 'branch', '--list', ada!.branch!)
   const landed = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.landed as { how: string; held: string[] } | undefined
-  return { repo, home, git, page, ada: ada!, shutdown, merge, push, pushed, landed }
+  // What the person types is what the prompt hook is sent.
+  const launch = readFileSync(argsLog, 'utf8').split('\n').filter((l) => l.startsWith('[')).map((l) => JSON.parse(l) as string[]).find((a) => a.includes('--settings'))!
+  const flag = (f: string) => launch[launch.indexOf(f) + 1]!
+  const hook = JSON.parse(readFileSync(flag('--settings'), 'utf8')).hooks.PreToolUse[0].hooks[0] as { url: string; headers: Record<string, string> }
+  const reply = async (prompt: string) => {
+    const res = await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada!.cwd, hook_event_name: 'UserPromptSubmit', prompt }) })
+    const t = await res.text()
+    return t ? ((JSON.parse(t) as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput?.additionalContext ?? '') : ''
+  }
+  return { repo, home, git, page, ada: ada!, shutdown, merge, push, pushed, landed, reply }
 }
 
 test('an agent that pushes its branch from the chat is held by git itself while the review has findings the person has not seen, and the push goes through once the person allows it, which ends the run', async () => {
@@ -194,6 +205,82 @@ test('a push of finished work is held by that work\'s own run, not by a task beg
     expect(r.out).not.toContain('this push is held')
     expect(r.ok).toBe(true)
     expect(o.pushed()).toContain('aw/')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('with remote control on, the held push names its codes, and the person lets it through by typing the word and code', async () => {
+  const o = await office('wfpushr', FINDINGS, true)
+  try {
+    await o.push()
+    // Once the review's findings are in, the refusal the agent reads has the two things waiting and how to answer each.
+    const out = await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.').then(async () => (await o.push()).out)
+    const audit = /`seen ([a-z0-9]{3})`/.exec(out)?.[1]
+    const push = /`allow ([a-z0-9]{3})`/.exec(out)?.[1]
+    expect(audit).toBeTruthy()
+    expect(push).toBeTruthy()
+    expect(out).toContain('or `decline')
+    // A word that the push does not take is told so, and nothing changes; neither does a code that waits for nothing.
+    expect(await o.reply(`approve ${push}`)).toContain('does not take "approve"')
+    expect(await o.reply('allow abc')).toBe('')
+    expect((await o.push()).ok).toBe(false)
+    // Seeing the findings by typing lets the push through, as the card's button does.
+    expect(await o.reply(`seen ${audit}`)).toContain('seen')
+    expect((await o.push()).ok).toBe(true)
+    await expect.poll(o.landed).toMatchObject({ how: 'checked', held: [] })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('with remote control on, typing allow and the code lets a held push through anyway, and "decline" keeps it held', async () => {
+  const o = await office('wfpushr2', FINDINGS, true)
+  try {
+    await o.push()
+    const out = await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.').then(async () => (await o.push()).out)
+    const push = /`allow ([a-z0-9]{3})`/.exec(out)?.[1]!
+    expect(await o.reply(`decline ${push}`)).toContain('not yet')
+    await expect.poll(() => o.page.evaluate(() => window.aw.landingHolds())).toEqual([expect.objectContaining({ declined: true })])
+    expect((await o.push()).ok).toBe(false)
+    // The agent trying again and being held again brings the decision back, with the same code.
+    const again = /`allow ([a-z0-9]{3})`/.exec((await o.push()).out)?.[1]
+    expect(again).toBe(push)
+    expect(await o.reply(`allow ${again}`)).toContain('push again')
+    expect((await o.push()).ok).toBe(true)
+    await expect.poll(o.landed).toMatchObject({ how: 'anyway' })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('with remote control off the push refusal says nothing of codes, and typed words decide nothing', async () => {
+  const o = await office('wfpushr3')
+  try {
+    await o.push()
+    const out = await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.').then(async () => (await o.push()).out)
+    expect(out).not.toContain('remote control')
+    expect(out).not.toMatch(/allow [a-z0-9]{3}/)
+    expect(await o.reply('allow abc')).toBe('')
+    expect((await o.push()).ok).toBe(false)
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('with remote control on, the audit findings are answered by typing: only out-of-scope work can be added to the plan, and setting the review aside lets the push through', async () => {
+  const o = await office('wfpushr4', FINDINGS, true)
+  try {
+    await o.push()
+    const out = await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.').then(async () => (await o.push()).out)
+    const audit = /`seen ([a-z0-9]{3})`/.exec(out)?.[1]!
+    expect(await o.reply(`plan ${audit} 2`)).toContain('Only out-of-scope work can be added to the plan')
+    expect(await o.reply(`seen ${audit} 9`)).toContain('must be findings of the audit')
+    expect(await o.reply(`plan ${audit} 1`)).toContain('added those findings to the plan')
+    // One finding is still unseen, so the push is still held, and the audit has the same code until it is all seen or set aside.
+    expect((await o.push()).ok).toBe(false)
+    expect(await o.reply(`aside ${audit}`)).toContain('set the audit aside')
+    expect((await o.push()).ok).toBe(true)
   } finally {
     await o.shutdown()
   }

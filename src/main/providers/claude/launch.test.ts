@@ -8,6 +8,14 @@ describe('claude launch', () => {
     ])
   })
 
+  it('lets the session be controlled from claude.ai or the phone when the agent\'s Remote option is on, under its name', () => {
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', options: { remote: true } })).toEqual([
+      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--remote-control', 'ada'
+    ])
+    // Not asked: nothing added.
+    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).not.toContain('--remote-control')
+  })
+
   it('resumes a session that already ran', () => {
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: true, settingsFile: '/s.json' })).toEqual([
       '--resume', 'abc', '--settings', '/s.json'

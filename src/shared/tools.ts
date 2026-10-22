@@ -28,7 +28,7 @@ export interface ToolTranslator {
 }
 
 /** The names the chat has a card for. MCP calls are `mcp__server__tool`. */
-export const CANONICAL_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Agent', 'Monitor', 'Schedule', 'Unschedule'] as const
+export const CANONICAL_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Agent', 'Monitor', 'Schedule', 'Unschedule', 'AskUserQuestion'] as const
 export const isCanonicalTool = (name: string) => (CANONICAL_TOOLS as readonly string[]).includes(name) || /^mcp__.+__.+$/.test(name)
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -48,6 +48,8 @@ export const call = {
   watch: (command: string, description = '', timeoutMs?: number): ToolCall => ({ name: 'Monitor', input: { command, description, ...(timeoutMs && { timeout_ms: timeoutMs }) } }),
   /** Be woken later with a prompt: after `inSeconds`, or whenever `cron` (5 fields, local time) matches, once or on repeat. */
   schedule: (when: { inSeconds?: number; cron?: string; repeat?: boolean }, reason: string, prompt: string, flags: { noop?: boolean } = {}): ToolCall => ({ name: 'Schedule', input: { ...when, reason, prompt, ...(flags.noop && { noop: true }) } }),
+  /** A question asked of the person, with answers to pick from (one of them may be several-choice). */
+  ask: (questions: { question: string; options: string[]; multi: boolean }[]): ToolCall => ({ name: 'AskUserQuestion', input: { questions: questions.map((q) => ({ question: q.question, header: '', options: q.options.map((label) => ({ label, description: '' })), multiSelect: q.multi })) } }),
   /** Cancel one schedule by its id, or the whole loop when no id is given. */
   unschedule: (id = ''): ToolCall => ({ name: 'Unschedule', input: id ? { id } : {} }),
   agent: (description: string, subagent_type: string, prompt = ''): ToolCall => ({ name: 'Agent', input: { description, subagent_type, prompt } }),

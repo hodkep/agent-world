@@ -73,6 +73,8 @@ const forkedFrom = args.includes('--fork-session') ? flag('--resume') : null
 let sessionId = forkedFrom ? `forked-${forkedFrom}` : (flag('--session-id') ?? flag('--resume'))
 const { url, headers } = settings.hooks.PreToolUse[0].hooks[0]
 const pause = Number(process.env.FAKE_DELAY_MS ?? 150)
+// --remote-control: like real Claude, the screen says where the session can be continued (FAKE_REMOTE_REFUSE=<text> says it cannot instead).
+let remoteLine = !args.includes('--remote-control') ? '' : process.env.FAKE_REMOTE_REFUSE ? `  ${process.env.FAKE_REMOTE_REFUSE}\r\n` : `  /remote-control is active · Code in CLI or at https://claude.ai/code/session_fake${flag('--remote-control')}\r\n`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // FAKE_TRANSCRIPT=1: also keep the saved conversation file real Claude keeps, so the chat view has something to read.
@@ -85,6 +87,14 @@ const transcript = (line) => {
   appendFileSync(`${dir}/${sessionId}.jsonl`, JSON.stringify({ isSidechain: false, timestamp: new Date().toISOString(), uuid: crypto.randomUUID(), sessionId, ...line }) + '\n')
 }
 const say = (text) => transcript({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } })
+// FAKE_SESSION_LOCK=1: like real Claude, --session-id for a session that already has its file is refused (only --resume can open it).
+if (process.env.FAKE_SESSION_LOCK && flag('--session-id') && process.env.AW_CLAUDE_PROJECTS) {
+  const f = `${process.env.AW_CLAUDE_PROJECTS}/${realpathSync(process.cwd()).replace(/[^a-zA-Z0-9]/g, '-')}/${sessionId}.jsonl`
+  if ((await import('node:fs')).existsSync(f)) {
+    console.error(`Error: Session ID ${sessionId} is already in use.`)
+    process.exit(1)
+  }
+}
 // FAKE_SNAPSHOT=1: like real Claude, a new session saves the system prompt it started with; a resumed one keeps (and reuses) it.
 if (process.env.FAKE_SNAPSHOT && flag('--session-id')) {
   transcript({ type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: JSON.stringify([flag('--append-system-prompt') ?? '']) } })
@@ -329,7 +339,8 @@ if (process.env.FAKE_CHAT) {
   let turn = false
   const MODES = ['default', 'acceptEdits', 'plan']
   const FOOT = { default: '⏸ manual mode on', acceptEdits: '⏵⏵ accept edits on (shift+tab to cycle)', plan: '⏸ plan mode on (shift+tab to cycle)' }
-  const drawFoot = () => process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`)
+  // FAKE_REMOTE_ONCE=1: the remote line is on the screen once, as at the real start; later the conversation fills it.
+  const drawFoot = () => (process.env.FAKE_REMOTE_ONCE && setTimeout(() => (remoteLine = ''), 0), process.stdout.write(`\x1b[2J\x1b[H\r\n  fake claude (chat)\r\n${remoteLine}\x1b[21;1H──────────\r\n❯ \r\n──────────\r\n  Agent World · Fake\r\n  ${FOOT[MODES[mode]]}\r\n`))
   let mode = 0
   let inMenu = false
   if (process.env.FAKE_ONBOARDING) {

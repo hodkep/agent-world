@@ -71,6 +71,8 @@ export function launchArgs(o: {
       : ['--session-id', o.sessionId, '--name', o.name, '--settings', o.settingsFile]
   if (o.mcpFile) args.push('--mcp-config', o.mcpFile)
   const opt = o.options ?? {}
+  // Continued from claude.ai/code or the phone app, under the agent's name.
+  if (opt.remote) args.push('--remote-control', o.name)
   if (opt.model) args.push('--model', opt.model)
   if (opt.effort) args.push('--effort', opt.effort)
   const mode = opt.permissionMode ?? o.permissionMode

@@ -44,7 +44,8 @@ export type AgentEvent = RawEvent & { agentId: string }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
 
-export type Decision = 'allow' | 'deny'
+/** The person's answer to a permission request: yes or no, or (when the program offered its own answers) the one chosen, by position. */
+export type Decision = 'allow' | 'deny' | { option: number }
 
 export interface PermissionRequest {
   id: string
@@ -52,6 +53,11 @@ export interface PermissionRequest {
   sessionId: string
   tool: string
   detail: string
+  /** The program's own answers, in its words, when it has more than yes and no ("always allow…"); the card shows them as its buttons. */
+  options?: string[]
+  /** What the question is called in the program, and that it is about a file (reading, creating, editing). */
+  title?: string
+  kind?: 'file'
 }
 
 /** How much an agent may do alone, whatever program runs it. Each provider maps these to its own modes. */
@@ -71,6 +77,8 @@ export interface AgentOptions {
   budgetUsd?: number
   instructions?: string
   chrome?: boolean
+  /** Let it be continued from the phone or the web: the program is started with its remote-control switch. */
+  remote?: boolean
   /** The job this agent was hired for (a role's title), shown next to its name. */
   role?: string
   /** Work in the folder itself instead of a worktree on its own branch. */
@@ -78,6 +86,9 @@ export interface AgentOptions {
   /** Which signed-in account runs it (an id from Prefs.accounts); empty or unset is the program's own login on this computer. */
   account?: string
 }
+
+/** What an agent's remote control is doing: asked for and waiting, reachable at a link, or refused by the program (with its reason). */
+export type RemoteState = { state: 'off' } | { state: 'starting' } | { state: 'on'; link: string } | { state: 'unavailable'; reason: string }
 
 /** The agent programs the office can run. */
 export const PROVIDER_IDS = ['claude', 'agy'] as const
@@ -101,6 +112,8 @@ export interface Capabilities {
   changeRole: boolean
   /** It can be allowed to use Chrome. */
   chrome: boolean
+  /** It can be continued from a phone or the web (its own remote-control switch). */
+  remote: boolean
   /** It reports a price, so a spending budget can be set and warned about. */
   budget: boolean
   /** It has a side-question overlay that answers without interrupting the task (/btw). */
@@ -152,6 +165,8 @@ export interface ProviderInfo {
   hireModes: { value: string; label: string; hint: string }[]
   /** The file of standing project notes its program reads (CLAUDE.md, AGENTS.md). */
   handbook: string
+  /** What remote control needs with this program, said under the hire switch. */
+  remoteNote?: string
   /** The mode each neutral level means for this provider (null when it has none). */
   autonomy: Record<AutonomyLevel, string | null>
   /** Whether it can use the office message box: always, once connected (and what that changes), or not at all. */
@@ -320,3 +335,20 @@ export interface AccountInfo extends Account {
   /** How many agents run on it. */
   agents: number
 }
+
+/** What an earlier agent left under this name: its branch, its folder, and how much work is in them. */
+export interface Leftover {
+  branch: string
+  path: string
+  hasBranch: boolean
+  hasFolder: boolean
+  /** Git lists the folder as a worktree (otherwise it is only a folder). */
+  registered: boolean
+  /** Commits on the branch that are not in the branch the project folder is on. */
+  unmerged: number
+  /** Files with uncommitted changes in a worktree; entries in a folder git does not know. */
+  dirty: number
+}
+
+/** What the hire form is told about a name an earlier agent left behind; `inUse` is the agent that still works on it. */
+export type HireLeftover = Leftover & { inUse?: string }

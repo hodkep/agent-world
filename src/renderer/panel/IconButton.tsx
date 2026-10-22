@@ -57,7 +57,11 @@ const ICONS = {
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" />,
   desktop: <path d="M3 4h18v12H3zM8 20h8M12 16v4" />,
   tablet: <><rect x="4" y="2" width="16" height="20" /><path d="M11 18h2" /></>,
-  phone: <><rect x="7" y="2" width="10" height="20" /><path d="M11 18h2" /></>
+  phone: <><rect x="7" y="2" width="10" height="20" /><path d="M11 18h2" /></>,
+  // Remote control: copy the link, show it as a code, turn it off.
+  copy: <path d="M9 9h11v11H9zM5 15V4h11" />,
+  qr: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1" /></>,
+  power: <path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0" />
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS

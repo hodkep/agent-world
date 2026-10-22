@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { answersOf, parsePlan, planReply, unanswered } from './plan'
+import { answersOf, parsePlan, planCounts, planReply, unanswered } from './plan'
 
 const good = `# Plan: dark-mode toggle
 
@@ -105,5 +105,16 @@ describe('which questions still block approving a plan', () => {
     expect(unanswered({ ...plan, questions: [] }, {})).toEqual([])
     expect(answersOf(plan, { 'Which name?': 'Toggle', 'Every window?': 'No' })).toEqual([{ question: 'Every window?', answer: 'No' }, { question: 'Which name?', answer: 'Toggle' }])
     expect(answersOf(plan, { 'Which name?': ' ' })).toEqual([])
+  })
+})
+
+describe('planCounts: the one line a folded plan gate shows under its goal', () => {
+  const r = { goal: 'g', assumptions: [{ kind: 'given' as const, text: 'a' }, { kind: 'guessed' as const, text: 'b' }, { kind: 'guessed' as const, text: 'c' }], outOfScope: ['x'], questions: [{ text: 'Q1?', options: [] }, { text: 'Q2?', options: [] }] }
+  it('counts what was given, guessed, left out and still open', () => {
+    expect(planCounts(r, {})).toBe('1 given · 2 guessed · 1 out of scope · 2 questions open')
+  })
+  it('stops counting a question once it is answered, and leaves out what is empty', () => {
+    expect(planCounts({ ...r, outOfScope: [] }, { 'Q1?': 'yes' })).toBe('1 given · 2 guessed · 1 question open')
+    expect(planCounts({ ...r, assumptions: [], outOfScope: [], questions: [] }, {})).toBe('nothing to check')
   })
 })

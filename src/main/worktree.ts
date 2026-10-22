@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
+import type { Leftover } from '../shared/types'
 import { gitBin, gitProcessEnv } from './gitProgram'
 
 const run = promisify(execFile)
@@ -106,4 +107,43 @@ export async function removeWorktree(o: { repoPath: string; path: string; force?
     if (status) throw new DirtyWorktreeError(o.path, status)
   }
   await git(o.repoPath, 'worktree', 'remove', ...(o.force ? ['--force'] : []), o.path)
+}
+
+const listed = async (repoPath: string) => (await git(repoPath, 'worktree', 'list', '--porcelain')).split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9))
+const same = (a: string, b: string) => a === b || (existsSync(a) && existsSync(b) && realpathSync(a) === realpathSync(b))
+
+export async function leftoverOf(o: { repoPath: string; name: string; rootDir: string }): Promise<Leftover | null> {
+  if (!(await nameTaken(o))) return null
+  const branch = `aw/${o.name}`
+  const path = join(o.rootDir, slug(o.repoPath), o.name)
+  const hasFolder = existsSync(path)
+  const hasBranch = await git(o.repoPath, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).then(() => true, () => false)
+  const registered = hasFolder && (await listed(o.repoPath)).some((p) => same(p, path))
+  const unmerged = hasBranch ? Number(await git(o.repoPath, 'rev-list', '--count', `HEAD..${branch}`).catch(() => '0')) : 0
+  const dirty = !hasFolder ? 0 : registered ? (await git(path, 'status', '--porcelain')).split('\n').filter(Boolean).length : readdirSync(path).length
+  return { branch, path, hasBranch, hasFolder, registered, unmerged, dirty }
+}
+
+/** Deletes what is left under the name, whatever work is in it: the worktree, any folder git does not know, and the branch. */
+export async function removeLeftover(o: { repoPath: string; name: string; rootDir: string }) {
+  const found = await leftoverOf(o)
+  if (!found) return
+  if (found.registered) await git(o.repoPath, 'worktree', 'remove', '--force', found.path)
+  // Only ever the folder this app makes for the name, under its own worktrees folder.
+  if (existsSync(found.path)) rmSync(found.path, { recursive: true, force: true })
+  await git(o.repoPath, 'worktree', 'prune')
+  if (found.hasBranch) await git(o.repoPath, 'branch', '-D', found.branch)
+}
+
+/** A worktree on the branch an earlier agent left, so a new agent of the same name carries on from its work. */
+export async function attachLeftover(o: { repoPath: string; name: string; rootDir: string }) {
+  const found = await leftoverOf(o)
+  if (!found?.hasBranch) throw new Error(`There is no branch aw/${o.name} to carry on from.`)
+  if (found.hasFolder && !found.registered) throw new Error(`The folder for aw/${o.name} is not one git knows, so it cannot be used. Remove it first.`)
+  const base = await checkedOutBranch(o.repoPath)
+  if (!found.hasFolder) {
+    await git(o.repoPath, 'worktree', 'prune')
+    await git(o.repoPath, 'worktree', 'add', found.path, found.branch)
+  }
+  return { path: found.path, branch: found.branch, base }
 }

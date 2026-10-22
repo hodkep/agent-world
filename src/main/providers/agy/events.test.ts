@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AgentEvent, AgentRecord, PermissionRequest } from '../../../shared/types'
+import type { AgentEvent, AgentRecord, PermissionRequest, Question } from '../../../shared/types'
 import type { EventSourceOptions } from '../ports'
 import { createAgyEvents } from './events'
 
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
 const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
 
-function setup(opts: { subs?: { agentId: string; type: string; done: boolean; stopped: boolean }[]; usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
+function setup(opts: { subs?: { agentId: string; type: string; done: boolean; stopped: boolean }[]; usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; questions?: Question[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
   const agents = opts.agents ?? [agent()]
   const screens: Record<string, string> = { a1: fx('idle') }
   const events: AgentEvent[] = []
@@ -32,7 +32,7 @@ function setup(opts: { subs?: { agentId: string; type: string; done: boolean; st
     },
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { window: (m) => (m.startsWith('Gemini') ? 1_000_000 : null), subagents: () => opts.subs ?? [], usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
+  const src = createAgyEvents(o, { window: (m) => (m.startsWith('Gemini') ? 1_000_000 : null), subagents: () => opts.subs ?? [], questions: () => opts.questions ?? null, usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
   return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports, pcts }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
@@ -173,6 +173,24 @@ describe('agy asking permission', () => {
     t.src.handle.decide(t.asked[0]!.id, 'deny')
     expect(t.written).toEqual(['\x1b'])
   })
+  it('raises a card for a new file or an edit with the program\'s own answers, and presses the one chosen by its number', () => {
+    const t = setup({ agents: [agent(resolved)] })
+    t.screens.a1 = fx('permission-create')
+    t.src.tick()
+    expect(t.asked[0]).toMatchObject({ agentId: 'a1', tool: 'Create', title: 'Create file', kind: 'file', options: ['Yes, allow creation', 'Yes, and always allow non-workspace access', 'No, deny creation'] })
+    // The cursor is on the first answer: choosing it is Enter; another is reached by arrows, looking at the screen each time.
+    t.src.handle.decide(t.asked[0]!.id, { option: 0 })
+    expect(t.written).toEqual(['\r'])
+    t.written.length = 0
+    t.src.handle.decide(t.asked[0]!.id, { option: 2 })
+    expect(t.written[0]).toBe('\x1b[B')
+    t.written.length = 0
+    t.src.handle.decide(t.asked[0]!.id, { option: 7 })
+    expect(t.written).toEqual([])
+    t.screens.a1 = fx('permission-edit')
+    t.src.tick()
+    expect(t.asked.at(-1)).toMatchObject({ tool: 'Edit', title: 'Pending edit', kind: 'file', options: ['Yes, accept this change', 'No, reject this change'] })
+  })
   it('answers allow by choosing the first option, and deny by cancelling', async () => {
     const t = setup({ agents: [agent(resolved)] })
     t.screens.a1 = fx('permission')
@@ -259,5 +277,31 @@ describe('finding the conversation agy gave a new agent', () => {
     t.screens.a1 = fx('working')
     t.src.tick()
     expect(t.sessions).toEqual([])
+  })
+})
+
+describe('a question agy asks with its ask_question tool', () => {
+  const qs: Question[] = [{ question: 'Which deployment environment should be targeted?', header: '', options: [{ label: '(Recommended) Production', description: '' }], multiSelect: false }]
+  it('is reported once, with its questions from the saved conversation, while the box is on the screen, and again for the next box', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })], questions: qs })
+    t.screens.a1 = fx('ask-single')
+    t.src.tick()
+    t.src.tick()
+    expect(t.events.filter((e) => e.type === 'question')).toEqual([{ type: 'question', agentId: 'a1', sessionId: 'c1', questions: qs }])
+    // Answered, then asked again.
+    t.screens.a1 = fx('idle')
+    t.src.tick()
+    t.screens.a1 = fx('ask-single')
+    t.src.tick()
+    expect(t.events.filter((e) => e.type === 'question')).toHaveLength(2)
+  })
+  it('waits for the saved conversation to have the call, and says nothing when there is no box', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1' })] })
+    t.screens.a1 = fx('ask-single')
+    t.src.tick()
+    expect(t.events.filter((e) => e.type === 'question')).toEqual([])
+    t.screens.a1 = fx('idle')
+    t.src.tick()
+    expect(t.events.filter((e) => e.type === 'question')).toEqual([])
   })
 })

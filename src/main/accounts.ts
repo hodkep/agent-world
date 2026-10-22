@@ -5,7 +5,8 @@ import type { Account, AccountInfo, AgentRecord, ProviderId } from '../shared/ty
 import type { AccountSupport, Provider } from './providers/ports'
 
 /** Each extra account keeps its sign-in, settings and conversations in a folder of its own under the app's home. */
-export const accountDir = (home: string, id: string) => join(home, 'accounts', id)
+// AW_ACCOUNTS_DIR moves them elsewhere (a demo that keeps its own data but runs on the logins of the real app folder: a login is kept by the program against the folder's path).
+export const accountDir = (home: string, id: string) => join(process.env.AW_ACCOUNTS_DIR ?? join(home, 'accounts'), id)
 
 /** A short folder-safe id from the name the user typed, never one already taken. */
 export function accountId(name: string, taken: string[]): string {

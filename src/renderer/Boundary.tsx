@@ -19,7 +19,7 @@ export class Boundary extends Component<{ children: ReactNode }, { error: Error 
         <h1>Something went wrong in the window</h1>
         <p>Your agents are still running. Reload the window to carry on.</p>
         <pre>{this.state.error.message}</pre>
-        <button className="primary" onClick={() => location.reload()}>
+        <button className="primary" onClick={() => (window.aw?.reloadWindow ? void window.aw.reloadWindow() : location.reload())}>
           Reload
         </button>
       </main>

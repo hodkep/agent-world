@@ -49,6 +49,8 @@ export function agyArgs(i: LaunchInput) {
   const mode = (o.permissionMode ?? i.permissionMode) as string | undefined
   if (mode === 'accept-edits' || mode === 'plan') args.push('--mode', mode)
   else if (mode === 'skip-permissions') args.push('--dangerously-skip-permissions')
+  // A link to take the session over from a phone or the web; agy takes no name for it.
+  if (o.remote) args.push('--remote-control')
   for (const d of i.addDirs ?? []) args.push('--add-dir', d)
   const instructions = [i.houseRules, o.instructions].map((t) => t?.trim()).filter(Boolean).join('\n\n')
   if (!i.agent.started && instructions) args.push('-i', `House rules for this session. Keep them in mind; reply only "ok" now.\n\n${instructions}`)

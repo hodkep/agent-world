@@ -11,6 +11,17 @@ type Spawn = { Prompt?: string; Role?: string; TypeName?: string }
  */
 const table: Record<string, Mapper> = {
   run_command: (a) => call.bash(text(a.CommandLine), text(a.toolAction)),
+  // agy 1.4 names its file tools read_file and write_file, with Path and Content.
+  read_file: (a) => call.read(text(a.Path) || text(a.AbsolutePath)),
+  write_file: (a) => call.write(text(a.Path) || text(a.TargetFile), text(a.Content) || text(a.CodeContent)),
+  ask_question: (a) =>
+    call.ask(
+      (Array.isArray(a.questions) ? (a.questions as Record<string, unknown>[]) : []).map((q) => ({
+        question: text(q.question),
+        options: Array.isArray(q.options) ? q.options.filter((o): o is string => typeof o === 'string') : [],
+        multi: q.is_multi_select === true
+      }))
+    ),
   view_file: (a) => call.read(text(a.AbsolutePath) || text(a.Path) || text(a.File)),
   view_file_outline: (a) => call.read(text(a.AbsolutePath) || text(a.Path)),
   write_to_file: (a) => call.write(text(a.TargetFile), text(a.CodeContent)),
@@ -41,6 +52,9 @@ export const agyCalls = tableTranslator(table, ['invoke_subagent'])
 /** One real call of each kind, as agy writes them: the contract test turns each into something the chat draws. */
 export const agyCallSamples = [
   { id: 'a', name: 'run_command', args: { CommandLine: 'ls -la', toolAction: 'List files' } },
+  { id: 'a', name: 'read_file', args: { Path: '/p/a.ts', StartLine: 1, EndLine: 100 } },
+  { id: 'a', name: 'write_file', args: { Path: '/p/a.ts', Content: 'x' } },
+  { id: 'a', name: 'ask_question', args: { questions: [{ is_multi_select: false, options: ['A', 'B'], question: 'Which?' }] } },
   { id: 'a', name: 'view_file', args: { AbsolutePath: '/p/a.ts' } },
   { id: 'a', name: 'view_file_outline', args: { AbsolutePath: '/p/a.ts' } },
   { id: 'a', name: 'write_to_file', args: { TargetFile: '/p/a.ts', CodeContent: 'x' } },

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { BranchList } from '../../shared/api'
 import type { LibraryPreview } from '../../shared/library'
 import type { Role } from '../../shared/roles'
-import type { AgentOptions, Effort, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
+import type { AgentOptions, Effort, HireLeftover, PermissionMode, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { effortsFor } from '../../shared/efforts'
 import { parsePick } from '../../shared/modelPick'
 import { cssColor } from '../../shared/brand'
@@ -56,8 +56,8 @@ export function HireForm({
   accounts: Prefs['accounts']
   /** The project the agent is hired into, to offer its branches. */
   folder: string
-  /** `base` is set only when another branch than the folder's own was chosen. */
-  onHire: (options: AgentOptions, name: string, base?: string) => Promise<void>
+  /** `base` is set only when another branch than the folder's own was chosen; `leftover` says what to do with one an earlier agent left under the name. A refusal is shown in this form. */
+  onHire: (options: AgentOptions, name: string, base?: string, leftover?: 'replace' | 'reuse') => Promise<void>
   onCancel: () => void
   onSaveRole: (title: string, options: AgentOptions) => Promise<void>
 }) {
@@ -75,6 +75,7 @@ export function HireForm({
   const [budget, setBudget] = useState('')
   const [instructions, setInstructions] = useState('')
   const [chrome, setChrome] = useState(false)
+  const [remote, setRemote] = useState(false)
   const [inPlace, setInPlace] = useState(defaults.inPlace)
   // The branch the agent starts from and lands on: the folder's own unless another is chosen. Nothing is offered outside a git repo.
   const [repo, setRepo] = useState<BranchList>({ current: '', branches: [] })
@@ -109,6 +110,7 @@ export function HireForm({
     setMode(o.permissionMode ?? '')
     setInstructions(o.instructions ?? '')
     setChrome(!!o.chrome)
+    setRemote(!!o.remote)
     if (r.nameHint && !name.trim()) setName(r.nameHint)
   }
   const current = (): AgentOptions => {
@@ -121,16 +123,34 @@ export function HireForm({
       ...(budgetUsd > 0 && chosen?.capabilities.budget !== false && { budgetUsd }),
       ...(instructions.trim() && { instructions: instructions.trim() }),
       ...(chrome && chosen?.capabilities.chrome !== false && { chrome }),
+      ...(remote && chosen?.capabilities.remote && { remote }),
       ...(inPlace && { inPlace }),
       ...(mine.length > 0 && { account }),
       ...(roles.find((r) => r.id === roleId) && { role: roles.find((r) => r.id === roleId)!.title })
     }
   }
 
-  const submit = async () => {
+  // A branch or folder an earlier agent left under this name, looked for as the name settles, so it is said before Hire is pressed.
+  const [left, setLeft] = useState<HireLeftover | null>(null)
+  const [sure, setSure] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setSure(false)
+    setError('')
+    if (!name.trim()) return setLeft(null)
+    const t = setTimeout(() => void window.aw.hireLeftover(folder, name, inPlace).then(setLeft, () => setLeft(null)), 250)
+    return () => clearTimeout(t)
+  }, [folder, name, inPlace])
+
+  const submit = async (leftover?: 'replace' | 'reuse') => {
     setBusy(true)
+    setError('')
     try {
-      await onHire(current(), name, !inPlace && base && base !== repo.current ? base : undefined)
+      await onHire(current(), name, !inPlace && base && base !== repo.current ? base : undefined, leftover)
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+      // The name may have been taken or freed meanwhile.
+      void window.aw.hireLeftover(folder, name, inPlace).then(setLeft, () => setLeft(null))
     } finally {
       setBusy(false)
     }
@@ -159,6 +179,7 @@ export function HireForm({
             Name
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="auto" autoFocus maxLength={20} />
           </label>
+          {left && <LeftoverNotice left={left} busy={busy} sure={sure} onAsk={setSure} onChoose={(c) => void submit(c)} />}
           <span className="hint">{chosen?.label} · {modelLabel} · {modeChosen.label}</span>
         </div>
       </div>
@@ -279,6 +300,13 @@ export function HireForm({
           <input type="checkbox" checked={inPlace || !!repo.unborn} disabled={!!repo.unborn} onChange={(e) => setInPlace(e.target.checked)} /> Work in my folder directly (no branch)
         </label>
       </div>
+      {chosen?.capabilities.remote && (
+        <label className="hire-switch">
+          <input type="checkbox" role="switch" checked={remote} onChange={(e) => setRemote(e.target.checked)} />
+          <span className="sw" aria-hidden="true" />
+          <span><b>Remote control</b><span className="hint">Continue this agent from your phone.{chosen.remoteNote ? ` ${chosen.remoteNote}` : ''}</span></span>
+        </label>
+      )}
       {repo.unborn && (
         <p className="hint" role="note" aria-label="No commits yet">
           This repository has no commits yet, so the agent works in the folder itself. Once it has a first commit, new agents get a branch of their own.
@@ -301,6 +329,7 @@ export function HireForm({
           </div>
         </div>
       )}
+      {error && <p className="hire-error" role="alert">{error}</p>}
       <div className="hire-foot">
         <span className="hire-sum">Hiring <b>{who}</b> on <b>{chosen?.label}</b> with <b>{modelLabel}</b></span>
         {saving === null ? (
@@ -318,10 +347,52 @@ export function HireForm({
         <button type="button" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="primary" disabled={busy}>
+        <button type="submit" className="primary" disabled={busy || !!left} title={left ? `Choose what to do with ${left.branch} above first` : undefined}>
           {busy ? 'Hiring…' : 'Hire'}
         </button>
       </div>
     </form>
+  )
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/** What an earlier agent left under the name, and what can be done: delete it and hire fresh, or hire onto it. */
+function LeftoverNotice({ left, busy, sure, onAsk, onChoose }: { left: HireLeftover; busy: boolean; sure: boolean; onAsk: (v: boolean) => void; onChoose: (c: 'replace' | 'reuse') => void }) {
+  const what = [left.unmerged > 0 && `${plural(left.unmerged, 'commit', 'commits')} not merged`, left.dirty > 0 && (left.registered ? plural(left.dirty, 'file', 'files') + ' with uncommitted changes' : plural(left.dirty, 'item', 'items') + ' in a folder git does not know')].filter(Boolean) as string[]
+  const lossy = what.length > 0
+  // The form scrolls: bring the notice (and its buttons) into view when it appears or asks to be sure.
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    box.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [sure, left.branch])
+  const cannotReuse = !left.hasBranch ? 'There is no branch left to carry on from.' : left.hasFolder && !left.registered ? 'Its folder is not one git knows, so it cannot be used.' : ''
+  return (
+    <div className="hire-left" ref={box} role="alert" aria-label="Left over from an earlier agent">
+      <span className="hire-left-tag">{left.inUse ? 'In use' : 'Left over'}</span>
+      {left.inUse ? (
+        <p><b>{left.branch}</b> is still used by {left.inUse}. Pick another name.</p>
+      ) : (
+        <>
+          <p><b>{left.branch}</b> is left over from an earlier agent{lossy ? `: ${what.join(', ')}.` : '. There is no work in it.'}</p>
+          {sure ? (
+            <p>This deletes {left.branch}{lossy ? ` with ${what.join(' and ')}` : ''}. It cannot be undone for the uncommitted files.</p>
+          ) : null}
+          <div className="hire-left-acts">
+            {sure ? (
+              <>
+                <button type="button" className="danger" disabled={busy} onClick={() => onChoose('replace')}>Delete it and hire</button>
+                <button type="button" onClick={() => onAsk(false)}>Keep it</button>
+              </>
+            ) : (
+              <>
+                <button type="button" disabled={busy} onClick={() => (lossy ? onAsk(true) : onChoose('replace'))}>Remove it and hire</button>
+                <button type="button" className="primary" disabled={busy || !!cannotReuse} title={cannotReuse || `Hire onto ${left.branch}, with the work in it`} onClick={() => onChoose('reuse')}>Hire on it</button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   )
 }

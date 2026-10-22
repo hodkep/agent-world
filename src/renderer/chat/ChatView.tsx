@@ -4,7 +4,9 @@ import { parseHandoff } from '../../shared/handoff'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
-import type { Activity, ProcInfo } from '../../shared/types'
+import type { Activity, ProcInfo, RemoteState } from '../../shared/types'
+import { askRemote } from './remoteCommands'
+import { RemoteRows } from './RemoteControl'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, highlight, markdownSpans, norm, rowText, spanLabel, toMarkdown, toRows } from './format'
@@ -114,6 +116,7 @@ export function ChatView({
   limits,
   waitingSubagents,
   outgoing,
+  remote,
   onWake,
   onTerminal
 }: {
@@ -123,6 +126,8 @@ export function ChatView({
   waitingSubagents?: Set<string>
   /** Work this agent handed to others, to show in the conversation. */
   outgoing?: Extract<ChatItem, { kind: 'handoff-out' }>[]
+  /** Whether this agent is continued from a phone; absent when its program cannot be. */
+  remote?: RemoteState
   activity: Activity
   detail?: string
   /** Claude's permission mode as last reported. */
@@ -625,7 +630,7 @@ export function ChatView({
           <button onClick={() => setQuery(null)}>Close</button>
         </div>
       )}
-      <ChatMenu agentId={agentId} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
+      <ChatMenu agentId={agentId} remote={remote} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
       {track}
       <div className="chat-log" ref={log} onScroll={onScroll} onWheel={reader} onTouchMove={reader} onPointerDown={() => ((pointerHeld.current = true), reader())} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
@@ -759,7 +764,7 @@ export function ChatView({
 
 /** Commands and servers running under the agent, with a way to stop them. */
 /** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export. */
-function ChatMenu({ agentId, markdown, onSearch }: { agentId: string; markdown: () => string; onSearch: () => void }) {
+function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /** Absent for a program that cannot be continued from a phone. */ remote?: RemoteState; markdown: () => string; onSearch: () => void }) {
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
   const wrap = useRef<HTMLSpanElement>(null)
@@ -801,6 +806,7 @@ function ChatMenu({ agentId, markdown, onSearch }: { agentId: string; markdown: 
           <button role="menuitem" onClick={() => void navigator.clipboard.writeText(markdown()).then(() => (setOpen(false), flash('Copied')))}>
             Copy as Markdown
           </button>
+          {remote && <RemoteRows state={remote} onToggle={() => askRemote(agentId, remote.state === 'off' ? 'on' : 'off')} onCopy={() => askRemote(agentId, 'link')} onQr={() => askRemote(agentId, 'qr')} close={() => setOpen(false)} />}
         </div>
       )}
     </span>

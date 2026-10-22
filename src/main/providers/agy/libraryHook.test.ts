@@ -39,6 +39,28 @@ describe("agy's hooks", () => {
     expect(agyLibraryHook('pre-inv', payload(), t.io)).toEqual({ injectSteps: [{ ephemeralMessage: 'LINE' }] })
     expect(t.asked).toEqual(['split this pdf', 'now the xlsx'])
   })
+  it('tell it once per conversation how to reach the office\'s tools, when it has them, and never when it has not', () => {
+    const t = io()
+    const withTools = { ...t.io, officeTools: true }
+    mkdirSync(join(home, 'brain', 'c-tools', '.system_generated', 'logs'), { recursive: true })
+    const own = join(home, 'brain', 'c-tools', '.system_generated', 'logs', 'transcript_full.jsonl')
+    writeFileSync(own, user(0, 'first thing'))
+    const first = agyLibraryHook('pre-inv', { conversationId: 'c-tools', transcriptPath: own }, withTools) as { injectSteps: { ephemeralMessage: string }[] }
+    expect(first.injectSteps).toHaveLength(2)
+    expect(first.injectSteps[0]!.ephemeralMessage).toContain('call_mcp_tool')
+    expect(first.injectSteps[0]!.ephemeralMessage).toContain('ServerName "agent-world"')
+    expect(first.injectSteps[0]!.ephemeralMessage).toContain(join(home, 'mcp', 'agent-world', '<ToolName>.json'))
+    expect(first.injectSteps[0]!.ephemeralMessage).toContain('never look for it')
+    expect(first.injectSteps[1]).toEqual({ ephemeralMessage: 'LINE' })
+    // The next message of the same conversation gets no second note.
+    appendFileSync(own, user(5, 'now the xlsx'))
+    expect(agyLibraryHook('pre-inv', { conversationId: 'c-tools', transcriptPath: own }, withTools)).toEqual({ injectSteps: [{ ephemeralMessage: 'LINE' }] })
+    // Without the tools there is nothing to explain.
+    mkdirSync(join(home, 'brain', 'c-tools-2', '.system_generated', 'logs'), { recursive: true })
+    const other = join(home, 'brain', 'c-tools-2', '.system_generated', 'logs', 'transcript_full.jsonl')
+    writeFileSync(other, user(0, 'hello'))
+    expect(agyLibraryHook('pre-inv', { conversationId: 'c-tools-2', transcriptPath: other }, t.io)).toEqual({ injectSteps: [{ ephemeralMessage: 'LINE' }] })
+  })
   it("ask about the user's words only, not the time and setting notes agy appends after them", () => {
     const notes = '\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-10-07T21:47:17+05:30.\n</ADDITIONAL_METADATA>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini.\n</USER_SETTINGS_CHANGE>'
     writeFileSync(transcript, JSON.stringify({ step_index: '0', type: 'USER_INPUT', content: `<USER_REQUEST>\nWhat is the capital of France?${notes}` }) + '\n')

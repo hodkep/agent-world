@@ -100,3 +100,16 @@ export const unanswered = (plan: PlanReadback, answers: Record<string, string>) 
 /** The answers given, in the order the questions were asked, as the agent is told them. */
 export const answersOf = (plan: PlanReadback, answers: Record<string, string>) =>
   plan.questions.filter((q) => answers[q.text]?.trim()).map((q) => ({ question: q.text, answer: answers[q.text]!.trim() }))
+
+/** What a plan holds, in one line, for the folded plan gate: how much was given, guessed, left out and is still to answer. */
+export function planCounts(plan: PlanReadback, answers: Record<string, string>): string {
+  const n = (k: Assumption['kind']) => plan.assumptions.filter((a) => a.kind === k).length
+  const open = unanswered(plan, answers).length
+  const parts = [
+    n('given') && `${n('given')} given`,
+    n('guessed') && `${n('guessed')} guessed`,
+    plan.outOfScope.length && `${plan.outOfScope.length} out of scope`,
+    open && `${open} question${open === 1 ? '' : 's'} open`
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : 'nothing to check'
+}

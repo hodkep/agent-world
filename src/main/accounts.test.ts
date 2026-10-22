@@ -126,4 +126,17 @@ describe('AccountService lists and removes', () => {
     expect(svc().signIn('claude', 'work')).toEqual({ env: { FAKE_HOME: '/h/accounts/work' }, args: ['login'] })
     expect(() => svc().signIn('agy', '')).toThrow('does not keep')
   })
+
+  it('looks for the account folders where AW_ACCOUNTS_DIR says, else under the app\'s home', () => {
+    const was = process.env.AW_ACCOUNTS_DIR
+    try {
+      delete process.env.AW_ACCOUNTS_DIR
+      expect(accountDir('/home/aw', 'work')).toBe('/home/aw/accounts/work')
+      process.env.AW_ACCOUNTS_DIR = '/elsewhere/accounts'
+      expect(accountDir('/home/aw', 'work')).toBe('/elsewhere/accounts/work')
+    } finally {
+      if (was === undefined) delete process.env.AW_ACCOUNTS_DIR
+      else process.env.AW_ACCOUNTS_DIR = was
+    }
+  })
 })

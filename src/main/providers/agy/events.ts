@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readdirSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Activity, AgentEvent, AgentRecord } from '../../../shared/types'
+import type { Activity, AgentEvent, AgentRecord, Question } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions, TerminalIO } from '../ports'
 import { agyContextWindow } from './launch'
 import { agyScreen } from './screen'
@@ -21,12 +21,21 @@ export interface Conversation {
   workspace?: string
 }
 
+/** The questions of the last ask_question call of a conversation, as the chat drew them. */
+function lastQuestions(a: AgentRecord): Question[] | null {
+  const call = agyTranscript.readAll(a).findLast((i) => i.kind === 'tool' && i.name === 'AskUserQuestion')
+  const qs = call && call.kind === 'tool' && Array.isArray(call.input.questions) ? (call.input.questions as Question[]) : null
+  return qs
+}
+
 export interface Deps {
   conversations: () => Conversation[]
   /** The subagents an agent has started, running or finished. */
   subagents: (a: AgentRecord) => { agentId: string; type: string; done: boolean; stopped: boolean }[]
   /** Tokens used so far in an agent's conversation. */
   usage: (a: AgentRecord) => { input: number; output: number; context: number } | null
+  /** The questions of the last ask_question call in an agent's saved conversation, or null when it has none (yet). */
+  questions: (a: AgentRecord) => Question[] | null
   /** The model's context size in tokens, where known. */
   window: (model: string) => number | null
   sleep: (ms: number) => Promise<void>
@@ -58,7 +67,8 @@ const same = (a: string, b: string) => {
 }
 
 /** What the question is about: a command, a tool of a connected server (named in the question), or a file ("Read: /path" names what is done to it). */
-const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : m.title === 'File access' ? /^(\w+):/.exec(m.context)?.[1] ?? 'File access' : 'Bash')
+const toolOf = (m: { title: string; context: string }) => (m.title === 'MCP' ? m.context.split('\n')[0]! : m.title === 'File access' ? /^(\w+):/.exec(m.context)?.[1] ?? 'File access' : m.title === 'Create file' ? 'Create' : m.title === 'Pending edit' ? 'Edit' : 'Bash')
+const FILE_BOXES = new Set(['File access', 'Create file', 'Pending edit'])
 
 interface Seen {
   /** A clone has been told to branch its conversation. */
@@ -70,6 +80,8 @@ interface Seen {
   usage?: { input: number; output: number; context: number } | null
   model: string | null
   activity: Activity | null
+  /** A question box is up and its questions were reported. */
+  asking?: boolean
   question: string | null
   requestId: string | null
 }
@@ -138,6 +150,16 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
       for (const id of before) if (!running.has(id)) say({ type: 'subagent-stop', agentId: a.id, sessionId: a.sessionId, subagentId: id })
       s.subs = new Set(running.keys())
     }
+    // The box of an ask_question call: its questions, which the screen shows one at a time, are read from the saved conversation and told once.
+    if (agyScreen.parseAsk(screen)) {
+      if (!s.asking) {
+        const questions = deps.questions(a)
+        if (questions?.length) {
+          s.asking = true
+          say({ type: 'question', agentId: a.id, sessionId: a.sessionId, questions })
+        }
+      }
+    } else s.asking = false
     const menu = agyScreen.genericMenu(screen)
     let activity: Activity | null = null
     if (menu) activity = 'permission'
@@ -152,7 +174,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
       s.question = menu.context
       s.requestId = randomUUID()
       pending.set(s.requestId, { agentId: a.id, question: menu.context })
-      o.onPermission({ id: s.requestId, agentId: a.id, sessionId: a.sessionId, tool: toolOf(menu), detail: menu.context })
+      o.onPermission({ id: s.requestId, agentId: a.id, sessionId: a.sessionId, tool: toolOf(menu), detail: menu.context, options: menu.options, title: menu.title, ...(FILE_BOXES.has(menu.title) && { kind: 'file' as const }) })
     } else if (!menu && s.requestId) {
       pending.delete(s.requestId)
       o.onPermissionSettled(s.requestId)
@@ -176,6 +198,14 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
         return m && m.context === p.question ? m : null
       }
       if (!ofCard(term.screen(p.agentId))) return
+      // One of the program's own answers, by position: reached with the arrows while the screen is looked at, and only if the card still shows that question.
+      if (typeof d === 'object') {
+        const want = d.option
+        const shown = ofCard(term.screen(p.agentId))
+        if (!Number.isInteger(want) || !shown || want < 0 || want >= shown.options.length) return
+        void agyScreen.answerMenu(io(p.agentId), (scr) => { const m = ofCard(scr); return m ? { highlighted: m.highlighted } : null }, want)
+        return
+      }
       // Choosing "Yes, run command" walks the menu with the screen in view; refusing is Esc, which agy treats as "No, cancel".
       // Allow presses the first answer, so it must be a "Yes" (Enter on anything else could refuse, or pick "always").
       if (d === 'allow') {
@@ -197,7 +227,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, window: agyContextWindow, subagents: (a) => agyTranscript.subagents(a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, window: agyContextWindow, subagents: (a) => agyTranscript.subagents(a), questions: lastQuestions, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }

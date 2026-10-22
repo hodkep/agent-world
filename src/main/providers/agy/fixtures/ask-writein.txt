@@ -1,0 +1,23 @@
+      ▄▀▀▄        Antigravity CLI 1.4.4
+     ▀▀▀▀▀▀       dev@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 3.8 Flash (High)
+   ▄▀▀    ▀▀▄     /tmp/aw-remote-proj
+
+────────────────────────────────────────────────────────────
+> Use the ask_question tool once with two questions.
+
+▸ Thought for 20s, 2.6k tokens
+
+? Which deployment environment should be targeted?
+? Which notification channels should be enabled?
+
+Question
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Question 1/1: Would you like to proceed?
+  1. (Recommended) Yes, proceed
+  2. No, stop here
+> 3. Write-in...
+  Your answer:
+  my own answer
+  enter Submit · esc Back
+esc to cancel                                                                                              Gemini 3.8 Flash · high

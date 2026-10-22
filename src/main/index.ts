@@ -15,6 +15,7 @@ import { installedNotes } from './releaseNotes'
 import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, updateState } from './updates'
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
+import { remoteState } from './remoteState'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
@@ -34,7 +35,7 @@ import { contextItems, revealItem } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent } from '../shared/types'
+import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
@@ -83,7 +84,7 @@ import { checkPassed, stepReply } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
-import { planReply } from '../shared/plan'
+import { createRemoteGates } from './remoteGates'
 import { LOG_FORMAT, parseCommitLog } from './workflows/commits'
 import { cancelNeed } from './needCancel'
 import { PR_GO, WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
@@ -92,7 +93,7 @@ import { DEFAULT_PROVIDER } from '../shared/types'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
 import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, MoveError, moveOntoBase, undoMove, unrelatedPlan, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
-import { DirtyWorktreeError, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, makesBranch, nameTaken, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
+import { DirtyWorktreeError, attachLeftover, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, leftoverOf, makesBranch, nameTaken, removeLeftover, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
 const HIDDEN = process.env.AW_HIDDEN === '1'
@@ -385,6 +386,10 @@ function clearChatNow(id: string) {
 // Agents whose footer has named a mode since they started: the mode they were started in no longer stands in for a footer that says nothing.
 const leftStartMode = new Set<string>()
 const seenMode = new Map<string, string>()
+// The remote-control state last sent for each agent, so the screen is read often but the window told only of a change.
+const seenRemote = new Map<string, RemoteState>()
+// The phone link of each agent's running program: it is printed once at launch and the conversation soon covers it, so the first one seen is kept until the program ends.
+const remoteLinks = new Map<string, string>()
 const RUNNING_FILE = join(HOME, 'running.json')
 let quitting = false
 const noteRunning = () => {
@@ -894,6 +899,12 @@ const accountsSvc = new AccountService({ home: HOME, providers: () => providers(
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
+  // Marked not started, but the program already saved this session (it did before the first turn, or the app closed before noting one): it can only be resumed; starting it again under the same id is refused, and the agent would stay asleep.
+  if (!a.started && providerOf(a).transcript.exists?.(a)) {
+    a.started = true
+    delete a.forkOf
+    persist()
+  }
   followChat(a)
   const provider = providerOf(a)
   const files = agentFiles(a)
@@ -922,6 +933,9 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     const b = buffers.get(a.id) ?? { text: '', end: 0 }
     const next = { text: (b.text + d).slice(-SCROLLBACK), end: b.end + d.length }
     buffers.set(a.id, next)
+    // The tail of the output, not just this piece: the link may arrive split across two.
+    const sawLink = ui(a.id).readRemote?.(next.text.slice(-2000))
+    if (sawLink && 'link' in sawLink && !remoteLinks.has(a.id)) remoteLinks.set(a.id, sawLink.link)
     send('pty-data', a.id, d, next.end)
     noteServers(a.id, d)
     lastOutput.set(a.id, Date.now())
@@ -938,6 +952,13 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       if (mode && mode !== seenMode.get(a.id)) {
         seenMode.set(a.id, mode)
         send('agent-event', { type: 'mode', agentId: a.id, sessionId: a.sessionId, mode })
+      }
+      const known = remoteLinks.get(a.id)
+      const read = known ? { link: known } : (ui(a.id).readRemote?.(text) ?? null)
+      const remote = remoteState(a.options?.remote, read)
+      if (JSON.stringify(remote) !== JSON.stringify(seenRemote.get(a.id) ?? { state: 'off' })) {
+        seenRemote.set(a.id, remote)
+        send('remote', a.id, remote)
       }
       // SessionStart does not reach HTTP hooks, so readiness for the first message comes from the screen.
       if (ui(a.id).inputReady(text)) mailbox.started(a.id)
@@ -979,6 +1000,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   })
   p.onExit(() => {
     sessions.delete(a.id)
+    remoteLinks.delete(a.id)
     noteRunning()
     if (restarting.delete(a.id)) {
       screens.get(a.id)?.dispose()
@@ -1133,7 +1155,7 @@ async function main() {
       if (top && ![...childAsks.values()].includes(top)) send('agent-event', { type: 'activity', agentId: top, sessionId: byId(top)?.sessionId ?? '', activity: lastActivity.get(top) ?? 'delegating' })
     },
     onStatus: onStats,
-    reminderFor: libraryRemind,
+    reminderFor: (id, prompt) => promptContext(id, prompt) || null,
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
     onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
     onCompact: (id) => libraryService.refresh(id),
@@ -1229,6 +1251,10 @@ async function main() {
   writeGitHooks(GIT_HOOKS_DIR)
   // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
   const landingHeld = new HeldMerges()
+  // What is added to a message before the agent reads it, for any provider's prompt hook: the answer to a typed reply that decides a gate, then the library's reminder.
+  const promptContext = (id: string, prompt: string) => [remote.reply(id, prompt), libraryRemind(id, prompt)].filter(Boolean).join('\n\n')
+  // The decisions a typed reply can make, and the hint that tells the agent their words: one for every provider's prompt hook and gate text.
+  const remote = createRemoteGates({ workflows, held: landingHeld, send: (c) => send(c), afterAudit: (id) => void askForPr(id), isRemote: (id) => !!byId(id)?.options?.remote })
   const mcp = await startMcpServer({
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
@@ -1278,7 +1304,7 @@ async function main() {
             if (held.some((h) => h.startsWith('The review has not run'))) void startAudit(id, a, a.base!, head).catch(() => undefined)
             landingHeld.hold(id, head, held)
             send('landing')
-            return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it lands anyway; tell them what holds it and ask.`) }
+            return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it lands anyway; tell them what holds it and ask.${remote.hint(id)}`) }
           }
         }
         return {}
@@ -1300,7 +1326,7 @@ async function main() {
           if (a.base && held.some((h) => h.startsWith('The review has not run'))) void startAudit(id, a, a.base, head).catch(() => undefined)
           landingHeld.hold(id, head, held)
           send('landing')
-          return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it is pushed anyway; tell them what holds it and ask.`) }
+          return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it is pushed anyway; tell them what holds it and ask.${remote.hint(id)}`) }
         }
         try {
           workflows.landing(id, head, { anyway: true })
@@ -1344,7 +1370,7 @@ async function main() {
         return {}
       }
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { remind: (prompt) => libraryRemind(id, prompt) ?? '', used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), remind: (prompt) => promptContext(id, prompt), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
     },
     todos: todoService,
     libraryOn: () => prefs.libraryEnabled,
@@ -1399,7 +1425,7 @@ async function main() {
         send('workflows')
         if (r.checking) void kickChecks(caller)
         else void autoAudit(caller)
-        return r
+        return { ...r, hint: remote.hint(caller) }
       },
       submitPlan: async (caller, path) => {
         const a = byId(caller)
@@ -1422,7 +1448,7 @@ async function main() {
         const check = (await readyAskers()).length > 0 && request ? await workflows.intentCheck(caller, text, request) : undefined
         const r = workflows.submitPlan(caller, rel, text, check)
         send('workflows')
-        return r
+        return { ...r, hint: remote.hint(caller) }
       }
     },
     library: {
@@ -1541,6 +1567,7 @@ async function main() {
     termMenus.forgetAll()
     btwSent.clear()
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
+    for (const [id, s] of seenRemote) send('remote', id, s)
   })
   ipcMain.handle('updates:check', () => checkForUpdates(prefs.updateUrl, (s) => send('update-state', s)))
   ipcMain.handle('updates:state', () => updateState())
@@ -1715,12 +1742,30 @@ async function main() {
     return workspaceInfo(e.sender.id)
   })
   ipcMain.handle('window:new', () => void createWindow())
+  // The error page's Reload: the window's own navigation is locked (will-navigate), which also stops the page from reloading itself.
+  ipcMain.handle('window:reload', (e) => e.sender.reload())
   ipcMain.handle('list-agents', () => agents.filter((a) => !a.parent).map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
-  ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string) => {
+  // What an earlier agent left under a name (its branch, folder and the work in them), and which agent still works on it, for the hire form to say before it hires.
+  const leftoverFor = async (folder: string, name: string) => {
+    const found = await leftoverOf({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })
+    if (!found) return null
+    return { ...found, ...(agents.find((x) => x.repoPath === folder && (x.cwd === found.path || x.branch === found.branch)) && { inUse: agents.find((x) => x.repoPath === folder && (x.cwd === found.path || x.branch === found.branch))!.name }) }
+  }
+  ipcMain.handle('hire:leftover', async (_, folder: string, name: string, inPlace?: boolean) => {
+    if (!cleanName(name ?? '') || !(await makesBranch({ repoPath: folder, inPlace }))) return null
+    return leftoverFor(folder, cleanName(name)!)
+  })
+  ipcMain.handle('add-agent', async (_, folder: string, options: AgentOptions = {}, wanted?: string, base?: string, leftover?: 'replace' | 'reuse') => {
     const name = cleanName(wanted ?? '') ? checkName(wanted!, agents.filter((a) => a.repoPath === folder).map((a) => a.name)) : await nextName(folder)
-    if (cleanName(wanted ?? '') && (await makesBranch({ repoPath: folder, inPlace: options.inPlace })) && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })))
-      throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
-    const wt = await worktreeFor({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), inPlace: options.inPlace, ...(base && (await assertBranch(folder, base), { base })) })
+    let reused: { path: string; branch: string; base: string } | null = null
+    if (cleanName(wanted ?? '') && (await makesBranch({ repoPath: folder, inPlace: options.inPlace })) && (await nameTaken({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') }))) {
+      const found = await leftoverFor(folder, name)
+      if (found?.inUse) throw new Error(`${found.inUse} still works on aw/${name}. Pick another name.`)
+      if (leftover === 'replace') await removeLeftover({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })
+      else if (leftover === 'reuse') reused = await attachLeftover({ repoPath: folder, name, rootDir: join(HOME, 'worktrees') })
+      else throw new Error(`A branch or folder named aw/${name} is left over from an earlier agent here. Pick another name, or delete that branch first.`)
+    }
+    const wt = reused ?? await worktreeFor({ repoPath: folder, name, rootDir: join(HOME, 'worktrees'), inPlace: options.inPlace, ...(base && (await assertBranch(folder, base), { base })) })
     setWorkspaces(rememberWorkspace(workspaces, folder))
     const provider = providers().find((p) => p.id === (options.provider || prefs.setup.defaultProvider))?.id ?? providerOf({}).id
     const a: AgentRecord = { id: randomUUID(), name, sessionId: randomUUID(), repoPath: folder, cwd: wt?.path ?? folder, branch: wt?.branch ?? null, base: wt?.base ?? null, provider, started: false, hiredAt: Date.now(), options: fitOptions(providers().find((p) => p.id === provider)?.models ?? [], { ...options, account: undefined }) }
@@ -1870,10 +1915,9 @@ async function main() {
   })
   ipcMain.handle('workflows:decide', (_, runId: string, state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: { question: string; answer: string }[] }) => {
     const run = workflows.runs().find((r) => r.id === runId)
-    workflows.decide(runId, state, { note: o?.note?.slice(0, 2000), answers: o?.answers?.slice(0, 20) })
     // The answer reaches the agent as its next message.
-    if (run) mailbox.fromOffice(run.agent, planReply(state, { note: o?.note?.slice(0, 2000), answers: o?.answers?.slice(0, 20) }))
-    send('workflows')
+    const told = remote.decidePlan(runId, state, o)
+    if (run) mailbox.fromOffice(run.agent, told)
   })
   // The workflow files: Standard, the app's own and the project's. A project is a folder the person has open.
   const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
@@ -2085,7 +2129,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
@@ -2521,6 +2565,22 @@ async function main() {
     if (!['idle', 'waiting', undefined].includes(lastActivity.get(id))) throw new Error('Wait until it finishes its turn to switch to that mode.')
     a.options = { ...a.options, permissionMode: mode as PermissionMode }
     persist()
+    restarting.add(id)
+    mailbox.restarting(id)
+    p.kill()
+  })
+  // Remote control is read by the program only at launch, so switching it restarts the agent on the same session.
+  ipcMain.handle('agent:set-remote', (_, id: string, on: boolean) => {
+    const a = byId(id)
+    if (!a) throw new Error('No such agent.')
+    if (!providerOf(a).capabilities.remote) throw new Error(`${providerOf(a).label} cannot be continued from a phone.`)
+    a.options = { ...a.options, remote: on || undefined }
+    persist()
+    remoteLinks.delete(id)
+    seenRemote.set(id, remoteState(on, null))
+    send('remote', id, seenRemote.get(id))
+    const p = sessions.get(id)
+    if (!p) return
     restarting.add(id)
     mailbox.restarting(id)
     p.kill()

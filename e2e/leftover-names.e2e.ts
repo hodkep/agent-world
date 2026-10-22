@@ -25,12 +25,13 @@ test('a new agent never reuses a name whose branch an earlier agent left behind'
     // ada and linus are taken by old branches, so the first free name is used.
     await expect(page.locator('.hc-name')).toHaveText('grace')
 
-    // Asking for a taken name says why instead of failing inside git.
+    // Asking for a taken name says why in the form instead of failing inside git.
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()
     const form = page.getByRole('form', { name: 'Hire an agent' })
     await form.getByLabel('Name').fill('ada')
-    await form.getByRole('button', { name: 'Hire' }).click()
-    await expect(page.locator('.error')).toContainText('left over from an earlier agent')
+    // The hire form says so, where the person is looking, and offers what to do about it; nothing shows behind it.
+    await expect(form.getByRole('alert', { name: 'Left over from an earlier agent' })).toContainText('aw/ada is left over from an earlier agent. There is no work in it.')
+    await expect(page.locator('.error')).toHaveCount(0)
   } finally {
     await shutdown()
   }
