@@ -78,6 +78,20 @@ test('the Latest button rides on the top edge of the message box, however tall t
     await latest.click()
     await expect.poll(() => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(2)
     await expect(latest).toHaveCount(0)
+    // Its shortcut does the same from the message box, where Cmd+↓ is the caret's and is left alone.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await expect.poll(async () => {
+      await page.mouse.wheel(0, -100_000)
+      return log.evaluate((l) => l.scrollTop)
+    }).toBe(0)
+    await expect(latest).toBeVisible()
+    await expect(latest).toHaveAttribute('title', /Jump to the latest message/)
+    await page.getByRole('textbox', { name: /^Message/ }).focus()
+    await page.keyboard.press('Meta+ArrowDown')
+    expect(await log.evaluate((l) => l.scrollTop)).toBe(0)
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+ArrowDown' : 'Control+Alt+ArrowDown')
+    await expect.poll(() => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(2)
+    await expect(latest).toHaveCount(0)
   } finally {
     await shutdown()
   }

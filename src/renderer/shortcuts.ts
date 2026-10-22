@@ -28,6 +28,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'chat-find', place: 'Conversation', text: 'Find in the conversation', keys: ['Mod+F'] },
   { id: 'find-step', place: 'Conversation', text: 'Older or newer match', keys: ['Enter', 'Shift+Enter'] },
   { id: 'jump-messages', place: 'Conversation', text: 'Jump between your messages', keys: ['Alt+ArrowUp', 'Alt+ArrowDown'] },
+  { id: 'latest', place: 'Conversation', text: 'Jump to the latest message', keys: ['Mod+Alt+ArrowDown'] },
   { id: 'stop', place: 'Conversation', text: 'Stop the agent while it works', keys: ['Esc'] },
 
   { id: 'send', place: 'Message box', text: 'Send', keys: ['Enter'] },
