@@ -2573,7 +2573,8 @@ aside:not(.drawer) { flex: none; }
 .sc-chip[aria-pressed='true'] { background: var(--selected); border-color: var(--accent); color: var(--text); }
 .sc-body { overflow: auto; padding: 0 14px 14px; columns: 2 320px; column-gap: 28px; }
 .sc-group { break-inside: avoid; }
-.sc-group h3 { margin: 14px 0 6px; font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+/* Padding, not margin: a column drops a margin at its top, so the first heading of the second column sat against the filter row. */
+.sc-group h3 { margin: 0 0 6px; padding-top: 14px; font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .sc-row { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .sc-row span { flex: 1; }
 .sc-row kbd { min-width: 22px; text-align: center; padding: 2px 6px; font: 12px Menlo, Consolas, monospace; background: var(--panel-hover); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25); }
@@ -3370,7 +3371,7 @@ svg.pxg { display: block; flex: none; }
 @keyframes sc-run { from { left: -28%; } to { left: 100%; } }
 .step-card .sc-wait { color: var(--muted); }
 .step-card .sc-secs { color: var(--accent); font-family: Menlo, Consolas, monospace; margin-right: 6px; }
-.step-card .tag.ok { background: var(--ok-text, #4f9d5d); color: var(--ink); }
+.step-card .tag.ok { background: var(--ok-text); color: var(--ink); }
 .step-card.quiet { display: flex; gap: 8px; align-items: center; padding: 5px 8px; box-shadow: 0 0 0 1px var(--line); }
 .step-card.quiet .sc-title { flex: 1; font-weight: 400; }
 .reach-rem { display: block; color: var(--dim); font-weight: 400; font-size: 11px; margin-top: 2px; }
