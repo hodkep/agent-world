@@ -99,7 +99,9 @@ test('the cat naps, sits and walks; idle agents huddle at the whiteboard and doz
     await record(page)
     for (const name of ['ada', 'dee', 'eli', 'fay']) await hireNamed(page, name)
     await expect.poll(async () => (await seen(page)).cat, { timeout: 120_000 }).toEqual(expect.arrayContaining(['nap', 'walk', 'sit']))
-    await expect.poll(async () => (await seen(page)).errands, { timeout: 120_000 }).toContain('huddle')
+    // Two idle agents are sent to the whiteboard: a game of the agents' own would take their two places for a long while.
+    await setItem(page, 'aw.officeCall', 'huddle')
+    await expect.poll(async () => (await seen(page)).errands, { timeout: 90_000 }).toContain('huddle')
     await expect.poll(async () => (await seen(page)).doing, { timeout: 120_000 }).toContain('nap')
 
     // A turn that runs for ten (sped-up) minutes ends: the agent stretches.

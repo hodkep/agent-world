@@ -264,9 +264,9 @@ export class Director {
   }
 
   /** The office boy's next job: the one he was ordered (after a salute), the cooler or the coffee when they run low, or a chore. Never nothing. */
-  boyPlan(scene: Scene): Step[] {
+  boyPlan(scene: Scene, only?: Job): Step[] {
     // Every job is followed by a long rest by the counter, so he is not on the move all the time.
-    return [...this.boyJob(scene), ...this.rest(scene.spots.counter.to, scene.spots.counter.face, BOY_REST_MS)]
+    return [...this.boyJob(scene, only), ...this.rest(scene.spots.counter.to, scene.spots.counter.face, BOY_REST_MS)]
   }
 
   /** The office boy cleans for about `ms` of the clock, sweeping from one place to the next: for when he was caught playing, or saw the supervisor coming. */
@@ -284,11 +284,12 @@ export class Director {
     return out
   }
 
-  private boyJob(scene: Scene): Step[] {
-    const ordered = this.order
-    this.order = null
+  private boyJob(scene: Scene, only?: Job): Step[] {
+    const ordered = only ? null : this.order
+    if (!only) this.order = null
     let job: Job
-    if (ordered) job = ordered
+    if (only) job = only
+    else if (ordered) job = ordered
     else if (this.low) job = 'refill'
     else if (this.coffeeLow) job = 'coffee'
     else if (scene.ritual === 'chai' && scene.idleAgents.length > 0) job = 'tray'

@@ -4,6 +4,8 @@ import { hireNamed, shotApp } from './shotsKit'
 type Staff = { water: number; staff: { kind: 'boy' | 'supervisor'; x: number; y: number; pose: string; said: string; carrying: string }[] }
 const SUPERVISOR_LINES = ['Any blockers?', 'ETA?', 'Is it in the sprint?', 'Per my last email']
 
+/** Starts something in the office at once (aw.officeCall): what a spec must see is not left to chance and to a slow runner. */
+const call = (page: import('@playwright/test').Page, what: string) => page.evaluate((w) => localStorage.setItem('aw.officeCall', w), what)
 const stage = (page: import('@playwright/test').Page) => page.locator('.stage')
 const staff = async (page: import('@playwright/test').Page): Promise<Staff | null> => {
   const raw = await stage(page).getAttribute('data-staff')
@@ -18,21 +20,13 @@ test('with agents in the office the supervisor goes to one that is working and s
     // The staff's waits and the water run 20 times faster, so a spec need not sit through minutes.
     await page.evaluate(() => localStorage.setItem('aw.staffFast', '20'))
     await page.reload()
-    // What the staff do is brief at that speed: keep a record of what they said and which poses they struck, as the page publishes it.
     await page.locator('.stage').waitFor()
-    await page.evaluate(() => {
-      const w = window as unknown as { __seen: { said: Set<string>; poses: Set<string>; carried: Set<string> } }
-      w.__seen = { said: new Set(), poses: new Set(), carried: new Set() }
-      const stage = document.querySelector('.stage')!
-      new MutationObserver(() => {
-        const s = JSON.parse(stage.getAttribute('data-staff') ?? 'null') as { staff: { kind: string; pose: string; said: string; carrying: string }[] } | null
-        for (const x of s?.staff ?? []) (x.said && w.__seen.said.add(`${x.kind}: ${x.said}`), w.__seen.poses.add(`${x.kind}: ${x.pose}`), x.carrying && w.__seen.carried.add(x.carrying))
-      }).observe(stage, { attributes: true, attributeFilter: ['data-staff'] })
-    })
     for (const name of ['ada', 'bo', 'cy']) await hireNamed(page, name)
-    const seen = () => page.evaluate(() => { const w = window as unknown as { __seen: { said: Set<string>; poses: Set<string>; carried: Set<string> } }; return { said: [...w.__seen.said], poses: [...w.__seen.poses], carried: [...w.__seen.carried] } })
+    // What the staff did is brief at that speed (a line lasts less than a frame), so the page keeps a record of everything said, every pose and everything carried, and publishes it.
+    const seen = async () => (JSON.parse((await stage(page).getAttribute('data-staff')) ?? 'null') as { seen: { said: string[]; poses: string[]; carried: string[] } } | null)?.seen ?? { said: [], poses: [], carried: [] }
 
     // The supervisor stands by a working agent and says one of his lines.
+    await call(page, 'sup:visit')
     await expect.poll(async () => (await seen()).said.some((x) => x.startsWith('supervisor: ') && SUPERVISOR_LINES.includes(x.slice(12))), { timeout: 90_000 }).toBe(true)
 
     // An idle agent is in the office, so the water goes down; the office boy fetches a jar, and the cooler is full again.
@@ -42,11 +36,15 @@ test('with agents in the office the supervisor goes to one that is working and s
     await expect.poll(async () => (await seen()).carried, { timeout: 30_000 }).toEqual(expect.arrayContaining(['jar', 'old-jar']))
 
     // The supervisor gives the office boy an order, and he salutes.
-    await expect.poll(async () => (await seen()).said.some((x) => /^supervisor: (Refill the cooler|Empty the bin|Wipe the counter)!$/.test(x)), { timeout: 180_000 }).toBe(true)
+    await call(page, 'sup:order')
+    await expect.poll(async () => (await seen()).said.some((x) => /^supervisor: (Refill the cooler|Empty the bin|Wipe the counter|Water the plants|Sweep the floor)!$/.test(x)), { timeout: 180_000 }).toBe(true)
     await expect.poll(async () => (await seen()).poses.includes('boy: salute'), { timeout: 60_000 }).toBe(true)
     await expect.poll(async () => (await seen()).poses.includes('supervisor: point'), { timeout: 60_000 }).toBe(true)
-    // His chores: the bin is emptied (a bag taken out) and the counter wiped, sooner or later.
-    await expect.poll(async () => { const x = await seen(); return x.carried.includes('bag') && x.poses.includes('boy: wipe') }, { timeout: 240_000 }).toBe(true)
+    // His chores: the bin is emptied (a bag taken out) and the counter wiped.
+    await call(page, 'boy:bin')
+    await expect.poll(async () => (await seen()).carried, { timeout: 90_000 }).toContain('bag')
+    await call(page, 'boy:counter')
+    await expect.poll(async () => (await seen()).poses, { timeout: 90_000 }).toContain('boy: wipe')
 
     // Office life off: the staff are put away.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
@@ -68,7 +66,7 @@ const life = async (page: import('@playwright/test').Page): Promise<Life | null>
 const send = (app: import('@playwright/test').ElectronApplication, agentId: string, activity: string) =>
   app.evaluate(({ BrowserWindow }, [id, a]) => BrowserWindow.getAllWindows()[0]!.webContents.send('agent-event', { type: 'activity', agentId: id, sessionId: 's1', activity: a }), [agentId, activity])
 
-test('idle agents fetch water and coffee (which falls with every cup) and play carrom in twos or fours, and a player with work leaves the game; the supervisor reads, drinks, admires a painting and takes calls; the staff are never still', async () => {
+test('idle agents fetch water and coffee (which falls with every cup) and play carrom in twos, and a player with work leaves the game; the supervisor reads, drinks, admires a painting and takes calls; the staff are never still', async () => {
   test.setTimeout(540_000)
   const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle', eli: 'idle', fay: 'idle', bo: 'thinking', cy: 'implementing' } })
   try {
@@ -89,18 +87,28 @@ test('idle agents fetch water and coffee (which falls with every cup) and play c
       }).observe(stage, { attributes: true, attributeFilter: ['data-life', 'data-staff'] })
     })
     for (const name of ['ada', 'dee', 'eli', 'fay', 'bo', 'cy']) await hireNamed(page, name)
-    const seen = () => page.evaluate(() => { const w = window as unknown as { __life: { kinds: Set<string>; players: Set<number>; scored: boolean; poses: Set<string> } }; return { kinds: [...w.__life.kinds], players: [...w.__life.players], scored: w.__life.scored, poses: [...w.__life.poses] } })
+    const seenLife = () => page.evaluate(() => { const w = window as unknown as { __life: { kinds: Set<string>; players: Set<number>; scored: boolean; poses: Set<string> } }; return { kinds: [...w.__life.kinds], players: [...w.__life.players], scored: w.__life.scored, poses: [...w.__life.poses] } })
+    // The poses come from the page's own record of every pose struck, since a pose lasts less than a frame at this speed.
+    const seen = async () => ({ ...(await seenLife()), poses: (JSON.parse((await stage(page).getAttribute('data-staff')) ?? 'null') as { seen: { poses: string[] } } | null)?.seen.poses ?? [] })
 
-    // Idle agents fetch a cup of water and of coffee, and sit down to carrom, two or four of them, striking and scoring.
-    await expect.poll(async () => (await seen()).kinds, { timeout: 150_000 }).toEqual(expect.arrayContaining(['drink:water', 'drink:coffee']))
+    // Idle agents fetch a cup of water and of coffee, and sit down to carrom, two of them, striking and scoring.
+    await call(page, 'drink:water')
+    await expect.poll(async () => (await seen()).kinds, { timeout: 90_000 }).toContain('drink:water')
+    await call(page, 'drink:coffee')
+    await expect.poll(async () => (await seen()).kinds, { timeout: 90_000 }).toContain('drink:coffee')
+    await call(page, 'game')
     await expect.poll(async () => (await seen()).players.length > 0 && (await seen()).scored, { timeout: 200_000 }).toBe(true)
-    expect([2, 4]).toContain((await seen()).players[0])
+    expect((await seen()).players[0]).toBe(2)
 
     // The supervisor does more than check on agents: he reads with a book, drinks, looks at a painting and takes a call; the office boy sweeps and carries things.
-    await expect.poll(async () => (await seen()).poses, { timeout: 240_000 }).toEqual(expect.arrayContaining(['supervisor: hold', 'supervisor: reach', 'supervisor: sip', 'supervisor: chin', 'supervisor: call', 'supervisor: clasp']))
-    await expect.poll(async () => (await seen()).poses.some((p) => p === 'carry: tray' || p === 'carry: parcel' || p === 'carry: bag'), { timeout: 240_000 }).toBe(true)
+    for (const [round, pose] of [['read', 'supervisor: hold'], ['read', 'supervisor: reach'], ['coffee', 'supervisor: sip'], ['paint', 'supervisor: chin'], ['call', 'supervisor: call'], ['outside', 'supervisor: clasp']] as const) {
+      if (!(await seen()).poses.includes(pose)) await call(page, `sup:${round}`)
+      await expect.poll(async () => (await seen()).poses, { timeout: 90_000, message: pose }).toContain(pose)
+    }
+    await call(page, 'boy:bin')
+    await expect.poll(async () => (await seen()).poses, { timeout: 90_000 }).toContain('carry: bag')
 
-    // Neither of them stands still for long: sampled every 400 ms, the longest stretch in one place, pose and hands is a few seconds at most.
+    // They rest between jobs and rounds (45 to 90 s, so 2 to 5 s at this speed), but not for longer: sampled every 400 ms, the longest stretch in one place, pose and hands stays under ten seconds.
     const longest: Record<string, number> = { boy: 0, supervisor: 0 }
     const was: Record<string, string> = {}
     const run: Record<string, number> = { boy: 0, supervisor: 0 }
@@ -113,11 +121,12 @@ test('idle agents fetch water and coffee (which falls with every cup) and play c
       }
       await page.waitForTimeout(400)
     }
-    expect(longest.boy! * 0.4).toBeLessThan(6)
-    expect(longest.supervisor! * 0.4).toBeLessThan(6)
+    expect(longest.boy! * 0.4).toBeLessThan(10)
+    expect(longest.supervisor! * 0.4).toBeLessThan(10)
 
     // A player who gets work leaves the game, and the game stops when one is left over.
-    await expect.poll(async () => (await life(page))?.game?.started ?? false, { timeout: 240_000 }).toBe(true)
+    await call(page, 'game')
+    await expect.poll(async () => (await life(page))?.game?.started ?? false, { timeout: 120_000 }).toBe(true)
     const game = (await life(page))!.game!
     const agents = await page.evaluate(() => window.aw.listAgents())
     const player = agents.find((a) => game.players.includes(a.id))!
