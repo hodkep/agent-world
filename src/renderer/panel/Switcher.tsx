@@ -12,7 +12,7 @@ export interface Tile {
 }
 
 /** The bar that shows while the switch key is held: the tiles in the order the dropdown lists them, and the one a release would switch to. */
-export function Switcher({ title, tiles, at, kind }: { title: string; tiles: Tile[]; at: string | null; kind: 'agents' | 'spaces' }) {
+export function Switcher({ title, tiles, at, kind, onPick }: { title: string; tiles: Tile[]; at: string | null; kind: 'agents' | 'spaces'; onPick: (id: string) => void }) {
   const mac = isMac()
   const on = tiles.find((t) => t.id === at)
   const agents = kind === 'agents'
@@ -28,7 +28,8 @@ export function Switcher({ title, tiles, at, kind }: { title: string; tiles: Til
             <Fragment key={t.id}>
               {t.group && t.group !== tiles[i - 1]?.group && <div className="group-head sb-group">{t.group}</div>}
               <div className="wt-cell sb-cell">
-                <div className={`wt ${t.cls ?? ''} ${t.id === at ? 'on' : ''}`} data-tile={t.id} aria-current={t.id === at}>
+                // Pressed, not clicked: with Ctrl held a Mac sends no click.
+                <div className={`wt ${t.cls ?? ''} ${t.id === at ? 'on' : ''}`} data-tile={t.id} aria-current={t.id === at} onMouseDown={() => onPick(t.id)}>
                   {t.body}
                 </div>
               </div>

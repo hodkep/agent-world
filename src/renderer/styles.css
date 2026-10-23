@@ -3325,7 +3325,8 @@ svg.pxg { display: block; flex: none; }
 .sb-cap span:last-child { color: var(--dim); }
 .sb-tiles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .sb-group { flex-basis: 100%; padding: 4px 2px 0; }
-.sb-cell { flex: none; width: 104px; }
+.sb { pointer-events: auto; }
+.sb-cell { flex: none; width: 104px; cursor: pointer; }
 .sb-cell .wt { box-shadow: 0 0 0 2px var(--ink); }
 .sb-cell .wt.on { box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--accent); }
 .sb-cell .wt.on::after { display: none; }
