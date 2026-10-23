@@ -355,4 +355,15 @@ describe('what the office boy does', () => {
     expect(waited).toBeGreaterThanOrEqual(9000)
     expect(waited).toBeLessThan(13_000)
   })
+
+  it('does the job it is told to (for a trial), whatever it would have chosen, and rests after it as always', () => {
+    const d = new Director(lcg(51))
+    const bin = d.boyPlan(scene(), 'bin')
+    expect(thens(bin)).toEqual(['bag', 'drop'])
+    expect(bin[bin.length - 1]).toMatchObject({ kind: 'wait', face: 'right' })
+    expect(d.boyPlan(scene(), 'counter').some((x) => x.kind === 'wait' && x.prop === 'cloth')).toBe(true)
+    expect(d.boyPlan(scene(), 'sweep').some((x) => x.kind === 'wait' && x.prop === 'broom')).toBe(true)
+    expect(thens(d.boyPlan(scene({ idleAgents: [at(24, 6, 'left')] }), 'tray'))).toEqual(['tray', 'drop'])
+    expect(thens(d.boyPlan(scene(), 'parcel'))).toEqual(['parcel', 'drop'])
+  })
 })

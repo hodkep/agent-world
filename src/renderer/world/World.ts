@@ -27,7 +27,7 @@ import { CatBrain } from './catBrain'
 import { bossSees } from './bossSees'
 import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
 import { Guests, type RareEvent, Rare, Rest, type WeatherNow, Weather, ritualAt } from './rituals'
-import { Director, type Face, type Place as StaffPlace, type Scene, type Step, type Then } from './staff'
+import { Director, type Face, type Job, type Place as StaffPlace, type Scene, type Step, type SupervisorKind, type Then } from './staff'
 import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
@@ -215,7 +215,12 @@ export class OfficeWorld {
   private wall = 0
   private lastWall: number | null = null
   /** A trial asked for the office boy to join a game as soon as an agent is free. */
+  /** Everything the staff have said, which poses they struck and what they carried since the page began: published for specs, since at a fast trial speed a line or a pose lasts less than a frame. */
+  private readonly staffSeen = { said: new Set<string>(), poses: new Set<string>(), carried: new Set<string>() }
+  private visitWanted = false
   private wantBoy = false
+  /** A trial asked for something to happen as soon as agents are idle: a game, a huddle or a drink. */
+  private wanted = ''
   private publishedAmbience = ''
   private game: { carrom: Carrom; keys: string[]; started: boolean; endAt: number; waited: number } | null = null
   // The jar as drawn: how full it looks (it fills over a moment after a swap) and whether it is in its place.
@@ -924,10 +929,10 @@ export class OfficeWorld {
     // A trial asks for the boy at the board now: a game of the agents' own makes way for it.
     if (this.wantBoy && this.game && !this.game.keys.includes('boy')) this.endGame()
     else if (this.wantBoy && !this.game) {
-      // For a trial an agent's rest after its last errand does not count.
-      const idle = [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '').map(([k]) => k)
+      const idle = this.idleNow()
       if (idle.length) ((this.wantBoy = false), this.startBoyGame(idle))
     }
+    if (this.wanted && !this.drill) this.doWanted()
     // The office boy, resting, sometimes joins an idle agent at the board: when the supervisor is far off, and not for a while after he was caught or saw him coming.
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     const away = [...this.errands.values()].filter((e) => e.kind !== 'drill').length
@@ -1048,6 +1053,43 @@ export class OfficeWorld {
     })
   }
 
+
+  /** Idle agents at their places, whatever their rest after the last errand (for the trials). */
+  private idleNow() {
+    return [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '').map(([k]) => k)
+  }
+
+  private doWanted() {
+    const idle = this.idleNow()
+    if (this.wanted === 'game') {
+      // A game of the agents' own makes way for it.
+      if (this.game) this.endGame()
+      else if (idle.length >= 2) ((this.wanted = ''), this.startGame(idle.slice(0, 2)))
+    } else if (this.wanted === 'huddle') {
+      if (idle.length >= 2) (this.startHuddle(idle.slice(0, 2)), (this.wanted = ''))
+    } else if (idle.length) {
+      this.startDrink(idle[0]!, this.wanted === 'drink:coffee' ? 'coffee' : 'water')
+      this.wanted = ''
+    }
+  }
+
+  private forceSupervisor(kind: SupervisorKind) {
+    const [boy, sup] = this.staff as [StaffActor, StaffActor]
+    const scene = this.sceneFor(boy)
+    // A visit waits until there is someone at work to visit.
+    if (kind === 'visit' && !scene.working.length) return void (this.visitWanted = true)
+    if (kind === 'visit') this.visitWanted = false
+    sup.cancel()
+    const plan = this.director.supervisorPlan(scene, kind)
+    sup.give(plan.steps)
+    if (plan.meetsBoy) boy.hold()
+  }
+
+  private forceBoy(job: Job) {
+    const boy = this.staff[0]!
+    boy.cancel()
+    boy.give(this.director.boyPlan(this.sceneFor(boy), job))
+  }
 
   private boyAtSeat() {
     const boy = this.staff[0]!
@@ -1277,6 +1319,11 @@ export class OfficeWorld {
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
       const sup = this.staff[1]!
       if (call === 'boyplay') this.wantBoy = true
+      else if (call === 'game' || call === 'huddle' || call === 'drink:water' || call === 'drink:coffee') this.wanted = call
+      // A trial can make the supervisor do a round of a kind ("sup:read") or the office boy a job ("boy:bin") at once.
+      else if (call?.startsWith('sup:')) this.forceSupervisor(call.slice(4) as SupervisorKind)
+      else if (call?.startsWith('boy:')) this.forceBoy(call.slice(4) as Job)
+      if (this.visitWanted) this.forceSupervisor('visit')
       else if (call === 'boss') (sup.cancel(), sup.give([{ kind: 'walk', to: BOARD_WEST }]))
       // From the east he is in front of the boy, who sees him.
       else if (call === 'bosseast') (sup.cancel(), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
@@ -1456,7 +1503,12 @@ export class OfficeWorld {
     boy.update(dt, t, { then: then(boy), say: say(boy) })
     sup.update(dt, t, { then: then(sup), say: say(sup) })
     this.lifeTick(dt, t)
-    const state = JSON.stringify({ water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying, label: a.labelShown })) })
+    for (const a of this.staff) {
+      if (a.said) this.staffSeen.said.add(`${a.kind}: ${a.said}`)
+      this.staffSeen.poses.add(`${a.kind}: ${a.pose}`)
+      if (a.carrying) (this.staffSeen.carried.add(a.carrying), this.staffSeen.poses.add(`carry: ${a.carrying}`))
+    }
+    const state = JSON.stringify({ seen: { said: [...this.staffSeen.said], poses: [...this.staffSeen.poses], carried: [...this.staffSeen.carried] }, water: Math.round(this.director.water * 100) / 100, staff: this.staff.map((a) => ({ kind: a.kind, x: a.at.x, y: a.at.y, pose: a.pose, said: a.said, carrying: a.carrying, label: a.labelShown })) })
     if (state !== this.publishedStaff) {
       this.publishedStaff = state
       this.host.dataset.staff = state
