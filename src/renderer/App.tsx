@@ -700,7 +700,7 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
   // Ctrl+Tab through the agents of the open workspace and Shift+Cmd/Ctrl+[ and ] through the projects, in the order their dropdowns list them: hold the modifier to see the bar, let go to switch.
-  const flight = useSwitcher(() => ({ agents, workspaces: workspaces?.items ?? [], selected, folder }), {
+  const { flight, pick: pickTile } = useSwitcher(() => ({ agents, workspaces: workspaces?.items ?? [], selected, folder }), {
     agent: (id) => select(id),
     space: (path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))
   })
@@ -1299,7 +1299,7 @@ export function App() {
   }, [covered])
   return (
     <div className="app">
-      {flight?.shown && <Switcher kind={flight.kind} title={flight.kind === 'agents' ? 'Switch agent' : 'Switch project'} tiles={switchTiles(flight)} at={flight.at} />}
+      {flight?.shown && <Switcher kind={flight.kind} title={flight.kind === 'agents' ? 'Switch agent' : 'Switch project'} tiles={switchTiles(flight)} at={flight.at} onPick={pickTile} />}
       {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
       {workspaces && !workspaces.active && workspaces.items.length > 0 && (
         <WorkspacePicker

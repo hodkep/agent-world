@@ -27,10 +27,12 @@ const SHOW_MS = 150
  * Ctrl+Tab through the agents, Shift+Mod+[ and ] through the projects, in the order their dropdowns list them. The modifier held
  * and the key pressed again step on; letting go of the modifier switches, Esc or leaving the window does not. Wins over the terminal and message box.
  */
-export function useSwitcher(live: () => Live, go: { agent: (id: string) => void; space: (path: string) => void }): Flight | null {
+export function useSwitcher(live: () => Live, go: { agent: (id: string) => void; space: (path: string) => void }): { flight: Flight | null; pick: (id: string) => void } {
   const [flight, setFlight] = useState<Flight | null>(null)
   const latest = useRef({ live, go })
   latest.current = { live, go }
+  // The bar's own handle on the one open flight, set below, for a press on a tile.
+  const choose = useRef<(id: string) => void>(() => {})
   useEffect(() => {
     let open: Flight | null = null
     // Presses made while the fresh order is still being read, and whether the modifier was already let go.
@@ -65,6 +67,7 @@ export function useSwitcher(live: () => Live, go: { agent: (id: string) => void;
         cancel()
       }
     }
+    choose.current = (id) => open && finish({ ...open, at: id })
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && (open || waiting)) return e.preventDefault(), e.stopPropagation(), cancel()
       const byAgent = matches(e, 'agent-switch')
@@ -96,5 +99,5 @@ export function useSwitcher(live: () => Live, go: { agent: (id: string) => void;
       clearTimeout(timer)
     }
   }, [])
-  return flight
+  return { flight, pick: (id) => choose.current(id) }
 }

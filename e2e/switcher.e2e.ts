@@ -65,6 +65,36 @@ test('agents: holding Ctrl and pressing Tab shows the bar, more presses step it,
   }
 })
 
+test('a mouse press on a tile of the bar switches to it, for agents and for projects', async () => {
+  const { page, shutdown } = await office(['alpha', 'beta', 'gamma'])
+  try {
+    for (const name of ['ada', 'bob', 'cy']) await hire(page, { name })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = (name: string) => page.getByRole('textbox', { name: `Message ${name}` })
+    await expect(box('cy')).toBeVisible()
+    const bar = page.getByRole('region', { name: 'Switch agent' })
+    await page.keyboard.down('Control')
+    await page.keyboard.press('Tab')
+    await expect(bar).toBeVisible()
+    await bar.locator('.wt', { hasText: 'ada' }).click()
+    await expect(bar).toBeHidden()
+    await expect(box('ada')).toBeVisible()
+    await page.keyboard.up('Control')
+    await expect(box('ada')).toBeVisible()
+    // The same for projects.
+    const projects = page.getByRole('region', { name: 'Switch project' })
+    await page.keyboard.down('Control')
+    await page.keyboard.press('Shift+BracketRight')
+    await expect(projects).toBeVisible()
+    await projects.locator('.wt', { hasText: 'gamma' }).click()
+    await expect(projects).toBeHidden()
+    await expect(page.locator('.ws-button')).toContainText('gamma')
+    await page.keyboard.up('Control')
+  } finally {
+    await shutdown()
+  }
+})
+
 test('projects: holding Ctrl and pressing ] shows the bar, release switches to the next project, and [ goes back', async () => {
   const { page, shutdown } = await office(['alpha', 'beta', 'gamma'])
   try {
