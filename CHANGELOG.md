@@ -4,6 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-23
+
+### Changed
+
+- Switching: pressing a tile of the switch bar switches to that agent or project.
+- Office: the office is calmer, the office boy plays carrom until the supervisor comes, and the cat sits at the end of a desk.
+- Office: a sign in words during a fire drill or a power cut, role labels on hover, lights at night and splashes in the rain.
+
+### Fixed
+
+- Chat: a code block's **Copy** writes the text as it was written, not its coloured form with the lines joined.
+- Office: the weather moves on in real minutes however seldom the window is drawn, and rain is a short spell.
+
 ## [0.3.0] - 2026-10-22
 
 ### Added
@@ -209,7 +222,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.3.0...HEAD
+[Unreleased]: ../../compare/v0.3.1...HEAD
+[0.3.1]: ../../compare/v0.3.0...v0.3.1
 [0.3.0]: ../../compare/v0.2.7...v0.3.0
 [0.2.7]: ../../compare/v0.2.6...v0.2.7
 [0.2.6]: ../../compare/v0.2.5...v0.2.6
