@@ -36,11 +36,42 @@ describe('the weather outside', () => {
     expect([...seen].sort()).toEqual(['clear', 'cloud', 'rain'])
   })
 
-  it('holds one weather for at least ten minutes', () => {
+  it('holds each weather for its own spell: clear 20 to 40 minutes, cloud 8 to 15, rain 4 to 8', () => {
     const w = new Weather(lcg(9))
-    const first = w.now
-    for (let i = 0; i < 9; i++) w.tick(MIN)
-    expect(w.now).toBe(first)
+    const spells: Record<string, number[]> = { clear: [], cloud: [], rain: [] }
+    let was = w.now
+    let ran = 0
+    for (let i = 0; i < 6000; i++) {
+      w.tick(10_000)
+      ran += 10_000
+      if (w.now !== was) {
+        // The first spell is a part of one that began before we looked.
+        if (spells[was]!.length || i > 400) spells[was]!.push(ran)
+        else spells[was]!.push(-1)
+        was = w.now
+        ran = 0
+      }
+    }
+    const within = (xs: number[], lo: number, hi: number) => xs.filter((x) => x > 0).every((x) => x >= lo * MIN - 10_000 && x <= hi * MIN + 10_000)
+    expect(spells.clear!.length).toBeGreaterThan(5)
+    expect(within(spells.clear!, 20, 40)).toBe(true)
+    expect(within(spells.cloud!, 8, 15)).toBe(true)
+    expect(within(spells.rain!, 4, 8)).toBe(true)
+  })
+
+  it('is mostly clear: over a few hundred hours rain is under a tenth of the time and clear sky over half, and rain only follows cloud', () => {
+    const w = new Weather(lcg(5))
+    const share: Record<string, number> = { clear: 0, cloud: 0, rain: 0 }
+    let before = w.now
+    for (let i = 0; i < 60_000; i++) {
+      w.tick(30_000)
+      share[w.now]!++
+      if (w.now === 'rain') expect(before === 'rain' || before === 'cloud').toBe(true)
+      before = w.now
+    }
+    const total = share.clear! + share.cloud! + share.rain!
+    expect(share.rain! / total).toBeLessThan(0.1)
+    expect(share.clear! / total).toBeGreaterThan(0.5)
   })
 })
 
