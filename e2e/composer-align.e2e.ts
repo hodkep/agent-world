@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { SLOW } from './waits'
 
 // The box draws its own styled copy of the text behind a see-through textarea. The two must wrap alike, or the caret drifts
 // from what is drawn and the lines being typed hide behind it. A scrollbar on the textarea alone (it makes its text narrower) breaks that.
@@ -36,13 +37,18 @@ for (const zoom of ['1', '1.2']) {
           return { tw: t.clientWidth, mw: m.clientWidth, th: t.scrollHeight, mh: m.scrollHeight, tTop: Math.round(t.scrollTop), mTop: Math.round(m.scrollTop), lastInside: last.bottom <= mb.bottom + 1 && last.top >= mb.top - 1 }
         })
       await box.fill('okay this is great so far. now we want to do and include in this app is the smart routing using agents with different models and efforts which could be subagents or other agents present in the workspace. asd')
-      const a = await look()
+      // The mirror is drawn and the box grows a frame after the text goes in, later on a busy machine: wait for them to settle, then check.
+      const settled = async (ok: (x: Awaited<ReturnType<typeof look>>) => boolean) => {
+        await expect.poll(async () => ok(await look()), { timeout: SLOW }).toBe(true)
+        return look()
+      }
+      const a = await settled((x) => x.tw === x.mw && x.th === x.mh)
       expect(a.tw, 'both wrap at the same width').toBe(a.mw)
       expect(a.th).toBe(a.mh)
       // Many lines, past the height the box grows to: the drawn text follows the textarea's own scrolling, line for line.
       for (let i = 0; i < 12; i++) await box.press('Shift+Enter')
       await box.pressSequentially('the last line typed')
-      const b = await look()
+      const b = await settled((x) => x.tw === x.mw && x.th === x.mh && x.mTop === x.tTop && x.lastInside)
       expect(b.tw, 'still the same width once it scrolls').toBe(b.mw)
       expect(b.th).toBe(b.mh)
       expect(b.mTop).toBe(b.tTop)

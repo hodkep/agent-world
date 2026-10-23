@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
+import { SLOW } from './waits'
 
 const say = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
 
@@ -54,7 +55,10 @@ test('todos: fully tracked mode makes a task of each request, keeps the ones an 
     const area = board.getByRole('listitem', { name: 'Library' })
     await expect(area).toBeVisible()
     await expect(board.getByRole('listitem', { name: 'Inbox' })).toHaveCount(0)
-    await area.getByRole('button', { name: /Done \(1\)/ }).click()
+    // The app closes the task when the agent's turn ends, which a busy machine can put well after the board was opened: wait for that, not the click's 30 seconds.
+    const closed = area.getByRole('button', { name: /Done \(1\)/ })
+    await expect(closed).toBeVisible({ timeout: SLOW })
+    await closed.click()
     const done = area.getByRole('button', { name: 'Open Fix the Safari login bug' })
     await expect(done).toBeVisible()
     await expect(done).not.toContainText('unfinished')
