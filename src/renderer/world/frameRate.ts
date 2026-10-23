@@ -13,3 +13,9 @@ export function frameCap({ hidden, focused, lastActive, now }: { hidden: boolean
   if (!focused) return FPS.away
   return now - lastActive < MOVING_MS ? FPS.moving : FPS.calm
 }
+
+/**
+ * The real time since the last frame, for the clocks that must keep real pace however seldom the office is drawn (the weather, the visitors, the rests): the frame's own time is capped
+ * by the graphics library at 100 ms, so at 5 frames a second it runs at half speed. Zero for the first frame, and never more than `cap`, so a sleep does not fire everything at once.
+ */
+export const elapsedSince = (now: number, last: number | null, cap = 120_000) => (last === null ? 0 : Math.min(cap, Math.max(0, now - last)))

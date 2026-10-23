@@ -47,7 +47,10 @@ export function ritualAt(hour: number, minute: number): Ritual | null {
   return null
 }
 
-/** Made-up weather that holds for ten to twenty minutes, and moves one step at a time: clear, cloud, rain. */
+/** How long each weather lasts, in minutes: clear sky is long, cloud is a spell, rain is a short one. */
+const SPELL: Record<WeatherNow, [number, number]> = { clear: [20, 40], cloud: [8, 15], rain: [4, 8] }
+
+/** Made-up weather that moves one step at a time: clear, cloud, then clear again or rain, then cloud. Rain is a short spell and a few percent of the time. */
 export class Weather {
   now: WeatherNow
   private left: number
@@ -61,15 +64,16 @@ export class Weather {
   }
 
   private span() {
-    return 10 * MIN + this.rand() * 10 * MIN
+    const [lo, hi] = SPELL[this.now]
+    return (lo + this.rand() * (hi - lo)) * MIN
   }
 
   tick(dtMs: number) {
     this.left -= dtMs * this.speed
     if (this.left > 0) return
+    // From cloud the sky clears seven times in ten and rains three; from clear or rain it goes back to cloud.
+    this.now = this.now === 'cloud' ? (this.rand() < 0.7 ? 'clear' : 'rain') : 'cloud'
     this.left = this.span()
-    const next: WeatherNow[] = this.now === 'cloud' ? ['clear', 'rain'] : ['cloud']
-    this.now = next[Math.floor(this.rand() * next.length)]!
   }
 }
 

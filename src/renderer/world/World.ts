@@ -4,7 +4,7 @@ import { Application, Container, Graphics, TextureSource, Ticker } from 'pixi.js
 import type { Activity } from '../../shared/types'
 import { RUSH, type Lot, carDoorPoint } from './arrival'
 import { Fleet, type FleetEvent } from './fleet'
-import { FPS, MOVING_MS, frameCap } from './frameRate'
+import { FPS, MOVING_MS, elapsedSince, frameCap } from './frameRate'
 import { Shouts } from './shouts'
 import { VisitorsView } from './visitors'
 import { Character } from './character'
@@ -211,6 +211,9 @@ export class OfficeWorld {
   private boyNextPlay = 0
   private catching = false
   private lastFree: string[] = []
+  /** The real time since the last frame: the weather, the visitors, the rests and every wait run on it, since the frame's own time is capped at 100 ms and runs slow when the window is drawn seldom. */
+  private wall = 0
+  private lastWall: number | null = null
   /** A trial asked for the office boy to join a game as soon as an agent is free. */
   private wantBoy = false
   private publishedAmbience = ''
@@ -912,7 +915,7 @@ export class OfficeWorld {
     }
     const free = [...this.chars.entries()].filter(([k, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null && (this.cool.get(k) ?? 0) <= t).map(([k]) => k)
     const huddle = [...this.errands.values()].some((e) => e.kind === 'huddle')
-    const plan = this.drill ? null : this.life.decide(dt, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle, away: [...this.errands.values()].filter((e) => e.kind !== 'drill').length })
+    const plan = this.drill ? null : this.life.decide(this.wall, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle, away: [...this.errands.values()].filter((e) => e.kind !== 'drill').length })
     if (plan?.kind === 'drink') this.startDrink(plan.agent, plan.what)
     else if (plan?.kind === 'game') this.startGame(plan.agents)
     else if (plan?.kind === 'eat') this.startEat(plan.agent)
@@ -928,7 +931,7 @@ export class OfficeWorld {
     // The office boy, resting, sometimes joins an idle agent at the board: when the supervisor is far off, and not for a while after he was caught or saw him coming.
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     const away = [...this.errands.values()].filter((e) => e.kind !== 'drill').length
-    if (!this.game && !this.drill && away < 2 && t >= this.boyBanUntil && t >= this.boyNextPlay && boy.isResting && Math.hypot(sup.at.x - BOY_SEAT.x, sup.at.y - BOY_SEAT.y) >= 10 && Math.random() < (dt * staffSpeed()) / 120_000) this.startBoyGame(free)
+    if (!this.game && !this.drill && away < 2 && t >= this.boyBanUntil && t >= this.boyNextPlay && boy.isResting && Math.hypot(sup.at.x - BOY_SEAT.x, sup.at.y - BOY_SEAT.y) >= 10 && Math.random() < (this.wall * staffSpeed()) / 120_000) this.startBoyGame(free)
     for (const [key, e] of this.errands) {
       const c = this.chars.get(key)
       if (!c || e.kind === 'game' || e.kind === 'drill') continue
@@ -944,7 +947,7 @@ export class OfficeWorld {
           if (e.kind === 'huddle' && Math.random() < 0.5) this.shouts.say(`huddle:${key}`, HUDDLE_LINES[Math.floor(Math.random() * HUDDLE_LINES.length)]!, 2400, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
         }
       } else if (e.phase === 'do') {
-        e.left -= dt
+        e.left -= this.wall
         if (e.left <= 0) {
           this.errands.delete(key)
           c.errand = false
@@ -956,7 +959,7 @@ export class OfficeWorld {
     }
     const g = this.game
     if (g) {
-      g.waited += dt
+      g.waited += this.wall
       if (!g.started) {
         const here = g.keys.every((k) => (k === 'boy' ? this.boyAtSeat() : this.chars.get(k)?.arrived))
         if (here) {
@@ -978,7 +981,7 @@ export class OfficeWorld {
           const c = this.chars.get(key)
           if (c) this.shouts.say(`carrom:${key}`, text, ms, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
         }
-        for (const ev of g.carrom.update(dt)) {
+        for (const ev of g.carrom.update(this.wall)) {
           if (ev.type === 'strike') {
             const c = this.chars.get(g.keys[ev.player]!)
             if (c) c.doingAt = t
@@ -996,7 +999,7 @@ export class OfficeWorld {
     this.carromBoard?.update(dt)
     // A cheer or a clap ends by itself.
     for (const c of this.chars.values()) if ((c.doing === 'cheer' || c.doing === 'clap' || c.doing === 'stretch') && t >= c.doingUntil) c.doing = ''
-    this.restTick(dt, t)
+    this.restTick(this.wall, t)
     this.drillTick(t)
     this.bossWatch(t)
     this.confetti.update(dt)
@@ -1268,7 +1271,7 @@ export class OfficeWorld {
     this.ritual = on ? ritualAt(this.clock.h, this.clock.m) : null
     const speed = staffSpeed()
     if (on) {
-      this.weather.tick(dt)
+      this.weather.tick(this.wall)
       const call = takeCall()
       if (call === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
@@ -1279,7 +1282,7 @@ export class OfficeWorld {
       else if (call === 'bosseast') (sup.cancel(), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
       let ev: RareEvent | null = null
       if (call === 'drill' || call === 'cut' || call === 'pigeon') ev = this.rare.call(call)
-      else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(dt)
+      else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(this.wall)
       if (ev === 'cut') {
         this.cut = { start: t }
         this.shouts.say('cut', 'Power cut!', 2400, () => ({ x: OFFICE.map.w * TILE * 0.5, y: 4 * TILE }))
@@ -1288,7 +1291,7 @@ export class OfficeWorld {
         this.ambience.pigeon(t)
         this.shouts.say('pigeon', 'Coo!', 1600, () => ({ x: this.ambience.pos.x + 6, y: this.ambience.pos.y - 8 }))
       }
-      if (this.comers.tick(dt, this.clock.h) === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
+      if (this.comers.tick(this.wall, this.clock.h) === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
     }
     let dark = 0
     if (this.cut) {
@@ -1371,7 +1374,7 @@ export class OfficeWorld {
     }
     for (const a of this.staff) a.setShown(true)
     const scene = this.sceneFor(boy)
-    this.director.tick(dt, scene.idle)
+    this.director.tick(this.wall, scene.idle)
     // A new jar fills over a moment; otherwise the jar shows what is in it.
     const target = this.director.water
     this.shownWater = this.shownWater < target - 0.001 ? Math.min(target, this.shownWater + dt / 900) : target
@@ -1462,6 +1465,8 @@ export class OfficeWorld {
 
   private tick(dt: number) {
     const t = performance.now()
+    this.wall = elapsedSince(t, this.lastWall)
+    this.lastWall = t
     const atScreen = new Map<string, Activity>()
     for (const [key, c] of this.chars) {
       c.update(dt, t)
