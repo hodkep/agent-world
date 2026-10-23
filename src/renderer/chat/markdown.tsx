@@ -121,11 +121,14 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       const b = document.createElement('button')
       b.className = 'copy'
       b.textContent = 'Copy'
-      b.onclick = () => void navigator.clipboard.writeText(pre.querySelector('code')?.textContent ?? pre.textContent ?? '').then(() => ((b.textContent = 'Copied'), setTimeout(() => (b.textContent = 'Copy'), 1200)))
+      // Colouring rewrites the block (no line breaks in its text, non-breaking spaces), so the words it was written with are kept.
+      const written = pre.querySelector('code')
+      if (written) written.dataset.raw = written.textContent ?? ''
+      b.onclick = () => void navigator.clipboard.writeText(written?.dataset.raw ?? pre.textContent ?? '').then(() => ((b.textContent = 'Copied'), setTimeout(() => (b.textContent = 'Copy'), 1200)))
       pre.appendChild(b)
       // A shell command can also be run, in the project's terminal.
       const code = pre.querySelector('code')
-      const command = runnable(/language-([\w+-]+)/.exec(code?.className ?? '')?.[1] ?? '', code?.textContent ?? '')
+      const command = runnable(/language-([\w+-]+)/.exec(code?.className ?? '')?.[1] ?? '', code?.dataset.raw ?? code?.textContent ?? '')
       if (command) {
         const run = document.createElement('button')
         run.className = 'copy run'
@@ -159,7 +162,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
       if (!lang || lang === 'mermaid') continue
       const id = languageFor(`x.${lang}`) !== 'plaintext' ? languageFor(`x.${lang}`) : lang
       void monaco.editor
-        .colorize(code.textContent ?? '', id, { tabSize: 2 })
+        .colorize(code.dataset.raw ?? code.textContent ?? '', id, { tabSize: 2 })
         .then((h) => {
           // Monaco returns already-escaped markup for exactly this text.
           code.innerHTML = DOMPurify.sanitize(h).replace(/(<br\/?>)+$/, '')
