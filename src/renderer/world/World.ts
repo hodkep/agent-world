@@ -218,6 +218,8 @@ export class OfficeWorld {
   /** Everything the staff have said, which poses they struck and what they carried since the page began: published for specs, since at a fast trial speed a line or a pose lasts less than a frame. */
   private readonly staffSeen = { said: new Set<string>(), poses: new Set<string>(), carried: new Set<string>() }
   private visitWanted = false
+  /** A trial asked for the supervisor to leave the office boy alone unless the trial brings him: no catching from behind on his own. */
+  private noCatch = false
   private wantBoy = false
   /** A trial asked for something to happen as soon as agents are idle: a game, a huddle or a drink. */
   private wanted = ''
@@ -852,7 +854,7 @@ export class OfficeWorld {
     }
     const bt = boy.at
     const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as Face }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as Face }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as Face }
-    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents, ritual: this.ritual, catchAt: this.game?.keys.includes('boy') && this.game.started && !this.catching ? BOARD_WEST : null }
+    return { working, idle, spots: this.places, boy: { ...bt }, boyCarrying: boy.carrying !== '', meet, idleAgents, ritual: this.ritual, catchAt: this.game?.keys.includes('boy') && this.game.started && !this.catching && !this.noCatch ? BOARD_WEST : null }
   }
 
   /** Staff and idle agents put away: no game, no errand, no confetti. */
@@ -978,7 +980,7 @@ export class OfficeWorld {
             if (e) e.phase = 'do'
           }
           this.carromBoard?.setCoins(g.carrom.coins)
-        } else if (g.waited > 25_000) this.endGame()
+        } else if (g.waited > 60_000) this.endGame()
       } else if (g.endAt > 0) {
         if (t >= g.endAt) this.endGame()
       } else {
@@ -1145,7 +1147,7 @@ export class OfficeWorld {
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     const n = bossSees(boy.at, 'right', sup.at)
     if (n === 'sees') this.boyNotices(t)
-    else if (n === 'behind') {
+    else if (n === 'behind' && !this.noCatch) {
       // He has not seen him: the supervisor walks up behind him and swings his can.
       this.catching = true
       sup.cancel()
@@ -1319,6 +1321,7 @@ export class OfficeWorld {
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
       const sup = this.staff[1]!
       if (call === 'boyplay') this.wantBoy = true
+      else if (call === 'quiet') this.noCatch = true
       else if (call === 'game' || call === 'huddle' || call === 'drink:water' || call === 'drink:coffee') this.wanted = call
       // A trial can make the supervisor do a round of a kind ("sup:read") or the office boy a job ("boy:bin") at once.
       else if (call?.startsWith('sup:')) this.forceSupervisor(call.slice(4) as SupervisorKind)
@@ -1326,7 +1329,7 @@ export class OfficeWorld {
       if (this.visitWanted) this.forceSupervisor('visit')
       else if (call === 'boss') (sup.cancel(), sup.give([{ kind: 'walk', to: BOARD_WEST }]))
       // From the east he is in front of the boy, who sees him.
-      else if (call === 'bosseast') (sup.cancel(), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
+      else if (call === 'bosseast') (sup.cancel(), (this.catching = false), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
       let ev: RareEvent | null = null
       if (call === 'drill' || call === 'cut' || call === 'pigeon') ev = this.rare.call(call)
       else if (!this.drill && !this.cut && !this.ambience.flying && this.chars.size > 0) ev = this.rare.decide(this.wall)

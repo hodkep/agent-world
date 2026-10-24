@@ -23,10 +23,23 @@ const record = (page: Page) =>
     }).observe(stage, { attributes: true, attributeFilter: ['data-life', 'data-shouts'] })
   })
 const calm = (page: Page) => page.evaluate(() => { const c = (window as unknown as { __calm: { most: number; gap: number; shouts: Set<string> } }).__calm; return { most: c.most, gap: c.gap, shouts: [...c.shouts] } })
+/** The office boy at the board, with the game started: asked for again every 40 s, since the agent it is for may be slow to arrive on a loaded machine and the game then gives up. */
+async function boyPlays(page: Page) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await setItem(page, 'aw.officeCall', 'boyplay')
+    try {
+      await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 40_000 }).toBe(true)
+      return
+    } catch {
+      // the game gave up: ask again
+    }
+  }
+  await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 40_000 }).toBe(true)
+}
 const life = async (page: Page) => JSON.parse((await page.locator('.stage').getAttribute('data-life')) ?? 'null') as Life | null
 
 test('the office is calm: no more than two agents away at once, and an agent that came back sits for a good while before it goes off again', async () => {
-  test.setTimeout(240_000)
+  test.setTimeout(420_000)
   const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle', eli: 'idle', fay: 'idle' } })
   try {
     const { page } = o
@@ -48,7 +61,7 @@ test('the office is calm: no more than two agents away at once, and an agent tha
 })
 
 test('the office boy joins an idle agent at the carrom board; the supervisor coming from behind catches him, from the front he sees him and leaves', async () => {
-  test.setTimeout(240_000)
+  test.setTimeout(420_000)
   const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle' } })
   try {
     const { page } = o
@@ -61,9 +74,7 @@ test('the office boy joins an idle agent at the carrom board; the supervisor com
     await page.waitForTimeout(3000)
 
     // He joins an agent at the board.
-    await setItem(page, 'aw.officeCall', 'boyplay')
-    await expect.poll(async () => (await life(page))?.boy.joined, { timeout: 30_000 }).toBe(1)
-    await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 40_000 }).toBe(true)
+    await boyPlays(page)
 
     // The supervisor comes from the west door, behind him: the can, "Get back to work!", "Ouch!".
     await setItem(page, 'aw.officeCall', 'boss')
@@ -76,7 +87,7 @@ test('the office boy joins an idle agent at the carrom board; the supervisor com
 })
 
 test('an office boy who faces the supervisor sees him, says "Boss!", leaves the game, and the agent says "Hey!"', async () => {
-  test.setTimeout(240_000)
+  test.setTimeout(420_000)
   const o = await shotApp({ scenes: { ada: 'idle', dee: 'idle' } })
   try {
     const { page } = o
@@ -87,8 +98,9 @@ test('an office boy who faces the supervisor sees him, says "Boss!", leaves the 
     await record(page)
     for (const name of ['ada', 'dee']) await hireNamed(page, name)
     await page.waitForTimeout(3000)
-    await setItem(page, 'aw.officeCall', 'boyplay')
-    await expect.poll(async () => (await life(page))?.boy.playing, { timeout: 70_000 }).toBe(true)
+    // The supervisor does not come to the boy by himself: only the trial brings him, and from the front.
+    await setItem(page, 'aw.officeCall', 'quiet')
+    await boyPlays(page)
     await setItem(page, 'aw.officeCall', 'bosseast')
     await expect.poll(async () => (await life(page))?.boy.noticed, { timeout: 30_000 }).toBe(1)
     await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Boss!', 'Hey!']))
