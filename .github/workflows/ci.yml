@@ -109,14 +109,14 @@ jobs:
       - run: node node_modules/electron/install.js
       - run: pnpm run build
       - run: pnpm exec playwright test --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-report-${{ matrix.shard }}
           path: playwright-report/report-${{ matrix.shard }}.json
           if-no-files-found: ignore
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: e2e-results-${{ matrix.shard }}
