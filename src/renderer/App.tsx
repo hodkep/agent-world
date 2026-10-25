@@ -870,6 +870,8 @@ export function App() {
   const panes = grid && !!paneLayout && agents.length > 0
   useEffect(() => setPeek(false), [panes])
   const showPanel = panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen
+  // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
+  const overW = narrow && showPanel && !panes ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
   // The agent the side panel is showing is left out of the grid while it does, so it is not on screen twice.
   const inPanel = grid && showPanel && agents.some((a) => a.id === selected) ? selected : null
   const folderName = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
@@ -1474,7 +1476,7 @@ export function App() {
         </div>
       )}
       {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
-      <main>
+      <main style={{ '--over': overW } as React.CSSProperties}>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (

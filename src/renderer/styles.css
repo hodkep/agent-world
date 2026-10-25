@@ -1426,7 +1426,7 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 .term-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-hot); }
 .term-btn[aria-pressed='true'] .term-gl { color: var(--ink); }
 .term-btn[aria-pressed='true'] .term-count { background: var(--ink); color: var(--accent); }
-.tdrawer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 120px); overflow: hidden; background: var(--well); border-top: 2px solid var(--ink); box-shadow: 0 -2px 0 var(--line), 0 -10px 24px rgb(0 0 0 / 0.5); }
+.tdrawer { position: absolute; left: 0; right: var(--over, 0px); bottom: 0; z-index: 5; display: flex; flex-direction: column; max-height: calc(100% - 120px); overflow: hidden; background: var(--well); border-top: 2px solid var(--ink); box-shadow: 0 -2px 0 var(--line), 0 -10px 24px rgb(0 0 0 / 0.5); }
 .tdrawer[hidden] { display: none; }
 .tgrip { height: 6px; flex: none; cursor: ns-resize; background: var(--panel-2); border-bottom: 1px solid var(--ink); position: relative; touch-action: none; }
 .tgrip::after { content: ''; position: absolute; left: 50%; top: 1px; width: 36px; height: 3px; background: var(--line); transform: translateX(-50%); }
