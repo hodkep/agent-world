@@ -22,10 +22,10 @@ test('Esc before the agent has produced anything takes the message back out of t
     await box.fill('restore me please')
     await box.press('Enter')
     await expect(log.locator('.msg.user', { hasText: 'restore me please' })).toBeVisible({ timeout: 15_000 })
-    await expect(box).toHaveValue('')
+    await expect(box).toHaveAttribute('data-text', '')
     await box.press('Escape')
     // The message leaves the conversation and comes back to the box, picture and all.
-    await expect(box).toHaveValue('restore me please', { timeout: 15_000 })
+    await expect(box).toHaveAttribute('data-text', 'restore me please', { timeout: 15_000 })
     await expect(log.locator('.msg.user', { hasText: 'restore me please' })).toHaveCount(0)
     await expect(page.locator('.composer').getByText('one.png')).toBeVisible()
     // Sending it again works, and it is not doubled up with what Claude's own input box had.

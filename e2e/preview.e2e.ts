@@ -194,7 +194,7 @@ test('selecting an element on the preview adds it to the message as one chip of 
     await expect(chip).toContainText('Preview')
     await expect(chip).toContainText(`button on localhost:${port}`)
     await expect(chip.locator('img')).toHaveCount(1)
-    await expect(box).toHaveValue('')
+    await expect(box).toHaveAttribute('data-text', '')
     if (process.env.AW_SHOTS) await page.screenshot({ path: `${process.env.AW_SHOTS}/context-chip.png` })
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
     // Typed text goes with it, and what the agent receives carries the selector, text and address.

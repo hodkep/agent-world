@@ -44,7 +44,7 @@ test('text pasted with <pasted_content> markers goes in without them', async () 
       data.setData('text/plain', '<pasted_content id="cc20">\nfirst line\nsecond line\n</pasted_content id="cc20">')
       el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
     })
-    await expect(box).toHaveValue('first line\nsecond line')
+    await expect(box).toHaveAttribute('data-text', 'first line\nsecond line')
   } finally {
     await shutdown()
   }

@@ -67,7 +67,7 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await expect.poll(marked).toBe('')
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite'])
     await expect(page.getByRole('textbox', { name: 'What to do about this quote' })).toHaveValue('is this right?')
-    await expect(box).toHaveValue('')
+    await expect(box).toHaveAttribute('data-text', '')
     await expect(ask).toHaveCount(0)
     await expect(here).toHaveCount(0)
 
@@ -76,7 +76,7 @@ test('words selected in an agent reply can be quoted into the message box, as ma
     await page.getByRole('button', { name: 'Ask ada' }).click()
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(page.getByRole('list', { name: 'Quoted from the conversation' }).locator('blockquote')).toHaveText(['rewrite', 'rollback'])
-    await expect(box).toHaveValue('')
+    await expect(box).toHaveAttribute('data-text', '')
 
     if (process.env.AW_SHOTS) await page.locator('.composer').screenshot({ path: `${process.env.AW_SHOTS}/quote-composer.png` })
     // Each quote is a small card, labelled, with its own line for what to say about it.

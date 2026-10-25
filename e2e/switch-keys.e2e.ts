@@ -28,7 +28,7 @@ test('keys: Ctrl+Tab steps to the next agent and Ctrl+Shift+Tab back, from the m
     await box('ada').fill('one two three')
     await page.keyboard.press('Meta+ArrowLeft')
     await page.keyboard.type('X')
-    await expect(box('ada')).toHaveValue('Xone two three')
+    await expect(box('ada')).toHaveAttribute('data-text', 'Xone two three')
     await expect(box('ada')).toBeVisible()
   } finally {
     await shutdown()

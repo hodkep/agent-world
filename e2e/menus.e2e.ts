@@ -61,7 +61,7 @@ test('rewind a conversation from a message in the chat', async () => {
     await expect(page.locator('.term-host:visible')).toContainText('rewound to: first thing (option 1)')
     await page.getByRole('tab', { name: 'Chat' }).click()
     // The rewound messages leave the conversation and the prompt is back in the composer.
-    await expect(box).toHaveValue('first thing', { timeout: SLOW })
+    await expect(box).toHaveAttribute('data-text', 'first thing', { timeout: SLOW })
     await expect(log.locator('.msg.user')).toHaveCount(0)
   } finally {
     await shutdown()

@@ -25,7 +25,7 @@ test('↑ ↓ walk back through what was sent with the draft kept, and each mess
       await box.fill(m)
       await box.press('Enter')
       await expect(log.locator('.msg.user', { hasText: m })).toBeVisible({ timeout: 15_000 })
-      await expect(box).toHaveValue('')
+      await expect(box).toHaveAttribute('data-text', '')
     }
     // The messages are the saved ones (they have Rewind), not still the rows shown while sending: when the transcript has them the rows are drawn again as new elements,
     // and the arrows of a new element know nothing until the pointer enters it, which on a slow machine happens in the middle of the walk below.
@@ -36,25 +36,25 @@ test('↑ ↓ walk back through what was sent with the draft kept, and each mess
     await box.press('Control+a')
     await box.press('Home')
     await box.press('ArrowUp')
-    await expect(box).toHaveValue('third thing')
+    await expect(box).toHaveAttribute('data-text', 'third thing')
     await expect(page.getByRole('status').filter({ hasText: 'history 1 of 3' })).toBeVisible()
     await box.press('ArrowUp')
-    await expect(box).toHaveValue('second thing')
+    await expect(box).toHaveAttribute('data-text', 'second thing')
     await box.press('ArrowDown')
     await box.press('ArrowDown')
-    await expect(box).toHaveValue('my half-written draft')
+    await expect(box).toHaveAttribute('data-text', 'my half-written draft')
     await expect(page.getByText(/history \d of 3/)).toHaveCount(0)
     // Esc leaves the walk at once, instead of reaching the agent.
     await box.press('Home')
     await box.press('ArrowUp')
     await box.press('ArrowUp')
-    await expect(box).toHaveValue('second thing')
+    await expect(box).toHaveAttribute('data-text', 'second thing')
     await box.press('Escape')
-    await expect(box).toHaveValue('my half-written draft')
+    await expect(box).toHaveAttribute('data-text', 'my half-written draft')
     // In a message with several lines the arrows still move the caret first.
     await box.fill('line one\nline two')
     await box.press('ArrowUp')
-    await expect(box).toHaveValue('line one\nline two')
+    await expect(box).toHaveAttribute('data-text', 'line one\nline two')
     await box.fill('')
 
     // Arrows beside each message of yours jump to the one before and after, and the ends are disabled.

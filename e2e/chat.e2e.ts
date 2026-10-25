@@ -87,7 +87,7 @@ test('attach and paste pictures, run a shell command with !, switch permission m
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
       const dt = new DataTransfer()
       dt.items.add(new File([bytes], 'image.png', { type: 'image/png' }))
-      document.querySelector('textarea')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+      document.querySelector('.composer .cm-content')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
     }, PNG.toString('base64'))
     await expect(chips).toContainText('image.png')
     await page.getByRole('button', { name: 'Remove image.png' }).click()

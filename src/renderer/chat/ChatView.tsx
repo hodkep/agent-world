@@ -23,6 +23,7 @@ import { AttachmentViewer } from './ImageEditor'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
 import { describeCommand, ranFor } from './procView'
+import { MessageEditor, type EditorHandle } from './MessageEditor'
 import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
 import type { SubagentInfo } from '../../shared/chat'
@@ -1298,10 +1299,9 @@ function Composer({
   const [over, setOver] = useState(false)
   const [modeOpen, setModeOpen] = useState(false)
   const [switching, setSwitching] = useState(false)
-  const box = useRef<HTMLTextAreaElement>(null)
+  const box = useRef<EditorHandle>(null)
   // The box itself (or the asleep bar that stands in for it): quotes are heard from the conversation around it, whichever is showing.
   const root = useRef<HTMLDivElement>(null)
-  const mirror = useRef<HTMLDivElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const sent = useRef<string[]>([])
   // Walking back through the messages sent from this box with ↑ ↓; the draft being typed is kept and comes back.
@@ -1390,13 +1390,6 @@ function Composer({
     void window.aw.listCommands(agentId).then(setCommands, () => {})
     void window.aw.code.mentionFiles(agentId).then(setFiles, () => setFiles([]))
   }, [agentId])
-  useEffect(() => {
-    const el = box.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`
-    // Measured again when the chat comes into view: a hidden box measures as nothing.
-  }, [text, visible])
 
   // Files on disk are mentioned by their path; pasted pictures and other blobs are saved first.
   const attach = useCallback(
@@ -1668,39 +1661,29 @@ function Composer({
         )}
         {shell && <span className="shell-badge" title="Runs this command directly, without Claude interpreting it. Claude then sees the output.">shell</span>}
         <div className="composer-input">
-          {/* Same text, same metrics, drawn behind the transparent textarea so commands and @files get a tint. */}
-          <div className="composer-mirror" ref={mirror} aria-hidden="true">
-            {highlight(text).flatMap((p, i) =>
-              p.kind !== 'plain' ? [<mark key={i} className={`tok-${p.kind}`}>{p.text}</mark>] : shell ? [p.text] : markdownSpans(p.text).map((m, j) => (m.kind === 'plain' ? m.text : <span key={`${i}-${j}`} className={`md-${m.kind}`}>{m.text}</span>))
-            )}
-            {'\n'}
-          </div>
-        <textarea
-          ref={box}
-          onScroll={(e) => mirror.current && (mirror.current.scrollTop = e.currentTarget.scrollTop)}
-          value={text}
-          rows={1}
-          placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
-          aria-label={`Message ${agentName}`}
-          title={`${keysOf('send')} sends · ${keysOf('newline')} new line · ${keysOf('history')} earlier messages · ${keysOf('search-sent')} search them`}
-          onChange={(e) => {
-            search.current = null
-            const t = (e.nativeEvent as InputEvent).inputType ?? ''
-            edit(e.target.value, /^(insertFromPaste|insertFromDrop|deleteByCut)/.test(t) ? 'edit' : 'type', e.target.selectionStart)
-          }}
-          onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
-          onPaste={(e) => {
-            // Text copied with <pasted_content> markers goes in without them.
-            const pasted = e.clipboardData.getData('text/plain')
-            if (pasted !== unwrapPasted(pasted)) {
-              e.preventDefault()
-              document.execCommand('insertText', false, unwrapPasted(pasted).replace(/\n$/, ''))
-              return
-            }
-            const files = [...e.clipboardData.files]
-            if (files.length) (e.preventDefault(), void attach(files))
-          }}
-          onKeyDown={(e) => {
+          <MessageEditor
+            ref={box}
+            value={text}
+            placeholder={blocked ? `${agentName} is waiting for you above` : busy ? `${agentName} is working… your message goes in next` : `Message ${agentName}  ·  / commands and skills  ·  @ files`}
+            label={`Message ${agentName}`}
+            title={`${keysOf('send')} sends · ${keysOf('newline')} new line · ${keysOf('history')} earlier messages · ${keysOf('search-sent')} search them`}
+            onChange={(next, how, at) => {
+              search.current = null
+              edit(next, how, at)
+            }}
+            onSelect={setCaret}
+            onPaste={(e) => {
+              // Text copied with <pasted_content> markers goes in without them.
+              const pasted = e.clipboardData?.getData('text/plain') ?? ''
+              if (pasted !== unwrapPasted(pasted)) {
+                e.preventDefault()
+                box.current?.insertText(unwrapPasted(pasted).replace(/\n$/, ''))
+                return
+              }
+              const files = [...(e.clipboardData?.files ?? [])]
+              if (files.length) (e.preventDefault(), void attach(files))
+            }}
+            onKeyDown={(e) => {
             // With the list of completions open, Esc closes it; the next Esc is the one that stops the agent.
             if (e.key === 'Escape' && suggestions.length > 0) return void (e.preventDefault(), e.stopPropagation(), setDismissed(before))
             const key = e.key.toLowerCase()
@@ -1717,7 +1700,7 @@ function Composer({
               else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && (slash || mention) && complete)) (e.preventDefault(), apply(suggestions[at]!))
               if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && !e.shiftKey && (slash || mention) && complete)) return
             }
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
               e.preventDefault()
               void submit()
             } else if (e.key === 'Tab' && e.shiftKey) (e.preventDefault(), void window.aw.chatCycleMode(agentId).catch((err) => onError(errText(err))))
@@ -1727,7 +1710,7 @@ function Composer({
               const at = sent.current.findIndex((m, i) => i > walk.current.index && m.toLowerCase().includes(search.current!))
               if (at >= 0) (setWalk({ index: at, draft: walk.current.index < 0 ? text : walk.current.draft }), edit(sent.current[at]!))
             } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
-              const el = e.currentTarget
+              const el = box.current!
               const step = e.key === 'ArrowUp' ? (onFirstLine(text, el.selectionStart) ? older(walk.current, sent.current, text) : null) : onLastLine(text, el.selectionEnd) ? newer(walk.current, sent.current) : null
               if (!step) return
               e.preventDefault()

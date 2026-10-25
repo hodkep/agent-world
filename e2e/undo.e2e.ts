@@ -28,21 +28,21 @@ test('undo and redo in the message box step back through typing bursts, and a co
     await page.waitForTimeout(1300)
     await page.keyboard.type('@READ', { delay: 20 })
     await page.keyboard.press('Tab')
-    await expect(box).toHaveValue('first part second part @README.md ')
+    await expect(box).toHaveAttribute('data-text', 'first part second part @README.md ')
     await page.waitForTimeout(100) // the completion puts the caret after itself on the next frame
     await page.keyboard.type('end', { delay: 20 })
-    await expect(box).toHaveValue('first part second part @README.md end')
+    await expect(box).toHaveAttribute('data-text', 'first part second part @README.md end')
 
     // Every step back is one burst of typing or one completion, however many there are.
     const back = ['first part second part @README.md ', 'first part second part @READ', 'first part second part ', 'first part ', '']
     for (const v of back) {
       await page.keyboard.press('ControlOrMeta+z')
-      await expect(box).toHaveValue(v)
+      await expect(box).toHaveAttribute('data-text', v)
     }
     // Nothing is lost on the way back: forward again reaches the end.
     for (const v of [...back.slice(0, -1).reverse(), 'first part second part @README.md end']) {
       await page.keyboard.press('ControlOrMeta+Shift+z')
-      await expect(box).toHaveValue(v)
+      await expect(box).toHaveAttribute('data-text', v)
     }
   } finally {
     await shutdown()
