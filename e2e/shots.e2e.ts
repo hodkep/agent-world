@@ -248,6 +248,7 @@ test('workflows: the builder\'s draft, edited in place before it is saved', asyn
     }
     await tools.call('workflow_propose', { file: JSON.stringify(draft) })
     const proposal = win.getByRole('region', { name: 'Workflow proposal' })
+    await proposal.getByLabel('Step 4: Security audit').click()
     await expect(proposal.getByLabel('Name of step 4')).toHaveValue('Security audit')
     // One edit made by hand, so the picture shows the count and Undo edits.
     await proposal.getByLabel('Name of step 4').fill('Security review')

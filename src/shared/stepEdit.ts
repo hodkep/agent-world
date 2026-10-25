@@ -14,6 +14,17 @@ export function moveStep(w: Workflow, at: number, by: -1 | 1): Workflow {
   return withSteps(w, steps)
 }
 
+/** A step moved to place `to` (counted before it was taken out), as when it is dragged there; a place past either end is the end. */
+export function moveStepTo(w: Workflow, at: number, to: number): Workflow {
+  if (at < 0 || at >= w.steps.length) return w
+  const target = Math.min(w.steps.length - 1, Math.max(0, to))
+  if (target === at) return w
+  const steps = [...w.steps]
+  const [step] = steps.splice(at, 1)
+  steps.splice(target, 0, step!)
+  return withSteps(w, steps)
+}
+
 /** A step taken out. A workflow keeps at least one. */
 export function removeStep(w: Workflow, at: number): Workflow {
   if (w.steps.length <= 1) return w

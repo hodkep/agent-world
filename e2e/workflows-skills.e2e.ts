@@ -113,7 +113,10 @@ test('the builder sees the skills there are, is refused a skill that does not ex
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft.getByLabel('Skills not in the playbook')).toContainText('1 skill is not enabled for this project.')
     await expect(draft.getByLabel('Skills not in the playbook')).toContainText('The Review step lets agents read it while the task runs.')
-    await expect(draft.getByLabel('Skills').locator('.sk', { hasText: 'code-review' })).toHaveClass(/granted/)
+    // On the card the skill is flagged, and in the fields of its step too.
+    await expect(draft.getByLabel('Step 2: Review').locator('.fl-chip', { hasText: 'code-review' })).toHaveClass(/granted/)
+    await draft.getByLabel('Step 2: Review').click()
+    await expect(draft.getByLabel('Skills of step 2').locator('.sk', { hasText: 'code-review' })).toHaveClass(/granted/)
     await draft.getByRole('button', { name: 'Save to shop' }).click()
     await expect(win.getByRole('option', { name: /Reviewed/ })).toHaveAttribute('aria-selected', 'true')
     await client.close()

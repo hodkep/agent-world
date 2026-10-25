@@ -1,25 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { addStep, moveStep, removeStep, setStep } from '../../shared/stepEdit'
+import { addStep, moveStep, moveStepTo, removeStep } from '../../shared/stepEdit'
 import type { SkillState } from '../../shared/skills'
-import { SKILL_WORDS } from './WorkflowList'
-import { GATES, STEPS_MAX, STEP_KINDS, type Gate, type StepKind, type Workflow, stepName } from '../../shared/workflow'
+import { PixelIcon } from '../chat/PixelIcon'
+import { AddStepMenu } from './flow/AddStepMenu'
+import { FlowCanvas } from './flow/FlowCanvas'
+import { StepInspector } from './flow/StepInspector'
+import { STEPS_MAX, type Workflow } from '../../shared/workflow'
 
-const KIND_LABEL: Record<StepKind, string> = { plan: 'plan', work: 'work', check: 'check', audit: 'review', approve: 'your approval', pr: 'pull request', merge: 'land' }
-const GATE_WORDS: Record<StepKind, Record<string, string>> = {
-  plan: { auto: 'no stop', approve: 'you approve' },
-  work: { auto: 'no stop', approve: 'you approve' },
-  check: { auto: 'only reports', pass: 'must pass' },
-  audit: { auto: 'no stop', approve: 'you approve' },
-  approve: { approve: 'you approve' },
-  pr: { auto: 'follows the switch', approve: 'you confirm' },
-  merge: { auto: 'follows the switch', approve: 'you confirm' }
-}
-const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']
 const clean = (e: Error) => e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+/** Under this width the flow gives way to a plain list of the same steps: dragging on a narrow panel fights scrolling. */
+const FLOW_MIN = 520
 
 /**
- * The builder's draft as steps the person can change in place: the name and brief as text, a work step's skills as chips, a check's command, tries and gate, a step moved or removed,
- * a step added. Every change goes to the office, which checks it like a file; what it says is wrong shows under the steps, and saving waits until nothing is.
+ * The builder's draft as a flow of steps the person can change in place: click a card to change its name, brief, command, gate and skills, drag it to move it, add or remove steps.
+ * In a narrow panel the same steps are a plain list. Every change goes to the office, which checks it like a file; what it says is wrong shows under the steps, and saving waits until nothing is.
  */
 export function StepEditor({ agentId, folder, workflow, skillStates, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
   const [wf, setWf] = useState(workflow)
@@ -53,77 +47,67 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
     setProblem('')
     void window.aw.workflows.undoProposalEdits(agentId, folder).then((v) => (setWf(v.workflow), onProblem(false), onChanged()), () => undefined)
   }
+  // The flow needs room; a narrow panel gets the list.
+  const root = useRef<HTMLDivElement>(null)
+  const [wide, setWide] = useState(true)
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const look = () => setWide(el.clientWidth === 0 || el.clientWidth >= FLOW_MIN)
+    look()
+    const watch = new ResizeObserver(look)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [])
+  const [picked, setPicked] = useState<number | null>(null)
+  const cur = picked !== null && picked < wf.steps.length ? picked : null
+  const drop = (from: number, to: number) => {
+    change(moveStepTo(wf, from, to))
+    setPicked(to)
+  }
   return (
-    <div className="se" aria-label="Edit the steps">
+    <div className="se" aria-label="Edit the steps" ref={root}>
       {edited ? (
         <div className="se-head">
           <span className="muted">You edited {edited === 1 ? '1 thing' : `${edited} things`}.</span>
           <button className="su-link" onClick={undo}>Undo edits</button>
         </div>
       ) : null}
-      <ol className="se-steps" aria-label="Steps">
-        {wf.steps.map((s, i) => {
-          const n = i + 1
-          const gates = GATES[s.kind]
-          return (
+      {wide ? (
+        <>
+          <FlowCanvas steps={wf.steps} selected={cur} skillStates={skillStates} onSelect={setPicked} onMove={drop} />
+          {cur === null ? (
+            <p className="se-hint muted">Click a step to change it. Drag one to move it.</p>
+          ) : (
+            <div className="se-pick">
+              <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} change={change} />
+              <div className="se-acts">
+                <button aria-label={`Move step ${cur + 1} up`} disabled={cur === 0} onClick={() => (change(moveStep(wf, cur, -1)), setPicked(cur - 1))}>Move up</button>
+                <button aria-label={`Move step ${cur + 1} down`} disabled={cur === wf.steps.length - 1} onClick={() => (change(moveStep(wf, cur, 1)), setPicked(cur + 1))}>Move down</button>
+                <button className="danger" aria-label={`Remove step ${cur + 1}`} disabled={wf.steps.length <= 1} onClick={() => (change(removeStep(wf, cur)), setPicked(null))}>Remove</button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <ol className="se-steps" aria-label="Steps">
+          {wf.steps.map((s, i) => (
             <li key={`${s.id}-${i}`} className={`se-step k-${s.kind}`}>
-              <div className="se-top">
-                <span className="se-n mono">{n}</span>
-                <input aria-label={`Name of step ${n}`} className="se-name" maxLength={40} value={s.name ?? ''} placeholder={stepName(s)} onChange={(e) => change(setStep(wf, i, { name: e.target.value }))} />
-                <span className="se-kind mono">{KIND_LABEL[s.kind]}</span>
-                <button className="se-ico" aria-label={`Move step ${n} up`} disabled={i === 0} onClick={() => change(moveStep(wf, i, -1))}>▲</button>
-                <button className="se-ico" aria-label={`Move step ${n} down`} disabled={i === wf.steps.length - 1} onClick={() => change(moveStep(wf, i, 1))}>▼</button>
-                <button className="se-ico" aria-label={`Remove step ${n}`} disabled={wf.steps.length <= 1} onClick={() => change(removeStep(wf, i))}>✕</button>
+              <StepInspector wf={wf} at={i} skills={skills} skillStates={skillStates} change={change} />
+              <div className="se-acts">
+                <button className="se-ico up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(wf, i, -1))}><PixelIcon name="chevron" scale={2} /></button>
+                <button className="se-ico" aria-label={`Move step ${i + 1} down`} disabled={i === wf.steps.length - 1} onClick={() => change(moveStep(wf, i, 1))}><PixelIcon name="chevron" scale={2} /></button>
+                <button className="se-ico" aria-label={`Remove step ${i + 1}`} disabled={wf.steps.length <= 1} onClick={() => change(removeStep(wf, i))}><PixelIcon name="x" scale={1} /></button>
               </div>
-              {BRIEF_KINDS.includes(s.kind) && (
-                <textarea aria-label={`Brief of step ${n}`} className="se-brief" rows={2} maxLength={600} value={s.brief ?? ''} placeholder="What the agent should do here (optional)" onChange={(e) => change(setStep(wf, i, { brief: e.target.value }))} />
-              )}
-              {s.kind === 'check' && (
-                <input aria-label={`Command of step ${n}`} className="se-run mono" maxLength={300} value={s.run ?? ''} placeholder="The command to run, such as npm test" onChange={(e) => change(setStep(wf, i, { run: e.target.value }))} />
-              )}
-              <div className="se-opts">
-                {gates.length > 1 && (
-                  <label>
-                    Stop
-                    <select aria-label={`Gate of step ${n}`} value={s.gate ?? gates[0]} onChange={(e) => change(setStep(wf, i, { gate: e.target.value as Gate }))}>
-                      {gates.map((g) => <option key={g} value={g}>{GATE_WORDS[s.kind][g]}</option>)}
-                    </select>
-                  </label>
-                )}
-                {s.kind === 'check' && (
-                  <label>
-                    Tries
-                    <input aria-label={`Retries of step ${n}`} type="number" min={0} max={5} value={s.retries ?? ''} placeholder="2" onChange={(e) => change(setStep(wf, i, { retries: e.target.value === '' ? undefined : Number(e.target.value) }))} />
-                  </label>
-                )}
-              </div>
-              {s.kind === 'work' && (
-                <div className="se-skills" aria-label={`Skills of step ${n}`}>
-                  {(s.skills ?? []).map((id) => (
-                    <span key={id} className={`sk ${skillStates[id] ?? 'ready'}`}>
-                      {id}
-                      {SKILL_WORDS[skillStates[id] ?? 'ready'] && <small> {SKILL_WORDS[skillStates[id] ?? 'ready']}</small>}
-                      <button aria-label={`Remove skill ${id} from step ${n}`} onClick={() => change(setStep(wf, i, { skills: (s.skills ?? []).filter((x) => x !== id) }))}>✕</button>
-                    </span>
-                  ))}
-                  {(s.skills ?? []).length < 8 && (
-                    <select aria-label={`Add a skill to step ${n}`} value="" onChange={(e) => e.target.value && change(setStep(wf, i, { skills: [...(s.skills ?? []), e.target.value] }))}>
-                      <option value="">＋ skill</option>
-                      {skills.filter((id) => !(s.skills ?? []).includes(id)).map((id) => <option key={id} value={id}>{id}</option>)}
-                    </select>
-                  )}
-                </div>
-              )}
             </li>
-          )
-        })}
-      </ol>
-      {wf.steps.length < STEPS_MAX && (
-        <select className="se-add" aria-label="Add a step" value="" onChange={(e) => e.target.value && change(addStep(wf, e.target.value as StepKind))}>
-          <option value="">＋ Add step</option>
-          {STEP_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-        </select>
+          ))}
+        </ol>
       )}
+      {wf.steps.length < STEPS_MAX && <AddStepMenu onAdd={(k) => {
+        const next = addStep(wf, k)
+        change(next)
+        setPicked(next.steps.findIndex((x) => !wf.steps.some((o) => o.id === x.id)))
+      }} />}
       {problem && <p className="error se-problem" role="alert">{problem}</p>}
     </div>
   )

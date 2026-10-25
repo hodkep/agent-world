@@ -131,7 +131,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft).toContainText('Billing change')
     await expect(draft).toContainText('new · not saved')
-    await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
+    await expect(draft.getByLabel('Step 5: Security audit')).toBeVisible()
     await expect(draft.getByLabel('Commands')).toContainText('2 commands would run on your computer')
     await expect(draft.getByLabel('Commands')).toContainText('npm run lint')
     await expect(draft.getByLabel('Commands')).toContainText('Saving approves exactly these commands')
@@ -180,7 +180,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
 
     // The saved workflow is already the draft beside the chat, to be edited in place; the same file proposed back is not a proposal.
     const saved = win.getByRole('region', { name: 'Workflow proposal' })
-    await expect(saved.getByLabel('Name of step 2')).toHaveValue('Fix, test first')
+    await expect(saved.getByLabel('Step 2: Fix, test first')).toBeVisible()
     await expect(saved).toContainText('Nothing differs from the saved one.')
     expect((await call('workflow_propose', { file: JSON.stringify(BUG_FIX) })).text).toContain('unchanged')
 
@@ -245,6 +245,9 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    // The steps are a flow of cards; a click opens the fields of one.
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+    await draft.getByLabel('Step 5: Security audit').click()
     await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
     await expect(draft).not.toContainText('You edited')
 
@@ -257,7 +260,8 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
 
     // A step added before the landing step has no command yet: the checker says so, and saving waits until it has one.
     await draft.getByLabel('Name of step 5').fill('Security review')
-    await draft.getByLabel('Add a step').selectOption('check')
+    await draft.getByRole('button', { name: 'Add a step' }).click()
+    await draft.getByRole('menuitem', { name: /check/ }).click()
     await expect(draft.getByRole('alert')).toContainText('needs "run"')
     await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeDisabled()
     await draft.getByLabel('Command of step 6').fill('npm run typecheck')
@@ -271,7 +275,10 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     await expect(preview).toContainText('You stop at')
 
     // Lint goes; what is saved is exactly this.
+    await draft.getByLabel('Step 4: Lint').click()
     await draft.getByRole('button', { name: 'Remove step 4' }).click()
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+    await draft.getByLabel('Step 4: Security review').click()
     await expect(draft.getByLabel('Name of step 4')).toHaveValue('Security review')
     await expect(draft).toContainText('You edited 3 things.')
     await draft.getByRole('button', { name: 'Save to shop' }).click()
@@ -310,6 +317,36 @@ test('the builder\'s agent stays inside the builder: it is not in the agents lis
     await expect.poll(() => page.locator('.roster').count()).toBeGreaterThanOrEqual(0)
     await expect(page.locator('.roster button', { hasText: 'builder' })).toHaveCount(0)
     await expect(page.getByText('builder', { exact: true })).toHaveCount(0)
+
+test('a step card is dragged to another place in the flow, and a narrow panel shows the same steps as a plain list', async () => {
+  const s = await start()
+  try {
+    const { page, argsLog } = s
+    const win = await openWorkflows(page)
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
+    await call('workflow_propose', { file: JSON.stringify(BILLING) })
+    const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    const nodes = draft.locator('.react-flow__node')
+    await expect(nodes).toHaveCount(6)
+    await expect(nodes.nth(1)).toHaveAttribute('aria-label', 'Step 2: Build')
+
+    // Dragging Build down past Tests pass puts it third.
+    const box = (await draft.getByLabel('Step 2: Build').boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + box.height * 1.9, { steps: 12 })
+    await page.mouse.up()
+    await expect(draft.locator('.react-flow__node').nth(1)).toHaveAttribute('aria-label', 'Step 2: Tests pass')
+    await expect(draft.locator('.react-flow__node').nth(2)).toHaveAttribute('aria-label', 'Step 3: Build')
+    await expect(draft).toContainText('You edited 1 thing.')
+
+    // In a narrow panel the flow gives way to a list with every step's fields open.
+    await page.setViewportSize({ width: 480, height: 1000 })
+    await expect(draft.getByRole('list', { name: 'Steps' })).toBeVisible()
+    await expect(draft.getByLabel('Name of step 3')).toBeVisible()
+    await client.close()
   } finally {
     await s.shutdown()
   }
