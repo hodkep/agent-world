@@ -12,9 +12,9 @@ export const isLanding = (k: StepKind) => k === 'pr' || k === 'merge'
 /** Which landing step a workflow ends in, if any: what the office holds (a push, or a merge) and how its cards word it. */
 export const landingKind = (wf: { steps: readonly { kind: StepKind }[] } | undefined): 'pr' | 'merge' | undefined => wf?.steps.find((s) => isLanding(s.kind))?.kind as 'pr' | 'merge' | undefined
 export type Gate = 'auto' | 'approve' | 'pass'
-/** How a step starts: by itself, or when the person presses Run. Only a check, an audit and a pull request take the person's press. */
+/** How a step starts: by itself, or when the person presses Run ("generate the plan", "build it", run the tests, audit, push). Only what the person does themselves cannot wait for their press. */
 export type Start = 'auto' | 'run'
-export const START_KINDS: StepKind[] = ['check', 'audit', 'pr']
+export const START_KINDS: StepKind[] = ['plan', 'work', 'check', 'audit', 'pr']
 
 export interface Step {
   id: string
@@ -86,7 +86,7 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
       else if (typeof s.optional !== 'boolean') out.push(`${at}: "optional" must be true or false.`)
     }
     if (s.start !== undefined) {
-      if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a check, audit or pr step.`)
+      if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a plan, work, check, audit or pr step.`)
       else if (s.start !== 'auto' && s.start !== 'run') out.push(`${at}: "start" must be auto or run.`)
     }
     if (s.skills !== undefined) {

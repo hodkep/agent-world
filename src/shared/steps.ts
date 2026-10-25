@@ -23,7 +23,7 @@ export interface StepState {
  * What a step is before the order of the others is taken into account: done, waiting for the person, not applicable, not done yet and
  * the agent's to do (`open`), or not done yet and the app's or the person's to do at Finish (`later`).
  */
-type Own = 'passed' | 'waiting' | 'open' | 'later' | 'skipped' | 'failed'
+type Own = 'passed' | 'waiting' | 'open' | 'later' | 'skipped' | 'failed' | 'torun'
 
 export interface StepContext {
   /** Whether an audit is run at this dial and for this program. */
@@ -84,7 +84,16 @@ function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepCon
   return { own: 'open', tries: failed }
 }
 
+/** Whether the person pressed Run on a step of this round that starts that way. */
+const started = (round: Round, id: string) => round.starts?.[id] !== undefined
+
+/** What the step is before the person's Run: the agent's steps that start on Run wait for it (as `torun`) while they would otherwise be the agent's to do. */
 function own(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: StepContext): Own {
+  const o = ownBase(step, round, run, ctx)
+  return o === 'open' && step.start === 'run' && (step.kind === 'plan' || step.kind === 'work') && !started(round, step.id) ? 'torun' : o
+}
+
+function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: StepContext): Own {
   const { kind, id } = step
   const mine = round.steps.filter((s) => s.step === id)
   const last = mine[mine.length - 1]
@@ -138,6 +147,7 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     const auditToRun = o === 'later' && s.kind === 'audit' && s.start === 'run' && !held
     if (o === 'passed' || o === 'skipped') state = o
     else if (o === 'failed') (state = 'failed', (held = true))
+    else if (o === 'torun') (state = held ? 'pending' : 'waiting', (held = true))
     else if (o === 'later') (state = auditToRun || ((isLanding(s.kind) || s.kind === 'approve') && !held) ? 'waiting' : 'pending', (held = true))
     else if (held) state = 'pending'
     else if (o === 'waiting') (state = 'waiting', (held = true))
@@ -146,7 +156,7 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     const asks = c ? state === 'waiting' && !!c.asks : state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
     const settled = asks && isLanding(s.kind) && approvedFor(round, s.id)
     const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s, ctx) && !approvedFor(round, s.id)
-    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...((auditToRun || (c?.toRun && state === 'waiting')) && { toRun: true as const }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
+    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...((auditToRun || (c?.toRun && state === 'waiting') || (o === 'torun' && state === 'waiting')) && { toRun: true as const }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
   })
 }
 
@@ -236,4 +246,7 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
 
 /** What the agent is told when the person skips an optional step of its workflow. */
 export const stepSkipped = (name: string) => `Your step "${name}" was skipped by the person: it is optional. Go on with the next step.`
+
+/** What the agent is told when the person presses Run on one of its steps. */
+export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`
 

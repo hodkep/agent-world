@@ -40,14 +40,21 @@ function skillNote(ids: string[] | undefined, states: Record<string, SkillState>
   return parts.length ? ` (${parts.join('; ')})` : ''
 }
 
+/** The things in brackets after a step's name: its skills, that it is optional, that it waits for the person's Run. */
+function notes(s: { skills?: string[]; optional?: boolean; start?: string }, skills: Record<string, SkillState> | undefined, may: { optional?: boolean; start?: boolean }): string {
+  const skill = skillNote(s.skills, skills).replace(/^ \(|\)$/g, '')
+  const parts = [skill, may.optional && s.optional ? 'optional: the person may skip it' : '', may.start && s.start === 'run' ? 'starts when the person presses Run: wait until you are told, and change nothing before' : ''].filter(Boolean)
+  return parts.length ? ` (${parts.join('; ')})` : ''
+}
+
 export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFirst?: boolean; skills?: Record<string, SkillState> } = {}): string {
   const { fellBackFrom, planFirst } = o
   const head = `Workflow: ${w.name}${fellBackFrom ? ` (there is no workflow "${fellBackFrom}", so the project's default was used)` : ''}. Its steps, in order:`
   const lines = w.steps.flatMap((s) => {
     const brief = s.brief ? ` ${s.brief}` : ''
     // The plan line only when a plan is asked for: otherwise the agent would wait for an approval that never comes.
-    if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}: the person approves your plan before you edit.${brief}`]
-    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}${s.optional ? ' (optional: the person may skip it)' : ''}:${brief}`]
+    if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}"${notes(s, o.skills, { start: true })}: the person approves your plan before you edit.${brief}`]
+    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${notes(s, o.skills, { optional: true, start: true })}:${brief}`]
     if (s.kind === 'approve') return [`- ${s.id} "${s.name}"${s.optional ? ' (optional: the person may skip it)' : ''}: the person approves this before it can land.${brief}`]
     if (s.kind === 'pr' && (s.brief || s.skills?.length)) return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}: when you open the pull request${s.brief ? `, ${s.brief}` : '.'}`]
     return []

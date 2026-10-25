@@ -166,3 +166,17 @@ describe('the settings every kind of step can carry, as the agent is told them',
     expect(workflowBrief(bare)).toContain('- pr "Pull request" (skill: tdd): when you open the pull request.')
   })
 })
+
+describe('a step that starts when the person presses Run, as the agent is told it', () => {
+  const FLOW: RunWorkflow = { id: 'g', name: 'G', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', start: 'run' }, { id: 'build', kind: 'work', name: 'Build', start: 'run', brief: 'Test first.' }] }
+  const WAIT = 'starts when the person presses Run: wait until you are told, and change nothing before'
+  it('says to wait for the press on the plan and on the build', () => {
+    const text = workflowBrief(FLOW, { planFirst: true })
+    expect(text).toContain(`- plan "Generate plan" (${WAIT}): the person approves your plan before you edit.`)
+    expect(text).toContain(`- build "Build" (${WAIT}): Test first.`)
+  })
+  it('puts it with the skills and the optional note when there are some', () => {
+    const wf: RunWorkflow = { ...FLOW, steps: [{ id: 'build', kind: 'work', name: 'Build', start: 'run', optional: true, skills: ['tdd'] }] }
+    expect(workflowBrief(wf, { skills: { tdd: 'ready' } })).toContain(`- build "Build" (read with library_get: tdd; optional: the person may skip it; ${WAIT}):`)
+  })
+})

@@ -82,7 +82,7 @@ import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
-import { checkPassed, stepReply, stepSkipped } from '../shared/steps'
+import { checkPassed, stepReply, stepSkipped, stepStarted } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -2036,6 +2036,13 @@ async function main() {
     if (run && !(target?.kind === 'pr' && answer === 'approved')) mailbox.fromOffice(run.agent, stepReply(name, answer, text, target?.kind))
     send('workflows')
     if (run && answer === 'approved') void askForPr(run.agent)
+  })
+  // The person pressed Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin.
+  ipcMain.handle('workflows:start-step', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const name = workflows.startStep(runId, String(step))
+    if (run) mailbox.fromOffice(run.agent, stepStarted(name))
+    send('workflows')
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {

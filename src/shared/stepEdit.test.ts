@@ -131,10 +131,10 @@ describe('a step is who does it, and what part of the run it plays', () => {
     const cmd = withWho(base(), 0, 'command')
     expect(withRole(cmd, 0, 'plan')).toBe(cmd)
   })
-  it('a step that starts when you press Run keeps that only where it can', () => {
+  it('a step that starts when you press Run keeps that for whoever can wait for it, and not for you', () => {
     const w: Workflow = { ...base(), steps: [{ id: 'r', kind: 'audit', start: 'run' }] }
     expect(withWho(w, 0, 'command').steps[0]).toMatchObject({ kind: 'check', start: 'run' })
-    expect(withWho(w, 0, 'agent').steps[0]!.start).toBeUndefined()
+    expect(withWho(w, 0, 'agent').steps[0]).toMatchObject({ kind: 'work', start: 'run' })
     expect(withWho(w, 0, 'you').steps[0]!.start).toBeUndefined()
   })
 })

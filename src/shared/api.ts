@@ -413,6 +413,8 @@ export interface AwApi {
     approveStep(runId: string, step: string, decision: 'approved' | 'changes', note?: string): Promise<void>
     /** Skip an optional step (a build or an approval): the run goes on, and the agent is told. */
     skipStep(runId: string, step: string): Promise<void>
+    /** Press Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin. */
+    startStep(runId: string, step: string): Promise<void>
     /** What the person is shown before approving a project file's check commands. */
     checkApproval(runId: string): Promise<{ workflow: string; file: string; hash: string; commands: string[]; before?: { hash: string; at: number; diff: { change: 'added' | 'removed' | 'same'; text: string }[] } }>
     /** Approve the commands of the run's workflow file (this exact version); the checks run at once. */

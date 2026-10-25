@@ -100,8 +100,8 @@ export const BUILDER_TOOLS = ['workflow_list', 'workflow_get', 'workflow_history
 export const BUILDER_ALLOWED = [...BUILDER_TOOLS, 'recall'] as const
 
 const KIND_DOES: Record<StepKind, string> = {
-  plan: 'the agent writes a plan for the person to read. Fields: brief, skills.',
-  work: 'the agent does the work and reports it. Fields: brief (what to do or how), skills (names of library skills it should read).',
+  plan: 'the agent writes a plan for the person to read. Fields: brief, skills, start.',
+  work: 'the agent does the work and reports it. Fields: brief (what to do or how), skills (names of library skills it should read), start.',
   check: `the app runs the command "run" in the agent's worktree and a failure goes back to the agent, up to "retries" times (0 to 5, ${DEFAULT_RETRIES} if left out). Needs run. Gate pass means landing waits until it passes; approve means it must pass and then the person approves it; auto only reports. Fields: brief (what it is for), start.`,
   audit: 'a model reads the branch against the plan and lists what does not match. Fields: brief (what to look at as well), model (leave out unless asked), start.',
   approve: 'the person must approve before anything goes on, like a review. Fields: brief (what to look at). It always stops.',
@@ -144,7 +144,7 @@ How to work
 - After workflow_propose works, say in a sentence or two what the draft does and what to say if they want it different. Do not paste the file into the chat: the person sees the draft beside it.
 
 The file is one JSON object: version (1), id (lowercase letters, digits and dashes), name, when, steps. Each step has an id (unique, same characters), a kind, and optionally name and gate.
-Every step may also have: "brief" (up to 600 characters: what the agent is told, what a reviewer looks at, or what the person reads), "start": "run" (on a check, audit or pr step: nothing starts until the person presses Run), "optional": true (on a work, check, audit or approve step: the person can skip it and the run goes on) and "skills" (on a plan, work or pr step). Use start and optional only when the person asks for that.
+Every step may also have: "brief" (up to 600 characters: what the agent is told, what a reviewer looks at, or what the person reads), "start": "run" (on a plan, work, check, audit or pr step: nothing starts, and the agent edits nothing, until the person presses Run), "optional": true (on a work, check, audit or approve step: the person can skip it and the run goes on) and "skills" (on a plan, work or pr step). Use start and optional only when the person asks for that.
 ${kinds}
 
 Example:

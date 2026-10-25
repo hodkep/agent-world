@@ -52,7 +52,7 @@ const SAME_WORK_MS = 10 * 60_000
 const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
 /** What a landing records when the person set the review aside: it did not pass the review, it was excused from it. */
 const ASIDE_HELD = 'The review was set aside.'
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check']
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -219,6 +219,19 @@ export class Workflows {
     return { run, round }
   }
 
+  /** The person pressed Run on a step of the agent's (the plan, a build) that starts that way: it may begin. Says its name. */
+  startStep(runId: string, step: string): string {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    const found = run.workflow?.steps.find((s) => s.id === step)
+    if (!found) throw new Error('No such step.')
+    if (found.start !== 'run' || (found.kind !== 'plan' && found.kind !== 'work')) throw new Error('That step does not wait for Run.')
+    if (!this.states(run).find((s) => s.id === step)?.toRun) throw new Error('That step is not waiting for Run.')
+    this.append({ k: 'start', t: this.deps.now(), run: runId, round: round.n, step })
+    return found.name
+  }
+
   /** The person skips an optional step the agent or they would do (a build or an approval): it is not followed, and the run goes on. Says its name. */
   skipStep(runId: string, step: string): string {
     const run = this.runs().find((r) => r.id === runId)
@@ -371,6 +384,8 @@ export class Workflows {
       target = flow.steps.find(reportable) ?? sentBack()?.step
       if (!target) throw new Error('Every step you do is already reported done.')
     }
+    // A step that starts on Run is not the agent's to report before the person has pressed it.
+    if (target.start === 'run' && round.starts?.[target.id] === undefined) throw new Error(`The person has not pressed Run on "${target.name}" yet.`)
     this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
     const after = this.states(this.runs().find((r) => r.id === run.id)!)
     const waiting = after.find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
@@ -489,7 +504,11 @@ export class Workflows {
   editBlock(agentId: string, file: string, cwd: string): string | null {
     if (!this.deps.enabled()) return null
     const run = this.openRun(agentId)
-    if (!run || run.auto || !this.planRequired(run)) return null
+    if (!run || run.auto) return null
+    // A step of the agent's that starts when the person presses Run does not begin before it: nothing is edited or committed until then.
+    const waiting = this.states(run).find((x) => x.toRun && (x.kind === 'plan' || x.kind === 'work'))
+    if (waiting) return `Not yet: the person has not pressed Run on "${waiting.name}". Wait until you are told to start it.`
+    if (!this.planRequired(run)) return null
     const round = run.rounds[run.rounds.length - 1]!
     const plan = round.plan
     if (plan?.state === 'approved' || plan?.state === 'released') return null
