@@ -11,7 +11,9 @@ const KNOWN: Record<string, Origin> = {
   'Claude plugin antv-infographic-skills': { label: 'AntV infographic skills', chip: 'Claude plugin', tone: 'cl', rank: 1 },
   '~/.claude/skills': { label: 'Your Claude skills', chip: 'yours', tone: 'me', rank: 2 },
   '~/.gemini/antigravity/skills': { label: 'Your Antigravity skills', chip: 'agy', tone: 'ag', rank: 3 },
-  new: { label: 'Instructions & prompts', chip: 'written here', tone: 'k', rank: 4 }
+  new: { label: 'Instructions & prompts', chip: 'written here', tone: 'k', rank: 4 },
+  // The app's own guide, made by the app at start; last, so it does not move what the person has put here.
+  'built-in': { label: 'Agent World', chip: 'built in', tone: 'k', rank: 5 }
 }
 const PLUGIN = /^Claude plugin /
 

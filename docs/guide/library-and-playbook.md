@@ -51,6 +51,10 @@ An agent keeps the text it started with. After you change a playbook, click **Re
 
 ![The Playbook tab with two rules, Told every time and In the rulebook, and the opening text an agent starts with](../images/playbook.png)
 
+## The guide to Agent World
+
+The Library holds one skill the app makes itself, **Agent World guide**, in the **Agent World** group of **Add an item…**. Its pages are these pages: the app copies the guide that ships with it, so what an agent reads and what you read on GitHub is the same text. The **Everywhere** playbook has a **Pointed at** rule for it, "the user asks how to do something in Agent World", so an agent reads the page first instead of answering from memory. Take the rule out and it stays out.
+
 ## Tools agents call
 
 | Tool | What it does |

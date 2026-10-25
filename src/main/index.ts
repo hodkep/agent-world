@@ -2,6 +2,7 @@ import { readText, resolveEntry, resolveFile, startFileServer } from './files'
 import { listFolderFiles } from './folderFiles'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService } from './library/service'
+import { syncGuide } from './library/guide'
 import { createTodoService } from './todos/service'
 import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
 import { commitsSince, uncommittedFiles } from './gitops'
@@ -582,6 +583,13 @@ const libraryService = createLibraryService({
   grants: (id) => workflows.skillsOf(id),
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
+// The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
+try {
+  const guideDir = [join(process.resourcesPath, 'guide'), join(app.getAppPath(), 'docs', 'guide')].find((d) => existsSync(d))
+  if (guideDir) syncGuide({ root: LIBRARY_DIR, guideDir })
+} catch (err) {
+  console.error('guide:', err)
+}
 // The todo board of each project: the person adds in the window, agents through the office tools, and each task points back at the message it came from.
 // When each agent was last stopped by the person, so a turn that ends then is not counted as a request answered.
 const stoppedAt = new Map<string, number>()
