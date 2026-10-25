@@ -3,7 +3,7 @@ import type { SkillState } from '../../../shared/skills'
 import { GATES, type Gate, type Step, type Workflow, stepName } from '../../../shared/workflow'
 import { SKILL_WORDS } from '../WorkflowList'
 import { PixelIcon } from '../../chat/PixelIcon'
-import { ACTOR, ACTOR_WORD, BRIEF_KINDS, GATE_WORDS, KIND_LABEL } from './stepFlow'
+import { ACTOR, ACTOR_WORD, BRIEF_HINT, GATE_WORDS, KIND_LABEL, RUN_KINDS } from './stepFlow'
 
 /**
  * The fields of one step, as the person changes them: its name, what it is told, the command of a check, where it stops, its tries and skills,
@@ -23,11 +23,18 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
         </span>
         <input aria-label={`Name of step ${n}`} className="se-name" maxLength={40} value={s.name ?? ''} placeholder={stepName(s)} onChange={(e) => patch({ name: e.target.value })} />
       </div>
-      {BRIEF_KINDS.includes(s.kind) && (
-        <textarea aria-label={`Brief of step ${n}`} className="se-brief" rows={3} maxLength={600} value={s.brief ?? ''} placeholder="What the agent should do here (optional)" onChange={(e) => patch({ brief: e.target.value })} />
-      )}
+      <textarea aria-label={`Brief of step ${n}`} className="se-brief" rows={3} maxLength={600} value={s.brief ?? ''} placeholder={BRIEF_HINT[s.kind]} onChange={(e) => patch({ brief: e.target.value })} />
       {s.kind === 'check' && (
         <input aria-label={`Command of step ${n}`} className="se-run mono" maxLength={300} value={s.run ?? ''} placeholder="The command to run, such as npm test" onChange={(e) => patch({ run: e.target.value })} />
+      )}
+      {RUN_KINDS.includes(s.kind) && (
+        <div className="se-opts">
+          <span className="se-lbl">Starts</span>
+          <span className="se-seg" role="group" aria-label={`Start of step ${n}`}>
+            <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>By itself</button>
+            <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>When I press Run</button>
+          </span>
+        </div>
       )}
       <div className="se-opts">
         {gates.length > 1 && (
@@ -45,6 +52,14 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
           </label>
         )}
       </div>
+      {s.kind === 'audit' && (
+        <div className="se-opts">
+          <label>
+            Reviewer model
+            <input aria-label={`Model of step ${n}`} className="se-model" maxLength={40} value={s.model ?? ''} placeholder="by the dial" onChange={(e) => patch({ model: e.target.value })} />
+          </label>
+        </div>
+      )}
       {s.kind === 'work' && (
         <div className="se-skills" aria-label={`Skills of step ${n}`}>
           {(s.skills ?? []).map((id) => (

@@ -15,7 +15,9 @@ const HELD = 'is held until the plan is approved and the findings are seen'
 /** What each step of a workflow will ask of the person, from the step kinds alone, so a workflow written by hand or by the builder has one too. */
 export function previewOf(wf: Workflow, switches: { planGate: boolean; mergeGate: boolean }): PreviewRow[] {
   return wf.steps.map((s) => {
-    const row = (stops: boolean, says: string): PreviewRow => ({ id: s.id, kind: s.kind, label: stepName(s), stops, says })
+    // A step that starts when the person presses Run is a place they stop, and what follows it says what the press starts.
+    const onRun = s.start === 'run'
+    const row = (stops: boolean, says: string): PreviewRow => ({ id: s.id, kind: s.kind, label: stepName(s), stops: stops || onRun, says: onRun ? `you press Run, then ${says}` : says })
     const gate = (inherited: boolean) => (s.gate !== undefined ? s.gate === 'approve' : inherited)
     switch (s.kind) {
       case 'plan':
@@ -34,6 +36,7 @@ export function previewOf(wf: Workflow, switches: { planGate: boolean; mergeGate
       default: {
         const held = gate(switches.mergeGate)
         const what = s.kind === 'pr' ? 'the push' : 'the merge into the base branch'
+        if (s.kind === 'pr' && onRun) return row(true, 'the agent pushes the branch and opens the pull request')
         if (held) return row(true, `${what} ${HELD}`)
         return row(false, s.kind === 'pr' ? 'nothing is held: the run ends when the branch is pushed' : 'nothing is held: the run ends when the branch is merged')
       }

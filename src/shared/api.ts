@@ -419,6 +419,8 @@ export interface AwApi {
     declineChecks(runId: string): Promise<void>
     /** Run a check again, with all its tries back. */
     rerunCheck(runId: string, step: string): Promise<void>
+    /** Run a check that starts when the person presses Run (this one only). */
+    runCheck(runId: string, step: string): Promise<void>
     /** Pass a check over; it no longer holds landing. */
     skipCheck(runId: string, step: string): Promise<void>
     /** The workflows a project can use: Standard, the global files and the project's own, with what is wrong with any that do not read. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, readyForAudit, stepReply, stepStates, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepStates, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -317,5 +317,66 @@ describe('a step that needs the person\'s own approval: the audit, the pull requ
     expect(waiting(flow(gated('approve')))).toEqual(['pr'])
     expect(waiting(flow(gated('approve'), [step('pr', 'approved', 700)]))).toEqual([])
     expect(waiting(flow(gated('auto')))).toEqual([])
+  })
+})
+
+describe('a step that starts when the person presses Run', () => {
+  const RUNNING: RunWorkflow = {
+    id: 'r',
+    name: 'R',
+    steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', start: 'run' }, { id: 'review', kind: 'audit', name: 'Audit', start: 'run' }, { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }]
+  }
+  const built: RunEvent[] = [begin(RUNNING), step('build', 'done', 300)]
+  const ran = (ok: boolean, t = 400): RunEvent => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head: 'h1', attempt: 1, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail: '' })
+  const audit: RunEvent = { k: 'audit', t: 500, run: 'r1', head: 'h1', state: 'done', findings: [], files: 1, lines: 4, truncated: false }
+  const all = (events: RunEvent[], ctx: { auditOn: boolean; approved?: boolean; mergeGate?: boolean } = { auditOn: true, mergeGate: false }) => stepStates(reduceRuns(events)[0]!, ctx)
+  const of = (events: RunEvent[], id: string, ctx?: { auditOn: boolean; approved?: boolean; mergeGate?: boolean }) => all(events, ctx).find((x) => x.id === id)!
+
+  it('a check waits for Run once the work before it is done, and not before', () => {
+    expect(of([begin(RUNNING)], 'tests')).toMatchObject({ state: 'pending' })
+    expect(of([begin(RUNNING)], 'tests').toRun).toBeUndefined()
+    expect(of(built, 'tests')).toMatchObject({ state: 'waiting', toRun: true })
+  })
+
+  it('a check that was run is not waiting for Run any more: its result decides', () => {
+    expect(of([...built, ran(true)], 'tests')).toMatchObject({ state: 'passed' })
+    expect(of([...built, ran(false)], 'tests').toRun).toBeUndefined()
+    expect(of([...built, ran(false)], 'tests').state).toBe('running')
+  })
+
+  it('a check whose commands are not approved waits for that first, not for Run', () => {
+    const s = of(built, 'tests', { auditOn: true, approved: false })
+    expect(s.state).toBe('waiting')
+    expect(s.toRun).toBeUndefined()
+  })
+
+  it('an audit waits for Run once the steps before it have passed, and holds the steps after it back', () => {
+    const states = all([...built, ran(true)])
+    expect(states.map((x) => `${x.id}:${x.state}${x.toRun ? '+run' : ''}`)).toEqual(['build:passed', 'tests:passed', 'review:waiting+run', 'pr:pending'])
+    // Not before: a step ahead of it that is not passed holds it as pending, with no Run to press.
+    expect(of(built, 'review')).toMatchObject({ state: 'pending' })
+    expect(of(built, 'review').toRun).toBeUndefined()
+  })
+
+  it('an audit that has run is not waiting for Run: its findings decide', () => {
+    expect(of([...built, ran(true), audit], 'review')).toMatchObject({ state: 'passed' })
+    expect(of([...built, ran(true), audit], 'review').toRun).toBeUndefined()
+  })
+
+  it('an audit that starts by itself never waits for Run, and neither does one with the audit off', () => {
+    const auto: RunWorkflow = { ...RUNNING, steps: RUNNING.steps.map((x) => (x.id === 'review' ? { ...x, start: 'auto' as const } : x)) }
+    expect(of([begin(auto), step('build', 'done', 300), ran(true)], 'review').toRun).toBeUndefined()
+    expect(of([...built, ran(true)], 'review', { auditOn: false }).state).toBe('skipped')
+  })
+
+  it('a pull request that starts on Run waits for the person like one with gate approve, whatever the Settings switch says', () => {
+    expect(needsApproval({ kind: 'pr', start: 'run' }, { auditOn: true, mergeGate: false })).toBe(true)
+    expect(needsApproval({ kind: 'pr', gate: 'auto', start: 'run' }, { auditOn: true, mergeGate: false })).toBe(true)
+    expect(needsApproval({ kind: 'pr', start: 'auto' }, { auditOn: true, mergeGate: false })).toBe(false)
+    expect(needsApproval({ kind: 'work', start: 'run' } as never, { auditOn: true })).toBe(false)
+  })
+
+  it('a check waiting for Run is not one of the checks that need the person\'s approval of commands', () => {
+    expect(checkPanels(reduceRuns(built), () => ({ auditOn: true })).map((p) => p.kind)).toEqual([])
   })
 })

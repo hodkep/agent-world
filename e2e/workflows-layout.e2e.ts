@@ -15,12 +15,12 @@ function withFiles(name: string, o: { dial?: string } = {}) {
   return w
 }
 
-/** Nothing in the window reaches past the window: no sideways scrolling inside it, and its edges are on screen. */
+/** Nothing in the window reaches past the window: no sideways scrolling inside it, and its edges are on screen (a flow canvas clips what it draws, so what is inside it is not counted). */
 const fits = (page: import('@playwright/test').Page) =>
   page.evaluate(() => {
     const d = document.querySelector('dialog[open]') as HTMLElement
     const r = d.getBoundingClientRect()
-    const wide = [...d.querySelectorAll<HTMLElement>('*')].filter((e) => e.scrollWidth > e.clientWidth + 2 && getComputedStyle(e).overflowX === 'visible' && e.clientWidth > 0).map((e) => e.className || e.tagName)
+    const wide = [...d.querySelectorAll<HTMLElement>('*')].filter((e) => e.scrollWidth > e.clientWidth + 2 && getComputedStyle(e).overflowX === 'visible' && e.clientWidth > 0 && !e.closest('.react-flow')).map((e) => e.className || e.tagName)
     return { left: r.left, right: r.right, width: window.innerWidth, wide: wide.slice(0, 5) }
   })
 

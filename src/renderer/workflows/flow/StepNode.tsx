@@ -3,7 +3,7 @@ import type { SkillState } from '../../../shared/skills'
 import { type Step, stepName } from '../../../shared/workflow'
 import { PixelIcon } from '../../chat/PixelIcon'
 import { SKILL_WORDS } from '../WorkflowList'
-import { ACTOR, ACTOR_WORD, BRIEF_KINDS, KIND_LABEL, chipsOf } from './stepFlow'
+import { ACTOR, ACTOR_WORD, KIND_LABEL, chipsOf } from './stepFlow'
 
 export type StepNodeData = { step: Step; index: number; /** The checker has something to say about this step. */ problem?: boolean; skillStates?: Record<string, SkillState> }
 export type StepFlowNode = Node<StepNodeData, 'step'>
@@ -12,7 +12,7 @@ export type StepFlowNode = Node<StepNodeData, 'step'>
 export function StepNode({ data, selected }: NodeProps<StepFlowNode>) {
   const { step, index, problem, skillStates } = data
   const actor = ACTOR[step.kind]
-  const text = step.kind === 'check' ? step.run : BRIEF_KINDS.includes(step.kind) ? step.brief : undefined
+  const text = step.kind === 'check' ? step.run : step.brief
   return (
     <div className={`fl-node a-${actor} ${selected ? 'sel' : ''} ${problem ? 'bad' : ''}`}>
       <Handle id="top" type="target" position={Position.Top} isConnectable={false} />

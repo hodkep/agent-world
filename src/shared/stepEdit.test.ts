@@ -44,6 +44,13 @@ describe('editing the steps of a workflow draft', () => {
     expect(setStep(wf(), 0, { gate: 'auto' }).steps[0]!.gate).toBe('auto')
   })
 
+  it('sets when a step starts and which model a review uses, and takes them away when emptied', () => {
+    const w = { ...wf(), steps: [...wf().steps, { id: 'review', kind: 'audit' as const }] }
+    const set = setStep(w, 3, { start: 'run', model: 'sonnet' })
+    expect(set.steps[3]).toEqual({ id: 'review', kind: 'audit', start: 'run', model: 'sonnet' })
+    expect(setStep(set, 3, { start: undefined, model: '' }).steps[3]).toEqual({ id: 'review', kind: 'audit' })
+  })
+
   it('does not change the workflow it was given', () => {
     const w = wf()
     setStep(w, 1, { name: 'x' })

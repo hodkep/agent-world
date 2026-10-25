@@ -4,6 +4,8 @@ import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
 import { landingPill, trackOf } from '../../shared/runTrack'
 import { landingKind } from '../../shared/workflow'
 import type { StepContext } from '../../shared/steps'
+import { useState } from 'react'
+import { RunFlow } from './flow/RunFlow'
 import { RunTrack } from './RunTrack'
 import { useLandingHolds } from './useLandingHolds'
 
@@ -15,6 +17,8 @@ const VERDICT: Record<TileKind, string> = { ok: 'met every gate', trouble: 'met 
  */
 export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; /** Open the window on this run, or on its Runs when none is given. */ onOpenRun: (runId?: string) => void }) {
   const now = Date.now()
+  // The run is shown as a flow of cards by default (with the buttons on them); the rail is the older, thinner picture of the same steps.
+  const [view, setView] = useState<'flow' | 'rail'>('flow')
   const hold = useLandingHolds().find((h) => h.agentId === agentId)
   const mine = runs.filter((r) => r.agent === agentId)
   if (mine.length === 0)
@@ -34,7 +38,16 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
   return (
     <div className="wf-tab">
-      {track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold, landingKind(latest.workflow))} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
+      {latest.workflow && (
+        <div className="wf-views" role="group" aria-label="How the run is shown">
+          <span className="se-seg">
+            <button className={view === 'flow' ? 'on' : ''} aria-pressed={view === 'flow'} onClick={() => setView('flow')}>Flow</button>
+            <button className={view === 'rail' ? 'on' : ''} aria-pressed={view === 'rail'} onClick={() => setView('rail')}>Rail</button>
+          </span>
+          {view === 'flow' && landingPill(hold, landingKind(latest.workflow)) && <span className="pill land held">{landingPill(hold, landingKind(latest.workflow))!.text}</span>}
+        </div>
+      )}
+      {latest.workflow && view === 'flow' ? <RunFlow run={latest} ctx={ctxFor(latest)} /> : track ? <RunTrack track={track} seed={agentId} agentName={agentName} landing={landingPill(hold, landingKind(latest.workflow))} /> : <p className="hint">Nothing is running for {agentName}. The last task was “{latest.title}”.</p>}
       {latest.items && latest.items.length > 0 && (
         <ol className="wt-items" aria-label="Items of this run">
           {[{ title: latest.title }, ...latest.items].map((it, i) => (

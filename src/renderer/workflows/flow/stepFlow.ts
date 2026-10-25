@@ -35,7 +35,7 @@ export function loopsOf(steps: Step[]): Loop[] {
 
 export interface Chip {
   text: string
-  tone: 'stop' | 'pass' | 'plain'
+  tone: 'stop' | 'pass' | 'run' | 'plain'
   /** A skill chip: how that skill stands in this project, when it is not simply ready. */
   skill?: SkillState
 }
@@ -51,6 +51,7 @@ export function chipsOf(s: Step, states: Record<string, SkillState> = {}): Chip[
     if (s.gate === 'pass') out.push({ text: 'must pass', tone: 'pass' })
     out.push({ text: plural(s.retries ?? DEFAULT_RETRIES, 'try', 'tries'), tone: 'plain' })
   }
+  if (s.start === 'run') out.push({ text: 'starts when you press Run', tone: 'run' })
   for (const id of s.skills ?? []) out.push({ text: `skill: ${id}`, tone: 'plain', ...(states[id] && states[id] !== 'ready' && { skill: states[id] }) })
   return out
 }
@@ -67,5 +68,15 @@ export const GATE_WORDS: Record<StepKind, Record<string, string>> = {
   pr: { auto: 'follows the switch', approve: 'you confirm' },
   merge: { auto: 'follows the switch', approve: 'you confirm' }
 }
-/** The kinds that take a brief: what the agent (or the person) is told at that step. */
-export const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']
+/** What a step's brief is for, as the field's hint says it: every kind takes one. */
+export const BRIEF_HINT: Record<StepKind, string> = {
+  plan: 'What the agent should do here (optional)',
+  work: 'What the agent should do here (optional)',
+  check: 'What this check is for (optional)',
+  audit: 'What the reviewer should look at (optional)',
+  approve: 'What you are asked to approve (optional)',
+  pr: 'What the agent should put in the pull request (optional)',
+  merge: 'A note for whoever lands it (optional)'
+}
+/** The kinds a person can press Run on, and so choose to start that way. */
+export const RUN_KINDS: StepKind[] = ['check', 'audit', 'pr']

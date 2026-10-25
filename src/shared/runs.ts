@@ -1,5 +1,5 @@
 import type { Finding } from './audit'
-import type { Gate, StepKind } from './workflow'
+import type { Gate, Start, StepKind } from './workflow'
 import type { PlanReadback } from './plan'
 
 /**
@@ -53,6 +53,7 @@ export interface RunStep {
   name: string
   gate?: Gate
   brief?: string
+  start?: Start
   skills?: string[]
   run?: string
   retries?: number

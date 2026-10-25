@@ -1,7 +1,7 @@
 import { STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
 
 /** The fields of a step that the draft's editor changes; an empty text or list takes the field away. */
-export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'skills' | 'run' | 'retries'>>
+export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'skills' | 'run' | 'retries' | 'model'>>
 
 const withSteps = (w: Workflow, steps: Step[]): Workflow => ({ ...w, steps })
 

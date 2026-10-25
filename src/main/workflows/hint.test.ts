@@ -132,3 +132,15 @@ describe('the rules for work that ends in a pull request, in what the agent is t
     expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('abcdef1')
   })
 })
+
+describe('the brief of a pull request step', () => {
+  const PULL: RunWorkflow = { id: 'p', name: 'P', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'pr', kind: 'pr', name: 'Open the pull request', brief: 'Put the audit findings in the description.' }] }
+  it('is told to the agent, as what to do when it opens the pull request', () => {
+    expect(workflowBrief(PULL)).toContain('- pr "Open the pull request": when you open the pull request, Put the audit findings in the description.')
+  })
+  it('is not a line at all when the step has none', () => {
+    const bare: RunWorkflow = { ...PULL, steps: [PULL.steps[0]!, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
+    expect(workflowBrief(bare)).not.toContain('- pr ')
+  })
+})
+

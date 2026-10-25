@@ -180,6 +180,8 @@ test('the hold can be lifted without approving, and a plan sent back keeps the h
     await expect(panel).toBeHidden()
     expect((await page.evaluate(() => window.aw.workflows.summary())).runs[0]!.rounds[0]!.plan).toMatchObject({ state: 'changes', note: 'Also cover the settings page.' })
     await page.getByRole('tab', { name: /^Workflow/ }).click()
+    // These look at the rail; the tab shows the flow first.
+    await page.getByRole('button', { name: 'Rail' }).click()
     await expect(page.getByRole('region', { name: /where ada is/ }).first()).toContainText('plan sent back: being revised')
     // The hold can always be lifted from the app: a release needs no waiting plan.
     await page.evaluate(() => window.aw.workflows.decide('r1', 'released'))

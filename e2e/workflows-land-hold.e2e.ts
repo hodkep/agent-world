@@ -109,6 +109,8 @@ test('a held merge shows in the agent\'s chat as a marker on the track and a car
     expect(c!.y + c!.height).toBeLessThanOrEqual(box!.y)
     // The agent's Workflow tab says the same status on the track.
     await o.page.getByRole('tab', { name: /^Workflow/ }).click()
+    // These look at the rail; the tab shows the flow first.
+    await o.page.getByRole('button', { name: 'Rail' }).click()
     await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).last()).toContainText('Land held')
     await o.page.getByRole('tab', { name: 'Chat' }).click()
     await card.getByRole('button', { name: 'All seen, fine' }).click()
