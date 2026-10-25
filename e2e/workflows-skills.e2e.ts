@@ -106,7 +106,7 @@ test('the builder sees the skills there are, is refused a skill that does not ex
 
     const bad = await call('workflow_propose', { file: JSON.stringify({ ...SKILLED, id: 'new-one', steps: [{ id: 'fix', kind: 'work', skills: ['tdd', 'deploy-notes'] }, { id: 'land', kind: 'merge' }] }) })
     expect(bad.error).toBe(true)
-    expect(bad.text).toContain('Step 1 ("fix"): there is no skill "deploy-notes" in the library. Skills you can name: tdd, code-review.')
+    expect(bad.text).toContain('Step 1 ("fix"): there is no skill "deploy-notes" in the library. Skills you can name: agent-world-guide, tdd, code-review.')
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
 
     await call('workflow_propose', { file: JSON.stringify({ version: 1, id: 'reviewed', name: 'Reviewed', steps: [{ id: 'fix', kind: 'work', name: 'Fix', skills: ['tdd'] }, { id: 'review', kind: 'work', name: 'Review', skills: ['code-review'] }, { id: 'land', kind: 'merge' }] }) })

@@ -14,6 +14,8 @@ extraResources:
   - LICENSE
   - NOTICE
   - CHANGELOG.md
+  # The guide agents read in the library: the same pages as docs/guide on GitHub.
+  - { from: docs/guide, to: guide }
 icon: build/icon.png
 mac:
   category: public.app-category.developer-tools

@@ -44,6 +44,10 @@ It builds the app, runs `e2e/shots.e2e.ts` (skipped in a normal test run, switch
 
 Keep every picture under 1 MB and the GIF under 5 MB (the test fails above that for the GIF). The banner and the small icons beside the README's headings are drawn as SVG by `scripts/readme-art.mjs` from the app's own pixel lettering, figure and palette (`pnpm readme:art`); nothing is downloaded and no font is used.
 
+## The guide is also what agents read
+
+`docs/guide` is the one place the user guide is written. The app ships those pages and, at start, copies them into the Library as the skill `agent-world-guide` (`src/main/library/guide.ts`), so an agent asked "how do I do X in Agent World" reads the same words as the guide on GitHub. Nothing is copied by hand, so nothing can drift. When you change a button, tab, menu or setting, change its name in the guide too: `pnpm test` (`src/main/library/guideControls.test.ts`) fails when a **bold** name in the guide is no longer written anywhere in the app. A bold word that is not a control of the app (another program's menu, a version) goes in that test's `NOT_THE_APP` list with the reason.
+
 ## Changes
 
 - **Commits** follow [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`, with a subject that says what the change does for someone using the app (`fix(chat): …`, `feat(library): …`). Types are feat, fix, docs, style, refactor, perf, test, build, ci, chore and revert. Keep a change in one commit when it is one idea, and say why in the body only when the subject cannot. A commit message does not credit an AI tool (no `Co-Authored-By:` or "Generated with" line for one): a `commit-msg` hook turned on by `pnpm install` and a CI check both refuse it.
