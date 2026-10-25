@@ -43,6 +43,7 @@ const api: AwApi = {
   openSignIn: (id, account) => ipcRenderer.invoke('provider:sign-in', id, account),
   installProvider: (id) => ipcRenderer.invoke('provider:install', id),
   listAccounts: () => ipcRenderer.invoke('accounts:list'),
+  accountsNeedingSignIn: () => ipcRenderer.invoke('accounts:needing-sign-in'),
   addAccount: (provider, name) => ipcRenderer.invoke('accounts:add', provider, name),
   removeAccount: (id) => ipcRenderer.invoke('accounts:remove', id),
   renameAccount: (id, name) => ipcRenderer.invoke('accounts:rename', id, name),

@@ -6,7 +6,7 @@ import { TerminalView } from './TerminalView'
 import { SwitchAgentsDialog } from './SwitchAgentsDialog'
 
 /** Settings › Accounts: each Claude subscription is signed in once, in a folder of its own, and agents can then move between them without signing in again. */
-export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; providers: ProviderInfo[]; onChange: (patch: Partial<Prefs>) => void }) {
+export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Prefs; providers: ProviderInfo[]; onChange: (patch: Partial<Prefs>) => void; /** Told how many logins are not signed in, each time the list is read, so the dots follow a sign-in. */ onSignIns?: (n: number) => void }) {
   // Any program that can keep logins apart gets its own group; nothing here is about one program.
   const keepers = providers.filter((p) => p.capabilities.accounts && p.detection.state !== 'not-installed')
   const [list, setList] = useState<AccountInfo[] | null>(null)
@@ -19,7 +19,7 @@ export function Accounts({ prefs, providers, onChange }: { prefs: Prefs; provide
   const [switching, setSwitching] = useState<{ id: string; name: string } | null>(null)
   // The add flow: a name, then the account's own sign-in in a terminal the user can see.
   const [adding, setAdding] = useState<{ step: 'name' | 'sign-in'; provider: ProviderId; name: string; id: string; pty: string; checking: boolean } | null>(null)
-  const refresh = useCallback(() => window.aw.listAccounts().then(setList), [])
+  const refresh = useCallback(() => window.aw.listAccounts().then((l) => (setList(l), onSignIns?.(l.filter((x) => !x.loggedIn).length))), [onSignIns])
   useEffect(() => void refresh(), [refresh, prefs.accounts])
 
   const stop = () => {
