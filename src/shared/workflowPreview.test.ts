@@ -50,3 +50,18 @@ describe('what a workflow will ask of the person, step by step', () => {
     expect(previewOf(wf([]), on)).toEqual([])
   })
 })
+
+describe('a step that starts when you press Run', () => {
+  it('says so, and stops there, for a check, an audit and a pull request', () => {
+    const rows = previewOf(wf([{ id: 'tests', kind: 'check', run: 'npm test', start: 'run' }, { id: 'review', kind: 'audit', start: 'run' }, { id: 'pr', kind: 'pr', start: 'run' }]), off)
+    expect(rows.map((r) => r.stops)).toEqual([true, true, true])
+    expect(rows[0]!.says).toBe('you press Run, then the app runs `npm test` (you approve the command once), up to 3 tries, and it only reports')
+    expect(rows[1]!.says).toBe('you press Run, then you look at the findings')
+    expect(rows[2]!.says).toBe('you press Run, then the agent pushes the branch and opens the pull request')
+  })
+  it('is unchanged for the same steps that start by themselves', () => {
+    const rows = previewOf(wf([{ id: 'review', kind: 'audit', start: 'auto' }]), on)
+    expect(rows[0]!.says).toBe('you look at the findings')
+  })
+})
+

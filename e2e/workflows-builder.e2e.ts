@@ -351,3 +351,43 @@ test('a step card is dragged to another place in the flow, and a narrow panel sh
     await s.shutdown()
   }
 })
+
+test('every step takes a brief, and a check, an audit or a pull request can start when the person presses Run: the card says so, and the saved file holds both', async () => {
+  const s = await start()
+  try {
+    const { page, repo, argsLog } = s
+    const win = await openWorkflows(page)
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
+    await call('workflow_propose', { file: JSON.stringify(BILLING) })
+    const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+
+    // The audit step had no brief before; now it does, and the reviewer is told it.
+    await draft.getByLabel('Step 5: Security audit').click()
+    await draft.getByLabel('Brief of step 5').fill('Look hard at the billing code.')
+    await draft.getByRole('button', { name: 'When I press Run' }).click()
+    await expect(draft.getByLabel('Step 5: Security audit')).toContainText('starts when you press Run')
+    await expect(draft.getByLabel('Step 5: Security audit')).toContainText('Look hard at the billing code.')
+    // The preview says what the press starts, and that you stop there.
+    await expect(draft.getByLabel('Preview of the workflow')).toContainText('you press Run, then you look at the findings')
+    // The landing step takes a brief too, and a check can start on Run.
+    await draft.getByLabel('Step 6: Land').click()
+    await draft.getByLabel('Brief of step 6').fill('Squash it.')
+    await draft.getByLabel('Step 3: Tests pass').click()
+    await draft.getByRole('button', { name: 'When I press Run' }).click()
+    await expect(draft.getByRole('alert')).toHaveCount(0)
+
+    await draft.getByRole('button', { name: 'Save to shop' }).click()
+    const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
+    await expect.poll(() => existsSync(file)).toBe(true)
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
+    expect(saved.steps[4]).toMatchObject({ kind: 'audit', brief: 'Look hard at the billing code.', start: 'run' })
+    expect(saved.steps[5]).toMatchObject({ kind: 'merge', brief: 'Squash it.' })
+    expect(saved.steps[2]).toMatchObject({ kind: 'check', start: 'run' })
+    await client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

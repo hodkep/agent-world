@@ -77,6 +77,8 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
 
     // The track in the agent's Workflow tab: the plan was not needed, the build is in progress.
     await page.getByRole('tab', { name: 'Workflow' }).click()
+    // These look at the rail; the tab shows the flow first.
+    await page.getByRole('button', { name: 'Rail' }).click()
     const track = page.getByRole('region', { name: 'Add a toggle: where ada is' }).first()
     const station = (name: string) => track.locator('.st', { hasText: name })
     await expect(station('Build')).toContainText('here now')
@@ -118,6 +120,8 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     await panel.getByRole('button', { name: 'Approve' }).click()
     await expect(log).toContainText('Your step "Your review" was approved.', { timeout: 15_000 })
     await page.getByRole('tab', { name: 'Workflow' }).click()
+    // These look at the rail; the tab shows the flow first.
+    await page.getByRole('button', { name: 'Rail' }).click()
     await expect(station('Your review')).toContainText('met')
     expect(await land()).toBe('landed')
     expect(git(repo, 'log', '--format=%s', 'main')).toContain('add toggle')

@@ -49,6 +49,7 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
     if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}": the person approves your plan before you edit.${brief}`]
     if (s.kind === 'work') return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}:${brief}`]
     if (s.kind === 'approve') return [`- ${s.id} "${s.name}": the person approves this before it can land.${brief}`]
+    if (s.kind === 'pr' && s.brief) return [`- ${s.id} "${s.name}": when you open the pull request, ${s.brief}`]
     return []
   })
   const landing = w.steps.find((s) => s.kind === 'pr' || s.kind === 'merge')?.kind

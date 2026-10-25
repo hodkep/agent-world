@@ -94,6 +94,8 @@ test('a project\'s check asks for approval of its commands, runs them, sends a f
     await s.heard('test -f ok.txt exited with 1.')
     await s.heard('Fix it, commit, then call step_done again.')
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
+    // These look at the rail; the tab shows the flow first.
+    await s.page.getByRole('button', { name: 'Rail' }).click()
     const tests = s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })
     await expect(tests).toContainText('failed once')
     expect(await s.land()).toContain('"Tests pass" has not passed for the branch as it is now.')
@@ -184,6 +186,8 @@ test('an agent that reports its step and then the task does not use a second try
     await s.call('task_done', { summary: 'done' })
     await new Promise((r) => setTimeout(r, 2500))
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
+    // These look at the rail; the tab shows the flow first.
+    await s.page.getByRole('button', { name: 'Rail' }).click()
     await expect(s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })).toContainText('failed once')
     await s.page.getByRole('tab', { name: 'Chat' }).click()
     expect(await s.log.innerText()).not.toContain('try 2 of 3')
@@ -206,6 +210,8 @@ test('an agent that closed the task before it heard its check had failed can sti
     s.commit('ok.txt')
     expect((await s.call('step_done', { step: 'build' })).text).toContain('running the checks')
     await s.page.getByRole('tab', { name: 'Workflow' }).click()
+    // These look at the rail; the tab shows the flow first.
+    await s.page.getByRole('button', { name: 'Rail' }).click()
     await expect(s.page.getByRole('region', { name: /where ada is/ }).first().locator('.st', { hasText: 'Tests pass' })).toContainText('met after trouble', { timeout: 20_000 })
     await s.client.close()
   } finally {

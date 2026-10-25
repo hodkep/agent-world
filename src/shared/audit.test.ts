@@ -84,6 +84,15 @@ describe('asking a model to review a diff against the plan', () => {
     expect(added).toContain('- A shortcut for it.')
   })
 
+  it('tells the reviewer what the workflow asks it to look for, on top of the plan, when the step has a brief', () => {
+    const diff = file('src/prefs.ts', '+export const dark = true')
+    expect(auditPrompt(plan, diff).prompt).not.toContain('What the person asked you to look at')
+    const focused = auditPrompt(plan, diff, { focus: 'Look hard at the billing code.' }).prompt
+    expect(focused).toContain('## What the person asked you to look at as well\nLook hard at the billing code.')
+    // It comes before the diff, so the model has read it first.
+    expect(focused.indexOf('What the person asked')).toBeLessThan(focused.indexOf('## Diff'))
+  })
+
   it('cuts a diff that is too big at a file boundary and says how much it showed, so a large change never fails the call', () => {
     const diff = ['a.ts', 'b.ts', 'c.ts'].map((f) => file(f, '+' + 'x'.repeat(100))).join('')
     const one = file('a.ts', '+' + 'x'.repeat(100)).length

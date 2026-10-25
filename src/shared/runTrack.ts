@@ -32,6 +32,8 @@ const LAND_ASK = 'ready to land: ask the agent'
 /** What the run waits for from the person, or says is happening by itself, for the step it stands on. */
 function waitingFor(here: StepState, runDone: boolean, landing: 'pr' | 'merge' = 'merge'): string | undefined {
   const { kind, state } = here
+  // A check or an audit that starts when the person presses Run: nothing happens until they do.
+  if (here.toRun) return `press Run: ${here.name}`
   if (kind === 'plan' && state === 'waiting') return 'needs your approval'
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
   if (kind === 'check' && state === 'waiting') return 'its commands need your approval'

@@ -64,6 +64,13 @@ describe('the chips on a step', () => {
     const chips = chipsOf(step('work', { skills: ['tdd', 'review', 'old'] }), { tdd: 'ready', review: 'granted', old: 'gone' })
     expect(chips.map((c) => c.skill)).toEqual([undefined, 'granted', 'gone'])
   })
+  it('say a check, an audit or a pull request starts when the person presses Run', () => {
+    expect(words(step('audit', { start: 'run' }))).toEqual(['starts when you press Run'])
+    expect(words(step('check', { run: 'x', gate: 'pass', start: 'run' }))).toEqual(['must pass', '2 tries', 'starts when you press Run'])
+    expect(words(step('pr', { start: 'run' }))).toEqual(['follows the switch', 'starts when you press Run'])
+    expect(chipsOf(step('audit', { start: 'run' }))[0]!.tone).toBe('run')
+    expect(words(step('audit', { start: 'auto' }))).toEqual([])
+  })
   it('name the skills of a work step and the tries of a check', () => {
     expect(words(step('work', { skills: ['tdd', 'ponytail'] }))).toEqual(['skill: tdd', 'skill: ponytail'])
     expect(words(step('check', { run: 'x', retries: 4 }))).toEqual(['4 tries'])

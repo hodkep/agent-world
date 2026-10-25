@@ -134,3 +134,22 @@ describe('the marker that a merge was held', () => {
     expect(landingPill(undefined)).toBeNull()
   })
 })
+
+describe('a run that waits for the person to press Run', () => {
+  const RUN_STEPS: RunWorkflow = { id: 'r', name: 'R', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', start: 'run' }, { id: 'review', kind: 'audit', name: 'Audit', start: 'run' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const start: RunEvent = { ...begin, workflow: RUN_STEPS }
+  const t = (events: RunEvent[]) => trackOf(reduceRuns([start, ...events])[0]!, ctx)!
+
+  it('stands on a check that starts on Run, and says to press it', () => {
+    const at = t([done('build')])
+    expect(at.stations.map((s) => `${s.id}:${s.state}`)).toEqual(['build:done', 'tests:now', 'review:next', 'land:next'])
+    expect(at.waiting).toBe('press Run: Tests')
+  })
+
+  it('stands on an audit that starts on Run, once the check has passed', () => {
+    const pass: RunEvent = { k: 'check', t: 450, run: 'r1', round: 1, step: 'tests', head: 'h1', attempt: 1, ok: true, exit: 0, timedOut: false, ms: 900, tail: '' }
+    const at = t([done('build'), pass])
+    expect(at.at).toBe(2)
+    expect(at.waiting).toBe('press Run: Audit')
+  })
+})

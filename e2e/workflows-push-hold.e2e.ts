@@ -124,6 +124,8 @@ test('a held push shows in the chat as a card that says the push is held, and Se
     await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).first().getByText('Push held', { exact: true })).toBeVisible()
     // The agent's Workflow tab says the push too, and the pill beside the agent is not "land".
     await o.page.getByRole('tab', { name: /^Workflow/ }).click()
+    // These look at the rail; the tab shows the flow first.
+    await o.page.getByRole('button', { name: 'Rail' }).click()
     await expect(o.page.getByRole('region', { name: 'Add a dark-mode toggle: where ada is' }).last()).toContainText('Push held')
     await expect(o.page.getByText('Land held')).toHaveCount(0)
     await o.page.getByRole('tab', { name: 'Chat' }).click()

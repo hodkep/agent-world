@@ -67,7 +67,7 @@ function fit(diff: string, maxBytes: number) {
   return { text: kept.join(''), shown: kept.length, total: parts.length }
 }
 
-export function auditPrompt(plan: PlanReadback, diff: string, o: { maxBytes?: number; /** What the person added to the plan after it was approved: in scope, so not to be reported. */ additions?: string[] } = {}): AuditPrompt {
+export function auditPrompt(plan: PlanReadback, diff: string, o: { maxBytes?: number; /** What the person added to the plan after it was approved: in scope, so not to be reported. */ additions?: string[]; /** What the workflow's audit step asks the reviewer to look at as well: its brief. */ focus?: string } = {}): AuditPrompt {
   const list = (items: string[]) => (items.length ? items.map((i) => `- ${i}`).join('\n') : '- none')
   const { text, shown, total } = fit(diff, o.maxBytes ?? DIFF_MAX_BYTES)
   const truncated = shown < total
@@ -77,6 +77,7 @@ export function auditPrompt(plan: PlanReadback, diff: string, o: { maxBytes?: nu
     `## Assumptions\n${list(plan.assumptions.map((a) => `[${a.kind}] ${a.text}`))}`,
     `## Out of scope\n${list(plan.outOfScope)}`,
     ...(o.additions?.length ? [`## Added to the plan afterwards by the person: in scope\n${list(o.additions)}`] : []),
+    ...(o.focus?.trim() ? [`## What the person asked you to look at as well\n${o.focus.trim()}`] : []),
     `## Diff${truncated ? ` (too big to send whole. Only the first ${shown} of ${total} files are shown)` : ''}\n${text}`
   ].join('\n\n')
   return { prompt, files: shown, lines: text.trimEnd().split('\n').length, truncated }

@@ -1607,3 +1607,60 @@ describe('a pull request step waits for the person\'s approval before the push',
     expect((await audited({ mergeGate: false, gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
   })
 })
+
+describe('a check or an audit that starts when the person presses Run', () => {
+  const STEPS: RunWorkflow = { id: 'r', name: 'R', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', start: 'run' }, { id: 'review', kind: 'audit', name: 'Audit', start: 'run' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const built = () => {
+    const o = make()
+    o.state.pick = () => STEPS
+    o.wf.begin('a1', 'Task')
+    o.wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    o.wf.decide(o.wf.runs()[0]!.id, 'approved')
+    o.wf.stepDone('a1', 'build')
+    return o
+  }
+  const at = (wf: Workflows, id: string) => stepStates(wf.runs()[0]!, { auditOn: true, head: 'h1' }).find((s) => s.id === id)!
+
+  it('does not run the check by itself: it waits for Run, and nothing after it starts', async () => {
+    const { wf, state } = built()
+    expect(await wf.runChecks('a1', 'h1')).toEqual({ ran: 0 })
+    expect(state.ran).toEqual([])
+    expect(at(wf, 'tests')).toMatchObject({ state: 'waiting', toRun: true })
+    expect(wf.auditDue('a1', 'h1')).toBe(false)
+  })
+
+  it('runs the check when Run is pressed for it, and only that one', async () => {
+    const { wf, state } = built()
+    const r = await wf.runChecks('a1', 'h1', { only: 'tests' })
+    expect(r.ran).toBe(1)
+    expect(state.ran).toEqual(['npm test @ /w'])
+    expect(at(wf, 'tests').state).toBe('passed')
+  })
+
+  it('refuses to run, by Run, a step that is not a check waiting for it', async () => {
+    const { wf } = built()
+    expect(await wf.runChecks('a1', 'h1', { only: 'build' })).toEqual({ ran: 0 })
+    expect(await wf.runChecks('a1', 'h1', { only: 'nope' })).toEqual({ ran: 0 })
+  })
+
+  it('does not start the audit by itself once its checks have passed: it waits for Run, and the person\'s Run audits', async () => {
+    const { wf } = built()
+    await wf.runChecks('a1', 'h1', { only: 'tests' })
+    expect(at(wf, 'review')).toMatchObject({ state: 'waiting', toRun: true })
+    expect(wf.auditDue('a1', 'h1')).toBe(false)
+    await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
+    expect(wf.mergeCheck('a1', 'h1')!.audit.state).toBe('done')
+    expect(at(wf, 'review').toRun).toBeUndefined()
+  })
+
+  it('an audit that starts by itself is still due by itself', async () => {
+    const o = make()
+    o.state.pick = () => ({ ...STEPS, steps: STEPS.steps.map((s) => (s.id === 'review' ? { ...s, start: 'auto' as const } : s.id === 'tests' ? { ...s, start: 'auto' as const } : s)) })
+    o.wf.begin('a1', 'Task')
+    o.wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    o.wf.decide(o.wf.runs()[0]!.id, 'approved')
+    o.wf.stepDone('a1', 'build')
+    await o.wf.runChecks('a1', 'h1')
+    expect(o.wf.auditDue('a1', 'h1')).toBe(true)
+  })
+})

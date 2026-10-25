@@ -50,7 +50,7 @@ describe('reading a workflow file', () => {
       'Step 2: "id" must be lowercase letters, digits and dashes, up to 30 characters.',
       'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, pr, merge.',
       'Step 4 ("a"): the id is already used by step 3.',
-      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, skills, run, retries, model.'
+      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, skills, run, retries, model.'
     ])
   })
 
@@ -61,7 +61,7 @@ describe('reading a workflow file', () => {
         { id: 'b', kind: 'check', run: 'npm test', gate: 'approve', retries: 9 },
         { id: 'c', kind: 'work', gate: 'pass', run: 'ls', retries: 1, model: 'haiku' },
         { id: 'd', kind: 'approve', gate: 'auto', skills: ['tdd'] },
-        { id: 'e', kind: 'merge', brief: 'Land it.', skills: ['tdd'] },
+        { id: 'e', kind: 'merge', brief: 'Land it.', skills: ['tdd'], start: 'run' },
         { id: 'f', kind: 'audit', model: 'haiku', gate: 'approve' },
         { id: 'g', kind: 'work', name: '', skills: ['tdd', 7], brief: 'x'.repeat(601) }
       ])
@@ -75,12 +75,26 @@ describe('reading a workflow file', () => {
       'Step 3 ("c"): "model" only belongs on an audit step.',
       'Step 4 ("d"): "gate" for an approve step must be approve.',
       'Step 4 ("d"): "skills" only belongs on a work step.',
-      'Step 5 ("e"): "brief" does not belong on a merge step.',
+      'Step 5 ("e"): "start" only belongs on a check, audit or pr step.',
       'Step 5 ("e"): "skills" only belongs on a work step.',
       'Step 7 ("g"): "name" must be text of up to 40 characters.',
       'Step 7 ("g"): "brief" must be text of up to 600 characters.',
       'Step 7 ("g"): "skills" must be a list of up to 8 names, each up to 60 characters.'
     ])
+  })
+
+  it('lets any step carry a brief, and a check, an audit or a pull request start when the person presses Run', () => {
+    expect(
+      withSteps([
+        { id: 'a', kind: 'check', run: 'npm test', brief: 'Only the unit tests.', start: 'run' },
+        { id: 'b', kind: 'audit', brief: 'Look hard at the billing code.', start: 'run' },
+        { id: 'c', kind: 'pr', brief: 'Put the audit in the description.', start: 'auto' },
+        { id: 'd', kind: 'merge', brief: 'Squash it.' }
+      ])
+    ).toEqual([])
+  })
+  it('refuses a start that is not auto or run', () => {
+    expect(withSteps([{ id: 'a', kind: 'audit', start: 'later' }])).toEqual(['Step 1 ("a"): "start" must be auto or run.'])
   })
 })
 
@@ -113,6 +127,8 @@ describe('the chips a workflow is drawn with', () => {
   it('a step with no gate of its own follows the Settings switch for its kind, and one with a gate does not', () => {
     const wf = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan' }, { id: 'land', kind: 'merge' }, { id: 'tests', kind: 'check', run: 'x', gate: 'pass' }, { id: 'ok', kind: 'approve' }, { id: 'rev', kind: 'audit', gate: 'approve' }] })
     expect(stepChips(wf, { planGate: true, mergeGate: true }).map((c) => c.stops)).toEqual([true, true, false, true, true])
+    // A step that starts when the person presses Run is a place they stop, whatever its gate says.
+    expect(stepChips({ version: 1, id: 'x', name: 'X', steps: [{ id: 'a', kind: 'check', run: 'x', start: 'run' }, { id: 'b', kind: 'audit', start: 'run' }, { id: 'c', kind: 'pr', gate: 'auto', start: 'run' }] }, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([true, true, true])
     expect(stepChips(wf, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([false, false, false, true, true])
     const set = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'land', kind: 'merge', gate: 'auto' }] })
     expect(stepChips(set, { planGate: false, mergeGate: true }).map((c) => c.stops)).toEqual([true, false])

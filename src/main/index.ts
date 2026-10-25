@@ -531,7 +531,7 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
 const waitNotices = new WaitNotices()
 // The audit is the app's to start: once an agent's steps before it have passed it begins on its own, with nothing to open. Set where git and the asker are at hand.
 let autoAudit: (id: string) => Promise<void> = async () => {}
-async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean } = {}) {
+async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean; only?: string } = {}) {
   const a = byId(id)
   if (!a) return
   if (o.answered) waitNotices.answered(id)
@@ -2062,6 +2062,13 @@ async function main() {
     workflows.rerunCheck(runId, String(step))
     send('workflows')
     if (run) void kickChecks(run.agent, { answered: true })
+  })
+  // The person pressed Run on a check that starts that way: it runs now, and no other check with it.
+  ipcMain.handle('workflows:check-run', async (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    await kickChecks(run.agent, { only: String(step) })
+    send('workflows')
   })
   ipcMain.handle('workflows:check-skip', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)

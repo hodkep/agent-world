@@ -12,13 +12,18 @@ export const isLanding = (k: StepKind) => k === 'pr' || k === 'merge'
 /** Which landing step a workflow ends in, if any: what the office holds (a push, or a merge) and how its cards word it. */
 export const landingKind = (wf: { steps: readonly { kind: StepKind }[] } | undefined): 'pr' | 'merge' | undefined => wf?.steps.find((s) => isLanding(s.kind))?.kind as 'pr' | 'merge' | undefined
 export type Gate = 'auto' | 'approve' | 'pass'
+/** How a step starts: by itself, or when the person presses Run. Only a check, an audit and a pull request take the person's press. */
+export type Start = 'auto' | 'run'
+export const START_KINDS: StepKind[] = ['check', 'audit', 'pr']
 
 export interface Step {
   id: string
   kind: StepKind
   name?: string
   gate?: Gate
+  /** What the agent is told at this step, what a reviewer looks for, or what the person reads on its card. */
   brief?: string
+  start?: Start
   skills?: string[]
   run?: string
   retries?: number
@@ -37,8 +42,7 @@ const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
 export const STEPS_MAX = 12
 const STEP_ID_MAX = 30
 export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], pr: ['auto', 'approve'], merge: ['auto', 'approve'] }
-const BRIEF_KINDS: StepKind[] = ['plan', 'work', 'approve']
-const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'skills', 'run', 'retries', 'model']
+const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
 /** Whether `v` can be a workflow's id, and so the name of its file. */
 export const isWorkflowId = (v: unknown): v is string => typeof v === 'string' && ID.test(v) && v.length <= 40
@@ -68,9 +72,10 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
     }
     if (s.model !== undefined && kind !== 'audit') out.push(`${at}: "model" only belongs on an audit step.`)
     else if (s.model !== undefined && !isText(s.model, 40)) out.push(`${at}: "model" must be a model name of up to 40 characters.`)
-    if (s.brief !== undefined) {
-      if (!BRIEF_KINDS.includes(kind)) out.push(`${at}: "brief" does not belong on ${kind === 'audit' ? 'an' : 'a'} ${kind} step.`)
-      else if (!isText(s.brief, 600)) out.push(`${at}: "brief" must be text of up to 600 characters.`)
+    if (s.brief !== undefined && !isText(s.brief, 600)) out.push(`${at}: "brief" must be text of up to 600 characters.`)
+    if (s.start !== undefined) {
+      if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a check, audit or pr step.`)
+      else if (s.start !== 'auto' && s.start !== 'run') out.push(`${at}: "start" must be auto or run.`)
     }
     if (s.skills !== undefined) {
       if (kind !== 'work') out.push(`${at}: "skills" only belongs on a work step.`)
@@ -147,7 +152,7 @@ export function stepChips(wf: Workflow, switches: { planGate: boolean; mergeGate
   return wf.steps.map((s) => {
     const own = s.gate !== undefined ? s.gate === 'approve' : undefined
     const inherited = s.kind === 'plan' ? switches.planGate : isLanding(s.kind) ? switches.mergeGate : false
-    return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || (own ?? inherited) }
+    return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || s.start === 'run' || (own ?? inherited) }
   })
 }
 

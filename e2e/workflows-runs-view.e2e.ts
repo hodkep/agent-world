@@ -102,6 +102,9 @@ test('the agent\'s tab is the track of its open run and its week as a tile for e
   const { page, shutdown, win } = await week(false, false)
   try {
     await page.getByRole('tab', { name: /^Workflow/ }).click()
+    // The tab shows the run as a flow first, and the rail is one click away.
+    await expect(page.locator('.react-flow__node').first()).toBeVisible()
+    await page.getByRole('button', { name: 'Rail' }).click()
     const track = page.getByRole('region', { name: 'Add a slug length limit: where ada is' }).first()
     await expect(track).toBeVisible()
     await expect(track.locator('.st.now')).toContainText('Plan')

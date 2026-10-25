@@ -203,6 +203,8 @@ export class Workflows {
    */
   auditDue(agentId: string, head: string): boolean {
     const run = this.ownerOf(agentId, head)
+    // An audit that starts when the person presses Run is never started by the app.
+    if (run?.workflow?.steps.some((x) => x.kind === 'audit' && x.start === 'run')) return false
     const tried = !!run?.audit && run.audit.t >= run.rounds[run.rounds.length - 1]!.startedAt
     return !!run && !tried && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
   }
@@ -253,7 +255,7 @@ export class Workflows {
    * Runs the checks of the agent's workflow that are due, in order, in its worktree, stopping at the first that fails or waits for the
    * person's approval of its commands. Says how many ran, and what to tell the agent when one failed and may be tried again or has run out of tries.
    */
-  async runChecks(agentId: string, head: string, o: { fresh?: boolean } = {}): Promise<{ ran: number; passed?: { name: string; run: string; ms: number }[]; sendBack?: string; gaveUp?: string; waitingApproval?: string }> {
+  async runChecks(agentId: string, head: string, o: { fresh?: boolean; /** The person pressed Run for this check: it runs, and no other. */ only?: string } = {}): Promise<{ ran: number; passed?: { name: string; run: string; ms: number }[]; sendBack?: string; gaveUp?: string; waitingApproval?: string }> {
     let ran = 0
     const passed: { name: string; run: string; ms: number }[] = []
     const result = <T extends object>(x: T) => ({ ...x, ...(passed.length > 0 && { passed }) })
@@ -263,7 +265,11 @@ export class Workflows {
       if (!run?.workflow || run.status === 'stopped' || !cwd) return result({ ran })
       const due = this.states(run, head).find((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting'))
       if (!due) return result({ ran })
-      if (due.state === 'waiting') return result({ ran, waitingApproval: due.name })
+      // A check that starts on Run waits for that press (the person's, for this check); one the person pressed Run for is the only one that runs.
+      if (due.toRun) {
+        if (o.only !== due.id) return result({ ran })
+      } else if (o.only !== undefined && due.id !== o.only) return result({ ran })
+      else if (due.state === 'waiting') return result({ ran, waitingApproval: due.name })
       // Asked only for what is new: a check that already ran for this very commit is left, so a second ask (the agent reports its step and
       // its task together, or the person opens Finish) does not use up its tries. The person's "Run again" starts its results over.
       if (checkRuns(run.rounds[run.rounds.length - 1]!, due.id).results.some((c) => c.head === head)) return result({ ran })
@@ -577,7 +583,7 @@ export class Workflows {
 
   private async audit(agentId: string, run: Run, head: string, diff: string) {
     const readback = this.planOf(run)!
-    const shown = auditPrompt(readback, diff, { additions: run.additions?.map((a) => a.text) })
+    const shown = auditPrompt(readback, diff, { additions: run.additions?.map((a) => a.text), focus: run.workflow?.steps.find((x) => x.kind === 'audit')?.brief })
     const failed = (reason: string) => this.append({ k: 'audit', t: this.deps.now(), run: run.id, head, state: 'failed', reason })
     let reply: Awaited<ReturnType<Deps['ask']>>
     try {

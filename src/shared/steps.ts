@@ -15,6 +15,8 @@ export interface StepState {
   approved?: true
   /** A pull request that needs the person's approval and has not got it, whether or not its turn has come: a push before then is held. */
   gated?: true
+  /** A check or an audit that starts when the person presses Run, and has not been started: it waits for that press. */
+  toRun?: true
 }
 
 /**
@@ -37,11 +39,12 @@ export interface StepContext {
 }
 
 /** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
-export function needsApproval(step: { kind: StepKind; gate?: string }, ctx: StepContext): boolean {
+export function needsApproval(step: { kind: StepKind; gate?: string; start?: string }, ctx: StepContext): boolean {
   if (step.kind === 'audit') return step.gate === 'approve'
   // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
   if (step.kind !== 'pr') return false
-  return step.gate === 'approve' || (step.gate === undefined && ctx.mergeGate === true)
+  // A pull request that starts on Run is the person's press: nothing is pushed before it, as with gate approve.
+  return step.gate === 'approve' || step.start === 'run' || (step.gate === undefined && ctx.mergeGate === true)
 }
 
 /** Whether the person approved this step for the branch as it is now: their last answer was an approval, given after the round's last commit (and after `since`). */
@@ -60,7 +63,7 @@ export function checkRuns(round: Round, stepId: string): { results: Round['check
   return { results, failed: results.filter((c) => !c.ok).length }
 }
 
-function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepContext): { own: Own; tries: number } {
+function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepContext): { own: Own; tries: number; toRun?: true } {
   const mine = round.steps.filter((x) => x.step === step.id)
   const reset = mine.filter((x) => x.state === 'rerun').at(-1)?.t ?? -1
   const decided = mine.filter((x) => x.t > reset && (x.state === 'skipped' || x.state === 'declined')).at(-1)
@@ -71,6 +74,8 @@ function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepCon
   if (last?.ok && (ctx.head === undefined || last.head === ctx.head)) return { own: 'passed', tries: failed }
   if (last && !last.ok && results.length >= (step.retries ?? DEFAULT_RETRIES) + 1) return { own: 'failed', tries: failed }
   if (!last && ctx.approved === false) return { own: 'waiting', tries: 0 }
+  // It starts when the person presses Run: until they have (or have asked for it again, which runs it by itself) it waits for that press.
+  if (!last && step.start === 'run' && !mine.some((x) => x.state === 'rerun')) return { own: 'waiting', tries: 0, toRun: true }
   return { own: 'open', tries: failed }
 }
 
@@ -122,9 +127,11 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     const c = s.kind === 'check' ? checkOwn(s, round, ctx) : undefined
     const o = c ? c.own : own(s, round, run, ctx)
     let state: StepStatus
+    // An audit that starts on Run and has not been started waits for that press, once nothing before it holds it back.
+    const auditToRun = o === 'later' && s.kind === 'audit' && s.start === 'run' && !held
     if (o === 'passed' || o === 'skipped') state = o
     else if (o === 'failed') (state = 'failed', (held = true))
-    else if (o === 'later') (state = (isLanding(s.kind) || s.kind === 'approve') && !held ? 'waiting' : 'pending', (held = true))
+    else if (o === 'later') (state = auditToRun || ((isLanding(s.kind) || s.kind === 'approve') && !held) ? 'waiting' : 'pending', (held = true))
     else if (held) state = 'pending'
     else if (o === 'waiting') (state = 'waiting', (held = true))
     else (state = 'running', (held = true))
@@ -132,7 +139,7 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     const asks = state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
     const settled = asks && isLanding(s.kind) && approvedFor(round, s.id)
     const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s, ctx) && !approvedFor(round, s.id)
-    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
+    return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...((auditToRun || (c?.toRun && state === 'waiting')) && { toRun: true as const }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
   })
 }
 
@@ -200,7 +207,7 @@ export function checkPanels(runs: Run[], ctxFor: (run: Run) => StepContext): Che
     return stepStates(run, ctxFor(run)).flatMap((s): CheckPanel[] => {
       const step = run.workflow!.steps.find((x) => x.id === s.id)
       if (s.kind !== 'check' || !step) return []
-      if (s.state === 'waiting') return [{ kind: 'approval', run, step, tries: 0 }]
+      if (s.state === 'waiting') return s.toRun ? [] : [{ kind: 'approval', run, step, tries: 0 }]
       if (s.state !== 'failed') return []
       if (!s.tries) return [{ kind: 'declined', run, step, tries: 0 }]
       const last = checkRuns(round, s.id).results.at(-1)
