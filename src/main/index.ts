@@ -2662,6 +2662,15 @@ async function main() {
     mailbox.restarting(id)
     p.kill()
   })
+  // Starts the agent's program again on the same session: whatever it was running stops, and its conversation carries on.
+  ipcMain.handle('agent:restart', (_, id: string) => {
+    const p = sessions.get(id)
+    if (!byId(id)) throw new Error('No such agent.')
+    if (!p) throw new Error('That agent is asleep; click it to wake it.')
+    restarting.add(id)
+    mailbox.restarting(id)
+    p.kill()
+  })
   // Remote control is read by the program only at launch, so switching it restarts the agent on the same session.
   ipcMain.handle('agent:set-remote', (_, id: string, on: boolean) => {
     const a = byId(id)

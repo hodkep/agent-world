@@ -185,6 +185,8 @@ export interface AwApi {
   subagentChat(agentId: string, subagentId: string): Promise<ChatItem[]>
   /** Give a running agent another job (null: none) and relaunch it on the same conversation. */
   setRole(agentId: string, role: Role | null): Promise<AgentOptions>
+  /** Starts the agent's program again on the same session; what it was running stops. */
+  restartAgent(id: string): Promise<void>
   /** Renames the agent (unique, plain characters); resolves to the cleaned name. */
   renameAgent(id: string, name: string): Promise<string>
   setGroup(id: string, group: string): Promise<void>
