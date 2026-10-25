@@ -574,13 +574,15 @@ export function App() {
     () =>
       window.aw.onAccountsSwitch((r) => {
         if (r.state === 'stopping' || r.state === 'starting' || r.state === 'left') return
-        void window.aw.listAgents().then(setAgents)
+        void window.aw.listAgents().then((list) => setAgents(list.filter((a) => !a.builder)))
         void lookLimits(true)
       }),
     [lookLimits]
   )
   useEffect(() => {
-    void window.aw.listAgents().then((list) => {
+    void window.aw.listAgents().then((all) => {
+      // The builder's agent is the builder's own: it is in no list of agents (it is shown in the builder, from the record that opened it).
+      const list = all.filter((a) => !a.builder)
       setAgents(list)
       setAgentsLoaded(true)
       // Back where you were after a reload or a restart: the agent you had open is open again (asleep ones offer to wake).
@@ -1363,7 +1365,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setAgents((xs) => (xs.some((x) => x.id === a.id) ? xs : [...xs, a])), setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">

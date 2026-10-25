@@ -286,3 +286,31 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     await s.shutdown()
   }
 })
+
+test('the builder\'s agent stays inside the builder: it is not in the agents list, the switcher or the office, with the builder open, after it is closed, and after a reload', async () => {
+  const s = await start()
+  try {
+    const { page, argsLog } = s
+    await hire(page, { name: 'ada' })
+    const win = await openWorkflows(page)
+    await win.getByRole('textbox', { name: 'Describe a workflow' }).fill('Every change to billing gets a security review.')
+    await win.getByRole('button', { name: 'Start with the builder' }).click()
+    await expect(win.getByRole('log', { name: 'Conversation with builder' })).toContainText('Every change to billing', { timeout: 20_000 })
+    // The builder's chat is there, and its agent is a real one the office knows ...
+    expect((await page.evaluate(() => window.aw.listAgents())).some((a) => a.builder)).toBe(true)
+    // ... but it is in none of the lists of agents.
+    // Other agents do not see it when they ask who is in the office.
+    const { call } = await asAgent(await launchAt(argsLog, 0))
+    expect((await call('list_agents', {})).text).not.toContain('builder')
+    const roster = page.locator('.roster button', { hasText: 'builder' })
+    await expect(roster).toHaveCount(0)
+    await win.getByRole('button', { name: 'Close' }).first().click()
+    await expect(roster).toHaveCount(0)
+    await page.reload()
+    await expect.poll(() => page.locator('.roster').count()).toBeGreaterThanOrEqual(0)
+    await expect(page.locator('.roster button', { hasText: 'builder' })).toHaveCount(0)
+    await expect(page.getByText('builder', { exact: true })).toHaveCount(0)
+  } finally {
+    await s.shutdown()
+  }
+})

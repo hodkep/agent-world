@@ -1291,7 +1291,8 @@ async function main() {
     subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
-      agents.map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
+      // The builder's agent is the builder's own: the others are not told of it.
+      agents.filter((a) => !a.builder || a.id === caller).map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
     send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply }),
     remember: (caller, text) => {
       const a = byId(caller)
