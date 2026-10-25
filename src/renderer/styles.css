@@ -3322,11 +3322,17 @@ svg.pxg { display: block; flex: none; }
 .rn-state.pending { color: var(--dim); }
 .rn-state.skipped { color: var(--muted); }
 .rn-state.failed { color: var(--danger-text); }
-.fl-node.rn.passed { opacity: 0.88; }
-.fl-node.rn.pending { opacity: 0.6; }
+.fl-node.rn.passed { box-shadow: 0 0 0 2px var(--ok), 0 0 0 4px var(--ink); }
+.fl-node.rn.pending { box-shadow: 0 0 0 2px var(--line), 0 0 0 4px var(--ink); opacity: 0.6; }
+.fl-node.rn.skipped { box-shadow: 0 0 0 2px var(--dim), 0 0 0 4px var(--ink); opacity: 0.7; }
 .fl-node.rn.running { box-shadow: 0 0 0 2px var(--think), 0 0 0 4px var(--ink); }
 .fl-node.rn.waiting { background: var(--selected); box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--ink); }
 .fl-node.rn.failed { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px var(--ink); }
+/* The mark of a step that is over: a green tick, a red cross, a grey dash. */
+.rn-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; box-shadow: 0 0 0 1px var(--ink); }
+.rn-mark.passed { background: var(--ok); color: var(--ink); }
+.rn-mark.failed { background: var(--danger); color: #fff; }
+.rn-mark.skipped { background: var(--panel-3); color: var(--muted); }
 .rn-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; margin-top: 2px; }
 .rn-acts textarea { width: 100%; resize: none; font: inherit; font-size: 12px; }
 .rn-acts button { font-size: 11px; padding: 2px 10px; }

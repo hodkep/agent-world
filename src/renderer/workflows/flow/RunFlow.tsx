@@ -9,6 +9,9 @@ import { chainEdges, loopEdges } from './flowEdges'
 import { ACTOR, ACTOR_WORD, chipsOf } from './stepFlow'
 import { type RunAction, actionOf, skipOf, wordOf } from './runCard'
 
+/** The mark a step that is over carries in its corner: a tick for done, a cross for failed, a dash for not asked. */
+const MARK: Partial<Record<StepState['state'], 'check' | 'x' | 'dash'>> = { passed: 'check', failed: 'x', skipped: 'dash' }
+
 /** A run's cards are taller than the builder's: they carry a state line and the buttons. */
 const RUN_PITCH = 168
 
@@ -57,9 +60,11 @@ function RunNode({ data }: NodeProps<RunFlowNode>) {
           <PixelIcon name={actor === 'reviewer' ? 'review' : (actor as 'agent' | 'command' | 'you')} />
         </span>
         <b className="fl-name">{stepName(step)}</b>
+        {MARK[state.state] && <span className={`rn-mark ${state.state}`} aria-hidden="true"><PixelIcon name={MARK[state.state]!} scale={2} /></span>}
         <span className="fl-n" aria-hidden="true">{index + 1}</span>
       </div>
-      <p className={`rn-state ${state.state}`} role="status">{wordOf(state)}</p>
+      {/* A step that is over (or not yet its turn) is shown by its border and a mark; the words stay for a reader of the screen, and are shown where the person is asked to act. */}
+      <p className={`rn-state ${state.state} ${MARK[state.state] || state.state === 'pending' ? 'sr-only' : ''}`} role="status">{wordOf(state)}</p>
       {text && <p className={`fl-text ${step.kind === 'check' ? 'mono' : ''}`}>{text}</p>}
       <div className="fl-chips">
         {chipsOf(step).map((c) => <span key={c.text} className={`fl-chip ${c.tone}`}>{c.text}</span>)}
