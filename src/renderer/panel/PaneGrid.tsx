@@ -51,6 +51,9 @@ export function PaneGrid({
   onOpen,
   hidden = null,
   renderChat,
+  views,
+  onView,
+  onWake,
   folderName,
   onNewTerminal,
   onProfile,
@@ -65,6 +68,12 @@ export function PaneGrid({
   /** The agent the side panel is showing: out of the grid until the panel closes or moves on. Its chat stays mounted, so a draft is not lost. */
   hidden?: string | null
   renderChat: (agent: AgentRecord) => ReactNode
+  /** The agents whose pane shows their terminal instead of the chat. */
+  views: Record<string, 'terminal'>
+  /** Turn one agent's pane to its terminal (true) or back to its chat. */
+  onView: (id: string, terminal: boolean) => void
+  /** The terminal of an agent that is asleep offers to wake it. */
+  onWake: (id: string) => void
   /** The project the terminals are open in. */
   folderName: string
   /** Open a shell in the project folder and add it (beside a tile, or wherever it fits). */
@@ -197,6 +206,7 @@ export function PaneGrid({
           const agent = isTerm(id) ? undefined : agents.find((a) => a.id === id)
           const drag = (e: React.DragEvent) => (e.dataTransfer.setData(PANE_DRAG, id), (e.dataTransfer.effectAllowed = 'move'))
           const mark = over?.id === id ? over.zone : null
+          const term = !!agent && views[id] === 'terminal'
           const out = id === hidden
           const style = { ...(out && { display: 'none' }), left: `calc(${rect.x * 100}% + ${GAP}px)`, top: `calc(${rect.y * 100}% + ${GAP}px)`, width: `calc(${rect.w * 100}% - ${GAP * 2}px)`, height: `calc(${rect.h * 100}% - ${GAP * 2}px)` }
           return (
@@ -216,7 +226,7 @@ export function PaneGrid({
               }}
               onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as globalThis.Node | null) && setOver((o) => (o?.id === id ? null : o))}
               onDropCapture={(e) => ours(e) && drop(id, zoneAt(e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY), e)}
-              aria-label={agent ? `${agent.name}'s conversation` : `Terminal in ${folderName}`}
+              aria-label={agent ? `${agent.name}'s ${term ? 'terminal' : 'conversation'}` : `Terminal in ${folderName}`}
             >
               {mark && <span className={`drop-zone zone-${mark}`} aria-hidden="true" />}
               {isTerm(id) ? (
@@ -242,14 +252,30 @@ export function PaneGrid({
                     </button>
                     <span className="pane-act">{activity(agent.id)}</span>
                     {modeOf(agent.id) && modeOf(agent.id) !== 'default' && <span style={{ color: cssColor(modeInfo(modeOf(agent.id)).color) }}>{modeInfo(modeOf(agent.id)).label}</span>}
-                    <button className="push" onClick={() => onOpen(agent.id)} aria-label={`Open ${agent.name} in the side panel`} title="Open in the side panel">
+                    {term && <span className="pane-tag">terminal</span>}
+                    <button className="push pane-view" onClick={() => onView(agent.id, !term)} aria-label={term ? `Show ${agent.name}'s chat` : `Show ${agent.name}'s terminal`} title={term ? 'Show the chat' : 'Show the terminal'}>
+                      {term ? 'chat' : '>_'}
+                    </button>
+                    <button onClick={() => onOpen(agent.id)} aria-label={`Open ${agent.name} in the side panel`} title="Open in the side panel">
                       ↗
                     </button>
                     <button onClick={() => change(remove(root, id))} aria-label={`Remove ${agent.name} from the grid`} title="Take out of the grid (the agent keeps working)">
                       ×
                     </button>
                   </div>
-                  {renderChat(agent)}
+                  {/* Kept mounted behind the terminal, so a message being written is still there when you come back. */}
+                  <div style={{ display: term ? 'none' : 'contents' }}>{renderChat(agent)}</div>
+                  {term && (
+                    <div className="pane-term">
+                      <TerminalView ptyId={agent.id} visible={!out} focusTick={0} />
+                      {activity(agent.id) === 'asleep' && (
+                        <div className="pane-asleep">
+                          <b>{agent.name} is asleep</b>
+                          <button onClick={() => onWake(agent.id)}>Wake</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : null}
             </div>

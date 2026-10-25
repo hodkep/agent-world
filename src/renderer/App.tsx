@@ -47,7 +47,7 @@ import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { OPEN_KEY, openOf, readOpen, saveOpen, setOpen } from './panel/termMemory'
-import { MEMORY_KEY, type Slot, readMemory, saveMemory, setSlot, slotOf, termTiles } from './panel/gridMemory'
+import { MEMORY_KEY, type Slot, pruneViews, readMemory, saveMemory, setSlot, setView as withView, slotOf, termTiles } from './panel/gridMemory'
 import { add, addAll, even, isTerm, mapTiles, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
@@ -295,7 +295,8 @@ export function App() {
     keep(MEMORY_KEY, saveMemory(next))
     return next
   })
-  const changeLayout = (l: GridLayout | null) => rememberGrid({ layout: l })
+  // A pane's terminal choice goes with its tile: an agent taken out of the grid and put back again starts as a chat.
+  const changeLayout = (l: GridLayout | null) => rememberGrid({ layout: l, views: pruneViews(slot.views, l?.root ?? null) })
   // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
   const [peek, setPeek] = useState(false)
   // A local link clicked anywhere in a chat opens in that agent's Preview tab.
@@ -1551,6 +1552,9 @@ export function App() {
                   onProfile={(id) => (setSelected(id), keep('aw.selected', id))}
                   renderCard={(a, close, mode) => (cardData && current?.id === a.id ? <ProfileCard data={cardData} variant={mode} now={clock} edit={cardEdit} onClose={close} /> : null)}
                   renderChat={(a) => chatFor(a, true, `pane-${a.id}`)}
+                  views={slot.views ?? {}}
+                  onView={(id, terminal) => rememberGrid({ views: withView(slot.views, id, terminal) })}
+                  onWake={(id) => void (agents.find((a) => a.id === id) && wake(agents.find((a) => a.id === id)!))}
                 />
               ) : (
                 <GridView
