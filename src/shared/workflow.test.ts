@@ -50,7 +50,7 @@ describe('reading a workflow file', () => {
       'Step 2: "id" must be lowercase letters, digits and dashes, up to 30 characters.',
       'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, pr, merge.',
       'Step 4 ("a"): the id is already used by step 3.',
-      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, skills, run, retries, model.'
+      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, optional, skills, run, retries, model.'
     ])
   })
 
@@ -58,7 +58,7 @@ describe('reading a workflow file', () => {
     expect(
       withSteps([
         { id: 'a', kind: 'check' },
-        { id: 'b', kind: 'check', run: 'npm test', gate: 'approve', retries: 9 },
+        { id: 'b', kind: 'check', run: 'npm test', gate: 'nope', retries: 9 },
         { id: 'c', kind: 'work', gate: 'pass', run: 'ls', retries: 1, model: 'haiku' },
         { id: 'd', kind: 'approve', gate: 'auto', skills: ['tdd'] },
         { id: 'e', kind: 'merge', brief: 'Land it.', skills: ['tdd'], start: 'run' },
@@ -67,16 +67,16 @@ describe('reading a workflow file', () => {
       ])
     ).toEqual([
       'Step 1 ("a"): a check step needs "run", the command to run.',
-      'Step 2 ("b"): "gate" for a check step must be auto or pass.',
+      'Step 2 ("b"): "gate" for a check step must be auto, pass or approve.',
       'Step 2 ("b"): "retries" must be a whole number from 0 to 5.',
       'Step 3 ("c"): "gate" for a work step must be auto or approve.',
       'Step 3 ("c"): "run" only belongs on a check step.',
       'Step 3 ("c"): "retries" only belongs on a check step.',
       'Step 3 ("c"): "model" only belongs on an audit step.',
       'Step 4 ("d"): "gate" for an approve step must be approve.',
-      'Step 4 ("d"): "skills" only belongs on a work step.',
+      'Step 4 ("d"): "skills" only belongs on a plan, work or pr step.',
       'Step 5 ("e"): "start" only belongs on a check, audit or pr step.',
-      'Step 5 ("e"): "skills" only belongs on a work step.',
+      'Step 5 ("e"): "skills" only belongs on a plan, work or pr step.',
       'Step 7 ("g"): "name" must be text of up to 40 characters.',
       'Step 7 ("g"): "brief" must be text of up to 600 characters.',
       'Step 7 ("g"): "skills" must be a list of up to 8 names, each up to 60 characters.'
@@ -92,6 +92,26 @@ describe('reading a workflow file', () => {
         { id: 'd', kind: 'merge', brief: 'Squash it.' }
       ])
     ).toEqual([])
+  })
+  it('gives every step the same settings where they make sense: skills on what the agent does, an approval after a check, optional on what can be skipped', () => {
+    expect(
+      withSteps([
+        { id: 'a', kind: 'plan', skills: ['tdd'] },
+        { id: 'b', kind: 'work', skills: ['tdd'], optional: true },
+        { id: 'c', kind: 'check', run: 'npm test', gate: 'approve', optional: true },
+        { id: 'd', kind: 'audit', gate: 'approve', optional: true },
+        { id: 'e', kind: 'approve', optional: true },
+        { id: 'f', kind: 'pr', skills: ['tdd'] }
+      ])
+    ).toEqual([])
+  })
+  it('keeps optional to the steps that can be passed over, and says it must be true or false', () => {
+    expect(withSteps([{ id: 'a', kind: 'merge', optional: true }, { id: 'b', kind: 'pr', optional: true }, { id: 'c', kind: 'plan', optional: true }, { id: 'd', kind: 'work', optional: 'yes' }])).toEqual([
+      'Step 1 ("a"): "optional" only belongs on a work, check, audit or approve step.',
+      'Step 2 ("b"): "optional" only belongs on a work, check, audit or approve step.',
+      'Step 3 ("c"): "optional" only belongs on a work, check, audit or approve step.',
+      'Step 4 ("d"): "optional" must be true or false.'
+    ])
   })
   it('refuses a start that is not auto or run', () => {
     expect(withSteps([{ id: 'a', kind: 'audit', start: 'later' }])).toEqual(['Step 1 ("a"): "start" must be auto or run.'])

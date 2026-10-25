@@ -40,7 +40,7 @@ export interface StepContext {
 
 /** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
 export function needsApproval(step: { kind: StepKind; gate?: string; start?: string }, ctx: StepContext): boolean {
-  if (step.kind === 'audit') return step.gate === 'approve'
+  if (step.kind === 'audit' || step.kind === 'check') return step.gate === 'approve'
   // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
   if (step.kind !== 'pr') return false
   // A pull request that starts on Run is the person's press: nothing is pushed before it, as with gate approve.
@@ -58,24 +58,29 @@ export const DEFAULT_RETRIES = 2
 /** How a check stands: how many times it ran since the person last asked for it again, and what became of it. */
 /** The results of a check since the person last asked for it again, with how many of them failed. */
 export function checkRuns(round: Round, stepId: string): { results: Round['checks']; failed: number } {
-  const reset = round.steps.filter((x) => x.step === stepId && x.state === 'rerun').at(-1)?.t ?? -1
+  const reset = round.steps.filter((x) => x.step === stepId && (x.state === 'rerun' || x.state === 'changes')).at(-1)?.t ?? -1
   const results = round.checks.filter((c) => c.step === stepId && c.t > reset)
   return { results, failed: results.filter((c) => !c.ok).length }
 }
 
-function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepContext): { own: Own; tries: number; toRun?: true } {
+function checkOwn(step: RunWorkflow['steps'][number], round: Round, ctx: StepContext): { own: Own; tries: number; toRun?: true; asks?: true } {
   const mine = round.steps.filter((x) => x.step === step.id)
-  const reset = mine.filter((x) => x.state === 'rerun').at(-1)?.t ?? -1
+  // The person asking for it again, or sending it back after it passed, gives it all its tries back.
+  const reset = mine.filter((x) => x.state === 'rerun' || x.state === 'changes').at(-1)?.t ?? -1
   const decided = mine.filter((x) => x.t > reset && (x.state === 'skipped' || x.state === 'declined')).at(-1)
   if (decided) return { own: decided.state === 'skipped' ? 'skipped' : 'failed', tries: 0 }
   const { results, failed } = checkRuns(round, step.id)
   const last = results.at(-1)
   // A check that passed keeps how often it failed on the way, so the strip can still say so.
-  if (last?.ok && (ctx.head === undefined || last.head === ctx.head)) return { own: 'passed', tries: failed }
+  if (last?.ok && (ctx.head === undefined || last.head === ctx.head)) {
+    // A check with gate approve has passed for the agent; it passes for the run when the person has approved it (after this result).
+    if (step.gate === 'approve' && !approvedFor(round, step.id, last.t)) return { own: 'waiting', tries: failed, asks: true }
+    return { own: 'passed', tries: failed }
+  }
   if (last && !last.ok && results.length >= (step.retries ?? DEFAULT_RETRIES) + 1) return { own: 'failed', tries: failed }
   if (!last && ctx.approved === false) return { own: 'waiting', tries: 0 }
   // It starts when the person presses Run: until they have (or have asked for it again, which runs it by itself) it waits for that press.
-  if (!last && step.start === 'run' && !mine.some((x) => x.state === 'rerun')) return { own: 'waiting', tries: 0, toRun: true }
+  if (!last && step.start === 'run' && !mine.some((x) => x.state === 'rerun' || x.state === 'changes')) return { own: 'waiting', tries: 0, toRun: true }
   return { own: 'open', tries: failed }
 }
 
@@ -83,6 +88,8 @@ function own(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx: St
   const { kind, id } = step
   const mine = round.steps.filter((s) => s.step === id)
   const last = mine[mine.length - 1]
+  // The person skipped an optional step: it is not followed, and the run goes on. (A check and an audit have their own way of being skipped.)
+  if (step.optional && kind !== 'check' && kind !== 'audit' && last?.state === 'skipped') return 'skipped'
   if (kind === 'plan') {
     const p = round.plan?.state
     if (p === 'approved' || p === 'released') return 'passed'
@@ -136,7 +143,7 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     else if (o === 'waiting') (state = 'waiting', (held = true))
     else (state = 'running', (held = true))
     const audited = run.audit?.state === 'done' && run.audit.findings.every((f) => f.seen)
-    const asks = state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
+    const asks = c ? state === 'waiting' && !!c.asks : state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
     const settled = asks && isLanding(s.kind) && approvedFor(round, s.id)
     const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s, ctx) && !approvedFor(round, s.id)
     return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...((auditToRun || (c?.toRun && state === 'waiting')) && { toRun: true as const }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
@@ -162,6 +169,7 @@ export function readyForAudit(run: Run, ctx: StepContext): boolean {
 export function stepReply(name: string, decision: 'approved' | 'changes', note?: string, kind?: StepKind): string {
   if (decision === 'approved') return `Your step "${name}" was approved.${note ? ` They said: ${note}` : ''}`
   // The steps the office does (the audit, a pull request, a merge) have no step_done: the agent changes the branch and the office asks again.
+  if (kind === 'check') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the check runs again and the person is asked again.`
   if (kind === 'audit' || kind === 'pr' || kind === 'merge') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.`
   return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change, then call step_done again.`
 }
@@ -207,7 +215,7 @@ export function checkPanels(runs: Run[], ctxFor: (run: Run) => StepContext): Che
     return stepStates(run, ctxFor(run)).flatMap((s): CheckPanel[] => {
       const step = run.workflow!.steps.find((x) => x.id === s.id)
       if (s.kind !== 'check' || !step) return []
-      if (s.state === 'waiting') return s.toRun ? [] : [{ kind: 'approval', run, step, tries: 0 }]
+      if (s.state === 'waiting') return s.toRun || s.awaiting ? [] : [{ kind: 'approval', run, step, tries: 0 }]
       if (s.state !== 'failed') return []
       if (!s.tries) return [{ kind: 'declined', run, step, tries: 0 }]
       const last = checkRuns(round, s.id).results.at(-1)
@@ -225,4 +233,7 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
       .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id).map((step) => ({ run, step })))
   })
 }
+
+/** What the agent is told when the person skips an optional step of its workflow. */
+export const stepSkipped = (name: string) => `Your step "${name}" was skipped by the person: it is optional. Go on with the next step.`
 

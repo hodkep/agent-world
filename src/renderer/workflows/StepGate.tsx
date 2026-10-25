@@ -32,6 +32,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
             <>
               <button className="primary" onClick={() => onDecide('approved')}>{step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve'}</button>
               <button onClick={() => setAsking(true)}>Send back</button>
+              {step.optional && (step.kind === 'work' || step.kind === 'approve') && <button title="It is optional: the run goes on without it." onClick={() => void window.aw.workflows.skipStep(run.id, step.id)}>Skip</button>}
             </>
           ) : (
             <>

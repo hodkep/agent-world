@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addStep, duplicateStep, insertStepAt, moveAfter, moveStep, moveStepTo, removeStep, setStep } from './stepEdit'
+import { addStep, duplicateStep, insertStepAt, kindFor, moveAfter, moveStep, moveStepTo, removeStep, roleOf, setStep, whoOf, withRole, withWho } from './stepEdit'
 import { STEPS_MAX, type Workflow } from './workflow'
 
 const wf = (): Workflow => ({ version: 1, id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', skills: ['tdd'] }, { id: 'land', kind: 'merge' }] })
@@ -89,3 +89,53 @@ describe('editing the steps of a workflow draft', () => {
     expect(w).toEqual(wf())
   })
 })
+
+describe('a step is who does it, and what part of the run it plays', () => {
+  it('maps each kind to who does it and its role, and back', () => {
+    expect((['plan', 'work', 'check', 'audit', 'approve', 'pr', 'merge'] as const).map((k) => `${k}:${whoOf(k)}:${roleOf(k)}`)).toEqual(['plan:agent:plan', 'work:agent:none', 'check:command:none', 'audit:reviewer:none', 'approve:you:none', 'pr:agent:pr', 'merge:you:land'])
+    expect(kindFor('agent', 'plan')).toBe('plan')
+    expect(kindFor('agent', 'pr')).toBe('pr')
+    expect(kindFor('agent', 'none')).toBe('work')
+    expect(kindFor('you', 'land')).toBe('merge')
+    expect(kindFor('you', 'none')).toBe('approve')
+    expect(kindFor('command', 'none')).toBe('check')
+    expect(kindFor('reviewer', 'none')).toBe('audit')
+    // A role the one who does it cannot play is not a step.
+    expect(kindFor('command', 'plan')).toBeUndefined()
+    expect(kindFor('reviewer', 'land')).toBeUndefined()
+    expect(kindFor('you', 'pr')).toBeUndefined()
+  })
+
+  const base = (): Workflow => ({ version: 1, id: 'w', name: 'W', steps: [{ id: 'build', kind: 'work', name: 'Build', brief: 'Do it.', skills: ['tdd'], gate: 'approve', optional: true }] })
+  it('changing who does a step keeps what still fits and drops what does not', () => {
+    const reviewer = withWho(base(), 0, 'reviewer').steps[0]!
+    expect(reviewer).toEqual({ id: 'build', kind: 'audit', name: 'Build', brief: 'Do it.', gate: 'approve', optional: true })
+    const command = withWho(base(), 0, 'command').steps[0]!
+    // A command needs one, which the checker asks for; an approval gate stays, a command's own gate is the person's too.
+    expect(command).toEqual({ id: 'build', kind: 'check', name: 'Build', brief: 'Do it.', run: '', gate: 'approve', optional: true })
+    const you = withWho(base(), 0, 'you').steps[0]!
+    expect(you).toEqual({ id: 'build', kind: 'approve', name: 'Build', brief: 'Do it.', gate: 'approve', optional: true })
+  })
+  it('keeps the same step when it is already done by that one', () => {
+    const w = base()
+    expect(withWho(w, 0, 'agent')).toBe(w)
+  })
+  it('gives a role to an agent step or to a step of yours, and takes it away again', () => {
+    const plan = withRole(base(), 0, 'plan').steps[0]!
+    expect(plan).toMatchObject({ kind: 'plan', skills: ['tdd'], brief: 'Do it.' })
+    expect(plan.optional).toBeUndefined()
+    const pr = withRole(base(), 0, 'pr').steps[0]!
+    expect(pr).toMatchObject({ kind: 'pr', skills: ['tdd'], gate: 'approve' })
+    expect(withRole(withRole(base(), 0, 'pr'), 0, 'none').steps[0]!.kind).toBe('work')
+    // A step of a command cannot be the plan: nothing changes.
+    const cmd = withWho(base(), 0, 'command')
+    expect(withRole(cmd, 0, 'plan')).toBe(cmd)
+  })
+  it('a step that starts when you press Run keeps that only where it can', () => {
+    const w: Workflow = { ...base(), steps: [{ id: 'r', kind: 'audit', start: 'run' }] }
+    expect(withWho(w, 0, 'command').steps[0]).toMatchObject({ kind: 'check', start: 'run' })
+    expect(withWho(w, 0, 'agent').steps[0]!.start).toBeUndefined()
+    expect(withWho(w, 0, 'you').steps[0]!.start).toBeUndefined()
+  })
+})
+

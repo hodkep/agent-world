@@ -144,3 +144,25 @@ describe('the brief of a pull request step', () => {
   })
 })
 
+
+describe('the settings every kind of step can carry, as the agent is told them', () => {
+  const FLOW: RunWorkflow = {
+    id: 'f',
+    name: 'F',
+    steps: [
+      { id: 'plan', kind: 'plan', name: 'Plan', skills: ['tdd'], brief: 'Say what you will touch.' },
+      { id: 'build', kind: 'work', name: 'Build', optional: true },
+      { id: 'pr', kind: 'pr', name: 'Pull request', skills: ['tdd'], brief: 'Link the issue.' }
+    ]
+  }
+  it('names the skills of a plan or a pull request step, and says an optional step may be skipped', () => {
+    const text = workflowBrief(FLOW, { planFirst: true })
+    expect(text).toContain('- plan "Plan" (skill: tdd): the person approves your plan before you edit. Say what you will touch.')
+    expect(text).toContain('- build "Build" (optional: the person may skip it):')
+    expect(text).toContain('- pr "Pull request" (skill: tdd): when you open the pull request, Link the issue.')
+  })
+  it('lists a pull request step that has skills but no brief', () => {
+    const bare: RunWorkflow = { ...FLOW, steps: [FLOW.steps[1]!, { id: 'pr', kind: 'pr', name: 'Pull request', skills: ['tdd'] }] }
+    expect(workflowBrief(bare)).toContain('- pr "Pull request" (skill: tdd): when you open the pull request.')
+  })
+})

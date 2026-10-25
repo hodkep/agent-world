@@ -81,6 +81,16 @@ describe('the chips on a step', () => {
     expect(chipsOf(step('audit', { start: 'run' }))[0]!.tone).toBe('run')
     expect(words(step('audit', { start: 'auto' }))).toEqual([])
   })
+  it('say a check you approve must pass first, and that a step can be skipped', () => {
+    expect(words(step('check', { run: 'x', gate: 'approve' }))).toEqual(['you approve', 'must pass', '2 retries'])
+    expect(words(step('work', { optional: true }))).toEqual(['optional'])
+    expect(words(step('approve', { optional: true }))).toEqual(['you approve', 'optional'])
+    expect(chipsOf(step('work', { optional: true }))[0]!.tone).toBe('plain')
+  })
+  it('name the skills of a plan, a work or a pull request step, and how often a failed check is sent back', () => {
+    expect(words(step('plan', { gate: 'approve', skills: ['tdd'] }))).toEqual(['you approve', 'skill: tdd'])
+    expect(words(step('pr', { gate: 'auto', skills: ['tdd'] }))).toEqual(['skill: tdd'])
+  })
   it('name the skills of a work step and how often a failed check is sent back', () => {
     expect(words(step('work', { skills: ['tdd', 'ponytail'] }))).toEqual(['skill: tdd', 'skill: ponytail'])
     expect(words(step('check', { run: 'x', retries: 4 }))).toEqual(['4 retries'])

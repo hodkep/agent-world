@@ -116,7 +116,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
             <p className="se-hint muted">Click a step to change it. Drag it to move it, or draw an arrow from the dot under one step to the dot over another to put it right after. + on an arrow adds a step there. Delete takes the picked step out.</p>
           ) : (
             <div className="se-pick" ref={fields}>
-              <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} change={change} />
+              <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} switches={switches} change={change} />
               <div className="se-acts">
                 <button aria-label={`Move step ${cur + 1} up`} disabled={cur === 0} onClick={() => (change(moveStep(wf, cur, -1)), setPicked(cur - 1))}>Move up</button>
                 <button aria-label={`Move step ${cur + 1} down`} disabled={cur === wf.steps.length - 1} onClick={() => (change(moveStep(wf, cur, 1)), setPicked(cur + 1))}>Move down</button>
@@ -130,7 +130,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
         <ol className="se-steps" aria-label="Steps">
           {wf.steps.map((s, i) => (
             <li key={`${s.id}-${i}`} className={`se-step k-${s.kind}`}>
-              <StepInspector wf={wf} at={i} skills={skills} skillStates={skillStates} change={change} />
+              <StepInspector wf={wf} at={i} skills={skills} skillStates={skillStates} switches={switches} change={change} />
               <div className="se-acts">
                 <button className="se-ico up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(wf, i, -1))}><PixelIcon name="chevron" scale={2} /></button>
                 <button className="se-ico" aria-label={`Move step ${i + 1} down`} disabled={i === wf.steps.length - 1} onClick={() => change(moveStep(wf, i, 1))}><PixelIcon name="chevron" scale={2} /></button>

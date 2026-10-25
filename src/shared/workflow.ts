@@ -24,6 +24,8 @@ export interface Step {
   /** What the agent is told at this step, what a reviewer looks for, or what the person reads on its card. */
   brief?: string
   start?: Start
+  /** The person can skip it: it does not hold the run when they do. */
+  optional?: boolean
   skills?: string[]
   run?: string
   retries?: number
@@ -41,8 +43,14 @@ export type WorkflowResult = { ok: true; workflow: Workflow } | { ok: false; pro
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
 export const STEPS_MAX = 12
 const STEP_ID_MAX = 30
-export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass'], audit: ['auto', 'approve'], approve: ['approve'], pr: ['auto', 'approve'], merge: ['auto', 'approve'] }
-const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'skills', 'run', 'retries', 'model']
+/** Where each kind can stop: `pass` is a check that must pass; `approve` is the person's approval (after a check, once it has passed). */
+export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work: ['auto', 'approve'], check: ['auto', 'pass', 'approve'], audit: ['auto', 'approve'], approve: ['approve'], pr: ['auto', 'approve'], merge: ['auto', 'approve'] }
+/** The kinds the agent does, which can be told to read skills. */
+export const SKILL_KINDS: StepKind[] = ['plan', 'work', 'pr']
+/** The kinds that can be passed over by the person: what is not the way a run ends or is held. */
+export const OPTIONAL_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve']
+const orList = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} or ${w.at(-1)}`)
+const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
 /** Whether `v` can be a workflow's id, and so the name of its file. */
 export const isWorkflowId = (v: unknown): v is string => typeof v === 'string' && ID.test(v) && v.length <= 40
@@ -62,7 +70,7 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
   const kind = STEP_KINDS.find((k) => k === s.kind)
   if (kind) {
     if (s.name !== undefined && !isText(s.name, 40)) out.push(`${at}: "name" must be text of up to 40 characters.`)
-    if (s.gate !== undefined && !GATES[kind].includes(s.gate as Gate)) out.push(`${at}: "gate" for ${kind === 'approve' ? 'an' : 'a'} ${kind} step must be ${GATES[kind].join(kind === 'approve' ? '' : ' or ')}.`)
+    if (s.gate !== undefined && !GATES[kind].includes(s.gate as Gate)) out.push(`${at}: "gate" for ${kind === 'approve' ? 'an' : 'a'} ${kind} step must be ${orList(GATES[kind])}.`)
     if (kind === 'check') {
       if (!isText(s.run, 300)) out.push(`${at}: a check step needs "run", the command to run.`)
       if (s.retries !== undefined && !(Number.isInteger(s.retries) && (s.retries as number) >= 0 && (s.retries as number) <= 5)) out.push(`${at}: "retries" must be a whole number from 0 to 5.`)
@@ -73,12 +81,16 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
     if (s.model !== undefined && kind !== 'audit') out.push(`${at}: "model" only belongs on an audit step.`)
     else if (s.model !== undefined && !isText(s.model, 40)) out.push(`${at}: "model" must be a model name of up to 40 characters.`)
     if (s.brief !== undefined && !isText(s.brief, 600)) out.push(`${at}: "brief" must be text of up to 600 characters.`)
+    if (s.optional !== undefined) {
+      if (!OPTIONAL_KINDS.includes(kind)) out.push(`${at}: "optional" only belongs on a work, check, audit or approve step.`)
+      else if (typeof s.optional !== 'boolean') out.push(`${at}: "optional" must be true or false.`)
+    }
     if (s.start !== undefined) {
       if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a check, audit or pr step.`)
       else if (s.start !== 'auto' && s.start !== 'run') out.push(`${at}: "start" must be auto or run.`)
     }
     if (s.skills !== undefined) {
-      if (kind !== 'work') out.push(`${at}: "skills" only belongs on a work step.`)
+      if (!SKILL_KINDS.includes(kind)) out.push(`${at}: "skills" only belongs on a plan, work or pr step.`)
       else if (!Array.isArray(s.skills) || s.skills.length > 8 || !s.skills.every((x) => isText(x, 60))) out.push(`${at}: "skills" must be a list of up to 8 names, each up to 60 characters.`)
     }
   }

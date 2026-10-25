@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RunStep } from '../../../shared/runs'
 import type { StepState } from '../../../shared/steps'
-import { actionOf, wordOf } from './runCard'
+import { actionOf, skipOf, wordOf } from './runCard'
 
 const step = (kind: RunStep['kind'], over: Partial<RunStep> = {}): RunStep => ({ id: kind, kind, name: kind, ...over })
 const st = (kind: StepState['kind'], state: StepState['state'], over: Partial<StepState> = {}): StepState => ({ id: kind, kind, name: kind, state, ...over })
@@ -51,3 +51,27 @@ describe('what a step of a run says it is doing', () => {
     expect(wordOf(st('check', 'passed', { tries: 1 }))).toBe('done after 1 failure')
   })
 })
+
+describe('whether the person can skip a step of a run', () => {
+  it('an optional step that is working or waiting can be skipped, the way its kind is skipped', () => {
+    expect(skipOf(st('work', 'running'), step('work', { optional: true }))).toBe('step')
+    expect(skipOf(st('approve', 'waiting'), step('approve', { optional: true }))).toBe('step')
+    expect(skipOf(st('check', 'waiting', { toRun: true }), step('check', { optional: true }))).toBe('check')
+    expect(skipOf(st('audit', 'waiting', { toRun: true }), step('audit', { optional: true }))).toBe('audit')
+  })
+  it('not a step that is required, done, later or already skipped', () => {
+    expect(skipOf(st('work', 'running'), step('work'))).toBeUndefined()
+    for (const state of ['passed', 'pending', 'skipped', 'failed'] as const) expect(skipOf(st('work', state), step('work', { optional: true }))).toBeUndefined()
+  })
+  it('a check that waits for its commands to be approved is not skipped this way', () => {
+    expect(skipOf(st('check', 'waiting'), step('check', { optional: true }))).toBe('check')
+  })
+})
+
+describe('an approval a check asks for after it passed', () => {
+  it('is Approve, like any step that asks', () => {
+    expect(actionOf(st('check', 'waiting', { awaiting: true }), step('check', { gate: 'approve' }))).toEqual({ kind: 'approve', label: 'Approve' })
+    expect(wordOf(st('check', 'waiting', { awaiting: true }))).toBe('needs you')
+  })
+})
+

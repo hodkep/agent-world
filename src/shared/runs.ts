@@ -54,6 +54,7 @@ export interface RunStep {
   gate?: Gate
   brief?: string
   start?: Start
+  optional?: boolean
   skills?: string[]
   run?: string
   retries?: number

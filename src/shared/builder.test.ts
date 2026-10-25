@@ -176,3 +176,13 @@ describe('finding and making the builder', () => {
     expect(builderName(['builder', 'builder-2'])).toBe('builder-3')
   })
 })
+
+describe('what the builder is told about the settings every step can have', () => {
+  it('says a step may have start, optional and skills, and where', () => {
+    const text = builderInstructions()
+    expect(text).toContain('"start": "run" (on a check, audit or pr step')
+    expect(text).toContain('"optional": true (on a work, check, audit or approve step')
+    expect(text).toContain('"skills" (on a plan, work or pr step)')
+    expect(text).toContain('approve means it must pass and then the person approves it')
+  })
+})

@@ -36,7 +36,7 @@ function waitingFor(here: StepState, runDone: boolean, landing: 'pr' | 'merge' =
   if (here.toRun) return `press Run: ${here.name}`
   if (kind === 'plan' && state === 'waiting') return 'needs your approval'
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
-  if (kind === 'check' && state === 'waiting') return 'its commands need your approval'
+  if (kind === 'check' && state === 'waiting' && !here.awaiting) return 'its commands need your approval'
   if (kind === 'check' && state === 'failed') return 'out of tries: your call'
   if (here.awaiting) return 'needs your approval'
   if (kind === 'audit' && runDone) return landing === 'pr' ? 'waiting for the audit' : LAND_ASK
