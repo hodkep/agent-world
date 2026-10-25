@@ -45,6 +45,7 @@ import { useSwitcher, type Flight } from './panel/useSwitcher'
 import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
+import { OPEN_KEY, openOf, readOpen, saveOpen, setOpen } from './panel/termMemory'
 import { MEMORY_KEY, type Slot, readMemory, saveMemory, setSlot, slotOf, termTiles } from './panel/gridMemory'
 import { add, addAll, even, isTerm, mapTiles, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
@@ -165,11 +166,23 @@ export function App() {
   // The profile card of the selected agent: shown or hidden (kept), where it goes, and what it shows.
   const [cardOpen, setCardOpen] = useState(false)
   // The terminals drawer under the office: shown or hidden, how tall, and how many terminals the project has.
-  const [termOpen, setTermOpen] = useState(() => store('aw.term') === '1')
+  // Each workspace has its own: the drawer opened in one project is not open in the next.
+  const [termMem, setTermMem] = useState(() => readOpen(store(OPEN_KEY)))
+  const termOpen = openOf(termMem, folder ?? '')
   const [termH, setTermH] = useState(() => Math.max(110, Number(store('aw.termH')) || 230))
   const [termCount, setTermCount] = useState(0)
-  const showTerm = useCallback(() => (keep('aw.term', '1'), setTermOpen(true)), [])
-  const toggleTerm = useCallback(() => setTermOpen((o) => (keep('aw.term', o ? '' : '1'), !o)), [])
+  const setTermOpen = useCallback(
+    (open: (was: boolean) => boolean) =>
+      setTermMem((m) => {
+        const key = folderRef.current ?? ''
+        const next = setOpen(m, key, open(openOf(m, key)))
+        keep(OPEN_KEY, saveOpen(next))
+        return next
+      }),
+    []
+  )
+  const showTerm = useCallback(() => setTermOpen(() => true), [setTermOpen])
+  const toggleTerm = useCallback(() => setTermOpen((o) => !o), [setTermOpen])
   // Right-click on a path anywhere in the app offers Reveal in Finder.
   useEffect(() => {
     document.addEventListener('contextmenu', onRevealRightClick)
