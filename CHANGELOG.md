@@ -4,6 +4,23 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-25
+
+### Added
+
+- Grid: a pane can show the agent's terminal instead of its chat, with a `>_` button in the pane header; each project remembers the choice for each pane.
+- Chat: the list of commands an agent left running shows how long each has been running, with its program as a title, its process id, and a **Stop** that turns red.
+
+### Changed
+
+- Workflows: the pull request step waits for your approval, with buttons, before anything is pushed or the agent is asked to open it, and the workflow bar says what it is waiting for.
+- Settings: the **Update address** setting is gone; the app looks for updates only at this project's releases on GitHub.
+
+### Fixed
+
+- Projects: a project whose folder is gone can be removed from the projects menu; its cross asks first, naming the agents that worked in it.
+- Accounts: Claude Code counts as ready when one of your accounts is signed in, even if this computer's own login is not, and a dot on Settings and Accounts shows while a login needs signing in.
+
 ## [0.3.1] - 2026-10-25
 
 ### Changed
@@ -225,7 +242,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.3.1...HEAD
+[Unreleased]: ../../compare/v0.4.0...HEAD
+[0.4.0]: ../../compare/v0.3.1...v0.4.0
 [0.3.1]: ../../compare/v0.3.0...v0.3.1
 [0.3.0]: ../../compare/v0.2.7...v0.3.0
 [0.2.7]: ../../compare/v0.2.6...v0.2.7
