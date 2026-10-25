@@ -69,7 +69,7 @@ test('a long plan gate in a small window shrinks and scrolls inside itself: the 
       return { vh: innerHeight, docScrollH: se.scrollHeight, docScrollTop: se.scrollTop, bodyScrollH: document.body.scrollHeight, header: r('header'), panel: r('.plan-gate'), log: r('.chat-log'), logScrollH: log?.scrollHeight, composer: r('.composer'), approve: r('.plan-gate .pg-acts .primary') }
     })
     await page.evaluate(() => {
-      const ta = document.querySelector('.composer textarea') as HTMLTextAreaElement
+      const ta = document.querySelector('.composer .cm-content') as HTMLElement
       const c = document.createElement('canvas'); c.width = 400; c.height = 300; const x = c.getContext('2d')!; x.fillStyle = '#c33'; x.fillRect(0, 0, 400, 300)
       return new Promise<void>((res) => c.toBlob((b) => { const dt = new DataTransfer(); dt.items.add(new File([b!], 'shot.png', { type: 'image/png' })); ta.focus(); ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); res() }))
     })

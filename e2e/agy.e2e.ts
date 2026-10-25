@@ -237,7 +237,7 @@ test('going back to an earlier message works on agy: the conversation shows only
     // agy removed the later steps from its file: the chat starts over from what is left, and the message is waiting to be sent again.
     await expect(page.locator('.chat:visible').getByText('echo: second thing')).toHaveCount(0, { timeout: 15_000 })
     await expect(page.locator('.chat:visible').getByText('echo: first thing')).toBeVisible()
-    await expect(box).toHaveValue('second thing')
+    await expect(box).toHaveAttribute('data-text', 'second thing')
   } finally {
     await shutdown()
   }

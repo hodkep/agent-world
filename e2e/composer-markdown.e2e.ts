@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('a little markdown is styled in place as you type, with no separate preview, and formatted in the sent message', async () => {
+test('markdown is drawn rendered in the message box as you type, its markers hidden away from the caret, and the sent text is what was typed', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-md-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -20,38 +20,58 @@ test('a little markdown is styled in place as you type, with no separate preview
     await page.getByRole('tab', { name: 'Chat' }).click()
     const box = page.getByRole('textbox', { name: /^Message/ })
     const preview = page.getByLabel('Preview of your message')
+    // The text is kept as typed; what is drawn leaves out the markers that are hidden.
+    const typed = () => box.getAttribute('data-text')
 
     await box.fill('plain words')
     await expect(preview).toHaveCount(0)
 
     // Commands, plugin skills and files are tinted wherever they are in the message, not only at the start.
     await box.fill('please run /compact then /impeccable:polish on @src/app.ts')
-    const mirror = page.locator('.composer-mirror')
-    await expect(mirror.locator('mark.tok-command')).toHaveText('/compact')
-    await expect(mirror.locator('mark.tok-plugin')).toHaveText('/impeccable:polish')
-    await expect(mirror.locator('mark.tok-file')).toHaveText('@src/app.ts')
+    await expect(box.locator('.tok-command')).toHaveText('/compact')
+    await expect(box.locator('.tok-plugin')).toHaveText('/impeccable:polish')
+    await expect(box.locator('.tok-file')).toHaveText('@src/app.ts')
 
-    // Styled where it is typed: the text stays as typed (so the caret lines up), and nothing is drawn above the box.
-    await box.fill('1. I mean sub-agent only\n2. ')
-    await expect(mirror.locator('.md-list')).toHaveText(['1. ', '2. '])
-    await expect(preview).toHaveCount(0)
-    await expect(box).toHaveValue('1. I mean sub-agent only\n2. ')
-    await expect.poll(() => mirror.evaluate((m) => m.textContent)).toBe('1. I mean sub-agent only\n2. \n')
-    await page.screenshot({ path: join(tmpdir(), 'aw-composer-list.png') })
+    // Rendered where it is typed: a heading is big and its hashes are hidden once the caret is on another line.
+    await box.fill('# Plan\n- one\n> said')
+    await box.press('ControlOrMeta+Home')
+    await expect(box.locator('.lm-h1')).toHaveText('# Plan')
+    await box.press('ArrowDown')
+    await expect(box.locator('.lm-h1')).toHaveText('Plan')
+    // On the bullet's own line it shows as typed; one line further down it is drawn as a bullet and the quote shows its mark.
+    await expect(box.locator('.lm-bullet')).toHaveCount(0)
+    await box.press('ArrowDown')
+    await expect(box.locator('.lm-bullet')).toHaveText('•')
+    await expect(box.locator('.lm-quote')).toHaveText('> said')
+    const big = await box.locator('.lm-h1').evaluate((e) => parseFloat(getComputedStyle(e).fontSize))
+    const small = await box.locator('.lm-bullet').evaluate((e) => parseFloat(getComputedStyle(e).fontSize))
+    expect(big).toBeGreaterThan(small)
+    expect(await typed()).toBe('# Plan\n- one\n> said')
+    await page.screenshot({ path: join(tmpdir(), 'aw-composer-live-block.png') })
 
-    await box.fill('> again\n\nmake it **bold** and *soft* and `code` please')
-    await expect(mirror.locator('.md-quote')).toHaveText('> ')
-    await expect(mirror.locator('.md-bold')).toHaveText('bold')
-    await expect(mirror.locator('.md-italic')).toHaveText('soft')
-    await expect(mirror.locator('.md-code')).toHaveText('code')
+    // The markers come back on the line the caret goes to.
+    await box.press('ControlOrMeta+Home')
+    await expect(box.locator('.lm-h1')).toHaveText('# Plan')
+
+    await box.fill('make it **bold** and *soft* and `code` please\n\n```\nls -la\n```\n\nafter')
+    await expect(box.locator('.lm-bold')).toHaveText('bold')
+    await expect(box.locator('.lm-italic')).toHaveText('soft')
+    await expect(box.locator('.lm-code')).toHaveText('code')
+    await expect(box.locator('.lm-codeline')).toHaveText('ls -la')
     await expect(preview).toHaveCount(0)
-    await page.screenshot({ path: join(tmpdir(), 'aw-composer-inline.png') })
+    await page.screenshot({ path: join(tmpdir(), 'aw-composer-live-inline.png') })
+
+    // Typing into a rendered line goes where the caret is, and the text is what was typed, hidden markers and all.
+    await box.press('ControlOrMeta+Home')
+    await box.press('End')
+    await box.pressSequentially(' now')
+    expect(await typed()).toBe('make it **bold** and *soft* and `code` please now\n\n```\nls -la\n```\n\nafter')
 
     await box.press('Enter')
     const sent = page.getByRole('log', { name: 'Conversation with ada' }).locator('.msg.user').last()
     await expect(sent.locator('strong')).toHaveText('bold', { timeout: 10_000 })
-    await expect(sent.locator('blockquote')).toContainText('again')
-    await expect(sent.locator('code')).toHaveText('code')
+    await expect(sent.locator('pre')).toContainText('ls -la')
+    await expect(sent.locator('code').first()).toHaveText('code')
     await expect(preview).toHaveCount(0)
 
     // Lines you wrote stay lines in the sent message, with the markdown drawn on top of them.

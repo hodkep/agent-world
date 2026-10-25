@@ -667,7 +667,33 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .composer { flex-direction: column; align-items: stretch; gap: 6px; }
 .composer.over { box-shadow: inset 0 0 0 3px var(--accent); }
 .composer-row { display: flex; gap: 8px; align-items: flex-end; }
-.composer.is-shell textarea { box-shadow: inset 3px 0 0 var(--ok); font-family: Menlo, Consolas, monospace; }
+/* The message box: the text as typed, drawn as the chat will show it (the markers hide away from the caret). */
+.composer-editor { width: 100%; }
+.composer-editor .cm-editor { background: transparent; color: var(--text); font: inherit; max-height: 180px; }
+.composer-editor .cm-editor.cm-focused { outline: none; }
+.composer-editor .cm-scroller { font: inherit; line-height: 1.45; overflow: auto; max-height: 180px; }
+.composer-editor .cm-content { min-height: 44px; padding: 10px 12px 4px; caret-color: var(--text); }
+.composer-editor .cm-line { padding: 0; }
+.composer-editor .cm-cursor { border-left-color: var(--text); }
+.composer-editor .cm-placeholder { color: var(--muted); }
+.composer-editor .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+.composer.is-shell .composer-editor .cm-content { font-family: Menlo, Consolas, monospace; box-shadow: inset 3px 0 0 var(--ok); }
+.composer-editor .lm-marker { color: var(--muted); }
+.composer-editor .lm-bold { font-weight: 700; }
+.composer-editor .lm-italic { font-style: italic; color: var(--think); }
+.composer-editor .lm-code { font: 12px Menlo, Consolas, monospace; background: var(--panel-3); padding: 1px 5px; box-shadow: 0 0 0 1px var(--ink); color: var(--ok-text); }
+.composer-editor .lm-link { color: var(--accent); text-decoration: underline; }
+.composer-editor .lm-num, .composer-editor .lm-bullet { color: var(--accent); }
+.composer-editor .lm-bullet { display: inline-block; width: 1ch; text-align: center; }
+.composer-editor .lm-h1, .composer-editor .lm-h2, .composer-editor .lm-h3 { font-weight: 700; line-height: 1.25; padding: 0.3em 0 0.15em; }
+.composer-editor .lm-h1 { font-size: 16px; }
+.composer-editor .lm-h2 { font-size: 15px; }
+.composer-editor .lm-h3 { font-size: 13px; color: var(--accent); }
+.composer-editor .lm-quote { border-left: 3px solid var(--line); padding-left: 8px; color: var(--muted); }
+.composer-editor .lm-codeline, .composer-editor .lm-fence { background: var(--panel-3); font: 12px Menlo, Consolas, monospace; padding: 0 8px; }
+.composer-editor .lm-codeline { color: var(--ok-text); }
+.composer-editor .lm-fence { color: var(--muted); }
+.composer-editor .lm-hide-line { height: 0; overflow: hidden; font-size: 0; line-height: 0; padding: 0; }
 .shell-badge { align-self: center; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); background: var(--ok); padding: 1px 6px; }
 .composer-foot { display: flex; align-items: center; gap: 10px; }
 .hint-keys { color: var(--muted); font-size: 11px; }
@@ -810,8 +836,6 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 /* The message box holds everything: text on top, one row of icons and chips under it. */
 .cbox { position: relative; background: var(--well); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), inset 0 2px 0 rgb(0 0 0 / 0.4); }
 .cbox:focus-within { box-shadow: 0 0 0 2px var(--accent), inset 0 2px 0 rgb(0 0 0 / 0.4); }
-.composer .cbox textarea { display: block; flex: none; width: 100%; min-height: 44px; max-height: 180px; border: 0; background: transparent; padding: 10px 12px 4px; }
-.composer .cbox textarea:focus-visible { outline: none; }
 .cbox .shell-badge { position: absolute; top: 8px; right: 8px; }
 .cbar { display: flex; align-items: center; gap: 4px; padding: 4px 6px 6px; }
 .cb-spacer { flex: 1; }
@@ -899,26 +923,14 @@ svg.pxi { display: block; flex: none; }
 .chat-menu { }
 
 /* The tint sits behind a see-through textarea; the mirror must match its font, padding, border and wrapping exactly. */
-.composer-input { position: relative; flex: 1; min-width: 0; display: flex; background: var(--well); }
-.composer-input textarea { background: transparent; position: relative; color: transparent; caret-color: var(--text); }
+.composer-input { position: relative; flex: 1; min-width: 0; display: block; background: var(--well); }
 /* The styled copy behind the box has no scrollbar, so the box must not either: a scrollbar makes the textarea's lines narrower than the copy's, and the two stop wrapping alike (the caret drifts off the text, and the line being typed hides). It still scrolls, and the copy follows. */
-.composer-input textarea { scrollbar-width: none; }
-.composer-input textarea::-webkit-scrollbar { display: none; }
-.composer-mirror { position: absolute; inset: 0; overflow: hidden; pointer-events: none; font: inherit; line-height: 1.45; padding: 6px 8px; border: 2px solid transparent; white-space: pre-wrap; overflow-wrap: break-word; color: var(--text); }
-.composer-mirror mark, .msg.user .bubble mark { color: inherit }
-.composer-mirror .tok-command, .msg.user .bubble .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
-.composer-mirror .tok-plugin, .msg.user .bubble .tok-plugin { background: color-mix(in srgb, var(--ok) 35%, transparent); box-shadow: 0 0 0 1px var(--ok); }
-.composer-mirror .tok-file, .msg.user .bubble .tok-file { background: color-mix(in srgb, var(--think) 30%, transparent); box-shadow: 0 0 0 1px var(--think); }
-.composer-mirror .md-mark, .composer-mirror .md-quote { color: var(--muted); }
-.composer-mirror .md-list { color: var(--accent); }
-.composer-mirror .md-bold { text-shadow: 0.6px 0 0 currentColor; color: var(--text); }
-.composer-mirror .md-italic { color: var(--think); }
-.composer-mirror .md-code { background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); color: var(--ok-text); }
-.composer.is-shell .composer-mirror { font-family: Menlo, Consolas, monospace; }
+.composer-editor .tok-command, .msg.user .bubble .tok-command { background: color-mix(in srgb, var(--accent) 35%, transparent); box-shadow: 0 0 0 1px var(--accent); }
+.composer-editor .tok-plugin, .msg.user .bubble .tok-plugin { background: color-mix(in srgb, var(--ok) 35%, transparent); box-shadow: 0 0 0 1px var(--ok); }
+.composer-editor .tok-file, .msg.user .bubble .tok-file { background: color-mix(in srgb, var(--think) 30%, transparent); box-shadow: 0 0 0 1px var(--think); }
+.msg.user .bubble mark { color: inherit }
 
 /* Inside the message box the tint sits behind a textarea that has its own padding and no border. */
-.cbox .composer-input { display: block; }
-.cbox .composer-mirror { padding: 10px 12px 4px; border: 0; }
 
 .no-bridge { max-width: 520px; margin: 12vh auto; padding: 0 16px; line-height: 1.5; }
 .no-bridge h1 { font-size: 14px; color: var(--accent); }

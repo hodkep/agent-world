@@ -136,7 +136,7 @@ test('a command or skill can be completed in the middle of a message', async () 
     const list = page.getByRole('listbox', { name: 'Suggestions' })
     await expect(list.getByRole('option').first()).toContainText('/security-review')
     await box.press('Tab')
-    await expect(box).toHaveValue('please run /security-review and then tidy up')
+    await expect(box).toHaveAttribute('data-text', 'please run /security-review and then tidy up')
   } finally {
     await run.shutdown()
   }

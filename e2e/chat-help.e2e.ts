@@ -23,7 +23,7 @@ test('chat: /help is answered in the chat with the commands, sends nothing to th
     const card = page.getByRole('region', { name: 'Commands' })
     await expect(card).toBeVisible()
     await expect(card).toContainText('/clear')
-    await expect(box).toHaveValue('')
+    await expect(box).toHaveAttribute('data-text', '')
     // Nothing was sent: no message from you appears, now or after a while.
     const log = page.getByRole('log', { name: 'Conversation with ada' })
     await page.waitForTimeout(1500)
@@ -31,7 +31,7 @@ test('chat: /help is answered in the chat with the commands, sends nothing to th
     await card.getByLabel('Filter commands').fill('clear')
     await card.getByRole('button', { name: /\/clear/ }).click()
     await expect(card).toHaveCount(0)
-    await expect(box).toHaveValue('/clear ')
+    await expect(box).toHaveAttribute('data-text', '/clear ')
   } finally {
     await shutdown()
   }

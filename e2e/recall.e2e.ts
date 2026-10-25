@@ -20,13 +20,13 @@ test('Ctrl+R searches earlier messages and cycles through older matches', async 
     for (const m of ['fix login one', 'add tests', 'fix login two']) {
       await box.fill(m)
       await box.press('Enter')
-      await expect(box).toHaveValue('')
+      await expect(box).toHaveAttribute('data-text', '')
     }
     await box.fill('login')
     await box.press('Control+r')
-    await expect(box).toHaveValue('fix login two')
+    await expect(box).toHaveAttribute('data-text', 'fix login two')
     await box.press('Control+r')
-    await expect(box).toHaveValue('fix login one')
+    await expect(box).toHaveAttribute('data-text', 'fix login one')
   } finally {
     await shutdown()
   }
