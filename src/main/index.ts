@@ -22,7 +22,7 @@ import { listProcs, stopProc } from './procs'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
@@ -1755,6 +1755,14 @@ async function main() {
     windowWorkspaces.forget(path)
     return workspaceInfo(e.sender.id)
   })
+  // A project whose folder is gone: it goes from the list with the agents that worked in it (their processes stop, their worktrees and records are deleted).
+  ipcMain.handle('workspaces:remove-missing', async (e, path: string) => {
+    if (isDir(path)) throw new Error('That folder is there; forget it instead.')
+    for (const a of agents.filter((x) => !x.parent && x.repoPath === path)) await removeAgent(a.id, 'discard')
+    setWorkspaces(forgetWorkspace(workspaces, path))
+    windowWorkspaces.forget(path)
+    return workspaceInfo(e.sender.id)
+  })
   ipcMain.handle('window:new', () => void createWindow())
   // The error page's Reload: the window's own navigation is locked (will-navigate), which also stops the page from reloading itself.
   ipcMain.handle('window:reload', (e) => e.sender.reload())
@@ -2212,7 +2220,10 @@ async function main() {
     sessions.get(id)?.kill()
     // An agent that took over another's worktree leaves it in place while the other still uses it.
     const shared = agents.some((x) => x.id !== id && x.cwd === a.cwd)
-    if (a.branch && mode !== 'keep-worktree' && !shared) {
+    if (a.branch && mode !== 'keep-worktree' && !shared && !isDir(a.repoPath)) {
+      // The repository the worktree hangs from is gone, so git cannot remove it: the folder goes, if it is one the office made.
+      if (a.cwd.startsWith(join(HOME, 'worktrees') + sep)) rmSync(a.cwd, { recursive: true, force: true })
+    } else if (a.branch && mode !== 'keep-worktree' && !shared) {
       try {
         await removeWorktree({ repoPath: a.repoPath, path: a.cwd, force: mode === 'discard' })
         // Only a branch with nothing unmerged goes with it; -d refuses otherwise, and the commits stay recoverable.

@@ -120,7 +120,7 @@ export function WorkspaceMenu({
                         {w.exists && <em className={w.git ? 'git' : ''}>{w.git ? 'git' : 'no git'}</em>}
                       </span>
                     </button>
-                    {w.saved && <button className="wt-x" onClick={() => onForget(w.path)} aria-label={`Forget ${w.name}`} title="Forget this project (nothing on disk is deleted)" />}
+                    {(w.saved || !w.exists) && <button className="wt-x" onClick={() => onForget(w.path)} aria-label={`${w.exists ? 'Forget' : 'Remove'} ${w.name}`} title={w.exists ? 'Forget this project (nothing on disk is deleted)' : 'Remove this project and the agents that worked in it (its folder is gone)'} />}
                   </div>
                 )
               })}
