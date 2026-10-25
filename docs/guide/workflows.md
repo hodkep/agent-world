@@ -84,7 +84,7 @@ A branch that shares no history with its base (the base was rewritten) cannot be
 ## Make or change a workflow
 
 1. Type a sentence in **Describe a workflow to the builder** and click **Start with the builder**, or click **Open the builder** to start empty. To change a saved one, click **Edit with the builder**: a fresh chat starts with it as the draft.
-2. The builder only proposes. Talk to it, or edit the draft: names, briefs, skills, a check's command, **Tries** and stop, and steps (**▲ ▼**, **✕**, **＋ Add step**). **You edited N things** counts your changes; **Undo edits** goes back to the proposal. Under the steps, **Preview** says for each one what it will ask of you and where you stop; it follows your edits.
+2. The builder only proposes. Talk to it, or edit the draft. The steps are drawn as a flow, top to bottom, a card for each: who does it (the agent, a command, a reviewer, or you) with its name, what it is told, and where it stops. Dashed lines show the loops back (a check that is tried again, work sent back). Click a card to change its name, brief, a check's command, **Tries**, stop and skills; drag a card to move it, or use **Move up**, **Move down** and **Remove** under it; **Add a step** lists the kinds. In a narrow panel the same steps are a plain list. **You edited N things** counts your changes; **Undo edits** goes back to the proposal. Under the steps, **Preview** says for each one what it will ask of you and where you stop; it follows your edits.
 3. Saving waits while the draft has a problem. Click **Save to** the project, or **Save for everything**; saving approves exactly the commands the draft lists.
 
 ![The builder's draft](../images/workflow-builder.png)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addStep, moveStep, removeStep, setStep } from './stepEdit'
+import { addStep, moveStep, moveStepTo, removeStep, setStep } from './stepEdit'
 import { STEPS_MAX, type Workflow } from './workflow'
 
 const wf = (): Workflow => ({ version: 1, id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', skills: ['tdd'] }, { id: 'land', kind: 'merge' }] })
@@ -10,6 +10,14 @@ describe('editing the steps of a workflow draft', () => {
     expect(moveStep(wf(), 1, 1).steps.map((s) => s.id)).toEqual(['plan', 'land', 'build'])
     expect(moveStep(wf(), 0, -1).steps.map((s) => s.id)).toEqual(['plan', 'build', 'land'])
     expect(moveStep(wf(), 2, 1).steps.map((s) => s.id)).toEqual(['plan', 'build', 'land'])
+  })
+
+  it('moves a step to any place, as when it is dragged there', () => {
+    expect(moveStepTo(wf(), 0, 2).steps.map((s) => s.id)).toEqual(['build', 'land', 'plan'])
+    expect(moveStepTo(wf(), 2, 0).steps.map((s) => s.id)).toEqual(['land', 'plan', 'build'])
+    expect(moveStepTo(wf(), 1, 1)).toEqual(wf())
+    expect(moveStepTo(wf(), 1, 9).steps.map((s) => s.id)).toEqual(['plan', 'land', 'build'])
+    expect(moveStepTo(wf(), 7, 0)).toEqual(wf())
   })
 
   it('removes a step, but not the last one', () => {
