@@ -3361,6 +3361,8 @@ svg.pxg { display: block; flex: none; }
 .si-inline { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .si-inline input { width: 52px; }
 .si-switches { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.si-when { display: flex; flex-direction: column; gap: 5px; }
+.si-when small { font-size: 11px; }
 .si-sw { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; font-size: 12px; color: var(--muted); }
 .si-sw input { appearance: none; width: 30px; height: 16px; margin: 0; padding: 0; flex: none; background: var(--panel-3); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); position: relative; cursor: inherit; }
 .si-sw input::after { content: ''; position: absolute; left: 1px; top: 1px; width: 10px; height: 10px; background: var(--dim); }

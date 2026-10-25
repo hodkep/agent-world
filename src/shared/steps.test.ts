@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepSkipped, stepStates, toRunSteps, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -441,3 +441,34 @@ describe('the same settings on every kind of step', () => {
     expect(stepSkipped('Extra')).toBe('Your step "Extra" was skipped by the person: it is optional. Go on with the next step.')
   })
 })
+
+describe('a plan or a build that starts when the person presses Run', () => {
+  const GATED: RunWorkflow = { id: 'g', name: 'G', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', start: 'run', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', start: 'run' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test' }] }
+  const start = (id: string, t = 150): RunEvent => ({ k: 'start', t, run: 'r1', round: 1, step: id })
+  const of = (events: RunEvent[]) => stepStates(reduceRuns(events)[0]!, { auditOn: false }).map((s) => `${s.id}:${s.state}${s.toRun ? '+run' : ''}`)
+
+  it('waits for Run before it begins, and the steps after it wait behind it', () => {
+    expect(of([begin(GATED)])).toEqual(['plan:waiting+run', 'build:pending', 'tests:pending'])
+  })
+  it('begins once Run was pressed: the plan is the agent\'s to write, and waits for approval when handed in', () => {
+    expect(of([begin(GATED), start('plan')])).toEqual(['plan:running', 'build:pending', 'tests:pending'])
+    expect(of([begin(GATED), start('plan'), submitted(200)])).toEqual(['plan:waiting', 'build:pending', 'tests:pending'])
+  })
+  it('a build that starts on Run waits for it once the plan is approved, and runs after it', () => {
+    const planned = [begin(GATED), start('plan'), submitted(200), decided('approved', 300)]
+    expect(of(planned)).toEqual(['plan:passed', 'build:waiting+run', 'tests:pending'])
+    expect(of([...planned, start('build', 350)])).toEqual(['plan:passed', 'build:running', 'tests:pending'])
+  })
+  it('is listed among the steps waiting for Run', () => {
+    expect(toRunSteps(reduceRuns([begin(GATED)]), () => ({ auditOn: false })).map((x) => x.step.id)).toEqual(['plan'])
+  })
+  it('a step that starts by itself, or a plan nobody needs, never waits for Run', () => {
+    const quiet: RunWorkflow = { ...GATED, steps: GATED.steps.map((s) => (s.id === 'plan' ? { ...s, gate: 'auto' as const, start: 'run' as const } : s)) }
+    expect(of([begin(quiet), { k: 'plan', t: 160, run: 'r1', round: 1, state: 'released' }])[0]).toBe('plan:passed')
+    expect(of([begin(STANDARD)])).toEqual(['plan:running', 'build:pending', 'review:skipped', 'land:pending'])
+  })
+  it('says what the agent is told when the person presses Run', () => {
+    expect(stepStarted('Generate plan')).toBe('The person pressed Run: start your step "Generate plan" now.')
+  })
+})
+

@@ -168,3 +168,46 @@ test('an optional step is skipped from its card and the run goes on; a check tha
     await shutdown()
   }
 })
+
+test('a plan that starts when you press Run waits for it, in the chat and on its card; pressing Run tells the agent to begin', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-runflow3-')))
+  const repo = join(tmp, 'shop')
+  mkdirSync(repo)
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' }).trim()
+  git(repo, 'init', '-q', '-b', 'main')
+  writeFileSync(join(repo, 'README.md'), '# shop\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'init')
+  const home = join(tmp, 'home')
+  mkdirSync(home, { recursive: true })
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  const flow = { id: 'gen', name: 'Generate', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', gate: 'approve', start: 'run' }, { id: 'build', kind: 'work', name: 'Build' }] }
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    appendFileSync(join(home, 'runs.jsonl'), JSON.stringify({ k: 'begin', t: Date.now() - 2000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a toggle', workflow: flow }) + '\n')
+    await page.reload()
+
+    // The chat holds the press: the agent is told to wait, and nothing has started.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const gate = page.getByRole('region', { name: 'Run Generate plan for ada' })
+    await expect(gate).toContainText('edits nothing before that')
+    await page.getByRole('tab', { name: 'Workflow' }).click()
+    const card = page.locator('.react-flow__node').first()
+    await expect(card).toContainText('press Run')
+    await expect(card).toContainText('starts when you press Run')
+
+    // Run on the card begins it: the card says it is working, and the chat's card is gone.
+    await card.getByRole('button', { name: 'Run', exact: true }).evaluate((el) => (el as HTMLElement).click())
+    await expect(card).toContainText('working', { timeout: 15_000 })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await expect(page.getByRole('region', { name: 'Run Generate plan for ada' })).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})

@@ -2,10 +2,10 @@ import type { RunStep } from '../../../shared/runs'
 import type { StepState } from '../../../shared/steps'
 
 /** What the person can press on a step of a run: Run, for a check or an audit that starts that way, or Approve (with Send back) for a step that asks. */
-export type RunAction = { kind: 'run'; label: string; call: 'check' | 'audit' } | { kind: 'approve'; label: string; plan?: true }
+export type RunAction = { kind: 'run'; label: string; call: 'check' | 'audit' | 'start' } | { kind: 'approve'; label: string; plan?: true }
 
 export function actionOf(s: StepState, step: RunStep): RunAction | null {
-  if (s.toRun) return s.kind === 'audit' ? { kind: 'run', label: 'Run audit', call: 'audit' } : { kind: 'run', label: 'Run', call: 'check' }
+  if (s.toRun) return s.kind === 'audit' ? { kind: 'run', label: 'Run audit', call: 'audit' } : s.kind === 'check' ? { kind: 'run', label: 'Run', call: 'check' } : { kind: 'run', label: 'Run', call: 'start' }
   if (s.state !== 'waiting') return null
   if (s.kind === 'plan') return { kind: 'approve', label: 'Approve plan', plan: true }
   if (s.kind === 'approve' || s.kind === 'work' || s.awaiting) return { kind: 'approve', label: step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve' }

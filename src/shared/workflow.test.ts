@@ -75,7 +75,7 @@ describe('reading a workflow file', () => {
       'Step 3 ("c"): "model" only belongs on an audit step.',
       'Step 4 ("d"): "gate" for an approve step must be approve.',
       'Step 4 ("d"): "skills" only belongs on a plan, work or pr step.',
-      'Step 5 ("e"): "start" only belongs on a check, audit or pr step.',
+      'Step 5 ("e"): "start" only belongs on a plan, work, check, audit or pr step.',
       'Step 5 ("e"): "skills" only belongs on a plan, work or pr step.',
       'Step 7 ("g"): "name" must be text of up to 40 characters.',
       'Step 7 ("g"): "brief" must be text of up to 600 characters.',
@@ -112,6 +112,10 @@ describe('reading a workflow file', () => {
       'Step 3 ("c"): "optional" only belongs on a work, check, audit or approve step.',
       'Step 4 ("d"): "optional" must be true or false.'
     ])
+  })
+  it('lets the agent\'s own steps, a plan or a build, wait for the person to press Run before they start', () => {
+    expect(withSteps([{ id: 'plan', kind: 'plan', start: 'run' }, { id: 'build', kind: 'work', start: 'run' }])).toEqual([])
+    expect(withSteps([{ id: 'ok', kind: 'approve', start: 'run' }])).toEqual(['Step 1 ("ok"): "start" only belongs on a plan, work, check, audit or pr step.'])
   })
   it('refuses a start that is not auto or run', () => {
     expect(withSteps([{ id: 'a', kind: 'audit', start: 'later' }])).toEqual(['Step 1 ("a"): "start" must be auto or run.'])

@@ -1694,3 +1694,65 @@ describe('skipping an optional step', () => {
     expect(() => wf.skipStep('nope', 'extra')).toThrow('No such run.')
   })
 })
+
+describe('a plan or a build that starts when the person presses Run', () => {
+  const FLOW: RunWorkflow = { id: 'g', name: 'G', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', start: 'run', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', start: 'run' }] }
+  const open = () => {
+    const o = make()
+    o.state.pick = () => FLOW
+    o.wf.begin('a1', 'Task')
+    return o
+  }
+  const rid = (wf: Workflows) => wf.runs()[0]!.id
+  const state = (wf: Workflows, id: string) => stepStates(wf.runs()[0]!, { auditOn: false }).find((s) => s.id === id)!
+
+  it('holds every edit and commit from the start until Run is pressed, and says on which step', () => {
+    const { wf } = open()
+    expect(state(wf, 'plan')).toMatchObject({ state: 'waiting', toRun: true })
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toBe('Not yet: the person has not pressed Run on "Generate plan". Wait until you are told to start it.')
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toContain('has not pressed Run')
+  })
+
+  it('Run starts the plan: the hold is then the plan\'s own, until it is approved; the build then waits for its own Run', () => {
+    const { wf } = open()
+    expect(wf.startStep(rid(wf), 'plan')).toBe('Generate plan')
+    expect(state(wf, 'plan').state).toBe('running')
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toContain('wants your plan approved first')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(rid(wf), 'approved')
+    expect(state(wf, 'build')).toMatchObject({ state: 'waiting', toRun: true })
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toContain('has not pressed Run on "Build"')
+    wf.startStep(rid(wf), 'build')
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toBeNull()
+  })
+
+  it('refuses the agent\'s step_done for a build the person has not started', () => {
+    const { wf } = open()
+    wf.startStep(rid(wf), 'plan')
+    wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
+    wf.decide(rid(wf), 'approved')
+    expect(() => wf.stepDone('a1', 'build')).toThrow('The person has not pressed Run on "Build" yet.')
+    wf.startStep(rid(wf), 'build')
+    expect(wf.stepDone('a1', 'build').done).toBe('build')
+  })
+
+  it('refuses a Run for a step that does not wait for it, one that is not its turn, one already started, and a run that is not there', () => {
+    const { wf } = open()
+    expect(() => wf.startStep(rid(wf), 'build')).toThrow('That step is not waiting for Run.')
+    expect(() => wf.startStep(rid(wf), 'nope')).toThrow('No such step.')
+    expect(() => wf.startStep('nope', 'plan')).toThrow('No such run.')
+    wf.startStep(rid(wf), 'plan')
+    expect(() => wf.startStep(rid(wf), 'plan')).toThrow('That step is not waiting for Run.')
+    const plain = make()
+    plain.state.pick = () => ({ ...FLOW, steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, FLOW.steps[1]!] })
+    plain.wf.begin('a1', 'Task')
+    expect(() => plain.wf.startStep(plain.wf.runs()[0]!.id, 'plan')).toThrow('That step does not wait for Run.')
+  })
+
+  it('a step that starts by itself is held by nothing but the plan gate, as before', () => {
+    const o = make()
+    o.state.pick = () => ({ ...FLOW, steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }] })
+    o.wf.begin('a1', 'Task')
+    expect(o.wf.editBlock('a1', '/w/src/a.ts', '/w')).toBeNull()
+  })
+})

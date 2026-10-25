@@ -115,16 +115,22 @@ export function StepInspector({ wf, at, skills, skillStates, switches, change }:
       )}
       <div className="si-switches" role="group" aria-label={`Settings of step ${n}`}>
         {START_KINDS.includes(s.kind) && (
-          <div className="se-opts">
-            <span className="se-lbl">Starts</span>
-            <span className="se-seg" role="group" aria-label={`Start of step ${n}`}>
-              <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>By itself</button>
-              <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>When I press Run</button>
-            </span>
+          <div className="si-when">
+            <div className="se-opts">
+              <span className="se-lbl">Before it starts</span>
+              <span className="se-seg" role="group" aria-label={`Start of step ${n}`}>
+                <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>Starts by itself</button>
+                <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>When I press Run</button>
+              </span>
+            </div>
+            <small className="muted">{s.start === 'run' ? (who === 'agent' ? 'It does not start until you press Run: the agent edits nothing before.' : 'It does not start until you press Run.') : 'It starts as soon as its turn comes.'}</small>
           </div>
         )}
-        <Switch on={approves} disabled={s.kind === 'approve'} label="Needs my approval" hint={s.kind === 'approve' ? 'A step of yours always waits for you.' : 'When it is done, it waits for you to approve it or send it back.'} onChange={setApproval} />
-        {s.kind === 'check' && <Switch on={mustPass} disabled={s.gate === 'approve'} label="Must pass" hint={s.gate === 'approve' ? 'A check you approve has to pass first.' : 'A check that fails every try holds the run until you decide.'} onChange={(on) => patch({ gate: on ? 'pass' : undefined })} />}
+        <div className="si-when">
+          <span className="se-lbl">When it is done</span>
+          <Switch on={approves} disabled={s.kind === 'approve'} label="Needs my approval" hint={s.kind === 'approve' ? 'A step of yours always waits for you.' : 'When it is done, the run waits for you to approve it or send it back before the next step.'} onChange={setApproval} />
+          {s.kind === 'check' && <Switch on={mustPass} disabled={s.gate === 'approve'} label="Must pass" hint={s.gate === 'approve' ? 'A check you approve has to pass first.' : 'A check that fails every try holds the run until you decide.'} onChange={(on) => patch({ gate: on ? 'pass' : undefined })} />}
+        </div>
         {OPTIONAL_KINDS.includes(s.kind) && <Switch on={!!s.optional} label="Optional" hint="You can skip it, and the run goes on." onChange={(on) => patch({ optional: on ? true : undefined })} />}
       </div>
     </div>

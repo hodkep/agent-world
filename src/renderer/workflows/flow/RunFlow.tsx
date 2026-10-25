@@ -97,7 +97,7 @@ function Flow({ run, ctx }: { run: Run; ctx: StepContext }) {
   const wfKey = JSON.stringify(wf)
   const act: Act = async (step, action, how, note) => {
     const w = window.aw.workflows
-    if (action.kind === 'run') return action.call === 'audit' ? window.aw.finishAudit(run.agent) : w.runCheck(run.id, step.id)
+    if (action.kind === 'run') return action.call === 'audit' ? window.aw.finishAudit(run.agent) : action.call === 'start' ? w.startStep(run.id, step.id) : w.runCheck(run.id, step.id)
     if (action.plan) return w.decide(run.id, how === 'go' ? 'approved' : 'changes', note ? { note } : undefined)
     return w.approveStep(run.id, step.id, how === 'go' ? 'approved' : 'changes', note)
   }

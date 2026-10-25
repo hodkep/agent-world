@@ -7,10 +7,11 @@ export function RunGate({ agentName, run, step }: { agentName: string; run: Run;
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const audit = step.kind === 'audit'
+  const agents = step.kind === 'plan' || step.kind === 'work'
   const go = () => {
     setBusy(true)
     setError('')
-    const call = audit ? window.aw.finishAudit(run.agent) : window.aw.workflows.runCheck(run.id, step.id)
+    const call = audit ? window.aw.finishAudit(run.agent) : agents ? window.aw.workflows.startStep(run.id, step.id) : window.aw.workflows.runCheck(run.id, step.id)
     call.then(
       () => setBusy(false),
       (e: Error) => (setBusy(false), setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
@@ -28,12 +29,14 @@ export function RunGate({ agentName, run, step }: { agentName: string; run: Run;
         <p className="pg-task">
           {audit
             ? `${run.workflow?.name}: a reviewer reads ${agentName}'s branch against the plan when you press Run audit. Nothing starts before that.`
-            : `${run.workflow?.name}: the app runs ${step.run ? `\`${step.run}\` ` : 'the check '}in ${agentName}'s worktree when you press Run. Nothing has run yet.`}
+            : agents
+              ? `${run.workflow?.name}: ${agentName} is waiting. It starts this step when you press Run, and edits nothing before that.`
+              : `${run.workflow?.name}: the app runs ${step.run ? `\`${step.run}\` ` : 'the check '}in ${agentName}'s worktree when you press Run. Nothing has run yet.`}
         </p>
         {error && <p className="error" role="alert">{error}</p>}
         <div className="pg-acts">
           <button className="primary" disabled={busy} onClick={go}>{audit ? 'Run audit' : 'Run'}</button>
-          {!audit && <button disabled={busy} onClick={() => void window.aw.workflows.skipCheck(run.id, step.id)}>Skip this check</button>}
+          {!audit && !agents && <button disabled={busy} onClick={() => void window.aw.workflows.skipCheck(run.id, step.id)}>Skip this check</button>}
           {audit && step.optional && <button disabled={busy} title="It is optional: the run goes on without it." onClick={() => void window.aw.finishAside(run.agent)}>Skip</button>}
         </div>
       </div>

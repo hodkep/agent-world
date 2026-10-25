@@ -23,6 +23,8 @@ export type RunEvent =
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
   | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun'; note?: string; implicit?: boolean }
+  /** The person pressed Run on a step that starts that way, in this round: it may begin. */
+  | { k: 'start'; t: number; run: string; round: number; step: string }
   | { k: 'check'; t: number; run: string; round: number; step: string; head: string; attempt: number; ok: boolean; exit: number | null; timedOut: boolean; ms: number; tail: string }
   | { k: 'commit'; t: number; run: string; sha: string; subject: string; flagged?: boolean; /** The round it was made in; the latest when not given. */ round?: number }
   /** A model's review of the branch head against the plan, or why it could not be done. */
@@ -117,6 +119,8 @@ export interface Round {
   plan?: RoundPlan
   steps: StepLog[]
   checks: CheckLog[]
+  /** When the person pressed Run on each step that starts that way, by step id. */
+  starts?: Record<string, number>
 }
 export type RunAudit =
   | { head: string; t: number; state: 'failed'; reason: string }
@@ -189,6 +193,9 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       }
     } else if (e.k === 'step') {
       r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })
+    } else if (e.k === 'start') {
+      const into = r.rounds.find((x) => x.n === e.round)
+      if (into) into.starts = { ...into.starts, [e.step]: e.t }
     } else if (e.k === 'check') {
       r.rounds.find((x) => x.n === e.round)?.checks.push({ step: e.step, t: e.t, head: e.head, attempt: e.attempt, ok: e.ok, exit: e.exit, timedOut: e.timedOut, ms: e.ms, tail: e.tail })
     } else if (e.k === 'commit') {
