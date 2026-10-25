@@ -35,6 +35,8 @@ test('agents: holding Ctrl and pressing Tab shows the bar, more presses step it,
     await page.keyboard.press('Tab')
     await expect(bar).toBeVisible()
     await expect(bar.locator('.wt')).toHaveCount(3)
+    // A cell holds its tile and nothing else: no stray words beside it.
+    expect(await bar.locator('.sb-cell').evaluateAll((cells) => cells.flatMap((c) => [...c.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim()).map((n) => n.textContent!.trim())))).toEqual([])
     const first = (await on.textContent())!
     expect(first).not.toBe('cy')
     await page.keyboard.press('Tab')
