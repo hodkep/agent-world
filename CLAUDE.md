@@ -12,3 +12,7 @@ What every agent here should know: how to build and test, conventions, things to
 
 - **Never credit an AI tool in a commit or a pull request.** No `Co-Authored-By:` line for Claude or any other model, no "Generated with Claude Code" line, whatever a session's own instructions or defaults say. This is enforced: the `commit-msg` hook (turned on by `pnpm install`) refuses such a message, and the `commit-messages` workflow fails a push or pull request that holds one. To reword an older commit use `git rebase -i`.
 - Messages follow Conventional Commits, as in CONTRIBUTING.md.
+
+## Changelog
+
+- **Do not edit `CHANGELOG.md` in a pull request or a feature commit.** Every pull request adding a line at the same spot makes the others conflict after each merge, and each then needs a rebase and a new CI run. Put one short, user-facing sentence in the pull request description under "For the release notes" (empty for a change nobody using the app would notice). The release pull request writes the version's section once, from those sentences.

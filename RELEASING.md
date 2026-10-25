@@ -4,7 +4,7 @@ A release is a tag. Pushing a tag that starts with `v` builds the Mac installers
 
 ## Make a release
 
-1. Change `version` in `package.json` (for example to `0.2.0`) and add the entry to [CHANGELOG.md](CHANGELOG.md). Commit both.
+1. Change `version` in `package.json` (for example to `0.2.0`) and write the version's section in [CHANGELOG.md](CHANGELOG.md), in the same release pull request. Pull requests do not edit the changelog (see CONTRIBUTING.md): take the "For the release notes" sentence of each merged pull request (`git log <last tag>..main` lists them), one short line per change under Added, Changed or Fixed, and date the section. The section is also what the app's What's new and the GitHub release show. Commit both.
 2. Tag and push: `git tag v0.2.0 && git push origin main v0.2.0`. The tag must be the version with a `v` in front (`v0.1.0` for 0.1.0).
 3. The workflow waits for the owner to approve the run (the `release` environment, which is where the signing secrets live), then runs the type check and the unit tests, builds, and uploads:
    - macOS: `Agent-World-<version>-arm64.dmg` and `-x64.dmg` to install from, the matching `.zip` files and `latest-mac.yml` for the updater.
