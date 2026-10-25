@@ -8,9 +8,14 @@ describe('preferences', () => {
   it('start from the defaults when there is no file', () => {
     expect(loadPrefs(join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'none.json'))).toEqual(DEFAULT_PREFS)
   })
+  it('drops the update address an older version saved: updates come from the project only', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'p.json')
+    writeFileSync(file, JSON.stringify({ ...DEFAULT_PREFS, updateUrl: 'https://x.example/' }))
+    expect(loadPrefs(file)).toEqual(DEFAULT_PREFS)
+  })
   it('round-trip through the file', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'p.json')
-    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, updateUrl: 'https://x.example/', defaults: { provider: 'agy' as const, model: 'haiku', permissionMode: 'plan', inPlace: true, accounts: { claude: 'work' } }, accounts: [{ id: 'work', name: 'Work', provider: 'claude' as const }] }
+    const p = { ...DEFAULT_PREFS, notifications: 'attention' as const, providers: { claude: { path: '/opt/claude' } }, defaults: { provider: 'agy' as const, model: 'haiku', permissionMode: 'plan', inPlace: true, accounts: { claude: 'work' } }, accounts: [{ id: 'work', name: 'Work', provider: 'claude' as const }] }
     savePrefs(file, p)
     expect(loadPrefs(file)).toEqual(p)
   })

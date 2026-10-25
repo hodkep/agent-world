@@ -23,6 +23,8 @@ test('settings are saved as you change them and set what a new agent starts with
     await dialog.getByRole('tab', { name: 'Updates' }).click()
     await dialog.getByRole('button', { name: 'Check now' }).click()
     await expect(dialog.getByRole('status')).toContainText('only work in the installed app')
+    // Updates come from the project's releases only: there is no address to give.
+    await expect(dialog.getByLabel('Update address')).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Close settings' }).click()
 
     await page.locator('header').getByRole('button', { name: '+ Agent' }).click()

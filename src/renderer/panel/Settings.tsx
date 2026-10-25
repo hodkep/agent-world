@@ -77,7 +77,6 @@ type Pane = (typeof PANES)[number]['id']
 export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, signIns = 0, onSignIns, updateAgents = { working: 0, waiting: 0 } }: { initialPane?: string; /** Logins waiting for a sign-in: a dot on Accounts. */ signIns?: number; onSignIns?: (n: number) => void;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
-  const [url, setUrl] = useState(prefs.updateUrl)
   // Turning workflows off while runs are open asks what to do with them first.
   const [asking, setAsking] = useState<Run[] | null>(null)
   const setWorkflows = (enabled: boolean) => set({ workflows: switchWorkflows(prefs.workflows, enabled, Date.now()) })
@@ -297,11 +296,6 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                 <button className="su-link" onClick={() => setNotesOpen(true)}>What's new</button>
                 <button onClick={() => void window.aw.checkUpdates()} disabled={check.disabled} title={check.reason}>{check.label}</button>
               </div>
-              <p className="set-lead">Where to look for a newer version. Leave it empty to use this project's releases on GitHub, or give a folder on the web that holds the files the build step produces.</p>
-              <label>
-                Update address
-                <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => url.trim() !== prefs.updateUrl && set({ updateUrl: url.trim() })} placeholder="https://example.com/agent-world/" />
-              </label>
               <div className="settings-row">
                 <span className="hint" role="status">{update}</span>
               </div>
