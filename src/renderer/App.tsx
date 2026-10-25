@@ -81,8 +81,9 @@ import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
 import { landingPill, trackOf } from '../shared/runTrack'
 import { landingKind } from '../shared/workflow'
 import { pendingPlans } from '../shared/runs'
-import { checkPanels, waitingSteps } from '../shared/steps'
+import { checkPanels, toRunSteps, waitingSteps } from '../shared/steps'
 import { CheckGate } from './workflows/CheckGate'
+import { RunGate } from './workflows/RunGate'
 import { StepGate } from './workflows/StepGate'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
@@ -841,10 +842,12 @@ export function App() {
     const p = pendingPlans(wf.runs).find((x) => x.run.agent === a.id)
     const w = waitingSteps(wf.runs.filter((r) => r.agent === a.id), stepCtx).at(0)
     const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
+    const r = toRunSteps(wf.runs.filter((x) => x.agent === a.id), ctxFor).at(0)
     return (
       <>
         {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
         {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
+        {r && <RunGate key={`${r.run.id}-${r.step.id}`} agentName={a.name} run={r.run} step={r.step} />}
         {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
       </>
     )

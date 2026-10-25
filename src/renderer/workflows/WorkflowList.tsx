@@ -2,15 +2,14 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import type { Run } from '../../shared/runs'
 import { workflowRuns } from '../../shared/runStats'
 import { type SkillState, goneSkills } from '../../shared/skills'
-import { type Chip, type Step, type WorkflowEntry, stepChips } from '../../shared/workflow'
+import type { WorkflowEntry } from '../../shared/workflow'
+import { FlowCanvas } from './flow/FlowCanvas'
 import { NO_WORKFLOW } from '../../shared/workflows'
 import { History } from './History'
 
-const KIND_LABEL: Record<Step['kind'], string> = { plan: 'plan', work: 'build', check: 'check', audit: 'audit', approve: 'your approval', pr: 'pull request', merge: 'land' }
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
 
-/** What a step does, in the words of its file, for the detail beside the list. */
 export const SKILL_WORDS: Record<SkillState, string> = { ready: '', granted: "this step grants it: not in the project's playbook", gone: 'not in the library' }
 
 /** What a work step's skills are here: ready, granted by the step, or not in the library. */
@@ -27,24 +26,6 @@ export function SkillChips({ ids, states }: { ids: string[]; states?: Record<str
         )
       })}
     </div>
-  )
-}
-
-export function StepRow({ step, chip, skills }: { step: Step; chip: Chip; skills?: Record<string, SkillState> }) {
-  return (
-    <li className={`wfl-step k-${step.kind}`}>
-      <span className="wfl-dot" aria-hidden="true" />
-      <div>
-        <b>{chip.label}</b>
-        {chip.stops && <span className="wf-tag flag">you approve</span>}
-        {step.gate === 'pass' && <span className="wf-tag">must pass</span>}
-        <span className="mono muted"> {KIND_LABEL[step.kind]}</span>
-        {step.run && <span className="mono muted"> · runs: {step.run}{step.retries ? ` (sent back up to ${step.retries} time${step.retries === 1 ? '' : 's'})` : ''}</span>}
-        {step.model && <span className="mono muted"> · {step.model}</span>}
-        {step.brief && <div className="muted">{step.brief}</div>}
-        {step.skills?.length ? <SkillChips ids={step.skills} states={skills} /> : null}
-      </div>
-    </li>
   )
 }
 
@@ -144,9 +125,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                   </p>
                 ) : null
               })()}
-              <ol className="wfl-steps" aria-label="Steps">
-                {wf.steps.map((s, i) => <StepRow key={s.id} step={s} chip={stepChips(wf, switches)[i]!} skills={shown.skills} />)}
-              </ol>
+              <FlowCanvas steps={wf.steps} selected={null} skillStates={shown.skills} switches={switches} onSelect={() => {}} />
               {shown.file && <span className="mono muted" data-reveal={shown.file} title="Right-click to reveal this file">{shown.file}</span>}
               {removing ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>

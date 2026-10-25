@@ -59,7 +59,7 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onC
           The saved workflow changed after this was proposed. Ask the builder to look at it again; saving is off until it does.
         </p>
       )}
-      <StepEditor agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
+      <StepEditor agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} switches={switches} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
       <details className="bs-preview" open aria-label="Preview of the workflow">
         <summary>
           <b>Preview</b>

@@ -13,7 +13,21 @@ const DOES: Record<StepKind, string> = {
   merge: 'You land it into the base branch'
 }
 
-/** The way to add a step: the kinds, each with what it does, in a menu under the button. */
+/** The kinds of step, each with what it does: the list a new step is picked from. */
+export function KindMenu({ onPick, label = 'Add a step' }: { onPick: (kind: StepKind) => void; label?: string }) {
+  return (
+    <div className="fl-add-menu" role="menu" aria-label={label}>
+      {STEP_KINDS.map((k) => (
+        <button key={k} role="menuitem" onClick={() => onPick(k)}>
+          <span className={`fl-who a-${ACTOR[k]}`}><PixelIcon name={ACTOR[k] === 'reviewer' ? 'review' : (ACTOR[k] as 'agent' | 'command' | 'you')} /></span>
+          <span><b>{KIND_LABEL[k]}</b><small>{DOES[k]}</small></span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** The way to add a step at the end: the kinds in a menu under the button. */
 export function AddStepMenu({ onAdd }: { onAdd: (kind: StepKind) => void }) {
   const [open, setOpen] = useState(false)
   const wrap = useRef<HTMLDivElement>(null)
@@ -30,16 +44,7 @@ export function AddStepMenu({ onAdd }: { onAdd: (kind: StepKind) => void }) {
       <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <PixelIcon name="plus" scale={1} /> Add a step
       </button>
-      {open && (
-        <div className="fl-add-menu" role="menu" aria-label="Add a step">
-          {STEP_KINDS.map((k) => (
-            <button key={k} role="menuitem" onClick={() => (setOpen(false), onAdd(k))}>
-              <span className={`fl-who a-${ACTOR[k]}`}><PixelIcon name={ACTOR[k] === 'reviewer' ? 'review' : (ACTOR[k] as 'agent' | 'command' | 'you')} /></span>
-              <span><b>{KIND_LABEL[k]}</b><small>{DOES[k]}</small></span>
-            </button>
-          ))}
-        </div>
-      )}
+      {open && <KindMenu onPick={(k) => (setOpen(false), onAdd(k))} />}
     </div>
   )
 }

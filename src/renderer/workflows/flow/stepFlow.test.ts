@@ -49,12 +49,22 @@ describe('the chips on a step', () => {
   const words = (s: Step) => chipsOf(s).map((c) => c.text)
   it('say who has to act: approving, confirming, passing', () => {
     expect(words(step('plan', { gate: 'approve' }))).toEqual(['you approve'])
-    expect(words(step('check', { run: 'npm test', gate: 'pass' }))).toEqual(['must pass', '2 tries'])
+    expect(words(step('check', { run: 'npm test', gate: 'pass' }))).toEqual(['must pass', '2 retries'])
     expect(words(step('pr', { gate: 'approve' }))).toEqual(['you confirm'])
   })
   it('say nothing for a step that just goes on', () => {
     expect(words(step('work'))).toEqual([])
     expect(words(step('audit'))).toEqual([])
+  })
+  it('use the Settings switches, when they are known, for a plan or a landing step that names no gate', () => {
+    const on = { planGate: true, mergeGate: true }
+    const off = { planGate: false, mergeGate: false }
+    expect(chipsOf(step('plan'), {}, on).map((c) => c.text)).toEqual(['you approve'])
+    expect(chipsOf(step('plan'), {}, off).map((c) => c.text)).toEqual([])
+    expect(chipsOf(step('plan', { gate: 'auto' }), {}, on).map((c) => c.text)).toEqual([])
+    expect(chipsOf(step('pr'), {}, on).map((c) => c.text)).toEqual(['you confirm'])
+    expect(chipsOf(step('merge'), {}, off).map((c) => c.text)).toEqual([])
+    expect(chipsOf(step('pr', { gate: 'auto' }), {}, on).map((c) => c.text)).toEqual([])
   })
   it('say a landing step with no gate of its own follows the Settings switch', () => {
     expect(words(step('pr'))).toEqual(['follows the switch'])
@@ -66,14 +76,14 @@ describe('the chips on a step', () => {
   })
   it('say a check, an audit or a pull request starts when the person presses Run', () => {
     expect(words(step('audit', { start: 'run' }))).toEqual(['starts when you press Run'])
-    expect(words(step('check', { run: 'x', gate: 'pass', start: 'run' }))).toEqual(['must pass', '2 tries', 'starts when you press Run'])
+    expect(words(step('check', { run: 'x', gate: 'pass', start: 'run' }))).toEqual(['must pass', '2 retries', 'starts when you press Run'])
     expect(words(step('pr', { start: 'run' }))).toEqual(['follows the switch', 'starts when you press Run'])
     expect(chipsOf(step('audit', { start: 'run' }))[0]!.tone).toBe('run')
     expect(words(step('audit', { start: 'auto' }))).toEqual([])
   })
-  it('name the skills of a work step and the tries of a check', () => {
+  it('name the skills of a work step and how often a failed check is sent back', () => {
     expect(words(step('work', { skills: ['tdd', 'ponytail'] }))).toEqual(['skill: tdd', 'skill: ponytail'])
-    expect(words(step('check', { run: 'x', retries: 4 }))).toEqual(['4 tries'])
-    expect(words(step('check', { run: 'x', retries: 1 }))).toEqual(['1 try'])
+    expect(words(step('check', { run: 'x', retries: 4 }))).toEqual(['4 retries'])
+    expect(words(step('check', { run: 'x', retries: 1 }))).toEqual(['1 retry'])
   })
 })

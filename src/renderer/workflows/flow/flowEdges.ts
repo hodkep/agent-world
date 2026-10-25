@@ -1,5 +1,5 @@
 import { type Edge, MarkerType } from '@xyflow/react'
-import type { Step } from '../../../shared/workflow'
+import type { Step, StepKind } from '../../../shared/workflow'
 import { loopsOf } from './stepFlow'
 
 // Edge colours are painted into the arrow heads, so they are the theme's own values, not variables.
@@ -7,9 +7,9 @@ export const LINE = '#8a87a0'
 export const BACK = '#b38bff'
 export const RETRY = '#5f9e5f'
 
-/** The arrows from each step to the next, bottom to top. */
-export const chainEdges = (ids: string[]): Edge[] =>
-  ids.slice(1).map((id, i) => ({ id: `c-${ids[i]}`, source: ids[i]!, sourceHandle: 'bottom', target: id, targetHandle: 'top', type: 'straight', markerEnd: { type: MarkerType.ArrowClosed, color: LINE }, style: { stroke: LINE, strokeWidth: 2 } }))
+/** The arrows from each step to the next, bottom to top. With `insert`, each carries a + that adds a step there. */
+export const chainEdges = (ids: string[], insert?: (at: number, kind: StepKind) => void): Edge[] =>
+  ids.slice(1).map((id, i) => ({ id: `c-${ids[i]}`, source: ids[i]!, sourceHandle: 'bottom', target: id, targetHandle: 'top', type: insert ? 'insert' : 'straight', ...(insert && { data: { at: i + 1, insert } }), markerEnd: { type: MarkerType.ArrowClosed, color: LINE }, style: { stroke: LINE, strokeWidth: 2 } }))
 
 /** The dashed loops back up the flow: a check tried again, work sent back. */
 export const loopEdges = (steps: Pick<Step, 'id' | 'kind' | 'gate'>[]): Edge[] =>

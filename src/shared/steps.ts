@@ -215,3 +215,14 @@ export function checkPanels(runs: Run[], ctxFor: (run: Run) => StepContext): Che
     })
   })
 }
+
+/** The steps of runs that wait for the person to press Run (a check or an audit that starts that way, and has not been started), a stopped run's never. */
+export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { run: Run; step: RunStep }[] {
+  return runs.flatMap((run) => {
+    if (run.status === 'stopped' || !run.workflow) return []
+    return stepStates(run, ctxFor(run))
+      .filter((s) => s.toRun)
+      .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id).map((step) => ({ run, step })))
+  })
+}
+

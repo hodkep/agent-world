@@ -145,7 +145,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     const approved = JSON.parse(readFileSync(join(home, 'workflow-approvals.json'), 'utf8')).approved as Record<string, { id: string; commands: string[] }>
     expect(approved[hashOf(file)]).toMatchObject({ id: 'billing-change', commands: ['npm test', 'npm run lint'] })
     await expect(win.getByRole('option', { name: /Billing change/ })).toHaveAttribute('aria-selected', 'true')
-    await expect(win.getByRole('list', { name: 'Steps' })).toContainText('runs: npm run lint')
+    await expect(win.locator('.react-flow__node').filter({ hasText: 'npm run lint' })).toHaveCount(1)
 
     // Another agent never gets the builder's tools.
     await win.getByRole('button', { name: 'Close' }).click()
@@ -260,7 +260,7 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
 
     // A step added before the landing step has no command yet: the checker says so, and saving waits until it has one.
     await draft.getByLabel('Name of step 5').fill('Security review')
-    await draft.getByRole('button', { name: 'Add a step' }).click()
+    await draft.getByRole('button', { name: 'Add a step', exact: true }).click()
     await draft.getByRole('menuitem', { name: /check/ }).click()
     await expect(draft.getByRole('alert')).toContainText('needs "run"')
     await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeDisabled()
@@ -386,6 +386,54 @@ test('every step takes a brief, and a check, an audit or a pull request can star
     expect(saved.steps[4]).toMatchObject({ kind: 'audit', brief: 'Look hard at the billing code.', start: 'run' })
     expect(saved.steps[5]).toMatchObject({ kind: 'merge', brief: 'Squash it.' })
     expect(saved.steps[2]).toMatchObject({ kind: 'check', start: 'run' })
+    await client.close()
+  } finally {
+    await s.shutdown()
+  }
+})
+
+test('the flow is edited on the canvas: a + on an arrow adds a step there, an arrow drawn from one step to another puts it right after, Delete takes the picked step out, and a step can be copied', async () => {
+  const s = await start()
+  try {
+    const { page, argsLog } = s
+    const win = await openWorkflows(page)
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
+    await call('workflow_propose', { file: JSON.stringify(BILLING) })
+    const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    const labels = () => draft.locator('.react-flow__node').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+
+    // An arrow drawn from the dot under Plan to the dot over Tests pass puts Tests pass right after Plan.
+    await draft.locator('.react-flow').scrollIntoViewIfNeeded()
+    const from = (await draft.getByLabel('Step 1: Plan').locator('.react-flow__handle[data-handleid="bottom"]').boundingBox())!
+    const to = (await draft.getByLabel('Step 3: Tests pass').locator('.react-flow__handle[data-handleid="top"]').boundingBox())!
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 })
+    await page.mouse.up()
+    await expect.poll(async () => (await labels())[1]).toBe('Step 2: Tests pass')
+    await expect.poll(async () => (await labels())[2]).toBe('Step 3: Build')
+
+    // A + on the arrow after step 1 adds a step there, and picks it so its fields are open.
+    await draft.getByRole('button', { name: 'Add a step after step 1' }).click({ force: true })
+    await draft.getByRole('menuitem', { name: /review/ }).click({ force: true })
+    await expect(draft.locator('.react-flow__node')).toHaveCount(7)
+    expect((await labels())[1]).toBe('Step 2: Audit')
+    await expect(draft.getByLabel('Name of step 2')).toBeVisible()
+
+    // Delete takes the picked step out.
+    await draft.getByLabel('Step 4: Build').click()
+    await page.keyboard.press('Delete')
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+    expect(await labels()).not.toContain('Step 4: Build')
+
+    // A step can be copied.
+    await draft.getByLabel('Step 1: Plan').click()
+    await draft.getByRole('button', { name: 'Duplicate step 1' }).click()
+    await expect(draft.locator('.react-flow__node')).toHaveCount(7)
+    expect((await labels())[1]).toBe('Step 2: Plan')
     await client.close()
   } finally {
     await s.shutdown()

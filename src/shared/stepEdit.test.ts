@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addStep, moveStep, moveStepTo, removeStep, setStep } from './stepEdit'
+import { addStep, duplicateStep, insertStepAt, moveAfter, moveStep, moveStepTo, removeStep, setStep } from './stepEdit'
 import { STEPS_MAX, type Workflow } from './workflow'
 
 const wf = (): Workflow => ({ version: 1, id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', skills: ['tdd'] }, { id: 'land', kind: 'merge' }] })
@@ -18,6 +18,35 @@ describe('editing the steps of a workflow draft', () => {
     expect(moveStepTo(wf(), 1, 1)).toEqual(wf())
     expect(moveStepTo(wf(), 1, 9).steps.map((s) => s.id)).toEqual(['plan', 'land', 'build'])
     expect(moveStepTo(wf(), 7, 0)).toEqual(wf())
+  })
+
+  it('puts a step right after another, as when an arrow is drawn from one to the other', () => {
+    const w = { ...wf(), steps: [...wf().steps, { id: 'review', kind: 'audit' as const }] }
+    expect(moveAfter(w, 'plan', 'land').steps.map((s) => s.id)).toEqual(['plan', 'land', 'build', 'review'])
+    expect(moveAfter(w, 'land', 'plan').steps.map((s) => s.id)).toEqual(['build', 'land', 'plan', 'review'])
+    expect(moveAfter(w, 'build', 'land').steps.map((s) => s.id)).toEqual(['plan', 'build', 'land', 'review'])
+    // Already there, the same step, or one that is not in the workflow: nothing moves.
+    expect(moveAfter(w, 'plan', 'build')).toBe(w)
+    expect(moveAfter(w, 'plan', 'plan')).toBe(w)
+    expect(moveAfter(w, 'plan', 'nope')).toBe(w)
+  })
+
+  it('adds a step at a chosen place, with an id nobody has used, and not past the limit', () => {
+    const w = wf()
+    expect(insertStepAt(w, 1, 'check').steps.map((s) => `${s.id}:${s.kind}`)).toEqual(['plan:plan', 'check:check', 'build:work', 'land:merge'])
+    expect(insertStepAt(w, 1, 'check').steps[1]).toEqual({ id: 'check', kind: 'check', run: '' })
+    expect(insertStepAt(w, 0, 'work').steps.map((s) => s.id)).toEqual(['work', 'plan', 'build', 'land'])
+    expect(insertStepAt(w, 99, 'audit').steps.at(-1)!.id).toBe('audit')
+    const full = { ...w, steps: Array.from({ length: STEPS_MAX }, (_, i) => ({ id: `s${i}`, kind: 'work' as const })) }
+    expect(insertStepAt(full, 2, 'work')).toBe(full)
+  })
+
+  it('copies a step right after itself, with a name and an id of its own', () => {
+    const w = wf()
+    const copy = duplicateStep(w, 1)
+    expect(copy.steps.map((s) => s.id)).toEqual(['plan', 'build', 'build-2', 'land'])
+    expect(copy.steps[2]).toEqual({ id: 'build-2', kind: 'work', name: 'Build copy', skills: ['tdd'] })
+    expect(duplicateStep(w, 9)).toBe(w)
   })
 
   it('removes a step, but not the last one', () => {
