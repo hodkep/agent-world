@@ -57,6 +57,8 @@ export interface AgentActions {
   tools: () => void
   rename: () => void
   group: () => void
+  /** Start the agent's program again on the same conversation (asks first). */
+  restart: () => void
   remove: () => void
 }
 
@@ -282,6 +284,10 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
               <button className="cb-row" role="menuitem" onClick={run(actions.group)}>
                 <PixelIcon name="tag" />
                 Group…
+              </button>
+              <button className="cb-row" role="menuitem" title="Start it again on the same conversation" onClick={run(actions.restart)}>
+                <PixelIcon name="restart" />
+                Restart agent
               </button>
               <button className="cb-row danger" role="menuitem" onClick={run(actions.remove)}>
                 <PixelIcon name="x" />

@@ -1293,6 +1293,12 @@ export function App() {
     tools: () => setView('tools'),
     rename: () => setRenaming(a.id),
     group: () => setGrouping(true),
+    restart: () =>
+      void run(async () => {
+        const running = (await window.aw.listProcs(a.id)).length
+        const stops = running ? ` ${running === 1 ? 'A command it is running' : `${running} commands it is running`} will be stopped.` : ''
+        if (await askConfirm({ title: `Restart ${a.name}?`, body: `Its terminal stops and starts again on the same conversation.${stops} Nothing is lost from its worktree.`, confirm: 'Restart' })) await window.aw.restartAgent(a.id)
+      }),
     remove: () => remove(a.id)
   })
   const wake = (a: AgentRecord) =>
