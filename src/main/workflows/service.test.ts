@@ -1664,3 +1664,33 @@ describe('a check or an audit that starts when the person presses Run', () => {
     expect(o.wf.auditDue('a1', 'h1')).toBe(true)
   })
 })
+
+describe('skipping an optional step', () => {
+  const FLOW: RunWorkflow = { id: 'o', name: 'O', hash: 'h1', scope: 'project', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'extra', kind: 'work', name: 'Extra', optional: true }, { id: 'ok', kind: 'approve', name: 'Your look', optional: true }, { id: 'tests', kind: 'check', name: 'Tests', run: 'x', optional: true }] }
+  const open = () => {
+    const o = make()
+    o.state.pick = () => FLOW
+    o.wf.begin('a1', 'Task')
+    o.wf.stepDone('a1', 'build')
+    return o
+  }
+  const state = (wf: Workflows, id: string) => stepStates(wf.runs()[0]!, { auditOn: false, approved: true }).find((s) => s.id === id)!.state
+
+  it('records the skip, and the step after it goes on', () => {
+    const { wf } = open()
+    expect(state(wf, 'extra')).toBe('running')
+    expect(wf.skipStep(wf.runs()[0]!.id, 'extra')).toBe('Extra')
+    expect(state(wf, 'extra')).toBe('skipped')
+    expect(state(wf, 'ok')).toBe('waiting')
+    wf.skipStep(wf.runs()[0]!.id, 'ok')
+    expect(state(wf, 'ok')).toBe('skipped')
+  })
+  it('refuses a step that is not optional, one the check or audit way skips, and one that is not there', () => {
+    const { wf } = open()
+    const id = wf.runs()[0]!.id
+    expect(() => wf.skipStep(id, 'build')).toThrow('That step cannot be skipped.')
+    expect(() => wf.skipStep(id, 'tests')).toThrow('That step cannot be skipped.')
+    expect(() => wf.skipStep(id, 'nope')).toThrow('No such step.')
+    expect(() => wf.skipStep('nope', 'extra')).toThrow('No such run.')
+  })
+})

@@ -439,3 +439,50 @@ test('the flow is edited on the canvas: a + on an arrow adds a step there, an ar
     await s.shutdown()
   }
 })
+
+test('every step has the same settings: who does it, its part in the run, whether you approve it, and whether it is optional', async () => {
+  const s = await start()
+  try {
+    const { page, repo, argsLog } = s
+    const win = await openWorkflows(page)
+    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    const { client, call } = await asAgent(await launchAt(argsLog, 0))
+    await call('workflow_propose', { file: JSON.stringify(BILLING) })
+    const draft = win.getByRole('region', { name: 'Workflow proposal' })
+    await expect(draft.locator('.react-flow__node')).toHaveCount(6)
+
+    // A build step has the same settings as any other: who does it, a brief, approval, optional.
+    await draft.getByLabel('Step 2: Build').click()
+    await expect(draft.getByRole('group', { name: 'Who does step 2' })).toBeVisible()
+    await draft.getByRole('switch', { name: 'Needs my approval' }).check({ force: true })
+    await draft.getByRole('switch', { name: 'Optional' }).check({ force: true })
+    await expect(draft.getByLabel('Step 2: Build')).toContainText('you approve')
+    await expect(draft.getByLabel('Step 2: Build')).toContainText('optional')
+
+    // A check can be approved after it passes; that implies it must pass.
+    await draft.getByLabel('Step 4: Lint').click()
+    await draft.getByRole('switch', { name: 'Needs my approval' }).check({ force: true })
+    await expect(draft.getByRole('switch', { name: 'Must pass' })).toBeChecked()
+    await expect(draft.getByRole('switch', { name: 'Must pass' })).toBeDisabled()
+    await expect(draft.getByLabel('Step 4: Lint')).toContainText('you approve')
+
+    // Who does a step can be changed: the audit's brief and the name stay, the skills go.
+    await draft.getByLabel('Step 2: Build').click()
+    await draft.getByLabel('Brief of step 2').fill('Look at the billing code.')
+    await draft.getByRole('button', { name: /Reviewer/ }).click()
+    await expect(draft.getByLabel('Model of step 2')).toBeVisible()
+    await expect(draft.getByLabel('Step 2: Build')).toContainText('Look at the billing code.')
+    await expect(draft.getByRole('alert')).toHaveCount(0)
+
+    await draft.getByRole('button', { name: 'Save to shop' }).click()
+    const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
+    await expect.poll(() => existsSync(file)).toBe(true)
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
+    expect(saved.steps[1]).toMatchObject({ kind: 'audit', name: 'Build', brief: 'Look at the billing code.', gate: 'approve', optional: true })
+    expect(saved.steps[3]).toMatchObject({ kind: 'check', name: 'Lint', gate: 'approve' })
+    await client.close()
+  } finally {
+    await s.shutdown()
+  }
+})

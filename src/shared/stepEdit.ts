@@ -1,7 +1,7 @@
-import { STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
+import { GATES, OPTIONAL_KINDS, SKILL_KINDS, START_KINDS, STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
 
 /** The fields of a step that the draft's editor changes; an empty text or list takes the field away. */
-export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'skills' | 'run' | 'retries' | 'model'>>
+export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'optional' | 'skills' | 'run' | 'retries' | 'model'>>
 
 const withSteps = (w: Workflow, steps: Step[]): Workflow => ({ ...w, steps })
 
@@ -88,5 +88,49 @@ export function duplicateStep(w: Workflow, at: number): Workflow {
   if (!from || w.steps.length >= STEPS_MAX) return w
   const copy: Step = { ...from, id: newId(w, from.id), ...(from.name !== undefined && { name: `${from.name} copy`.slice(0, 40) }) }
   return withSteps(w, [...w.steps.slice(0, at + 1), copy, ...w.steps.slice(at + 1)])
+}
+
+/** Who does a step: the agent, a command the app runs, a model that reviews, or the person. */
+export type Who = 'agent' | 'command' | 'reviewer' | 'you'
+/** The part a step plays in the run, beyond its work: the plan the person approves first, the pull request that is held, the merge that lands it. */
+export type Role = 'none' | 'plan' | 'pr' | 'land'
+
+export const whoOf = (k: StepKind): Who => ({ plan: 'agent', work: 'agent', check: 'command', audit: 'reviewer', approve: 'you', pr: 'agent', merge: 'you' } as const)[k]
+export const roleOf = (k: StepKind): Role => (k === 'plan' ? 'plan' : k === 'pr' ? 'pr' : k === 'merge' ? 'land' : 'none')
+const KINDS: Record<string, StepKind> = { 'agent:none': 'work', 'agent:plan': 'plan', 'agent:pr': 'pr', 'command:none': 'check', 'reviewer:none': 'audit', 'you:none': 'approve', 'you:land': 'merge' }
+/** The kind of step that is done by `who` in `role`, or none when that one cannot play that part. */
+export const kindFor = (who: Who, role: Role): StepKind | undefined => KINDS[`${who}:${role}`]
+
+/** A step as another kind: its name and brief stay, and so does every setting the new kind has too; what it has no use for goes. */
+function asKind(s: Step, kind: StepKind): Step {
+  const next: Step = { id: s.id, kind }
+  if (s.name !== undefined) next.name = s.name
+  if (s.brief !== undefined) next.brief = s.brief
+  if (s.gate !== undefined && GATES[kind].includes(s.gate)) next.gate = s.gate
+  if (s.start !== undefined && START_KINDS.includes(kind)) next.start = s.start
+  if (s.optional !== undefined && OPTIONAL_KINDS.includes(kind)) next.optional = s.optional
+  if (s.skills !== undefined && SKILL_KINDS.includes(kind)) next.skills = s.skills
+  if (kind === 'check') {
+    next.run = s.run ?? ''
+    if (s.retries !== undefined) next.retries = s.retries
+  }
+  if (kind === 'audit' && s.model !== undefined) next.model = s.model
+  return next
+}
+const replaceAt = (w: Workflow, at: number, step: Step): Workflow => withSteps(w, w.steps.map((x, i) => (i === at ? step : x)))
+
+/** A step done by someone else: the agent, a command, a reviewer or the person. It keeps the part it played when the new one can play it too. */
+export function withWho(w: Workflow, at: number, who: Who): Workflow {
+  const s = w.steps[at]
+  if (!s || whoOf(s.kind) === who) return w
+  const kind = kindFor(who, roleOf(s.kind)) ?? kindFor(who, 'none')
+  return kind ? replaceAt(w, at, asKind(s, kind)) : w
+}
+
+/** A step given a part in the run (or none): only the agent can plan or open the pull request, only the person lands it. */
+export function withRole(w: Workflow, at: number, role: Role): Workflow {
+  const s = w.steps[at]
+  const kind = s && kindFor(whoOf(s.kind), role)
+  return s && kind && kind !== s.kind ? replaceAt(w, at, asKind(s, kind)) : w
 }
 

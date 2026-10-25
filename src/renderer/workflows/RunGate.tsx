@@ -34,6 +34,7 @@ export function RunGate({ agentName, run, step }: { agentName: string; run: Run;
         <div className="pg-acts">
           <button className="primary" disabled={busy} onClick={go}>{audit ? 'Run audit' : 'Run'}</button>
           {!audit && <button disabled={busy} onClick={() => void window.aw.workflows.skipCheck(run.id, step.id)}>Skip this check</button>}
+          {audit && step.optional && <button disabled={busy} title="It is optional: the run goes on without it." onClick={() => void window.aw.finishAside(run.agent)}>Skip</button>}
         </div>
       </div>
     </section>

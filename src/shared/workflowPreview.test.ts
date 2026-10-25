@@ -65,3 +65,19 @@ describe('a step that starts when you press Run', () => {
   })
 })
 
+
+describe('the settings every step can have, in what the person will meet', () => {
+  it('a check you approve says so, and stops there', () => {
+    const [row] = previewOf(wf([{ id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', gate: 'approve' }]), off)
+    expect(row!.says).toBe('the app runs `npm test` (you approve the command once), up to 3 tries, it must pass, and then you approve it')
+    expect(row!.stops).toBe(true)
+  })
+  it('an optional step says you can skip it', () => {
+    const rows = previewOf(wf([{ id: 'a', kind: 'work', optional: true }, { id: 'b', kind: 'approve', optional: true }, { id: 'c', kind: 'audit', optional: true }]), off)
+    expect(rows.map((r) => r.says)).toEqual(['no stop (optional: you can skip it)', 'you approve it or send it back (optional: you can skip it)', 'you look at the findings (optional: you can skip it)'])
+  })
+  it('a plan or a pull request with skills says nothing more: the agent reads them', () => {
+    const rows = previewOf(wf([{ id: 'plan', kind: 'plan', gate: 'approve', skills: ['tdd'] }]), off)
+    expect(rows[0]!.says).toBe('you approve the plan before any edit')
+  })
+})

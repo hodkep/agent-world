@@ -17,7 +17,8 @@ export function previewOf(wf: Workflow, switches: { planGate: boolean; mergeGate
   return wf.steps.map((s) => {
     // A step that starts when the person presses Run is a place they stop, and what follows it says what the press starts.
     const onRun = s.start === 'run'
-    const row = (stops: boolean, says: string): PreviewRow => ({ id: s.id, kind: s.kind, label: stepName(s), stops: stops || onRun, says: onRun ? `you press Run, then ${says}` : says })
+    const skip = s.optional ? ' (optional: you can skip it)' : ''
+    const row = (stops: boolean, says: string): PreviewRow => ({ id: s.id, kind: s.kind, label: stepName(s), stops: stops || onRun, says: `${onRun ? `you press Run, then ${says}` : says}${skip}` })
     const gate = (inherited: boolean) => (s.gate !== undefined ? s.gate === 'approve' : inherited)
     switch (s.kind) {
       case 'plan':
@@ -26,6 +27,7 @@ export function previewOf(wf: Workflow, switches: { planGate: boolean; mergeGate
         return s.gate === 'approve' ? row(true, 'you approve it when the agent says it is done') : row(false, 'no stop')
       case 'check': {
         const tries = (s.retries ?? DEFAULT_RETRIES) + 1
+        if (s.gate === 'approve') return row(true, `the app runs \`${s.run ?? ''}\` (you approve the command once), up to ${tries} tries, it must pass, and then you approve it`)
         const must = s.gate === 'pass'
         return row(must, `the app runs \`${s.run ?? ''}\` (you approve the command once), up to ${tries} tries, and it ${must ? 'must pass' : 'only reports'}`)
       }

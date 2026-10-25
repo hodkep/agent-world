@@ -102,3 +102,69 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
     await shutdown()
   }
 })
+
+test('an optional step is skipped from its card and the run goes on; a check that asks for your approval waits for it in the chat after it has passed', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-runflow2-')))
+  const repo = join(tmp, 'shop')
+  mkdirSync(repo)
+  const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' }).trim()
+  git(repo, 'init', '-q', '-b', 'main')
+  writeFileSync(join(repo, 'README.md'), '# shop\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'init')
+  const home = join(tmp, 'home')
+  mkdirSync(home, { recursive: true })
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  const flow = {
+    id: 'opt',
+    name: 'Optional',
+    steps: [
+      { id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' },
+      { id: 'build', kind: 'work', name: 'Build' },
+      { id: 'polish', kind: 'work', name: 'Polish', optional: true, brief: 'Tidy the names, if there is time.' },
+      { id: 'tests', kind: 'check', name: 'Tests', run: 'test -f toggle.ts', gate: 'approve' }
+    ]
+  }
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100' }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
+    await page.reload()
+    await hire(page, { name: 'ada' })
+    const [ada] = await page.evaluate(() => window.aw.listAgents())
+    const t = Date.now()
+    writeFileSync(join(ada!.cwd, 'toggle.ts'), 'export const dark = true\n')
+    git(ada!.cwd, 'add', '-A')
+    git(ada!.cwd, 'commit', '-qm', 'add toggle')
+    appendFileSync(join(home, 'runs.jsonl'), [
+      { k: 'begin', t: t - 5000, run: 'r1', agent: ada!.id, name: 'ada', project: repo, title: 'Add a toggle', workflow: flow },
+      { k: 'plan', t: t - 4000, run: 'r1', round: 1, state: 'submitted', path: '.agent-world/plan.md', readback: { goal: 'Add a toggle.', assumptions: [], outOfScope: [], questions: [] } },
+      { k: 'plan', t: t - 3000, run: 'r1', round: 1, state: 'approved' },
+      { k: 'commit', t: t - 2000, run: 'r1', round: 1, sha: git(ada!.cwd, 'rev-parse', 'HEAD'), subject: 'add toggle' },
+      { k: 'step', t: t - 1000, run: 'r1', round: 1, step: 'build', state: 'done' }
+    ].map((e) => JSON.stringify(e)).join('\n') + '\n')
+    await page.reload()
+    await page.getByRole('tab', { name: 'Workflow' }).click()
+    const card = (n: number) => page.locator('.react-flow__node').nth(n - 1)
+    const press = (n: number, name: string) => card(n).getByRole('button', { name, exact: true }).evaluate((el) => (el as HTMLElement).click())
+    // The optional build step is the agent's; the person may skip it from its card, and the check after it goes on.
+    await expect(card(3)).toContainText('optional')
+    await expect(card(3)).toContainText('working')
+    await press(3, 'Skip')
+    await expect(card(3)).toContainText('not asked')
+    await expect(card(4)).toContainText('working')
+
+    // The check runs; it passed, so it waits for the person, and the approval is in the chat.
+    await page.evaluate(() => window.aw.workflows.runCheck('r1', 'tests'))
+    await expect(card(4)).toContainText('needs you', { timeout: 15_000 })
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const gate = page.getByRole('region', { name: 'Step from ada' })
+    await expect(gate).toContainText('Tests')
+    await gate.getByRole('button', { name: 'Approve', exact: true }).click()
+    await page.getByRole('tab', { name: 'Workflow' }).click()
+    await expect(card(4)).toContainText('done', { timeout: 15_000 })
+  } finally {
+    await shutdown()
+  }
+})

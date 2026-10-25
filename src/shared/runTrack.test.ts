@@ -153,3 +153,13 @@ describe('a run that waits for the person to press Run', () => {
     expect(at.waiting).toBe('press Run: Audit')
   })
 })
+
+describe('a check that waits for the person after it passed', () => {
+  const WF: RunWorkflow = { id: 'a', name: 'A', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  it('says it needs your approval, not that its commands do', () => {
+    const pass: RunEvent = { k: 'check', t: 450, run: 'r1', round: 1, step: 'tests', head: 'h1', attempt: 1, ok: true, exit: 0, timedOut: false, ms: 900, tail: '' }
+    const at = trackOf(reduceRuns([{ ...begin, workflow: WF }, done('build'), pass])[0]!, ctx)!
+    expect(at.stations.map((s) => `${s.id}:${s.state}`)).toEqual(['build:done', 'tests:now', 'land:next'])
+    expect(at.waiting).toBe('needs your approval')
+  })
+})

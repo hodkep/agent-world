@@ -54,10 +54,12 @@ export function chipsOf(s: Step, states: Record<string, SkillState> = {}, switch
     else if (switches.mergeGate) out.push({ text: 'you confirm', tone: 'stop' })
   }
   if (s.kind === 'check') {
-    if (s.gate === 'pass') out.push({ text: 'must pass', tone: 'pass' })
+    if (s.gate === 'approve') out.push({ text: 'you approve', tone: 'stop' })
+    if (s.gate === 'pass' || s.gate === 'approve') out.push({ text: 'must pass', tone: 'pass' })
     out.push({ text: plural(s.retries ?? DEFAULT_RETRIES, 'retry', 'retries'), tone: 'plain' })
   }
   if (s.start === 'run') out.push({ text: 'starts when you press Run', tone: 'run' })
+  if (s.optional) out.push({ text: 'optional', tone: 'plain' })
   for (const id of s.skills ?? []) out.push({ text: `skill: ${id}`, tone: 'plain', ...(states[id] && states[id] !== 'ready' && { skill: states[id] }) })
   return out
 }

@@ -46,10 +46,10 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
   const lines = w.steps.flatMap((s) => {
     const brief = s.brief ? ` ${s.brief}` : ''
     // The plan line only when a plan is asked for: otherwise the agent would wait for an approval that never comes.
-    if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}": the person approves your plan before you edit.${brief}`]
-    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}:${brief}`]
-    if (s.kind === 'approve') return [`- ${s.id} "${s.name}": the person approves this before it can land.${brief}`]
-    if (s.kind === 'pr' && s.brief) return [`- ${s.id} "${s.name}": when you open the pull request, ${s.brief}`]
+    if (s.kind === 'plan') return !planFirst ? [] : [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}: the person approves your plan before you edit.${brief}`]
+    if (s.kind === 'work') return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}${s.optional ? ' (optional: the person may skip it)' : ''}:${brief}`]
+    if (s.kind === 'approve') return [`- ${s.id} "${s.name}"${s.optional ? ' (optional: the person may skip it)' : ''}: the person approves this before it can land.${brief}`]
+    if (s.kind === 'pr' && (s.brief || s.skills?.length)) return [`- ${s.id} "${s.name}"${skillNote(s.skills, o.skills)}: when you open the pull request${s.brief ? `, ${s.brief}` : '.'}`]
     return []
   })
   const landing = w.steps.find((s) => s.kind === 'pr' || s.kind === 'merge')?.kind

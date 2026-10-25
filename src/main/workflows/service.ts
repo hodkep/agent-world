@@ -219,6 +219,19 @@ export class Workflows {
     return { run, round }
   }
 
+  /** The person skips an optional step the agent or they would do (a build or an approval): it is not followed, and the run goes on. Says its name. */
+  skipStep(runId: string, step: string): string {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    if (!run || !round) throw new Error('No such run.')
+    const found = run.workflow?.steps.find((s) => s.id === step)
+    if (!found) throw new Error('No such step.')
+    // A check is skipped by skipCheck and an audit set aside, as before.
+    if (!found.optional || (found.kind !== 'work' && found.kind !== 'approve')) throw new Error('That step cannot be skipped.')
+    this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'skipped' })
+    return found.name
+  }
+
   /** The person passes a check over: it does not hold landing. */
   skipCheck(runId: string, step: string) {
     const { run, round } = this.checkStep(runId, step)

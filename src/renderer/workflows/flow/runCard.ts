@@ -12,6 +12,12 @@ export function actionOf(s: StepState, step: RunStep): RunAction | null {
   return null
 }
 
+/** How the person skips a step of a run, when it is optional and not over: a build or an approval by a call of its own, a check and an audit the way they always were. */
+export function skipOf(s: StepState, step: RunStep): 'step' | 'check' | 'audit' | undefined {
+  if (!step.optional || (s.state !== 'running' && s.state !== 'waiting')) return undefined
+  return s.kind === 'check' ? 'check' : s.kind === 'audit' ? 'audit' : s.kind === 'work' || s.kind === 'approve' ? 'step' : undefined
+}
+
 const PLURAL = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** What a step of a run is doing, in a few words for its card. */

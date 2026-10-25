@@ -28,7 +28,7 @@ export interface WorkflowDiff {
   commands: ReturnType<typeof commandDiff>
 }
 
-const FIELDS = ['kind', 'name', 'gate', 'brief', 'skills', 'run', 'retries', 'model'] as const
+const FIELDS = ['kind', 'name', 'gate', 'brief', 'start', 'optional', 'skills', 'run', 'retries', 'model'] as const
 const show = (v: unknown) => (v === undefined ? 'none' : Array.isArray(v) ? v.join(', ') : String(v))
 const LONG = 60
 
@@ -100,12 +100,12 @@ export const BUILDER_TOOLS = ['workflow_list', 'workflow_get', 'workflow_history
 export const BUILDER_ALLOWED = [...BUILDER_TOOLS, 'recall'] as const
 
 const KIND_DOES: Record<StepKind, string> = {
-  plan: 'the agent writes a plan for the person to read. Fields: brief.',
+  plan: 'the agent writes a plan for the person to read. Fields: brief, skills.',
   work: 'the agent does the work and reports it. Fields: brief (what to do or how), skills (names of library skills it should read).',
-  check: `the app runs the command "run" in the agent's worktree and a failure goes back to the agent, up to "retries" times (0 to 5, ${DEFAULT_RETRIES} if left out). Needs run. Gate pass means landing waits until it passes; auto only reports.`,
-  audit: 'a model reads the branch against the plan and lists what does not match. Fields: model (leave out unless asked).',
+  check: `the app runs the command "run" in the agent's worktree and a failure goes back to the agent, up to "retries" times (0 to 5, ${DEFAULT_RETRIES} if left out). Needs run. Gate pass means landing waits until it passes; approve means it must pass and then the person approves it; auto only reports. Fields: brief (what it is for), start.`,
+  audit: 'a model reads the branch against the plan and lists what does not match. Fields: brief (what to look at as well), model (leave out unless asked), start.',
   approve: 'the person must approve before anything goes on, like a review. Fields: brief (what to look at). It always stops.',
-  pr: "the agent opens a pull request; git holds the push of its branch until the plan is approved and the review's findings were seen, and CI and the merge are GitHub's. Gate approve makes the person confirm; auto leaves it to the settings. Put it last.",
+  pr: "the agent opens a pull request; git holds the push of its branch until the plan is approved and the review's findings were seen, and CI and the merge are GitHub's. Gate approve makes the person confirm; auto leaves it to the settings. Fields: brief (what goes in the pull request), skills, start. Put it last.",
   merge: 'the person lands the work with a merge into the base branch. Gate approve makes them confirm; auto leaves it to the settings. Use pr instead when the work goes through a pull request.'
 }
 
@@ -144,6 +144,7 @@ How to work
 - After workflow_propose works, say in a sentence or two what the draft does and what to say if they want it different. Do not paste the file into the chat: the person sees the draft beside it.
 
 The file is one JSON object: version (1), id (lowercase letters, digits and dashes), name, when, steps. Each step has an id (unique, same characters), a kind, and optionally name and gate.
+Every step may also have: "brief" (up to 600 characters: what the agent is told, what a reviewer looks at, or what the person reads), "start": "run" (on a check, audit or pr step: nothing starts until the person presses Run), "optional": true (on a work, check, audit or approve step: the person can skip it and the run goes on) and "skills" (on a plan, work or pr step). Use start and optional only when the person asks for that.
 ${kinds}
 
 Example:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepStates, toRunSteps, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepSkipped, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -396,3 +396,48 @@ describe('the steps waiting for the person to press Run, across runs', () => {
   })
 })
 
+
+describe('the same settings on every kind of step', () => {
+  const APPROVED_CHECK: RunWorkflow = { id: 'a', name: 'A', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const built: RunEvent[] = [begin(APPROVED_CHECK), step('build', 'done', 300)]
+  const ran = (ok: boolean, t = 400, head = 'h1'): RunEvent => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head, attempt: 1, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail: '' })
+  const of = (events: RunEvent[], id: string) => stepStates(reduceRuns(events)[0]!, { auditOn: false }).find((s) => s.id === id)!
+
+  it('a check with gate approve waits for the person once it has passed, and passes when they approve', () => {
+    expect(needsApproval({ kind: 'check', gate: 'approve' }, { auditOn: false })).toBe(true)
+    expect(needsApproval({ kind: 'check', gate: 'pass' }, { auditOn: false })).toBe(false)
+    expect(of(built, 'tests').state).toBe('running')
+    expect(of([...built, ran(true)], 'tests')).toMatchObject({ state: 'waiting', awaiting: true })
+    expect(of([...built, ran(true), step('tests', 'approved', 500)], 'tests').state).toBe('passed')
+  })
+  it('a check that failed is not asked about: it is the agent\'s to fix first', () => {
+    expect(of([...built, ran(false)], 'tests')).toMatchObject({ state: 'running' })
+    expect(of([...built, ran(false)], 'tests').awaiting).toBeUndefined()
+  })
+  it('a check sent back by the person runs again, with its tries given back', () => {
+    const sent = [...built, ran(true), step('tests', 'changes', 500)]
+    expect(of(sent, 'tests').state).toBe('running')
+    expect(of([...sent, ran(true, 600, 'h2')], 'tests')).toMatchObject({ state: 'waiting', awaiting: true })
+  })
+  it('a check that waits for approval after passing is not one that needs its commands approved', () => {
+    expect(checkPanels(reduceRuns([...built, ran(true)]), () => ({ auditOn: false })).map((p) => p.kind)).toEqual([])
+    expect(waitingSteps(reduceRuns([...built, ran(true)]), { auditOn: false }).map((w) => w.step.id)).toEqual(['tests'])
+  })
+
+  const OPTIONAL: RunWorkflow = { id: 'o', name: 'O', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'extra', kind: 'work', name: 'Extra', optional: true }, { id: 'ok', kind: 'approve', name: 'Your look', optional: true }, { id: 'land', kind: 'merge', name: 'Land' }] }
+  const opt = (events: RunEvent[]) => stepStates(reduceRuns(events)[0]!, { auditOn: false }).map((s) => `${s.id}:${s.state}`)
+  it('an optional step the person skipped is skipped, and the steps after it go on', () => {
+    expect(opt([begin(OPTIONAL), step('build', 'done', 300)])).toEqual(['build:passed', 'extra:running', 'ok:pending', 'land:pending'])
+    expect(opt([begin(OPTIONAL), step('build', 'done', 300), step('extra', 'skipped', 350)])).toEqual(['build:passed', 'extra:skipped', 'ok:waiting', 'land:pending'])
+    expect(opt([begin(OPTIONAL), step('build', 'done', 300), step('extra', 'skipped', 350), step('ok', 'skipped', 360)])).toEqual(['build:passed', 'extra:skipped', 'ok:skipped', 'land:waiting'])
+  })
+  it('a step that is not optional is not skipped by a skip that was logged', () => {
+    expect(opt([begin(OPTIONAL), step('build', 'skipped', 300)])[0]).toBe('build:running')
+  })
+
+  it('what a check sent back says to the agent, and what a skipped step says', () => {
+    expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('was sent back: cover the edge')
+    expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('the check runs again')
+    expect(stepSkipped('Extra')).toBe('Your step "Extra" was skipped by the person: it is optional. Go on with the next step.')
+  })
+})
