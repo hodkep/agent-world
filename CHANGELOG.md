@@ -4,18 +4,21 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
-## [0.3.1] - 2026-10-23
+## [0.3.1] - 2026-10-25
 
 ### Changed
 
 - Switching: pressing a tile of the switch bar switches to that agent or project.
 - Office: the office is calmer, the office boy plays carrom until the supervisor comes, and the cat sits at the end of a desk.
 - Office: a sign in words during a fire drill or a power cut, role labels on hover, lights at night and splashes in the rain.
+- The app now runs on Electron 45, and its dependencies are updated.
 
 ### Fixed
 
 - Chat: a code block's **Copy** writes the text as it was written, not its coloured form with the lines joined.
 - Office: the weather moves on in real minutes however seldom the window is drawn, and rain is a short spell.
+- Terminals: the drawer belongs to each project and stays closed in one that never opened it.
+- Terminals: in a small window the drawer stops where the chat panel begins instead of running under it.
 
 ## [0.3.0] - 2026-10-22
 
