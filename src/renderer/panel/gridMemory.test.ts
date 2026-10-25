@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { even } from './tiling'
-import { readMemory, saveMemory, setSlot, slotOf, termTiles } from './gridMemory'
+import { pruneViews, readMemory, saveMemory, setSlot, setView, slotOf, termTiles } from './gridMemory'
 
 const none = { grid: null, layout: null }
 const two = { root: even(['a1', 'a2']) }
@@ -36,5 +36,35 @@ describe('what each workspace remembers of its grid', () => {
   it('lists the shells of every workspace, so one is closed only when no workspace has it', () => {
     const m = setSlot(setSlot(readMemory(null, none), '/shop', { layout: { root: even(['a1', 'term:1']) } }), '/blog', { layout: { root: even(['term:2']) } })
     expect(termTiles(m).sort()).toEqual(['term:1', 'term:2'])
+  })
+})
+
+describe('which panes of a workspace show their terminal instead of the chat', () => {
+  it('is kept with the workspace, apart from another one, and read back after a restart', () => {
+    let m = setSlot(readMemory(null, none), '/shop', { grid: true, layout: two, views: { a1: 'terminal' } })
+    m = setSlot(m, '/blog', { grid: true, layout: { root: even(['a1']) } })
+    expect(slotOf(m, '/shop').views).toEqual({ a1: 'terminal' })
+    expect(slotOf(m, '/blog').views).toBeUndefined()
+    expect(readMemory(saveMemory(m), none)).toEqual(m)
+  })
+
+  it('reads only terminal choices, and a slot with none has no views at all', () => {
+    const raw = JSON.stringify({ '/shop': { grid: true, layout: null, views: { a1: 'terminal', a2: 'chat', a3: 5, a4: null } }, '/blog': { grid: true, layout: null, views: 'terminal' } })
+    expect(slotOf(readMemory(raw, none), '/shop').views).toEqual({ a1: 'terminal' })
+    expect(slotOf(readMemory(raw, none), '/blog')).toEqual({ grid: true, layout: null })
+  })
+
+  it('turns one pane to its terminal and back, and leaves none behind when the last goes back', () => {
+    const t = setView(undefined, 'a1', true)
+    expect(t).toEqual({ a1: 'terminal' })
+    expect(setView(t, 'a2', true)).toEqual({ a1: 'terminal', a2: 'terminal' })
+    expect(setView(t, 'a1', false)).toBeUndefined()
+    expect(t).toEqual({ a1: 'terminal' })
+  })
+
+  it('drops the choice of an agent that is no longer in the grid, so it comes back as a chat', () => {
+    expect(pruneViews({ a1: 'terminal', gone: 'terminal' }, even(['a1', 'a2']))).toEqual({ a1: 'terminal' })
+    expect(pruneViews({ gone: 'terminal' }, even(['a1']))).toBeUndefined()
+    expect(pruneViews(undefined, even(['a1']))).toBeUndefined()
   })
 })
