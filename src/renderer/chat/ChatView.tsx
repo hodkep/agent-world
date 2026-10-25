@@ -22,6 +22,7 @@ import { Lightbox, Picture } from './Images'
 import { AttachmentViewer } from './ImageEditor'
 import { Markdown } from './markdown'
 import { UserText } from './Mentions'
+import { describeCommand, ranFor } from './procView'
 import { CrewLine } from './Crew'
 import { Delegation } from './Delegation'
 import type { SubagentInfo } from '../../shared/chat'
@@ -828,11 +829,24 @@ function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /*
 
 const WINDOW = 150
 
+/** A command the agent left running, with when it started (worked out when it was listed, and kept steady between lists). */
+type Running = ProcInfo & { since: number }
+
 function ProcBar({ agentId }: { agentId: string }) {
-  const [procs, setProcs] = useState<ProcInfo[]>([])
+  const [procs, setProcs] = useState<Running[]>([])
+  const take = (list: ProcInfo[]) =>
+    setProcs((old) => {
+      const at = Date.now()
+      const next = list.map((p) => {
+        const since = at - p.age * 1000
+        const was = old.find((o) => o.pid === p.pid && o.command === p.command)
+        return { ...p, since: was && Math.abs(was.since - since) < 2500 ? was.since : since }
+      })
+      return old.length === next.length && old.every((o, i) => o.pid === next[i]!.pid && o.since === next[i]!.since && o.command === next[i]!.command) ? old : next
+    })
   useEffect(() => {
     let live = true
-    const tick = () => void window.aw.listProcs(agentId).then((p) => live && setProcs((old) => (JSON.stringify(old) === JSON.stringify(p) ? old : p)))
+    const tick = () => void window.aw.listProcs(agentId).then((p) => live && take(p))
     tick()
     const t = setInterval(tick, 3000)
     return () => {
@@ -841,6 +855,14 @@ function ProcBar({ agentId }: { agentId: string }) {
     }
   }, [agentId])
   const [open, setOpen] = useState(false)
+  // The times count up while the list is open.
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!open) return
+    setNow(Date.now())
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [open])
   const wrap = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
@@ -858,7 +880,7 @@ function ProcBar({ agentId }: { agentId: string }) {
     if (!procs.length) setOpen(false)
   }, [procs.length])
   if (!procs.length) return null
-  const stop = (pid: number) => void window.aw.stopProc(agentId, pid).then(() => window.aw.listProcs(agentId).then(setProcs))
+  const stop = (pid: number) => void window.aw.stopProc(agentId, pid).then(() => window.aw.listProcs(agentId).then(take))
   return (
     <div className="procbar" ref={wrap}>
       <button className="procs-btn" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open}>
@@ -867,21 +889,38 @@ function ProcBar({ agentId }: { agentId: string }) {
       </button>
       {open && (
         <div className="procs-pop" role="dialog" aria-label="Running processes">
-          <ul>
-            {procs.map((p) => (
-              <li key={p.pid}>
-                <code title={p.command}>{p.command}</code>
-                <button onClick={() => stop(p.pid)} aria-label={`Stop ${p.command}`}>
-                  Stop
-                </button>
-              </li>
-            ))}
+          <header className="procs-head">
+            <b>Running</b>
+            <span className="procs-n">{procs.length}</span>
+            {procs.length > 1 && (
+              <button className="procs-all" onClick={() => procs.forEach((p) => stop(p.pid))}>
+                Stop all
+              </button>
+            )}
+          </header>
+          <ul className="procs-list">
+            {procs.map((p) => {
+              const c = describeCommand(p.command)
+              return (
+                <li key={p.pid}>
+                  <span className="procs-dot" aria-hidden="true" />
+                  <span className="procs-what" title={p.command}>
+                    <span className="procs-name">{c.name}</span>
+                    {c.rest && <code>{c.rest}</code>}
+                  </span>
+                  <span className="procs-since">
+                    <small>running</small>
+                    {ranFor((now - p.since) / 1000)}
+                  </span>
+                  <span className="procs-pid" title="Process id">{p.pid}</span>
+                  <button className="procs-stop" onClick={() => stop(p.pid)} aria-label={`Stop ${p.command}`}>
+                    <i aria-hidden="true" />
+                    Stop
+                  </button>
+                </li>
+              )
+            })}
           </ul>
-          {procs.length > 1 && (
-            <div className="procs-foot">
-              <button onClick={() => procs.forEach((p) => stop(p.pid))}>Stop all</button>
-            </div>
-          )}
         </div>
       )}
     </div>

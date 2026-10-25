@@ -9,7 +9,7 @@ const agents: WrapUpAgent[] = [
 
 const deps = (over: Partial<WrapUpDeps> = {}): WrapUpDeps => ({
   pidOf: (id) => ({ a: 10, b: 20, c: 30 })[id],
-  listProcs: async (root) => (root === 10 ? [{ pid: 11, command: 'pnpm dev' }, { pid: 12, command: 'sleep 300' }] : []),
+  listProcs: async (root) => (root === 10 ? [{ pid: 11, command: 'pnpm dev', age: 60 }, { pid: 12, command: 'sleep 300', age: 30 }] : []),
   stopProc: vi.fn(async () => true),
   dirty: async (cwd) => cwd === '/wt/ada' || cwd === '/repo',
   commit: vi.fn(async () => {}),
