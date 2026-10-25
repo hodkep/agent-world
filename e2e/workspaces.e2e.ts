@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -95,6 +95,57 @@ test('opening a project brings back the agent that was open in it last', async (
     await expect(page.locator('.hc-name')).toHaveText('bea')
   } finally {
     await shutdown()
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('a project whose folder is gone can be removed from the projects menu, with the agents that worked in it and their worktrees', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-gone-')))
+  const home = join(tmp, 'home')
+  const shop = join(tmp, 'shop-api')
+  const notes = join(tmp, 'notes')
+  mkdirSync(shop)
+  mkdirSync(notes)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: shop })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: shop })
+  const env = { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }
+  try {
+    const run = await launchApp(env, tmp)
+    const page = await run.app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), shop)
+    await page.reload()
+    await hire(page)
+    const worktree = (await page.evaluate(() => window.aw.listAgents()))[0]!.cwd
+    expect(existsSync(worktree)).toBe(true)
+
+    // The folder goes away (moved, deleted, a drive that is not there), and the window is on another project.
+    renameSync(shop, join(tmp, 'moved'))
+    await page.evaluate((f) => window.aw.activateWorkspace(f), notes)
+    await page.reload()
+    await page.locator('.ws-button').click()
+    const menu = page.getByRole('menu', { name: 'Projects' })
+    await expect(menu).toContainText('folder is missing')
+
+    // The × asks first, and says what goes.
+    await page.locator('.wt-cell', { hasText: 'shop-api' }).hover()
+    await page.getByRole('button', { name: 'Remove shop-api' }).click()
+    const ask = page.getByRole('dialog', { name: /Remove shop-api/ })
+    await expect(ask).toContainText('ada')
+    await ask.getByRole('button', { name: 'Cancel' }).click()
+    // The menu closes behind the question; nothing was removed.
+    await page.locator('.ws-button').click()
+    await expect(menu).toContainText('shop-api')
+    expect((await page.evaluate(() => window.aw.listAgents())).length).toBe(1)
+
+    await page.locator('.wt-cell', { hasText: 'shop-api' }).hover()
+    await page.getByRole('button', { name: 'Remove shop-api' }).click()
+    await page.getByRole('dialog', { name: /Remove shop-api/ }).getByRole('button', { name: 'Remove' }).click()
+    await expect.poll(async () => (await page.evaluate(() => window.aw.listAgents())).length).toBe(0)
+    await page.locator('.ws-button').click()
+    await expect(menu).not.toContainText('shop-api')
+    expect(existsSync(worktree)).toBe(false)
+    await run.shutdown()
+  } finally {
     rmSync(tmp, { recursive: true, force: true })
   }
 })

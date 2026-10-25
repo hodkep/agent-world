@@ -17,6 +17,7 @@ import { useHoverMenu } from './panel/hoverMenu'
 import { agentDot, createDoneTracker, projectDot } from '../shared/attention'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
+import { useConfirm } from './panel/ConfirmDialog'
 import { type LimitView, type UsageLimits, noLimits, untilReset } from '../shared/usage'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../shared/modes'
 import { effortsFor } from '../shared/efforts'
@@ -1010,6 +1011,18 @@ export function App() {
     return () => window.removeEventListener('aw-open-file', on)
   })
 
+  const [askConfirm, confirmNode] = useConfirm()
+  // The × on a project: a saved one is only forgotten; one whose folder is gone goes with the agents that worked in it, after asking.
+  const forgetProject = (path: string) =>
+    void run(async () => {
+      const w = workspaces?.items.find((i) => i.path === path)
+      if (w && !w.exists) {
+        const names = (await window.aw.listAgents()).filter((a) => a.repoPath === path && !a.parent).map((a) => a.name)
+        const who = names.length ? `${names.join(', ')} ${names.length === 1 ? 'works' : 'work'} in it: ${names.length === 1 ? 'its' : 'their'} process stops and ${names.length === 1 ? 'its' : 'their'} worktree and record are deleted.` : 'No agent works in it.'
+        if (!(await askConfirm({ title: `Remove ${w.name}?`, body: `The folder is gone. ${who} Claude's own saved conversations are not touched.`, confirm: 'Remove', danger: true }))) return
+        setWorkspaces(await window.aw.removeMissingProject(path))
+      } else setWorkspaces(await window.aw.forgetWorkspace(path))
+    })
   const run = async (f: () => Promise<void>) => {
     setError(null)
     try {
@@ -1321,7 +1334,7 @@ export function App() {
           workspaces={workspaces}
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
           onPick={pick}
-          onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
+          onForget={forgetProject}
         />
       )}
       {dialogFor && dialogNeeds.length > 0 && (
@@ -1443,7 +1456,7 @@ export function App() {
           finished={finished.current.projects()}
           onOpen={(path) => void run(async () => setWorkspaces(await window.aw.activateWorkspace(path)))}
           onPick={pick}
-          onForget={(path) => void run(async () => setWorkspaces(await window.aw.forgetWorkspace(path)))}
+          onForget={forgetProject}
           onNewWindow={() => void window.aw.newWindow()}
         />
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
@@ -1475,6 +1488,7 @@ export function App() {
           <button aria-label="Dismiss" title="Dismiss" onClick={() => setBannerFor('')}>✕</button>
         </div>
       )}
+      {confirmNode}
       {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
       <main style={{ '--over': overW } as React.CSSProperties}>
         <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>

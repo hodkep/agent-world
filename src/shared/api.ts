@@ -153,6 +153,8 @@ export interface AwApi {
   getWorkspaces(): Promise<Workspaces>
   activateWorkspace(path: string): Promise<Workspaces>
   forgetWorkspace(path: string): Promise<Workspaces>
+  /** A project whose folder is gone: off the list, with the agents that worked in it. */
+  removeMissingProject(path: string): Promise<Workspaces>
   /** Another window onto the same agents; it starts on the project picker. */
   newWindow(): Promise<void>
   listAgents(): Promise<AgentRecord[]>

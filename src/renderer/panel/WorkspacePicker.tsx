@@ -87,7 +87,7 @@ export function WorkspacePicker({ workspaces, onOpen, onPick, onForget }: { work
                   {w.agents > 0 && <span className="ws-tag">{w.agents} agent{w.agents === 1 ? '' : 's'} at work</span>}
                 </span>
               </button>
-              {w.saved && <button className="ws-forget floor-forget" onClick={() => onForget(w.path)} aria-label={`Forget ${w.name}`} title="Forget this project (nothing on disk is deleted)" />}
+              {(w.saved || !w.exists) && <button className="ws-forget floor-forget" onClick={() => onForget(w.path)} aria-label={`${w.exists ? 'Forget' : 'Remove'} ${w.name}`} title={w.exists ? 'Forget this project (nothing on disk is deleted)' : 'Remove this project and the agents that worked in it (its folder is gone)'} />}
             </li>
           ))}
           <li>
