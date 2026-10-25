@@ -1715,6 +1715,8 @@ dialog.handoff { width: min(640px, 94vw); }
 .set-nav button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; box-shadow: none; border-left: 3px solid transparent; padding: 8px 18px; color: var(--muted); }
 .set-nav button.on { color: var(--text); background: var(--panel-2); border-left-color: var(--accent); }
 .set-nav button:hover:not(.on) { color: var(--text); }
+.set-nav .nav-dot { margin-left: auto; width: 8px; height: 8px; background: var(--danger-hot); animation: wt-blink 1s steps(2) infinite; }
+@media (prefers-reduced-motion: reduce) { .set-nav .nav-dot { animation: none; } }
 .set-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .set-main .set-pane { flex: 1; overflow: auto; border-bottom: 0; padding: 10px 24px 20px; gap: 14px; }
 .set-pane legend { float: none; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--text); font-weight: 700; padding: 20px 0 0; margin-bottom: 2px; }

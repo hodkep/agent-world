@@ -209,6 +209,15 @@ export function App() {
   const [dialogFor, setDialogFor] = useState<string | null>(null)
   const [palette, setPalette] = useState(false)
   const [settings, setSettings] = useState(false)
+  // How many logins (a program's own and each account) wait for a sign-in: the dot on Settings and on its Accounts page.
+  const [signIns, setSignIns] = useState(0)
+  useEffect(() => {
+    const ask = () => void window.aw.accountsNeedingSignIn().then(setSignIns, () => {})
+    ask()
+    window.addEventListener('focus', ask)
+    const every = setInterval(ask, 60_000)
+    return () => (window.removeEventListener('focus', ask), clearInterval(every))
+  }, [settings])
   const [shortcuts, setShortcuts] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   // Where Settings opens when a link to one of its pages (the Library's off notice) asked for it.
@@ -1412,7 +1421,7 @@ export function App() {
         />
       )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
-      {settings && prefs && <Settings updateAgents={updateAgents} initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
+      {settings && prefs && <Settings updateAgents={updateAgents} signIns={signIns} onSignIns={setSignIns} initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
           prefsNow.current = next
@@ -1464,7 +1473,7 @@ export function App() {
         {error && <span className="error">{error}</span>}
         <UpdateChip agents={updateAgents} />
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
-        <IconButton icon="gear" label="Settings" onClick={() => setSettings(true)} tip="Notifications, defaults for new agents, where each program is" />
+        <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
       {updatedBanner && (

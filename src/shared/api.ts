@@ -205,6 +205,8 @@ export interface AwApi {
   installProvider(provider: ProviderId): Promise<string>
   /** Claude accounts: this computer's own login first (id ''), then the ones added. */
   listAccounts(): Promise<AccountInfo[]>
+  /** How many logins (a program's own and each account) are waiting for a sign-in. */
+  accountsNeedingSignIn(): Promise<number>
   /** Makes the account's folder; returns its id. Sign-in follows with openSignIn. */
   addAccount(provider: ProviderId, name: string): Promise<string>
   removeAccount(id: string): Promise<Prefs>

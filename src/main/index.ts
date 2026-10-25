@@ -36,7 +36,7 @@ import { contextItems, revealItem } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
-import type { AccountInfo, Activity, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
+import type { AccountInfo, Activity, Detection, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
 import type { EventHandle, EventSourceOptions, Provider } from './providers/ports'
@@ -94,6 +94,7 @@ import { cancelNeed } from './needCancel'
 import { PR_GO, WORKFLOW_HINT, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './workflows/hint'
 import { fitOptions } from '../shared/efforts'
 import { DEFAULT_PROVIDER } from '../shared/types'
+import { signInsNeeded, withAccounts } from './readiness'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
 import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, MoveError, moveOntoBase, undoMove, unrelatedPlan, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
@@ -165,7 +166,7 @@ async function askLimits() {
   polled.length = 0
   await Promise.all(
     providers().map(async (p) => {
-      if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await p.detect(binFor(p))).state !== 'ready') return
+      if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await detectOf(p)).state !== 'ready') return
       // Each login of a program that keeps accounts has allowances of its own, so each is asked under its own folder.
       const logins = p.accounts ? ['', ...prefs.accounts.filter((x) => x.provider === p.id).map((x) => x.id)] : [undefined]
       await Promise.all(
@@ -554,7 +555,7 @@ async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean }
 let askersSeen: { at: number; ready: ProviderId[] } | undefined
 async function readyAskers(): Promise<ProviderId[]> {
   if (askersSeen && Date.now() - askersSeen.at < 60_000) return askersSeen.ready
-  const ready = (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await p.detect(binFor(p))).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x)
+  const ready = (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await detectOf(p)).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x)
   askersSeen = { at: Date.now(), ready }
   return ready
 }
@@ -903,6 +904,23 @@ function finishRewind(id: string) {
 // Keeps each program's logins apart (Settings > Accounts) and moves agents between them.
 const accountsSvc = new AccountService({ home: HOME, providers: () => providers(), accounts: () => prefs.accounts })
 
+// A program whose own login here is not signed in is still ready when an account kept for it is: the accounts signed in are asked of the program, and remembered a few seconds because every screen and check asks.
+const signedInAccounts = new Map<string, { at: number; n: number }>()
+async function accountsSignedIn(p: Provider): Promise<number> {
+  if (!p.accounts) return 0
+  const hit = signedInAccounts.get(p.id)
+  if (hit && Date.now() - hit.at < 5000) return hit.n
+  const base = { ...process.env, PATH: loginShellPath() }
+  const mine = prefs.accounts.filter((a) => a.provider === p.id)
+  const n = (await Promise.all(mine.map((a) => accountsSvc.status(p, binFor(p), accountsSvc.dirOf(p.id, a.id), base)))).filter((who) => who.loggedIn).length
+  signedInAccounts.set(p.id, { at: Date.now(), n })
+  return n
+}
+const detectOf = async (p: Provider): Promise<Detection> => {
+  const d = await p.detect(binFor(p))
+  return d.state === 'needs-sign-in' ? withAccounts(d, await accountsSignedIn(p)) : d
+}
+
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
   // Marked not started, but the program already saved this session (it did before the first turn, or the app closed before noting one): it can only be resumed; starting it again under the same id is refused, and the agent would stay asleep.
@@ -1219,7 +1237,7 @@ async function main() {
     create: async (parent, i) => {
       const p = providers().find((x) => x.id === i.provider)
       if (!p) throw new Error(`There is no program called ${i.provider}.`)
-      if ((await p.detect(binFor(p))).state !== 'ready') throw new Error(`${p.label} is not ready on this computer (is it installed and signed in?).`)
+      if ((await detectOf(p)).state !== 'ready') throw new Error(`${p.label} is not ready on this computer (is it installed and signed in?).`)
       const wanted = i.branch ? cleanName(i.branch.replace(/^aw\//, '')) : ''
       const name = wanted ? checkName(wanted, agents.filter((a) => a.repoPath === parent.repoPath).map((a) => a.name)) : await nextName(parent.repoPath)
       if (wanted && (await makesBranch({ repoPath: parent.repoPath, inPlace: i.worktree === false })) && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
@@ -1826,7 +1844,7 @@ async function main() {
       if (!canMail(providerOf(receiver))) throw new Error(`${receiver.name} cannot use the message box yet, so it could not answer. Connect it in Settings first.`)
     } else {
       const p = providers().find((x) => x.id === to.hire)
-      if (!p || (await p.detect(binFor(p))).state !== 'ready') throw new Error('That program is not ready here.')
+      if (!p || (await detectOf(p)).state !== 'ready') throw new Error('That program is not ready here.')
       if (!canMail(p)) throw new Error(`${p.label} cannot use the message box yet. Connect it in Settings first.`)
       const name = await nextName(author.repoPath)
       // A continuation begins on the sender's commits; a review or a question only reads, so it is kept from editing.
@@ -1945,7 +1963,7 @@ async function main() {
     let a = builderAgent(agents, folder)
     if (!a) {
       // The person's default program when it can use the office's tools (agy only once connected to the message box), else the first that can.
-      const usable = (await Promise.all(providers().filter((x) => x.id === 'claude' || x.id === 'agy').map(async (x) => ((await x.detect(binFor(x))).state === 'ready' && (x.id === 'claude' || ['yes', 'connected'].includes(mailState(x) as string)) ? (x.id as 'claude' | 'agy') : null)))).filter((x): x is 'claude' | 'agy' => !!x)
+      const usable = (await Promise.all(providers().filter((x) => x.id === 'claude' || x.id === 'agy').map(async (x) => ((await detectOf(x)).state === 'ready' && (x.id === 'claude' || ['yes', 'connected'].includes(mailState(x) as string)) ? (x.id as 'claude' | 'agy') : null)))).filter((x): x is 'claude' | 'agy' => !!x)
       const program = builderProgram(prefs.setup.defaultProvider, usable)
       if (!program) throw new Error('The builder needs Claude, or agy connected to the message box, and neither is ready here. Set one up in Settings first.')
       a = { id: randomUUID(), name: builderName(agents.map((x) => x.name)), sessionId: randomUUID(), repoPath: folder, cwd: folder, branch: null, base: null, provider: program, started: false, hiredAt: Date.now(), builder: true, options: builderOptions(program) }
@@ -2065,7 +2083,9 @@ async function main() {
     return libraryService.compileFor(folder, m === 'yes' || m === 'connected')
   })
   // The program under each login says who is signed in (read only); the service does the rest, whichever program it is.
-  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => accountsSvc.list(agents, binFor, env))
+  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => (signedInAccounts.clear(), accountsSvc.list(agents, binFor, env)))
+  // How many logins (a program's own and each account) are waiting for a sign-in: the dot on Settings and on Accounts.
+  ipcMain.handle('accounts:needing-sign-in', async (): Promise<number> => (signedInAccounts.clear(), signInsNeeded(await accountsSvc.list(agents, binFor, env))))
   // Adding makes the folder and links your own instructions and skills into it; the sign-in comes next, in a terminal the user sees.
   ipcMain.handle('accounts:add', async (_, provider: ProviderId, name: string) => {
     const made = await accountsSvc.create(provider, String(name ?? ''))
@@ -2143,7 +2163,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await p.detect(binFor(p)), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
+    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await detectOf(p), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
   )
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))

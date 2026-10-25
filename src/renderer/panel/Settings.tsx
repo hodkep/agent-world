@@ -74,7 +74,7 @@ const PANES = [
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, updateAgents = { working: 0, waiting: 0 } }: { initialPane?: string;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
+export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, signIns = 0, onSignIns, updateAgents = { working: 0, waiting: 0 } }: { initialPane?: string; /** Logins waiting for a sign-in: a dot on Accounts. */ signIns?: number; onSignIns?: (n: number) => void;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   const [url, setUrl] = useState(prefs.updateUrl)
@@ -121,6 +121,12 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
             {panes.filter((p) => p.group === g).map((p) => (
               <button key={p.id} role="tab" id={`set-tab-${p.id}`} aria-selected={pane === p.id} aria-controls={`set-pane-${p.id}`} className={pane === p.id ? 'on' : ''} onClick={() => setPane(p.id)}>
                 <span aria-hidden="true">{p.icon}</span>{p.label}
+                {p.id === 'accounts' && signIns > 0 && (
+                  <>
+                    <i className="nav-dot" aria-hidden="true" data-testid="accounts-dot" />
+                    <span className="sr-only"> ({signIns} to sign in)</span>
+                  </>
+                )}
               </button>
             ))}
           </div>
@@ -254,7 +260,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </div>
             </>
           )}
-          {pane === 'accounts' && <Accounts prefs={prefs} providers={providers} onChange={set} />}
+          {pane === 'accounts' && <Accounts prefs={prefs} providers={providers} onChange={set} onSignIns={onSignIns} />}
           {pane === 'jobs' && (
             <>
               <legend>Model by job</legend>
