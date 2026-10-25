@@ -17,9 +17,13 @@ const ps = `
 describe('descendants', () => {
   it('lists what commands under a shell left running, not the shell wrapper, MCP servers or new starters', () => {
     expect(descendants(ps, 20)).toEqual([
-      { pid: 31, command: 'node vite' },
-      { pid: 35, command: '/bin/zsh -c echo done' }
+      { pid: 31, command: 'node vite', age: 69 },
+      { pid: 35, command: '/bin/zsh -c echo done', age: 300 }
     ])
+  })
+  it('says how many seconds each has been running, days included', () => {
+    const days = '  20    10    12:00 claude\n  30    20  2-03:04:05 /bin/zsh -c make\n'
+    expect(descendants(days, 20)).toEqual([{ pid: 30, command: '/bin/zsh -c make', age: 2 * 86400 + 3 * 3600 + 4 * 60 + 5 }])
   })
   it('is empty when nothing runs below', () => expect(descendants(ps, 31)).toEqual([]))
 })

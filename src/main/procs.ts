@@ -32,7 +32,7 @@ export function descendants(psOut: string, root: number): ProcInfo[] {
       if (r.age < 3) continue
       // The wrapping shell is only noise once its command is listed below it.
       if (first && rows.some((c) => c.ppid === r.pid && c.age >= 3)) continue
-      out.push({ pid: r.pid, command: r.command })
+      out.push({ pid: r.pid, command: r.command, age: r.age })
     }
   }
   return out

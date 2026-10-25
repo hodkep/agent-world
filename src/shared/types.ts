@@ -263,6 +263,8 @@ export interface AgentStats {
 export interface ProcInfo {
   pid: number
   command: string
+  /** Seconds it had been running when it was listed. */
+  age: number
 }
 
 export interface TerminalMenu {
