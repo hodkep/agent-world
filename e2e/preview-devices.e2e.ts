@@ -19,7 +19,8 @@ test('the Preview shows a page as a phone or tablet, what is picked there says s
     await page.reload()
     await hire(page)
     await page.getByRole('tab', { name: /Preview/ }).click()
-    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> }).executeJavaScript(c), code)
+    // The webview is drawn a moment after the tab opens (later on a busy machine); until it is, there is nothing to answer, and a poll asks again.
+    const run = (code: string) => page.evaluate((c) => (document.querySelector('webview') as unknown as { executeJavaScript(c: string): Promise<unknown> } | null)?.executeJavaScript(c), code)
     await expect.poll(() => run('!!document.getElementById("cta")'), { timeout: 15_000 }).toBe(true)
     const wide = (await run('innerWidth')) as number
 
@@ -82,7 +83,9 @@ test('the Preview shows a page as a phone or tablet, what is picked there says s
     await expect(bar).toHaveValue(`localhost:${port}/other`)
     // One click on an address opens it; the ✕ forgets it.
     await bar.fill('')
-    await list.getByRole('option', { name: /Shop home/ }).first().click()
+    // The row opens its page when the mouse goes down, and the list closes under the pointer while the webview starts its navigation: on a busy machine
+    // the real click then waited out its 30 seconds in the pipe to the page. The press is sent to the row itself, and the next line waits for the page.
+    await list.getByRole('option', { name: /Shop home/ }).first().dispatchEvent('mousedown')
     await expect.poll(() => run('document.title')).toBe('Shop home')
     await bar.click()
     await list.getByRole('option', { name: /\/other/ }).hover()
