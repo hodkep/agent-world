@@ -307,8 +307,6 @@ export interface Prefs {
   setup: { done: boolean; defaultProvider: ProviderId | '' }
   /** Where each provider's program is, when it is not on the PATH. Empty means its usual name. */
   providers: Partial<Record<ProviderId, { path: string }>>
-  /** Where new builds are published; empty means the app does not look for updates. */
-  updateUrl: string
   /** The version whose What's new was last offered; empty before the first start of a build that remembers it. */
   seenVersion: string
   /** Standing instructions added to every agent, whatever its role. */

@@ -39,17 +39,16 @@ export const updateState = (): UpdateState => current
 let started = false
 
 /**
- * Looks for a newer build: at the address given in Settings (a folder that serves the files electron-builder produces) when there is one,
- * and otherwise in the releases of the project on GitHub, which the build bakes into the installed app (its publish setting).
- * Nothing runs for a development build. An address cleared in Settings takes effect after a restart.
+ * Looks for a newer build in the releases of the project on GitHub, which the build bakes into the installed app (its publish setting).
+ * Nothing runs for a development build.
  */
-export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState) => void): Promise<UpdateState> {
+export async function checkForUpdates(onState: (s: UpdateState) => void): Promise<UpdateState> {
   // A download under way, or waiting for the restart, is left as it is: looking again would start it over.
   if (!lookAllowed(installer?.state())) return current
   const set = (s: UpdateState) => ((current = s), onState(s), s)
   // A test run (an app that is not installed) may stand its own server in for GitHub; an installed app never does (see releaseOrigins).
   const origins = releaseOrigins(app.isPackaged, process.env)
-  const feed = updateFeed(feedUrl, app.isPackaged || origins.testing)
+  const feed = updateFeed(app.isPackaged || origins.testing)
   if (feed.kind === 'off') return set({ state: 'off', detail: feed.detail })
   // A Mac build signed only ad hoc cannot be replaced by an update (macOS refuses), so it is told a newer one exists and where to get it.
   let pkg: unknown = null
@@ -59,7 +58,7 @@ export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState)
     /* no package.json to read: the build says nothing about itself */
   }
   const info = buildInfo(pkg)
-  if (feed.kind === 'github' && updateMode({ packaged: app.isPackaged || origins.testing, platform: origins.testing ? 'darwin' : process.platform, signed: info.signed }) === 'tell') {
+  if (updateMode({ packaged: app.isPackaged || origins.testing, platform: origins.testing ? 'darwin' : process.platform, signed: info.signed }) === 'tell') {
     if (!info.repo) return set({ state: 'off', detail: 'This build does not say where its releases are.' })
     set({ state: 'checking' })
     const found = await latestRelease(app.getVersion(), info.repo, (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } }), origins)
@@ -88,7 +87,6 @@ export async function checkForUpdates(feedUrl: string, onState: (s: UpdateState)
   try {
     const { autoUpdater } = await import('electron-updater')
     autoUpdater.autoDownload = true
-    if (feed.kind === 'generic') autoUpdater.setFeedURL({ provider: 'generic', url: feed.url })
     if (!started) {
       started = true
       autoUpdater.on('update-available', (i) => set({ state: 'available', detail: `Downloading ${i.version}…` }))

@@ -70,7 +70,7 @@ The version you have is at the top of the page, with **What's new**, which opens
 
 The first start after an update says so in a line under the top bar, with **See what's new**; it shows once.
 
-To look now, press **Check now**. To use another source, type an **Update address** that starts with `http://` or `https://`; leave it empty to use the project's releases on GitHub. It is saved when you leave the field, and an address you clear takes effect after a restart.
+To look now, press **Check now**. Agent World looks only at this project's releases on GitHub.
 
 When a newer version exists:
 

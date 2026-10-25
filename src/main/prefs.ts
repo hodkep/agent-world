@@ -4,7 +4,7 @@ import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, updateUrl: '', seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -24,7 +24,6 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     subagents: cleanSubagents(r.subagents, base.subagents),
     setup: cleanSetup(r.setup, base.setup),
     providers: cleanProviders(r, base.providers),
-    updateUrl: str(r.updateUrl, 500)?.trim() ?? base.updateUrl,
     seenVersion: typeof r.seenVersion === 'string' && r.seenVersion.length <= 40 ? r.seenVersion.trim() : base.seenVersion,
     houseRules: str(r.houseRules, 4000) ?? base.houseRules,
     roleModels: cleanRoleModels(r.roleModels, base.roleModels),
