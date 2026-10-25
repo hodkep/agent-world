@@ -9,7 +9,7 @@ export const ACTOR_WORD: Record<Actor, string> = { agent: 'agent', command: 'com
 
 /** A step card's height and the gap below it: the flow runs top to bottom, one pitch per step. */
 export const NODE_H = 96
-export const GAP = 36
+export const GAP = 60
 export const PITCH = NODE_H + GAP
 export const positionOf = (i: number) => ({ x: 0, y: i * PITCH })
 
@@ -42,14 +42,20 @@ export interface Chip {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /** What a step card says besides its name: who has to act, and what it is given. */
-export function chipsOf(s: Step, states: Record<string, SkillState> = {}): Chip[] {
+export function chipsOf(s: Step, states: Record<string, SkillState> = {}, switches?: { planGate: boolean; mergeGate: boolean }): Chip[] {
   const out: Chip[] = []
+  const landing = s.kind === 'pr' || s.kind === 'merge'
   if (s.kind === 'approve' || (s.gate === 'approve' && (s.kind === 'plan' || s.kind === 'work' || s.kind === 'audit'))) out.push({ text: 'you approve', tone: 'stop' })
-  else if ((s.kind === 'pr' || s.kind === 'merge') && s.gate === 'approve') out.push({ text: 'you confirm', tone: 'stop' })
-  else if ((s.kind === 'pr' || s.kind === 'merge') && s.gate === undefined) out.push({ text: 'follows the switch', tone: 'plain' })
+  else if (s.kind === 'plan' && s.gate === undefined && switches?.planGate) out.push({ text: 'you approve', tone: 'stop' })
+  else if (landing && s.gate === 'approve') out.push({ text: 'you confirm', tone: 'stop' })
+  // No gate of its own: the Settings switch decides, said as what it comes to when the switches are known.
+  else if (landing && s.gate === undefined) {
+    if (!switches) out.push({ text: 'follows the switch', tone: 'plain' })
+    else if (switches.mergeGate) out.push({ text: 'you confirm', tone: 'stop' })
+  }
   if (s.kind === 'check') {
     if (s.gate === 'pass') out.push({ text: 'must pass', tone: 'pass' })
-    out.push({ text: plural(s.retries ?? DEFAULT_RETRIES, 'try', 'tries'), tone: 'plain' })
+    out.push({ text: plural(s.retries ?? DEFAULT_RETRIES, 'retry', 'retries'), tone: 'plain' })
   }
   if (s.start === 'run') out.push({ text: 'starts when you press Run', tone: 'run' })
   for (const id of s.skills ?? []) out.push({ text: `skill: ${id}`, tone: 'plain', ...(states[id] && states[id] !== 'ready' && { skill: states[id] }) })

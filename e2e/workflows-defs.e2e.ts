@@ -53,15 +53,18 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
 
     // A workflow's steps: names, who stops it, the skill, the command and the brief.
     await list.getByRole('option', { name: /Bug fix/ }).click()
-    const steps = win.getByRole('list', { name: 'Steps' })
-    await expect(steps.getByRole('listitem')).toHaveCount(5)
-    await expect(steps).toContainText('Fix, test first')
+    // The steps are drawn as a flow of cards, read-only.
+    const steps = win.locator('.react-flow__node')
+    await expect(steps).toHaveCount(5)
+    await expect(win.getByLabel('Step 2: Fix, test first')).toBeVisible()
     // This test's library is empty, so the skill the file names shows as not being there.
-    await expect(steps.getByLabel('Skills')).toContainText('tdd')
-    await expect(steps.getByLabel('Skills')).toContainText('not in the library')
-    await expect(steps).toContainText('runs: npm test (sent back up to 3 times)')
-    await expect(steps).toContainText('must pass')
-    await expect(steps.getByRole('listitem').first()).toContainText('you approve')
+    const skill = win.getByLabel('Step 2: Fix, test first').locator('.fl-chip', { hasText: 'tdd' })
+    await expect(skill).toHaveClass(/gone/)
+    await expect(skill).toHaveAttribute('title', 'not in the library')
+    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('npm test')
+    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('3 retries')
+    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('must pass')
+    await expect(steps.first()).toContainText('you approve')
     await expect(win).toContainText('Write a failing test, then make it pass.')
     await expect(win).toContainText(join(projectDir, 'bug-fix.json'))
 

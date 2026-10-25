@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepStates, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, readyForAudit, stepReply, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -380,3 +380,19 @@ describe('a step that starts when the person presses Run', () => {
     expect(checkPanels(reduceRuns(built), () => ({ auditOn: true })).map((p) => p.kind)).toEqual([])
   })
 })
+
+describe('the steps waiting for the person to press Run, across runs', () => {
+  const RUNS: RunWorkflow = { id: 'r', name: 'R', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test', start: 'run' }, { id: 'review', kind: 'audit', name: 'Audit', start: 'run' }] }
+  const ran: RunEvent = { k: 'check', t: 450, run: 'r1', round: 1, step: 'tests', head: 'h1', attempt: 1, ok: true, exit: 0, timedOut: false, ms: 900, tail: '' }
+  const list = (events: RunEvent[]) => toRunSteps(reduceRuns(events), () => ({ auditOn: true })).map((x) => `${x.run.id}:${x.step.id}`)
+  it('lists the check that waits for Run, and then the audit once the check has passed', () => {
+    expect(list([begin(RUNS), step('build', 'done', 300)])).toEqual(['r1:tests'])
+    expect(list([begin(RUNS), step('build', 'done', 300), ran])).toEqual(['r1:review'])
+  })
+  it('lists nothing while the work before is not done, for a step that starts by itself, or for a stopped run', () => {
+    expect(list([begin(RUNS)])).toEqual([])
+    expect(list([begin(STANDARD), step('build', 'done', 300)])).toEqual([])
+    expect(list([begin(RUNS), step('build', 'done', 300), { k: 'stop', t: 900, run: 'r1' }])).toEqual([])
+  })
+})
+

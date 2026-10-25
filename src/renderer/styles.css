@@ -2990,9 +2990,6 @@ aside:not(.drawer) { flex: none; }
 .wfl-detail { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
 .wfl-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 16px; }
 .wfl-detail p { margin: 0; }
-.wfl-steps { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.wfl-step { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px; }
-.wfl-dot { width: 12px; height: 12px; margin: 4px 6px; background: var(--k, var(--dim)); box-shadow: 0 0 0 2px var(--ink); }
 .wfl-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
 .wfl-problems { margin: 0; padding-left: 18px; color: var(--danger-text); display: flex; flex-direction: column; gap: 4px; }
 /* Scoped: `.mono` and `.muted` are not global classes. */
@@ -3298,6 +3295,16 @@ svg.pxg { display: block; flex: none; }
 .fl .react-flow__node:active { cursor: grabbing; }
 .fl .react-flow__node:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .fl .react-flow__handle { opacity: 0; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
+/* In the editor the dots an arrow is drawn from and to are there to be seen and pulled. */
+.fl-edit .react-flow__handle[data-handleid='top'], .fl-edit .react-flow__handle[data-handleid='bottom'] { opacity: 1; width: 14px; height: 14px; border-radius: 0; background: var(--panel-3); border: 2px solid var(--line); cursor: crosshair; }
+.fl-edit .react-flow__handle[data-handleid='top']:hover, .fl-edit .react-flow__handle[data-handleid='bottom']:hover, .fl-edit .react-flow__handle.connectingfrom { border-color: var(--accent); background: var(--selected); }
+.fl .react-flow__edgelabel-renderer { z-index: 10; }
+.fl-ins { position: absolute; pointer-events: all; z-index: 10; }
+.fl-ins:has(.fl-add-menu) { z-index: 20; }
+.fl-ins > button { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; font: 700 14px/1 Menlo, Consolas, monospace; color: var(--text); background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.fl-ins > button:hover, .fl-ins > button[aria-expanded='true'] { background: var(--accent); color: var(--ink); }
+.fl-ins .fl-add-menu { top: calc(100% + 4px); left: 50%; transform: translateX(-50%); }
+.fl-tools { margin: 10px; }
 .fl .react-flow__edge-textbg { rx: 0; }
 .fl-node { width: 300px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: var(--panel-2); color: var(--text); text-align: left; box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line); }
 .fl-node.sel { box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--ink); }
@@ -3338,6 +3345,9 @@ svg.pxg { display: block; flex: none; }
 .rn-error { margin: 0; font-size: 11px; }
 .wf-views { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
 .se-hint { margin: 2px 0 0; font-size: 12px; }
+/* Wide enough, the fields sit beside the flow, so a picked step is changed without looking away from it. */
+.se-split { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 10px; align-items: start; }
+.se-split .se-pick, .se-split .se-hint { position: sticky; top: 0; }
 .se-lbl { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
 .se-seg { display: inline-flex; box-shadow: 0 0 0 1px var(--ink); }
 .se-seg button { box-shadow: none; border: 0; background: var(--panel-3); color: var(--muted); padding: 3px 10px; font-size: 11px; }

@@ -9,7 +9,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
   return (
     <section className="inline-need dialog plan-gate" aria-label={`Step from ${agentName}`}>
       <header className="dialog-bar">
-        <span className="pg-tag">Your approval</span>
+        <span className="pg-tag">{step.kind === 'pr' && step.start === 'run' ? 'Your turn to run' : 'Your approval'}</span>
         <b>{step.name}</b>
       </header>
       <div className="pg-body">
@@ -17,7 +17,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
         {step.brief && <div className="pg-text"><Markdown text={step.brief} agentId={run.agent} /></div>}
         <p className="pg-task">
           {run.workflow?.name}:{' '}
-          {step.kind === 'pr' ? `nothing is pushed until you approve. Approving lets ${agentName} push this branch and open the pull request.`
+          {step.kind === 'pr' ? (step.start === 'run' ? `nothing is pushed until you press Run. Running it lets ${agentName} push this branch and open the pull request.` : `nothing is pushed until you approve. Approving lets ${agentName} push this branch and open the pull request.`)
           : step.kind === 'audit' ? `approve the audit to go on; ${agentName} is not told to push before that.`
           : `this must be approved before ${agentName}'s work can land.`}
         </p>
@@ -30,7 +30,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
         <div className="pg-acts">
           {!asking ? (
             <>
-              <button className="primary" onClick={() => onDecide('approved')}>Approve</button>
+              <button className="primary" onClick={() => onDecide('approved')}>{step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve'}</button>
               <button onClick={() => setAsking(true)}>Send back</button>
             </>
           ) : (

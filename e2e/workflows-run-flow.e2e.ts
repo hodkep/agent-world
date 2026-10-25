@@ -52,37 +52,45 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
       { k: 'step', t: t - 1000, run: 'r1', round: 1, step: 'build', state: 'done' }
     ].map((e) => JSON.stringify(e)).join('\n') + '\n')
     await page.reload()
-    await page.getByRole('tab', { name: 'Workflow' }).click()
 
+    // The chat has the press, so no tab has to be opened for one click: the check waits for Run there, and nothing has run.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const gate = page.getByRole('region', { name: 'Run Tests for ada' })
+    await expect(gate).toContainText('Nothing has run yet')
+    await gate.getByRole('button', { name: 'Run', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Run Audit for ada' })).toContainText('Nothing starts before that.')
+    await page.waitForTimeout(2500)
+    await expect(page.getByRole('region', { name: 'Run Audit for ada' })).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Workflow' }).click()
     const card = (n: number) => page.locator('.react-flow__node').nth(n - 1)
     // The canvas clips its cards, and the page cannot scroll a card's button into view (the canvas scrolls back), so the press is the button's own click.
     const press = (n: number, name: string | RegExp) => card(n).getByRole('button', { name, exact: true }).evaluate((el) => (el as HTMLElement).click())
     await expect(page.locator('.react-flow__node')).toHaveCount(5)
-    // The flow says where the run stands: the plan and the build are done, and the check waits for the person to press Run.
+    // The flow says where the run stands: the plan, the build and the check are done, and the audit waits for the person to press Run.
     await expect(card(1)).toContainText('done')
     await expect(card(2)).toContainText('done')
-    await expect(card(3)).toContainText('press Run')
-    await expect(card(4)).toContainText('later')
-    await expect(card(5)).toContainText('later')
-    await expect(card(3).getByRole('button', { name: 'Run', exact: true })).toBeVisible()
-    await expect(card(4).getByRole('button')).toHaveCount(0)
-
-    // Run starts the check, and only then does the audit wait for its own Run: the app starts nothing by itself.
-    // The first press is a real pointer click at the button, to show the pointer reaches it through the canvas.
-    const at = (await card(3).getByRole('button', { name: 'Run', exact: true }).boundingBox())!
-    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
     await expect(card(3)).toContainText('done')
     await expect(card(4)).toContainText('press Run')
-    await page.waitForTimeout(2500)
-    await expect(card(4)).toContainText('press Run')
+    await expect(card(5)).toContainText('later')
+    await expect(card(5).getByRole('button')).toHaveCount(0)
 
-    // Run audit asks the reviewer; its findings are the person's to look at, and then the pull request waits for Run.
-    await press(4, 'Run audit')
+    // Run audit on the card asks the reviewer; its findings are the person's to look at, and then the pull request waits for Run.
+    // (A real pointer click at the button, to show the pointer reaches it through the canvas.)
+    const at = (await card(4).getByRole('button', { name: 'Run audit' }).boundingBox())!
+    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2)
     await expect(card(4)).toContainText('findings to look at', { timeout: 20_000 })
     await page.evaluate((id) => window.aw.finishSeen(id, [0]), ada!.id)
     await expect(card(4)).toContainText('done', { timeout: 20_000 })
     await expect(card(5)).toContainText('needs you')
-    await press(5, 'Run')
+    await expect(card(5).getByRole('button', { name: 'Run', exact: true })).toBeVisible()
+
+    // The pull request's Run is in the chat too.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const pr = page.getByRole('region', { name: 'Step from ada' })
+    await expect(pr).toContainText('nothing is pushed until you press Run')
+    await pr.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.getByRole('tab', { name: 'Workflow' }).click()
     await expect(card(5)).toContainText('ready to push', { timeout: 15_000 })
     await expect(card(5).getByRole('button')).toHaveCount(0)
 
