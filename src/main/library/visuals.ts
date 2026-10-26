@@ -11,11 +11,11 @@ export const FORMS_WHEN = 'you need the person to choose or fill in several thin
 const SOURCE = 'built-in'
 
 // The chat draws Mermaid diagrams and A2UI forms (chat/markdown.tsx, chat/a2ui.ts). The first is short enough to be put in an agent's opening text; the second is read when a form is needed.
-const VISUALS = `The chat draws more than text. Choose these on your own, without being asked, where they say it better than words:
-- A diagram (architecture, flow, sequence, data model, states, timeline, plan): a fenced \`\`\`mermaid block (flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, mindmap, timeline, gitGraph, pie, quadrantChart). Never ASCII boxes and arrows.
+const VISUALS = `The chat draws more than text. Choose these on your own, without being asked:
+- Explaining how three or more parts connect, steps that follow each other, states, a data model or a plan over time: put a diagram first, in a fenced \`\`\`mermaid block (flowchart, sequenceDiagram, stateDiagram-v2, erDiagram, classDiagram, gantt, mindmap, timeline, gitGraph, quadrantChart), then a few lines. Never ASCII boxes and arrows. Draw only what you have read or were told; say so when there is nothing to connect.
 - Facts with several columns: a markdown table. Maths: LaTeX.
-- Several choices or inputs needed from the person: a form, not a list of questions. Read ${FORMS_ID} first with library_get for the format.
-Ordinary answers and single questions stay plain text.`
+- Two or more questions for the person, or options for them to choose between: a form, not a list. Read ${FORMS_ID} first with library_get for the format.
+Short answers and a single question stay plain text.`
 
 const FORMS = `A form in the chat is a fenced \`\`\`a2ui block of A2UI v0.9 JSON messages: one JSON list, or one message a line.
 - createSurface: {"version":"v0.9","createSurface":{"surfaceId":"x","catalogId":"basic"}}
