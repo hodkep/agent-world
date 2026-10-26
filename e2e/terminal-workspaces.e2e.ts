@@ -14,6 +14,10 @@ function repo(parent: string, name: string) {
 }
 
 const drawer = (page: Page) => page.getByRole('region', { name: 'Terminals' })
+const toProject = async (page: Page, name: string) => {
+  await page.locator('.ws-button').click()
+  await page.getByRole('menuitem', { name: new RegExp(name) }).click()
+}
 const go = async (page: Page, folder: string) => {
   await page.evaluate((f) => window.aw.activateWorkspace(f), folder)
   await page.reload()
@@ -50,6 +54,50 @@ test('the terminals drawer is each workspace\'s own: opened in one it is not ope
     await expect(drawer(page)).toBeVisible()
     await go(page, two)
     await expect(drawer(page)).toBeHidden()
+  } finally {
+    await run.shutdown()
+  }
+})
+
+test('each workspace has its own terminals: switching in the app shows only its own, and going back finds them alive and selected', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-termlist-')))
+  const one = repo(tmp, 'project-one')
+  const two = repo(tmp, 'project-two')
+  const run = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50' }, tmp)
+  try {
+    const page = await run.app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), one)
+    await page.reload()
+    await hire(page)
+    await go(page, two)
+    await hire(page, { name: 'bob' })
+    await go(page, one)
+
+    const tabs = drawer(page).getByRole('tab')
+    const where = drawer(page).locator('.twhere')
+    await page.locator('.term-btn').click()
+    await expect(tabs).toHaveCount(1)
+    await page.getByRole('button', { name: 'New terminal in project-one' }).click()
+    await expect(tabs).toHaveCount(2)
+    await tabs.nth(0).click()
+    await tabs.nth(1).click()
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true')
+
+    // Switch without a reload: the other workspace shows its own (none yet), not these two.
+    await toProject(page, 'project-two')
+    await expect(page.locator('.ws-button')).toContainText('project-two')
+    await expect(page.locator('.term-btn')).toHaveAttribute('aria-pressed', 'false')
+    await page.locator('.term-btn').click()
+    await expect(where).toHaveText('project-two')
+    await expect(tabs).toHaveCount(1)
+    await expect(drawer(page).locator('.tbody .tview, .tbody > *')).toHaveCount(1)
+
+    // Back: both of the first one's are there, the first still selected.
+    await toProject(page, 'project-one')
+    await expect(page.locator('.ws-button')).toContainText('project-one')
+    await expect(where).toHaveText('project-one')
+    await expect(tabs).toHaveCount(2)
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true')
   } finally {
     await run.shutdown()
   }

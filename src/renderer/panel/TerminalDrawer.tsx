@@ -5,6 +5,7 @@ import { TerminalView } from './TerminalView'
 import { keysOf } from '../shortcuts'
 
 const keyFor = (folder: string) => `aw.terms.${folder}`
+const activeKey = (folder: string) => `aw.termactive.${folder}`
 const readIds = (folder: string): string[] => {
   try {
     const v = JSON.parse(localStorage.getItem(keyFor(folder)) ?? '[]')
@@ -21,7 +22,9 @@ const readIds = (folder: string): string[] => {
  */
 export function TerminalDrawer({ folder, folderName, open, height, onHeight, onHide, onShow, onCount, ask }: { folder: string | null; folderName: string; open: boolean; height: number; onHeight: (h: number) => void; onHide: () => void; onShow: () => void; onCount: (n: number) => void; ask?: { agentId: string; onAttached: () => void } }) {
   const [ids, setIds] = useState<string[]>([])
-  const [loaded, setLoaded] = useState(false)
+  // The folder whose terminals `ids` holds: while it is not the open one the list is another project's and is neither shown nor saved.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const loaded = !!folder && loadedFor === folder
   const [active, setActive] = useState<string | null>(null)
   const [asking, setAsking] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -30,15 +33,17 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
 
   // This project's terminals that are still alive.
   useEffect(() => {
-    setLoaded(false)
-    if (!folder) return void (setIds([]), setActive(null))
+    setIds([])
+    setActive(null)
+    if (!folder) return
     let alive = true
     void window.aw.listShells().then((live) => {
       if (!alive) return
       const mine = readIds(folder).filter((id) => live.includes(id))
       setIds(mine)
-      setActive(mine[0] ?? null)
-      setLoaded(true)
+      const was = localStorage.getItem(activeKey(folder))
+      setActive(was && mine.includes(was) ? was : (mine[0] ?? null))
+      setLoadedFor(folder)
     })
     return () => {
       alive = false
@@ -47,6 +52,9 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
   useEffect(() => {
     if (folder && loaded) localStorage.setItem(keyFor(folder), JSON.stringify(ids))
   }, [ids, folder, loaded])
+  useEffect(() => {
+    if (folder && loaded && active) localStorage.setItem(activeKey(folder), active)
+  }, [active, folder, loaded])
   useEffect(() => onCount(ids.length), [ids.length, onCount])
   useEffect(() => window.aw.onPtyExit((id) => setIds((l) => l.filter((x) => x !== id))), [])
   useEffect(() => {
