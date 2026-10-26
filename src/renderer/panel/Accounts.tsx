@@ -78,7 +78,7 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
   return (
     <>
       <legend>Accounts</legend>
-      <p className="set-lead">Sign each subscription in once. Agents can then move between them from their profile card without signing in again. Your own login on this computer is never changed.</p>
+      <p className="set-lead">Sign each subscription in once. Agents can then move between them from their profile card without signing in again. Your own login on this computer is only changed if you sign it in here.</p>
       <p className="set-note">The default account is used for every agent you hire. You can change it at any time from an agent's profile card, so no account choice is ever locked in.</p>
       {keepers.map((p) => (
         <div key={p.id} className="acct-group">
@@ -123,7 +123,12 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
                     </small>
                   </div>
                   <div className="acts">
-                    {list && <span className="acct-state" data-ok={x.loggedIn}>{x.loggedIn ? 'Signed in' : 'Sign in needed'}</span>}
+                    {/* This computer's own login has no folder to sign into, so its tag is the way in; an added account has the Sign in button beside it. */}
+                    {list && !x.loggedIn && !x.id ? (
+                      <button className="acct-state acct-state-btn" data-ok="false" aria-label="Sign in" onClick={() => void begin(x.id, x.name, x.provider)}>Sign in needed ▸</button>
+                    ) : (
+                      list && <span className="acct-state" data-ok={x.loggedIn}>{x.loggedIn ? 'Signed in' : 'Sign in needed'}</span>
+                    )}
                     {list && !x.loggedIn && x.id && <button onClick={() => void begin(x.id, x.name, x.provider)}>Sign in</button>}
                     {list && x.loggedIn && <button onClick={() => setSwitching({ id: x.id, name: x.name })} title="Choose which agents move to this account, or restart them on it">Switch all agents here</button>}
                     {!isDefault && <button onClick={() => onChange({ defaults: { ...prefs.defaults, accounts: { ...prefs.defaults.accounts, [x.provider]: x.id } } })}>Make default</button>}
