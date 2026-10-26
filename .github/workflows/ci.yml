@@ -76,6 +76,32 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
 
+  # Which spec files each of the four shards runs, balanced by how long each file took (scripts/shard-plan.mjs). Playwright's own --shard counts tests: one run had shards of 6.5, 12.3, 4.6 and 7.3 minutes, and the run is as slow as its slowest.
+  # The times are e2e/durations.json, overlaid with the reports of the latest run that has them (kept 7 days). With neither, or if the plan fails, a shard has no files and the e2e job runs Playwright's own split.
+  shards:
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - name: Reports of the latest run
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh run list --workflow ci --event pull_request --status success --limit 10 --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$id" -p 'e2e-report-*' -D reports 2>/dev/null; then break; fi
+          done
+      - id: plan
+        run: node scripts/shard-plan.mjs --reports $(ls reports/*/*.json 2>/dev/null)
+
   # The end-to-end specs, split over four Macs. Each shard builds the app and runs a quarter of the specs; the aggregator below reports for all of them.
   # The runner is macos-14, not macos-latest (which is macos-15). GitHub's macOS 15 and 26 pools were so short of machines on 2026-10-20 that jobs waited 15 minutes
   # for one and were then abandoned, with no other job of ours running. Measured the same day, one job per image: macos-14 started in 5 to 58 seconds, macos-15-intel in 4,
@@ -84,13 +110,12 @@ jobs:
   # An earlier count of this repository's jobs put the most that ran at once at 5. No concurrency group makes pull requests wait for each other: GitHub keeps one
   # pending run per group and cancels an older pending one, so a third pull request would cancel the second.
   e2e:
-    needs: [changes, checks]
+    needs: [changes, checks, shards]
     if: needs.changes.outputs.e2e == 'true'
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      matrix: ${{ fromJSON(needs.shards.outputs.matrix) }}
     runs-on: macos-14
     env:
       PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/report-${{ matrix.shard }}.json
@@ -108,7 +133,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node node_modules/electron/install.js
       - run: pnpm run build
-      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/4
+      - name: Run this shard's specs
+        env:
+          FILES: ${{ matrix.files }}
+        run: |
+          if [ -n "$FILES" ]; then pnpm exec playwright test $FILES; else pnpm exec playwright test --shard=${{ matrix.shard }}/4; fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -128,7 +157,7 @@ jobs:
   # a job that never got a Mac is "abandoned", which is neither, and must not pass.
   test:
     name: test (macos-latest)
-    needs: [changes, checks, e2e]
+    needs: [changes, checks, shards, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:
