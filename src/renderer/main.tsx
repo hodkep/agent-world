@@ -1,7 +1,10 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { Boundary } from './Boundary'
+import { installCleanCopy } from './cleanCopy'
 import './styles.css'
+
+installCleanCopy()
 
 // The app talks to its main process through window.aw (the preload script). In an ordinary browser tab, which is
 // what opening the dev server's address gives you, there is none: say so instead of crashing on the first call.
