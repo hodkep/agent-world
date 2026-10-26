@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { hireNamed, shotApp } from './shotsKit'
 
+// Each test starts its own app and the longest takes minutes: run them side by side on the two workers instead of one after another.
+test.describe.configure({ mode: 'parallel' })
+
 type Page = import('@playwright/test').Page
 const setItem = (page: Page, k: string, v: string) => page.evaluate(([key, val]) => localStorage.setItem(key!, val!), [k, v])
 type Life = { errands: { agent: string; kind: string }[]; boy: { joined: number; noticed: number; caught: number; playing: boolean } }

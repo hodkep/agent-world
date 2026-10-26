@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { hireNamed, shotApp } from './shotsKit'
 
+// Each test starts its own app and the longest takes minutes: run them side by side on the two workers instead of one after another.
+test.describe.configure({ mode: 'parallel' })
+
 type Staff = { water: number; staff: { kind: 'boy' | 'supervisor'; x: number; y: number; pose: string; said: string; carrying: string }[] }
 const SUPERVISOR_LINES = ['Any blockers?', 'ETA?', 'Is it in the sprint?', 'Per my last email']
 
