@@ -8,6 +8,9 @@ import markedFootnote from 'marked-footnote'
 import { gfmHeadingId } from 'marked-gfm-heading-id'
 import markedKatex from 'marked-katex-extension'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { type Root, createRoot } from 'react-dom/client'
+import { A2uiView } from './A2uiView'
+import { parseSurface } from './a2ui'
 import { languageFor, monaco } from '../code/monaco'
 import { followLink, linkHint } from '../links'
 import { openFileEvent } from '../files/context'
@@ -73,6 +76,20 @@ function inline(name: string, mark: string, re: RegExp, tag: string): TokenizerA
   }
 }
 
+/** What a pressed A2UI button sends to the agent whose chat shows it; that chat sends it as a message. */
+export const A2UI_EVENT = 'aw-a2ui-action'
+
+function drawA2ui(pre: HTMLElement, source: string, agentId?: string): Root | null {
+  const surface = parseSurface(source)
+  if (!surface) return null
+  const box = document.createElement('div')
+  box.className = 'a2ui-mount'
+  const root = createRoot(box)
+  root.render(<A2uiView surface={surface} onAction={(text) => window.dispatchEvent(new CustomEvent(A2UI_EVENT, { detail: { agentId, text } }))} />)
+  pre.replaceWith(box)
+  return root
+}
+
 let mermaidCount = 0
 async function drawMermaid(pre: HTMLElement, source: string) {
   try {
@@ -99,6 +116,16 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
     [text]
   )
   const box = useRef<HTMLDivElement>(null)
+  const a2roots = useRef<Root[]>([])
+  // The surfaces drawn into this reply go with it when its text changes.
+  useEffect(
+    () => () => {
+      const gone = a2roots.current
+      a2roots.current = []
+      setTimeout(() => gone.forEach((r) => r.unmount()))
+    },
+    [html]
+  )
   // A link to a task shows its title and state, so it is drawn again when the board changes.
   const todos = useTodoVersion()
   useEffect(() => {
@@ -109,6 +136,11 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
     if (!el) return
     for (const a of el.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')) a.title ||= linkHint(a.href)
     for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-mermaid')) void drawMermaid(code.parentElement!, code.textContent ?? '')
+    // A form or card an agent drew with A2UI; a block that is not valid A2UI stays the code it was written as.
+    for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-a2ui')) (() => {
+      const root = drawA2ui(code.parentElement!, code.textContent ?? '', agentId)
+      if (root) a2roots.current.push(root)
+    })()
     // Pictures that are files on disk (a path the agent mentions) are read by the main process, like attached ones.
     for (const img of el.querySelectorAll<HTMLImageElement>('img')) {
       const src = img.getAttribute('src') ?? ''

@@ -20,7 +20,7 @@ import { back, fresh, newer, older, onFirstLine, onLastLine, type Recall } from 
 import { pickedMessage, type ViewInfo } from '../panel/picker'
 import { Lightbox, Picture } from './Images'
 import { AttachmentViewer } from './ImageEditor'
-import { Markdown } from './markdown'
+import { A2UI_EVENT, Markdown } from './markdown'
 import { UserText } from './Mentions'
 import { describeCommand, ranFor } from './procView'
 import { MessageEditor, type EditorHandle } from './MessageEditor'
@@ -480,6 +480,16 @@ export function ChatView({
     },
     [agentId, busy]
   )
+
+  // A button pressed in a form the agent drew (A2UI) in this chat answers it.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId?: string; text: string }>).detail
+      if (d?.agentId === agentId && visible) void send(d.text).catch(() => {})
+    }
+    window.addEventListener(A2UI_EVENT, on)
+    return () => window.removeEventListener(A2UI_EVENT, on)
+  }, [agentId, send, visible])
 
   // Words selected in one of the agent's replies, or in what its tools and commands printed, offer "Ask": they go into the message box as a quote.
   const chatEl = useRef<HTMLDivElement>(null)
