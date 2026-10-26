@@ -47,7 +47,7 @@ test('a reply can hold a diagram and a form the agent drew: the diagram is a pic
   }
 })
 
-test('a diagram in a reply can be picked from, zoomed, drawn on and added to the message box', async () => {
+test('a diagram in a reply opens large on a click, where boxes (not arrows) are picked and it can be zoomed and drawn on; in the chat Shift+click picks and one button adds it to the message box', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-diagram-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -66,30 +66,45 @@ test('a diagram in a reply can be picked from, zoomed, drawn on and added to the
     const bar = diagram.getByRole('toolbar', { name: 'Diagram' })
     const chips = page.getByRole('list', { name: 'Attached files' })
 
-    // A box is picked by a click, one at a time, more with Shift, and let go by clicking it again.
-    await diagram.locator('.rough-node', { hasText: 'android-api' }).click()
+    // In the chat there is one button; four are gone.
+    await expect(bar.getByRole('button')).toHaveCount(1)
+    await expect(bar.getByRole('button', { name: 'Add to message' })).toBeVisible()
+    // Shift+click picks a box here, and the button then asks about it.
+    await diagram.locator('.rough-node', { hasText: 'android-api' }).click({ modifiers: ['Shift'] })
     await expect(bar).toContainText('1 picked')
-    await diagram.locator('.rough-node', { hasText: 'Postgres' }).click({ modifiers: ['Shift'] })
-    await expect(bar).toContainText('2 picked')
-    await diagram.locator('.rough-node', { hasText: 'Postgres' }).click({ modifiers: ['Shift'] })
-    await expect(bar).toContainText('1 picked')
-
-    // Asking about it adds one chip with the diagram's words and the box picked, and clears the pick.
     await bar.getByRole('button', { name: 'Ask about them' }).click()
     await expect(chips.locator('li.chip-context')).toHaveCount(1)
     await expect(chips.locator('li.chip-context .chip-from')).toHaveText('Diagram')
     await expect(chips.locator('li.chip-context')).toContainText('diagram, picked android-api')
-    await expect(chips.locator('li.chip-context')).toHaveAttribute('title', /```mermaid[\s\S]*android-api/)
-    await expect(bar).not.toContainText('picked')
+    await expect(chips.locator('li.chip-context')).toHaveAttribute('title', /I picked these boxes[\s\S]*android-api[\s\S]*```mermaid/)
 
-    // Zoom is the picture viewer: it opens on the diagram as a picture and Esc closes it.
-    await bar.getByRole('button', { name: 'Zoom' }).click()
-    await expect(page.getByRole('dialog', { name: 'Picture' }).locator('img')).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Picture' })).toHaveCount(0)
+    // A plain click opens it large, with the zoom controls.
+    await diagram.locator('.dia-svg').click({ position: { x: 5, y: 5 } })
+    const viewer = page.getByRole('dialog', { name: 'Diagram' })
+    await expect(viewer).toBeVisible()
+    await expect(viewer.getByText('100%')).toBeVisible()
+    await viewer.getByRole('button', { name: 'Zoom in' }).click()
+    await expect(viewer.getByText('125%')).toBeVisible()
+    await viewer.getByRole('button', { name: 'Fit' }).click()
+    await expect(viewer.getByText('100%')).toBeVisible()
+
+    // Boxes are picked by a click, several of them; an arrow cannot be.
+    const picked = viewer.getByRole('list', { name: 'Picked boxes' })
+    await viewer.locator('.rough-node', { hasText: 'Postgres' }).click()
+    await viewer.locator('.rough-node', { hasText: 'Mage pipelines' }).click()
+    await expect(picked.getByRole('listitem')).toHaveCount(2)
+    await viewer.locator('.edgePaths path').first().click({ force: true })
+    await expect(picked.getByRole('listitem')).toHaveCount(2)
+    await viewer.getByRole('button', { name: 'Let go of Mage pipelines' }).click()
+    await expect(picked.getByRole('listitem')).toHaveCount(1)
+    await viewer.getByRole('button', { name: 'Ask about it' }).click()
+    await expect(viewer).toHaveCount(0)
+    await expect(chips.locator('li.chip-context')).toHaveCount(2)
+    await expect(chips.locator('li.chip-context').nth(1)).toContainText('diagram, picked Postgres')
 
     // Draw is the picture editor; what is drawn is saved as a picture next to the diagram's words.
-    await bar.getByRole('button', { name: 'Draw' }).click()
+    await diagram.locator('.dia-svg').click({ position: { x: 5, y: 5 } })
+    await viewer.getByRole('button', { name: 'Draw' }).click()
     const editor = page.getByRole('dialog', { name: 'Edit diagram.png' })
     const canvas = editor.getByLabel('Picture being edited')
     await expect(canvas).toBeVisible()
@@ -100,7 +115,7 @@ test('a diagram in a reply can be picked from, zoomed, drawn on and added to the
     await page.mouse.up()
     await editor.getByRole('button', { name: 'Save' }).click()
     await expect(editor).toHaveCount(0)
-    await expect(chips.locator('li.chip-context')).toHaveCount(2)
+    await expect(chips.locator('li.chip-context')).toHaveCount(3)
     await expect(chips.locator('li.chip-context button.chip-img')).toHaveCount(1)
   } finally {
     await shutdown()

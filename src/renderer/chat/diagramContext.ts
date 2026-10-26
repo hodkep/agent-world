@@ -2,6 +2,6 @@
 export function diagramContext(source: string, picked: string[]): { label: string; text: string } {
   const names = [...new Set(picked.map((p) => p.trim()).filter(Boolean))]
   const shown = names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ')
-  const lead = names.length ? `I picked these in the diagram: ${names.join(', ')}.\n\n` : ''
+  const lead = names.length ? `I picked these boxes in the diagram (the words written on them): ${names.join(', ')}. Arrows cannot be picked, so my question is about these boxes and how they connect in the diagram below.\n\n` : ''
   return { label: names.length ? `diagram, picked ${shown}` : 'diagram', text: `${lead}The diagram (Mermaid):\n\`\`\`mermaid\n${source.trim()}\n\`\`\`` }
 }
