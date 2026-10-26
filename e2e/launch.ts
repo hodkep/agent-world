@@ -1,4 +1,4 @@
-import { type Page, _electron as electron } from '@playwright/test'
+import { type Page, _electron as electron, test } from '@playwright/test'
 import { rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { SLOW } from './waits'
@@ -14,14 +14,26 @@ const inherited = () => Object.fromEntries(Object.entries(process.env).filter(([
 // so we kill the process ourselves and always remove the test's temp dir.
 // AW_DPR1=1 runs the app at a pixel ratio of 1, as on a CI runner's screen (a laptop's is 2): some layouts and zoom steps differ.
 export async function launchApp(env: Record<string, string>, tmp: string) {
+  const t0 = Date.now()
   const app = await electron.launch({ args: [resolve(__dirname, '..'), ...(process.env.AW_DPR1 ? ['--force-device-scale-factor=1'] : [])], env: { ...inherited(), AW_ZOOM: '1', AW_NO_SETUP: '1', AW_AGY_BIN: '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...hidden, ...env } })
   // The agent list starts folded away for real users; tests that are not about that keep it open, as most of them click rows in it.
   if (!env.AW_DEFAULT_LAYOUT) await app.context().addInitScript(() => localStorage.getItem('aw.compact') === null && localStorage.setItem('aw.compact', '0'))
+  const spawned = Date.now() - t0
+  // The window is awaited by every spec anyway; here only to say how long it took. A spec that never gets one is left to fail where it would have.
+  await app.firstWindow().catch(() => {})
+  const window = Date.now() - t0 - spawned
   const proc = app.process()
   const shutdown = async () => {
+    const t1 = Date.now()
     await Promise.race([app.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))])
     if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL')
     rmSync(tmp, { recursive: true, force: true })
+    // One note per launch, in the report: scripts/ci-summary.mjs says what starting the app cost on the machine the run was on.
+    try {
+      test.info().annotations.push({ type: 'launch', description: `spawn=${spawned} window=${window} close=${Date.now() - t1}` })
+    } catch {
+      /* closed outside a test (a hook or a helper run): nothing to note on */
+    }
   }
   return { app, shutdown }
 }
