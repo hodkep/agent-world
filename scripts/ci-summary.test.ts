@@ -36,4 +36,20 @@ describe('the end-to-end report as a step summary', () => {
   it('copes with no report at all', () => {
     expect(summarize([])).toContain('No end-to-end report')
   })
+
+  it('says what starting the app cost: how many launches, the median of each part and the share of the time of all the specs', () => {
+    const launch = (spawn: number, window: number, close: number) => ({ type: 'launch', description: `spawn=${spawn} window=${window} close=${close}` })
+    const withLaunches = (...l: ReturnType<typeof launch>[]) => ({ ...test('expected', [10_000]), annotations: l })
+    const md = summarize([report(spec('a', 'a.e2e.ts', withLaunches(launch(200, 800, 50), launch(400, 1000, 70))), spec('b', 'b.e2e.ts', withLaunches(launch(300, 900, 60))))])
+    expect(md).toContain('### App launches')
+    expect(md).toContain('3 launches')
+    // Median of 200, 300, 400 and of 800, 900, 1000 and of 50, 60, 70.
+    expect(md).toMatch(/\| 300 ms \| 900 ms \| 60 ms \|/)
+    // 2.1 + 2.0 + ... : (200+800+50) + (400+1000+70) + (300+900+60) = 3780 ms of 20 000 ms.
+    expect(md).toContain('3.8 s of 20.0 s (19%)')
+  })
+
+  it('leaves the launch section out when the report has no launch notes', () => {
+    expect(summarize([report(spec('a', 'a.e2e.ts', test('expected', [1000])))])).not.toContain('App launches')
+  })
 })
