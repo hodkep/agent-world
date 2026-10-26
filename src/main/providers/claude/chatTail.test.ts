@@ -9,7 +9,7 @@ const user = (uuid: string, text: string) => JSON.stringify({ uuid, type: 'user'
 
 let dir: string
 beforeEach(() => (dir = mkdtempSync(join(tmpdir(), 'aw-tail-'))))
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('following a transcript file', () => {
   it('reads what is there, then only what is added, waiting for a line to be finished', () => {

@@ -6,7 +6,7 @@ import { saveAttachment } from './attachments'
 
 let dir: string
 beforeEach(() => (dir = mkdtempSync(join(tmpdir(), 'aw-att-'))))
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('saving attachments', () => {
   it('writes the bytes under the agent\'s folder and returns the path', () => {
