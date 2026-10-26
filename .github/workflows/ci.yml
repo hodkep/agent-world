@@ -53,11 +53,14 @@ jobs:
           else
             # A diff that fails prints nothing, and nothing listed counts as code: the specs run.
             git diff --name-only "$BASE...$HEAD" > changed.txt || : > changed.txt
-            node scripts/ci-changes.mjs < changed.txt | tee code.txt
+            # package.json from both sides, so a release pull request (a new version and the changelog) can be told from a change of scripts or dependencies. A missing file reads as empty, which counts as code.
+            git show "$BASE:package.json" > package.before.json 2>/dev/null || : > package.before.json
+            git show "$HEAD:package.json" > package.after.json 2>/dev/null || : > package.after.json
+            node scripts/ci-changes.mjs package.before.json package.after.json < changed.txt | tee code.txt
             if grep -q 'code=true' code.txt; then
               echo "e2e=true" >> "$GITHUB_OUTPUT"; echo "why=code changed" >> "$GITHUB_OUTPUT"
             else
-              echo "e2e=false" >> "$GITHUB_OUTPUT"; echo "why=only docs, the changelog or pictures changed" >> "$GITHUB_OUTPUT"
+              echo "e2e=false" >> "$GITHUB_OUTPUT"; echo "why=only docs, the changelog, pictures or the version in package.json changed" >> "$GITHUB_OUTPUT"
             fi
           fi
 
