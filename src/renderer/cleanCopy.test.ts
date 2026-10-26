@@ -1,17 +1,27 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { cleanHtml } from './cleanCopy'
+import { toMarkdown } from './cleanCopy'
+
+const md = (html: string) => {
+  const box = document.createElement('div')
+  box.innerHTML = html
+  const frag = document.createDocumentFragment()
+  frag.append(...box.childNodes)
+  return toMarkdown(frag)
+}
 
 describe('what a copy from the app puts on the clipboard', () => {
-  it('drops the styles, classes and scripts the page wears, and keeps the structure', () => {
-    const frag = document.createDocumentFragment()
-    const box = document.createElement('div')
-    box.innerHTML = '<div class="table-wrap" style="background-color: rgb(12, 11, 18)"><table><tr><td style="color: red" data-x="1">A</td></tr></table><p class="x" style="margin:0">Hi <strong style="font-weight:700">there</strong></p><script>1</script></div>'
-    frag.append(box)
-    const out = cleanHtml(frag)
-    expect(out).not.toMatch(/style=|class=|data-|<script/)
-    expect(out).toContain('<table>')
-    expect(out).toContain('<strong>there</strong>')
-    expect(out).toContain('<td>A</td>')
+  it('is the text as markdown, without the styles the page wears', () => {
+    const out = md('<h2 style="color:red" class="x">Goal</h2><p>No <strong>OOM</strong>, see <code>pd.concat</code> and <a href="https://a.b">this</a>.</p><ul><li>one</li><li>two<ul><li>deep</li></ul></li></ul><ol><li>first</li><li>second</li></ol><script>1</script>')
+    expect(out).toBe('## Goal\n\nNo **OOM**, see `pd.concat` and [this](https://a.b).\n\n- one\n- two\n  - deep\n\n1. first\n2. second')
+  })
+
+  it('keeps a table as a markdown table', () => {
+    const out = md('<div class="table-wrap"><table><thead><tr><th>Step</th><th>Pass</th></tr></thead><tbody><tr><td>1</td><td>ok | yes</td></tr></tbody></table></div>')
+    expect(out).toBe('| Step | Pass |\n| --- | --- |\n| 1 | ok \\| yes |')
+  })
+
+  it('keeps a code block fenced', () => {
+    expect(md('<pre><code>a\nb</code></pre>')).toBe('```\na\nb\n```')
   })
 })
