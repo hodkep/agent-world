@@ -29,7 +29,7 @@ beforeEach(async () => {
   git(wt.path, 'config', 'user.email', 't@t')
   git(wt.path, 'config', 'user.name', 't')
 })
-afterEach(() => rmSync(tmp, { recursive: true, force: true }))
+afterEach(() => rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('agent changes against its base branch', () => {
   it('lists committed, uncommitted and new files with their status', async () => {

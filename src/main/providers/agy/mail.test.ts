@@ -11,7 +11,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'aw-agymail-'))
   config = join(dir, 'mcp_config.json')
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 const make = (calls: string[][] = []) => createAgyMail({ home: dir, config, plugins: join(dir, 'plugins'), node: '/app/electron', run: async (_bin, args) => void calls.push(args) })
 

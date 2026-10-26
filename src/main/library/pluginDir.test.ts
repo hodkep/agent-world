@@ -7,7 +7,7 @@ import { writePluginDir } from './pluginDir'
 
 let dir: string
 beforeEach(() => void (dir = mkdtempSync(join(tmpdir(), 'aw-plug-'))))
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('the session-only plugin folder Claude loads', () => {
   it('holds just the chosen skills, with their files, and a manifest Claude can read', async () => {

@@ -6,7 +6,7 @@ import { recentlyRunning, writeRunning } from './resume'
 
 let dir: string
 beforeEach(() => (dir = mkdtempSync(join(tmpdir(), 'aw-resume-'))))
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('agents that were running when the app went away', () => {
   it('come back if it was only a moment ago (a restart), and not after a long time', () => {

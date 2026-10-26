@@ -33,7 +33,7 @@ beforeEach(async () => {
   svc.playbooks.write('global', [{ id: 'terse', mode: 'always', when: '', strength: 'medium' }])
   svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength: 'soft' }])
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 const rulebook = (strength: 'soft' | 'medium' | 'hard') => svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength }])
 
 describe('what an agent is given from the library', () => {

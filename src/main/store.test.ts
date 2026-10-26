@@ -11,7 +11,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'aw-store-'))
   file = join(dir, 'nested', 'agents.json')
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 const ada: AgentRecord = {
   id: 'a1',

@@ -39,7 +39,7 @@ describe('workspaces', () => {
 describe('workspace file', () => {
   let dir: string
   beforeEach(() => (dir = mkdtempSync(join(tmpdir(), 'aw-ws-'))))
-  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
   it('round-trips, and starts empty when the file is missing or damaged', () => {
     const file = join(dir, 'workspaces.json')

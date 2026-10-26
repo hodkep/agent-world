@@ -31,7 +31,7 @@ describe('session title', () => {
 describe('listing sessions', () => {
   let root: string
   beforeEach(() => (root = mkdtempSync(join(tmpdir(), 'aw-hist-'))))
-  afterEach(() => rmSync(root, { recursive: true, force: true }))
+  afterEach(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
   const put = (slug: string, id: string, body: string, when: number) => {
     mkdirSync(join(root, slug), { recursive: true })

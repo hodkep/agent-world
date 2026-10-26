@@ -6,7 +6,7 @@ import { deleteRole, discoverRoles, loadRoles, parseAgentFile, saveRole } from '
 
 let dir: string
 beforeEach(() => (dir = mkdtempSync(join(tmpdir(), 'aw-roles-'))))
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 const FILE = `---
 name: db-migrator

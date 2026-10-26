@@ -28,7 +28,7 @@ beforeEach(() => {
   writeFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'onplug@market': [{ installPath: on }], 'offplug@market': [{ installPath: off }] } }))
   writeFileSync(join(home, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'onplug@market': true, 'offplug@market': false } }))
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('skills found on this computer that can be imported', () => {
   it('finds your own, the project\'s, other programs\' and those of enabled plugins, naming where each is from', async () => {

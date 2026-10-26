@@ -21,7 +21,7 @@ beforeEach(() => {
   put(join(home, '.claude', 'skills', 'tdd', 'SKILL.md'), '---\nname: tdd\ndescription: "Test-driven development loop"\n---\n')
   put(join(home, '.claude', 'commands', 'lint.md'), '---\ndescription: user-level lint (shadowed)\n---\n')
 })
-afterEach(() => rmSync(tmp, { recursive: true, force: true }))
+afterEach(() => rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('command palette sources', () => {
   it('lists built-ins, project and user skills and commands, with descriptions', async () => {

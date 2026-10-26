@@ -23,7 +23,7 @@ beforeEach(() => {
   git(repo, 'add', '.')
   git(repo, 'commit', '-qm', 'init')
 })
-afterEach(() => rmSync(tmp, { recursive: true, force: true }))
+afterEach(() => rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('worktrees', () => {
   it('detects git repos', async () => {

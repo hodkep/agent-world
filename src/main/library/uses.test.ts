@@ -75,7 +75,7 @@ describe('turns of different launches', () => {
 
 describe('the log file', () => {
   let dir = ''
-  afterEach(() => rmSync(dir, { recursive: true, force: true }))
+  afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
   it('appends lines, reads them back, and skips a half-written last line', async () => {
     dir = mkdtempSync(join(tmpdir(), 'uses-'))
     const log = new UseLog(join(dir, 'sub', 'uses.jsonl'))
