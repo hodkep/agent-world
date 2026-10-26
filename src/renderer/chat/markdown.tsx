@@ -10,6 +10,7 @@ import markedKatex from 'marked-katex-extension'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Root, createRoot } from 'react-dom/client'
 import { A2uiView } from './A2uiView'
+import { Diagram } from './Diagram'
 import { MERMAID_CONFIG } from './mermaidConfig'
 import { parseSurface } from './a2ui'
 import { languageFor, monaco } from '../code/monaco'
@@ -92,14 +93,16 @@ function drawA2ui(pre: HTMLElement, source: string, agentId?: string): Root | nu
 }
 
 let mermaidCount = 0
-async function drawMermaid(pre: HTMLElement, source: string) {
+async function drawMermaid(pre: HTMLElement, source: string, agentId: string | undefined, onRoot: (r: Root) => void) {
   try {
     const { default: mermaid } = await import('mermaid')
     mermaid.initialize(MERMAID_CONFIG)
     const { svg } = await mermaid.render(`mermaid-${++mermaidCount}`, source)
     const box = document.createElement('div')
     box.className = 'mermaid'
-    box.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })
+    const root = createRoot(box)
+    onRoot(root)
+    root.render(<Diagram svg={DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })} source={source} agentId={agentId} />)
     pre.replaceWith(box)
   } catch {
     pre.classList.add('mermaid-failed')
@@ -136,7 +139,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
     const el = box.current
     if (!el) return
     for (const a of el.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')) a.title ||= linkHint(a.href)
-    for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-mermaid')) void drawMermaid(code.parentElement!, code.textContent ?? '')
+    for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-mermaid')) void drawMermaid(code.parentElement!, code.textContent ?? '', agentId, (r) => a2roots.current.push(r))
     // A form or card an agent drew with A2UI; a block that is not valid A2UI stays the code it was written as.
     for (const code of el.querySelectorAll<HTMLElement>('pre > code.language-a2ui')) (() => {
       const root = drawA2ui(code.parentElement!, code.textContent ?? '', agentId)
