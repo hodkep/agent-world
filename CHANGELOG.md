@@ -4,6 +4,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-26
+
+### Fixed
+
+- Chat: text copied from the chat pastes cleanly into other apps, without the dark background and fonts.
+
 ## [0.5.0] - 2026-10-26
 
 ### Added
@@ -259,7 +265,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.5.0...HEAD
+[Unreleased]: ../../compare/v0.5.1...HEAD
+[0.5.1]: ../../compare/v0.5.0...v0.5.1
 [0.5.0]: ../../compare/v0.4.0...v0.5.0
 [0.4.0]: ../../compare/v0.3.1...v0.4.0
 [0.3.1]: ../../compare/v0.3.0...v0.3.1
