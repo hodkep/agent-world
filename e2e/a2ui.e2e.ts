@@ -47,7 +47,7 @@ test('a reply can hold a diagram and a form the agent drew: the diagram is a pic
   }
 })
 
-test('a diagram in a reply opens large on a click, where boxes (not arrows) are picked and it can be zoomed and drawn on; in the chat Shift+click picks and one button adds it to the message box', async () => {
+test('a diagram in a reply: a click on a box picks it in the chat, Expand opens it large to zoom, pick (not arrows) and draw on, and the button adds it to the message box', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-diagram-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -66,11 +66,11 @@ test('a diagram in a reply opens large on a click, where boxes (not arrows) are 
     const bar = diagram.getByRole('toolbar', { name: 'Diagram' })
     const chips = page.getByRole('list', { name: 'Attached files' })
 
-    // In the chat there is one button; four are gone.
-    await expect(bar.getByRole('button')).toHaveCount(1)
+    // In the chat: Expand, and one button that adds it.
+    await expect(bar.getByRole('button')).toHaveCount(2)
     await expect(bar.getByRole('button', { name: 'Add to message' })).toBeVisible()
-    // Shift+click picks a box here, and the button then asks about it.
-    await diagram.locator('.rough-node', { hasText: 'android-api' }).click({ modifiers: ['Shift'] })
+    // A plain click on a box picks it (and another picks another), and the button then asks about them.
+    await diagram.locator('.rough-node', { hasText: 'android-api' }).click()
     await expect(bar).toContainText('1 picked')
     await bar.getByRole('button', { name: 'Ask about them' }).click()
     await expect(chips.locator('li.chip-context')).toHaveCount(1)
@@ -78,8 +78,8 @@ test('a diagram in a reply opens large on a click, where boxes (not arrows) are 
     await expect(chips.locator('li.chip-context')).toContainText('diagram, picked android-api')
     await expect(chips.locator('li.chip-context')).toHaveAttribute('title', /I picked these boxes[\s\S]*android-api[\s\S]*```mermaid/)
 
-    // A plain click opens it large, with the zoom controls.
-    await diagram.locator('.dia-svg').click({ position: { x: 5, y: 5 } })
+    // Expand opens it large, with the zoom controls; a click on the empty part of it does too.
+    await bar.getByRole('button', { name: 'Expand' }).click()
     const viewer = page.getByRole('dialog', { name: 'Diagram' })
     await expect(viewer).toBeVisible()
     await expect(viewer.getByText('100%')).toBeVisible()
@@ -88,8 +88,22 @@ test('a diagram in a reply opens large on a click, where boxes (not arrows) are 
     await viewer.getByRole('button', { name: 'Fit' }).click()
     await expect(viewer.getByText('100%')).toBeVisible()
 
-    // Boxes are picked by a click, several of them; an arrow cannot be.
+    // A scroll zooms a little at a time, not by leaps.
+    await viewer.locator('.dv-stage').hover()
+    for (let i = 0; i < 10; i++) await page.mouse.wheel(0, -4)
+    await expect(viewer.getByText(/^1\d\d%$/)).toBeVisible()
+    expect(Number((await viewer.locator('.dv-zoom').innerText()).replace('%', ''))).toBeLessThan(130)
+    await viewer.getByRole('button', { name: 'Fit' }).click()
+
+    // Boxes are picked by a click, several of them, even when the pointer moves a little in the click as a trackpad does; an arrow cannot be.
     const picked = viewer.getByRole('list', { name: 'Picked boxes' })
+    const mid = (await viewer.locator('.rough-node', { hasText: 'Postgres' }).boundingBox())!
+    await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(mid.x + mid.width / 2 + 3, mid.y + mid.height / 2 + 2)
+    await page.mouse.up()
+    await expect(picked.getByRole('listitem')).toHaveCount(1)
+    await viewer.getByRole('button', { name: 'Let go of Postgres' }).click()
     await viewer.locator('.rough-node', { hasText: 'Postgres' }).click()
     await viewer.locator('.rough-node', { hasText: 'Mage pipelines' }).click()
     await expect(picked.getByRole('listitem')).toHaveCount(2)
@@ -103,11 +117,16 @@ test('a diagram in a reply opens large on a click, where boxes (not arrows) are 
     await expect(chips.locator('li.chip-context').nth(1)).toContainText('diagram, picked Postgres')
 
     // Draw is the picture editor; what is drawn is saved as a picture next to the diagram's words.
-    await diagram.locator('.dia-svg').click({ position: { x: 5, y: 5 } })
+    await bar.getByRole('button', { name: 'Expand' }).click()
     await viewer.getByRole('button', { name: 'Draw' }).click()
     const editor = page.getByRole('dialog', { name: 'Edit diagram.png' })
     const canvas = editor.getByLabel('Picture being edited')
     await expect(canvas).toBeVisible()
+    // The draw view zooms too, with the same controls.
+    await editor.getByRole('button', { name: 'Zoom in' }).click()
+    await expect(editor.getByText('125%')).toBeVisible()
+    await editor.getByRole('button', { name: 'Fit to window' }).click()
+    await expect(editor.locator('.editor-zoom')).toHaveText('Fit')
     const box = (await canvas.boundingBox())!
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3)
     await page.mouse.down()

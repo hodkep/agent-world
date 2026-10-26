@@ -642,8 +642,11 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .lightbox.panning img { cursor: grabbing; }
 .lightbox-edit { position: fixed; z-index: 81; top: 16px; right: 60px; display: inline-flex; align-items: center; gap: 6px; }
 .editor { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; background: rgb(8 7 12 / 0.92); padding: 24px 24px 12px; gap: 14px; }
-.editor-stage { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; }
-.editor-canvas { position: relative; display: grid; max-width: 100%; max-height: 100%; min-height: 0; }
+.editor-stage { flex: 1; min-height: 0; width: 100%; display: flex; overflow: auto; }
+.editor-canvas { position: relative; display: grid; margin: auto; max-width: 100%; max-height: 100%; min-height: 0; }
+.editor-canvas:has(canvas[style]) { max-width: none; max-height: none; padding: 8px }
+.editor-zoom { min-width: 5ch; text-align: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+.editor-bar .tool.zoom { line-height: 1.2; font-size: 13px; padding: 3px 9px }
 .editor-canvas canvas { max-width: 100%; max-height: calc(100vh - 120px); width: auto; height: auto; box-shadow: 0 0 0 4px var(--ink), 0 0 0 6px var(--accent); cursor: crosshair; touch-action: none; background: var(--well); }
 .editor-text { position: absolute; min-width: 8em; padding: 0 2px; font-weight: 700; background: rgb(8 7 12 / 0.55); border: 0; outline: 2px dashed var(--accent); }
 .editor-error { color: var(--danger-text); }
@@ -3705,3 +3708,4 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .dv-picked li { display: inline-flex; align-items: center; gap: 4px; background: var(--selected); border: 2px solid var(--accent-dim); color: var(--accent); padding: 0 2px 0 8px; font-size: 12px }
 .dv-picked li button { box-shadow: none; background: transparent; border: 0; padding: 0 6px; color: var(--accent) }
 .dv .dia-error { position: absolute; left: 12px; bottom: 56px }
+.dia-svg .node:hover, .dia-svg .rough-node:hover { filter: drop-shadow(0 0 4px rgb(242 194 48 / 0.55)) }

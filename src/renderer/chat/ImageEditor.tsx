@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type History, type Pt, type Shape, type Tool, add, canRedo, canUndo, clear, drawShapes, empty, lineWidth, redo, undo } from './annotate'
 import { Lightbox } from './Images'
+import { wheelFactor } from './wheelZoom'
+
+const MAX_ZOOM = 6
 import { hint } from '../shortcuts'
 import { type HeaderIconName, OutlineIcon } from '../panel/IconButton'
 
@@ -48,6 +51,17 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
   const [typing, setTyping] = useState<{ at: Pt; x: number; y: number } | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Zoom: 1 is the picture fitted to the window; more makes it bigger than the window, and the stage scrolls.
+  const [zoom, setZoom] = useState(1)
+  const fitted = useRef(0)
+  const stage = useRef<HTMLDivElement>(null)
+  const zoomBy = useCallback((f: number) => {
+    setZoom((z) => {
+      if (z === 1 && canvas.current) fitted.current = canvas.current.getBoundingClientRect().width
+      const n = Math.min(MAX_ZOOM, Math.max(1, z * f))
+      return n < 1.02 ? 1 : n
+    })
+  }, [])
 
   useEffect(() => {
     const i = new Image()
@@ -73,14 +87,30 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
     if (ctx) paint(ctx, draft ? [...hist.done, draft] : hist.done)
   }, [paint, hist, draft])
 
+  // A pinch on a trackpad (a wheel with Ctrl) zooms; an ordinary scroll moves the picture once it is bigger than the window.
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      zoomBy(wheelFactor(e))
+    }
+    el.addEventListener('wheel', wheel, { passive: false })
+    return () => el.removeEventListener('wheel', wheel)
+  }, [zoomBy])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      const typingNow = e.target instanceof HTMLInputElement
       if (e.key === 'Escape') (e.stopPropagation(), onClose())
+      else if (!typingNow && !e.metaKey && !e.ctrlKey && (e.key === '+' || e.key === '=')) zoomBy(1.25)
+      else if (!typingNow && !e.metaKey && !e.ctrlKey && e.key === '-') zoomBy(1 / 1.25)
+      else if (!typingNow && !e.metaKey && !e.ctrlKey && e.key === '0') setZoom(1)
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !(e.target instanceof HTMLInputElement)) (e.preventDefault(), setHist((h) => (e.shiftKey ? redo(h) : undo(h))))
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
-  }, [onClose])
+  }, [onClose, zoomBy])
 
   // Screen position to picture pixels, whatever size the picture is shown at.
   const at = (e: React.PointerEvent): Pt => {
@@ -133,10 +163,10 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
 
   return (
     <div className="editor" role="dialog" aria-label={`Edit ${name}`}>
-      <div className="editor-stage">
+      <div className="editor-stage" ref={stage}>
         {size && (
           <div className="editor-canvas">
-            <canvas ref={canvas} width={size.w} height={size.h} onMouseDown={(e) => e.preventDefault()} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} aria-label="Picture being edited" />
+            <canvas ref={canvas} width={size.w} height={size.h} style={zoom === 1 ? undefined : { width: fitted.current * zoom, height: 'auto', maxWidth: 'none', maxHeight: 'none' }} onMouseDown={(e) => e.preventDefault()} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} aria-label="Picture being edited" />
             {typing && (
               <input
                 className="editor-text"
@@ -161,6 +191,12 @@ export function ImageEditor({ src, name, onSave, onClose }: { src: string; name:
         )}
       </div>
       <div className="editor-bar" role="toolbar" aria-label="Picture tools">
+        <div className="editor-group" role="group" aria-label="Zoom">
+          <button className="tool zoom" onClick={() => zoomBy(1 / 1.25)} disabled={zoom === 1} aria-label="Zoom out" title="Zoom out (−)">−</button>
+          <span className="editor-zoom" aria-live="polite">{zoom === 1 ? 'Fit' : `${Math.round(zoom * 100)}%`}</span>
+          <button className="tool zoom" onClick={() => zoomBy(1.25)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in" title="Zoom in (+)">+</button>
+          <button className="tool zoom" onClick={() => setZoom(1)} disabled={zoom === 1} aria-label="Fit to window" title="Fit to window (0)">Fit</button>
+        </div>
         <div className="editor-group" role="radiogroup" aria-label="Tool">
           {TOOLS.map((t) => (
             <button key={t.tool} role="radio" aria-checked={tool === t.tool} className="tool" onClick={() => setTool(t.tool)} aria-label={t.label} title={t.label}>

@@ -4,8 +4,8 @@ import { BOX, labelOf } from './diagramDom'
 import { diagramContext } from './diagramContext'
 
 /**
- * A Mermaid diagram in a reply. A click opens it large (zoom, pick boxes, draw); Shift+click picks a box here in the chat, and the
- * one button next to it adds the diagram, with what is picked, to the message box.
+ * A Mermaid diagram in a reply. A click on a box picks it (more than one can be, arrows cannot), a click anywhere else on it, or Expand,
+ * opens it large (zoom, pick, draw), and the button next to it adds the diagram, with what is picked, to the message box.
  */
 export function Diagram({ svg, source, agentId }: { svg: string; source: string; agentId?: string }) {
   const host = useRef<HTMLDivElement>(null)
@@ -24,7 +24,7 @@ export function Diagram({ svg, source, agentId }: { svg: string; source: string;
 
   const click = (e: React.MouseEvent) => {
     const node = (e.target as Element).closest(BOX)
-    if (e.shiftKey && node && host.current?.contains(node)) {
+    if (node && host.current?.contains(node)) {
       node.classList.toggle('sel')
       setPicked([...host.current.querySelectorAll(`${BOX}.sel`)].map(labelOf))
     } else setOpen(true)
@@ -34,10 +34,11 @@ export function Diagram({ svg, source, agentId }: { svg: string; source: string;
     <div className="dia" data-picked={picked.length || undefined}>
       <div className="dia-bar" role="toolbar" aria-label="Diagram">
         {picked.length > 0 && <span className="dia-n">{picked.length} picked</span>}
+        <button onClick={() => setOpen(true)} title="Open it large: zoom, pick boxes, draw">Expand</button>
         <button
           className="primary"
           onClick={() => (emit(picked, null), clear())}
-          title={picked.length ? 'Add the diagram and the boxes you picked to the message box' : 'Add the diagram to the message box (click it to open, Shift+click a box to pick)'}
+          title={picked.length ? 'Add the diagram and the boxes you picked to the message box' : 'Add the whole diagram to the message box (click boxes to pick some)'}
         >
           {picked.length ? 'Ask about them' : 'Add to message'}
         </button>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { wheelFactor } from './wheelZoom'
 import { GALLERY_MAX, type PictureSet, type Shot, galleryShown, stepPicture } from './gallery'
 
 /** A picture in the conversation. Clicking opens it full size; a picture too big to carry says where it is. */
@@ -78,7 +79,7 @@ export function Lightbox({ src, set, onClose }: { src: string; /** Several pictu
       role="dialog"
       aria-label={total > 1 ? `Picture ${at + 1} of ${total}` : 'Picture'}
       onClick={() => !drag.current?.moved && onClose()}
-      onWheel={(e) => zoomTo((s) => s * (e.deltaY < 0 ? 1.15 : 1 / 1.15))}
+      onWheel={(e) => zoomTo((s) => s * wheelFactor(e))}
       onPointerMove={(e) => {
         const d = drag.current
         if (!d) return
