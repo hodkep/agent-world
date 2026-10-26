@@ -10,7 +10,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'aw-lib-'))
   lib = new Library(join(dir, 'library'))
 })
-afterEach(() => rmSync(dir, { recursive: true, force: true }))
+afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 
 describe('the library store', () => {
   it('is empty at first, and keeps an instruction and a prompt as files', async () => {

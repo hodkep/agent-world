@@ -8,7 +8,7 @@ let tmp: string
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), 'aw-agycmd-'))
 })
-afterEach(() => rmSync(tmp, { recursive: true, force: true }))
+afterEach(() => rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 const skill = (dir: string, name: string, text: string) => {
   mkdirSync(join(dir, name), { recursive: true })
   writeFileSync(join(dir, name, 'SKILL.md'), `---\nname: ${name}\ndescription: ${text}\n---\n`)
