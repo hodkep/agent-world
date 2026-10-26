@@ -17,6 +17,7 @@ sequenceDiagram
   Sched->>Work: run hour H
   Work->>DB: upsert by hour
   DB-->>Work: ok
+  Note over DB: hour is indexed
 ```
 
 ```a2ui

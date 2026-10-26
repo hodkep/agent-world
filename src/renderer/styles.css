@@ -3710,6 +3710,9 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .dv .dia-error { position: absolute; left: 12px; bottom: 56px }
 .dia-svg .node:hover, .dia-svg .rough-node:hover, .dia-svg rect.actor:hover, .dia-svg text.actor:hover { filter: drop-shadow(0 0 4px rgb(242 194 48 / 0.55)) }
 .dia-svg rect.actor, .dia-svg text.actor { cursor: pointer }
+.dia-svg [class*='messageLine'].sel:not(.hit), .dia-svg rect.note.sel, .dia-svg rect[class*='activation'].sel, .dia-svg line.actor-line.sel { stroke: var(--accent-hot) !important; stroke-width: 3px }
+.dia-svg text.messageText, .dia-svg text.noteText, .dia-svg rect.note, .dia-svg [class*='messageLine'], .dia-svg line.actor-line, .dia-svg rect[class*='activation'] { cursor: pointer }
+.dia-svg text.messageText:hover, .dia-svg rect.note:hover, .dia-svg text.noteText:hover { filter: drop-shadow(0 0 4px rgb(242 194 48 / 0.55)) }
 .dia-svg rect.sel { stroke: var(--accent-hot) !important; stroke-width: 3px; fill: var(--selected) !important }
 .dia-svg text.sel { fill: var(--accent-hot) !important; font-weight: 700 }
 .dia-hint { font-size: 11px; color: var(--muted); padding: 0 4px }

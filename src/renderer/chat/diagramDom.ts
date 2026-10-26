@@ -1,33 +1,88 @@
 const PAPER = '#0c0b12'
 /** A box in the drawing: Mermaid's own `node`, and `rough-node` when it is drawn by hand. Arrows are neither, so they cannot be picked. */
 export const BOX = '.node, .rough-node'
-/** In a sequence diagram the participants are boxes too, drawn twice (at the top and at the bottom); the messages between them are arrows. */
-const ACTOR = 'rect.actor, text.actor'
-
 export const labelOf = (node: Element) => (node.textContent ?? '').replace(/\s+/g, ' ').trim()
 
-/** The words of a participant's box: the text itself, or the text next to a rectangle. */
-function actorName(el: Element): string {
-  if (el.tagName.toLowerCase() === 'text') return labelOf(el)
-  const text = [el.nextElementSibling, el.previousElementSibling].find((n) => n?.matches('text.actor'))
-  return text ? labelOf(text) : ''
+/** Something in the drawing that can be picked: its name (as it is told to the agent) and the parts of the drawing that make it up. */
+export interface Unit {
+  key: string
+  els: Element[]
 }
 
-/** The box (or participant) a click landed on, as the words written on it; null for an arrow, a label or empty space. */
+/**
+ * What can be picked in a diagram. In a flowchart, a state diagram and so on, the boxes (arrows cannot be). In a sequence diagram the
+ * messages are the content, so they can be picked too, with the participants (their boxes at both ends, their lifelines and the
+ * bars on them) and the notes; a message is named by its number from the top, since the same words come up again and again.
+ */
+export function unitsOf(host: Element): Unit[] {
+  const units = new Map<string, Element[]>()
+  const add = (key: string, ...els: Element[]) => key && units.set(key, [...(units.get(key) ?? []), ...els])
+  host.querySelectorAll(BOX).forEach((n) => add(labelOf(n), n))
+
+  const lifelines: { x: number; key: string }[] = []
+  host.querySelectorAll('rect.actor').forEach((r) => {
+    const text = r.nextElementSibling
+    if (!text?.matches('text.actor')) return
+    const key = labelOf(text)
+    const els = [r, text]
+    const line = r.previousElementSibling
+    if (line?.matches('line.actor-line')) (els.push(line), lifelines.push({ x: Number(line.getAttribute('x1')), key }))
+    add(key, ...els)
+  })
+  host.querySelectorAll('rect[class*="activation"]').forEach((r) => {
+    const x = Number(r.getAttribute('x')) + Number(r.getAttribute('width')) / 2
+    const near = lifelines.reduce<{ x: number; key: string } | null>((best, l) => (!best || Math.abs(l.x - x) < Math.abs(best.x - x) ? l : best), null)
+    if (near) add(near.key, r)
+  })
+  host.querySelectorAll('g').forEach((g) => {
+    const rect = g.querySelector(':scope > rect.note')
+    const text = g.querySelector(':scope > text.noteText')
+    if (rect && text) add(`note: ${labelOf(text)}`, rect, text)
+  })
+  let n = 0
+  host.querySelectorAll('text.messageText').forEach((t) => {
+    n++
+    const els = [t]
+    for (let s = t.nextElementSibling; s && !s.matches('text.messageText'); s = s.nextElementSibling) {
+      if (!s.matches('[class*="messageLine"]')) continue
+      els.push(s)
+      // The wide, invisible copy of the line that makes it easy to hit.
+      if (s.nextElementSibling?.matches('.hit')) els.push(s.nextElementSibling)
+      break
+    }
+    add(`message ${n}: ${labelOf(t)}`, ...els)
+  })
+  return [...units].map(([key, els]) => ({ key, els }))
+}
+
+/** A thin line is hard to click: each message line gets a wide invisible copy beside it. */
+export function addHits(host: Element | null) {
+  host?.querySelectorAll('[class*="messageLine"]:not(.hit)').forEach((l) => {
+    if (l.nextElementSibling?.classList.contains('hit')) return
+    const hit = l.cloneNode(false) as SVGElement
+    hit.classList.add('hit')
+    ;['marker-end', 'marker-start', 'style'].forEach((a) => hit.removeAttribute(a))
+    hit.setAttribute('stroke', 'transparent')
+    hit.setAttribute('stroke-width', '16')
+    hit.setAttribute('fill', 'none')
+    hit.setAttribute('pointer-events', 'stroke')
+    l.after(hit)
+  })
+}
+
+/** The name of what a click landed on; null for an arrow in a flowchart, a label or empty space. */
 export function pickedAt(target: Element, host: Element): string | null {
-  const box = target.closest(BOX)
-  if (box && host.contains(box)) return labelOf(box) || null
-  const actor = target.closest(ACTOR)
-  return actor && host.contains(actor) ? actorName(actor) || null : null
+  return unitsOf(host).find((u) => u.els.some((e) => e === target || e.contains(target)))?.key ?? null
 }
 
 /** Whether there is anything in the diagram to pick. */
-export const hasBoxes = (host: Element | null) => !!host?.querySelector(`${BOX}, ${ACTOR}`)
+export const hasBoxes = (host: Element | null) => !!host && unitsOf(host).length > 0
 
-/** Marks the boxes whose words are in the list as picked (a participant at both of its ends). */
+/** Marks what is in the list as picked, and nothing else. */
 export function showPicks(host: Element | null, names: string[]) {
-  host?.querySelectorAll(BOX).forEach((n) => n.classList.toggle('sel', names.includes(labelOf(n))))
-  host?.querySelectorAll(ACTOR).forEach((n) => n.classList.toggle('sel', names.includes(actorName(n))))
+  if (!host) return
+  host.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel'))
+  for (const u of unitsOf(host)) if (names.includes(u.key)) u.els.forEach((e) => e.classList.add('sel'))
 }
 
 /** The list with the name added, or taken out when it is there. */

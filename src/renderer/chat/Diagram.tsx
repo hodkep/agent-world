@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DiagramViewer } from './DiagramViewer'
-import { hasBoxes, pickedAt, showPicks, toggled } from './diagramDom'
+import { addHits, hasBoxes, pickedAt, showPicks, toggled } from './diagramDom'
 import { diagramContext } from './diagramContext'
 
 /**
@@ -16,6 +16,7 @@ export function Diagram({ svg, source, agentId }: { svg: string; source: string;
   useEffect(() => {
     if (!host.current) return
     host.current.innerHTML = svg
+    addHits(host.current)
     setPickable(hasBoxes(host.current))
   }, [svg])
   useEffect(() => showPicks(host.current, picked), [picked, svg])
