@@ -40,7 +40,7 @@ import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
 import { requestAddSelection } from './addSelection'
-import { hint, keysOf, matches } from './shortcuts'
+import { hint, keysOf, matches, tabNumber } from './shortcuts'
 import { Switcher, type Tile } from './panel/Switcher'
 import { useSwitcher, type Flight } from './panel/useSwitcher'
 import { waitWord, waitsForPerson } from '../shared/waits'
@@ -714,6 +714,17 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (!matches(e, 'add-selection') || (e.target as Element | null)?.closest?.('.monaco-editor')) return
       if (requestAddSelection()) (e.preventDefault(), e.stopPropagation())
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
+  // Mod+Alt+1-9 press the Nth tab shown, so it follows the bar whichever optional tabs are in it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const n = tabNumber(e)
+      if (n === null || document.querySelector('dialog[open]')) return
+      const tab = document.querySelectorAll<HTMLElement>('.tabs [role="tab"]')[n - 1]
+      if (tab) (e.preventDefault(), e.stopPropagation(), tab.click())
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)

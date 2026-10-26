@@ -21,6 +21,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
   { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Shift+Ctrl+Tab', 'Ctrl+Tab'] },
+  { id: 'tab-jump', place: 'Anywhere', text: 'Go to the first, second … tab of the side panel', keys: ['Mod+Alt+1-9'] },
   { id: 'add-selection', place: 'Anywhere', text: 'Add the selected words, code or output to the message box as context', keys: ['Shift+Mod+L'] },
   { id: 'close', place: 'Anywhere', text: 'Close a dialog, menu or card', keys: ['Esc'] },
   { id: 'resize-panel', place: 'Anywhere', text: 'Resize the side panel (on its edge)', keys: ['ArrowLeft', 'ArrowRight'] },
@@ -79,6 +80,12 @@ export function matches(e: KeyPress, id: string): boolean {
     const mod = parts.includes('Ctrl') ? e.ctrlKey && !e.metaKey : (e.metaKey || e.ctrlKey) === parts.includes('Mod')
     return same && mod && e.shiftKey === parts.includes('Shift') && e.altKey === parts.includes('Alt')
   })
+}
+
+/** Which tab Mod+Alt+digit asks for (1 is the first), or null for any other press. Read from the key, not the character: Option+1 types ¡ on a Mac. */
+export function tabNumber(e: KeyPress): number | null {
+  const d = /^Digit([1-9])$/.exec(e.code ?? '')?.[1]
+  return d && (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey ? Number(d) : null
 }
 
 export const isMac =() => /mac/i.test(navigator.platform)

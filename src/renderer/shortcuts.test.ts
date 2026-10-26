@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findShortcuts, hint, matches, PLACES, SHORTCUTS, showKey } from './shortcuts'
+import { findShortcuts, hint, matches, PLACES, SHORTCUTS, showKey, tabNumber } from './shortcuts'
 
 describe('a key combination as the person sees it', () => {
   it('uses the Mac symbols on a Mac', () => {
@@ -106,6 +106,33 @@ describe('a key press against the table', () => {
     expect(matches(press('[', { metaKey: true, shiftKey: true, altKey: true }), 'workspace-switch')).toBe(false)
     expect(matches(press('Tab', { ctrlKey: true, altKey: true }), 'agent-switch')).toBe(false)
     expect(matches(press('/', { metaKey: true }), 'shortcuts')).toBe(true)
+  })
+})
+
+describe('jumping to a tab of the side panel', () => {
+  const press = (code: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}, key = code.replace('Digit', '')) => ({ key, code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
+
+  it('is Mod+Alt and a digit, the digit being the place of the tab', () => {
+    expect(tabNumber(press('Digit1', { metaKey: true, altKey: true }))).toBe(1)
+    expect(tabNumber(press('Digit7', { ctrlKey: true, altKey: true }))).toBe(7)
+    expect(tabNumber(press('Digit9', { metaKey: true, altKey: true }))).toBe(9)
+  })
+
+  it('reads the key, not the character: Option+1 types ¡ on a Mac', () => {
+    expect(tabNumber(press('Digit3', { metaKey: true, altKey: true }, '£'))).toBe(3)
+  })
+
+  it('leaves Cmd+digit, Alt+digit, Shift and 0 alone', () => {
+    expect(tabNumber(press('Digit1', { metaKey: true }))).toBeNull()
+    expect(tabNumber(press('Digit1', { altKey: true }))).toBeNull()
+    expect(tabNumber(press('Digit1', { metaKey: true, altKey: true, shiftKey: true }))).toBeNull()
+    expect(tabNumber(press('Digit0', { metaKey: true, altKey: true }))).toBeNull()
+    expect(tabNumber(press('KeyA', { metaKey: true, altKey: true }, 'a'))).toBeNull()
+  })
+
+  it('is in the sheet', () => {
+    expect(hint('tab-jump', true)).toBe('Go to the first, second … tab of the side panel (⌘⌥1-9)')
+    expect(hint('tab-jump', false)).toBe('Go to the first, second … tab of the side panel (Ctrl+Alt+1-9)')
   })
 })
 
