@@ -180,8 +180,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const form = page.getByRole('form', { name: 'Hire an agent' })
     await form.getByRole('radio', { name: /agy/ }).check()
     await form.getByLabel('Name').fill('bob')
-    // Hiring says what the project's playbook gives the agent.
-    await expect(form.getByRole('note', { name: 'The library for this agent' })).toContainText('1 told every time, 2 pointed at')
+    // Hiring says what the project's playbook gives the agent: the guide and the chat forms are pointed at, and the chat visuals are told every time.
+    await expect(form.getByRole('note', { name: 'The library for this agent' })).toContainText('2 told every time, 3 pointed at')
     await form.getByRole('button', { name: 'Hire' }).click()
     await form.waitFor({ state: 'detached' })
     await expect.poll(() => agyStart(args)).not.toBe('')
