@@ -64,6 +64,28 @@ jobs:
             fi
           fi
 
+  # Watches the end-to-end jobs and says on the pull request when no Mac has picked them up after 5 minutes, instead of leaving it to the 15 minutes after which GitHub abandons them.
+  # It only reads the run and writes one comment (scripts/ci-runner-watch.mjs); it is not one of the jobs the required check waits for. On a pull request from a fork the token cannot comment, and the run's summary says it instead.
+  runner-watch:
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - run: node scripts/ci-runner-watch.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+
   # The fast checks, first: a typo fails here in about a minute, before four Macs are started. Electron's binary is not needed for them.
   checks:
     runs-on: ubuntu-latest
