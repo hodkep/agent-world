@@ -5,6 +5,7 @@ import { Playbooks, compile, merge, type Compiled, type Rule } from './playbook'
 import { writePluginDir } from './pluginDir'
 import { buildCatalog } from './catalog'
 import { matchItems } from './match'
+import { GUIDE_ID } from './guide'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
 
 export interface AgentRef {
@@ -120,13 +121,15 @@ export function createLibraryService(d: Deps) {
       const onDemand = entries.some((e) => e.mode === 'on-demand')
       // The catalog is a file so an agent that has lost track can read it again; the opening text says where.
       let core = compiled.core
-      if (onDemand) {
+      // Only for an agent that can reach the library tools: the line asks it to call them, and a program that is given the opening text as a first turn would spend one on it for nothing.
+      if (onDemand && canFetch) {
         const file = join(d.root, 'catalog', `${d.workspaceKey(a.repoPath)}.md`)
         mkdirSync(dirname(file), { recursive: true })
         writeFileSync(file, buildCatalog(entries) + '\n')
         core += `${core ? '\n\n' : ''}If you cannot recall what the library holds, read ${file}. The rules above say when each applies: you decide which apply to your task, read the one that does before the work it covers, and say with library_skip when you pass one over.`
       }
-      record(a.id, '', 'started', undefined, core)
+      // The app's own guide is in every opening text; it is not something the person set up, so on its own it does not give the agent a Library tab.
+      record(a.id, '', 'started', undefined, entries.some((e) => e.id !== GUIDE_ID) ? core : undefined)
       for (const e of entries) if (e.mode === 'always') record(a.id, e.id, 'delivered', e.mode)
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },

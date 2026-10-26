@@ -97,6 +97,11 @@ describe('what an agent is given from the library', () => {
       expect(readFileSync(file, 'utf8')).toContain('- pdf: working with PDFs')
       expect((await svc.prepare('a3', true)).core).not.toContain('catalog')
     })
+    it('does not point an agent that cannot reach the library tools at its catalog, or ask it to call them', async () => {
+      const core = (await svc.prepare('a1', false)).core
+      expect(core).not.toContain('catalog')
+      expect(core).not.toContain('library_skip')
+    })
     it('never reads the message: the same words come whatever is said, and none points at an item for a word in it', async () => {
       rulebook('hard')
       await svc.prepare('a1', true, true)
