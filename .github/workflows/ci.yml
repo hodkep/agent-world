@@ -89,7 +89,7 @@ jobs:
   # The fast checks, first: a typo fails here in about a minute, before four Macs are started. Electron's binary is not needed for them.
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
@@ -137,7 +137,7 @@ jobs:
   e2e:
     needs: [changes, checks, shards]
     if: needs.changes.outputs.e2e == 'true'
-    timeout-minutes: 45
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.shards.outputs.matrix) }}
