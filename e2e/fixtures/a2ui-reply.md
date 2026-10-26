@@ -9,6 +9,16 @@ flowchart LR
   Pipes --> Dash[dashboard-api]
 ```
 
+```mermaid
+sequenceDiagram
+  participant Sched as Scheduler
+  participant Work as Worker
+  participant DB as Postgres
+  Sched->>Work: run hour H
+  Work->>DB: upsert by hour
+  DB-->>Work: ok
+```
+
 ```a2ui
 [
   {"version":"v0.9","createSurface":{"surfaceId":"plan","catalogId":"basic"}},
