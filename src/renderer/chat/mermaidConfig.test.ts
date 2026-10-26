@@ -7,6 +7,9 @@ describe('how a Mermaid diagram in a reply is drawn', () => {
     expect(MERMAID_CONFIG.securityLevel).toBe('strict')
     expect(MERMAID_CONFIG.startOnLoad).toBe(false)
     expect(MERMAID_CONFIG.flowchart?.htmlLabels).toBe(false)
+    // Lines and boxes are sketched; the words are in the app's own reading font, since a handwriting font was hard to read.
+    expect(MERMAID_CONFIG.fontFamily).toMatch(/^system-ui/)
+    expect(MERMAID_CONFIG.themeVariables?.fontSize).toBe('15px')
     expect(MERMAID_CONFIG.themeVariables?.primaryBorderColor).toBe('#f2c230')
   })
 })
