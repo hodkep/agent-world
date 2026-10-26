@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { hireNamed, shotApp } from './shotsKit'
 
+// Each test starts its own app and the longest takes minutes: run them side by side on the two workers instead of one after another.
+test.describe.configure({ mode: 'parallel' })
+
 type Page = import('@playwright/test').Page
 type Amb = { hour: number; ritual: string; event: string; phase: string; weather: string; ledge: boolean; flying: boolean; tint: number; cat: { state: string; x: number; y: number } | null; guard: boolean; callers: string[]; outside: { add: number; dim: number; lamps: boolean; rain: boolean }; lights: number; banner: string; trips: { kind: string; mode: string; x: number; y: number }[] }
 const ambience = async (page: Page): Promise<Amb | null> => {
