@@ -81,6 +81,8 @@ Select an agent with Ctrl+Tab (Shift+Ctrl+Tab goes back), then Tab to **Allow**,
 
 Hold Ctrl and press Tab again to see a bar of the agents in the order the **Agents** panel lists them (the latest first); each Tab steps on, Shift+Tab steps back, and letting go of Ctrl switches. Esc stays where you are, and a single tap switches at once with no bar. Shift+Cmd+[ and ] (Shift+Ctrl+[ and ] elsewhere) do the same for the projects, in the order of the project panel.
 
+Cmd+Alt+1 to 9 (Ctrl+Alt+1 to 9 elsewhere) go to the first to ninth tab of the side panel, counting the tabs you see: Chat, Terminal, Code and so on.
+
 To remove an agent, use **More actions**, then **Remove agent**. If its worktree has uncommitted changes, choose **Cancel (commit in terminal)**, **Remove, keep worktree** or **Discard changes**.
 
 Next: [Chat and dialogs](chat-and-dialogs.md)
