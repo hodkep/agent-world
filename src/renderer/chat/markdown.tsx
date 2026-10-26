@@ -10,6 +10,7 @@ import markedKatex from 'marked-katex-extension'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Root, createRoot } from 'react-dom/client'
 import { A2uiView } from './A2uiView'
+import { MERMAID_CONFIG } from './mermaidConfig'
 import { parseSurface } from './a2ui'
 import { languageFor, monaco } from '../code/monaco'
 import { followLink, linkHint } from '../links'
@@ -94,7 +95,7 @@ let mermaidCount = 0
 async function drawMermaid(pre: HTMLElement, source: string) {
   try {
     const { default: mermaid } = await import('mermaid')
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark', htmlLabels: false, flowchart: { htmlLabels: false } })
+    mermaid.initialize(MERMAID_CONFIG)
     const { svg } = await mermaid.render(`mermaid-${++mermaidCount}`, source)
     const box = document.createElement('div')
     box.className = 'mermaid'
