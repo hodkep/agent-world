@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ImageEditor } from './ImageEditor'
 import { BOX, labelOf, pngOf, showPicks } from './diagramDom'
+import { wheelFactor } from './wheelZoom'
 
 const MIN = 0.4
 const MAX = 6
+const SLOP = 6
 
 /**
  * A diagram opened large. The wheel or the buttons zoom (keys + - 0 too), a drag moves it, and a click on a box picks it (more than one
@@ -41,10 +43,14 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
     return () => window.removeEventListener('keydown', key)
   }, [drawing, onClose])
 
-  const pick = (e: React.MouseEvent) => {
-    if (drag.current?.moved) return
+  // A box is picked when the button goes up on the box it went down on, having moved no more than a trackpad click does by itself.
+  const down = useRef<{ x: number; y: number; box: Element | null } | null>(null)
+  const pick = (e: React.PointerEvent) => {
+    const d = down.current
+    down.current = null
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > SLOP) return
     const node = (e.target as Element).closest(BOX)
-    if (!node || !host.current?.contains(node)) return
+    if (!node || node !== d.box || !host.current?.contains(node)) return
     node.classList.toggle('sel')
     setPicked([...host.current.querySelectorAll(`${BOX}.sel`)].map(labelOf))
   }
@@ -82,25 +88,27 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
           <button onClick={() => zoom((s) => s * 1.25)} aria-label="Zoom in" title="Zoom in (+)" disabled={view.s >= MAX}>+</button>
           <button onClick={() => zoom(() => 1)} title="Fit to the window (0)">Fit</button>
         </div>
-        <span className="dv-hint">Click a box to pick it. Arrows cannot be picked.</span>
+        <span className="dv-hint">Click boxes to pick them (arrows cannot be picked). Scroll to zoom, drag to move.</span>
         <button onClick={() => void draw()} title="Draw on it with the pen, arrow and text tools">Draw</button>
         <button onClick={onClose} aria-label="Close" title="Close (Esc)">Close</button>
       </div>
       <div
         className="dv-stage"
         onClick={(e) => e.target === e.currentTarget && !drag.current?.moved && onClose()}
-        onWheel={(e) => zoom((s) => s * (e.deltaY < 0 ? 1.15 : 1 / 1.15))}
-        onPointerDown={(e) => (drag.current = { x: e.clientX, y: e.clientY, moved: false })}
+        onWheel={(e) => zoom((s) => s * wheelFactor(e))}
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY, moved: false }
+          down.current = { x: e.clientX, y: e.clientY, box: (e.target as Element).closest(BOX) }
+        }}
         onPointerMove={(e) => {
           const d = drag.current
           if (!d || e.buttons !== 1) return
-          if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 3) d.moved = true
+          if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > SLOP) d.moved = true
           if (d.moved) setView((v) => ({ ...v, x: v.x + e.movementX, y: v.y + e.movementY }))
         }}
-        onPointerUp={() => setTimeout(() => (drag.current = null))}
-        onDoubleClick={() => zoom((s) => (s > 1 ? 1 : 2))}
+        onPointerUp={(e) => (pick(e), setTimeout(() => (drag.current = null)))}
       >
-        <div ref={host} className="dia-svg dv-svg" onClick={pick} style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }} />
+        <div ref={host} className="dia-svg dv-svg" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.s})` }} />
       </div>
       <div className="dv-foot">
         {picked.length === 0 ? (
