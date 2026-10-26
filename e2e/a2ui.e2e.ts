@@ -20,7 +20,7 @@ test('a reply can hold a diagram and a form the agent drew: the diagram is a pic
     await page.getByRole('tab', { name: 'Chat' }).click()
     const log = page.getByRole('log', { name: 'Conversation with ada' })
 
-    await expect(log.locator('.mermaid svg')).toBeVisible({ timeout: 20_000 })
+    await expect(log.locator('.mermaid svg').first()).toBeVisible({ timeout: 20_000 })
     const form = log.locator('.a2ui')
     await expect(form).toHaveCount(1)
     await expect(form.getByRole('heading', { name: 'Which pipeline first?' })).toBeVisible()
@@ -61,7 +61,7 @@ test('a diagram in a reply: a click on a box picks it in the chat, Expand opens 
     await hire(page)
     await page.getByRole('tab', { name: 'Chat' }).click()
     const log = page.getByRole('log', { name: 'Conversation with ada' })
-    const diagram = log.locator('.dia')
+    const diagram = log.locator('.dia').first()
     await expect(diagram.locator('svg')).toBeVisible({ timeout: 20_000 })
     const bar = diagram.getByRole('toolbar', { name: 'Diagram' })
     const chips = page.getByRole('list', { name: 'Attached files' })
@@ -116,10 +116,17 @@ test('a diagram in a reply: a click on a box picks it in the chat, Expand opens 
     await expect(chips.locator('li.chip-context')).toHaveCount(2)
     await expect(chips.locator('li.chip-context').nth(1)).toContainText('diagram, picked Postgres')
 
-    // Draw is the picture editor; what is drawn is saved as a picture next to the diagram's words.
+    // Draw is the picture editor. Close in it closes the whole pane and returns to the chat, not to a viewer with nothing in it.
     await bar.getByRole('button', { name: 'Expand' }).click()
     await viewer.getByRole('button', { name: 'Draw' }).click()
     const editor = page.getByRole('dialog', { name: 'Edit diagram.png' })
+    await editor.getByRole('button', { name: 'Close' }).click()
+    await expect(editor).toHaveCount(0)
+    await expect(viewer).toHaveCount(0)
+    await expect(diagram.locator('svg')).toBeVisible()
+    // What is drawn is saved as a picture next to the diagram's words.
+    await bar.getByRole('button', { name: 'Expand' }).click()
+    await viewer.getByRole('button', { name: 'Draw' }).click()
     const canvas = editor.getByLabel('Picture being edited')
     await expect(canvas).toBeVisible()
     // The draw view zooms too, with the same controls.
@@ -140,3 +147,46 @@ test('a diagram in a reply: a click on a box picks it in the chat, Expand opens 
     await shutdown()
   }
 })
+
+test('the participants of a sequence diagram are picked like the boxes of a flowchart, and its messages are not', async () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-sequence-')))
+  const dir = join(tmp, 'proj')
+  mkdirSync(dir)
+  execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'i'], { cwd: dir })
+  const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_SAY_FILE: resolve(__dirname, 'fixtures/a2ui-reply.md') }, tmp)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), dir)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    const seq = log.locator('.dia').nth(1)
+    await expect(seq.locator('svg')).toBeVisible({ timeout: 25_000 })
+    const bar = seq.getByRole('toolbar', { name: 'Diagram' })
+    const chips = page.getByRole('list', { name: 'Attached files' })
+    await expect(bar).toContainText('Click a box to pick it')
+
+    // A participant is picked by clicking its box, and lights at both ends of its line.
+    await seq.locator('text.actor', { hasText: 'Worker' }).first().click()
+    await expect(bar).toContainText('1 picked')
+    await expect(seq.locator('text.actor.sel')).toHaveCount(2)
+    // Another by Shift-free click; a message (an arrow with its words) is not a box.
+    await seq.locator('rect.actor-top').nth(0).click()
+    await expect(bar).toContainText('2 picked')
+    // A message is not a box: a click on it picks nothing, and opens the diagram large like a click on any empty part.
+    await seq.locator('.messageText', { hasText: 'upsert by hour' }).click({ force: true })
+    await expect(page.getByRole('dialog', { name: 'Diagram' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Diagram' })).toHaveCount(0)
+    await expect(bar).toContainText('2 picked')
+    await bar.getByRole('button', { name: 'Ask about them' }).click()
+    await expect(chips.locator('li.chip-context')).toHaveCount(1)
+    await expect(chips.locator('li.chip-context')).toContainText('Worker')
+    await expect(chips.locator('li.chip-context')).toHaveAttribute('title', /I picked these boxes[\s\S]*Worker[\s\S]*```mermaid\nsequenceDiagram/)
+  } finally {
+    await shutdown()
+  }
+})
+

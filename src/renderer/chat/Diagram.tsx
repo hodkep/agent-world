@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DiagramViewer } from './DiagramViewer'
-import { BOX, labelOf } from './diagramDom'
+import { hasBoxes, pickedAt, showPicks, toggled } from './diagramDom'
 import { diagramContext } from './diagramContext'
 
 /**
@@ -12,28 +12,30 @@ export function Diagram({ svg, source, agentId }: { svg: string; source: string;
   const [picked, setPicked] = useState<string[]>([])
   const [open, setOpen] = useState(false)
 
+  const [pickable, setPickable] = useState(false)
   useEffect(() => {
-    if (host.current) host.current.innerHTML = svg
+    if (!host.current) return
+    host.current.innerHTML = svg
+    setPickable(hasBoxes(host.current))
   }, [svg])
+  useEffect(() => showPicks(host.current, picked), [picked, svg])
 
   const emit = (names: string[], file: File | null) => {
     const c = diagramContext(source, names)
     window.dispatchEvent(new CustomEvent('aw-context', { detail: { agentId, text: c.text, file, label: c.label, source: 'Diagram' } }))
   }
-  const clear = () => (host.current?.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel')), setPicked([]))
+  const clear = () => setPicked([])
 
   const click = (e: React.MouseEvent) => {
-    const node = (e.target as Element).closest(BOX)
-    if (node && host.current?.contains(node)) {
-      node.classList.toggle('sel')
-      setPicked([...host.current.querySelectorAll(`${BOX}.sel`)].map(labelOf))
-    } else setOpen(true)
+    const name = host.current ? pickedAt(e.target as Element, host.current) : null
+    if (name) setPicked((p) => toggled(p, name))
+    else setOpen(true)
   }
 
   return (
     <div className="dia" data-picked={picked.length || undefined}>
       <div className="dia-bar" role="toolbar" aria-label="Diagram">
-        {picked.length > 0 && <span className="dia-n">{picked.length} picked</span>}
+        {picked.length > 0 ? <span className="dia-n">{picked.length} picked</span> : pickable && <span className="dia-hint">Click a box to pick it</span>}
         <button onClick={() => setOpen(true)} title="Open it large: zoom, pick boxes, draw">Expand</button>
         <button
           className="primary"

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ImageEditor } from './ImageEditor'
-import { BOX, labelOf, pngOf, showPicks } from './diagramDom'
+import { pickedAt, pngOf, showPicks, toggled } from './diagramDom'
 import { wheelFactor } from './wheelZoom'
 
 const MIN = 0.4
@@ -22,8 +22,8 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
 
   useEffect(() => {
     if (host.current) host.current.innerHTML = svg
-    showPicks(host.current, first)
-  }, [svg, first])
+  }, [svg])
+  useEffect(() => showPicks(host.current, picked), [picked, svg])
   useEffect(() => () => void (drawing && URL.revokeObjectURL(drawing)), [drawing])
 
   const zoom = (f: (s: number) => number) =>
@@ -44,21 +44,16 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
   }, [drawing, onClose])
 
   // A box is picked when the button goes up on the box it went down on, having moved no more than a trackpad click does by itself.
-  const down = useRef<{ x: number; y: number; box: Element | null } | null>(null)
+  const down = useRef<{ x: number; y: number; name: string | null } | null>(null)
   const pick = (e: React.PointerEvent) => {
     const d = down.current
     down.current = null
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > SLOP) return
-    const node = (e.target as Element).closest(BOX)
-    if (!node || node !== d.box || !host.current?.contains(node)) return
-    node.classList.toggle('sel')
-    setPicked([...host.current.querySelectorAll(`${BOX}.sel`)].map(labelOf))
+    const name = host.current ? pickedAt(e.target as Element, host.current) : null
+    if (name && name === d.name) setPicked((p) => toggled(p, name))
   }
-  const unpick = (name: string) => {
-    host.current?.querySelectorAll(`${BOX}.sel`).forEach((n) => labelOf(n) === name && n.classList.remove('sel'))
-    setPicked((p) => p.filter((x) => x !== name))
-  }
-  const clear = () => (host.current?.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel')), setPicked([]))
+  const unpick = (name: string) => setPicked((p) => p.filter((x) => x !== name))
+  const clear = () => setPicked([])
   const draw = async () => {
     setError('')
     try {
@@ -73,7 +68,8 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
       <ImageEditor
         src={drawing}
         name="diagram.png"
-        onClose={() => setDrawing(null)}
+        // Closing the editor closes the whole pane, as it does for a picture: back to the chat, not to a viewer.
+        onClose={onClose}
         onSave={(png) => {
           onDrawn(png, picked)
         }}
@@ -98,7 +94,7 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
         onWheel={(e) => zoom((s) => s * wheelFactor(e))}
         onPointerDown={(e) => {
           drag.current = { x: e.clientX, y: e.clientY, moved: false }
-          down.current = { x: e.clientX, y: e.clientY, box: (e.target as Element).closest(BOX) }
+          down.current = { x: e.clientX, y: e.clientY, name: host.current ? pickedAt(e.target as Element, host.current) : null }
         }}
         onPointerMove={(e) => {
           const d = drag.current

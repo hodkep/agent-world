@@ -3708,4 +3708,8 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .dv-picked li { display: inline-flex; align-items: center; gap: 4px; background: var(--selected); border: 2px solid var(--accent-dim); color: var(--accent); padding: 0 2px 0 8px; font-size: 12px }
 .dv-picked li button { box-shadow: none; background: transparent; border: 0; padding: 0 6px; color: var(--accent) }
 .dv .dia-error { position: absolute; left: 12px; bottom: 56px }
-.dia-svg .node:hover, .dia-svg .rough-node:hover { filter: drop-shadow(0 0 4px rgb(242 194 48 / 0.55)) }
+.dia-svg .node:hover, .dia-svg .rough-node:hover, .dia-svg rect.actor:hover, .dia-svg text.actor:hover { filter: drop-shadow(0 0 4px rgb(242 194 48 / 0.55)) }
+.dia-svg rect.actor, .dia-svg text.actor { cursor: pointer }
+.dia-svg rect.sel { stroke: var(--accent-hot) !important; stroke-width: 3px; fill: var(--selected) !important }
+.dia-svg text.sel { fill: var(--accent-hot) !important; font-weight: 700 }
+.dia-hint { font-size: 11px; color: var(--muted); padding: 0 4px }
