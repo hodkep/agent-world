@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ImageEditor } from './ImageEditor'
-import { pickedAt, pngOf, showPicks, toggled } from './diagramDom'
+import { addHits, pickedAt, pngOf, showPicks, toggled } from './diagramDom'
 import { wheelFactor } from './wheelZoom'
 
 const MIN = 0.4
@@ -22,6 +22,7 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
 
   useEffect(() => {
     if (host.current) host.current.innerHTML = svg
+    addHits(host.current)
   }, [svg])
   useEffect(() => showPicks(host.current, picked), [picked, svg])
   useEffect(() => () => void (drawing && URL.revokeObjectURL(drawing)), [drawing])
@@ -84,7 +85,7 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
           <button onClick={() => zoom((s) => s * 1.25)} aria-label="Zoom in" title="Zoom in (+)" disabled={view.s >= MAX}>+</button>
           <button onClick={() => zoom(() => 1)} title="Fit to the window (0)">Fit</button>
         </div>
-        <span className="dv-hint">Click boxes to pick them (arrows cannot be picked). Scroll to zoom, drag to move.</span>
+        <span className="dv-hint">Click boxes to pick them, and notes and messages in a sequence diagram (not arrows in a flowchart). Scroll to zoom, drag to move.</span>
         <button onClick={() => void draw()} title="Draw on it with the pen, arrow and text tools">Draw</button>
         <button onClick={onClose} aria-label="Close" title="Close (Esc)">Close</button>
       </div>

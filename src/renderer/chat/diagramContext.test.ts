@@ -25,4 +25,9 @@ describe('what a diagram adds to a message', () => {
   it('counts a box once however often it was picked', () => {
     expect(diagramContext(source, ['api', 'api']).label).toBe('diagram, picked api')
   })
+  it('says what the numbers mean when messages of a sequence diagram are picked', () => {
+    const c = diagramContext('sequenceDiagram\n  A->>B: hi', ['message 2: read rows', 'Worker'])
+    expect(c.text).toMatch(/message numbers count the arrows from the top of the diagram/i)
+    expect(diagramContext(source, ['api']).text).not.toMatch(/message numbers/i)
+  })
 })

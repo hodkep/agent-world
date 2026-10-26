@@ -148,7 +148,7 @@ test('a diagram in a reply: a click on a box picks it in the chat, Expand opens 
   }
 })
 
-test('the participants of a sequence diagram are picked like the boxes of a flowchart, and its messages are not', async () => {
+test('in a sequence diagram the participants, the notes and the messages are picked, each by a click', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-sequence-')))
   const dir = join(tmp, 'proj')
   mkdirSync(dir)
@@ -172,21 +172,33 @@ test('the participants of a sequence diagram are picked like the boxes of a flow
     await seq.locator('text.actor', { hasText: 'Worker' }).first().click()
     await expect(bar).toContainText('1 picked')
     await expect(seq.locator('text.actor.sel')).toHaveCount(2)
-    // Another by Shift-free click; a message (an arrow with its words) is not a box.
     await seq.locator('rect.actor-top').nth(0).click()
     await expect(bar).toContainText('2 picked')
-    // A message is not a box: a click on it picks nothing, and opens the diagram large like a click on any empty part.
-    await seq.locator('.messageText', { hasText: 'upsert by hour' }).click({ force: true })
-    await expect(page.getByRole('dialog', { name: 'Diagram' })).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Diagram' })).toHaveCount(0)
-    await expect(bar).toContainText('2 picked')
+    // A note, and a message by its words; a click on the thin line of the message (its wide hit area) lets it go again.
+    await seq.locator('text.noteText', { hasText: 'hour is indexed' }).click()
+    await expect(bar).toContainText('3 picked')
+    await seq.locator('text.messageText', { hasText: 'upsert by hour' }).click()
+    await expect(bar).toContainText('4 picked')
+    await seq.locator('line.hit').nth(1).click({ force: true })
+    await expect(bar).toContainText('3 picked')
+    await seq.locator('line.hit').nth(1).click({ force: true })
+    await expect(bar).toContainText('4 picked')
     await bar.getByRole('button', { name: 'Ask about them' }).click()
     await expect(chips.locator('li.chip-context')).toHaveCount(1)
-    await expect(chips.locator('li.chip-context')).toContainText('Worker')
-    await expect(chips.locator('li.chip-context')).toHaveAttribute('title', /I picked these boxes[\s\S]*Worker[\s\S]*```mermaid\nsequenceDiagram/)
+    const said = chips.locator('li.chip-context')
+    await expect(said).toHaveAttribute('title', /Worker[\s\S]*note: hour is indexed[\s\S]*message 2: upsert by hour/)
+    await expect(said).toHaveAttribute('title', /message numbers count the arrows from the top/i)
+    await expect(said).toHaveAttribute('title', /```mermaid\nsequenceDiagram/)
+
+    // Large too: the same things are picked there, and a click on empty paper picks nothing.
+    await bar.getByRole('button', { name: 'Expand' }).click()
+    const viewer = page.getByRole('dialog', { name: 'Diagram' })
+    const picked = viewer.getByRole('list', { name: 'Picked boxes' })
+    await viewer.locator('text.actor', { hasText: 'Postgres' }).first().click()
+    await viewer.locator('text.messageText', { hasText: 'run hour H' }).click()
+    await expect(picked.getByRole('listitem')).toHaveCount(2)
+    await expect(picked).toContainText('message 1: run hour H')
   } finally {
     await shutdown()
   }
 })
-
