@@ -4,6 +4,23 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-26
+
+### Added
+
+- Chat: agents draw diagrams and ask with forms in the chat on their own; click a diagram to open it large, zoom, pick boxes, notes or messages to ask about, and draw on it.
+- Chat: the message box shows markdown as you type it, with the markers hidden except on the line the caret is in.
+- Chat: **Restart agent** in the agent's "..." menu asks first, then starts the program again on the same conversation.
+- Workflows: a workflow is drawn as a flow diagram, every step takes instructions, and a check, an audit or a pull request can wait for **Run**.
+- Library: agents read the app's own guide from the Library when asked how to do something in the app.
+- Shortcuts: Cmd+Alt+1 to 9 jump to the tabs of the side panel.
+- Accounts: a signed-out login of this computer can be signed in from Settings > Accounts.
+
+### Fixed
+
+- Terminals: switching project shows only that project's terminals, and coming back finds them as you left them.
+- Workflows: the agent behind the builder stays inside the builder, out of the agents list and the office.
+
 ## [0.4.0] - 2026-10-25
 
 ### Added
@@ -242,7 +259,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.4.0...HEAD
+[Unreleased]: ../../compare/v0.5.0...HEAD
+[0.5.0]: ../../compare/v0.4.0...v0.5.0
 [0.4.0]: ../../compare/v0.3.1...v0.4.0
 [0.3.1]: ../../compare/v0.3.0...v0.3.1
 [0.3.0]: ../../compare/v0.2.7...v0.3.0
