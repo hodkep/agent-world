@@ -237,7 +237,9 @@ const hook = async (event, extra = {}) => {
 
 console.log(`fake claude · session ${sessionId} · cwd ${process.cwd()}`)
 if (forkedFrom) console.log(`forked from ${forkedFrom}`)
-console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : (args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
+// A long value keeps its start and its end (the person's own instructions come last): a real opening text runs to pages and would scroll the lines above out of the terminal.
+const shown = (v) => (v.length > 300 ? `${v.slice(0, 80)} … ${v.slice(-200)}` : v)
+console.log(`args: ${args.filter((a) => a.startsWith('--') && !['--settings', '--mcp-config', '--session-id', '--resume', '--name'].includes(a)).map((a) => `${a} ${args[args.indexOf(a) + 1]?.startsWith('--') ? '' : shown(args[args.indexOf(a) + 1] ?? '')}`).join(' ')}`)
 // FAKE_DEV_PORT=n: behave like an agent that started a dev server on that port.
 if (process.env.FAKE_DEV_PORT) console.log(`  ➜  Local:   http://localhost:${process.env.FAKE_DEV_PORT}/`)
 // Like real Claude: a killed session still reports SessionEnd on its way out.

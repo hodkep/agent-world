@@ -6,7 +6,11 @@ import { writePluginDir } from './pluginDir'
 import { buildCatalog } from './catalog'
 import { matchItems } from './match'
 import { GUIDE_ID } from './guide'
+import { FORMS_ID, VISUALS_ID } from './visuals'
 import { UseLog, summarize, type How, type Summary, type Use } from './uses'
+
+/** The app's own items: in every agent's reach, not something the person set up. */
+const BUILT_IN = new Set([GUIDE_ID, VISUALS_ID, FORMS_ID])
 
 export interface AgentRef {
   id: string
@@ -115,7 +119,9 @@ export function createLibraryService(d: Deps) {
     /** At launch: the opening text for this agent, and (for the program that can load them) the folder of skills it is allowed. */
     prepare(agentId: string, canFetch: boolean, native = false): { core: string; reminder: string; pluginDir: string | null; compiled: Compiled } {
       const a = agentOrThrow(agentId)
-      const compiled = compileFor(a.repoPath, canFetch) as Compiled
+      // A program that cannot reach the library tools is given the opening text as a first turn, so the app's own drawing rules (which only the chat renders for it) are left out rather than spend one.
+      const rules = canFetch ? rulesFor(a.repoPath) : rulesFor(a.repoPath).filter((r) => !BUILT_IN.has(r.id) || r.id === GUIDE_ID)
+      const compiled = { ...compile(rules, itemsMap(), { canFetch }), rules } as Compiled
       state.set(a.id, { launch: Date.now(), turn: 0, canFetch, native, reminder: compiled.reminder, hardIds: compiled.hardIds, mediumIds: compiled.mediumIds, catalogDue: false, lastAt: now(), read: new Set() })
       const entries = indexSync(a.id)
       const onDemand = entries.some((e) => e.mode === 'on-demand')
@@ -129,8 +135,8 @@ export function createLibraryService(d: Deps) {
         core += `${core ? '\n\n' : ''}If you cannot recall what the library holds, read ${file}. The rules above say when each applies: you decide which apply to your task, read the one that does before the work it covers, and say with library_skip when you pass one over.`
       }
       // The app's own guide is in every opening text; it is not something the person set up, so on its own it does not give the agent a Library tab.
-      record(a.id, '', 'started', undefined, entries.some((e) => e.id !== GUIDE_ID) ? core : undefined)
-      for (const e of entries) if (e.mode === 'always') record(a.id, e.id, 'delivered', e.mode)
+      record(a.id, '', 'started', undefined, entries.some((e) => !BUILT_IN.has(e.id)) ? core : undefined)
+      for (const e of entries) if (e.mode === 'always' && !BUILT_IN.has(e.id)) record(a.id, e.id, 'delivered', e.mode)
       return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
     },
 
