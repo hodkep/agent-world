@@ -13,7 +13,8 @@ describe('what a diagram adds to a message', () => {
   it('names the boxes that were picked, in the words and in the chip', () => {
     const c = diagramContext(source, ['api.ts', 'db.ts'])
     expect(c.label).toBe('diagram, picked api.ts, db.ts')
-    expect(c.text).toMatch(/I picked these in the diagram: api\.ts, db\.ts/)
+    expect(c.text).toMatch(/I picked these boxes in the diagram \(the words written on them\): api\.ts, db\.ts/)
+    expect(c.text).toMatch(/Arrows cannot be picked/)
     expect(c.text).toContain('```mermaid')
   })
   it('keeps the chip short when many are picked', () => {
