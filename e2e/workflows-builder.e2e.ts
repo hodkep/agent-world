@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { type Page, expect, test } from '@playwright/test'
+import { type Locator, type Page, expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 import { readLog } from './readLog'
 
@@ -80,6 +80,29 @@ async function asAgent(launch: string[]) {
     return { text: r.content[0]!.text, error: r.isError === true }
   }
   return { client, call }
+}
+
+/** The box of an element once it has stopped moving: the canvas fits its view and the panel settles after the nodes appear, and a drag measured while that goes on starts in the wrong place. */
+const still = async (el: Locator) => {
+  await el.scrollIntoViewIfNeeded()
+  let last = ''
+  await expect.poll(async () => {
+    const now = JSON.stringify(await el.boundingBox())
+    const same = now === last
+    last = now
+    return same
+  }, { intervals: [100, 100, 100, 200, 200] }).toBe(true)
+  return (await el.boundingBox())!
+}
+
+/** Press at one point and release at another, with a first small move so the canvas starts a drag before the long one. */
+const dragBetween = async (page: Page, a: { x: number; y: number }, b: { x: number; y: number }) => {
+  await page.mouse.move(a.x, a.y)
+  await page.mouse.down()
+  await page.mouse.move(a.x, a.y + 8, { steps: 4 })
+  await page.mouse.move(b.x, b.y, { steps: 15 })
+  await page.mouse.move(b.x, b.y)
+  await page.mouse.up()
 }
 
 const openWorkflows = async (page: Page) => {
@@ -337,11 +360,8 @@ test('a step card is dragged to another place in the flow, and a narrow panel sh
     await expect(nodes.nth(1)).toHaveAttribute('aria-label', 'Step 2: Build')
 
     // Dragging Build down past Tests pass puts it third.
-    const box = (await draft.getByLabel('Step 2: Build').boundingBox())!
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + box.height * 1.9, { steps: 12 })
-    await page.mouse.up()
+    const box = await still(draft.getByLabel('Step 2: Build'))
+    await dragBetween(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, { x: box.x + box.width / 2, y: box.y + box.height / 2 + box.height * 1.9 })
     await expect(draft.locator('.react-flow__node').nth(1)).toHaveAttribute('aria-label', 'Step 2: Tests pass')
     await expect(draft.locator('.react-flow__node').nth(2)).toHaveAttribute('aria-label', 'Step 3: Build')
     await expect(draft).toContainText('You edited 1 thing.')
@@ -410,13 +430,9 @@ test('the flow is edited on the canvas: a + on an arrow adds a step there, an ar
     await expect(draft.locator('.react-flow__node')).toHaveCount(6)
 
     // An arrow drawn from the dot under Plan to the dot over Tests pass puts Tests pass right after Plan.
-    await draft.locator('.react-flow').scrollIntoViewIfNeeded()
-    const from = (await draft.getByLabel('Step 1: Plan').locator('.react-flow__handle[data-handleid="bottom"]').boundingBox())!
-    const to = (await draft.getByLabel('Step 3: Tests pass').locator('.react-flow__handle[data-handleid="top"]').boundingBox())!
-    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 })
-    await page.mouse.up()
+    const from = await still(draft.getByLabel('Step 1: Plan').locator('.react-flow__handle[data-handleid="bottom"]'))
+    const to = await still(draft.getByLabel('Step 3: Tests pass').locator('.react-flow__handle[data-handleid="top"]'))
+    await dragBetween(page, { x: from.x + from.width / 2, y: from.y + from.height / 2 }, { x: to.x + to.width / 2, y: to.y + to.height / 2 })
     await expect.poll(async () => (await labels())[1]).toBe('Step 2: Tests pass')
     await expect.poll(async () => (await labels())[2]).toBe('Step 3: Build')
 
