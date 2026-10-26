@@ -317,6 +317,10 @@ test('the builder\'s agent stays inside the builder: it is not in the agents lis
     await expect.poll(() => page.locator('.roster').count()).toBeGreaterThanOrEqual(0)
     await expect(page.locator('.roster button', { hasText: 'builder' })).toHaveCount(0)
     await expect(page.getByText('builder', { exact: true })).toHaveCount(0)
+  } finally {
+    await s.shutdown()
+  }
+})
 
 test('a step card is dragged to another place in the flow, and a narrow panel shows the same steps as a plain list', async () => {
   const s = await start()
