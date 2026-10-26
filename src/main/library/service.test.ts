@@ -97,6 +97,14 @@ describe('what an agent is given from the library', () => {
       expect(readFileSync(file, 'utf8')).toContain('- pdf: working with PDFs')
       expect((await svc.prepare('a3', true)).core).not.toContain('catalog')
     })
+    it('gives the app\'s own drawing rule to an agent that can fetch, but to one that cannot only what the person set up, and a built-in alone is not a Library tab', async () => {
+      await svc.library.save({ kind: 'instruction', name: 'chat-visuals', description: 'Draw.', body: 'Draw diagrams.' })
+      svc.playbooks.write('global', [{ id: 'chat-visuals', mode: 'always', when: '', strength: 'medium' }])
+      svc.playbooks.write({ workspace: 'shop' }, [])
+      expect((await svc.prepare('a1', true)).core).toContain('Draw diagrams.')
+      expect((await svc.prepare('a2', false)).core).toBe('')
+      expect(svc.usesOf('a1').filter((u) => u.how !== 'started' || u.words)).toEqual([])
+    })
     it('does not point an agent that cannot reach the library tools at its catalog, or ask it to call them', async () => {
       const core = (await svc.prepare('a1', false)).core
       expect(core).not.toContain('catalog')
