@@ -7,9 +7,17 @@ describe('an agent that finished while you were looking elsewhere', () => {
   it('is one that went from working to idle; one that was idle already, or only waits, is not', () => {
     const t = createDoneTracker()
     t.observe([a('a1', '/p', 'thinking'), a('a2', '/p', 'idle'), a('a3', '/p', 'implementing')])
-    t.observe([a('a1', '/p', 'idle'), a('a2', '/p', 'idle'), a('a3', '/p', 'waiting')])
+    t.observe([a('a1', '/p', 'idle'), a('a2', '/p', 'idle'), a('a3', '/p', 'permission')])
     expect([...t.agents()]).toEqual(['a1'])
     expect([...t.projects()]).toEqual(['/p'])
+  })
+  it('counts the turn ending in Claude\'s idle prompt, shown as waiting, and keeps it when that settles to idle', () => {
+    const t = createDoneTracker()
+    t.observe([a('a1', '/p', 'running')])
+    t.observe([a('a1', '/p', 'waiting')])
+    expect([...t.agents()]).toEqual(['a1'])
+    t.observe([a('a1', '/p', 'idle')])
+    expect([...t.agents()]).toEqual(['a1'])
   })
   it('counts a first sight of an agent that is already idle as nothing, and any kind of work as work', () => {
     const t = createDoneTracker()
@@ -29,8 +37,19 @@ describe('an agent that finished while you were looking elsewhere', () => {
     expect([...t.projects()].sort()).toEqual(['/p', '/q'])
     t.opened('/p')
     expect([...t.projects()]).toEqual(['/q'])
-    expect([...t.agents()]).toEqual(['a2'])
+    // The agent of the project you are in still waits to be looked at, until it is selected.
+    expect([...t.agents()].sort()).toEqual(['a1', 'a2'])
     t.selected('a2')
+    expect(t.projects().size).toBe(0)
+    t.selected('a1')
+    expect(t.agents().size).toBe(0)
+  })
+  it('keeps an agent of the project you are in marked when it finishes while the project is open', () => {
+    const t = createDoneTracker()
+    t.observe([a('a1', '/p', 'thinking')])
+    t.observe([a('a1', '/p', 'idle')])
+    t.opened('/p')
+    expect([...t.agents()]).toEqual(['a1'])
     expect(t.projects().size).toBe(0)
   })
   it('keeps nothing for an agent that is gone', () => {
