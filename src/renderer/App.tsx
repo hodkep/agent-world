@@ -9,7 +9,8 @@ import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
 import { gitTag, type DevServer, type Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
-import { ModBar, ModStyle } from './chat/layoutUi'
+import { ModBar, ModStyle, ShotAsk } from './chat/layoutUi'
+import { todosUpdatedBy } from '../shared/widgets'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
@@ -60,7 +61,7 @@ import { justUpdated, learnsVersion } from '../shared/updatedNote'
 import { Settings } from './panel/Settings'
 import { LibraryModal } from './panel/LibraryModal'
 import { TodoBoardModal } from './todos/TodoBoardModal'
-import { OPEN_MESSAGE, OPEN_TODO, setTodoBoard } from './todos/todoStore'
+import { OPEN_MESSAGE, OPEN_TODO, setTodoBoard, todoBoardNow, useTodoVersion } from './todos/todoStore'
 import type { MessageLink } from '../shared/todos'
 import { Setup } from './panel/Setup'
 import type { ChatItem } from '../shared/chat'
@@ -230,6 +231,7 @@ export function App() {
   // The todo board of the open project, how many of its tasks wait on you, and the message a task asked to be opened at.
   const [todoOpen, setTodoOpen] = useState(false)
   const [todoNeeds, setTodoNeeds] = useState(0)
+  useTodoVersion() // a widget's todo count follows the board
   const [notesKey, setNotesKey] = useState(false)
   useEffect(() => void window.aw.notes.shortcut().then(setNotesKey, () => setNotesKey(false)), [])
   const [todoFocus, setTodoFocus] = useState<string | null>(null)
@@ -916,6 +918,7 @@ export function App() {
       jump={jump?.agentId === a.id ? jump : null}
       limits={limitsOf(a)}
       info={infoOf(a)}
+      todosUpdated={todoBoardNow() ? todosUpdatedBy(todoBoardNow()!.todos, a.id, a.hiredAt ?? 0) : null}
       actions={actionsOf(a)}
       waitingSubagents={waitingOf(a.id)}
       remote={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities.remote ? (remotes[a.id] ?? { state: 'off' }) : undefined}
@@ -1509,6 +1512,7 @@ export function App() {
       )}
       <ModStyle />
       <ModBar />
+      <ShotAsk />
       <header>
         <h1>
           <PixelWord text="agent world" />

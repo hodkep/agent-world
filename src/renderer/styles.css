@@ -3991,3 +3991,12 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .mod-compare[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .mod-bar[data-comparing='true'] { border-style: dashed; }
 .mod-bar > span { flex: 1; min-width: 0; }
+.wd-slot { display: flex; flex-direction: column; flex: none; }
+.wd-slot.chat-top { border-bottom: 2px solid var(--ink); }
+.wd-slot.above-composer { border-top: 2px solid var(--ink); }
+.wd-frame { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }
+.shot-ask { width: min(420px, calc(100vw - 32px)); padding: 16px; background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
+.shot-ask::backdrop { background: rgb(0 0 0 / 0.55); }
+.shot-ask h3 { margin: 0 0 6px; font-size: 14px; }
+.shot-ask p { margin: 0 0 12px; color: var(--muted); }
+.shot-acts { display: flex; justify-content: flex-end; gap: 8px; }

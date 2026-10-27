@@ -27,7 +27,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
 import { packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
@@ -82,6 +82,7 @@ import { inBatches } from '../shared/pool'
 import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
 import { startMcpServer } from './mcpServer'
 import { createChatMod } from './chatMod'
+import { WIDGET_SCHEME, widgetResponse } from './widgetPage'
 import { outlineOf } from '../shared/uiOutline'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
@@ -491,6 +492,7 @@ const send = (channel: string, ...args: unknown[]) => {
   for (const w of liveWindows()) w.webContents.send(channel, ...args)
 }
 // POC: the look an agent wrote for the chat; only the person's Keep makes it permanent.
+const shotAsks = new Map<string, (ok: boolean) => void>()
 const chatMod = createChatMod(join(HOME, 'mods', 'chat'))
 chatMod.onChange(() => send('chatmod-state', chatMod.state()))
 const persist = () => saveAgents(AGENTS_FILE, agents)
@@ -1168,6 +1170,10 @@ function createWindow() {
   })
   w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   w.webContents.on('will-navigate', (e) => e.preventDefault())
+  // A widget's frame stays on its own addresses: it cannot send itself (and the numbers it is given) to a page of its own choosing.
+  w.webContents.on('will-frame-navigate', (e) => {
+    if (!e.isMainFrame && e.frame?.url.startsWith(`${WIDGET_SCHEME}://`) && !e.url.startsWith(`${WIDGET_SCHEME}://look/`)) e.preventDefault()
+  })
   // Cmd+N on a Mac; Ctrl+Shift+N elsewhere, since Ctrl+N belongs to the shell in the terminal.
   w.webContents.on('before-input-event', (e, input) => {
     const mac = process.platform === 'darwin'
@@ -1203,8 +1209,12 @@ function chooseGit() {
   })
 }
 
+// The address a look's widgets are shown from: its own origin, with the page's own security headers (see widgetPage).
+protocol.registerSchemesAsPrivileged([{ scheme: WIDGET_SCHEME, privileges: { standard: true, secure: true } }])
+
 async function main() {
   await app.whenReady()
+  protocol.handle(WIDGET_SCHEME, (req) => widgetResponse(chatMod.state(), req.url))
   useGit(chooseGit())
   // The packaged app has its icon built in; a development run needs it set.
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
@@ -1498,9 +1508,18 @@ async function main() {
         if (!w) return 'No window is open.'
         return String(await w.webContents.executeJavaScript(`(${outlineOf.toString()})(document, ${JSON.stringify(selector)}, ${Math.max(1, Math.min(8, Math.round(depth)))})`))
       },
-      screenshot: async () => {
+      screenshot: async (id) => {
         const w = frontWindow()
         if (!w) return null
+        // The window shows the person's chats and todos: they are asked every time, and no answer in a minute is no.
+        const allowed = await new Promise<boolean>((resolve) => {
+          const ask = randomUUID()
+          const done = (ok: boolean) => (shotAsks.delete(ask), clearTimeout(timer), resolve(ok))
+          const timer = setTimeout(() => done(false), 60_000)
+          shotAsks.set(ask, done)
+          send('shot-ask', { id: ask, agent: byId(id)?.name ?? 'An agent' })
+        })
+        if (!allowed || w.isDestroyed()) return null
         const img = await w.webContents.capturePage()
         return (img.getSize().width > 1100 ? img.resize({ width: 1100 }) : img).toPNG().toString('base64')
       }
@@ -1721,6 +1740,7 @@ async function main() {
   ipcMain.handle('chatmod:undo', () => chatMod.undo())
   ipcMain.handle('chatmod:reset', () => chatMod.reset())
   ipcMain.handle('chatmod:back', () => chatMod.back())
+  ipcMain.handle('shot:answer', (_, id: string, ok: boolean) => void shotAsks.get(String(id))?.(ok === true))
   ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))
   ipcMain.handle('prefs:set', (_, next: unknown) => {
     prefs = cleanPrefs(next, prefs)
