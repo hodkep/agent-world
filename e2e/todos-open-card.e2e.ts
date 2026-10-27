@@ -17,11 +17,16 @@ test('todos: the task whose panel is open is marked in its list and brought into
       await window.aw.todos.add(f, { title: 'finished one', list: 'Alpha' })
       for (let n = 1; n <= 30; n++) await window.aw.todos.add(f, { title: `task ${n}`, list: 'Alpha' })
       await window.aw.todos.add(f, { title: 'old one', list: 'Quiet' })
-      const b = (await window.aw.todos.get(f)).board
+      let b = (await window.aw.todos.get(f)).board
       const id = (title: string) => b.todos.find((t) => t.title === title)!.id
+      // A part under the first task, and a finished part under the finished task.
+      await window.aw.todos.add(f, { title: 'part one', parent: id('task 1') })
+      await window.aw.todos.add(f, { title: 'finished part', parent: id('finished one') })
+      b = (await window.aw.todos.get(f)).board
+      await window.aw.todos.done(f, id('finished part'))
       await window.aw.todos.done(f, id('finished one'))
       await window.aw.todos.done(f, id('old one'))
-      return { fin: id('finished one'), last: id('task 30'), old: id('old one') }
+      return { fin: id('finished one'), last: id('task 30'), old: id('old one'), part: id('part one'), finPart: id('finished part') }
     }, home)
     const open = (id: string) => page.evaluate((i) => window.dispatchEvent(new CustomEvent('aw-open-todo', { detail: i })), id)
     const board = page.getByRole('dialog', { name: 'Todos' })
@@ -40,6 +45,24 @@ test('todos: the task whose panel is open is marked in its list and brought into
     await expect(board.getByRole('listitem', { name: 'Alpha' }).getByRole('button', { name: /Done \(1\)/ })).toHaveAttribute('aria-expanded', 'true')
     await expect(card('finished one')).toBeInViewport()
     await expect(card('finished one')).toHaveClass(/sel/)
+
+    // A subtask: it has no card of its own, so its umbrella's card comes into view, tinted, with the subtask's line in gold and the umbrella's title as it was.
+    await open(ids.part)
+    await expect(card('task 1')).toBeInViewport()
+    await expect(card('task 1')).toHaveClass(/has-open/)
+    await expect(card('task 1').locator('.td-subrow.open .td-subtitle')).toHaveText('part one')
+    await expect(card('task 1').locator('.td-subrow.open .td-subtitle')).toHaveCSS('color', 'rgb(242, 194, 48)')
+    await expect(card('task 1').locator('.td-title')).not.toHaveCSS('color', 'rgb(242, 194, 48)')
+    await expect(card('task 30')).not.toHaveClass(/sel/)
+
+    // A finished subtask of a finished task: the Done section holds the umbrella, so it unfolds and the card comes into view.
+    await open(ids.last)
+    await board.getByRole('listitem', { name: 'Alpha' }).getByRole('button', { name: /Done \(1\)/ }).click()
+    await expect(board.getByRole('listitem', { name: 'Alpha' }).getByRole('button', { name: /Done \(1\)/ })).toHaveAttribute('aria-expanded', 'false')
+    await open(ids.finPart)
+    await expect(board.getByRole('listitem', { name: 'Alpha' }).getByRole('button', { name: /Done \(1\)/ })).toHaveAttribute('aria-expanded', 'true')
+    await expect(card('finished one')).toBeInViewport()
+    await expect(card('finished one').locator('.td-subrow.open .td-subtitle')).toHaveText('finished part')
 
     // A task in a quiet list: the tile opens as a list and the card is in view.
     await open(ids.old)

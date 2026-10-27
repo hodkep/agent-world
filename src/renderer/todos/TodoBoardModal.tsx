@@ -91,8 +91,10 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   // When a task is opened, its card is shown: a finished task's Done section unfolds, a quiet list's tile opens; the row then scrolls itself into view. Only on opening: finishing the open task leaves the folds as they are.
   useEffect(() => {
     if (!open) return
-    if (open.status === 'done' && !folded.has(open.list)) setFolded((f) => new Set(f).add(open.list))
-    if (groups.quiet.includes(open.list) && !expanded.has(open.list)) setExpanded((x) => new Set(x).add(open.list))
+    // A part has no card of its own: its umbrella's card is the one to show.
+    const card = (open.parent && board.todos.find((x) => x.id === open.parent)) || open
+    if (card.status === 'done' && !folded.has(card.list)) setFolded((f) => new Set(f).add(card.list))
+    if (groups.quiet.includes(card.list) && !expanded.has(card.list)) setExpanded((x) => new Set(x).add(card.list))
   }, [open?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const ordered = [...groups.active, ...groups.quiet]
   useEffect(() => {
@@ -188,14 +190,14 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
                   </span>
                 </header>
                 <div className="td-body">
-                  {openTodos.map((t, i) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.done(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, i)} />)}
+                  {openTodos.map((t, i) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} openId={sel} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.done(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, i)} />)}
                   {adding === list ? (
                     <input className="td-new" autoFocus value={draft} placeholder="Task title" aria-label={`New task in ${list}`} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitTask(list); else if (e.key === 'Escape') (setAdding(null), setDraft('')) }} onBlur={() => submitTask(list)} />
                   ) : <button className="td-add" onClick={() => (setAdding(list), setDraft(''))}>＋ Add a task</button>}
                   {done.length > 0 && (
                     <>
                       <button className="td-done-h" aria-expanded={!isFolded} onClick={() => setFolded((f) => { const n = new Set(f); if (n.has(list)) n.delete(list); else n.add(list); return n })}>{isFolded ? '▸' : '▾'} Done ({done.length})</button>
-                      {!isFolded && done.map((t) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.reopen(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, openTodos.length)} />)}
+                      {!isFolded && done.map((t) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} openId={sel} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.reopen(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, openTodos.length)} />)}
                     </>
                   )}
                 </div>
@@ -215,14 +217,16 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   )
 }
 
-function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selected, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; board: TodoBoard; onOpen: (id: string) => void; act: (p: Promise<unknown>) => void; folder: string; picked: boolean; picking: boolean; onPick: (e: { shiftKey?: boolean }) => void; selected: boolean; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
+function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selected, openId, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; board: TodoBoard; onOpen: (id: string) => void; act: (p: Promise<unknown>) => void; folder: string; picked: boolean; picking: boolean; onPick: (e: { shiftKey?: boolean }) => void; selected: boolean; /** The task whose panel is open, which may be one of this task's parts. */ openId: string | null; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
   const done = t.status === 'done'
-  const row = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (selected) row.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [selected])
   const parts = subtasksOf(board, t.id)
+  // One of this task's parts is open: the card stands in for it.
+  const hasOpen = openId !== null && parts.some((x) => x.id === openId)
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (selected || hasOpen) row.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [selected, hasOpen])
   const { done: partsDone, total } = progressOf(board, t.id)
   return (
-    <div ref={row} className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}${picked ? ' picked' : ''}${picking ? ' picking' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
+    <div ref={row} className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}${hasOpen ? ' has-open' : ''}${picked ? ' picked' : ''}${picking ? ' picking' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
       <span className="td-stripe" aria-hidden="true" />
       <button className="td-pick" role="checkbox" aria-checked={picked} aria-label={`Select ${t.title}`} onClick={(e) => onPick(e)}>{picked ? '✓' : ''}</button>
       <button className="td-ck" role="checkbox" aria-checked={done} aria-label={`${done ? 'Reopen' : 'Finish'} ${t.title}`} onClick={onTick}>{done ? '✓' : ''}</button>
@@ -246,7 +250,7 @@ function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selec
           <div className="td-prog" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={partsDone} aria-label={`${partsDone} of ${total} subtasks done`}><u style={{ width: `${(partsDone / total) * 100}%` }} /></div>
           <small>{partsDone} of {total} done</small>
           {parts.map((x) => (
-            <div key={x.id} className={`td-subrow ${x.status}`}>
+            <div key={x.id} className={`td-subrow ${x.status}${x.id === openId ? ' open' : ''}`}>
               <button className="td-ck" role="checkbox" aria-checked={x.status === 'done'} aria-label={`${x.status === 'done' ? 'Reopen' : 'Finish'} ${x.title}`} onClick={() => act(x.status === 'done' ? window.aw.todos.reopen(folder, x.id) : window.aw.todos.done(folder, x.id))}>{x.status === 'done' ? '✓' : ''}</button>
               <button className="td-subtitle" onClick={() => onOpen(x.id)} aria-label={`Open ${x.title}`}>{x.title}</button>
               <small>#{x.id}</small>

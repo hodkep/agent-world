@@ -25,7 +25,7 @@ A task is open, doing, blocked or done. **needs you** marks a step only a person
 
 ## Open a task
 
-Click a task to open its panel; click it again to close it. The open task's card is tinted with its title in gold, and it is scrolled into view when the panel opens from elsewhere (a `todo#N` chip in a chat, a subtask's name): a finished task's **Done** section unfolds and a quiet list's tile opens for it. The panel has the title, its status and its labels at the top, then tabs: **Overview**, **Subtasks**, **Activity**, **How** (a finished task that has one) and **Ask**. In the panel you can:
+Click a task to open its panel; click it again to close it. The open task's card is tinted with its title in gold, and it is scrolled into view when the panel opens from elsewhere (a `todo#N` chip in a chat, a subtask's name): a finished task's **Done** section unfolds and a quiet list's tile opens for it. A subtask has no card of its own, so its task's card comes into view, tinted, with the subtask's line in gold. The panel has the title, its status and its labels at the top, then tabs: **Overview**, **Subtasks**, **Activity**, **How** (a finished task that has one) and **Ask**. In the panel you can:
 
 - On **Overview**, edit **Notes**, tick **Needs you**, and choose what the task is **Part of**.
 - Click **Open the message it was made in**, or on a finished task **Open the message it was finished in**. The chat of that agent opens at the message.
