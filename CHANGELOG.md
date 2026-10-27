@@ -4,6 +4,26 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-28
+
+### Added
+
+- Todos: the task you open on the Todos board is marked in its list, with its title in gold, and scrolled into view, out of a folded Done section or a quiet tile.
+- Chat: your answer to a form shows as a card in the form's own words (the question, what you picked), with what the agent got folded under it, instead of raw JSON.
+- Chat: a subtask's line in the office's todo row, and its `todo#N` chip in a reply, read `todo#2 › todo#3`, and a click on the first number opens the task it is part of.
+- Release: the What's new dialog and the update popover show the pictures in a release's notes.
+
+![The Todos board with the open task's card marked beside its panel](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.1/docs/images/releases/0.6.1/open-card.png)
+
+![A form in the chat and your answer under it as a card in words](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.1/docs/images/releases/0.6.1/form-answer.png)
+
+### Fixed
+
+- Office: an agent that finishes while you are on another agent shows the green mark and a Finished tag on its tile.
+- Office: agents that are waiting for you after finishing play carrom, fetch drinks and nap in the office, as idle ones do.
+
+![The agents panel with a Finished tag on the tile of an agent that finished while you were on another](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.1/docs/images/releases/0.6.1/finished-tile.png)
+
 ## [0.6.0] - 2026-10-27
 
 ### Added
