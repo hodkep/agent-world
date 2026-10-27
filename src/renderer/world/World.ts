@@ -1327,7 +1327,8 @@ export class OfficeWorld {
       else if (call?.startsWith('sup:')) this.forceSupervisor(call.slice(4) as SupervisorKind)
       else if (call?.startsWith('boy:')) this.forceBoy(call.slice(4) as Job)
       if (this.visitWanted) this.forceSupervisor('visit')
-      else if (call === 'boss') (sup.cancel(), sup.give([{ kind: 'walk', to: BOARD_WEST }]))
+      // From the west door, behind him: set there first, so a round of the supervisor's that left him in front of the boy does not make the boy see him.
+      else if (call === 'boss') (sup.cancel(), sup.place({ x: 14, y: 5 }), sup.give([{ kind: 'walk', to: BOARD_WEST }]))
       // From the east he is in front of the boy, who sees him.
       else if (call === 'bosseast') (sup.cancel(), (this.catching = false), sup.place({ x: 28, y: 5 }), sup.give([{ kind: 'wait', ms: 3000 }]))
       let ev: RareEvent | null = null
