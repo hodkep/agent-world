@@ -1510,10 +1510,15 @@ function Composer({
     }
     return []
   }, [slash?.[1], mention?.[1], commands, files, folders, text, end, dismissed, before])
+  // What is in the box now, for a caret that is put back only if nothing was typed since.
+  const live = useRef(text)
+  live.current = text
   const apply = (s: Suggestion) => {
     const pos = s.from + s.insert.length
-    edit(text.slice(0, s.from) + s.insert + text.slice(s.to), 'edit', pos)
-    requestAnimationFrame(() => box.current?.setSelectionRange(pos, pos))
+    const next = text.slice(0, s.from) + s.insert + text.slice(s.to)
+    edit(next, 'edit', pos)
+    // A key pressed before this frame has moved the caret itself: putting it back would send the rest of the typing to the wrong place.
+    requestAnimationFrame(() => live.current === next && box.current?.setSelectionRange(pos, pos))
   }
   useEffect(() => setAt(0), [suggestions.length, slash?.[1], mention?.[1]])
 
