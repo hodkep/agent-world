@@ -17,7 +17,8 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     await page.reload()
     await hire(page)
     // The tasks the agent names are on the board, so their chips open them.
-    for (let n = 1; n <= 14; n++) await page.evaluate(([f, i]) => window.aw.todos.add(f!, { title: `Task ${i}` }), [home, String(n)])
+    for (let n = 1; n <= 14; n++) await page.evaluate(([f, i]) => window.aw.todos.add(f!, { title: `Task ${i}`, ...(i === '9' && { parent: '1' }) }), [home, String(n)])
+    expect(await page.evaluate(async (f) => (await window.aw.todos.get(f)).board.todos.find((t) => t.id === '9')?.parent, home)).toBe('1')
     await page.getByRole('tab', { name: 'Chat' }).click()
     const box = page.getByRole('textbox', { name: 'Message ada' })
     await box.fill('keep the board up to date')
@@ -65,8 +66,13 @@ test('chat: the todo tools have cards of their own, and a task named in a reply 
     await expect(reply.locator('code')).toContainText('todo#99')
     await expect(reply.locator('code .todo-ref')).toHaveCount(0)
 
-    // They are on the board, so the link names the task.
+    // They are on the board, so the link names the task. A subtask's chip names its umbrella first, and a click on that number opens the umbrella.
     await expect(reply.locator('.todo-ref').first()).toContainText('Task 14')
+    await expect(reply.locator('.todo-ref').nth(1)).toHaveText(/^todo#1›todo#9/)
+    await expect(reply.locator('.todo-ref').first()).not.toContainText('›')
+    await reply.locator('.todo-ref .todo-up').click()
+    await expect(page.getByRole('dialog', { name: 'Todos' }).getByRole('complementary', { name: 'Task detail' }).getByLabel('Task title')).toHaveValue('Task 1')
+    await page.keyboard.press('Escape')
   } finally {
     await shutdown()
   }
