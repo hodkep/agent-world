@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { childLines, indentUnder, noteLines, notePlan, noteTitle } from '../../shared/notePlan'
 import { Markdown } from '../chat/markdown'
 import { useConfirm } from '../panel/ConfirmDialog'
+import { IconButton } from '../panel/IconButton'
 import { useDismiss } from '../useDismiss'
 import { NotesEditor, type LineActions } from './NotesEditor'
 
@@ -9,6 +10,7 @@ interface Info { id: string; title: string; updatedAt: number }
 interface Project { path: string; name: string }
 interface Agent { id: string; name: string; provider: string }
 
+const MAC = /Mac/.test(navigator.platform)
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 const last = (folder: string) => `aw.notes.last.${folder}`
 const store = {
@@ -165,15 +167,16 @@ export function NotesApp() {
   useDismiss(wrap, menu !== null, () => setMenu(null))
 
   return (
-    <div className="nt" role="application" aria-label="Notes">
+    <div className={`nt${MAC ? ' mac' : ''}`} role="application" aria-label="Notes">
       <header className="nt-bar">
-        <button className="nt-close" aria-label="Hide notes" title="Hide (⌥⌘N shows it again)" onClick={() => void window.aw.notes.hide()} />
+        {/* On a Mac the window's own red, yellow and green buttons are used; elsewhere there is one to hide it. */}
+        {!MAC && <button className="nt-close" aria-label="Hide notes" title="Hide (Alt+Ctrl+N shows it again)" onClick={() => void window.aw.notes.hide()} />}
         <b className="nt-title">{noteTitle(text)}</b>
         <span className="nt-tools" ref={wrap}>
-          <button aria-label="Notes" aria-expanded={menu === 'notes'} title="Your notes" onClick={() => setMenu(menu === 'notes' ? null : 'notes')}>⌘</button>
-          <button aria-label={pinned ? 'Stop keeping on top' : 'Keep on top'} aria-pressed={pinned} className={pinned ? 'on' : ''} title={pinned ? 'Stays above every window; click to let other windows cover it' : 'Click to keep it above every window'} onClick={() => void window.aw.notes.pin(!pinned).then(setPinned, fail)}>📌</button>
-          <button aria-label={preview ? 'Edit' : 'Preview'} aria-pressed={preview} title={preview ? 'Back to writing' : 'See the Markdown drawn in full'} onClick={() => setPreview((p) => !p)}>{preview ? '✎' : '👁'}</button>
-          <button aria-label="New note" title="A new, separate note" onClick={() => void create().catch(fail)}>＋</button>
+          <IconButton icon="list" label="Notes" tip="Your notes in this project: open one or delete it" expanded={menu === 'notes'} haspopup onClick={() => setMenu(menu === 'notes' ? null : 'notes')} />
+          <IconButton icon="pin" label={pinned ? 'Stop keeping on top' : 'Keep on top'} tip={pinned ? 'It stays above every window. Click to let other windows cover it' : 'Click to keep it above every window'} pressed={pinned} onClick={() => void window.aw.notes.pin(!pinned).then(setPinned, fail)} />
+          <IconButton icon={preview ? 'pen' : 'eye'} label={preview ? 'Edit' : 'Preview'} tip={preview ? 'Back to writing' : 'See the Markdown drawn in full'} pressed={preview} onClick={() => setPreview((p) => !p)} />
+          <IconButton icon="plus" label="New note" tip="Start a new note, kept apart from the others" onClick={() => void create().catch(fail)} />
           {menu === 'notes' && (
             <div className="td-pop nt-pop nt-list" role="menu" aria-label="Notes of this project">
               {notes.map((n) => (

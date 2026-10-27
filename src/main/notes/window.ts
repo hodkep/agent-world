@@ -52,7 +52,8 @@ export function createNotesWindow(o: { preload: string; load: (w: BrowserWindow)
   const make = (): BrowserWindow => {
     const w = new BrowserWindow({
       show: false,
-      frame: false,
+      // On a Mac the window keeps its own red, yellow and green buttons over a bar of our own; elsewhere it has no frame at all.
+      ...(process.platform === 'darwin' ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 12 } } : { frame: false }),
       ...placeFor(state, screen.getAllDisplays().map((d) => d.workArea)),
       minWidth: 280,
       minHeight: 220,

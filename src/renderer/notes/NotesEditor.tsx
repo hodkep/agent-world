@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { EditorState, type Range } from '@codemirror/state'
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap, type ViewUpdate } from '@codemirror/view'
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap, placeholder, type ViewUpdate } from '@codemirror/view'
 import { noteLines } from '../../shared/notePlan'
 
 export interface LineActions {
@@ -95,6 +95,18 @@ function build(view: EditorView, h: LineActions): DecorationSet {
   return Decoration.set(out, true)
 }
 
+/** What an empty note says: where to start, and what is possible. */
+function hint() {
+  const el = document.createElement('div')
+  el.className = 'nt-hint'
+  const a = document.createElement('b')
+  a.textContent = 'Start typing…'
+  const b = document.createElement('span')
+  b.textContent = 'Markdown works. Start a line with - [ ] for a checklist, then point at it to make a task.'
+  el.append(a, b)
+  return el
+}
+
 /** The note as it is typed: Markdown with headings, checklists (a real box), bold, italics and code drawn as it goes, and on each bullet or checklist line the buttons that make it a task. */
 export function NotesEditor({ value, onChange, actions }: { value: string; onChange: (text: string) => void; actions: LineActions }) {
   const host = useRef<HTMLDivElement>(null)
@@ -119,6 +131,7 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
+          placeholder(hint()),
           plugin,
           EditorView.contentAttributes.of({ 'aria-label': 'Note', spellcheck: 'true' }),
           EditorView.updateListener.of((u) => u.docChanged && cb.current.onChange(u.state.doc.toString()))
