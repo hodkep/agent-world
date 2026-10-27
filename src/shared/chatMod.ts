@@ -118,7 +118,7 @@ export function checkMod(raw: { layout?: unknown; css?: unknown; widgets?: unkno
 export const GUARD_CSS = `
 .composer, .composer *, .inline-need, .inline-need *, .chat-banner, dialog[open], dialog[open] *, .mod-bar, .mod-bar * { visibility: visible !important; opacity: 1 !important; }
 .composer, .inline-need { display: flex !important; transform: none !important; }
-.mod-bar { display: flex !important; position: fixed !important; z-index: 2147483000 !important; }
+.mod-bar { display: flex !important; position: fixed !important; z-index: 2147483000 !important; transform: none !important; }
 .mod-bar button { pointer-events: auto !important; }
 `
 

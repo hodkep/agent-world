@@ -1,6 +1,7 @@
 import { type ReactNode, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AgentIdContext } from '../files/context'
 import { useTicks } from './ticks'
+import { type Spot, clampBar, readBar } from './dragBar'
 import { OutlineIcon } from '../panel/IconButton'
 import { DEFAULT_LAYOUT, type ChatLayout, type Pack } from '../../shared/chatLayout'
 import { EMPTY_MOD, GUARD_CSS, isEmptyMod, type ChatMod, type ChatModState } from '../../shared/chatMod'
@@ -67,6 +68,34 @@ export function ModStyle() {
 export function ModBar() {
   const s = useChatModState()
   const compare = useComparing()
+  // The bar can be dragged anywhere in the window (it covers what is under it), and put back with a double click; where it was left is remembered.
+  const [spot, setSpot] = useState<Spot | null>(() => {
+    try {
+      return readBar(localStorage.getItem('aw.modBarSpot'))
+    } catch {
+      return null
+    }
+  })
+  const el = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
+  const place = (p: Spot | null) => {
+    setSpot(p)
+    try {
+      if (p) localStorage.setItem('aw.modBarSpot', JSON.stringify(p))
+      else localStorage.removeItem('aw.modBarSpot')
+    } catch {
+      // not remembered, still moved
+    }
+  }
+  const fit = (p: Spot): Spot => {
+    const r = el.current?.getBoundingClientRect()
+    return clampBar(p, { width: r?.width ?? 640, height: r?.height ?? 60 }, { width: window.innerWidth, height: window.innerHeight })
+  }
+  useEffect(() => {
+    const back = () => spot && setSpot((p) => (p ? fit(p) : p))
+    window.addEventListener('resize', back)
+    return () => window.removeEventListener('resize', back)
+  }, [spot]) // eslint-disable-line react-hooks/exhaustive-deps
   // A draft that goes away (Keep, Undo, a new one) must not leave the window stuck on the old look; so must a lost pointer or focus.
   useEffect(() => {
     if (!s.draft) setComparing(false)
@@ -81,7 +110,47 @@ export function ModBar() {
   // A draft's widgets that ask to load something from the internet do not, until the person says so (or keeps the look): the bar says where from.
   const hosts = [...new Set(s.draft.widgets.flatMap((w) => w.fetch.map((f) => feedHost(f.url))))]
   return (
-    <div className="mod-bar" role="status" aria-label="A new look for the chat" data-comparing={compare}>
+    <div
+      ref={el}
+      className="mod-bar"
+      role="status"
+      aria-label="A new look for the chat"
+      data-comparing={compare}
+      data-moved={spot ? 'true' : undefined}
+      style={spot ? { left: spot.x, top: spot.y, right: 'auto', margin: 0 } : undefined}
+      title="Drag to move this bar; double-click to put it back"
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest('button') || e.button !== 0) return
+        const r = e.currentTarget.getBoundingClientRect()
+        drag.current = { px: e.clientX, py: e.clientY, x: r.left, y: r.top }
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        if (d) setSpot(fit({ x: d.x + e.clientX - d.px, y: d.y + e.clientY - d.py }))
+      }}
+      onPointerUp={() => {
+        if (drag.current) (place(spot), (drag.current = null))
+      }}
+      onLostPointerCapture={() => (drag.current = null)}
+      onDoubleClick={(e) => !(e.target as HTMLElement).closest('button') && place(null)}
+    >
+      <span
+        className="mod-grip"
+        role="button"
+        tabIndex={0}
+        aria-label="Move this bar (arrow keys move it; Home puts it back)"
+        onKeyDown={(e) => {
+          const step = e.shiftKey ? 48 : 12
+          const r = el.current!.getBoundingClientRect()
+          const by: Record<string, Spot> = { ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 }, ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step } }
+          if (e.key === 'Home') return (e.preventDefault(), place(null))
+          const d = by[e.key]
+          if (d) (e.preventDefault(), place(fit({ x: r.left + d.x, y: r.top + d.y })))
+        }}
+      >
+        ⠿
+      </span>
       <span>
         {compare ? (
           <>

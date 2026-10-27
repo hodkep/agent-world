@@ -3921,7 +3921,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .lay-chip:hover { background: var(--panel-hover); color: var(--text); }
 .lay-pack.footer { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
 .lay-body { margin: 6px 0 2px 10px; padding-left: 10px; border-left: 2px solid var(--line); }
-.mod-bar { position: fixed; z-index: 2147483000; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 12px; width: min(640px, calc(100vw - 32px)); background: var(--panel); color: var(--text); border: 2px solid var(--accent); box-shadow: 0 0 0 2px var(--ink), 0 12px 28px rgb(0 0 0 / 0.5); }
+.mod-bar { position: fixed; z-index: 2147483000; top: 10px; left: 0; right: 0; margin: 0 auto; touch-action: none; cursor: grab; user-select: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; width: min(640px, calc(100vw - 32px)); background: var(--panel); color: var(--text); border: 2px solid var(--accent); box-shadow: 0 0 0 2px var(--ink), 0 12px 28px rgb(0 0 0 / 0.5); }
 .mod-compare { display: inline-flex; align-items: center; padding: 4px 8px; }
 .mod-compare[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .mod-bar[data-comparing='true'] { border-style: dashed; }
@@ -3941,3 +3941,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .chat.has-behind { isolation: isolate; }
 .wd-slot.chat-behind { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
 .wd-slot.chat-behind .wd-frame { height: 100%; pointer-events: none; }
+.mod-bar:active { cursor: grabbing; }
+.mod-bar button { cursor: pointer; }
+.mod-grip { color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 4px; margin: -2px 0 -2px -4px; }
+.mod-grip:focus-visible { outline: 2px solid var(--accent); }
