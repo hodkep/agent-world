@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { INBOX, subtasksOf, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
-import { LabelChip, LabelManager } from './Labels'
+import { LabelChip, LabelFilter } from './Labels'
 import { useConfirm } from '../panel/ConfirmDialog'
 import { TodoDetail, type AskAgent, type TodoRun } from './TodoDetail'
 import { Modal } from '../panel/Modal'
@@ -20,7 +20,6 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   const [who, setWho] = useState('all')
   const [query, setQuery] = useState('')
   const [label, setLabel] = useState<string | undefined>(undefined)
-  const [labelsOpen, setLabelsOpen] = useState(false)
   const [sel, setSel] = useState<string | null>(focusId ?? null)
   useEffect(() => { if (focusId) setSel(focusId) }, [focusId])
   const [folded, setFolded] = useState<Set<string>>(new Set())
@@ -136,15 +135,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
           <button key={w} className="td-chip" aria-pressed={tab === 'lists' && who === w} onClick={() => (setWho(w), setTab('lists'))}>{w === 'all' ? 'Everyone' : w === 'you' ? 'Made by you' : `Made by ${w}`}</button>
         ))}
         <button className="td-chip" aria-pressed={tab === 'pad'} onClick={() => setTab('pad')}>Scratch pad</button>
-        {tab === 'lists' && (board.labels ?? []).map((l) => (
-          <button key={l.name} className="td-chip lbl-filter" data-c={l.color} aria-pressed={label === l.name} title={`Only tasks labelled ${l.name}`} onClick={() => setLabel(label === l.name ? undefined : l.name)}><i aria-hidden="true" />{l.name}</button>
-        ))}
-        {tab === 'lists' && (
-          <span className="td-menu">
-            <button className="td-chip" aria-expanded={labelsOpen} onClick={() => setLabelsOpen((o) => !o)}>Labels…</button>
-            {labelsOpen && <LabelManager board={board} folder={folder} act={act} confirm={ask} onClose={() => setLabelsOpen(false)} />}
-          </span>
-        )}
+        {tab === 'lists' && <LabelFilter board={board} folder={folder} active={label} onPick={setLabel} act={act} confirm={ask} />}
         {unsorted > 0 && tab === 'lists' && <button className="td-sort" onClick={sortInbox} disabled={sorting} title="A small model names each request-made task for what was done and puts it in a list by area; requests left open by agents that are not working are closed">{sorting ? 'Sorting…' : `Name and sort ${unsorted} task${unsorted === 1 ? '' : 's'}`}</button>}
         {tab === 'lists' && <input className="td-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search todos…" aria-label="Search todos" />}
       </div>
@@ -240,7 +231,7 @@ function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selec
           <span>created {agoLabel(t.createdAt)}</span>
           {t.updatedAt !== t.createdAt && <span>updated {t.updatedBy.name} {agoLabel(t.updatedAt)}</span>}
         </span>
-        {t.labels && t.labels.length > 0 && <span className="lbls">{t.labels.map((n) => <LabelChip key={n} name={n} color={board.labels?.find((l) => l.name === n)?.color ?? 'cyan'} />)}</span>}
+        {t.labels && t.labels.length > 0 && <span className="lbls">{t.labels.map((n) => <LabelChip key={n} name={n} color={board.labels?.find((l) => l.name === n)?.color ?? '#6ad0e0'} />)}</span>}
       </button>
       {parts.length > 0 && (
         <div className="td-checklist" aria-label={`Subtasks of ${t.title}`}>

@@ -40,7 +40,7 @@ A bigger piece of work can be one task with smaller tasks under it. On the board
 
 ## Labels
 
-A label is a word with one of five colours. Add one to a task with **+ label** in its panel (pick one the board has, or type a new one). The label buttons next to **Scratch pad** show only the tasks that have it, and **Labels…** lets you add, rename, recolour and remove labels: removing one takes it off every task but keeps the tasks. Agents can label a task with `labels`.
+A label is a word with a colour. Add one to a task with **+ label** in its panel (pick one the board has, or type a new one). The **Label** button next to **Scratch pad** shows only the tasks that have the label you choose (**Any label** shows all). Its **Manage labels…** lets you add, rename, recolour and remove labels: click a label's colour square to pick from a grid or type a `#rrggbb`. Removing a label takes it off every task but keeps the tasks. A click outside a menu closes it. Agents can label a task with `labels`.
 
 ## Filter and search
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INBOX, MAX_LISTS, currentTodoOf, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, subtasksOf, addLabel, renameLabel, recolorLabel, removeLabel, LABEL_COLORS, type Actor, type MessageLink } from './todos'
+import { INBOX, MAX_LISTS, currentTodoOf, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, subtasksOf, addLabel, renameLabel, recolorLabel, removeLabel, LABEL_PRESETS, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -334,12 +334,12 @@ describe('subtasks under an umbrella task', () => {
 
 describe('labels', () => {
   it('are made on the board with a colour, once, and a task takes them by name in any case', () => {
-    let b = addLabel(emptyBoard(), 'Chat', 'cyan')
-    b = addLabel(b, 'chat', 'red')
-    expect(b.labels).toEqual([{ name: 'Chat', color: 'cyan' }])
+    let b = addLabel(emptyBoard(), 'Chat', '#6ad0e0')
+    b = addLabel(b, 'chat', '#d83a3a')
+    expect(b.labels).toEqual([{ name: 'Chat', color: '#6ad0e0' }])
     b = addTodo(b, { title: 't', labels: ['CHAT', 'tests'] }, ada, 1).board
     expect(b.todos[0]!.labels).toEqual(['Chat', 'tests'])
-    expect(b.labels).toEqual([{ name: 'Chat', color: 'cyan' }, { name: 'tests', color: LABEL_COLORS[1] }])
+    expect(b.labels).toEqual([{ name: 'Chat', color: '#6ad0e0' }, { name: 'tests', color: LABEL_PRESETS[1] }])
   })
   it('are set on a task with an update, and an empty list takes them all off', () => {
     let b = addTodo(emptyBoard(), { title: 't', labels: ['a', 'b'] }, you, 1).board
@@ -349,13 +349,14 @@ describe('labels', () => {
     expect(b.todos[0]!.labels).toBeUndefined()
   })
   it('are renamed and recoloured everywhere, and refuse a name already used', () => {
-    let b = addTodo(addLabel(emptyBoard(), 'bug', 'red'), { title: 't', labels: ['bug'] }, you, 1).board
+    let b = addTodo(addLabel(emptyBoard(), 'bug', '#d83a3a'), { title: 't', labels: ['bug'] }, you, 1).board
     b = renameLabel(b, 'bug', 'defect')
-    expect(b.labels).toEqual([{ name: 'defect', color: 'red' }])
+    expect(b.labels).toEqual([{ name: 'defect', color: '#d83a3a' }])
     expect(b.todos[0]!.labels).toEqual(['defect'])
-    b = recolorLabel(b, 'defect', 'green')
-    expect(b.labels![0]!.color).toBe('green')
-    expect(() => renameLabel(addLabel(b, 'x', 'cyan'), 'x', 'DEFECT')).toThrow(/already/)
+    b = recolorLabel(b, 'defect', '#5F9E5F')
+    expect(b.labels![0]!.color).toBe('#5f9e5f')
+    expect(() => recolorLabel(b, 'defect', 'green')).toThrow(/colour/)
+    expect(() => renameLabel(addLabel(b, 'x', '#6ad0e0'), 'x', 'DEFECT')).toThrow(/already/)
   })
   it('are removed from the board and from every task that had them', () => {
     let b = addTodo(emptyBoard(), { title: 't', labels: ['a', 'b'] }, you, 1).board
