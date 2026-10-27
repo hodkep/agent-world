@@ -28,6 +28,14 @@ test('the Keep and Undo bar can be dragged anywhere in the window, so it never h
     const box = async () => (await bar.boundingBox())!
     const win = await page.evaluate(() => ({ w: innerWidth, h: innerHeight }))
 
+    // The grip is only a handle: the words start right beside it, not half way along the bar.
+    const grip = await bar.locator('.mod-grip').boundingBox()
+    const words = await bar.locator(':scope > span:not(.mod-grip)').boundingBox()
+    const whole = await bar.boundingBox()
+    expect(grip!.width).toBeLessThan(30)
+    expect(words!.x - (grip!.x + grip!.width)).toBeLessThan(30)
+    expect(words!.width).toBeGreaterThan(whole!.width * 0.5)
+
     // At first it sits at the top, in the middle, over the top bar.
     const first = await box()
     expect(Math.abs(first.x + first.width / 2 - win.w / 2)).toBeLessThan(4)
