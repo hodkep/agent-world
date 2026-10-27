@@ -2,6 +2,7 @@ import type { Row } from './format'
 import { humanize, parseMcpName } from './mcp'
 import type { ToolRun } from './ToolCard'
 import type { StepGroup } from './stepGroups'
+import { todoPath } from '../todos/todoStore'
 
 const OFFICE_SERVER = 'agent-world'
 /** The office's tools that have a card of their own (messages and subagents): they are the agent's dealings with others, not bookkeeping. */
@@ -176,7 +177,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
     else if (tool.startsWith('todo_')) {
       seen('Todo')
-      const key = tool === 'todo_add' ? `“${clip(str(i.title), 28)}”` : tool.endsWith('search') || tool.endsWith('list') ? '' : `#${str(i.id)}`
+      const key = tool === 'todo_add' ? `“${clip(str(i.title), 28)}”` : tool.endsWith('search') || tool.endsWith('list') ? '' : todoPath(str(i.id))
       const verb = { todo_add: 'added', todo_update: i.status === 'blocked' ? 'blocked' : 'updated', todo_done: 'done', todo_claim: 'claimed', todo_get: 'looked at', todo_list: 'looked through', todo_search: 'looked through' }[tool] ?? 'updated'
       const have = tasks.get(key) ?? []
       if (!have.includes(verb)) tasks.set(key, [...have, verb])

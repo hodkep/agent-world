@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Row } from './format'
+import { setTodoBoard } from '../todos/todoStore'
 import { areasOf, groupOffice, outcomeOf, officeTool, runCall, stampOf, summaryOf, todoOf, whisperOf } from './officeCalls'
 
 const call = (id: string, tool: string, input: Record<string, unknown> = {}, text?: string, isError = false): Extract<Row, { kind: 'tool' }> => ({
@@ -181,5 +182,17 @@ describe('the todo a call touched', () => {
     expect(todoOf(call('a', 'todo_list').run)).toBeNull()
     expect(todoOf(call('a', 'todo_search', { query: 'x' }, 'todo#1 …').run)).toBeNull()
     expect(todoOf(call('a', 'library_get', { id: 'tdd' }, 'ok').run)).toBeNull()
+  })
+})
+
+describe('a part of a bigger task', () => {
+  it('is said after its umbrella, so the line shows what it is part of', () => {
+    setTodoBoard({ lists: ['Chat'], next: 4, todos: [{ id: '2', title: 'Umbrella', list: 'Chat', status: 'open' }, { id: '3', title: 'Part', list: 'Chat', status: 'open', parent: '2' }] } as never)
+    try {
+      expect(summaryOf([call('a', 'todo_update', { id: '3', title: 'x' })])).toEqual([{ area: 'Todo', text: '#2 › #3 updated · x' }])
+      expect(summaryOf([call('a', 'todo_done', { id: '2', note: 'ok' }), call('b', 'todo_update', { id: '3', title: 'x' })])).toEqual([{ area: 'Todo', text: '#2 done; #2 › #3 updated' }])
+    } finally {
+      setTodoBoard(null)
+    }
   })
 })

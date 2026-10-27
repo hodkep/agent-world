@@ -7,6 +7,8 @@ export interface TodoBrief {
   state: 'open' | 'need' | 'doing' | 'blocked' | 'done'
   /** The message it was finished in, else the one it was made in. */
   link?: MessageLink
+  /** The task this one is a part of. */
+  parent?: string
 }
 
 let briefs = new Map<string, TodoBrief>()
@@ -14,12 +16,18 @@ let version = 0
 const listeners = new Set<() => void>()
 
 export function setTodoBoard(board: TodoBoard | null) {
-  briefs = new Map((board?.todos ?? []).map((t) => [t.id, { title: t.title, state: t.status === 'done' ? 'done' : t.status === 'doing' ? 'doing' : t.status === 'blocked' ? 'blocked' : t.needsYou ? 'need' : 'open', ...((t.doneLink ?? t.createdLink) && { link: (t.doneLink ?? t.createdLink)! }) }]))
+  briefs = new Map((board?.todos ?? []).map((t) => [t.id, { title: t.title, state: t.status === 'done' ? 'done' : t.status === 'doing' ? 'doing' : t.status === 'blocked' ? 'blocked' : t.needsYou ? 'need' : 'open', ...((t.doneLink ?? t.createdLink) && { link: (t.doneLink ?? t.createdLink)! }), ...(t.parent && { parent: t.parent }) }]))
   version++
   for (const l of listeners) l()
 }
 
 export const todoBrief = (id: string): TodoBrief | undefined => briefs.get(id)
+
+/** A task's number, after its umbrella's when it is a part of one: "#2 › #3". */
+export function todoPath(id: string, prefix = '#'): string {
+  const parent = briefs.get(id)?.parent
+  return parent ? `${prefix}${parent} › ${prefix}${id}` : `${prefix}${id}`
+}
 
 /** Re-renders when any task's title or state changes. */
 export function useTodoVersion(): number {
