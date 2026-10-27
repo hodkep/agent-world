@@ -13,7 +13,7 @@ const hide = [{ match: { kind: ['thinking'] }, place: 'hidden' }]
 describe('the look an agent writes', () => {
   it('starts as the system default: no look, no draft', () => {
     const m = createChatMod(dir)
-    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '' }, draft: null, draftBy: null, draftWhy: '', history: 0 })
+    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '', widgets: [] }, draft: null, draftBy: null, draftWhy: '', history: 0 })
   })
 
   it('a write is a draft: it shows, but is not what stays until the person keeps it', () => {
@@ -77,6 +77,24 @@ describe('the look an agent writes', () => {
     expect(m.state().draft).toBeNull()
   })
 
+  it('widgets are written, kept, brought back and removed with the look, and one that cannot be read refuses the whole write', () => {
+    const m = createChatMod(dir)
+    const w = { id: 'spend', slot: 'above-composer', height: 32, html: '<b>x</b>', meters: ['cost'] }
+    expect(m.write({ widgets: [w], by: 'ada', why: 'a' }).problems).toEqual([])
+    m.keep()
+    expect(createChatMod(dir).state().current.widgets).toEqual([w])
+    m.write({ css: '.a { color: red }', by: 'ada', why: 'b' })
+    expect(m.state().draft?.widgets).toEqual([w])
+    m.keep()
+    m.write({ widgets: [], by: 'ada', why: 'c' })
+    m.keep()
+    expect(m.state().current.widgets).toEqual([])
+    m.back()
+    expect(m.state().current.widgets).toEqual([w])
+    expect(m.write({ widgets: [{ ...w, slot: 'nowhere' }], by: 'ada', why: 'd' }).problems.length).toBeGreaterThan(0)
+    expect(m.state().draft).toBeNull()
+  })
+
   it('Undo throws the draft away and leaves what was in force', () => {
     const m = createChatMod(dir)
     m.write({ css: '.a { color: red }', by: 'ada', why: 'a' })
@@ -92,7 +110,7 @@ describe('the look an agent writes', () => {
     m.write({ layout: hide, css: '.a { color: red }', by: 'ada', why: 'a' })
     m.keep()
     m.reset()
-    expect(m.state().current).toEqual({ layout: { rules: [] }, css: '' })
+    expect(m.state().current).toEqual({ layout: { rules: [] }, css: '', widgets: [] })
     expect(m.state().draft).toBeNull()
     m.back()
     expect(m.state().current.css).toBe('.a { color: red }')
@@ -103,7 +121,7 @@ describe('the look an agent writes', () => {
     m.write({ css: '.a { color: red }', by: 'ada', why: 'a' })
     m.keep()
     m.write({ reset: true, by: 'ada', why: 'back to normal' })
-    expect(m.state().draft).toEqual({ layout: { rules: [] }, css: '' })
+    expect(m.state().draft).toEqual({ layout: { rules: [] }, css: '', widgets: [] })
     expect(m.state().current.css).toBe('.a { color: red }')
   })
 
@@ -112,7 +130,7 @@ describe('the look an agent writes', () => {
     m.write({ css: '.a { color: red }', by: 'ada', why: 'a' })
     m.keep()
     writeFileSync(join(dir, 'current.json'), '{ not json')
-    expect(createChatMod(dir).state().current).toEqual({ layout: { rules: [] }, css: '.a { color: red }' })
+    expect(createChatMod(dir).state().current).toEqual({ layout: { rules: [] }, css: '.a { color: red }', widgets: [] })
   })
 
   it('tells the window each time something changes, and keeps at most twenty earlier looks', () => {

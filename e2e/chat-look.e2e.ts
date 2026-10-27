@@ -45,8 +45,18 @@ test('POC: an agent changes the chat look through its tools; it shows as a draft
     expect(outline).toContain('div.stage-wrap')
     expect(outline).toContain('div.stage')
     expect(outline).toContain('aside')
-    expect((await call('app_ui_outline', { selector: '.stage-ctl', depth: 2 })).text).toContain('Fit office')
-    const shot = (await client!.callTool({ name: 'app_ui_screenshot', arguments: {} })) as { content: { type: string; data: string }[] }
+    expect((await call('app_ui_outline', { selector: '.stage-ctl', depth: 3 })).text).toMatch(/^div\.stage-ctl\n[\s\S]*button\.zc-minus \[Zoom out\]/)
+    expect(outline).not.toContain('Fit office')
+    // A picture of the window is taken only if the person allows it, each time.
+    const ask = page.getByRole('dialog', { name: 'Let ada see the window?' })
+    const refused = client!.callTool({ name: 'app_ui_screenshot', arguments: {} }) as Promise<{ isError?: boolean; content: { text: string }[] }>
+    await ask.getByRole('button', { name: 'Not now' }).click()
+    const no = await refused
+    expect(no.isError).toBe(true)
+    expect(no.content[0]!.text).toMatch(/did not allow/)
+    const allowed = client!.callTool({ name: 'app_ui_screenshot', arguments: {} }) as Promise<{ content: { type: string; data: string }[] }>
+    await ask.getByRole('button', { name: 'Allow once' }).click()
+    const shot = await allowed
     expect(shot.content[0]!.type).toBe('image')
     expect(Buffer.from(shot.content[0]!.data, 'base64').subarray(1, 4).toString()).toBe('PNG')
 

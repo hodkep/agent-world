@@ -50,11 +50,11 @@ interface Options {
   /** POC: the look of the chat, which agents write as a draft and only the person keeps. Offered only when set. */
   chatMod?: {
     state: () => ChatModState
-    write: (callerId: string, i: { layout?: unknown; css?: string; reset?: boolean; why: string }) => { problems: string[] }
+    write: (callerId: string, i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; why: string }) => { problems: string[] }
     /** The elements of the app's window, as indented lines. */
     outline?: (selector: string, depth: number) => Promise<string>
-    /** The window as the person sees it, as a base64 PNG, or null when no window is open. */
-    screenshot?: () => Promise<string | null>
+    /** The window as the person sees it, as a base64 PNG, after the person allows it; null when they do not, or no window is open. */
+    screenshot?: (callerId: string) => Promise<string | null>
   }
   /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
   libraryOn?: () => boolean
@@ -151,6 +151,13 @@ const LAYOUT_RULE = z.object({
   icon: z.string().max(8).optional(),
   open: z.boolean().optional()
 })
+const WIDGET = z.object({
+  id: z.string().max(30).describe('a-z, 0-9 and -'),
+  slot: z.enum(['chat-top', 'above-composer']),
+  height: z.number().int().min(24).max(240).optional(),
+  html: z.string().max(100000).describe('The page: html with its own style and script'),
+  meters: z.array(z.enum(['usage', 'tokens', 'cost', 'todos'])).max(4).optional()
+})
 /** How the person's chat looks, written by agents as a draft that shows at once and that only the person's Keep makes permanent. */
 function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<Options['chatMod']>) {
   const text = (t: string, isError = false) => ({ ...(isError && { isError: true }), content: [{ type: 'text' as const, text: t }] })
@@ -169,10 +176,10 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
   )
   server.registerTool(
     'app_ui_screenshot',
-    { description: 'A picture of the app\'s window as the person sees it now (the office, the chat, any look being tried). Use it before and after a change to the look.', inputSchema: {} },
+    { description: 'A picture of the app\'s window as the person sees it now (the office, the chat, any look being tried). The window shows their chats and todos, so they are asked each time and may say no. Ask for it only when you need to see the result of a look change.', inputSchema: {} },
     async () => {
-      const png = mod.screenshot ? await mod.screenshot() : null
-      return png ? { content: [{ type: 'image' as const, data: png, mimeType: 'image/png' }] } : text('No window is open.', true)
+      const png = mod.screenshot ? await mod.screenshot(callerId) : null
+      return png ? { content: [{ type: 'image' as const, data: png, mimeType: 'image/png' }] } : text('The person did not allow a picture of the window (or no window is open). Do not ask again unless they do; describe what you did instead.', true)
     }
   )
   server.registerTool(
@@ -187,17 +194,18 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
     'chat_mod_write',
     {
       description:
-        'Change how the person\'s chat looks, when they ask for it. Give `layout` (the full ordered list of rules), `css` (the full stylesheet), or both; a part you leave out stays as it is. It is shown to the person at once as a draft with Keep and Undo: you cannot make it permanent. ' +
+        'Change how the person\'s chat looks, when they ask for it. Give `layout` (the full ordered list of rules), `css` (the full stylesheet), `widgets` (the full list), or any of them; a part you leave out stays as it is. It is shown to the person at once as a draft with Keep and Undo: you cannot make it permanent. ' +
         'Read chat_mod_guide first. If it says something could not be read, fix that and write again. Set `reset` to ask for the system default instead.',
       inputSchema: {
         layout: z.array(LAYOUT_RULE).max(30).optional(),
         css: z.string().max(60000).optional(),
+        widgets: z.array(WIDGET).max(6).optional().describe('The full list of widgets; see chat_mod_guide'),
         reset: z.boolean().optional(),
         why: z.string().max(200).describe('One sentence for the person: what you did')
       }
     },
     async (a) => {
-      if (!a.reset && a.layout === undefined && a.css === undefined) return text('Give layout, css, or reset.', true)
+      if (!a.reset && a.layout === undefined && a.css === undefined && a.widgets === undefined) return text('Give layout, css, widgets, or reset.', true)
       const r = mod.write(callerId, a)
       return r.problems.length ? text(`Nothing was changed. Fix this and write again: ${r.problems.join(' ')}`, true) : text('The person is looking at it now, with Keep and Undo. Tell them what you changed; it stays only if they keep it.')
     }

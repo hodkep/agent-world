@@ -364,6 +364,9 @@ export interface AwApi {
   chatModUndo(): Promise<void>
   chatModReset(): Promise<void>
   chatModBack(): Promise<void>
+  /** An agent asks for a picture of the window; nothing is taken until the person answers. */
+  onShotAsk(cb: (ask: { id: string; agent: string }) => void): () => void
+  answerShot(id: string, ok: boolean): Promise<void>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
   closeBtw(agentId: string): Promise<void>
   onChatReset(cb: (agentId: string, sessionId: string) => void): () => void

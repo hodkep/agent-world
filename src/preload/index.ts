@@ -148,6 +148,8 @@ const api: AwApi = {
   chatModUndo: () => ipcRenderer.invoke('chatmod:undo'),
   chatModReset: () => ipcRenderer.invoke('chatmod:reset'),
   chatModBack: () => ipcRenderer.invoke('chatmod:back'),
+  onShotAsk: on('shot-ask'),
+  answerShot: (id, ok) => ipcRenderer.invoke('shot:answer', id, ok),
   onBtw: on('btw'),
   closeBtw: (id) => ipcRenderer.invoke('btw:close', id),
   onChatReset: on('chat-reset'),

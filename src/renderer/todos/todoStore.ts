@@ -12,14 +12,19 @@ export interface TodoBrief {
 }
 
 let briefs = new Map<string, TodoBrief>()
+let current: TodoBoard | null = null
 let version = 0
 const listeners = new Set<() => void>()
 
 export function setTodoBoard(board: TodoBoard | null) {
+  current = board
   briefs = new Map((board?.todos ?? []).map((t) => [t.id, { title: t.title, state: t.status === 'done' ? 'done' : t.status === 'doing' ? 'doing' : t.status === 'blocked' ? 'blocked' : t.needsYou ? 'need' : 'open', ...((t.doneLink ?? t.createdLink) && { link: (t.doneLink ?? t.createdLink)! }), ...(t.parent && { parent: t.parent }) }]))
   version++
   for (const l of listeners) l()
 }
+
+/** The open project's whole board, for a number made from it (how many tasks an agent changed). */
+export const todoBoardNow = (): TodoBoard | null => current
 
 export const todoBrief = (id: string): TodoBrief | undefined => briefs.get(id)
 

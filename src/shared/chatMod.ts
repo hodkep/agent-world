@@ -1,12 +1,14 @@
 // POC: a look the person asked an agent for. It is two things: layout rules (where rows sit) and CSS (how anything looks). The system default is no look at all, so it can always come back.
 import { DEFAULT_LAYOUT, checkLayout, type ChatLayout } from './chatLayout'
+import { checkWidgets, type Widget } from './widgets'
 
 export interface ChatMod {
   layout: ChatLayout
   css: string
+  widgets: Widget[]
 }
-export const EMPTY_MOD: ChatMod = { layout: DEFAULT_LAYOUT, css: '' }
-export const isEmptyMod = (m: ChatMod) => m.layout.rules.length === 0 && m.css.trim() === ''
+export const EMPTY_MOD: ChatMod = { layout: DEFAULT_LAYOUT, css: '', widgets: [] }
+export const isEmptyMod = (m: ChatMod) => m.layout.rules.length === 0 && m.css.trim() === '' && m.widgets.length === 0
 
 /** What the window needs: the look in force, and one an agent is trying that waits for Keep or Undo. */
 export interface ChatModState {
@@ -88,11 +90,12 @@ export function themeProblems(css: string): string[] {
 }
 
 /** A look as an agent wrote it, read back: what is understood is kept, and what is not is named. */
-export function checkMod(raw: { layout?: unknown; css?: unknown }): { mod: ChatMod; problems: string[] } {
+export function checkMod(raw: { layout?: unknown; css?: unknown; widgets?: unknown }): { mod: ChatMod; problems: string[] } {
   const l = checkLayout(raw.layout === undefined ? { rules: [] } : { rules: raw.layout })
   const c = cleanCss(raw.css)
   const t = c.css ? themeProblems(c.css) : []
-  return { mod: { layout: l.layout, css: t.length ? '' : c.css }, problems: [...l.problems, ...c.problems, ...t] }
+  const w = checkWidgets(raw.widgets)
+  return { mod: { layout: l.layout, css: t.length ? '' : c.css, widgets: w.widgets }, problems: [...l.problems, ...c.problems, ...t, ...w.problems] }
 }
 
 /**
@@ -108,7 +111,7 @@ export const GUARD_CSS = `
 /** What an agent is told about the chat before it changes it. */
 export const CHAT_MOD_GUIDE = `Changing how the person's chat looks (Agent World).
 
-You do it with two things, both written through chat_mod_write:
+You do it with three things, all written through chat_mod_write:
 1. layout: an ordered list of rules saying where rows sit. The first rule that matches a row decides; a row no rule matches stays in the chat as it is.
    rule = { match: { kind?: string[], tool?: string[], text?: string, tone?: "bad" }, place: "stream"|"badge"|"footer"|"hidden", group?, label?, icon?, open? }
    - kind: tool, thinking, assistant, hook, event, note, image, shell, command, report, delegation, handoff. (The person's own messages are never moved.)
@@ -132,6 +135,13 @@ You do it with two things, both written through chat_mod_write:
    Rows of the conversation you can name: a tool call is .tc (.tc-head with .tc-name, then .tc-sec, .tc-result when opened) or .tc-line when quiet. The agent's calls to the office (todos, messages, notes) are drawn as .of: .of-area (one per group, with .of-head holding .of-nm the group name and .of-caret, .of-sum and .of-line the summary) and, when a group is open, .of-list with an .of-item per call (.of-row holds .of-ic the icon and .of-txt the words); a call opened for details shows .of-card with a full .tc inside. A chip from a layout rule is .lay-pack > .lay-chip, and what it opens to is .lay-body.
    A row that is folded or closed is not in the page, so the outline will not show what is inside it: ask the person to open it, or use the names above.
    The office picture itself (.stage) is drawn on a canvas: CSS can frame, filter or resize it (border, filter, opacity) but cannot recolour what is drawn inside.
+
+3. widgets: small pages of your own, shown in a fixed place: slot "chat-top" (above the conversation) or "above-composer" (just above the message box), height 24 to 240 pixels, up to 6.
+   widget = { id, slot, height?, html, meters? }. html is a page: markup with its own <style> and <script>, up to 100000 characters.
+   A widget runs in a sandbox: it has no network, no storage, no access to the app, and nothing it does or types goes anywhere. It can only draw. Do not try to fetch, post, open or navigate: it will not work, by design.
+   It is given numbers, only those named in meters: "usage" (the allowance left of the agent's account: fiveHour and sevenDay, each { left: percent, resetsAt: ms } or null), "tokens" ({ input, output } or null), "cost" (dollars spent, a number) and "todos" (how many todos this agent changed, or null). A number the app does not have is null: show nothing or a dash, not zero.
+   Receive them with onData(d => ...): d.meters.usage.fiveHour.left, and again each time they change. The colours of the theme are CSS variables in the widget too: var(--text), var(--panel), var(--accent), var(--muted), var(--ok), var(--danger), var(--well), var(--line).
+   Example: { id: "spend", slot: "above-composer", height: 28, meters: ["cost"], html: "<div id=c style='padding:4px 10px;font:11px monospace;color:var(--muted)'></div><script>onData(d => { const v = d.meters.cost; c.textContent = v == null ? '' : 'spent $' + v.toFixed(2) })</script>" }
 
 How to work:
 - Call chat_mod_get first (and app_ui_screenshot, to see what the person sees): it returns what is in force and any draft. Change that; do not start from nothing unless the person asked for a fresh start.
