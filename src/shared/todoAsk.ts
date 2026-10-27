@@ -14,7 +14,7 @@ export function askMessage(t: Todo, mode: AskMode, words: string): string {
     source && `Came from ${t.doneLink ? 'the message it was finished in' : 'the message it was made in'}:\n${source.length > SOURCE_MAX ? `${source.slice(0, SOURCE_MAX)}…` : source}`,
     mode === 'ask'
       ? 'I have a question about it; answer in your reply, and change nothing on the board unless I ask.'
-      : `Please work on it. It is assigned to you already; finish it, then call todo_done with a one-line note (todo_update with status blocked and why if you cannot).`,
+      : `Please work on it. It is assigned to you already; call todo_done with a one-line note once its change is pushed (when I tell you to push) or has been tested, not when the code is merely written (todo_update with status blocked and why if you cannot).`,
     words.trim()
   ]
   return lines.filter(Boolean).join('\n\n')
