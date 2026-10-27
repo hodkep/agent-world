@@ -22,6 +22,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
   { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Shift+Ctrl+Tab', 'Ctrl+Tab'] },
   { id: 'tab-jump', place: 'Anywhere', text: 'Go to the first, second … tab of the side panel', keys: ['Mod+Alt+1-9'] },
+  { id: 'notes', place: 'Anywhere', text: 'Show or hide the notes window, from any app', keys: ['Mod+Alt+N'] },
   { id: 'add-selection', place: 'Anywhere', text: 'Add the selected words, code or output to the message box as context', keys: ['Shift+Mod+L'] },
   { id: 'close', place: 'Anywhere', text: 'Close a dialog, menu or card', keys: ['Esc'] },
   { id: 'resize-panel', place: 'Anywhere', text: 'Resize the side panel (on its edge)', keys: ['ArrowLeft', 'ArrowRight'] },

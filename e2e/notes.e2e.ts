@@ -57,11 +57,16 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await pad.getByRole('button', { name: 'Make tasks…' }).click()
     const make = pad.getByRole('dialog', { name: 'Make tasks from this note' })
     await expect(make).toContainText('Later thing')
+    // The panel is beside the note, not on it: the window was made wider, and the two do not overlap.
+    const boxes = async () => ({ main: (await pad.locator('.nt-main').boundingBox())!, side: (await pad.locator('.nt-side').boundingBox())! })
+    const b = await boxes()
+    expect(b.side.x >= b.main.x + b.main.width - 1 || b.main.x >= b.side.x + b.side.width - 1).toBe(true)
     await expect(make).not.toContainText('Umbrella')
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-make.png` })
     await make.getByLabel('Give to').selectOption({ label: 'ada · Claude' })
     await make.getByRole('button', { name: 'Make 1 task' }).click()
     await expect(make).toHaveCount(0)
+    await expect(pad.locator('.nt-side')).toHaveCount(0)
     await expect(pad.locator('.nt-item', { hasText: 'Later thing' })).toContainText('(todo#4)')
     // A line that is a task has Ask agent only, and asking about it sends that task, as the chat shows.
     await pad.locator('.nt-item', { hasText: 'Part b' }).hover()

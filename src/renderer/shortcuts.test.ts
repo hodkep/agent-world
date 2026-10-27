@@ -171,3 +171,11 @@ describe('the table of shortcuts', () => {
     expect(hint('undo', true)).toBe('Undo (⌘Z)')
   })
 })
+
+describe('the notes window shortcut', () => {
+  it('is in the sheet, for every program, as the key the app registers', () => {
+    expect(hint('notes', true)).toBe('Show or hide the notes window, from any app (⌘⌥N)')
+    expect(hint('notes', false)).toBe('Show or hide the notes window, from any app (Ctrl+Alt+N)')
+  })
+})
+

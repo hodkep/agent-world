@@ -96,6 +96,7 @@ const api: AwApi = {
     tasks: (folder, id, only) => ipcRenderer.invoke('notes:tasks', folder, id, only),
     agents: (folder) => ipcRenderer.invoke('notes:agents', folder),
     ask: (folder, todoId, agentId, mode, words) => ipcRenderer.invoke('notes:ask', folder, todoId, agentId, mode, words),
+    side: (extra) => ipcRenderer.invoke('notes:side', extra),
     toggle: () => ipcRenderer.invoke('notes:toggle'),
     hide: () => ipcRenderer.invoke('notes:hide'),
     pin: (on) => ipcRenderer.invoke('notes:pin', on),
