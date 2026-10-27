@@ -2813,6 +2813,9 @@ aside:not(.drawer) { flex: none; }
 .todo-ref .s.done { background: var(--ok); } .todo-ref .s.doing { background: var(--think); } .todo-ref .s.need { background: var(--accent); } .todo-ref .s.blocked { background: var(--danger); }
 .todo-ref em { font-style: normal; color: var(--muted); font-weight: 400; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-ref .s.gone ~ em { font-style: italic; }
+/* A subtask's chip names its umbrella first; that number opens the umbrella */
+.todo-ref .todo-up { color: var(--violet); } .todo-ref .todo-up:hover { text-decoration: underline; }
+.todo-ref .todo-sep { color: var(--muted); font-weight: 400; }
 
 /* Cards for tools that have one of their own (todo, so far) */
 .tcard { background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); margin: 6px 0; font-size: 12.5px; }

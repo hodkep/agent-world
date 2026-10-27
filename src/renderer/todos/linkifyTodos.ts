@@ -1,5 +1,5 @@
 import { findTodoRefs } from '../../shared/todoLinks'
-import { todoBrief } from './todoStore'
+import { openTodo, todoBrief } from './todoStore'
 
 const SKIP = 'pre, code, a, button, textarea, input, .todo-ref'
 
@@ -12,7 +12,22 @@ export function paintTodoRef(el: HTMLElement) {
   s.className = `s ${brief?.state ?? 'gone'}`
   const addr = document.createElement('b')
   addr.textContent = `todo#${id}`
-  el.append(s, addr)
+  el.append(s)
+  // A subtask's chip names its umbrella first; that number opens the umbrella, the rest of the chip the part.
+  if (brief?.parent) {
+    const parent = brief.parent
+    const up = document.createElement('span')
+    up.className = 'todo-up'
+    up.setAttribute('role', 'link')
+    up.textContent = `todo#${parent}`
+    up.title = `Open todo#${parent}, the task this is part of`
+    up.addEventListener('click', (e) => (e.stopPropagation(), openTodo(parent)))
+    const sep = document.createElement('span')
+    sep.className = 'todo-sep'
+    sep.textContent = '›'
+    el.append(up, sep)
+  }
+  el.append(addr)
   if (brief) {
     const t = document.createElement('em')
     t.textContent = brief.title

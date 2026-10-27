@@ -22,7 +22,7 @@ Everything the agent does is a card. Commands, reads and searches in a row fold 
 
 <img src="../images/chat.png" alt="The chat of an agent: a command folded into one line, the Library and Notes rows of the office&#x27;s own calls, an edit shown as a diff, and the agent&#x27;s reply" width="720">
 
-The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board; a subtask's line reads `todo#2 › todo#3`, and a click on the first number opens the task it is part of. A button such as "2 commands running" above the box lists them with **Stop**.
+The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board; a subtask's line reads `todo#2 › todo#3`, and a click on the first number opens the task it is part of. A `todo#N` an agent writes in a reply is a chip with the task's state and title, and a subtask's chip reads `todo#2 › todo#3` the same way. A button such as "2 commands running" above the box lists them with **Stop**.
 
 ## Diagrams and forms
 
