@@ -1,29 +1,10 @@
-import { type RefObject, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LABEL_PRESETS, isLabelColor, type Label, type TodoBoard } from '../../shared/todos'
 import type { useConfirm } from '../panel/ConfirmDialog'
+import { useDismiss } from '../useDismiss'
 
 const DEFAULT = LABEL_PRESETS[0]!
 const colorOf = (labels: Label[] | undefined, name: string) => labels?.find((l) => l.name === name)?.color ?? DEFAULT
-
-/** Closes a popup on a click outside it or Esc (Esc does not also close the window under it). A click inside a confirmation does not count as outside. */
-function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void) {
-  useEffect(() => {
-    if (!open) return
-    const down = (e: MouseEvent) => {
-      const t = e.target as Element
-      if (!ref.current?.contains(t) && !t.closest?.('.confirm-dialog')) onClose()
-    }
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || document.querySelector('.confirm-dialog')) return
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
-    }
-    document.addEventListener('mousedown', down)
-    document.addEventListener('keydown', key, true)
-    return () => (document.removeEventListener('mousedown', down), document.removeEventListener('keydown', key, true))
-  }, [ref, open, onClose])
-}
 
 /** A label as a small chip with its colour; with `onRemove` it can be taken off. */
 export function LabelChip({ name, color, onRemove }: { name: string; color: string; onRemove?: () => void }) {

@@ -21,6 +21,7 @@ const ICONS = {
   grid: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></>,
   money: <><circle cx="12" cy="12" r="9" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 6v12" /></>,
   week: <><rect x="3" y="4" width="18" height="18" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
+  notes: <><path d="M5 3h11l4 4v14H5z" /><path d="M15 3v5h5M8 12h8M8 16h5" /></>,
   todo: <><rect x="4" y="3" width="16" height="18" /><path d="M8 9l2 2 3-3M8 16h8" /></>,
   workflow: <><rect x="3" y="4" width="5" height="5" /><rect x="16" y="4" width="5" height="5" /><rect x="9.5" y="15" width="5" height="5" /><path d="M8 6.5h8M5.5 9v3.5h13V9M12 12.5V15" /></>,
   library: <path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z" />,

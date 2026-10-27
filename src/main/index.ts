@@ -27,7 +27,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, powerSaveBlocker, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
 import { packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
@@ -67,6 +67,9 @@ import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
+import { createNoteStore } from './notes/store'
+import { makeTasks } from './notes/tasks'
+import { createNotesWindow, type NotesWindow } from './notes/window'
 import { Mailbox } from './mailbox'
 import { inBatches } from '../shared/pool'
 import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
@@ -148,8 +151,15 @@ if (app.isPackaged && process.platform !== 'win32') {
 // Several windows share this one process (and so one set of agents); each shows its own project.
 const windows = new Set<BrowserWindow>()
 const windowWorkspaces = new WindowWorkspaces()
+/** The ordinary window that was in front last, so the notes window knows which project it is beside. */
+let lastMain: BrowserWindow | null = null
+let notesWin: NotesWindow | null = null
 const liveWindows = () => [...windows].filter((w) => !w.isDestroyed())
-const frontWindow = () => BrowserWindow.getFocusedWindow() ?? liveWindows()[0] ?? null
+// The notes window is not one of these: dialogs, new windows and messages go to an ordinary window.
+const frontWindow = () => {
+  const f = BrowserWindow.getFocusedWindow()
+  return (f && liveWindows().includes(f) ? f : liveWindows()[0]) ?? null
+}
 const windowFor = (agent?: AgentRecord) => (agent && liveWindows().find((w) => windowWorkspaces.get(w.webContents.id) === agent.repoPath)) || frontWindow()
 let ready = false
 let agents: AgentRecord[] = []
@@ -1095,9 +1105,13 @@ function createWindow() {
   if (HIDDEN) w.setContentSize(1440, 868)
   const id = w.webContents.id
   windows.add(w)
+  w.on('focus', () => (lastMain = w))
   w.on('closed', () => {
     windows.delete(w)
     windowWorkspaces.drop(id)
+    // The notes window is only hidden when closed, so it would keep the app open: the app ends with its last ordinary window.
+    if (lastMain === w) lastMain = null
+    if (!liveWindows().length) app.quit()
   })
   w.webContents.on('will-attach-webview', (e, prefs, params) => {
     delete prefs.preload
@@ -1807,6 +1821,50 @@ async function main() {
     return workspaceInfo(e.sender.id)
   })
   ipcMain.handle('window:new', () => void createWindow())
+  // The notes window: one pad of Markdown notes per project, over every other window.
+  const noteStore = createNoteStore({ dir: join(HOME, 'pad-notes') })
+  notesWin = createNotesWindow({
+    preload: join(__dirname, '../preload/index.js'),
+    stateFile: join(HOME, 'notes-window.json'),
+    hidden: HIDDEN,
+    load: (w) => {
+      if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(`${process.env.ELECTRON_RENDERER_URL}#notes`)
+      else void w.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'notes' })
+    }
+  })
+  const noteKey = (folder: string) => repoSlug(String(folder))
+  ipcMain.handle('notes:context', async () => {
+    const main = lastMain && !lastMain.isDestroyed() ? lastMain : liveWindows()[0]
+    const info = main ? await workspaceInfo(main.webContents.id) : { active: undefined, items: [] as { path: string; name: string }[] }
+    return { folder: info.active ?? null, projects: info.items.map((p) => ({ path: p.path, name: p.name })) }
+  })
+  ipcMain.handle('notes:list', (_, folder: string) => noteStore.list(noteKey(folder)))
+  ipcMain.handle('notes:read', (_, folder: string, id: string) => noteStore.read(noteKey(folder), String(id)))
+  ipcMain.handle('notes:write', (_, folder: string, id: string, text: string) => noteStore.write(noteKey(folder), String(id), String(text)))
+  ipcMain.handle('notes:create', (_, folder: string) => noteStore.create(noteKey(folder)))
+  ipcMain.handle('notes:remove', (_, folder: string, id: string) => noteStore.remove(noteKey(folder), String(id)))
+  ipcMain.handle('notes:tasks', (_, folder: string, id: string, only?: number[]) => {
+    const f = String(folder)
+    const r = makeTasks(noteStore.read(noteKey(f), String(id)), todoService.board(f).lists, { add: (i) => todoService.addByPerson(f, i), done: (t) => void todoService.doneByPerson(f, t) }, only ? new Set(only.map(Number)) : undefined)
+    if (r.made.length) noteStore.write(noteKey(f), String(id), r.text)
+    return r
+  })
+  ipcMain.handle('notes:agents', (_, folder: string) => agents.filter((a) => a.repoPath === String(folder) && !a.parent).map((a) => ({ id: a.id, name: a.name, provider: a.provider ?? 'claude' })))
+  // Asking an agent about a task, or giving it the task, is done by the window of its project, which wakes it and puts the message in its chat.
+  ipcMain.handle('notes:ask', (_, folder: string, todoId: string, agentId: string, mode: 'ask' | 'work', words: string) => {
+    const { message } = todoService.askAgent(String(folder), String(todoId), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000))
+    const target = windowFor(byId(String(agentId)))
+    if (!target) throw new Error('No window of the app is open for that agent.')
+    target.webContents.send('notes-ask', { agentId: String(agentId), message })
+  })
+  ipcMain.handle('notes:toggle', () => notesWin?.toggle())
+  ipcMain.handle('notes:hide', () => notesWin?.hide())
+  ipcMain.handle('notes:pin', (_, on: boolean) => (notesWin?.pin(!!on), notesWin?.pinned()))
+  ipcMain.handle('notes:pinned', () => notesWin?.pinned() ?? true)
+  // Shown or hidden from anywhere on the computer.
+  if (!HIDDEN) globalShortcut.register('Alt+CommandOrControl+N', () => notesWin?.toggle())
+  app.on('will-quit', () => globalShortcut.unregisterAll())
+  app.on('before-quit', () => notesWin?.quit())
   // The error page's Reload: the window's own navigation is locked (will-navigate), which also stops the page from reloading itself.
   ipcMain.handle('window:reload', (e) => e.sender.reload())
   ipcMain.handle('list-agents', () => agents.filter((a) => !a.parent).map((a) => ({ ...a, online: sessions.has(a.id), activity: lastActivity.get(a.id) })))
