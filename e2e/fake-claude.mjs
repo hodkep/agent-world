@@ -575,6 +575,15 @@ if (process.env.FAKE_CHAT) {
       const c = use(`${t}recall`, { query: 'default ports' })
       done(c, 'Nothing saved about that.')
     }
+    // FAKE_LOOK=1: the tools that change how the app looks, as an agent asked for a different look makes them: a todo call too, so the groups can be told apart.
+    if (process.env.FAKE_LOOK) {
+      const t = 'mcp__agent-world__'
+      done(use(`${t}todo_get`, { id: '3' }), 'todo#3 [Chat] Something — open')
+      done(use(`${t}chat_mod_get`, {}), '{"current":{"layout":{"rules":[]},"css":"","widgets":[]},"draft":null,"recent":[]}')
+      done(use(`${t}app_ui_outline`, { selector: '.composer' }), 'div.composer\n  div.cbox')
+      done(use(`${t}chat_mod_write`, { css: '.a{}', why: 'swap the sides' }), 'The person is looking at it now, with Keep and Undo.')
+      done(use(`${t}app_ui_screenshot`, {}), 'png')
+    }
     // FAKE_TODO=1: calls to the todo tools, as an agent keeping the board would make them, and a reply that names a task.
     if (process.env.FAKE_TODO) {
       const t = 'mcp__agent-world__'

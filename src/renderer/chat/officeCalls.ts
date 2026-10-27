@@ -58,7 +58,7 @@ export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | Offic
   return out
 }
 
-export type WhisperKind = 'skip' | 'read' | 'todo' | 'note' | 'workflow' | 'other'
+export type WhisperKind = 'skip' | 'read' | 'todo' | 'note' | 'workflow' | 'look' | 'other'
 export interface Whisper {
   kind: WhisperKind
   icon: string
@@ -76,7 +76,8 @@ const lines = (t?: string) => (t && t.split('\n').length > 1 ? `${t.split('\n').
 /** What one call says in a line: what it did, to what, and the thing worth keeping (the reason for a skip, a task's title). */
 export function whisperOf(run: ToolRun): Whisper {
   const w = said(run)
-  const why = run.result?.isError ? `failed: ${(run.result.text ?? '').split('\n')[0]!.trim()}` : ''
+  // A picture the person declined is their answer, not a failure.
+  const why = run.result?.isError && agentWorldTool(run.name) !== 'app_ui_screenshot' ? `failed: ${(run.result.text ?? '').split('\n')[0]!.trim()}` : ''
   return why ? { ...w, why: clip(why, 140) } : w
 }
 
@@ -107,9 +108,17 @@ function said(run: ToolRun): Whisper {
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
     case 'workflow_history': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `the history of workflow ${str(i.id)}`, why: '' }
     case 'workflow_propose': return { kind: 'workflow', icon: '⚑', bold: 'Proposed', rest: proposedId(i.file), why: '' }
+    case 'chat_mod_guide': return { kind: 'look', icon: '✎', bold: 'Read', rest: 'how to change the look', why: '' }
+    case 'chat_mod_get': return { kind: 'look', icon: '✎', bold: 'Checked', rest: 'what look is in force', why: '' }
+    case 'chat_mod_write': return { kind: 'look', icon: '✎', bold: i.reset ? 'Asked to restore' : 'Changed', rest: i.reset ? 'the system look' : 'the look (a draft, waiting for you)', why: clip(str(i.why), 120) }
+    case 'app_ui_outline': return { kind: 'look', icon: '✎', bold: 'Looked at', rest: str(i.selector) ? `the layout of ${clip(str(i.selector), 40)}` : "the app's layout", why: '' }
+    case 'app_ui_screenshot': return { kind: 'look', icon: '✎', bold: 'Asked to see', rest: 'the window', why: !run.result ? '' : run.result.isError ? 'you said no' : 'you allowed it' }
     default: return { kind: 'other', icon: '·', bold: humanize(tool), rest: '', why: '' }
   }
 }
+
+/** The tools that change or look at how the app looks. */
+const isLook = (tool: string) => tool.startsWith('chat_mod_') || tool.startsWith('app_ui_')
 
 /** The id inside a proposed workflow file, or a plain word when the text is not a workflow. */
 function proposedId(file: unknown): string {
@@ -121,7 +130,7 @@ function proposedId(file: unknown): string {
   }
 }
 
-export type StampKind = 'library' | 'todo' | 'note' | 'flag' | 'plan'
+export type StampKind = 'library' | 'todo' | 'note' | 'flag' | 'plan' | 'look'
 export interface Stamp {
   kind: StampKind
   /** The few words beside the picture; none when the picture says it. */
@@ -144,6 +153,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (tool === 'todo_add') return { kind: 'todo', label: clip(str(i.title), 14), tip, state }
   if (tool.startsWith('todo_')) return { kind: 'todo', label: id ? `#${id}` : 'todos', tip, state }
   if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: tool === 'remember' ? 'noted' : 'recalled', tip, state }
+  if (isLook(tool)) return { kind: 'look', label: tool === 'app_ui_outline' ? 'layout' : tool === 'app_ui_screenshot' ? 'window' : 'look', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
   const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
@@ -151,7 +161,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
 }
 
 export interface SummaryPart {
-  area: 'Library' | 'Todo' | 'Notes' | 'Workflow'
+  area: 'Library' | 'Todo' | 'Notes' | 'Workflow' | 'Appearance'
   text: string
 }
 
@@ -163,6 +173,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
   const tasks = new Map<string, string[]>()
   const notes = new Set<string>()
   const flows = new Set<string>()
+  const looks = new Set<string>()
   const order: SummaryPart['area'][] = []
   const seen = (a: SummaryPart['area']) => order.includes(a) || order.push(a)
   for (const c of calls) {
@@ -173,6 +184,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
     else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
     else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' || tool === 'workflow_history' ? 'read' : 'looked'))
+    else if (isLook(tool)) (seen('Appearance'), looks.add({ chat_mod_guide: 'read the look guide', chat_mod_get: 'checked the look', chat_mod_write: i.reset ? 'asked to restore the system look' : 'changed the look', app_ui_outline: 'looked at the layout', app_ui_screenshot: 'asked to see the window' }[tool] ?? 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
     else if (tool.startsWith('todo_')) {
@@ -191,6 +203,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     } else if (area === 'Todo') {
       parts.push({ area, text: [...tasks].map(([k, v]) => `${k ? `${k} ` : ''}${v.join(', ')}`).join('; ') })
     } else if (area === 'Workflow') parts.push({ area, text: [...flows].join(' · ') })
+    else if (area === 'Appearance') parts.push({ area, text: [...looks].join(' · ') })
     else parts.push({ area, text: [...notes].join(' · ') })
   }
   // One call says its reason or title as well.
@@ -202,7 +215,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
   return parts
 }
 
-export type FoldArea = 'Workflow' | 'Todos' | 'Library' | 'Notes' | 'Other'
+export type FoldArea = 'Workflow' | 'Todos' | 'Library' | 'Notes' | 'Appearance' | 'Other'
 export interface AreaRow {
   area: FoldArea
   /** What was done there, in words. */
@@ -220,6 +233,7 @@ function areaOfCall(c: Call): FoldArea {
   if (tool.startsWith('todo_')) return 'Todos'
   if (tool === 'remember' || tool === 'recall') return 'Notes'
   if (RUN_TOOLS.has(tool) || tool.startsWith('workflow_')) return 'Workflow'
+  if (isLook(tool)) return 'Appearance'
   return 'Other'
 }
 
