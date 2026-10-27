@@ -144,6 +144,7 @@ const ICONS = {
   marks: ['.pppppppp.r', '.p......prr', '.p.cc...pr.', '.p.cc...p..', '.p......p..', '.pppppppp..'],
   btw: ['..pppppp..', '.p......p.', 'p..b.b.b.p', '.p......p.', '..pppppp..', '.pp.......'],
   diagrams: ['bbb...bbb', 'b.b...b.b', 'bbb...bbb', '.m.....m.', '.mmmmmmm.', '....m....', '..ccccc..', '..c...c..', '..ccccc..'],
+  forms: ['pppppppppp', 'p........p', 'p.mmmm...p', 'p........p', 'p.gg.mmm.p', 'p........p', 'p.bbbb...p', 'p........p', 'pppppppppp'],
   accounts: ['..bbb.....', '.b...b....', '.b...b....', '..bbb.....', '...b......', '...bbbbbb.', '...b..b.b.', '...b..b.b.'],
   terminals: ['mmmmmmmmmmm', 'm.bb.mm...m', 'mmmmmmmmmmm', 'm.........m', 'm.g.......m', 'm..g.ppp..m', 'mmmmmmmmmmm'],
   shortcuts: ['mmmmmmmmmmmm', 'm.p.p.p.p.pm', 'mmmmmmmmmmmm', 'm.p.p.p.p.pm', 'mmmmmmmmmmmm', 'm..pppppp..m', 'mmmmmmmmmmmm'],
