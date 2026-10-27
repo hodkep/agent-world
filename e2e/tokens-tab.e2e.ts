@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { weekStartOf } from '../src/shared/ledger'
 import { hire, launchApp } from './launch'
 
 const open = async (page: import('@playwright/test').Page) => {
@@ -87,6 +88,71 @@ test('a Claude agent\'s requests are counted exactly as it reports them, and onc
     const again = await open(page)
     await again.getByRole('tab', { name: 'Tokens' }).click()
     await expect(again.locator('.st-tokens tbody tr', { hasText: 'Ada' }).locator('td').nth(3)).toHaveText('1.7k')
+  } finally {
+    await shutdown()
+  }
+})
+
+// The Weekly Rewind says how the week's tokens compare with the week before, as it does for cost.
+const rewind = async (lastWeek: object[]) => {
+  const tmp = mkdtempSync(join(tmpdir(), 'aw-tokens-week-'))
+  const home = join(tmp, 'home')
+  mkdirSync(home, { recursive: true })
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ accounts: [{ id: 'work', name: 'Work', provider: 'claude' }] }))
+  const now = Date.now()
+  const monday = weekStartOf(now)
+  // Inside this week whatever day and hour this runs, and in the week before it.
+  const thisWeek = (n: number) => Math.min(now, monday + n * 1000)
+  const before = (n: number) => monday - 2 * 86_400_000 + n * 1000
+  const req = (t: number, o: object) => ({ k: 'req', t, project: 'checkout', model: 'claude-sonnet-5-5', provider: 'claude', ...o })
+  const ev = [
+    { k: 'cost', t: thisWeek(1), agent: 'a', project: 'checkout', model: 'claude-sonnet-5-5', usd: 4, provider: 'claude', name: 'Charlie', account: 'work' },
+    { k: 'work', t: thisWeek(2), agent: 'a', project: 'checkout', ms: 3_600_000, provider: 'claude', name: 'Charlie', account: 'work' },
+    req(thisWeek(3), { agent: 'a', name: 'Charlie', account: 'work', input: 100, cacheRead: 8000, cacheWrite: 400, output: 300 }),
+    req(thisWeek(4), { agent: 'b', name: 'Maya', input: 50, cacheRead: 1000, cacheWrite: 0, output: 50 }),
+    ...lastWeek.map((e, i) => ({ ...e, t: before(i) }))
+  ]
+  writeFileSync(join(home, 'ledger.jsonl'), ev.map((e) => JSON.stringify(e)).join('\n') + '\n')
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs') }, tmp)
+  const page = await app.firstWindow()
+  await page.setViewportSize({ width: 1400, height: 1000 })
+  await page.locator('header').getByRole('button', { name: 'Weekly Rewind', exact: true }).click()
+  return { shutdown, week: page.getByRole('dialog', { name: 'Weekly Rewind' }) }
+}
+
+test('the Weekly Rewind shows the week\'s rise or fall in tokens like cost, and compares without the cache when last week had none', async () => {
+  // Last week was counted the old way: 1,200 of input and output, and no cache.
+  const { shutdown, week } = await rewind([{ k: 'tokens', agent: 'a', project: 'checkout', model: 'claude-sonnet-5-5', input: 1000, output: 200, provider: 'claude', name: 'Charlie', account: 'work' }])
+  try {
+    const card = week.locator('.st-card', { hasText: /^Tokens/ })
+    await expect(card).toContainText('9.9k')
+    // This week's input and output are 500 against 1,200: a fall of 58%, said to be without the cache.
+    await expect(card).toContainText('▼ 58%')
+    await expect(card).toContainText('without cache')
+    await expect(week.locator('.st-hero')).toContainText('tokens')
+    await expect(week.locator('.st-hero')).toContainText('without cache')
+    // The day chart can show tokens instead of dollars.
+    await week.getByRole('group', { name: 'Measure' }).getByRole('button', { name: 'Tokens' }).click()
+    await expect(week.getByRole('img', { name: /^Tokens by day/ })).toBeVisible()
+    await week.getByRole('tab', { name: 'Accounts' }).click()
+    const row = week.locator('.st-acct-table tbody tr', { hasText: 'Work' })
+    await expect(row).toContainText('8.8k')
+    await expect(row).toContainText('▼')
+    if (process.env.AW_SHOTS) await week.screenshot({ path: `${process.env.AW_SHOTS}/rewind-tokens.png` })
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the Weekly Rewind compares everything, cache included, when last week was counted exactly, and says how much the cache served', async () => {
+  const { shutdown, week } = await rewind([{ k: 'req', agent: 'a', project: 'checkout', model: 'claude-sonnet-5-5', provider: 'claude', name: 'Charlie', account: 'work', input: 100, cacheRead: 3000, cacheWrite: 100, output: 100 }])
+  try {
+    const card = week.locator('.st-card', { hasText: /^Tokens/ })
+    // 9,900 against 3,300: up 200%, and 9,000 of the 9,550 read came from the cache.
+    await expect(card).toContainText('▲ 200%')
+    await expect(card).toContainText('94% served from cache')
+    await expect(card).not.toContainText('without cache')
+    await expect(card.locator('.st-mix')).toBeVisible()
   } finally {
     await shutdown()
   }

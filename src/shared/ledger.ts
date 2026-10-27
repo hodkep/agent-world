@@ -1,4 +1,4 @@
-import { tokenTotal } from './tokens'
+import { addParts, noParts, partsOf, tokenTotal, type TokenParts } from './tokens'
 
 /**
  * What the app records as agents work, so the Usage and Weekly Rewind screens have a history to show.
@@ -98,6 +98,9 @@ export interface WeekAccount {
   hits5h: number
   /** The same account's cost the week before. */
   beforeUsd: number
+  /** The week's tokens by kind, and the week before's, to compare with. */
+  mix: TokenParts
+  beforeMix: TokenParts
 }
 
 export interface WeekReport {
@@ -115,7 +118,7 @@ export interface WeekReport {
   /** Day 0 is Monday. */
   busiest: { day: number; agents: number } | null
   /** By day: agents that worked, cost, time worked, and the cost split by account. */
-  perDay: { agents: number; usd: number; ms: number; by: Record<string, number> }[]
+  perDay: { agents: number; usd: number; ms: number; by: Record<string, number>; /** Tokens, split by account in the same way. */ tokBy: Record<string, number> }[]
   byModel: { model: string; usd: number }[]
   /** Work in ms by day (Monday first) and hour. */
   heat: number[][]
@@ -139,6 +142,7 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
   const usd = Array<number>(7).fill(0)
   const ms7 = Array<number>(7).fill(0)
   const by7: Record<string, number>[] = Array.from({ length: 7 }, () => ({}))
+  const tok7: Record<string, number>[] = Array.from({ length: 7 }, () => ({}))
   const heat = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   const projects = new Map<string, { agents: Set<string>; ms: number; usd: number }>()
   const project = (n: string) => projects.get(n) ?? projects.set(n, { agents: new Set(), ms: 0, usd: 0 }).get(n)!
@@ -148,7 +152,7 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
   const acct = (provider: string, account: string) => {
     const key = acctKey(provider, account)
     let a = accts.get(key)
-    if (!a) accts.set(key, (a = { key, provider, account, usd: 0, tokens: 0, ms: 0, turns: 0, agents: 0, perDay: Array<number>(7).fill(0), weeklyDays: Array<number | null>(7).fill(null), weeklyPeak: null, hits5h: 0, beforeUsd: 0, set: new Set() }))
+    if (!a) accts.set(key, (a = { key, provider, account, usd: 0, tokens: 0, ms: 0, turns: 0, agents: 0, perDay: Array<number>(7).fill(0), weeklyDays: Array<number | null>(7).fill(null), weeklyPeak: null, hits5h: 0, beforeUsd: 0, mix: noParts(), beforeMix: noParts(), set: new Set() }))
     return a
   }
   const agentRows = new Map<string, WeekReport['agentList'][number]>()
@@ -170,7 +174,10 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
       } else if (e.k === 'work') {
         before.ms += e.ms
         before.turns++
-      } else if (e.k === 'tokens' || e.k === 'req') before.tokens += tokenTotal(e)
+      } else if (e.k === 'tokens' || e.k === 'req') {
+        before.tokens += tokenTotal(e)
+        addParts(acct(whoOf(e).provider, whoOf(e).account).beforeMix, partsOf(e))
+      }
     }
     if (e.t < start || e.t >= end) continue
     const day = dayOf(e.t)
@@ -184,6 +191,8 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
     if (e.k === 'tokens' || e.k === 'req') {
       tokens += tokenTotal(e)
       a.tokens += tokenTotal(e)
+      addParts(a.mix, partsOf(e))
+      tok7[day]![a.key] = (tok7[day]![a.key] ?? 0) + tokenTotal(e)
       continue
     }
     const row = agentRow(e.agent, w.name, a.key)
@@ -241,7 +250,7 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
     if (byHour[h]! > 0 && ms > (peak?.ms ?? 0)) peak = { from: h, to: h + 3, ms }
   }
   const top = [...projects].sort((a, b) => b[1].agents.size - a[1].agents.size)[0]
-  const perDay = agentDays.map((s, i) => ({ agents: s.size, usd: usd[i]!, ms: ms7[i]!, by: by7[i]! }))
+  const perDay = agentDays.map((s, i) => ({ agents: s.size, usd: usd[i]!, ms: ms7[i]!, by: by7[i]!, tokBy: tok7[i]! }))
   const best = perDay.reduce((b, d, i) => (d.agents > (b?.agents ?? 0) ? { day: i, agents: d.agents } : b), null as WeekReport['busiest'])
   const accounts = [...accts.values()]
     .filter((a) => a.usd > 0 || a.tokens > 0 || a.turns > 0 || a.weeklyPeak !== null || a.hits5h > 0)

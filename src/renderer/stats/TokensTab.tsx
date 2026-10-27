@@ -17,8 +17,8 @@ const count = (n: number | null) => (n === null ? '—' : tokenLabel(n))
 const share = (s: number | null) => (s === null ? '—' : `${Math.round(s * 100)}%`)
 
 /** Fresh input, cache read, cache write and output as one bar; the part counted before requests were exact has no split and is hatched. */
-export function MixBar({ r, tall }: { r: MixRow; tall?: boolean }) {
-  const total = mixSize(r)
+export function MixBar({ r, tall }: { r: Pick<MixRow, 'input' | 'cacheRead' | 'cacheWrite' | 'output' | 'legacy'>; tall?: boolean }) {
+  const total = r.input + (r.cacheRead ?? 0) + (r.cacheWrite ?? 0) + r.output + r.legacy
   const w = (n: number | null) => ({ width: `${total > 0 ? ((n ?? 0) / total) * 100 : 0}%` })
   return (
     <i className={`st-mix${tall ? ' tall' : ''}`} role="img" aria-label={`fresh input ${count(r.input)}, cache read ${count(r.cacheRead)}, cache write ${count(r.cacheWrite)}, output ${count(r.output)}${r.legacy ? `, ${tokenLabel(r.legacy)} with no split` : ''}`}>

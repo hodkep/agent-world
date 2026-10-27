@@ -78,3 +78,29 @@ describe('the token mix', () => {
     expect(work.groups.provider).toHaveLength(1)
   })
 })
+
+describe('the week report\'s tokens', () => {
+  const monday = at(7)
+  const lastWeek = at(2, 12)
+  const evs: LedgerEvent[] = [
+    req(at(8, 10), { agent: 'a', account: 'work', input: 10, cacheRead: 80, cacheWrite: 5, output: 5 }),
+    req(at(9, 10), { agent: 'a', account: 'work', input: 20, cacheRead: 160, cacheWrite: 0, output: 10 }),
+    req(at(8, 11), { agent: 'b', input: 4, cacheRead: 6, output: 1 }),
+    { k: 'tokens', t: lastWeek, agent: 'a', project: 'web', model: 'opus', provider: 'claude', account: 'work', input: 100, output: 20 },
+    req(at(3, 12), { agent: 'b', input: 7, cacheRead: 70, cacheWrite: 3, output: 20 })
+  ]
+  const week = weekReport(evs, monday)
+  const acct = (account: string) => week.accounts.find((a) => a.key === acctKey('claude', account))!
+
+  it('keeps each account\'s week in parts, and last week in parts to be compared with', () => {
+    expect(acct('work').mix).toEqual({ input: 30, cacheRead: 240, cacheWrite: 5, output: 15, legacy: 0 })
+    expect(acct('work').beforeMix).toEqual({ input: 0, cacheRead: 0, cacheWrite: 0, output: 0, legacy: 120 })
+    expect(acct('').beforeMix).toEqual({ input: 7, cacheRead: 70, cacheWrite: 3, output: 20, legacy: 0 })
+  })
+
+  it('has each day\'s tokens by account, to draw next to the day\'s cost', () => {
+    expect(week.perDay[1]!.tokBy).toEqual({ [acctKey('claude', 'work')]: 100, [acctKey('claude', '')]: 16 })
+    expect(week.perDay[2]!.tokBy).toEqual({ [acctKey('claude', 'work')]: 190 })
+    expect(week.perDay[0]!.tokBy).toEqual({})
+  })
+})
