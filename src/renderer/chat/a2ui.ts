@@ -95,3 +95,61 @@ export function actionText(surface: Surface, componentId: string, data: unknown,
   const action = { version: 'v0.9', action: { name, surfaceId: surface.id, sourceComponentId: componentId, timestamp: now.toISOString(), context } }
   return `A2UI action "${name}" (the answer to the form you showed): ${JSON.stringify(action)}`
 }
+
+const ANSWER = /^A2UI action "[^"]*" \(the answer to the form you showed\): (\{[\s\S]*\})\s*$/
+export type FormAnswer = { name: string; surfaceId: string; sourceComponentId: string; context: Record<string, unknown>; /** The JSON the agent was sent. */ raw: string }
+
+/** The answer to a form, read back from the text the agent was sent; null for any other text. */
+export function parseFormAnswer(text: string): FormAnswer | null {
+  const json = ANSWER.exec(text.trim())?.[1]
+  if (!json) return null
+  try {
+    const a = (JSON.parse(json) as { action?: unknown }).action
+    if (!isObject(a) || typeof a.name !== 'string' || typeof a.surfaceId !== 'string' || typeof a.sourceComponentId !== 'string') return null
+    return { name: a.name, surfaceId: a.surfaceId, sourceComponentId: a.sourceComponentId, context: isObject(a.context) ? a.context : {}, raw: json }
+  } catch {
+    return null
+  }
+}
+
+/** The form's question (its first heading) and each answered field in words: a pick's label, yes or no, or what was typed. */
+export function describeAnswer(surface: Surface, sourceComponentId: string, context: Record<string, unknown>): { title?: string; rows: { label: string; value: string }[] } {
+  const all = Object.values(surface.components)
+  const heading = (cid: string, depth: number): string | undefined => {
+    const c = surface.components[cid]
+    if (!c || depth > MAX_DEPTH) return undefined
+    if (c.component === 'Text' && typeof c.variant === 'string' && /^h[1-5]$/.test(c.variant) && typeof c.text === 'string') return c.text
+    for (const k of childrenOf(c)) {
+      const t = heading(k, depth + 1)
+      if (t) return t
+    }
+    return undefined
+  }
+  const button = surface.components[sourceComponentId]
+  const event = isObject(button?.action) && isObject(button.action.event) ? button.action.event : {}
+  const paths = isObject(event.context) ? event.context : {}
+  const words = (c: A2Component | undefined, v: unknown): string => {
+    if (c?.component === 'ChoicePicker' && Array.isArray(c.options)) {
+      const picked = Array.isArray(v) ? v : [v]
+      return picked.map((p) => { const o = (c.options as unknown[]).find((x) => isObject(x) && x.value === p); return isObject(o) && typeof o.label === 'string' ? o.label : String(p) }).join(' · ')
+    }
+    if (c?.component === 'CheckBox') return v ? 'yes' : 'no'
+    return Array.isArray(v) ? v.map(String).join(', ') : isObject(v) ? JSON.stringify(v) : String(v)
+  }
+  const rows = Object.entries(context).map(([key, v]) => {
+    const path = isObject(paths[key]) && typeof (paths[key] as { path?: unknown }).path === 'string' ? (paths[key] as { path: string }).path : `/${key}`
+    const c = all.find((x) => isObject(x.value) && x.value.path === path)
+    return { label: typeof c?.label === 'string' ? c.label : key, value: words(c, v) }
+  })
+  const title = heading('root', 0)
+  return { ...(title && { title }), rows }
+}
+
+/** The form with this id among the a2ui blocks of a reply. */
+export function surfaceIn(markdown: string, surfaceId: string): Surface | undefined {
+  for (const m of markdown.matchAll(/```a2ui[ \t]*\n([\s\S]*?)```/g)) {
+    const s = parseSurface(m[1]!)
+    if (s?.id === surfaceId) return s
+  }
+  return undefined
+}

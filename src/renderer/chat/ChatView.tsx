@@ -21,6 +21,7 @@ import { pickedMessage, type ViewInfo } from '../panel/picker'
 import { Lightbox, Picture } from './Images'
 import { AttachmentViewer } from './ImageEditor'
 import { A2UI_EVENT, Markdown } from './markdown'
+import { describeAnswer, parseFormAnswer, surfaceIn, type Surface } from './a2ui'
 import { UserText } from './Mentions'
 import { describeCommand, ranFor } from './procView'
 import { MessageEditor, type EditorHandle } from './MessageEditor'
@@ -693,7 +694,7 @@ export function ChatView({
           if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
-          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} />
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} formOf={(id) => { for (let i = rows.length - 1; i >= 0; i--) { const x = rows[i]!; if (x.kind === 'assistant') { const s = surfaceIn(x.text, id); if (s) return s } } return undefined }} />
           if (!lb || (!lb.starts.length && !lb.slips.length && !lb.refresh)) return withNote(row)
           // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
@@ -987,11 +988,24 @@ function JumpButtons() {
   )
 }
 
-export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void }) {
+export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind, formOf }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void; /** The form (by its surface id) an answer in this chat was given to, so the answer is drawn in its words. */ formOf?: (surfaceId: string) => Surface | undefined }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
       if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
+      // The answer to a form is drawn as a card in the form's words; the text the agent got is folded under it.
+      const answer = parseFormAnswer(r.text)
+      if (answer) {
+        const form = formOf?.(answer.surfaceId)
+        const said = form ? describeAnswer(form, answer.sourceComponentId, answer.context) : { rows: Object.entries(answer.context).map(([label, v]) => ({ label, value: typeof v === 'string' ? v : JSON.stringify(v) })) }
+        return (
+          <div className={`msg user ${r.pending ? 'pending' : ''}`} data-user-msg data-row={r.id}>
+            <JumpButtons />
+            <FormAnswerCard title={said.title} rows={said.rows} raw={answer.raw} />
+            {r.pending && <span className="msg-meta">{r.queued ? 'Queued: sends when the agent finishes its current step' : 'Sending…'}</span>}
+          </div>
+        )
+      }
       return (
         <div className={`msg user ${r.pending ? 'pending' : ''}`} data-user-msg data-row={r.id}>
           <JumpButtons />
@@ -1127,6 +1141,21 @@ function HandoffCard({ who, body, out, status }: { who: string; body: string; ou
 }
 
 /** What another agent sent: a card of its own, cut to two lines until asked for, so it is never mistaken for something you typed. */
+/** The answer you gave to a form: its question, each field in words, and what the agent got folded under. */
+function FormAnswerCard({ title, rows, raw }: { title?: string; rows: { label: string; value: string }[]; raw: string }) {
+  return (
+    <article className="ans" aria-label="Your answer to the form">
+      <header className="ans-head">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path fill="currentColor" d="M2 7h2v2H2zM4 9h2v2H4zM6 7h2v2H6zM8 5h2v2H8zM10 3h2v2h-2z" /></svg>
+        <span>{title ?? 'Form'}</span>
+        <span className="ans-tag">Answered</span>
+      </header>
+      {rows.length > 0 && <div className="ans-rows">{rows.flatMap((x) => [<span key={`${x.label} k`} className="ans-k">{x.label}</span>, <span key={`${x.label} v`}>{x.value}</span>])}</div>}
+      <details><summary>What the agent got</summary><pre>{raw}</pre></details>
+    </article>
+  )
+}
+
 function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag, summary, tone, route }: { from: string; body: string; expectsReply: boolean; label?: string; tag?: string; /** A title over the words. */ summary?: string; tone?: 'go' | 'ok' | 'bad' | 'wait'; /** A line under the words, always shown. */ route?: string }) {
   const box = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)

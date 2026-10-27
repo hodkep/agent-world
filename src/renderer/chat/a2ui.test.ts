@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionText, parseSurface, read, resolve, write } from './a2ui'
+import { actionText, describeAnswer, parseFormAnswer, parseSurface, read, resolve, surfaceIn, write } from './a2ui'
 
 const form = [
   { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
@@ -50,5 +50,42 @@ describe('an A2UI surface in a reply', () => {
     const text = actionText(s, 'go', s.data, new Date('2026-10-26T10:00:00Z'))
     expect(text).toContain('chosen')
     expect(JSON.parse(text.slice(text.indexOf('{')))).toEqual({ version: 'v0.9', action: { name: 'chosen', surfaceId: 's1', sourceComponentId: 'go', timestamp: '2026-10-26T10:00:00.000Z', context: { who: 'ada' } } })
+  })
+})
+
+describe('the answer to a form, drawn for the person', () => {
+  const pick = [
+    { version: 'v0.9', createSurface: { surfaceId: 'x', catalogId: 'basic' } },
+    { version: 'v0.9', updateComponents: { surfaceId: 'x', components: [
+      { id: 'root', component: 'Card', child: 'col' },
+      { id: 'col', component: 'Column', children: ['t', 'look', 'sure', 'go'] },
+      { id: 't', component: 'Text', variant: 'h3', text: 'Which mark?' },
+      { id: 'look', component: 'ChoicePicker', label: 'Look', variant: 'mutuallyExclusive', options: [{ label: 'A · Ring', value: 'a' }, { label: 'B · Title', value: 'b' }], value: { path: '/look' } },
+      { id: 'sure', component: 'CheckBox', label: 'Sure?', value: { path: '/sure' } },
+      { id: 'go', component: 'Button', child: 'gol', action: { event: { name: 'chosen', context: { look: { path: '/look' }, sure: { path: '/sure' } } } } },
+      { id: 'gol', component: 'Text', text: 'Build' }
+    ] } }
+  ]
+  const surface = () => parseSurface(JSON.stringify(pick))!
+
+  it('is read back from the text the agent is sent, and other text is no answer', () => {
+    const a = parseFormAnswer(actionText(surface(), 'go', { look: ['b'], sure: true }))!
+    expect(a).toMatchObject({ name: 'chosen', surfaceId: 'x', sourceComponentId: 'go', context: { look: ['b'], sure: true } })
+    expect(parseFormAnswer('A2UI action "x" (the answer to the form you showed): not json')).toBeNull()
+    expect(parseFormAnswer('hello')).toBeNull()
+  })
+
+  it('names the form and each field with the label of what was picked, a yes or no, or the words typed', () => {
+    expect(describeAnswer(surface(), 'go', { look: ['b'], sure: true })).toEqual({ title: 'Which mark?', rows: [{ label: 'Look', value: 'B · Title' }, { label: 'Sure?', value: 'yes' }] })
+    expect(describeAnswer(parseSurface(JSON.stringify(form))!, 'go', { who: 'ada' })).toEqual({ title: 'Pick', rows: [{ label: 'Name', value: 'ada' }] })
+    // A key the form does not bind is shown as it is.
+    expect(describeAnswer(surface(), 'go', { extra: 3 })).toEqual({ title: 'Which mark?', rows: [{ label: 'extra', value: '3' }] })
+  })
+
+  it('finds the form by its id among the a2ui blocks of a reply', () => {
+    const reply = `Pick one:\n\n\`\`\`a2ui\n${JSON.stringify(form)}\n\`\`\`\n\nor\n\n\`\`\`a2ui\n${JSON.stringify(pick)}\n\`\`\`\n`
+    expect(surfaceIn(reply, 'x')?.components.look).toBeDefined()
+    expect(surfaceIn(reply, 's1')?.components.name).toBeDefined()
+    expect(surfaceIn(reply, 'nope')).toBeUndefined()
   })
 })
