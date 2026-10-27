@@ -66,6 +66,12 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await board.getByRole('button', { name: /^Close/ }).first().click()
 
     await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
+    // The line's buttons are drawn over its right end, not among its words: the line does not grow when they show.
+    const partB = pad.locator('.nt-item', { hasText: 'Part b' })
+    await pad.locator('.nt-title').hover()
+    const before = (await partB.boundingBox())!.y
+    await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
+    expect((await partB.boundingBox())!.y).toBe(before)
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-hover.png` })
     // Make tasks… shows what it would make, and a line that is a task already is not made again.
     await editor.click()
