@@ -144,6 +144,44 @@ describe('the fold as a row for each area', () => {
   })
 })
 
+describe('the tools that change how the app looks', () => {
+  const stamp = (tool: string, input: Record<string, unknown> = {}, text = 'ok', isError = false) => stampOf(call('x', tool, input, text, isError).run)
+  const says = (tool: string, input: Record<string, unknown> = {}, text = 'ok', isError = false) => {
+    const w = whisperOf(call('x', tool, input, text, isError).run)
+    return [w.kind, [w.bold, w.rest].filter(Boolean).join(' '), w.why]
+  }
+
+  it('say in plain words what the agent did, and are a group of their own, not "Other"', () => {
+    expect(says('chat_mod_guide')).toEqual(['look', 'Read how to change the look', ''])
+    expect(says('chat_mod_get')).toEqual(['look', 'Checked what look is in force', ''])
+    expect(says('chat_mod_write', { why: 'swap the sides', css: 'a{}' })).toEqual(['look', 'Changed the look (a draft, waiting for you)', 'swap the sides'])
+    expect(says('chat_mod_write', { reset: true, why: 'back to normal' })).toEqual(['look', 'Asked to restore the system look', 'back to normal'])
+    expect(says('app_ui_outline')).toEqual(['look', "Looked at the app's layout", ''])
+    expect(says('app_ui_outline', { selector: '.composer' })).toEqual(['look', 'Looked at the layout of .composer', ''])
+    expect(says('app_ui_screenshot', {}, 'png')).toEqual(['look', 'Asked to see the window', 'you allowed it'])
+    expect(says('app_ui_screenshot', {}, 'The person did not allow a picture of the window.', true)).toEqual(['look', 'Asked to see the window', 'you said no'])
+  })
+  it('says a refused change failed, with the reason, like any other call', () => {
+    expect(says('chat_mod_write', { why: 'x' }, 'Nothing was changed. Fix this and write again: @import is not allowed.', true)[2]).toMatch(/^failed: Nothing was changed/)
+  })
+  it('have a stamp of their own kind', () => {
+    expect(stamp('chat_mod_write')).toMatchObject({ kind: 'look', label: 'look' })
+    expect(stamp('app_ui_outline')).toMatchObject({ kind: 'look', label: 'layout' })
+    expect(stamp('app_ui_screenshot')).toMatchObject({ kind: 'look', label: 'window' })
+  })
+  it('are one row, Appearance, saying what was done there, apart from the other areas', () => {
+    const calls = [call('a', 'todo_done', { id: '9' }, 'ok'), call('b', 'chat_mod_get', {}, '{}'), call('c', 'app_ui_outline', {}, 'div.app'), call('d', 'chat_mod_write', { why: 'swap the sides' }, 'ok'), call('e', 'app_ui_screenshot', {}, 'png')]
+    const rows = areasOf(calls)
+    expect(rows.map((r) => [r.area, r.calls.length])).toEqual([['Todos', 1], ['Appearance', 4]])
+    expect(rows[1]!.text).toBe('checked the look · looked at the layout · changed the look · asked to see the window')
+    expect(areasOf([call('a', 'chat_mod_write', { why: 'swap the sides' }, 'ok')])[0]!.text).toBe('changed the look · swap the sides')
+  })
+  it('count a refused change as failed in the row', () => {
+    const r = areasOf([call('a', 'chat_mod_write', { why: 'x' }, 'Nothing was changed.', true)])[0]!
+    expect([r.area, r.bad]).toEqual(['Appearance', 1])
+  })
+})
+
 describe('the workflow says run where a todo says task', () => {
   it('words the calls that move a run as a run, never as a task', () => {
     const rows = areasOf([call('a', 'task_begin', { title: 'x' }, 'ok'), call('b', 'plan_submit', { path: 'p' }, 'ok'), call('c', 'step_done', { step: 'build' }, 'ok'), call('d', 'task_done', { summary: 's' }, 'ok')])

@@ -31,6 +31,7 @@
   --plank-lit: #94613a;
   --plank-seam: #6a4124;
   --trim: #3c4568; /* wall-trim: the review in a run's bar */
+  --look: #e07aa8; /* the Appearance group of the agent's calls */
   --violet: #b38bff; /* you: your todos and messages, and scheduled work */
   --line-soft: #1d1b2b; /* the faint rule between list rows */
   --thumb: #3a4268; /* a scrollbar thumb */
@@ -3227,7 +3228,7 @@ svg.pxg { display: block; flex: none; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
 /* ---- The fold: a row for each area (workflow, todos, library, notes), each opening to a line for each call ---- */
 .of-area { --hue: var(--muted); }
-.of-workflow { --hue: var(--accent); } .of-todos { --hue: var(--ok-text); } .of-library { --hue: var(--think); } .of-notes { --hue: var(--claude); }
+.of-appearance { --hue: var(--look); } .of-workflow { --hue: var(--accent); } .of-todos { --hue: var(--ok-text); } .of-library { --hue: var(--think); } .of-notes { --hue: var(--claude); }
 .of-area.bad { --hue: var(--danger-text); }
 .of-head { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 92px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; width: 100%; padding: 3px 8px; cursor: pointer; }
 .of-head:hover { background: var(--panel-3); color: var(--text); }
@@ -3240,7 +3241,7 @@ svg.pxg { display: block; flex: none; }
 .of-fail { color: var(--danger-text); font-size: 11px; }
 .of-list { margin: 2px 0 6px 100px; padding: 3px; display: flex; flex-direction: column; background: var(--panel-3); box-shadow: 0 0 0 1px var(--ink); }
 .of-item { --hue: var(--muted); }
-.of-item.stamp-library { --hue: var(--think); } .of-item.stamp-todo { --hue: var(--ok-text); } .of-item.stamp-note { --hue: var(--claude); } .of-item.stamp-flag, .of-item.stamp-plan { --hue: var(--accent); }
+.of-item.stamp-library { --hue: var(--think); } .of-item.stamp-todo { --hue: var(--ok-text); } .of-item.stamp-note { --hue: var(--claude); } .of-item.stamp-flag, .of-item.stamp-plan { --hue: var(--accent); } .of-item.stamp-look { --hue: var(--look); }
 .of-item.bad { --hue: var(--danger-text); }
 .of-item.skip .of-txt { opacity: 0.7; }
 .of-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; align-items: center; width: 100%; padding: 4px 6px; cursor: pointer; line-height: 1.4; }
