@@ -4,6 +4,24 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-27
+
+### Added
+
+- Notes: a Notes window stays above every other window (Option+Shift+Command+N), with live-preview Markdown notes and checklists, separate notes per project, and lines that become tasks and subtasks or are asked of an agent.
+- Todos: a task can have subtasks, shown as a checklist on its card; tasks take labels you add, rename, recolour and remove; a task opens in a tidier tabbed view.
+- Usage: a Tokens tab shows exactly where tokens went, with what the cache served, and the Weekly Rewind shows the week's rise or fall in tokens like cost.
+- Office: the agent list marks which agents finished or need you, and the agent number counts them.
+- Chat: `/btw` (a side question that does not interrupt the agent) shows in the command list for Claude agents, and its card answers in place.
+
+### Changed
+
+- Agents are asked to mark a task done once its change is pushed or tested, not when the code is first written.
+
+### Fixed
+
+- Chat: text copied from the chat pastes as clean markdown, with tables and lists kept.
+
 ## [0.5.1] - 2026-10-26
 
 ### Fixed
@@ -265,7 +283,8 @@ The first public release.
 - The macOS build is signed ad hoc, so the first launch needs approval: see [INSTALL.md](INSTALL.md).
 - Not affiliated with Anthropic or Google: see [NOTICE.md](NOTICE.md).
 
-[Unreleased]: ../../compare/v0.5.1...HEAD
+[Unreleased]: ../../compare/v0.6.0...HEAD
+[0.6.0]: ../../compare/v0.5.1...v0.6.0
 [0.5.1]: ../../compare/v0.5.0...v0.5.1
 [0.5.0]: ../../compare/v0.4.0...v0.5.0
 [0.4.0]: ../../compare/v0.3.1...v0.4.0
