@@ -105,12 +105,14 @@ describe('what the update chip and its popover show', () => {
 
 describe("the new version's notes in the popover", () => {
   const notes = '## What changed\n\n- A thing'
-  it('come with the offer and with the downloaded update, and are left out while it downloads', () => {
+  it('come with the offer and stay through the download, the downloaded update and the install, and are not shown with an error', () => {
     expect(view().notes).toBeUndefined()
     const withNotes = (install?: InstallState) => updateView({ ...base, notes, ...(install && { install }) }, { working: 0, waiting: 0 })!
     expect(withNotes().notes).toBe(notes)
+    expect(withNotes({ phase: 'downloading', version: '0.1.2', received: 1, total: 4 }).notes).toBe(notes)
     expect(withNotes({ phase: 'ready', version: '0.1.2', file: '/x.zip' }).notes).toBe(notes)
-    expect(withNotes({ phase: 'downloading', version: '0.1.2', received: 1, total: 4 }).notes).toBeUndefined()
+    expect(withNotes({ phase: 'installing', version: '0.1.2' }).notes).toBe(notes)
+    expect(withNotes({ phase: 'failed', version: '0.1.2', kind: 'network', reason: 'No network.' }).notes).toBeUndefined()
   })
 })
 
