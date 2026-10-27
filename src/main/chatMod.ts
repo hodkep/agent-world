@@ -39,6 +39,8 @@ export function createChatMod(dir: string) {
   let draft: ChatMod | null = dj ? asMod(dj, text('draft.css')) : null
   let by = dj?.by ?? null
   let why = dj?.why ?? ''
+  // A draft's widgets load nothing from the internet until the person says so (or keeps it).
+  let draftData = false
 
   const saveCurrent = () => {
     if (isEmptyMod(current)) (drop('current.json'), drop('current.css'))
@@ -48,6 +50,7 @@ export function createChatMod(dir: string) {
     draft = null
     by = null
     why = ''
+    draftData = false
     drop('draft.json')
     drop('draft.css')
   }
@@ -73,7 +76,7 @@ export function createChatMod(dir: string) {
 
   return {
     state(): ChatModState {
-      return { current, draft, draftBy: by, draftWhy: why, history: files().length }
+      return { current, draft, draftBy: by, draftWhy: why, history: files().length, draftData }
     },
     /** An agent's version, kept as a draft; what could not be read is named and left out. The part it does not mention stays as it is in force. */
     /** An agent has read the look: its next write is judged against what it saw. */
@@ -84,6 +87,7 @@ export function createChatMod(dir: string) {
       if (i.who !== undefined && seen.get(i.who) !== rev) return { problems: [STALE] }
       if (i.reset) {
         draft = EMPTY_MOD
+        draftData = false
         by = i.by
         why = i.why
         write('draft.json', JSON.stringify({ layout: { rules: [] }, widgets: [], by, why }))
@@ -97,6 +101,7 @@ export function createChatMod(dir: string) {
       // Nothing is half-applied: an agent that wrote something unreadable fixes it and writes again.
       if (c.problems.length) return { problems: c.problems }
       draft = c.mod
+      draftData = false
       by = i.by
       why = i.why
       write('draft.json', JSON.stringify({ layout: draft.layout, widgets: draft.widgets, by, why }))
@@ -112,6 +117,12 @@ export function createChatMod(dir: string) {
       current = draft
       dropDraft()
       saveCurrent()
+      changed()
+    },
+    /** The person lets the draft's widgets load their data now, before deciding to keep it. */
+    loadData() {
+      if (!draft || draftData) return
+      draftData = true
       changed()
     },
     /** The person throws the draft away. */

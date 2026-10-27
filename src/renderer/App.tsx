@@ -9,8 +9,8 @@ import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
 import { gitTag, type DevServer, type Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
-import { ModBar, ModStyle, ShotAsk } from './chat/layoutUi'
-import { todosUpdatedBy } from '../shared/widgets'
+import { ModBar, ModStyle, ShotAsk, WidgetSlot } from './chat/layoutUi'
+import { type MeterName, metersFor, todosUpdatedBy } from '../shared/widgets'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
@@ -1956,6 +1956,7 @@ export function App() {
           />
         )}
       </main>
+      <WidgetSlot slot="window-bottom" meters={(want) => (current ? metersFor(want as MeterName[], { limits: limitsOf(current), tokens: infoOf(current).tokens ?? null, costUsd: infoOf(current).costUsd, todosUpdated: todoBoardNow() ? todosUpdatedBy(todoBoardNow()!.todos, current.id, current.hiredAt ?? 0) : null }) : {})} />
     </div>
   )
 }

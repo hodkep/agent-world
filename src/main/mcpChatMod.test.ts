@@ -20,7 +20,7 @@ async function connect(chatMod?: Mod) {
 }
 const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
 const isErr = (r: unknown) => (r as { isError?: boolean }).isError === true
-const state = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0 }
+const state = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false }
 
 describe('the chat look tools: an agent reads and writes a draft, only the person keeps it', () => {
   it('are offered only when the app supports them', async () => {

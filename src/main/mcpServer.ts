@@ -154,10 +154,11 @@ const LAYOUT_RULE = z.object({
 })
 const WIDGET = z.object({
   id: z.string().max(30).describe('a-z, 0-9 and -'),
-  slot: z.enum(['chat-top', 'above-composer']),
+  slot: z.enum(['chat-top', 'above-composer', 'window-bottom']),
   height: z.number().int().min(24).max(240).optional(),
   html: z.string().max(100000).describe('The page: html with its own style and script'),
-  meters: z.array(z.enum(['usage', 'tokens', 'cost', 'todos'])).max(4).optional()
+  meters: z.array(z.enum(['usage', 'tokens', 'cost', 'todos'])).max(4).optional(),
+  fetch: z.array(z.object({ id: z.string().max(20), url: z.string().max(500).describe('A public https address, the same every time'), every: z.number().int().min(15).max(3600).optional() })).max(4).optional().describe('Addresses the app loads for the widget and hands over as text; not together with meters')
 })
 /** How the person's chat looks, written by agents as a draft that shows at once and that only the person's Keep makes permanent. */
 function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<Options['chatMod']>) {

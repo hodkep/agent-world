@@ -4000,3 +4000,5 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .shot-ask h3 { margin: 0 0 6px; font-size: 14px; }
 .shot-ask p { margin: 0 0 12px; color: var(--muted); }
 .shot-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.wd-slot.window-bottom { border-top: 2px solid var(--ink); background: var(--panel); }
+.mod-hosts { display: block; color: var(--muted); font-size: 11px; }
