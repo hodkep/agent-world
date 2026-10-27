@@ -32,7 +32,7 @@ export function createChatMod(dir: string) {
     renameSync(tmp, join(dir, file))
   }
   const drop = (file: string) => rmSync(join(dir, file), { force: true })
-  const asMod = (j: unknown, css: string): ChatMod => checkMod({ layout: (j as { layout?: { rules?: unknown } } | null)?.layout?.rules, css }).mod
+  const asMod = (j: unknown, css: string): ChatMod => checkMod({ layout: (j as { layout?: { rules?: unknown } } | null)?.layout?.rules, css, widgets: (j as { widgets?: unknown } | null)?.widgets }).mod
 
   let current = asMod(read('current.json'), text('current.css'))
   const dj = read('draft.json') as { layout?: unknown; by?: string; why?: string } | null
@@ -42,7 +42,7 @@ export function createChatMod(dir: string) {
 
   const saveCurrent = () => {
     if (isEmptyMod(current)) (drop('current.json'), drop('current.css'))
-    else (write('current.json', JSON.stringify({ layout: current.layout }, null, 2)), write('current.css', current.css))
+    else (write('current.json', JSON.stringify({ layout: current.layout, widgets: current.widgets }, null, 2)), write('current.css', current.css))
   }
   const dropDraft = () => {
     draft = null
@@ -72,24 +72,24 @@ export function createChatMod(dir: string) {
       return { current, draft, draftBy: by, draftWhy: why, history: files().length }
     },
     /** An agent's version, kept as a draft; what could not be read is named and left out. The part it does not mention stays as it is in force. */
-    write(i: { layout?: unknown; css?: string; reset?: boolean; by: string; why: string }): { problems: string[] } {
+    write(i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; by: string; why: string }): { problems: string[] } {
       if (i.reset) {
         draft = EMPTY_MOD
         by = i.by
         why = i.why
-        write('draft.json', JSON.stringify({ layout: { rules: [] }, by, why }))
+        write('draft.json', JSON.stringify({ layout: { rules: [] }, widgets: [], by, why }))
         write('draft.css', '')
         changed()
         return { problems: [] }
       }
       const base = draft ?? current
-      const c = checkMod({ layout: i.layout === undefined ? base.layout.rules : i.layout, css: i.css === undefined ? base.css : i.css })
+      const c = checkMod({ layout: i.layout === undefined ? base.layout.rules : i.layout, css: i.css === undefined ? base.css : i.css, widgets: i.widgets === undefined ? base.widgets : i.widgets })
       // Nothing is half-applied: an agent that wrote something unreadable fixes it and writes again.
       if (c.problems.length) return { problems: c.problems }
       draft = c.mod
       by = i.by
       why = i.why
-      write('draft.json', JSON.stringify({ layout: draft.layout, by, why }))
+      write('draft.json', JSON.stringify({ layout: draft.layout, widgets: draft.widgets, by, why }))
       write('draft.css', draft.css)
       changed()
       return { problems: c.problems }
@@ -121,11 +121,11 @@ export function createChatMod(dir: string) {
     back() {
       const last = files().at(-1)
       if (!last) return
-      const saved = JSON.parse(readFileSync(join(hist, last), 'utf8')) as { layout?: { rules?: unknown }; css?: unknown }
-      const prev = checkMod({ layout: saved.layout?.rules, css: saved.css })
+      const saved = JSON.parse(readFileSync(join(hist, last), 'utf8')) as { layout?: { rules?: unknown }; css?: unknown; widgets?: unknown }
+      const prev = checkMod({ layout: saved.layout?.rules, css: saved.css, widgets: saved.widgets })
       rmSync(join(hist, last), { force: true })
       dropDraft()
-      current = { layout: prev.mod.layout, css: prev.mod.css }
+      current = prev.mod
       saveCurrent()
       changed()
     },

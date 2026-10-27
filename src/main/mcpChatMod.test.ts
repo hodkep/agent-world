@@ -29,7 +29,7 @@ describe('the chat look tools: an agent reads and writes a draft, only the perso
   })
 
   it('give the agent the guide and what is in force', async () => {
-    const c = await connect({ state: () => ({ ...state, current: { layout: { rules: [] }, css: '.a{}' } }), write: () => ({ problems: [] }) })
+    const c = await connect({ state: () => ({ ...state, current: { layout: { rules: [] }, css: '.a{}', widgets: [] } }), write: () => ({ problems: [] }) })
     expect(text(await c.callTool({ name: 'chat_mod_guide', arguments: {} }))).toContain('chat_mod_write')
     expect(JSON.parse(text(await c.callTool({ name: 'chat_mod_get', arguments: {} }))).current.css).toBe('.a{}')
   })
@@ -59,18 +59,29 @@ describe('the chat look tools: an agent reads and writes a draft, only the perso
 
   it('let the agent look at the app: an outline of its elements, and a picture of the window', async () => {
     const asked: unknown[] = []
-    const c = await connect({ state: () => state, write: () => ({ problems: [] }), outline: async (sel, depth) => (asked.push([sel, depth]), 'div.app\n  header'), screenshot: async () => 'iVBORw0KGgo=' })
+    const c = await connect({ state: () => state, write: () => ({ problems: [] }), outline: async (sel, depth) => (asked.push([sel, depth]), 'div.app\n  header'), screenshot: async (who) => (asked.push(who), 'iVBORw0KGgo=') })
     expect(text(await c.callTool({ name: 'app_ui_outline', arguments: { selector: 'main', depth: 2 } }))).toBe('div.app\n  header')
     expect(text(await c.callTool({ name: 'app_ui_outline', arguments: {} }))).toBe('div.app\n  header')
     expect(asked).toEqual([['main', 2], ['', 4]])
     const shot = (await c.callTool({ name: 'app_ui_screenshot', arguments: {} })) as { content: { type: string; data: string; mimeType: string }[] }
     expect(shot.content[0]).toEqual({ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' })
+    expect(asked).toContain('a1')
   })
 
-  it('say plainly when there is no window to look at', async () => {
+  it('say plainly when the person did not allow a picture, or there is no window', async () => {
     const c = await connect({ state: () => state, write: () => ({ problems: [] }), screenshot: async () => null })
     expect(isErr(await c.callTool({ name: 'app_ui_screenshot', arguments: {} }))).toBe(true)
     expect(isErr(await c.callTool({ name: 'app_ui_outline', arguments: {} }))).toBe(true)
+  })
+
+  it('hand widgets over with the rest, and refuse one with a slot, a number or a size that does not exist', async () => {
+    const seen: unknown[] = []
+    const c = await connect({ state: () => state, write: (_w, i) => (seen.push(i), { problems: [] }) })
+    const w = { id: 'spend', slot: 'above-composer', height: 30, html: '<b>x</b>', meters: ['cost'] }
+    await c.callTool({ name: 'chat_mod_write', arguments: { widgets: [w], why: 'a spend line' } })
+    expect(seen).toEqual([{ widgets: [w], why: 'a spend line' }])
+    for (const bad of [{ ...w, slot: 'floating' }, { ...w, meters: ['everything'] }, { ...w, height: 9999 }]) expect(isErr(await c.callTool({ name: 'chat_mod_write', arguments: { widgets: [bad], why: 'x' } }))).toBe(true)
+    expect(seen).toHaveLength(1)
   })
 
   it('pass reset through, to ask for the system default', async () => {

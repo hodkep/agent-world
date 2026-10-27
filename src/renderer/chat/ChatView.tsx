@@ -45,7 +45,8 @@ import { hint, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
-import { LookRows, PackView, useChatLayout } from './layoutUi'
+import { LookRows, PackView, WidgetSlot, useChatLayout } from './layoutUi'
+import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
@@ -119,6 +120,7 @@ export function ChatView({
   info,
   actions,
   limits,
+  todosUpdated,
   waitingSubagents,
   outgoing,
   remote,
@@ -155,6 +157,8 @@ export function ChatView({
   info?: AgentInfo
   actions: AgentActions
   limits: UsageLimits
+  /** How many todos this agent changed since it was hired, for a widget that shows it; null when not known. */
+  todosUpdated?: number | null
   onWake: () => void
   onTerminal: () => void
 }) {
@@ -322,6 +326,8 @@ export function ChatView({
   const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
   // POC: the person's layout rules say where rows sit (in the chat, as a count, under the reply, hidden); no rules is the chat as it always was.
   const layout = useChatLayout()
+  // The only numbers a widget is ever given; it asks for them by name and gets nothing else of the app's.
+  const widgetMeters = (want: MeterName[]) => metersFor(want, { limits, tokens: info?.tokens ?? null, costUsd: info?.costUsd, todosUpdated })
   const arranged = useMemo(() => {
     type Drawn = Row | StepGroup | OfficeGroup
     const settle = (rs: Row[]) => groupOffice(groupSteps(rs)) as Drawn[]
@@ -688,6 +694,7 @@ export function ChatView({
       )}
       <ChatMenu agentId={agentId} remote={remote} markdown={() => toMarkdown(allRows, agentName)} onSearch={() => setQuery('')} />
       {track}
+      <WidgetSlot slot="chat-top" meters={widgetMeters} />
       <div className="chat-log" ref={log} onScroll={onScroll} onWheel={reader} onTouchMove={reader} onPointerDown={() => ((pointerHeld.current = true), reader())} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
         {rows.length === 0 && (
           <p className="chat-empty">
@@ -785,6 +792,7 @@ export function ChatView({
           />
         </div>
       )}
+      <WidgetSlot slot="above-composer" meters={widgetMeters} />
       <Composer
         agentId={agentId}
         agentName={agentName}
