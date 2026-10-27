@@ -63,6 +63,18 @@ export interface Todo {
   /** The commits made while it was being done. */
   doneCommits?: { sha: string; subject: string }[]
   history: TodoEvent[]
+  /** The umbrella task this is a part of; only one level, so an umbrella never has one. Its list is its umbrella's. */
+  parent?: string
+  /** Names of board labels. */
+  labels?: string[]
+}
+
+/** The colours a label can have, in the order new labels take them. */
+export const LABEL_COLORS = ['cyan', 'brass', 'violet', 'green', 'red'] as const
+export type LabelColor = (typeof LABEL_COLORS)[number]
+export interface Label {
+  name: string
+  color: LabelColor
 }
 
 export interface TodoBoard {
@@ -70,6 +82,8 @@ export interface TodoBoard {
   todos: Todo[]
   /** The number the next task gets. */
   next: number
+  /** The labels of the board, which people manage; a board from before labels has none. */
+  labels?: Label[]
 }
 
 const TITLE_MAX = 200
@@ -133,6 +147,69 @@ const stamp = (t: Todo, by: Actor, at: number, ev: Omit<TodoEvent, 'at' | 'by'>)
 }
 const lastOrder = (b: TodoBoard, list: string) => b.todos.filter((t) => t.list === list).reduce((n, t) => Math.max(n, t.order), -1)
 
+const LABEL_MAX = 30
+const sameLabel = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+const labelNamed = (b: TodoBoard, n: string) => b.labels?.find((l) => sameLabel(l.name, n))
+
+/** The tasks that are parts of an umbrella, in the order they were made. */
+export const subtasksOf = (b: TodoBoard, id: string): Todo[] => b.todos.filter((t) => t.parent === id)
+
+/** A label is made once, with the next colour not in use more than the others; a name that exists in any case is that label. */
+export function addLabel(b: TodoBoard, name: string, color?: LabelColor): TodoBoard {
+  const n = clip(name, LABEL_MAX)
+  if (!n) throw new Error('A label needs a name.')
+  if (labelNamed(b, n)) return b
+  const used = b.labels ?? []
+  const pick = color && LABEL_COLORS.includes(color) ? color : LABEL_COLORS[used.length % LABEL_COLORS.length]!
+  return { ...b, labels: [...used, { name: n, color: pick }] }
+}
+
+export function renameLabel(b: TodoBoard, from: string, to: string): TodoBoard {
+  const n = clip(to, LABEL_MAX)
+  if (!n) throw new Error('A label needs a name.')
+  const old = labelNamed(b, from)
+  if (!old) throw new Error(`No label ${from}.`)
+  if (!sameLabel(old.name, n) && labelNamed(b, n)) throw new Error(`A label called ${n} already exists.`)
+  return { ...b, labels: b.labels!.map((l) => (l === old ? { ...l, name: n } : l)), todos: b.todos.map((t) => (t.labels?.includes(old.name) ? { ...t, labels: t.labels.map((x) => (x === old.name ? n : x)) } : t)) }
+}
+
+export function recolorLabel(b: TodoBoard, name: string, color: LabelColor): TodoBoard {
+  const old = labelNamed(b, name)
+  if (!old) throw new Error(`No label ${name}.`)
+  if (!LABEL_COLORS.includes(color)) throw new Error(`No colour ${color}.`)
+  return { ...b, labels: b.labels!.map((l) => (l === old ? { ...l, color } : l)) }
+}
+
+export function removeLabel(b: TodoBoard, name: string): TodoBoard {
+  const old = labelNamed(b, name)
+  if (!old) return b
+  return { ...b, labels: b.labels!.filter((l) => l !== old), todos: b.todos.map((t) => (t.labels?.includes(old.name) ? withLabels(t, t.labels.filter((x) => x !== old.name)) : t)) }
+}
+
+const withLabels = (t: Todo, labels: string[]): Todo => {
+  const { labels: _old, ...rest } = t
+  return labels.length ? { ...rest, labels } : rest
+}
+
+/** Sets a task's labels by name: each is the board's label of that name, made when there is none. */
+function setLabels(b: TodoBoard, id: string, names: string[]): TodoBoard {
+  let board = b
+  const have: string[] = []
+  for (const raw of names) {
+    board = addLabel(board, raw)
+    const l = labelNamed(board, clip(raw, LABEL_MAX))
+    if (l && !have.includes(l.name)) have.push(l.name)
+  }
+  return put(board, withLabels(find(board, id), have))
+}
+
+/** An umbrella for a task: one that is there and is not itself a part of another; never the task itself, nor one that has parts. */
+function umbrellaFor(b: TodoBoard, id: string | undefined, parent: string): Todo {
+  const u = find(b, parent)
+  if (u.parent || parent === id || (id !== undefined && subtasksOf(b, id).length)) throw new Error(`todo ${parent} cannot be an umbrella here: only one level, and not for itself.`)
+  return u
+}
+
 export function addList(b: TodoBoard, name: string): TodoBoard {
   const n = clip(name, 60)
   if (!n) throw new Error('A list needs a name.')
@@ -148,20 +225,26 @@ export function renameList(b: TodoBoard, from: string, to: string): TodoBoard {
 
 export const removeList = (b: TodoBoard, name: string): TodoBoard => ({ ...b, lists: b.lists.filter((l) => l !== name), todos: b.todos.filter((t) => t.list !== name) })
 
-export function addTodo(b: TodoBoard, i: { title: string; list?: string; notes?: string; needsYou?: boolean; auto?: boolean }, by: Actor, at: number, link?: MessageLink): { board: TodoBoard; todo: Todo } {
+export function addTodo(b: TodoBoard, i: { title: string; list?: string; notes?: string; needsYou?: boolean; auto?: boolean; parent?: string; labels?: string[] }, by: Actor, at: number, link?: MessageLink): { board: TodoBoard; todo: Todo } {
   const title = clip(i.title, TITLE_MAX)
   if (!title) throw new Error('A todo needs a title.')
-  const list = clip(i.list, 60) || b.lists[0] || 'To do'
+  const umbrella = i.parent ? umbrellaFor(b, undefined, i.parent) : undefined
+  const list = umbrella?.list ?? (clip(i.list, 60) || b.lists[0] || 'To do')
   const withList = addList(b, list)
   const todo: Todo = {
-    id: String(b.next), list, title, notes: clip(i.notes, NOTES_MAX), status: 'open', needsYou: !!i.needsYou, ...(i.auto && { auto: true }), order: lastOrder(withList, list) + 1,
+    id: String(b.next), list, title, ...(umbrella && { parent: umbrella.id }), notes: clip(i.notes, NOTES_MAX), status: 'open', needsYou: !!i.needsYou, ...(i.auto && { auto: true }), order: lastOrder(withList, list) + 1,
     createdAt: at, createdBy: by, ...(link && { createdLink: link }), updatedAt: at, updatedBy: by, history: [{ at, by, what: 'created', ...(link && { link }) }]
   }
-  return { board: { ...withList, todos: [...withList.todos, todo], next: b.next + 1 }, todo }
+  const made = { ...withList, todos: [...withList.todos, todo], next: b.next + 1 }
+  const labelled = i.labels?.length ? setLabels(made, todo.id, i.labels) : made
+  // A new part of a finished umbrella means it is not finished.
+  const board = umbrella?.status === 'done' ? reopenTodo(labelled, umbrella.id, by, at) : labelled
+  return { board, todo: find(board, todo.id) }
 }
 
-export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }, by: Actor, at: number): TodoBoard {
+export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string; /** An umbrella's id, or '' to stand alone. */ parent?: string; labels?: string[] }, by: Actor, at: number): TodoBoard {
   const t = find(b, id)
+  const umbrella = p.parent ? umbrellaFor(b, id, p.parent) : undefined
   // A list named in the patch is the list that already means it, if there is one, and the task is moved there after its fields change.
   const target = p.list?.trim() ? resolveList(b.lists, p.list) : undefined
   const status = p.status ?? t.status
@@ -171,14 +254,19 @@ export function updateTodo(b: TodoBoard, id: string, p: { title?: string; notes?
     ...(p.notes !== undefined && { notes: clip(p.notes, NOTES_MAX) }),
     ...(p.needsYou !== undefined && { needsYou: p.needsYou }),
     ...((p.title?.trim() || p.list?.trim()) && { named: true }),
+    ...(umbrella && { parent: umbrella.id, list: umbrella.list }),
     status,
     blockedWhy: status === 'blocked' ? clip(p.blockedWhy ?? t.blockedWhy, NOTE_MAX) || undefined : undefined
   }
   if (status !== 'doing' && status !== 'blocked') delete next.claimedBy
   // An agent that sets a task to doing is on it, as with todo_claim; a task another agent is doing or has blocked stays theirs (only doing and blocked keep a claimer).
   if (status === 'doing' && by.kind === 'agent' && !(t.claimedBy && t.claimedBy.id !== by.id)) next.claimedBy = by
-  const changed = put(b, stamp(next, by, at, { what: 'updated' }))
-  return target && target !== t.list ? moveTodo(changed, id, target, Number.MAX_SAFE_INTEGER, by, at) : changed
+  if (p.parent === '') delete next.parent
+  let changed = put(b, stamp(next, by, at, { what: 'updated' }))
+  if (p.labels) changed = setLabels(changed, id, p.labels)
+  // A task in an umbrella stays in its list; a list named for it moves the whole umbrella.
+  const to = target && target !== t.list && !changed.todos.find((x) => x.id === id)!.parent ? target : undefined
+  return to ? moveTodo(changed, id, to, Number.MAX_SAFE_INTEGER, by, at) : changed
 }
 
 export function claimTodo(b: TodoBoard, id: string, by: Actor, at: number): TodoBoard {
@@ -212,7 +300,13 @@ export function doneTodo(b: TodoBoard, id: string, by: Actor, note: string, at: 
   const files = uniqFiles(extra?.files)
   const next: Todo = { ...t, status: 'done', blockedWhy: undefined, doneAt: at, doneBy: by, doneNote: n || undefined, doneLink: link, ...(how && { doneHow: how }), ...(files.length && { doneFiles: files }) }
   delete next.claimedBy
-  return put(b, stamp(next, by, at, { what: 'done', ...(n && { note: n }), ...(link && { link }) }))
+  const done = put(b, stamp(next, by, at, { what: 'done', ...(n && { note: n }), ...(link && { link }) }))
+  // An umbrella finished by hand takes its open parts with it.
+  const parts = subtasksOf(done, id).filter((x) => x.status !== 'done')
+  if (parts.length) return parts.reduce((acc, x) => doneTodo(acc, x.id, by, 'Its umbrella is done.', at), done)
+  // The last part of an umbrella finishes it.
+  const u = t.parent ? done.todos.find((x) => x.id === t.parent) : undefined
+  return u && u.status !== 'done' && subtasksOf(done, u.id).every((x) => x.status === 'done') ? doneTodo(done, u.id, by, 'Its last subtask is done.', at) : done
 }
 
 export function reopenTodo(b: TodoBoard, id: string, by: Actor, at: number): TodoBoard {
@@ -225,7 +319,10 @@ export function reopenTodo(b: TodoBoard, id: string, by: Actor, at: number): Tod
   delete next.doneHow
   delete next.doneFiles
   delete next.doneCommits
-  return put(b, stamp(next, by, at, { what: 'reopened' }))
+  const reopened = put(b, stamp(next, by, at, { what: 'reopened' }))
+  // A part reopened reopens its finished umbrella.
+  const u = t.parent ? reopened.todos.find((x) => x.id === t.parent) : undefined
+  return u?.status === 'done' ? reopenTodo(reopened, u.id, by, at) : reopened
 }
 
 /** What git shows was done while the task was being done: its commits and files, kept with it. Not an edit, so the history does not change. */
@@ -251,12 +348,14 @@ export function markStale(b: TodoBoard, agentId: string, _at: number): TodoBoard
 
 export function removeTodo(b: TodoBoard, id: string): TodoBoard {
   find(b, id)
-  return { ...b, todos: b.todos.filter((t) => t.id !== id) }
+  return { ...b, todos: b.todos.filter((t) => t.id !== id).map((t) => { if (t.parent !== id) return t; const { parent: _gone, ...alone } = t; return alone }) }
 }
 
 /** Puts a task in a list at a place (0 is the top); the others in that list keep their order around it. */
 export function moveTodo(b: TodoBoard, id: string, list: string, index: number, by: Actor, at: number): TodoBoard {
   const t = find(b, id)
+  // A part goes where its umbrella goes.
+  if (t.parent) return moveTodo(b, t.parent, list, index, by, at)
   const withList = addList(b, list)
   const there = withList.todos.filter((x) => x.list === list && x.id !== id).sort((x, y) => x.order - y.order)
   there.splice(Math.max(0, Math.min(index, there.length)), 0, { ...t, list })
@@ -265,6 +364,7 @@ export function moveTodo(b: TodoBoard, id: string, list: string, index: number, 
   return {
     ...withList,
     todos: withList.todos.map((x) => {
+      if (x.parent === id) return { ...x, list }
       if (x.id === id) return stamp({ ...x, list, order: order.get(id)! }, by, at, { what: 'moved', note: moved ? `${t.list} → ${list}` : undefined })
       return order.has(x.id) ? { ...x, order: order.get(x.id)! } : x
     })

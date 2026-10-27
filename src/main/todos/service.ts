@@ -9,7 +9,7 @@ import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  INBOX, MAX_LISTS, currentTodoOf, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, MAX_LISTS, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -234,13 +234,17 @@ export function createTodoService(d: TodoDeps) {
     addList: (repoPath: string, name: string) => change(repoPath, (b) => ({ board: addList(b, name), out: undefined })),
     renameList: (repoPath: string, from: string, to: string) => change(repoPath, (b) => ({ board: renameList(b, from, to), out: undefined })),
     removeList: (repoPath: string, name: string) => change(repoPath, (b) => ({ board: removeList(b, name), out: undefined })),
-    addByPerson: (repoPath: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) =>
+    addByPerson: (repoPath: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }) =>
       change(repoPath, (b) => {
         const r = addTodo(b, i, YOU, now())
         return { board: r.board, out: r.todo }
       }),
-    updateByPerson: (repoPath: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }) =>
+    updateByPerson: (repoPath: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; parent?: string; labels?: string[] }) =>
       change(repoPath, (b) => ({ board: updateTodo(b, id, p, YOU, now()), out: undefined })),
+    addLabelByPerson: (repoPath: string, name: string, color?: LabelColor) => change(repoPath, (b) => ({ board: addLabel(b, name, color), out: undefined })),
+    renameLabelByPerson: (repoPath: string, from: string, to: string) => change(repoPath, (b) => ({ board: renameLabel(b, from, to), out: undefined })),
+    recolorLabelByPerson: (repoPath: string, name: string, color: LabelColor) => change(repoPath, (b) => ({ board: recolorLabel(b, name, color), out: undefined })),
+    removeLabelByPerson: (repoPath: string, name: string) => change(repoPath, (b) => ({ board: removeLabel(b, name), out: undefined })),
     removeByPerson: (repoPath: string, id: string) => change(repoPath, (b) => ({ board: removeTodo(b, id), out: undefined })),
     doneByPerson: (repoPath: string, id: string, note = '') => change(repoPath, (b) => ({ board: doneTodo(b, id, YOU, note, now()), out: undefined })),
     reopenByPerson: (repoPath: string, id: string) => change(repoPath, (b) => ({ board: reopenTodo(b, id, YOU, now()), out: undefined })),
@@ -434,7 +438,7 @@ export function createTodoService(d: TodoDeps) {
       if (!t) throw new Error(`No todo ${id}.`)
       return t
     },
-    addByAgent(agentId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }): Todo {
+    addByAgent(agentId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }): Todo {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
         const l = d.lastMessage(a.id)
@@ -479,7 +483,7 @@ export function createTodoService(d: TodoDeps) {
       recordWork(a, id)
       return t
     },
-    updateByAgent(agentId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }): Todo {
+    updateByAgent(agentId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string; parent?: string; labels?: string[] }): Todo {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
         const board = updateTodo(b, id, { ...p, ...(p.list?.trim() && { list: listFor(b, p.list) }) }, actor(a), now())

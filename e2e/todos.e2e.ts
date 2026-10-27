@@ -75,10 +75,13 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     const detail = board.getByRole('complementary', { name: 'Task detail' })
     await expect(detail).toContainText('Done by')
     await expect(detail).toContainText('logged in')
-    await expect(detail.getByLabel('How it was done')).toContainText('signed in with the browser flow')
+    await detail.getByRole('tab', { name: 'How' }).click()
+    await expect(detail.getByRole('tabpanel')).toContainText('signed in with the browser flow')
     await expect(detail.getByLabel('Files')).toContainText('docs/agy-login.md')
-    await expect(detail.getByLabel('Activity')).toContainText('Done by ada')
-    await expect(detail.getByLabel('Activity')).not.toContainText('updated by')
+    await detail.getByRole('tab', { name: /^Activity/ }).click()
+    await expect(detail.getByRole('tabpanel')).toContainText('Done by ada')
+    await expect(detail.getByRole('tabpanel')).not.toContainText('updated by')
+    await detail.getByRole('tab', { name: 'Overview' }).click()
 
     // The message it was finished in opens in the chat and flashes.
     await detail.getByRole('button', { name: /Open the message it was finished in/ }).click()
@@ -99,6 +102,7 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     // Any agent can be asked about a task, or put on it, from its detail; the agent gets a message that names the task and the chat opens.
     await board.getByRole('button', { name: 'Open Add the Anthropic key' }).click()
     const panel = board.getByRole('complementary', { name: 'Task detail' })
+    await panel.getByRole('tab', { name: 'Ask', exact: true }).click()
     await expect(panel.getByLabel('Agent to ask')).toContainText('ada · Claude')
     await panel.getByRole('button', { name: 'Work on it' }).click()
     await panel.getByLabel('What to say').fill('Start with the Settings page.')

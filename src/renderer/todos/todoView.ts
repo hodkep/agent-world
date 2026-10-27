@@ -27,7 +27,7 @@ export function agoLabel(t: number, now = Date.now()): string {
 
 /** One list's tasks: the open ones in the order they were put in, the finished ones newest first (those fold under "Done"). */
 export function splitList(b: TodoBoard, list: string): { open: Todo[]; done: Todo[] } {
-  const here = b.todos.filter((t) => t.list === list)
+  const here = b.todos.filter((t) => t.list === list && !t.parent)
   return {
     open: here.filter((t) => t.status !== 'done').sort((x, y) => x.order - y.order),
     done: here.filter((t) => t.status === 'done').sort((x, y) => (y.doneAt ?? 0) - (x.doneAt ?? 0))
@@ -38,19 +38,35 @@ export interface BoardFilter {
   /** 'all', 'you', or an agent's name. */
   who: string
   query: string
+  /** Only tasks with this label (or whose subtasks have it). */
+  label?: string
+}
+
+/** How many of an umbrella's subtasks are done. */
+export const progressOf = (b: TodoBoard, id: string): { done: number; total: number } => {
+  const parts = b.todos.filter((t) => t.parent === id)
+  return { done: parts.filter((t) => t.status === 'done').length, total: parts.length }
 }
 
 /** The board a filter leaves: only the tasks that match, but every list stays so an empty one is still there to add to. */
 export function filterBoard(b: TodoBoard, f: BoardFilter): TodoBoard {
   const words = f.query.toLowerCase().split(/\s+/).filter(Boolean)
-  return {
-    ...b,
-    todos: b.todos.filter((t) => {
-      if (f.who !== 'all' && (f.who === 'you' ? t.createdBy.kind !== 'human' : t.createdBy.name !== f.who)) return false
-      const hay = `${t.title} ${t.notes}`.toLowerCase()
-      return words.every((w) => hay.includes(w))
-    })
+  const fits = (t: Todo) => {
+    if (f.who !== 'all' && (f.who === 'you' ? t.createdBy.kind !== 'human' : t.createdBy.name !== f.who)) return false
+    if (f.label && !t.labels?.includes(f.label)) return false
+    const hay = `${t.title} ${t.notes}`.toLowerCase()
+    return words.every((w) => hay.includes(w))
   }
+  // An umbrella and its subtasks stand or fall together: it stays when any part matches, and its parts stay when it matches itself.
+  const hit = new Set(b.todos.filter(fits).map((t) => t.id))
+  const keep = new Set<string>()
+  for (const t of b.todos) {
+    if (!hit.has(t.id)) continue
+    keep.add(t.id)
+    if (t.parent) keep.add(t.parent)
+    else for (const p of b.todos) if (p.parent === t.id) keep.add(p.id)
+  }
+  return { ...b, todos: b.todos.filter((t) => keep.has(t.id)) }
 }
 
 export interface ActivityLine {

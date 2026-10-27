@@ -70,8 +70,10 @@ test('todos: fully tracked mode makes a task of each request, keeps the ones an 
     // The app closed it, and says so in its own words, not as the agent's "done".
     await expect(detail).toContainText("Closed by Agent World")
     if (process.env.SHOT) await board.screenshot({ path: `${process.env.SHOT}-auto-detail.png` })
-    await expect(detail.getByLabel('Activity')).toContainText("Closed by Agent World when ada's turn ended, nobody said it was done")
+    await detail.getByRole('tab', { name: /^Activity/ }).click()
+    await expect(detail.getByRole('tabpanel')).toContainText("Closed by Agent World when ada's turn ended, nobody said it was done")
     // The words of the request are kept as where it came from.
+    await detail.getByRole('tab', { name: 'Overview' }).click()
     await expect(detail.getByLabel('Where it came from')).toContainText('please fix the login bug on Safari')
 
     // A request that was only talked about (nobody named it, nothing was changed) is dropped when the turn ends, so the board holds work only.

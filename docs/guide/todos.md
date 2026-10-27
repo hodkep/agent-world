@@ -25,14 +25,22 @@ A task is open, doing, blocked or done. **needs you** marks a step only a person
 
 ## Open a task
 
-Click a task to open its panel; click it again to close it. In the panel you can:
+Click a task to open its panel; click it again to close it. The panel has the title, its status and its labels at the top, then tabs: **Overview**, **Subtasks**, **Activity**, **How** (a finished task that has one) and **Ask**. In the panel you can:
 
-- Edit the title and **Notes**, and tick **Needs you**.
+- On **Overview**, edit **Notes**, tick **Needs you**, and choose what the task is **Part of**.
 - Click **Open the message it was made in**, or on a finished task **Open the message it was finished in**. The chat of that agent opens at the message.
-- Read **How it was done** (the approach, commits and files) and **Activity**.
+- Read **How** (the approach, commits and files) and **Activity**.
 - See **Workflow run**, when the agent began a workflow run while on this task: it says how the run stands, and a click opens it in **Workflows**. Finishing the run finishes the task if the agent has not. The task also shows as a `todo#N` chip on the run's row in the **Runs** ledger.
-- Under **Ask an agent**, choose an agent, then **Ask a question** or **Work on it**, and click **Send to name**. **Work on it** also puts the agent on the task.
+- Under **Ask**, choose an agent, then **Ask a question** or **Work on it**, and click **Send to name**. **Work on it** also puts the agent on the task.
 - Click **Mark done** (or **Reopen**), or **Remove**. Remove deletes the task for you and for the agents.
+
+## Subtasks
+
+A bigger piece of work can be one task with smaller tasks under it. On the board the task is a card with a progress bar and its subtasks as a checklist: tick one to finish it, click its name to open it. Add one on the **Subtasks** tab, or choose a task under **Part of** on **Overview**. A subtask is always in its task's list, and a subtask cannot have subtasks. The task is done when its last subtask is done, and it opens again when a subtask is added or reopened. Finishing the task finishes its open subtasks. Removing it leaves them as tasks of their own. Agents can put a task under another with `parent`.
+
+## Labels
+
+A label is a word with one of five colours. Add one to a task with **+ label** in its panel (pick one the board has, or type a new one). The label buttons next to **Scratch pad** show only the tasks that have it, and **Labels…** lets you add, rename, recolour and remove labels: removing one takes it off every task but keeps the tasks. Agents can label a task with `labels`.
 
 ## Filter and search
 
@@ -64,9 +72,9 @@ Agents work on the same board through these tools.
 | `todo_list` | Lists open tasks, including the ones you added by hand. |
 | `todo_search` | Searches tasks, finished ones too. |
 | `todo_get` | Reads one task in full, with its history. |
-| `todo_add` | Adds a task. With no list it goes to the **Inbox**. |
+| `todo_add` | Adds a task. With no list it goes to the **Inbox**. It can name a `parent` task and `labels`. |
 | `todo_claim` | Says the agent is doing it now. Another agent cannot claim it meanwhile. |
-| `todo_update` | Changes title, list, notes, needs you, or status. |
+| `todo_update` | Changes title, list, notes, needs you, status, parent or labels. |
 | `todo_done` | Marks it done with a note and how it was done. |
 
 Everyone sees the same board. **Activity** says who changed what. A finished task keeps the commits and files git shows the agent changed. Agents have no tool to delete or reopen a task. Only you can.

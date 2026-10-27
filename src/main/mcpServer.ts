@@ -18,11 +18,11 @@ export interface Colleague {
 export interface TodoApi {
   listForAgent: (callerId: string, f: { list?: string; status?: TodoStatus; mine?: boolean }) => Todo[]
   getForAgent: (callerId: string, id: string) => Todo
-  addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => Todo
+  addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }) => Todo
   claimByAgent: (callerId: string, id: string) => Todo
   doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }) => Todo
   searchForAgent: (callerId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }) => TodoHit[]
-  updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string }) => Todo
+  updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string; parent?: string; labels?: string[] }) => Todo
   /** The lists by area on the board (not the Inbox). */
   listsOf: (callerId: string) => string[]
 }
@@ -289,7 +289,7 @@ const ago = (t: number, now = Date.now()) => {
 const flat = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 200)
 const who = (a: { name: string; provider?: string; forMain?: string }) => `${a.provider ? `${a.name} (${a.provider})` : a.name}${a.forMain ? `, a subagent of ${a.forMain}` : ''}`
 const todoLine = (t: Todo) =>
-  `todo#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
+  `todo#${t.id} [${t.list}] ${t.title} — ${t.status}${t.needsYou && t.status !== 'done' ? ', needs you' : ''}${t.claimedBy ? `, ${t.claimedBy.name} is on it` : ''}${t.blockedWhy ? `, blocked: ${t.blockedWhy}` : ''}${t.parent ? `, part of todo#${t.parent}` : ''}${t.labels?.length ? `, labels: ${t.labels.join(', ')}` : ''}; created by ${who(t.createdBy)} ${ago(t.createdAt)}, updated ${ago(t.updatedAt)}`
 const todoFull = (t: Todo) =>
   [
     todoLine(t),
@@ -361,10 +361,12 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         title: z.string().min(1).max(200).describe('What needs doing, in a line'),
         list: z.string().max(60).optional().describe('The list for the part of the project it belongs to (Library, Chat, Settings…: a feature of the project, never the app itself): an existing list that means it is used, a new one is made only when none fits. Leave it out to put the task in the Inbox.'),
         notes: z.string().max(4000).optional().describe('Steps or detail'),
-        needs_you: z.boolean().optional().describe('Only the person can do this')
+        needs_you: z.boolean().optional().describe('Only the person can do this'),
+        parent: z.string().optional().describe('The number of a larger task this is a part of; it is shown under it and takes its list'),
+        labels: z.array(z.string().max(30)).max(6).optional().describe('Labels the board already has, if one fits')
       }
     },
-    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you }); return t.list === 'Inbox' ? `Added todo#${t.id} to Inbox. Name it and sort it into a list by area with todo_update (title, list).` : `Added todo#${t.id} to ${t.list}.` })
+    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, parent: a.parent, labels: a.labels }); return t.list === 'Inbox' ? `Added todo#${t.id} to Inbox. Name it and sort it into a list by area with todo_update (title, list).` : `Added todo#${t.id} to ${t.list}.` })
   )
   server.registerTool(
     'todo_claim',
@@ -397,10 +399,12 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         notes: z.string().max(4000).optional(),
         needs_you: z.boolean().optional(),
         status: z.enum(['open', 'doing', 'blocked']).optional(),
-        blocked_why: z.string().max(500).optional().describe('Why it is blocked')
+        blocked_why: z.string().max(500).optional().describe('Why it is blocked'),
+        parent: z.string().optional().describe('The number of a larger task to put this under, or an empty string to take it out'),
+        labels: z.array(z.string().max(30)).max(6).optional().describe('Replaces its labels; use ones the board already has')
       }
     },
-    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why }); return `Updated todo#${t.id}.` })
+    async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why, parent: a.parent, labels: a.labels }); return `Updated todo#${t.id}.` })
   )
 }
 

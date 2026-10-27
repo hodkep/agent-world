@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addTodo, askedTodo, assignTodo, claimTodo, doneTodo, emptyBoard, reopenTodo, updateTodo, type Actor } from '../../shared/todos'
-import { activityOf, actorTag, agoLabel, filterBoard, listGroups, pickList, pickRange, splitList } from './todoView'
+import { activityOf, actorTag, agoLabel, filterBoard, listGroups, pickList, pickRange, progressOf, splitList } from './todoView'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -140,5 +140,34 @@ describe('listGroups', () => {
   it('is all active when every list has something open, and all quiet when none does', () => {
     expect(listGroups(['a', 'b'], { a: 1, b: 1 }).quiet).toEqual([])
     expect(listGroups(['a', 'b'], { a: 0, b: 0 }).active).toEqual([])
+  })
+})
+
+describe('subtasks and labels on the board', () => {
+  const nested = () => {
+    let b = addTodo(emptyBoard(), { title: 'Umbrella', list: 'L', labels: ['chat'] }, you, 1).board
+    b = addTodo(b, { title: 'Part one', parent: '1' }, ada, 2).board
+    b = addTodo(b, { title: 'Part two', parent: '1', labels: ['bug'] }, ada, 3).board
+    b = addTodo(b, { title: 'Alone', list: 'L' }, you, 4).board
+    return doneTodo(b, '2', ada, '', 5)
+  }
+  it('draws only the top level in a list: the subtasks are inside their umbrella', () => {
+    const s = splitList(nested(), 'L')
+    expect(s.open.map((t) => t.title)).toEqual(['Umbrella', 'Alone'])
+    expect(s.done).toEqual([])
+  })
+  it('counts how many of an umbrella\'s subtasks are done', () => {
+    expect(progressOf(nested(), '1')).toEqual({ done: 1, total: 2 })
+    expect(progressOf(nested(), '4')).toEqual({ done: 0, total: 0 })
+  })
+  it('keeps an umbrella when one of its subtasks matches, and the subtasks when the umbrella does', () => {
+    const b = nested()
+    expect(filterBoard(b, { who: 'all', query: 'part two' }).todos.map((t) => t.id).sort()).toEqual(['1', '3'])
+    expect(filterBoard(b, { who: 'all', query: 'umbrella' }).todos.map((t) => t.id).sort()).toEqual(['1', '2', '3'])
+  })
+  it('filters by a label, on the task or on one of its subtasks', () => {
+    const b = nested()
+    expect(filterBoard(b, { who: 'all', query: '', label: 'bug' }).todos.map((t) => t.id).sort()).toEqual(['1', '3'])
+    expect(filterBoard(b, { who: 'all', query: '', label: 'chat' }).todos.map((t) => t.id).sort()).toEqual(['1', '2', '3'])
   })
 })

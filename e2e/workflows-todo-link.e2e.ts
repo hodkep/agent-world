@@ -53,7 +53,7 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     await expect(detail).toContainText('todo#1')
 
     // The task says how its run stands, and a click opens that run in the Workflows window.
-    const runs = detail.getByRole('region', { name: 'Workflow runs' })
+    const runs = detail.locator('.td-meta')
     await expect(runs).toContainText('still open')
     await runs.getByRole('button', { name: /still open/ }).click()
     await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('region', { name: /How Add a dark-mode toggle went/ })).toBeVisible()

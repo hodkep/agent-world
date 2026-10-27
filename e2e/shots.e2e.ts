@@ -276,7 +276,7 @@ test('todos: a task shows how its workflow run stands and opens it', async () =>
     await o.page.locator('header').getByRole('button', { name: /^Todos/ }).click()
     const board = o.page.getByRole('dialog', { name: 'Todos' })
     await board.getByText('Add a dark-mode toggle').first().click()
-    await expect(board.getByRole('region', { name: 'Workflow runs' })).toBeVisible()
+    await expect(board.locator('.td-meta')).toContainText('Workflow run')
     await o.page.waitForTimeout(800)
     await shootElement(board, 'todo-run')
     await tools.close()

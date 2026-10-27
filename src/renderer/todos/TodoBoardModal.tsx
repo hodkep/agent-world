@@ -1,10 +1,11 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { INBOX, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
+import { INBOX, subtasksOf, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
+import { LabelChip, LabelManager } from './Labels'
 import { useConfirm } from '../panel/ConfirmDialog'
 import { TodoDetail, type AskAgent, type TodoRun } from './TodoDetail'
 import { Modal } from '../panel/Modal'
 import { TodoPad } from './TodoPad'
-import { actorTag, agoLabel, autoClosed, filterBoard, listGroups, makers, pickList, pickRange, splitList } from './todoView'
+import { actorTag, agoLabel, autoClosed, filterBoard, listGroups, makers, pickList, pickRange, progressOf, splitList } from './todoView'
 
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 
@@ -18,6 +19,8 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   const [board, setBoard] = useState<TodoBoard>({ lists: [], todos: [], next: 1 })
   const [who, setWho] = useState('all')
   const [query, setQuery] = useState('')
+  const [label, setLabel] = useState<string | undefined>(undefined)
+  const [labelsOpen, setLabelsOpen] = useState(false)
   const [sel, setSel] = useState<string | null>(focusId ?? null)
   useEffect(() => { if (focusId) setSel(focusId) }, [focusId])
   const [folded, setFolded] = useState<Set<string>>(new Set())
@@ -71,7 +74,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
     act(window.aw.todos.bulk(folder, ids, op))
   }
 
-  const shown = useMemo(() => filterBoard(board, { who, query }), [board, who, query])
+  const shown = useMemo(() => filterBoard(board, { who, query, label }), [board, who, query, label])
   const names = useMemo(() => makers(board), [board])
   const unsorted = board.todos.filter((t) => t.auto && !t.named).length
   const [sorting, setSorting] = useState(false)
@@ -84,7 +87,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
 
   // The lists drawn (the Inbox only while it holds something), the number open in each, and which are active.
   const visible = shown.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))
-  const openCounts = useMemo(() => Object.fromEntries(visible.map((l) => [l, shown.todos.filter((t) => t.list === l && t.status !== 'done').length])), [visible.join('|'), shown]) // eslint-disable-line react-hooks/exhaustive-deps
+  const openCounts = useMemo(() => Object.fromEntries(visible.map((l) => [l, shown.todos.filter((t) => t.list === l && !t.parent && t.status !== 'done').length])), [visible.join('|'), shown]) // eslint-disable-line react-hooks/exhaustive-deps
   const groups = listGroups(visible, openCounts, was)
   const ordered = [...groups.active, ...groups.quiet]
   useEffect(() => {
@@ -133,6 +136,15 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
           <button key={w} className="td-chip" aria-pressed={tab === 'lists' && who === w} onClick={() => (setWho(w), setTab('lists'))}>{w === 'all' ? 'Everyone' : w === 'you' ? 'Made by you' : `Made by ${w}`}</button>
         ))}
         <button className="td-chip" aria-pressed={tab === 'pad'} onClick={() => setTab('pad')}>Scratch pad</button>
+        {tab === 'lists' && (board.labels ?? []).map((l) => (
+          <button key={l.name} className="td-chip lbl-filter" data-c={l.color} aria-pressed={label === l.name} title={`Only tasks labelled ${l.name}`} onClick={() => setLabel(label === l.name ? undefined : l.name)}><i aria-hidden="true" />{l.name}</button>
+        ))}
+        {tab === 'lists' && (
+          <span className="td-menu">
+            <button className="td-chip" aria-expanded={labelsOpen} onClick={() => setLabelsOpen((o) => !o)}>Labels…</button>
+            {labelsOpen && <LabelManager board={board} folder={folder} act={act} confirm={ask} onClose={() => setLabelsOpen(false)} />}
+          </span>
+        )}
         {unsorted > 0 && tab === 'lists' && <button className="td-sort" onClick={sortInbox} disabled={sorting} title="A small model names each request-made task for what was done and puts it in a list by area; requests left open by agents that are not working are closed">{sorting ? 'Sorting…' : `Name and sort ${unsorted} task${unsorted === 1 ? '' : 's'}`}</button>}
         {tab === 'lists' && <input className="td-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search todos…" aria-label="Search todos" />}
       </div>
@@ -179,14 +191,14 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
                   </span>
                 </header>
                 <div className="td-body">
-                  {openTodos.map((t, i) => <TaskRow key={t.id} t={t} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.done(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, i)} />)}
+                  {openTodos.map((t, i) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.done(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, i)} />)}
                   {adding === list ? (
                     <input className="td-new" autoFocus value={draft} placeholder="Task title" aria-label={`New task in ${list}`} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitTask(list); else if (e.key === 'Escape') (setAdding(null), setDraft('')) }} onBlur={() => submitTask(list)} />
                   ) : <button className="td-add" onClick={() => (setAdding(list), setDraft(''))}>＋ Add a task</button>}
                   {done.length > 0 && (
                     <>
                       <button className="td-done-h" aria-expanded={!isFolded} onClick={() => setFolded((f) => { const n = new Set(f); if (n.has(list)) n.delete(list); else n.add(list); return n })}>{isFolded ? '▸' : '▾'} Done ({done.length})</button>
-                      {!isFolded && done.map((t) => <TaskRow key={t.id} t={t} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.reopen(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, openTodos.length)} />)}
+                      {!isFolded && done.map((t) => <TaskRow key={t.id} t={t} board={board} onOpen={setSel} act={act} folder={folder} picked={picked.has(t.id)} picking={picked.size > 0} onPick={(e) => pick(t.id, e)} selected={sel === t.id} onSelect={() => setSel(sel === t.id ? null : t.id)} onTick={() => act(window.aw.todos.reopen(folder, t.id))} onDragStart={() => (dragging.current = t.id)} onDropOn={() => drop(list, openTodos.length)} />)}
                     </>
                   )}
                 </div>
@@ -198,7 +210,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
             <input className="td-newlist" autoFocus value={newList} placeholder="List name" aria-label="New list name" onChange={(e) => setNewList(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { if (newList.trim()) (setWas((w) => new Map(w).set(newList.trim(), true)), act(window.aw.todos.addList(folder, newList))); setNewList(null) } else if (e.key === 'Escape') setNewList(null) }} onBlur={() => setNewList(null)} />
           )}
         </div>
-        {open && <TodoDetail key={open.id} t={open} folder={folder} agents={agents} runs={runsOf?.(open.id)} onOpenRun={onOpenRun} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
+        {open && <TodoDetail key={open.id} t={open} board={board} folder={folder} agents={agents} runs={runsOf?.(open.id)} onOpenRun={onOpenRun} onSelect={setSel} onClose={() => setSel(null)} act={act} onOpenMessage={onOpenMessage} onAsk={onAsk} confirm={ask} />}
         {picked.size > 0 && <BulkBar ids={[...picked]} board={board} lists={board.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))} menu={moveMenu} setMenu={setMoveMenu} moveTo={moveTo} setMoveTo={setMoveTo} onClear={() => setPicked(new Set())} onDo={bulk} confirm={ask} />}
       </div>}
       {confirmNode}
@@ -206,8 +218,10 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   )
 }
 
-function TaskRow({ t, picked, picking, onPick, selected, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; picked: boolean; picking: boolean; onPick: (e: { shiftKey?: boolean }) => void; selected: boolean; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
+function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selected, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; board: TodoBoard; onOpen: (id: string) => void; act: (p: Promise<unknown>) => void; folder: string; picked: boolean; picking: boolean; onPick: (e: { shiftKey?: boolean }) => void; selected: boolean; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
   const done = t.status === 'done'
+  const parts = subtasksOf(board, t.id)
+  const { done: partsDone, total } = progressOf(board, t.id)
   return (
     <div className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}${picked ? ' picked' : ''}${picking ? ' picking' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
       <span className="td-stripe" aria-hidden="true" />
@@ -226,7 +240,21 @@ function TaskRow({ t, picked, picking, onPick, selected, onSelect, onTick, onDra
           <span>created {agoLabel(t.createdAt)}</span>
           {t.updatedAt !== t.createdAt && <span>updated {t.updatedBy.name} {agoLabel(t.updatedAt)}</span>}
         </span>
+        {t.labels && t.labels.length > 0 && <span className="lbls">{t.labels.map((n) => <LabelChip key={n} name={n} color={board.labels?.find((l) => l.name === n)?.color ?? 'cyan'} />)}</span>}
       </button>
+      {parts.length > 0 && (
+        <div className="td-checklist" aria-label={`Subtasks of ${t.title}`}>
+          <div className="td-prog" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={partsDone} aria-label={`${partsDone} of ${total} subtasks done`}><u style={{ width: `${(partsDone / total) * 100}%` }} /></div>
+          <small>{partsDone} of {total} done</small>
+          {parts.map((x) => (
+            <div key={x.id} className={`td-subrow ${x.status}`}>
+              <button className="td-ck" role="checkbox" aria-checked={x.status === 'done'} aria-label={`${x.status === 'done' ? 'Reopen' : 'Finish'} ${x.title}`} onClick={() => act(x.status === 'done' ? window.aw.todos.reopen(folder, x.id) : window.aw.todos.done(folder, x.id))}>{x.status === 'done' ? '✓' : ''}</button>
+              <button className="td-subtitle" onClick={() => onOpen(x.id)} aria-label={`Open ${x.title}`}>{x.title}</button>
+              <small>#{x.id}</small>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
