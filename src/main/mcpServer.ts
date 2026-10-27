@@ -51,7 +51,7 @@ interface Options {
   chatMod?: {
     /** The look in force and any draft. Asking is how an agent "reads" it: a later write is judged against what it read. */
     state: (callerId: string) => ChatModState
-    write: (callerId: string, i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; why: string }) => { problems: string[] }
+    write: (callerId: string, i: { layout?: unknown; css?: string; widgets?: unknown; addCss?: string; addWidgets?: unknown; removeWidgets?: unknown; reset?: boolean; why: string }) => { problems: string[] }
     /** The elements of the app's window, as indented lines. */
     outline?: (selector: string, depth: number) => Promise<string>
     /** The window as the person sees it, as a base64 PNG, after the person allows it; null when they do not, or no window is open. */
@@ -189,25 +189,30 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
     { description: 'The look in force now and the draft waiting for the person, as JSON ({current, draft}); an empty look is the system default. Read it before you change anything.', inputSchema: {} },
     async () => {
       const s = mod.state(callerId)
-      return text(JSON.stringify({ current: s.current, draft: s.draft, draftBy: s.draftBy }))
+      // What the person did with earlier drafts, in words: an empty look after Undo is the person's answer, not a lost draft.
+      const recent = s.recent.map((r) => `${r.outcome}${r.why ? `: "${r.why}"` : ''} (${r.by}, ${Math.max(0, Math.round((Date.now() - r.at) / 60000))} min ago)${r.outcome === 'undone' ? ' - the person did not want this; do not write it in again unless they ask' : ''}`)
+      return text(JSON.stringify({ current: s.current, draft: s.draft, draftBy: s.draftBy, recent }))
     }
   )
   server.registerTool(
     'chat_mod_write',
     {
       description:
-        'Change how the person\'s chat looks, when they ask for it. Give `layout` (the full ordered list of rules), `css` (the full stylesheet), `widgets` (the full list), or any of them; a part you leave out stays as it is. It is shown to the person at once as a draft with Keep and Undo: you cannot make it permanent. ' +
+        'Change how the person\'s chat looks, when they ask for it. Give `layout` (the full ordered list of rules), `css` (the full stylesheet), `widgets` (the full list), or any of them; a part you leave out stays as it is. To add something, prefer `addCss` / `addWidgets` / `removeWidgets`: they change only what you name, so you never have to repeat what is already in force (and must not repeat what is not). It is shown to the person at once as a draft with Keep and Undo: you cannot make it permanent. ' +
         'Read chat_mod_guide first. If it says something could not be read, fix that and write again. Set `reset` to ask for the system default instead.',
       inputSchema: {
         layout: z.array(LAYOUT_RULE).max(30).optional(),
         css: z.string().max(60000).optional(),
         widgets: z.array(WIDGET).max(6).optional().describe('The full list of widgets; see chat_mod_guide'),
+        addCss: z.string().max(60000).optional().describe('Only the CSS to add after what is in force, instead of the whole css'),
+        addWidgets: z.array(WIDGET).max(6).optional().describe('Only the widgets to add, or to replace by id'),
+        removeWidgets: z.array(z.string().max(30)).max(6).optional().describe('Ids of widgets to take out'),
         reset: z.boolean().optional(),
         why: z.string().max(200).describe('One sentence for the person: what you did')
       }
     },
     async (a) => {
-      if (!a.reset && a.layout === undefined && a.css === undefined && a.widgets === undefined) return text('Give layout, css, widgets, or reset.', true)
+      if (!a.reset && a.layout === undefined && a.css === undefined && a.widgets === undefined && a.addCss === undefined && a.addWidgets === undefined && a.removeWidgets === undefined) return text('Give layout, css, widgets, addCss, addWidgets, removeWidgets, or reset.', true)
       const r = mod.write(callerId, a)
       if (r.problems.length) return text(`Nothing was changed. Fix this and write again: ${r.problems.join(' ')}`, true)
       // What the draft now holds, so the agent can see it is what it meant (not what it thinks was already there).

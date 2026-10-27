@@ -7,7 +7,7 @@ import { EMPTY_MOD, GUARD_CSS, isEmptyMod, type ChatMod, type ChatModState } fro
 import { type FeedResult, type MeterName, type Meters, type Widget, type WidgetSlot, feedHost } from '../../shared/widgets'
 
 // POC: the look an agent wrote for the chat. The main process holds it; this is the window's copy, kept current by what main announces.
-const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false }
+const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, recent: [] }
 let state: ChatModState = NONE
 const listeners = new Set<() => void>()
 let started = false

@@ -11,6 +11,16 @@ export const EMPTY_MOD: ChatMod = { layout: DEFAULT_LAYOUT, css: '', widgets: []
 export const isEmptyMod = (m: ChatMod) => m.layout.rules.length === 0 && m.css.trim() === '' && m.widgets.length === 0
 
 /** What the window needs: the look in force, and one an agent is trying that waits for Keep or Undo. */
+/** What the person did with a look: the answer an agent has to be told, as it cannot see the buttons pressed. */
+export interface Outcome {
+  at: number
+  outcome: 'kept' | 'undone' | 'restored the system look' | 'went back'
+  /** Who wrote the look it is about (an agent's name), or the person. */
+  by: string
+  /** What the writer said it did. */
+  why: string
+}
+
 export interface ChatModState {
   current: ChatMod
   draft: ChatMod | null
@@ -22,6 +32,8 @@ export interface ChatModState {
   history: number
   /** The person pressed Load data: what the draft's widgets ask to load is loaded before Keep. */
   draftData: boolean
+  /** The last answers the person gave, newest first (eight). */
+  recent: Outcome[]
 }
 
 export const MAX_CSS = 60_000
@@ -158,6 +170,8 @@ You do it with three things, all written through chat_mod_write:
 
 How to work:
 - Call chat_mod_get first (and app_ui_screenshot, to see what the person sees): it returns what is in force and any draft. Change that; do not start from nothing unless the person asked for a fresh start.
+- Undo is an answer: the person did not want that change. Do not write it in again, not as part of a later change, not because the look is empty, and not because you think it was lost. Only a new request from the person brings it back. chat_mod_get lists what the person last did (kept, undone, restored) and why; read it.
+- A write does not have to carry everything. css, layout and widgets replace the whole of that part, but a part you do not give stays as it is, and addCss, addWidgets and removeWidgets change only what you name. To add a rule or a widget, use those; then nothing that is not in force can come back with it.
 - The person can press Keep, Undo or restore at any time, and then what you remember is out of date: what they undid is NOT in force. A write from an old picture is refused; call chat_mod_get again and write from what it returns, changing only what was asked.
 - chat_mod_write saves your version as a draft and shows it to the person at once, with Keep and Undo. It tells you what it could not read: fix that and write again. You cannot make it permanent; only the person's Keep does.
 - Make the change the person asked for and nothing else. Say in "why" what you did, in one sentence.
