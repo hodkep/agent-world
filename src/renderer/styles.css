@@ -3781,6 +3781,9 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .td-subrow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .td-subrow.done .td-subtitle { text-decoration: line-through; color: var(--muted); }
 .td-subrow.doing .td-subtitle { color: var(--accent); }
+/* The subtask whose panel is open: its line in gold, and its umbrella's card tinted (the umbrella's own title stays as it was) */
+.td-task.has-open { background: var(--selected); }
+.td-subrow.open .td-subtitle { color: var(--accent); font-weight: 600; }
 .td-subtitle { background: none; border: 0; box-shadow: none; padding: 2px 0; text-align: left; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-subtitle:hover { text-decoration: underline; }
 .td-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
