@@ -3831,3 +3831,18 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-tools .tip-btn[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .nt-editor .cm-placeholder { color: var(--muted); }
 .nt-hint { display: flex; flex-direction: column; gap: 4px; } .nt-hint b { font-size: 15px; color: var(--text); opacity: .7; } .nt-hint span { font-size: 12.5px; }
+/* The notes window with a panel beside the note: the window is made wider for it. */
+.nt { flex-direction: row; }
+.nt.side-left { flex-direction: row; } .nt.side-right { flex-direction: row-reverse; }
+.nt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.nt-side { width: 280px; flex: none; background: var(--panel-2); display: flex; flex-direction: column; overflow: auto; }
+.nt.side-left .nt-side { border-right: 2px solid var(--ink); } .nt.side-right .nt-side { border-left: 2px solid var(--ink); }
+.nt-panel { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.nt-panel h5 { margin: 0; font: 700 10.5px system-ui; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.nt-panel .primary { background: var(--accent); color: var(--ink); } .nt-panel .primary:disabled { opacity: .5; }
+.nt-panel select, .nt-panel textarea { width: 100%; background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 6px; }
+.nt.mac.side-left .nt-bar { padding-left: 8px; } .nt.mac.side-left .nt-side { padding-top: 38px; }
+/* The tips of the buttons sit against the window's right edge, wrap inside it, and are not drawn over the list they open. */
+.nt-bar { position: relative; } .nt-tools { position: static; }
+.nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { right: 8px; left: auto; transform: none; max-width: min(240px, calc(100vw - 24px)); }
+.nt-tools .tip-btn[aria-expanded='true']::after { display: none; }

@@ -26,8 +26,10 @@ export function NotesApp() {
   const [id, setId] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [preview, setPreview] = useState(false)
-  const [menu, setMenu] = useState<null | 'notes' | 'make'>(null)
-  const [ask, setAsk] = useState<{ line: number } | null>(null)
+  const [menu, setMenu] = useState<null | 'notes'>(null)
+  // A panel beside the note (making tasks, asking an agent): the window is made wider for it, so it never covers the note.
+  const [panel, setPanel] = useState<null | { kind: 'make' } | { kind: 'ask'; line: number }>(null)
+  const [sideAt, setSideAt] = useState<'left' | 'right'>('right')
   const [pinned, setPinned] = useState(true)
   const [error, setError] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
@@ -139,7 +141,7 @@ export function NotesApp() {
       const top = [...ls.slice(0, line)].reverse().find((l) => l.kind === 'item' && l.indent < 2)
       void makeTasks([...(top && !top.todo ? [top.line] : []), line]).catch(fail)
     },
-    ask: (line) => setAsk({ line })
+    ask: (line) => void showPanel({ kind: 'ask', line }).catch(fail)
   }
 
   const info = notes.find((n) => n.id === id)
@@ -147,7 +149,7 @@ export function NotesApp() {
   const openMake = () => {
     if (!folder) return
     void window.aw.todos.get(folder).then((r) => setLists(r.board.lists), fail)
-    setMenu('make')
+    void showPanel({ kind: 'make' }).catch(fail)
   }
   const toggleBox = (n: number) => {
     // The nth box of the rendered note is the nth checklist line.
@@ -163,11 +165,52 @@ export function NotesApp() {
   useEffect(() => {
     drawn.current?.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((b) => (b.disabled = false))
   }, [text, preview])
+  const showPanel = async (p: NonNullable<typeof panel>) => {
+    // The panel is 280 pixels of the page; the window is measured in screen pixels, and the page may be zoomed.
+    const zoom = window.outerWidth / Math.max(1, window.innerWidth)
+    const at = await window.aw.notes.side(Math.round(280 * zoom))
+    setSideAt(at ?? 'right')
+    setPanel(p)
+  }
+  const closePanel = () => {
+    setPanel(null)
+    void window.aw.notes.side(0)
+  }
   const wrap = useRef<HTMLDivElement>(null)
   useDismiss(wrap, menu !== null, () => setMenu(null))
 
   return (
-    <div className={`nt${MAC ? ' mac' : ''}`} role="application" aria-label="Notes">
+    <div className={`nt${MAC ? ' mac' : ''}${panel ? ` side-${sideAt}` : ''}`} role="application" aria-label="Notes">
+      {panel && folder && (
+        <aside className="nt-side" aria-label={panel.kind === 'make' ? 'Make tasks from this note' : 'Ask an agent'}>
+          {panel.kind === 'make' ? (
+            <div role="dialog" aria-label="Make tasks from this note" className="nt-panel">
+              <h5>Make tasks from this note</h5>
+              {plan.length === 0 && <p className="hint">Nothing to make: write a checklist (<code>- [ ] a thing</code>), and indent a line to make it a subtask. Lines that are tasks already are left out.</p>}
+              {plan.map((t) => <div key={t.line} className={`nt-tk${t.parent !== undefined || t.parentTodo ? ' s' : ''}`}><span>{t.title}</span><small>{t.parent !== undefined || t.parentTodo ? 'subtask' : (t.list ?? 'Inbox')}</small></div>)}
+              <MakeFooter agents={agents} count={plan.length} onCancel={closePanel} onMake={async (agentId) => {
+                try {
+                  const r = await makeTasks()
+                  closePanel()
+                  const tops = new Set(plan.filter((t) => t.parent === undefined && !t.parentTodo).map((t) => t.line))
+                  if (agentId) for (const m of r.made) if (tops.has(m.line)) await window.aw.notes.ask(folder, m.id, agentId, 'work', '')
+                } catch (e) { fail(e) }
+              }} />
+            </div>
+          ) : (
+            <AskBox line={panel.line} text={text} agents={agents} onClose={closePanel} onSend={async (agentId, mode, words) => {
+              try {
+                let todo = noteLines(text)[panel.line]?.todo
+                if (!todo) todo = (await makeTasks(withParts(panel.line))).made.find((m) => m.line === panel.line)?.id
+                if (!todo) throw new Error('That line is not an item.')
+                await window.aw.notes.ask(folder, todo, agentId, mode, words)
+                closePanel()
+              } catch (e) { fail(e) }
+            }} />
+          )}
+        </aside>
+      )}
+      <div className="nt-main">
       <header className="nt-bar">
         {/* On a Mac the window's own red, yellow and green buttons are used; elsewhere there is one to hide it. */}
         {!MAC && <button className="nt-close" aria-label="Hide notes" title="Hide (Alt+Ctrl+N shows it again)" onClick={() => void window.aw.notes.hide()} />}
@@ -187,21 +230,6 @@ export function NotesApp() {
               ))}
             </div>
           )}
-          {menu === 'make' && (
-            <div className="td-pop nt-pop nt-make" role="dialog" aria-label="Make tasks from this note">
-              <h5>Make tasks from this note</h5>
-              {plan.length === 0 && <p className="hint">Nothing to make: write a checklist (<code>- [ ] a thing</code>), and indent a line to make it a subtask. Lines that are tasks already are left out.</p>}
-              {plan.map((t) => <div key={t.line} className={`nt-tk${t.parent !== undefined || t.parentTodo ? ' s' : ''}`}><span>{t.title}</span><small>{t.parent !== undefined || t.parentTodo ? 'subtask' : (t.list ?? 'Inbox')}</small></div>)}
-              <MakeFooter agents={agents} count={plan.length} onCancel={() => setMenu(null)} onMake={async (agentId) => {
-                try {
-                  const r = await makeTasks()
-                  setMenu(null)
-                  const tops = new Set(plan.filter((t) => t.parent === undefined && !t.parentTodo).map((t) => t.line))
-                  if (agentId && folder) for (const m of r.made) if (tops.has(m.line)) await window.aw.notes.ask(folder, m.id, agentId, 'work', '')
-                } catch (e) { fail(e) }
-              }} />
-            </div>
-          )}
         </span>
       </header>
       {error && <p className="error nt-error" role="alert" onClick={() => setError('')}>{error}</p>}
@@ -216,24 +244,15 @@ export function NotesApp() {
             <Markdown text={text} />
           </div>
         ) : <NotesEditor value={text} onChange={edit} actions={actions} />}
-        {ask && folder && <AskBox line={ask.line} text={text} agents={agents} onClose={() => setAsk(null)} onSend={async (agentId, mode, words) => {
-          try {
-            const ls = noteLines(text)
-            let todo = ls[ask.line]?.todo
-            if (!todo) todo = (await makeTasks(withParts(ask.line))).made.find((m) => m.line === ask.line)?.id
-            if (!todo) throw new Error('That line is not an item.')
-            await window.aw.notes.ask(folder, todo, agentId, mode, words)
-            setAsk(null)
-          } catch (e) { fail(e) }
-        }} />}
       </div>
       <footer className="nt-foot">
         <span>{text.length} characters</span>
         <select aria-label="Project" value={folder ?? ''} onChange={(e) => (store.set('aw.notes.folder', e.target.value), setFolder(e.target.value))}>
           {projects.map((p) => <option key={p.path} value={p.path}>{p.name}</option>)}
         </select>
-        <button className="nt-makebtn" disabled={!info} aria-expanded={menu === 'make'} onClick={() => (menu === 'make' ? setMenu(null) : openMake())}>Make tasks…</button>
+        <button className="nt-makebtn" disabled={!info} aria-expanded={panel?.kind === 'make'} onClick={() => (panel?.kind === 'make' ? closePanel() : openMake())}>Make tasks…</button>
       </footer>
+      </div>
       {confirmNode}
     </div>
   )
@@ -266,12 +285,10 @@ function AskBox({ line, text, agents, onClose, onSend }: { line: number; text: s
   const [mode, setMode] = useState<'ask' | 'work'>('work')
   const [words, setWords] = useState('')
   const [busy, setBusy] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useDismiss(ref, true, onClose)
   const title = noteLines(text)[line]?.title ?? ''
-  if (agents.length === 0) return <div className="td-pop nt-pop nt-ask" ref={ref} role="dialog" aria-label="Ask an agent"><p className="hint">No agent in this project yet. Hire one to ask it about “{title}”.</p></div>
+  if (agents.length === 0) return <div className="nt-panel" role="dialog" aria-label="Ask an agent"><p className="hint">No agent in this project yet. Hire one to ask it about “{title}”.</p></div>
   return (
-    <div className="td-pop nt-pop nt-ask" ref={ref} role="dialog" aria-label="Ask an agent">
+    <div className="nt-panel" role="dialog" aria-label="Ask an agent">
       <h5>“{title}”</h5>
       <select aria-label="Agent" value={agent} onChange={(e) => setAgent(e.target.value)}>{agents.map((a) => <option key={a.id} value={a.id}>{a.name} · {a.provider === 'agy' ? 'agy' : 'Claude'}</option>)}</select>
       <div className="td-mode" role="group" aria-label="What to ask">

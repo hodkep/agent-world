@@ -1858,6 +1858,7 @@ async function main() {
     target.webContents.send('notes-ask', { agentId: String(agentId), message })
   })
   ipcMain.handle('notes:toggle', () => notesWin?.toggle())
+  ipcMain.handle('notes:side', (_, extra: number) => notesWin?.side(Math.max(0, Math.min(800, Number(extra) || 0))) ?? null)
   ipcMain.handle('notes:hide', () => notesWin?.hide())
   ipcMain.handle('notes:pin', (_, on: boolean) => (notesWin?.pin(!!on), notesWin?.pinned()))
   ipcMain.handle('notes:pinned', () => notesWin?.pinned() ?? true)

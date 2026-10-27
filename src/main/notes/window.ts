@@ -24,6 +24,20 @@ export function placeFor(saved: Partial<State> | undefined, areas: { x: number; 
   return { x: home.x + home.width - width - 40, y: home.y + 80, width, height }
 }
 
+type Rect = { x: number; y: number; width: number; height: number }
+
+/** The bounds with `extra` more width on the side of the screen that has room: to the right when it fits, else to the left (never past the left edge of the screen). */
+export function growBounds(b: Rect, area: Rect, extra: number): { side: 'left' | 'right'; bounds: Rect } {
+  if (b.x + b.width + extra <= area.x + area.width) return { side: 'right', bounds: { ...b, width: b.width + extra } }
+  const x = Math.max(area.x, b.x - extra)
+  return { side: 'left', bounds: { ...b, x, width: b.width + (b.x - x) } }
+}
+
+/** The bounds before a panel was added beside it. */
+export function shrinkBounds(b: Rect, side: 'left' | 'right', extra: number): Rect {
+  return side === 'left' ? { ...b, x: b.x + extra, width: b.width - extra } : { ...b, width: b.width - extra }
+}
+
 /** The notes window: frameless, above every other window and on every desktop, where the person put it last. It is hidden when closed, not destroyed, so it comes back at once with its note as it was. */
 export function createNotesWindow(o: { preload: string; load: (w: BrowserWindow) => void; stateFile: string; hidden: boolean }) {
   let win: BrowserWindow | null = null
@@ -35,9 +49,11 @@ export function createNotesWindow(o: { preload: string; load: (w: BrowserWindow)
   }
   let quitting = false
   let timer: ReturnType<typeof setTimeout> | null = null
+  // While a panel is open beside the note the window is wider; the place that is remembered is the note's own.
+  let grown: { side: 'left' | 'right'; extra: number } | null = null
   const save = () => {
     if (!win || win.isDestroyed()) return
-    state = { ...win.getBounds(), pinned: state.pinned ?? true }
+    state = { ...(grown ? shrinkBounds(win.getBounds(), grown.side, grown.extra) : win.getBounds()), pinned: state.pinned ?? true }
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => void writeFileSync(o.stateFile, JSON.stringify(state)), 300)
   }
@@ -91,6 +107,22 @@ export function createNotesWindow(o: { preload: string; load: (w: BrowserWindow)
       const w = win && !win.isDestroyed() ? win : null
       if (w?.isVisible() && w.isFocused()) w.hide()
       else this.show()
+    },
+    /** Makes room for a panel of `extra` pixels beside the note (0 gives the room back); which side of the note it is on. */
+    side(extra: number): 'left' | 'right' | null {
+      const w = win && !win.isDestroyed() ? win : null
+      if (!w) return null
+      if (grown && (extra <= 0 || extra !== grown.extra)) {
+        w.setBounds(shrinkBounds(w.getBounds(), grown.side, grown.extra))
+        grown = null
+      }
+      if (extra <= 0) return null
+      if (grown) return grown.side
+      const b = w.getBounds()
+      const g = growBounds(b, screen.getDisplayMatching(b).workArea, extra)
+      grown = { side: g.side, extra: g.bounds.width - b.width }
+      w.setBounds(g.bounds)
+      return g.side
     },
     pin,
     pinned: () => state.pinned ?? true,
