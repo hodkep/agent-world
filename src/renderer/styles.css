@@ -3992,6 +3992,8 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .mod-compare[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .mod-bar[data-comparing='true'] { border-style: dashed; }
 .mod-bar > span { flex: 1; min-width: 0; }
+/* The grip is a span too: it takes only its own width, and the words take the rest. */
+.mod-bar > .mod-grip { flex: none; }
 .wd-slot { display: flex; flex-direction: column; flex: none; }
 .wd-slot.chat-top { border-bottom: 2px solid var(--ink); }
 .wd-slot.above-composer { border-top: 2px solid var(--ink); }
