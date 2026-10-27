@@ -76,12 +76,14 @@ test('the office boy joins an idle agent at the carrom board; the supervisor com
     for (const name of ['ada', 'dee']) await hireNamed(page, name)
     await page.waitForTimeout(3000)
 
-    // He joins an agent at the board.
-    await boyPlays(page)
-
-    // The supervisor comes from the west door, behind him: the can, "Get back to work!", "Ouch!".
-    await setItem(page, 'aw.officeCall', 'boss')
-    await expect.poll(async () => (await life(page))?.boy.caught, { timeout: 60_000 }).toBe(1)
+    // He joins an agent at the board, and the supervisor comes from the west door, behind him: the can, "Get back to work!", "Ouch!".
+    // On a loaded machine the game can end by itself (its agent is sent for a coffee) before he gets there: then the scene is played again.
+    for (let attempt = 0; attempt < 3 && (await life(page))?.boy.caught !== 1; attempt++) {
+      await boyPlays(page)
+      await setItem(page, 'aw.officeCall', 'boss')
+      await expect.poll(async () => (await life(page))?.boy.caught, { timeout: 20_000 }).toBe(1).catch(() => {})
+    }
+    expect((await life(page))?.boy.caught).toBe(1)
     await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Get back to work!', 'Ouch!']))
     expect((await life(page))!.boy.playing).toBe(false)
   } finally {
