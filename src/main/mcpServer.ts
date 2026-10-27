@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import type { Todo, TodoStatus } from '../shared/todos'
 import type { TodoHit } from '../shared/todoSearch'
+import { CHAT_MOD_GUIDE, type ChatModState } from '../shared/chatMod'
 
 export interface Colleague {
   name: string
@@ -46,6 +47,15 @@ interface Options {
   }
   /** The project's todo board, shared by the person and the agents. Offered only when set. */
   todos?: TodoApi
+  /** POC: the look of the chat, which agents write as a draft and only the person keeps. Offered only when set. */
+  chatMod?: {
+    state: () => ChatModState
+    write: (callerId: string, i: { layout?: unknown; css?: string; reset?: boolean; why: string }) => { problems: string[] }
+    /** The elements of the app's window, as indented lines. */
+    outline?: (selector: string, depth: number) => Promise<string>
+    /** The window as the person sees it, as a base64 PNG, or null when no window is open. */
+    screenshot?: () => Promise<string | null>
+  }
   /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
   libraryOn?: () => boolean
   /** The shared library of skills and instructions, as far as the caller's playbook allows. */
@@ -123,6 +133,75 @@ function readJson(req: IncomingMessage): Promise<unknown> {
     })
     req.on('error', reject)
   })
+}
+
+const PLACES = ['stream', 'badge', 'footer', 'hidden'] as const
+const LAYOUT_RULE = z.object({
+  match: z
+    .object({
+      kind: z.array(z.string().max(60)).max(20).optional(),
+      tool: z.array(z.string().max(60)).max(20).optional(),
+      text: z.string().max(200).optional(),
+      tone: z.literal('bad').optional()
+    })
+    .default({}),
+  place: z.enum(PLACES),
+  group: z.string().max(40).optional(),
+  label: z.string().max(40).optional(),
+  icon: z.string().max(8).optional(),
+  open: z.boolean().optional()
+})
+/** How the person's chat looks, written by agents as a draft that shows at once and that only the person's Keep makes permanent. */
+function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<Options['chatMod']>) {
+  const text = (t: string, isError = false) => ({ ...(isError && { isError: true }), content: [{ type: 'text' as const, text: t }] })
+  server.registerTool(
+    'chat_mod_guide',
+    { description: 'How to change the look of the person\'s chat (layout rules and CSS): what you may write, the colour variables, the parts of the chat. Read it before the first change.', inputSchema: {} },
+    async () => text(CHAT_MOD_GUIDE)
+  )
+  server.registerTool(
+    'app_ui_outline',
+    {
+      description: 'The elements of the app\'s window as indented lines (tag.class [label] "text"), to find the class name of the part you are asked to restyle. Give a selector to look inside one part, and a depth (default 4, at most 8).',
+      inputSchema: { selector: z.string().max(200).optional().describe('A CSS selector; the whole app when empty'), depth: z.number().int().min(1).max(8).optional() }
+    },
+    async (a) => (mod.outline ? text(await mod.outline(a.selector ?? '', a.depth ?? 4)) : text('Not available.', true))
+  )
+  server.registerTool(
+    'app_ui_screenshot',
+    { description: 'A picture of the app\'s window as the person sees it now (the office, the chat, any look being tried). Use it before and after a change to the look.', inputSchema: {} },
+    async () => {
+      const png = mod.screenshot ? await mod.screenshot() : null
+      return png ? { content: [{ type: 'image' as const, data: png, mimeType: 'image/png' }] } : text('No window is open.', true)
+    }
+  )
+  server.registerTool(
+    'chat_mod_get',
+    { description: 'The look in force now and the draft waiting for the person, as JSON ({current, draft}); an empty look is the system default. Read it before you change anything.', inputSchema: {} },
+    async () => {
+      const s = mod.state()
+      return text(JSON.stringify({ current: s.current, draft: s.draft, draftBy: s.draftBy }))
+    }
+  )
+  server.registerTool(
+    'chat_mod_write',
+    {
+      description:
+        'Change how the person\'s chat looks, when they ask for it. Give `layout` (the full ordered list of rules), `css` (the full stylesheet), or both; a part you leave out stays as it is. It is shown to the person at once as a draft with Keep and Undo: you cannot make it permanent. ' +
+        'Read chat_mod_guide first. If it says something could not be read, fix that and write again. Set `reset` to ask for the system default instead.',
+      inputSchema: {
+        layout: z.array(LAYOUT_RULE).max(30).optional(),
+        css: z.string().max(60000).optional(),
+        reset: z.boolean().optional(),
+        why: z.string().max(200).describe('One sentence for the person: what you did')
+      }
+    },
+    async (a) => {
+      if (!a.reset && a.layout === undefined && a.css === undefined) return text('Give layout, css, or reset.', true)
+      const r = mod.write(callerId, a)
+      return r.problems.length ? text(`Nothing was changed. Fix this and write again: ${r.problems.join(' ')}`, true) : text('The person is looking at it now, with Keep and Undo. Tell them what you changed; it stays only if they keep it.')
+    }
+  )
 }
 
 function toolsFor(callerId: string, o: Options) {
@@ -217,6 +296,7 @@ function toolsFor(callerId: string, o: Options) {
   )
   if (o.library && (o.libraryOn?.() ?? true)) addLibraryTools(server, callerId, o.library)
   if (o.todos) addTodoTools(server, callerId, o.todos)
+  if (o.chatMod) addChatModTools(server, callerId, o.chatMod)
   if (o.workflows?.offered(callerId)) addWorkflowTools(server, callerId, o.workflows)
   if (o.builder?.offered(callerId)) addBuilderTools(server, callerId, o.builder)
   return server
