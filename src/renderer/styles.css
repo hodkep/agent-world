@@ -3440,6 +3440,14 @@ svg.pxg { display: block; flex: none; }
 .notes ul { margin: 0; padding-left: 16px; }
 .notes li { margin: 2px 0; }
 .notes p { margin: 4px 0; max-width: none; }
+/* A picture of a feature: full width with its words under it; one that did not load leaves only the words. A feature's icon sits in its heading. */
+.notes .rn-shot { margin: 6px 0 8px; }
+.notes .rn-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--line); background: var(--panel-3); }
+.notes .rn-shot figcaption { margin-top: 3px; font-size: 11px; color: var(--muted); }
+.notes .rn-shot.rn-gone figcaption { margin: 0; padding: 4px 6px; font-style: italic; border: 1px dashed var(--line); }
+.notes h3 img, .notes h4 img { vertical-align: -4px; margin-right: 4px; }
+/* In the popover's small box a picture is no taller than the box leaves room for words */
+.upd-pop .notes .rn-shot img { width: auto; max-width: 100%; max-height: 110px; }
 .upd-version { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
 .upd-version b { font-size: 14px; }
 .upd-version small { color: var(--muted); }

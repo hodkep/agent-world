@@ -68,7 +68,7 @@ The installed app looks for a newer version about 15 seconds after it starts and
 
 The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app), and **Check now**. The line below says what was found. Once a download has started, **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
 
-The notes of the new version (**What's new in** its number) are shown under the update's progress while it downloads, when it is ready to install and while it installs, in the popover under the top bar and here.
+The notes of the new version (**What's new in** its number) are shown under the update's progress while it downloads, when it is ready to install and while it installs, in the popover under the top bar and here. A picture in the notes shows full width with its words under it when it comes from Agent World's own repository on GitHub; pictures from anywhere else are left out, and when you are offline a picture's words stand in its place.
 
 <img src="../images/updates-version-and-notes.png" alt="The installed version, What&#x27;s new, and Check now greyed while 0.9.0 is downloaded" width="720">
 
