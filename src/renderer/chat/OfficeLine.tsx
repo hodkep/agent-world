@@ -19,12 +19,15 @@ function CallItem({ call, onImage }: { call: Call; onImage: (src: string, set?: 
   // The board may have lost the task since (removed by someone): the chip says so instead of opening nothing.
   useTodoVersion()
   const gone = todo !== null && !todoBrief(todo)
+  // A part of a bigger task is said after its umbrella, which opens on a click of its own.
+  const umbrella = todo !== null ? todoBrief(todo)?.parent : undefined
   return (
     <div className={`of-item stamp-${st.kind} ${st.state}`}>
       <div className="of-line">
         <button className="of-row" aria-expanded={shown} onClick={() => setShown(!shown)}>
           <span className="of-ic" aria-hidden="true"><OutlineIcon name={STAMP_ICON[st.kind]} size={14} /></span>
           <span className="of-txt">
+            {umbrella && <><b className="of-up" role="link" tabIndex={0} title={`Open todo#${umbrella}, the task this is part of`} onClick={(e) => (e.stopPropagation(), openTodo(umbrella))} onKeyDown={(e) => { if (e.key === 'Enter') (e.stopPropagation(), openTodo(umbrella)) }}>todo#{umbrella}</b><span className="of-why"> › </span></>}
             <b>{w.bold}</b>
             {w.rest && <span> {w.rest}</span>}
             {w.why && <span className="of-why"> · {w.why}</span>}
