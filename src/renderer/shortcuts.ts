@@ -1,7 +1,7 @@
 const MAC: Record<string, string> = { Mod: '⌘', Ctrl: '⌃', Alt: '⌥', Shift: '⇧' }
 const ARROWS: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }
 
-export const PLACES = ['Anywhere', 'Conversation', 'Message box', 'Terminal', 'Changes', 'Image editor'] as const
+export const PLACES = ['Anywhere', 'Conversation', 'Message box', 'Terminal', 'Changes', 'Image editor', 'Notes'] as const
 export type Place = (typeof PLACES)[number]
 
 /** One thing the keyboard does. `keys` are written as "Shift+Mod+Z"; two of them are two ways, or two directions, of the one thing. */
@@ -22,7 +22,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
   { id: 'agent-switch', place: 'Anywhere', text: 'Previous or next agent in this workspace', keys: ['Shift+Ctrl+Tab', 'Ctrl+Tab'] },
   { id: 'tab-jump', place: 'Anywhere', text: 'Go to the first, second … tab of the side panel', keys: ['Mod+Alt+1-9'] },
-  { id: 'notes', place: 'Anywhere', text: 'Show or hide the notes window, from any app', keys: ['Mod+Alt+N'] },
+  { id: 'notes', place: 'Anywhere', text: 'Show or hide the notes window, from any app', keys: ['Alt+Shift+Mod+N'] },
   { id: 'add-selection', place: 'Anywhere', text: 'Add the selected words, code or output to the message box as context', keys: ['Shift+Mod+L'] },
   { id: 'close', place: 'Anywhere', text: 'Close a dialog, menu or card', keys: ['Esc'] },
   { id: 'resize-panel', place: 'Anywhere', text: 'Resize the side panel (on its edge)', keys: ['ArrowLeft', 'ArrowRight'] },
@@ -54,7 +54,12 @@ export const SHORTCUTS: Shortcut[] = [
 
   { id: 'undo', place: 'Image editor', text: 'Undo', keys: ['Mod+Z'] },
   { id: 'redo', place: 'Image editor', text: 'Redo', keys: ['Shift+Mod+Z'] },
-  { id: 'editor-close', place: 'Image editor', text: 'Close the editor', keys: ['Esc'] }
+  { id: 'editor-close', place: 'Image editor', text: 'Close the editor', keys: ['Esc'] },
+
+  { id: 'note-task', place: 'Notes', text: 'Make the line a task', keys: ['Mod+Enter'] },
+  { id: 'note-subtask', place: 'Notes', text: 'Make the line a subtask of the item above', keys: ['Shift+Mod+Enter'] },
+  { id: 'note-ask', place: 'Notes', text: 'Ask an agent about the line, or give it the task', keys: ['Alt+Mod+Enter'] },
+  { id: 'note-list', place: 'Notes', text: 'Start the next item of a list (on an empty item it ends the list)', keys: ['Enter'] }
 ]
 
 /** A combination as the person's keyboard names it: "Shift+Mod+Z" is ⇧⌘Z on a Mac and Shift+Ctrl+Z elsewhere. */

@@ -44,11 +44,12 @@ A label is a word with a colour. Add one to a task with **+ label** in its panel
 
 ## Notes
 
-**Notes** in the top bar (or Option+Command+N, Alt+Ctrl+N elsewhere, from anywhere on the computer) shows a small window of notes that stays above every other window and on every desktop. Drag it by its top edge to put it where you like, and resize it; it comes back where you left it. The red square hides it, and the pin button lets other windows cover it.
+**Notes** in the top bar (or Option+Shift+Command+N, Alt+Shift+Ctrl+N elsewhere, from anywhere on the computer; four keys on purpose, so it rarely meets a key another app or the system uses) shows a small window of notes that stays above every other window and on every desktop. Drag it by its top edge to put it where you like, and resize it; it comes back where you left it. The red square hides it, and the pin button lets other windows cover it.
 
 - Notes are Markdown: headings, **bold**, `code`, and checklists (`- [ ] a thing`) drawn with real boxes. The eye button shows the whole Markdown, tables and all, and its boxes can be ticked too.
 - Each project has its own notes, and each note is kept apart from the others as a file in `~/.agent-world/pad-notes`. **＋** starts a new note, the **⌘** button lists them to open or delete, and the project box at the bottom chooses whose notes you see.
-- Point at a checklist or bullet line for **→ Task** (a task from the line, and its indented lines as subtasks), **→ Subtask** (under the item above) and **Ask agent**. A line that became a task ends with its number, `(todo#7)`.
+- Point at a checklist or bullet line and a **Line actions** handle (three dots) shows in the margin on its right, never over the words. Its menu has **→ Task** (a task from the line, and its indented lines as subtasks), **→ Subtask** (under the item above) and **Ask agent**. The same three are on the keys Command+Enter, Shift+Command+Enter and Option+Command+Enter (Ctrl instead of Command elsewhere). A line that became a task ends with its number, `(todo#7)`, and its menu has only **Ask agent**.
+- Enter on a bullet or checklist item starts the next item (with an empty box, on a checklist); Enter on an empty item ends the list.
 - **Make tasks…** opens a panel beside the note (the window widens, never covering the note) that shows what every line that is not a task yet would make, and can give the tasks to an agent at once. Ticked lines are made as finished tasks.
 - **Ask agent** (also on a line that is a task already) opens the same panel and picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
 

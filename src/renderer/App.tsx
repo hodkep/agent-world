@@ -227,6 +227,8 @@ export function App() {
   // The todo board of the open project, how many of its tasks wait on you, and the message a task asked to be opened at.
   const [todoOpen, setTodoOpen] = useState(false)
   const [todoNeeds, setTodoNeeds] = useState(0)
+  const [notesKey, setNotesKey] = useState(false)
+  useEffect(() => void window.aw.notes.shortcut().then(setNotesKey, () => setNotesKey(false)), [])
   const [todoFocus, setTodoFocus] = useState<string | null>(null)
   const [jump, setJump] = useState<{ agentId: string; itemId: string; excerpt: string; n: number } | null>(null)
   useEffect(() => {
@@ -1514,7 +1516,7 @@ export function App() {
         {agents.length > 0 && (
           <IconButton icon="grid" label="Grid" onClick={() => rememberGrid({ grid: !grid })} pressed={grid} tip="Show every agent at once, with the last lines of its terminal" />
         )}
-        <IconButton icon="notes" label="Notes" onClick={() => void window.aw.notes.toggle()} tip={hint('notes')} />
+        <IconButton icon="notes" label="Notes" onClick={() => void window.aw.notes.toggle()} tip={notesKey ? hint('notes') : 'Notes that stay above every window'} />
         {folder && <IconButton icon="todo" label={`Todos${todoNeeds > 0 ? ` ${todoNeeds}` : ''}`} onClick={() => setTodoOpen(true)} haspopup tip={todoNeeds > 0 ? `${todoNeeds} todo${todoNeeds > 1 ? 's' : ''} need${todoNeeds > 1 ? '' : 's'} you` : 'The tasks for this project, yours and the agents\''} badge={todoNeeds > 0 ? todoNeeds : undefined} />}
         {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <IconButton icon="workflow" label="Workflows" onClick={() => setReport('workflows')} haspopup badge={needsYou || undefined} tip={needsYou ? `${needsYou} thing${needsYou === 1 ? '' : 's'} waiting for you` : windingDown(prefs.workflows.enabled, wf.open) ? `Winding down: ${wf.open} run${wf.open === 1 ? '' : 's'} still open` : "Runs and stats of the agents' workflows"} />}
         <IconButton icon="library" label={prefs?.libraryEnabled === false ? 'Library (off)' : 'Library'} dim={prefs?.libraryEnabled === false} onClick={() => setLibraryOpen(true)} haspopup tip={prefs?.libraryEnabled === false ? 'The library and playbook are turned off. Open to turn them on in Settings.' : 'Skills, instructions and the playbook that says what agents are told'} />

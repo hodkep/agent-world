@@ -9,7 +9,9 @@ export interface LineActions {
   task: (line: number) => void
   /** Make the line a subtask of the item above it. */
   subtask: (line: number) => void
-  ask: (line: number, anchor: HTMLElement) => void
+  ask: (line: number) => void
+  /** Open the menu of what can be done with the line, under its handle. */
+  menu: (line: number, anchor: HTMLElement) => void
 }
 
 class Box extends WidgetType {
@@ -36,26 +38,18 @@ class Dot extends WidgetType {
   toDOM() { const s = document.createElement('span'); s.className = 'nt-dot'; s.textContent = '•'; return s }
 }
 
-class Actions extends WidgetType {
-  constructor(readonly line: number, readonly sub: boolean, readonly linked: boolean, readonly h: LineActions) { super() }
-  eq(o: Actions) { return o.line === this.line && o.sub === this.sub && o.linked === this.linked }
+/** The handle in the margin of a bullet or checklist line: three dots that open the line's menu. It is outside the words, so the text under the pointer can always be clicked. */
+class Handle extends WidgetType {
+  constructor(readonly line: number, readonly h: LineActions) { super() }
+  eq(o: Handle) { return o.line === this.line }
   toDOM() {
-    const wrap = document.createElement('span')
-    wrap.className = 'nt-act'
-    const add = (label: string, cls: string, fn: (b: HTMLElement) => void) => {
-      const b = document.createElement('button')
-      b.className = cls
-      b.textContent = label
-      b.onmousedown = (e) => (e.preventDefault(), fn(b))
-      wrap.append(b)
-    }
-    // A line that is a task already can still be asked about.
-    if (!this.linked) {
-      add(this.sub ? '→ Subtask' : '→ Task', 'go', () => (this.sub ? this.h.subtask(this.line) : this.h.task(this.line)))
-      if (!this.sub) add('→ Subtask', '', () => this.h.subtask(this.line))
-    }
-    add('Ask agent', this.linked ? 'go' : '', (b) => this.h.ask(this.line, b))
-    return wrap
+    const b = document.createElement('button')
+    b.className = 'nt-handle'
+    b.setAttribute('aria-label', 'Line actions')
+    b.setAttribute('aria-haspopup', 'menu')
+    b.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="10" width="4" height="4"/><rect x="10" y="10" width="4" height="4"/><rect x="17" y="10" width="4" height="4"/></svg>'
+    b.onmousedown = (e) => (e.preventDefault(), this.h.menu(this.line, b))
+    return b
   }
   ignoreEvent() { return true }
 }
@@ -110,7 +104,7 @@ function build(view: EditorView, h: LineActions): DecorationSet {
         const at = raw.lastIndexOf('(todo#')
         out.push(Decoration.mark({ class: 'nt-linked' }).range(line.from + at, line.to))
       }
-      if (l.title) out.push(Decoration.widget({ widget: new Actions(l.line, l.indent >= 2, !!l.todo, h), side: 1 }).range(line.to))
+      if (l.title) out.push(Decoration.widget({ widget: new Handle(l.line, h), side: 1 }).range(line.to))
     }
     for (const { re, cls, open, close } of INLINE) {
       for (const x of raw.matchAll(re)) {
@@ -138,6 +132,15 @@ function hint() {
   return el
 }
 
+/** Runs something on the line the cursor is on, when that line is a bullet or checklist item with words. */
+function onLine(v: EditorView, run: (line: number) => void): boolean {
+  const n = v.state.doc.lineAt(v.state.selection.main.head).number - 1
+  const l = noteLines(v.state.doc.toString())[n]
+  if (!l || l.kind !== 'item' || !l.title) return false
+  run(n)
+  return true
+}
+
 /** The note as it is typed: Markdown with headings, checklists (a real box), bold, italics and code drawn as it goes, and on each bullet or checklist line the buttons that make it a task. */
 export function NotesEditor({ value, onChange, actions }: { value: string; onChange: (text: string) => void; actions: LineActions }) {
   const host = useRef<HTMLDivElement>(null)
@@ -153,7 +156,7 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
       },
       { decorations: (p) => p.deco, provide: (p) => EditorView.atomicRanges.of((v) => v.plugin(p)?.deco ?? Decoration.none) }
     )
-    const handlers: LineActions = { task: (l) => cb.current.actions.task(l), subtask: (l) => cb.current.actions.subtask(l), ask: (l, a) => cb.current.actions.ask(l, a) }
+    const handlers: LineActions = { task: (l) => cb.current.actions.task(l), subtask: (l) => cb.current.actions.subtask(l), ask: (l) => cb.current.actions.ask(l), menu: (l, a) => cb.current.actions.menu(l, a) }
     const v = new EditorView({
       parent: host.current!,
       state: EditorState.create({
@@ -161,6 +164,12 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
         extensions: [
           history(),
           // Enter in a list item starts the next item (with an empty box in a checklist), and on an empty item ends the list.
+          // The same three things the line's menu does, from the keyboard (Ctrl instead of Cmd outside a Mac).
+          Prec.high(keymap.of([
+            { key: 'Mod-Enter', run: (v) => onLine(v, (l) => handlers.task(l)) },
+            { key: 'Shift-Mod-Enter', run: (v) => onLine(v, (l) => handlers.subtask(l)) },
+            { key: 'Alt-Mod-Enter', run: (v) => onLine(v, (l) => handlers.ask(l)) }
+          ])),
           Prec.high(keymap.of([{
             key: 'Enter',
             run: (v) => {

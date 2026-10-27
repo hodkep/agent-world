@@ -5,6 +5,7 @@ import { useConfirm } from '../panel/ConfirmDialog'
 import { IconButton } from '../panel/IconButton'
 import { useDismiss } from '../useDismiss'
 import { NotesEditor, type LineActions } from './NotesEditor'
+import { keysOf } from '../shortcuts'
 
 interface Info { id: string; title: string; updatedAt: number }
 interface Project { path: string; name: string }
@@ -29,6 +30,7 @@ export function NotesApp() {
   const [menu, setMenu] = useState<null | 'notes'>(null)
   // A panel beside the note (making tasks, asking an agent): the window is made wider for it, so it never covers the note.
   const [panel, setPanel] = useState<null | { kind: 'make' } | { kind: 'ask'; line: number }>(null)
+  const [lineMenu, setLineMenu] = useState<null | { line: number; top: number; right: number }>(null)
   const [sideAt, setSideAt] = useState<'left' | 'right'>('right')
   const [pinned, setPinned] = useState(true)
   const [error, setError] = useState('')
@@ -141,7 +143,11 @@ export function NotesApp() {
       const top = [...ls.slice(0, line)].reverse().find((l) => l.kind === 'item' && l.indent < 2)
       void makeTasks([...(top && !top.todo ? [top.line] : []), line]).catch(fail)
     },
-    ask: (line) => void showPanel({ kind: 'ask', line }).catch(fail)
+    ask: (line) => void showPanel({ kind: 'ask', line }).catch(fail),
+    menu: (line, anchor) => {
+      const r = anchor.getBoundingClientRect()
+      setLineMenu((cur) => (cur?.line === line ? null : { line, top: r.bottom + 4, right: window.innerWidth - r.right }))
+    }
   }
 
   const info = notes.find((n) => n.id === id)
@@ -253,7 +259,26 @@ export function NotesApp() {
         <button className="nt-makebtn" disabled={!info} aria-expanded={panel?.kind === 'make'} onClick={() => (panel?.kind === 'make' ? closePanel() : openMake())}>Make tasks…</button>
       </footer>
       </div>
+      {lineMenu && <LineMenu line={lineMenu.line} at={lineMenu} text={text} actions={actions} onClose={() => setLineMenu(null)} />}
       {confirmNode}
+    </div>
+  )
+}
+
+/** What can be done with a line, from its handle: the keys are shown beside each. A line that is a task already can only be asked about. */
+function LineMenu({ line, at, text, actions, onClose }: { line: number; at: { top: number; right: number }; text: string; actions: LineActions; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, true, onClose)
+  const l = noteLines(text)[line]
+  if (!l) return null
+  const items: { label: string; keys: string; run: () => void }[] = [
+    ...(l.todo ? [] : l.indent >= 2 ? [] : [{ label: '→ Task', keys: keysOf('note-task'), run: () => actions.task(line) }]),
+    ...(l.todo ? [] : [{ label: '→ Subtask', keys: keysOf('note-subtask'), run: () => actions.subtask(line) }]),
+    { label: 'Ask agent', keys: keysOf('note-ask'), run: () => actions.ask(line) }
+  ]
+  return (
+    <div className="td-pop nt-menu" ref={ref} role="menu" aria-label="Line actions" style={{ top: at.top, right: at.right }}>
+      {items.map((i) => <button key={i.label} role="menuitem" onClick={() => (onClose(), i.run())}><span>{i.label}</span><kbd>{i.keys}</kbd></button>)}
     </div>
   )
 }

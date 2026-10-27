@@ -174,8 +174,27 @@ describe('the table of shortcuts', () => {
 
 describe('the notes window shortcut', () => {
   it('is in the sheet, for every program, as the key the app registers', () => {
-    expect(hint('notes', true)).toBe('Show or hide the notes window, from any app (⌘⌥N)')
-    expect(hint('notes', false)).toBe('Show or hide the notes window, from any app (Ctrl+Alt+N)')
+    expect(hint('notes', true)).toBe('Show or hide the notes window, from any app (⌥⇧⌘N)')
+    expect(hint('notes', false)).toBe('Show or hide the notes window, from any app (Alt+Shift+Ctrl+N)')
+  })
+})
+
+describe('the notes shortcuts and the keys the system keeps', () => {
+  // Combinations macOS, Windows and common desktops act on before an app sees them, or that other apps register for the whole computer.
+  const SYSTEM = ['Mod+Space', 'Alt+Mod+Space', 'Ctrl+Mod+Space', 'Mod+Tab', 'Mod+`', 'Mod+Q', 'Mod+H', 'Alt+Mod+H', 'Alt+Mod+Escape', 'Mod+M', 'Alt+Mod+M', 'Shift+Mod+3', 'Shift+Mod+4', 'Shift+Mod+5', 'Alt+Mod+D', 'Alt+Tab', 'Alt+F4', 'Ctrl+Alt+Delete', 'Alt+Mod+N', 'Mod+Alt+N']
+  const notes = SHORTCUTS.filter((s) => s.id === 'notes' || s.place === 'Notes')
+  const norm = (k: string) => k.split('+').sort().join('+')
+  it('does not use any of them', () => {
+    for (const s of notes) for (const k of s.keys) expect(SYSTEM.map(norm), `${s.id} ${k}`).not.toContain(norm(k))
+  })
+  it('keeps the key that shows the window, which works over every app, apart from every key the app itself uses', () => {
+    const key = SHORTCUTS.find((s) => s.id === 'notes')!.keys[0]!
+    expect(key.split('+').length).toBeGreaterThanOrEqual(4)
+    expect(SHORTCUTS.filter((s) => s.id !== 'notes' && s.keys.some((k) => norm(k) === norm(key)))).toEqual([])
+  })
+  it('gives each thing in the notes window its own key', () => {
+    const all = notes.filter((s) => s.place === 'Notes').flatMap((s) => s.keys.map(norm))
+    expect(new Set(all).size).toBe(all.length)
   })
 })
 
