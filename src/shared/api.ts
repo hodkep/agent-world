@@ -277,6 +277,8 @@ export interface AwApi {
     agents(folder: string): Promise<{ id: string; name: string; provider: string }[]>
     ask(folder: string, todoId: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<void>
     /** Widens the window by `extra` pixels for a panel beside the note (0 gives the room back); which side the panel is on. */
+    /** Whether the key that shows the window from anywhere could be taken (another app may have it). */
+    shortcut(): Promise<boolean>
     side(extra: number): Promise<'left' | 'right' | null>
     toggle(): Promise<void>
     hide(): Promise<void>

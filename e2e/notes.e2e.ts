@@ -57,7 +57,9 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
 
     // A line made a task takes its parts with it as subtasks, and is marked with its number.
     await pad.locator('.nt-item', { hasText: 'Umbrella' }).hover()
-    await pad.locator('.nt-item', { hasText: 'Umbrella' }).getByRole('button', { name: '→ Task' }).click()
+    await pad.locator('.nt-item', { hasText: 'Umbrella' }).getByRole('button', { name: 'Line actions' }).click()
+    if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-menu.png` })
+    await pad.getByRole('menuitem', { name: /→ Task/ }).click()
     await expect(pad.locator('.nt-linked')).toHaveCount(3)
     await expect(pad.locator('.nt-item', { hasText: 'Umbrella' })).toContainText('(todo#1)')
     await page.locator('header').getByRole('button', { name: /^Todos/ }).click()
@@ -66,12 +68,16 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await board.getByRole('button', { name: /^Close/ }).first().click()
 
     await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
-    // The line's buttons are drawn over its right end, not among its words: the line does not grow when they show.
-    const partB = pad.locator('.nt-item', { hasText: 'Part b' })
-    await pad.locator('.nt-title').hover()
-    const before = (await partB.boundingBox())!.y
-    await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
-    expect((await partB.boundingBox())!.y).toBe(before)
+    // The line's handle is in a margin of its own: it is not over any of the words, which can be clicked and edited.
+    const partA = pad.locator('.nt-item', { hasText: 'Part a' })
+    const handle = partA.getByRole('button', { name: 'Line actions' })
+    const hb = (await handle.boundingBox())!
+    const eb = (await partA.boundingBox())!
+    expect(hb.x).toBeGreaterThanOrEqual(eb.x + eb.width - 1)
+    await partA.click({ position: { x: 70, y: 10 } })
+    await pad.keyboard.type('!')
+    await expect(pad.locator('.cm-content')).toContainText('!')
+    await pad.keyboard.press('Backspace')
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-hover.png` })
     // Make tasks… shows what it would make, and a line that is a task already is not made again.
     await editor.click()
@@ -93,8 +99,9 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await expect(pad.locator('.nt-item', { hasText: 'Later thing' })).toContainText('(todo#4)')
     // A line that is a task has Ask agent only, and asking about it sends that task, as the chat shows.
     await pad.locator('.nt-item', { hasText: 'Part b' }).hover()
-    await expect(pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: '→ Task' })).toHaveCount(0)
-    await pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: 'Ask agent' }).click()
+    await pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: 'Line actions' }).click()
+    await expect(pad.getByRole('menuitem')).toHaveText([/Ask agent/])
+    await pad.getByRole('menuitem', { name: /Ask agent/ }).click()
     const askBox = pad.getByRole('dialog', { name: 'Ask an agent' })
     await askBox.getByLabel('What to say').fill('Start with the tests.')
     await askBox.getByRole('button', { name: 'Send' }).click()
@@ -118,6 +125,14 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await pad.keyboard.press('Enter')
     await pad.keyboard.press('Enter')
     await expect(pad.locator('.nt-box')).toHaveCount(2)
+    await pad.keyboard.press('Control+A')
+    await pad.keyboard.press('Meta+A')
+    await pad.keyboard.press('Backspace')
+    await pad.keyboard.insertText('Second note')
+    // The same things from the keyboard (Ctrl, or Cmd on a Mac): Mod+Enter makes the line a task.
+    await pad.keyboard.insertText('\n- [ ] by keyboard')
+    await pad.keyboard.press('ControlOrMeta+Enter')
+    await expect(pad.locator('.nt-item', { hasText: 'by keyboard' })).toContainText('(todo#')
     await pad.keyboard.press('Control+A')
     await pad.keyboard.press('Meta+A')
     await pad.keyboard.press('Backspace')

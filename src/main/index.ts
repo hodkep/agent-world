@@ -1863,7 +1863,9 @@ async function main() {
   ipcMain.handle('notes:pin', (_, on: boolean) => (notesWin?.pin(!!on), notesWin?.pinned()))
   ipcMain.handle('notes:pinned', () => notesWin?.pinned() ?? true)
   // Shown or hidden from anywhere on the computer.
-  if (!HIDDEN) globalShortcut.register('Alt+CommandOrControl+N', () => notesWin?.toggle())
+  // Option+Shift+Command+N (Alt+Shift+Ctrl+N elsewhere): four keys, which no system and few apps use; when another app has it already the button still works and the tip does not name a key.
+  const notesShortcut = !HIDDEN && globalShortcut.register('Alt+Shift+CommandOrControl+N', () => notesWin?.toggle())
+  ipcMain.handle('notes:shortcut', () => notesShortcut)
   app.on('will-quit', () => globalShortcut.unregisterAll())
   app.on('before-quit', () => notesWin?.quit())
   // The error page's Reload: the window's own navigation is locked (will-navigate), which also stops the page from reloading itself.
