@@ -376,7 +376,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
   server.registerTool(
     'todo_done',
     {
-      description: 'Mark a task done. Say what you did in a line, and how in a few (the approach, where the knowledge is), so someone who has to do it again can find out. It records you, the message you are saying this in, and the commits you made.',
+      description: 'Mark a task done once its change is pushed (when the person told you to push, tested or not) or tested, by you or by them; not when the code is merely written. Say what you did in a line, and how in a few (the approach, where the knowledge is), so someone who has to do it again can find out. It records you, the message you are saying this in, and the commits you made.',
       inputSchema: {
         id,
         note: z.string().max(500).optional().describe('What was done, in a line'),

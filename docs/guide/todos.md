@@ -75,7 +75,7 @@ Agents work on the same board through these tools.
 | `todo_add` | Adds a task. With no list it goes to the **Inbox**. It can name a `parent` task and `labels`. |
 | `todo_claim` | Says the agent is doing it now. Another agent cannot claim it meanwhile. |
 | `todo_update` | Changes title, list, notes, needs you, status, parent or labels. |
-| `todo_done` | Marks it done with a note and how it was done. |
+| `todo_done` | Marks it done with a note and how it was done. Agents are asked to call it once the change is pushed (on your word to push, tested or not) or has been tested, by them or by you, and not when the code is merely written. |
 
 Everyone sees the same board. **Activity** says who changed what. A finished task keeps the commits and files git shows the agent changed. Agents have no tool to delete or reopen a task. Only you can.
 

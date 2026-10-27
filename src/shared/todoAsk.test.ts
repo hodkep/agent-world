@@ -22,6 +22,7 @@ describe('askMessage', () => {
     const m = askMessage(todo(), 'work', 'Start with the Settings page.')
     expect(m).toMatch(/work on/i)
     expect(m).toMatch(/todo_done/)
+    expect(m).toMatch(/pushed|tested/)
     expect(m).toContain('Start with the Settings page.')
     expect(m).toMatch(/already (recorded|assigned)|assigned to you/i)
   })

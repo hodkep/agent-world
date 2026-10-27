@@ -15,9 +15,16 @@ describe('trackingHint', () => {
     expect(h).toMatch(/todo_done/)
     expect(h).toMatch(/every request|each request/i)
   })
+  it('says a task is done when its change is pushed or tested, not when the code is written', () => {
+    const h = trackingHint('full')
+    expect(h).toMatch(/pushed/)
+    expect(h).toMatch(/tested/)
+    expect(h).toMatch(/not when .*written/i)
+    expect(h).not.toMatch(/when you finish\b(?! one)/)
+  })
   it('stays short, because it is paid for in every session', () => {
     expect(trackingHint('deferred').length).toBeLessThan(820)
-    expect(trackingHint('full').length).toBeLessThan(940)
+    expect(trackingHint('full').length).toBeLessThan(1220)
   })
 })
 
@@ -65,6 +72,12 @@ describe('reminderLine', () => {
     const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, ['Application', 'Canvas'])
     expect(l).toContain('todo#12')
     expect(l).toMatch(/todo_done/)
+  })
+  it('in full mode says the same: done once pushed on the person\'s word or tested, not when written', () => {
+    const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' })
+    expect(l).toMatch(/pushed/)
+    expect(l).toMatch(/tested/)
+    expect(l).not.toMatch(/when it is finished/)
   })
   it('in full mode says nothing when no task was made (a thank-you)', () => {
     expect(reminderLine('full', 'thanks')).toBe('')
