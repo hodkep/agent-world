@@ -164,3 +164,21 @@ test('an agent that has worked for ten seconds and finishes cheers, with a shout
     await o.shutdown()
   }
 })
+
+test('agents whose turn ended in Claude\'s idle prompt (waiting) are as free as idle ones: two of them sit down to carrom and are not sent back to their seats', async () => {
+  test.setTimeout(240_000)
+  const o = await shotApp({ scenes: { ada: 'waiting', dee: 'waiting' } })
+  try {
+    const { page } = o
+    await page.evaluate(() => localStorage.setItem('aw.staffFast', '20'))
+    await page.reload()
+    await page.locator('.stage').waitFor()
+    for (const name of ['ada', 'dee']) await hireNamed(page, name)
+    const game = async () => (JSON.parse((await stage(page).getAttribute('data-life')) ?? 'null') as { game: { started: boolean; strikes: number } | null } | null)?.game
+    await call(page, 'game')
+    await expect.poll(async () => (await game())?.started, { timeout: 120_000 }).toBe(true)
+    await expect.poll(async () => (await game())?.strikes ?? 0, { timeout: 60_000 }).toBeGreaterThan(0)
+  } finally {
+    await o.shutdown()
+  }
+})

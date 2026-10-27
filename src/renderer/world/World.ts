@@ -92,6 +92,8 @@ const TRIP = { left: LOT.left, right: LOT.right, laneY: MAP_H + 8 + 27, doorX: L
 const BOY_SEAT = { x: 24, y: 5 }
 const BOARD_WEST = { x: 19, y: 5 }
 const HUDDLE_LINES = ['What if we split it?', 'Arrow goes here.', 'Ship it?', 'Draw the boxes first.']
+/** An agent between turns: idle, or in Claude's idle prompt (waiting), which comes a minute after the turn ends. Either is free to fetch a drink, nap or play carrom. */
+const resting = (a: Activity) => a === 'idle' || a === 'waiting'
 const calmMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export interface AgentView {
@@ -585,7 +587,7 @@ export class OfficeWorld {
     // On an errand or at the carrom board it stays away from its seat while it has nothing to do; with work it is called back.
     if (c.errand) {
       // A fire drill takes everyone out, those at work too.
-      if (activity === 'idle' || this.errands.get(c.key)?.kind === 'drill') return
+      if (resting(activity) || this.errands.get(c.key)?.kind === 'drill') return
       c.errand = false
       this.cancelErrand(c.key)
     }
@@ -846,11 +848,11 @@ export class OfficeWorld {
     let idle = 0
     for (const c of this.chars.values()) {
       if (c.role === 'intern' || c.leaving || c.waiting || !c.arrived) continue
-      if (c.activity === 'idle') idle++
+      if (resting(c.activity)) idle++
       const beside = this.besideOf(c)
       if (!beside) continue
       if (['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(c.activity)) working.push(beside)
-      else if (c.activity === 'idle' && !c.errand && (c.doing === '' || c.doing === 'nap')) idleAgents.push(beside)
+      else if (resting(c.activity) && !c.errand && (c.doing === '' || c.doing === 'nap')) idleAgents.push(beside)
     }
     const bt = boy.at
     const meet = [{ to: { x: bt.x + 1, y: bt.y }, face: 'left' as Face }, { to: { x: bt.x - 1, y: bt.y }, face: 'right' as Face }].find((m) => map.walkable(m.to)) ?? { to: { ...bt }, face: 'left' as Face }
@@ -918,9 +920,9 @@ export class OfficeWorld {
   private lifeTick(dt: number, t: number) {
     for (const [key, e] of [...this.errands]) {
       const c = this.chars.get(key)
-      if (!c || c.leaving || (e.kind !== 'drill' && c.activity !== 'idle')) this.cancelErrand(key)
+      if (!c || c.leaving || (e.kind !== 'drill' && !resting(c.activity))) this.cancelErrand(key)
     }
-    const free = [...this.chars.entries()].filter(([k, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '' && c.gathered === null && (this.cool.get(k) ?? 0) <= t).map(([k]) => k)
+    const free = [...this.chars.entries()].filter(([k, c]) => c.role !== 'intern' && !c.leaving && !c.waiting && c.arrived && resting(c.activity) && !c.errand && c.doing === '' && c.gathered === null && (this.cool.get(k) ?? 0) <= t).map(([k]) => k)
     const huddle = [...this.errands.values()].some((e) => e.kind === 'huddle')
     const plan = this.drill ? null : this.life.decide(this.wall, free, { game: !!this.game, water: this.director.water, coffee: this.director.coffee, ritual: this.ritual, huddle, away: [...this.errands.values()].filter((e) => e.kind !== 'drill').length })
     if (plan?.kind === 'drink') this.startDrink(plan.agent, plan.what)
@@ -1058,7 +1060,7 @@ export class OfficeWorld {
 
   /** Idle agents at their places, whatever their rest after the last errand (for the trials). */
   private idleNow() {
-    return [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived && c.activity === 'idle' && !c.errand && c.doing === '').map(([k]) => k)
+    return [...this.chars].filter(([, c]) => c.role !== 'intern' && !c.leaving && c.arrived && resting(c.activity) && !c.errand && c.doing === '').map(([k]) => k)
   }
 
   private doWanted() {
@@ -1232,7 +1234,7 @@ export class OfficeWorld {
     for (const [key, c] of this.chars) {
       if (c.role === 'intern' || c.leaving) continue
       if (this.tired.has(key)) {
-        if (c.activity !== 'idle') this.tired.delete(key)
+        if (!resting(c.activity)) this.tired.delete(key)
         else if (c.arrived && c.doing === '' && !c.errand) {
           this.tired.delete(key)
           c.doing = 'stretch'
@@ -1242,14 +1244,14 @@ export class OfficeWorld {
         }
       }
       if (c.doing === 'nap') {
-        if (c.activity !== 'idle' || c.errand || t >= (this.napOff.get(key) ?? 0)) {
+        if (!resting(c.activity) || c.errand || t >= (this.napOff.get(key) ?? 0)) {
           c.doing = ''
           this.napOff.set(key, t + 30_000 / speed)
         } else if (t >= c.doingUntil) {
           c.doingUntil = t + 4500 / speed
           this.shouts.say(`nap:${key}`, 'Zzz...', 1800, () => ({ x: c.view.x + TILE / 2, y: c.view.y - 34 }))
         }
-      } else if (c.doing === '' && !c.errand && c.arrived && c.activity === 'idle' && c.gathered === null && this.rest.napping(key, sT) && t >= (this.napOff.get(key) ?? 0) && Math.random() < (dt * speed) / 20_000) {
+      } else if (c.doing === '' && !c.errand && c.arrived && resting(c.activity) && c.gathered === null && this.rest.napping(key, sT) && t >= (this.napOff.get(key) ?? 0) && Math.random() < (dt * speed) / 20_000) {
         c.doing = 'nap'
         c.doingAt = t
         c.doingUntil = t + 1500 / speed
