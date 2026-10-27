@@ -60,6 +60,7 @@ test('a widget cannot get out: no network, no reach into the app, no navigation,
     const cfg = JSON.parse(readFileSync(join(agentDir, 'mcp.json'), 'utf8')).mcpServers['agent-world']
     client = new Client({ name: 'ada', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(cfg.url), { requestInit: { headers: cfg.headers } }))
+    await client.callTool({ name: 'chat_mod_get', arguments: {} })
     const w = { id: 'evil', slot: 'above-composer', height: 60, html: hostile(port), meters: ['todos'] }
     const res = (await client.callTool({ name: 'chat_mod_write', arguments: { widgets: [w], why: 'a widget' } })) as { isError?: boolean; content: { text: string }[] }
     expect(res.isError ?? false, res.content[0]!.text).toBe(false)

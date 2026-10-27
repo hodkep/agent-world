@@ -33,10 +33,12 @@ test('POC: an agent changes the chat look through its tools; it shows as a draft
     const cfg = JSON.parse(readFileSync(join(agentDir, 'mcp.json'), 'utf8')).mcpServers['agent-world']
     client = new Client({ name: 'ada', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(cfg.url), { requestInit: { headers: cfg.headers } }))
-    const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const raw = async (name: string, args: Record<string, unknown> = {}) => {
       const r = (await client!.callTool({ name, arguments: args })) as { isError?: boolean; content: { text: string }[] }
       return { err: !!r.isError, text: r.content[0]!.text }
     }
+    // A careful agent reads the look before it writes; `raw` is for the one place that shows what happens when it does not.
+    const call = async (name: string, args: Record<string, unknown> = {}) => (name === 'chat_mod_write' && (await raw('chat_mod_get')), raw(name, args))
     expect((await call('chat_mod_guide')).text).toContain('chat_mod_write')
     expect(JSON.parse((await call('chat_mod_get')).text).current.css).toBe('')
 
@@ -106,6 +108,12 @@ test('POC: an agent changes the chat look through its tools; it shows as a draft
     await expect(bar).toHaveCount(0)
     await expect(log.locator('.tc')).toHaveCount(tools)
     await expect(log.locator('[data-pack]')).toHaveCount(0)
+
+    // The person pressed Undo, so what the agent remembers is out of date: a write from that picture is refused, and nothing appears.
+    const stale = await raw('chat_mod_write', { css: '.msg.assistant { border-left: 4px solid #ff6600 }', why: 'again' })
+    expect(stale.err).toBe(true)
+    expect(stale.text).toMatch(/changed since you last read it.*chat_mod_get/s)
+    await expect(bar).toHaveCount(0)
 
     // Write again and Keep: it stays, also after the window is reloaded.
     await call('chat_mod_write', { css: '.msg.assistant { border-left: 4px solid #ff6600 }', layout: [{ match: { kind: ['tool'] }, place: 'badge', label: 'steps' }], why: 'a count' })

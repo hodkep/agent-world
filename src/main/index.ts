@@ -1501,8 +1501,8 @@ async function main() {
     },
     todos: todoService,
     chatMod: {
-      state: () => chatMod.state(),
-      write: (id, i) => chatMod.write({ ...i, by: byId(id)?.name ?? 'An agent' }),
+      state: (id) => (chatMod.read(id), chatMod.state()),
+      write: (id, i) => chatMod.write({ ...i, who: id, by: byId(id)?.name ?? 'An agent' }),
       outline: async (selector, depth) => {
         const w = frontWindow()
         if (!w) return 'No window is open.'

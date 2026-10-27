@@ -95,6 +95,60 @@ describe('the look an agent writes', () => {
     expect(m.state().draft).toBeNull()
   })
 
+  describe('an agent writing from a picture that is out of date', () => {
+    const stale = /changed since you last read it.*chat_mod_get/s
+    const hi = (m: ReturnType<typeof createChatMod>, who = 'a1') => m.write({ css: '.a { color: red }', by: 'ada', who, why: 'x' })
+
+    it('must have read the look first', () => {
+      const m = createChatMod(dir)
+      expect(hi(m).problems[0]).toMatch(stale)
+      expect(m.state().draft).toBeNull()
+      m.read('a1')
+      expect(hi(m).problems).toEqual([])
+    })
+
+    it('can write again after its own write, without reading', () => {
+      const m = createChatMod(dir)
+      m.read('a1')
+      expect(hi(m).problems).toEqual([])
+      expect(m.write({ css: '.a { color: blue }', by: 'ada', who: 'a1', why: 'y' }).problems).toEqual([])
+    })
+
+    it('is refused after the person undid its draft: what was undone is not in force, and the agent must look again', () => {
+      const m = createChatMod(dir)
+      m.read('a1')
+      m.write({ widgets: [{ id: 'old', slot: 'chat-top', html: 'x' }], by: 'ada', who: 'a1', why: 'a' })
+      m.undo()
+      const r = m.write({ widgets: [{ id: 'new', slot: 'chat-top', html: 'y' }], by: 'ada', who: 'a1', why: 'b' })
+      expect(r.problems[0]).toMatch(stale)
+      expect(m.state().draft).toBeNull()
+      m.read('a1')
+      expect(m.write({ widgets: [{ id: 'new', slot: 'chat-top', html: 'y' }], by: 'ada', who: 'a1', why: 'b' }).problems).toEqual([])
+      expect(m.state().draft?.widgets.map((w) => w.id)).toEqual(['new'])
+    })
+
+    it('is refused after Keep, a restore, going back, or another agent writing', () => {
+      const acts: [string, (m: ReturnType<typeof createChatMod>) => void][] = [
+        ['keep', (m) => m.keep()],
+        ['reset', (m) => m.reset()],
+        ['back', (m) => m.back()],
+        ['another agent', (m) => (m.read('a2'), hi(m, 'a2'))]
+      ]
+      for (const [name, act] of acts) {
+        const m = createChatMod(join(dir, name.replace(' ', '-')))
+        m.read('a1')
+        m.read('a2')
+        m.write({ css: '.seed { order: 1 }', by: 'ada', who: 'a1', why: 'seed' })
+        m.keep()
+        m.read('a1')
+        m.read('a2')
+        m.write({ css: '.z { order: 2 }', by: 'ada', who: 'a1', why: 'draft' })
+        act(m)
+        expect(hi(m).problems[0], name).toMatch(stale)
+      }
+    })
+  })
+
   it('Undo throws the draft away and leaves what was in force', () => {
     const m = createChatMod(dir)
     m.write({ css: '.a { color: red }', by: 'ada', why: 'a' })
