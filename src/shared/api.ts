@@ -1,5 +1,6 @@
 import type { InstallState } from './updateInstall'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
+import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Run } from './runs'
 import type { HandoffKind } from './handoff'
@@ -179,6 +180,8 @@ export interface AwApi {
   tokensReport(days: number): Promise<TokensReport>
   usageReport(days: number): Promise<UsageReport>
   overview(days: number): Promise<Overview>
+  /** Where every token of the last `days` days went, by program, account, agent, project and model. */
+  tokenMix(days: number, account?: string): Promise<TokenMix>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** One subagent's own conversation: what it thought and said, each call and what it returned. */

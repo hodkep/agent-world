@@ -1,5 +1,6 @@
 import { agyCalls, subagentCallId } from './toolTable'
 import type { ChatItem } from '../../../shared/chat'
+import type { UsageRecord } from '../../../shared/tokens'
 import { all, num, text } from './wire'
 
 export interface StepRow {
@@ -53,6 +54,25 @@ export function usageOf(payload: Buffer | null): StepUsage | null {
   const wrote = num(payload, '5.9.3')
   if (read === undefined || wrote === undefined) return null
   return { input: read + (num(payload, '5.9.5') ?? 0), output: wrote, thinking: num(payload, '5.9.9') ?? 0 }
+}
+
+/**
+ * The requests agy made after step `after`, one record per finished model step, and the number of the last step looked at, to continue from.
+ * `input` is what it read fresh (field 2) and `cacheRead` what it read from its cache (field 5); agy never says what it wrote to the cache.
+ * Reading stops at the first step still being worked on, so a step is counted once, whole.
+ */
+export function usageRequests(rows: StepRow[], after: number, model: string): { records: UsageRecord[]; cursor: number } {
+  const records: UsageRecord[] = []
+  let cursor = after
+  for (const r of rows) {
+    if (r.idx <= after) continue
+    if (!FINISHED.has(r.status)) break
+    cursor = r.idx
+    const input = num(r.payload, '5.9.2')
+    const output = num(r.payload, '5.9.3')
+    if (r.type === MODEL && input !== undefined && output !== undefined) records.push({ id: String(r.idx), at: stepTime(r.payload), model, input, cacheRead: num(r.payload, '5.9.5') ?? 0, output })
+  }
+  return { records, cursor }
 }
 
 /** A conversation's totals, and how much the last step held (what it read plus what it wrote): roughly how full its context is. */

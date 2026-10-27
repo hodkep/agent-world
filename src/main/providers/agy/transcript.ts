@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import type { ChatItem, SubagentInfo } from '../../../shared/chat'
 import type { AgentRecord } from '../../../shared/types'
 import type { PastSession, TranscriptSource } from '../ports'
-import { FINISHED, decodeStep, json, stepTime, subagentCallId, sumUsage, toolView, usageOf, type StepRow } from './steps'
+import { FINISHED, decodeStep, json, stepTime, subagentCallId, sumUsage, toolView, usageOf, usageRequests, type StepRow } from './steps'
 import { all, text } from './wire'
 
 /** agy keeps its state under one folder; the environment can point elsewhere (tests, other machines). */
@@ -143,6 +143,7 @@ export const agyTranscript: TranscriptSource = {
   follow: (a, onItems) => new AgyTail(conversationFile(a.sessionId), onItems),
   readAll: (a) => ready(stepsAfter(conversationFile(a.sessionId), -1)).flatMap(decodeStep),
   subagents: (a) => subagentsOf(a),
+  requests: (a, after, model) => usageRequests(stepsAfter(conversationFile(a.sessionId), after), after, model),
   usage: (a) => sumUsage(stepsAfter(conversationFile(a.sessionId), -1).filter((r) => r.type === 15 && FINISHED.has(r.status)).map((r) => usageOf(r.payload))),
   /** agy appends a line per prompt to its history: group them by conversation, for this folder and the worktrees made under it. */
   async history(folder, worktreeRoot) {

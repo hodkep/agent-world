@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { UsageRecord } from '../../../shared/tokens'
 import type { AgentEvent, AgentRecord, PermissionRequest, Question } from '../../../shared/types'
 import type { EventSourceOptions } from '../ports'
 import { createAgyEvents } from './events'
@@ -8,7 +9,7 @@ import { createAgyEvents } from './events'
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', `${n}.txt`), 'utf8')
 const agent = (o: Partial<AgentRecord> = {}): AgentRecord => ({ id: 'a1', name: 'ada', sessionId: 'uuid-made-by-app', repoPath: '/r', cwd: '/w/ada', branch: 'aw/ada', started: false, provider: 'agy', ...o })
 
-function setup(opts: { subs?: { agentId: string; type: string; done: boolean; stopped: boolean }[]; usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; questions?: Question[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
+function setup(opts: { subs?: { agentId: string; type: string; done: boolean; stopped: boolean }[]; usage?: { input: number; output: number; context: number }; agents?: AgentRecord[]; requests?: (after: number, model: string) => { records: UsageRecord[]; cursor: number }; questions?: Question[]; conversations?: { id: string; workspace?: string; bornAt?: number }[] } = {}) {
   const agents = opts.agents ?? [agent()]
   const screens: Record<string, string> = { a1: fx('idle') }
   const events: AgentEvent[] = []
@@ -19,6 +20,8 @@ function setup(opts: { subs?: { agentId: string; type: string; done: boolean; st
   const statuses: (string | null)[][] = []
   const tokenReports: ({ input: number; output: number; context: number } | null)[] = []
   const pcts: (number | null)[] = []
+  const usages: [string, UsageRecord[], number | undefined][] = []
+  const asks: [number, string][] = []
   const o: EventSourceOptions = {
     agentForToken: () => null,
     permissionTimeoutMs: 1000,
@@ -26,14 +29,18 @@ function setup(opts: { subs?: { agentId: string; type: string; done: boolean; st
     onPermission: (r) => asked.push(r),
     onPermissionSettled: (id) => settled.push(id),
     onStatus: (st) => (statuses.push([st.model, st.effort]), tokenReports.push(st.tokens ?? null), pcts.push(st.contextPct)),
+    onUsage: (id, records, cursor) => {
+      usages.push([id, records, cursor])
+      if (cursor !== undefined) agents.find((a) => a.id === id)!.usageCursor = cursor
+    },
     onSession: (id, s) => {
       sessions.push([id, s])
       agents.find((a) => a.id === id)!.sessionId = s
     },
     terminal: { agents: () => agents, screen: (id) => screens[id] ?? '', write: (_id, k) => written.push(k), startedAt: () => 1000 }
   }
-  const src = createAgyEvents(o, { window: (m) => (m.startsWith('Gemini') ? 1_000_000 : null), subagents: () => opts.subs ?? [], questions: () => opts.questions ?? null, usage: () => opts.usage ?? null, conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
-  return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports, pcts }
+  const src = createAgyEvents(o, { window: (m) => (m.startsWith('Gemini') ? 1_000_000 : null), subagents: () => opts.subs ?? [], questions: () => opts.questions ?? null, usage: () => opts.usage ?? null, requests: (_a, after, model) => (asks.push([after, model]), opts.requests?.(after, model) ?? { records: [], cursor: after }), conversations: () => (opts.conversations ?? []).map((c) => ({ bornAt: 2000, ...c })), sleep: async () => {} })
+  return { src, screens, events, asked, settled, sessions, written, agents, statuses, tokenReports, pcts, usages, asks }
 }
 const acts = (e: AgentEvent[]) => e.filter((x) => x.type === 'activity').map((x) => (x as { activity: string }).activity)
 
@@ -303,5 +310,36 @@ describe('a question agy asks with its ask_question tool', () => {
     t.screens.a1 = fx('idle')
     t.src.tick()
     expect(t.events.filter((e) => e.type === 'question')).toEqual([])
+  })
+})
+
+describe('the requests agy made, read from its conversation file', () => {
+  const rec = (id: string): UsageRecord => ({ id, at: 1, model: 'Gemini 3.8 Flash', input: 10, cacheRead: 5, output: 2 })
+  const steps = [rec('1'), rec('3')]
+  const reads = (after: number, model: string) => (void model, { records: steps.filter((r) => Number(r.id) > after), cursor: 3 })
+
+  it('count nothing of an old conversation the first time it is seen: that history is already in the ledger, so only its bookmark is taken', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1', hiredAt: Date.now() - 3_600_000 })], requests: reads })
+    t.src.tick()
+    expect(t.usages).toEqual([['a1', [], 3]])
+  })
+
+  it('count every step of an agent just hired, from the start', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1', hiredAt: Date.now() })], requests: reads })
+    t.src.tick()
+    expect(t.usages).toEqual([['a1', steps, 3]])
+    expect(t.asks[0]).toEqual([-1, 'Gemini 3.8 Flash'])
+  })
+
+  it('go on from the bookmark the app kept, and give only what is new', () => {
+    const t = setup({ agents: [agent({ started: true, sessionId: 'c1', usageCursor: 1 })], requests: reads })
+    t.src.tick()
+    expect(t.usages).toEqual([['a1', [steps[1]], 3]])
+  })
+
+  it('are not asked for before a conversation has started', () => {
+    const t = setup({ conversations: [{ id: 'conv-1' }], requests: reads })
+    t.src.tick()
+    expect(t.usages).toEqual([])
   })
 })

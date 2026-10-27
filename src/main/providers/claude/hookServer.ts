@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import type { AgentEvent, Decision, PermissionRequest } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions } from '../ports'
 import { activityFor, describeTool, normalize } from './events'
+import { parseOtlpLogs } from './otlp'
 import { parseStatus, statusText } from './status'
 
 // Write tool payloads carry whole files; anything past this is not a legit hook call.
@@ -75,7 +76,7 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
   }
 
   const server = createServer(async (req, res) => {
-    if (req.method !== 'POST' || (req.url !== '/hook' && req.url !== '/status')) return void res.writeHead(404).end()
+    if (req.method !== 'POST' || (req.url !== '/hook' && req.url !== '/status' && req.url !== '/v1/logs' && req.url !== '/v1/metrics')) return void res.writeHead(404).end()
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1]
     const agentId = bearer ? o.agentForToken(bearer) : null
     if (!agentId) return void res.writeHead(401).end()
@@ -87,6 +88,12 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
       payload = JSON.parse(body)
     } catch {
       return void res.writeHead(400).end()
+    }
+    // Claude Code's own OpenTelemetry export: the requests it made, counted exactly. Only logs carry them; metrics are answered and dropped.
+    if (req.url === '/v1/logs' || req.url === '/v1/metrics') {
+      const records = req.url === '/v1/logs' ? parseOtlpLogs(payload) : []
+      if (records.length) o.onUsage?.(agentId, records)
+      return void res.writeHead(200, { 'content-type': 'application/json' }).end('{}')
     }
     // Debugging aid: AW_HOOK_LOG=<file> records every raw payload, to learn shapes the docs leave out.
     if (process.env.AW_HOOK_LOG) appendFileSync(process.env.AW_HOOK_LOG, `${JSON.stringify({ url: req.url, agentId, payload })}\n`)

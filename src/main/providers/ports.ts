@@ -1,5 +1,6 @@
 import type { RawCall, ToolTranslator } from '../../shared/tools'
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
+import type { UsageRecord } from '../../shared/tokens'
 import type { PaletteCommand } from '../../shared/commands'
 import type { ModeInfo } from '../../shared/modes'
 import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, LimitWindow, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
@@ -198,6 +199,11 @@ export interface EventSourceOptions {
   blockEdit?: (agentId: string, file: string, cwd: string) => string | null
   /** The agent is about to call a tool, with what it was given. */
   onToolUse?: (agentId: string, tool: string, input: Record<string, unknown>) => void
+  /**
+   * Requests the agent made to the model, counted exactly by the program (shared/tokens.ts). `cursor` is the provider's own bookmark of how far it has
+   * read (a program that is read from a file, not told), which the app keeps with the agent and gives back as `usageCursor`.
+   */
+  onUsage?: (agentId: string, records: UsageRecord[], cursor?: number) => void
   /** The agent's earlier conversation was just replaced by a summary. */
   onCompact?: (agentId: string) => void
   terminal?: TerminalAccess
@@ -236,6 +242,8 @@ export interface TranscriptSource {
   subagentConversation?(agent: AgentRecord, subagentId: string): ChatItem[]
   /** Tokens used so far, for a program whose conversation file records them. */
   usage?(agent: AgentRecord): { input: number; output: number; context: number } | null
+  /** The requests made after the bookmark `after` (-1 for from the start), and the bookmark to continue from, for a program whose conversation file records them. */
+  requests?(agent: AgentRecord, after: number, model: string): { records: UsageRecord[]; cursor: number }
   /** Sessions saved for this folder, including ones its agents ran in worktrees under `worktreeRoot`. */
   history(folder: string, worktreeRoot: string): Promise<PastSession[]>
   /** The session this agent moved to since `sinceMs` (a rewind forks to a new one), if any. */

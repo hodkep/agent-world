@@ -8,6 +8,8 @@ import { ProviderLogo } from '../panel/ProviderLogo'
 import { ProviderTag } from '../panel/ProviderTag'
 import { Modal } from '../panel/Modal'
 import { AcctName, acctViews, type AcctView } from './acct'
+import type { TokenMix } from '../../shared/tokenMix'
+import { TokensTab } from './TokensTab'
 
 const money = (n: number) => `$${n.toFixed(2)}`
 const RANGES = [7, 30, 90]
@@ -26,7 +28,7 @@ const none = (): Spend => ({ usd: 0, tokens: 0 })
 const sumOf = (list: Spend[]): Spend => list.reduce<Spend>((n, s) => ({ usd: n.usd + s.usd, tokens: n.tokens + s.tokens, ...((n.est ?? 0) + (s.est ?? 0) > 0 && { est: (n.est ?? 0) + (s.est ?? 0) }) }), none())
 const winKey = (w: LimitWindow) => acctKey(w.provider, w.account)
 
-type Tab = 'all' | 'accounts' | 'providers' | 'projects'
+type Tab = 'all' | 'accounts' | 'providers' | 'projects' | 'tokens'
 type Metric = 'usd' | 'tokens'
 type Scope = 'all' | string
 
@@ -195,10 +197,13 @@ export function UsageModal({
   const [open, setOpen] = useState<ProviderId | null>(null)
   const [focus, setFocus] = useState<string | null>(null)
   const [o, setO] = useState<Overview | null>(null)
+  const [mix, setMix] = useState<TokenMix | null>(null)
   const [now, setNow] = useState(Date.now())
   const [checking, setChecking] = useState(false)
   const load = useCallback(() => void window.aw.overview(days).then((x) => (setO(x), setNow(Date.now()))), [days])
   useEffect(load, [load])
+  const loadMix = useCallback(() => void window.aw.tokenMix(days, scope === 'all' ? undefined : scope).then(setMix), [days, scope])
+  useEffect(loadMix, [loadMix])
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15_000)
     return () => clearInterval(t)
@@ -206,6 +211,7 @@ export function UsageModal({
   const refresh = () => {
     setChecking(true)
     load()
+    loadMix()
     void onRefreshLimits().finally(() => (setChecking(false), setNow(Date.now())))
   }
   const views = useMemo(() => acctViews(providers, accounts, [...(o?.accounts ?? []), ...limits.map((w) => ({ provider: w.provider, account: w.account ?? '' }))]), [providers, accounts, o, limits])
@@ -254,9 +260,9 @@ export function UsageModal({
         </span>
       </div>
       <div className="st-tabs" role="tablist" aria-label="Usage view">
-        {(['all', 'accounts', 'providers', 'projects'] as const).map((t) => (
+        {(['all', 'accounts', 'providers', 'projects', 'tokens'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => (setTab(t), setOpen(null))}>
-            {{ all: 'Overview', accounts: 'Accounts', providers: 'Providers', projects: 'Projects' }[t]}
+            {{ all: 'Overview', accounts: 'Accounts', providers: 'Providers', projects: 'Projects', tokens: 'Tokens' }[t]}
           </button>
         ))}
       </div>
@@ -266,9 +272,10 @@ export function UsageModal({
         <div className="st-body">
           {tab === 'all' && (
             <>
-              <div className="st-cards four">
+              <div className="st-cards five">
                 <div className="st-card"><span>Spent, {days} days</span><b>{dollars(total)}</b><small>{change ?? (scoped ? chosen?.name : '~ marks dollars worked out from tokens')}</small></div>
                 <div className="st-card"><span>Tokens, {days} days</span><b>{tokenLabel(total.tokens)}</b><small>read and written{scoped ? '' : ', by every program'}</small></div>
+                <div className="st-card"><span>Served from cache</span><b>{mix && mix.total.share !== null ? `${Math.round(mix.total.share * 100)}%` : '—'}</b><small>{mix && mix.total.share !== null ? 'of what the agents read, counted exactly' : 'not reported yet'}</small></div>
                 <div className="st-card" data-level={tight ? level(tight.remainingPct) : undefined}>
                   <span>Tightest limit</span>
                   <b>{tight ? `${Math.round(tight.remainingPct)}% left` : '—'}</b>
@@ -344,6 +351,8 @@ export function UsageModal({
               </div>
             </>
           )}
+
+          {tab === 'tokens' && (mix ? <TokensTab mix={mix} days={days} providers={providers} view={view} /> : <p className="st-note">Loading…</p>)}
 
           {tab === 'accounts' && (
             <>

@@ -259,6 +259,16 @@ const announceStart = async () => {
     })
     console.log(`status bar: ${await res.text()}`)
   }
+  // FAKE_OTLP=1 reports two requests the way Claude's OpenTelemetry export does, to the address and under the token the app put in its environment.
+  if (process.env.FAKE_OTLP && process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT) {
+    const [hk, ...hv] = (process.env.OTEL_EXPORTER_OTLP_LOGS_HEADERS ?? '').split('=')
+    const rec = (id, input, read, write, output) => ({ attributes: [['event.name', 'api_request'], ['request_id', id], ['model', 'claude-sonnet-5-5'], ['event.timestamp', new Date().toISOString()], ['user.email', 'someone@example.com']].map(([key, v]) => ({ key, value: { stringValue: v } })).concat([['input_tokens', input], ['cache_read_tokens', read], ['cache_creation_tokens', write], ['output_tokens', output]].map(([key, v]) => ({ key, value: { intValue: v } }))) })
+    await fetch(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, {
+      method: 'POST',
+      headers: { [hk]: hv.join('='), 'content-type': 'application/json' },
+      body: JSON.stringify({ resourceLogs: [{ scopeLogs: [{ logRecords: [rec(`${sessionId}-1`, 10, 800, 100, 40), rec(`${sessionId}-2`, 5, 900, 0, 20)] }] }] })
+    })
+  }
 }
 if (!process.env.FAKE_CHAT) await announceStart()
 // Echo typed or pasted input, so delivered messages are visible in this terminal.

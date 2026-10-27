@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentEvent, PermissionRequest } from '../../../shared/types'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { UsageRecord } from '../../../shared/tokens'
 import { startHookServer } from './hookServer'
 
 type Server = Awaited<ReturnType<typeof startHookServer>>
@@ -14,7 +17,9 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
   const asks: PermissionRequest[] = []
   const settled: string[] = []
   const stats: unknown[] = []
+  const usage: [string, UsageRecord[]][] = []
   server = await startHookServer({
+    onUsage: (id, records) => usage.push([id, records]),
     reminderFor,
     blockEdit,
     callerIsProgram,
@@ -28,7 +33,7 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled, stats, toolInputs, tools, compacted }
+  return { server, events, asks, settled, stats, toolInputs, tools, compacted, usage }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -220,5 +225,32 @@ describe('hook server', () => {
     expect(await (await edit('NotebookEdit', { notebook_path: '/w/blocked.ts' })).json()).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
     expect(await (await edit('Bash', { command: 'ls' })).text()).toBe('')
     expect(asked).toEqual([['a1', '/w/src/blocked.ts', '/w'], ['a1', '/w/src/fine.ts', '/w'], ['a1', '/w/blocked.ts', '/w']])
+  })
+
+  describe('Claude Code OpenTelemetry events', () => {
+    const sample = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'otlp-logs.json'), 'utf8'))
+    const base = (url: string) => url.replace(/\/hook$/, '')
+
+    it('are taken from the agent whose token comes with them, as one record per request', async () => {
+      const { server, usage } = await setup()
+      const res = await post(`${base(server.url)}/v1/logs`, sample)
+      expect(res.status).toBe(200)
+      expect(usage).toHaveLength(1)
+      expect(usage[0]![0]).toBe('a1')
+      expect(usage[0]![1].map((r) => r.output)).toEqual([160, 360, 116])
+    })
+
+    it('are refused without a token the office gave, and nothing is recorded', async () => {
+      const { server, usage } = await setup()
+      expect((await post(`${base(server.url)}/v1/logs`, sample, 'wrong')).status).toBe(401)
+      expect(usage).toEqual([])
+    })
+
+    it('are answered, and ignored, when they are metrics or carry no request', async () => {
+      const { server, usage } = await setup()
+      expect((await post(`${base(server.url)}/v1/metrics`, { resourceMetrics: [] })).status).toBe(200)
+      expect((await post(`${base(server.url)}/v1/logs`, { resourceLogs: [] })).status).toBe(200)
+      expect(usage).toEqual([])
+    })
   })
 })

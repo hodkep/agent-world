@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentEnv, hookSettings, launchArgs, mcpConfig } from './launch'
+import { agentEnv, hookSettings, launchArgs, mcpConfig, telemetryEnv } from './launch'
 
 describe('claude launch', () => {
   it('starts a fresh session with a fixed id and name', () => {
@@ -140,5 +140,27 @@ describe('house rules', () => {
     const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', pluginDirs: ['/p'], allowTools: ['mcp__agent-world__library_get', 'mcp__agent-world__library_index'] })
     expect(args.slice(-3)).toEqual(['--allowedTools', 'mcp__agent-world__library_get', 'mcp__agent-world__library_index'])
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).not.toContain('--allowedTools')
+  })
+
+  describe('telemetry for the office', () => {
+    it('sends only Claude Code\'s events to the office\'s own server, under the agent\'s own token, and nothing else anywhere', () => {
+      expect(telemetryEnv('http://127.0.0.1:5123/hook', 'tok')).toEqual({
+        CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+        OTEL_LOGS_EXPORTER: 'otlp',
+        OTEL_METRICS_EXPORTER: 'none',
+        OTEL_TRACES_EXPORTER: 'none',
+        OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/json',
+        OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: 'http://127.0.0.1:5123/v1/logs',
+        OTEL_EXPORTER_OTLP_LOGS_HEADERS: 'Authorization=Bearer tok'
+      })
+    })
+
+    it('is nothing when there is no server to send to', () => {
+      expect(telemetryEnv('', 'tok')).toEqual({})
+    })
+
+    it('leaves out what the person said or Claude replied: those are only sent when asked for', () => {
+      expect(Object.keys(telemetryEnv('http://127.0.0.1:1/hook', 't')).join()).not.toMatch(/LOG_USER_PROMPTS|LOG_ASSISTANT|RAW_API/)
+    })
   })
 })

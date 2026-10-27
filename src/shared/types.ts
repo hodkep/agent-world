@@ -207,6 +207,8 @@ export interface AgentRecord {
   workedMs?: number
   /** For a program that reports tokens: what was already counted into the history, so the next report adds only what is new. */
   tokensSeen?: { input: number; output: number }
+  /** For a program whose requests are read from a file: how far the app has counted them (its own bookmark; the first step not counted is the next one). */
+  usageCursor?: number
   /** The running cost Claude last reported, so the next report adds only what is new to the usage history. */
   costSeen?: number
   /** Live state, filled in by list-agents only (not persisted). */
