@@ -110,6 +110,17 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await expect(pad.locator('.nt-title')).toHaveText('New note')
     await expect(pad.locator('.nt-box')).toHaveCount(0)
     await editor.click()
+    // Enter in a checklist starts the next item with an empty box, a second Enter on the empty item ends the list.
+    await pad.keyboard.insertText('- [ ] first item')
+    await pad.keyboard.press('Enter')
+    await expect(pad.locator('.nt-box')).toHaveCount(2)
+    await pad.keyboard.insertText('second item')
+    await pad.keyboard.press('Enter')
+    await pad.keyboard.press('Enter')
+    await expect(pad.locator('.nt-box')).toHaveCount(2)
+    await pad.keyboard.press('Control+A')
+    await pad.keyboard.press('Meta+A')
+    await pad.keyboard.press('Backspace')
     await pad.keyboard.insertText('Second note')
     // The Markdown is drawn where the cursor is not: a line of dashes is a rule and ** is gone from bold words, and where the cursor is the marks show to be edited.
     await pad.keyboard.insertText('\n---\nsome **bold** words')
