@@ -3778,3 +3778,49 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .confirm-dialog.settings { height: fit-content; max-height: 90vh; }
 .td-pop .lbl-swatch { background: var(--c); border: 2px solid var(--ink); width: 22px; height: 22px; padding: 0; }
 .td-pop .lbl-swatch[aria-expanded='true'], .td-pop .lbl-swatch:hover { background: var(--c); }
+
+/* ---- The notes window (frameless, above the other windows) ---- */
+.nt { height: 100vh; display: flex; flex-direction: column; background: var(--panel); color: var(--text); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--line); position: relative; }
+.nt-bar { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel-2); border-bottom: 2px solid var(--ink); -webkit-app-region: drag; flex: none; }
+.nt-bar button, .nt-bar select, .nt-pop { -webkit-app-region: no-drag; }
+.nt-close { width: 12px; height: 12px; min-width: 0; min-height: 0; padding: 0; background: var(--danger); border: 0; box-shadow: none; }
+.nt-title { flex: 1; min-width: 0; text-align: center; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nt-tools { display: flex; gap: 4px; position: relative; }
+.nt-tools > button { min-width: 0; padding: 2px 8px; background: var(--well); border: 1px solid var(--line); box-shadow: none; color: var(--muted); }
+.nt-tools > button.on, .nt-tools > button[aria-pressed='true'] { color: var(--accent); }
+.nt-body { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.nt-editor { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; }
+.nt-editor .cm-editor { outline: none; font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; background: transparent; }
+.nt-editor .cm-content { padding: 0; caret-color: var(--accent); }
+.nt-editor .cm-line { padding: 1px 0; }
+.nt-editor .cm-cursor { border-left-color: var(--accent); }
+.nt-editor .cm-selectionBackground, .nt-editor .cm-editor.cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+.nt-h1 { font-size: 20px; font-weight: 700; margin-top: 6px; } .nt-h2 { font-size: 17px; font-weight: 700; margin-top: 4px; } .nt-h3 { font-size: 15px; font-weight: 700; }
+.nt-hr { border-bottom: 1px solid var(--line); }
+.nt-b { font-weight: 700; } .nt-i { font-style: italic; } .nt-s { text-decoration: line-through; color: var(--muted); }
+.nt-code { background: var(--well); color: var(--think); padding: 0 3px; font-family: Menlo, monospace; font-size: 12.5px; }
+.nt-box { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-right: 8px; vertical-align: -2px; border: 2px solid var(--muted); background: none; padding: 0; min-width: 0; min-height: 0; box-shadow: none; color: var(--ink); font-size: 10px; cursor: pointer; }
+.nt-box.on { background: var(--ok); border-color: var(--ok); }
+.nt-dot { display: inline-block; width: 15px; margin-right: 8px; text-align: center; color: var(--muted); }
+.nt-item.done { color: var(--muted); text-decoration: line-through; }
+.nt-linked { color: var(--accent); font: 11px Menlo, monospace; text-decoration: none; margin-left: 4px; }
+.nt-act { display: none; gap: 4px; margin-left: 8px; vertical-align: 1px; }
+.nt-item:hover .nt-act, .nt-item:focus-within .nt-act { display: inline-flex; }
+.nt-act button { background: var(--well); border: 1px solid var(--line); color: var(--text); padding: 0 6px; font-size: 11px; line-height: 1.6; min-width: 0; min-height: 0; box-shadow: none; text-decoration: none; }
+.nt-act button.go { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 600; }
+.nt-preview { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; }
+.nt-foot { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; flex: none; }
+.nt-foot span { flex: 1; } .nt-foot select { max-width: 130px; min-width: 0; }
+.nt-pop { position: absolute; z-index: 5; right: 0; top: calc(100% + 6px); width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow: auto; }
+.nt-pop h5 { margin: 0; font: 700 10.5px system-ui; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.nt-list { padding: 6px; } .nt-row { display: flex; } .nt-row > button:first-child { flex: 1; text-align: left; } .nt-row.on > button:first-child { color: var(--accent); } .nt-del { color: var(--muted); }
+.nt-tk { background: var(--well); padding: 5px 8px; display: flex; justify-content: space-between; gap: 8px; } .nt-tk.s { margin-left: 16px; border-left: 2px solid var(--line); } .nt-tk small { color: var(--accent); }
+.nt-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.nt-give { flex-direction: row; align-items: center; gap: 8px; display: flex; }
+.nt-ask { top: auto; bottom: 8px; right: 8px; }
+.nt-error { margin: 0; padding: 6px 10px; flex: none; cursor: pointer; }
+.nt-editor .cm-scroller, .nt-editor .cm-content { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.nt-pop .primary { background: var(--accent); color: var(--ink); }
+.nt-pop .primary:disabled { opacity: .5; }
+.nt-pop select, .nt-pop textarea { width: 100%; background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 6px; }
+.nt-foot select { background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 3px 4px; }

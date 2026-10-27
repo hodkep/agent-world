@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { NotesApp } from './notes/NotesApp'
 import { Boundary } from './Boundary'
 import { installCleanCopy } from './cleanCopy'
 import './styles.css'
@@ -12,7 +13,7 @@ const root = createRoot(document.getElementById('root')!)
 root.render(
   window.aw ? (
     <Boundary>
-      <App />
+      {location.hash === '#notes' ? <NotesApp /> : <App />}
     </Boundary>
   ) : (
     <main className="no-bridge">

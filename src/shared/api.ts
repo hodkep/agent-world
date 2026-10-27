@@ -262,6 +262,25 @@ export interface AwApi {
   chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
   /** A project's todo board changed (by the person or an agent): read it again with todos.get. */
   onTodosChanged(cb: (workspace: string) => void): () => void
+  /** The notes window asked an agent about a task, or gave it one: this window (of the agent's project) sends the message. */
+  onNotesAsk(cb: (a: { agentId: string; message: string }) => void): () => void
+  /** The notes of a project, kept as Markdown files, shown in a window that stays above every other. */
+  notes: {
+    context(): Promise<{ folder: string | null; projects: { path: string; name: string }[] }>
+    list(folder: string): Promise<{ id: string; title: string; updatedAt: number }[]>
+    read(folder: string, id: string): Promise<string>
+    write(folder: string, id: string, text: string): Promise<void>
+    create(folder: string): Promise<string>
+    remove(folder: string, id: string): Promise<void>
+    /** Makes tasks from the lines of a note (all, or the lines given); the note comes back marked with their numbers. */
+    tasks(folder: string, id: string, only?: number[]): Promise<{ text: string; made: { line: number; id: string }[] }>
+    agents(folder: string): Promise<{ id: string; name: string; provider: string }[]>
+    ask(folder: string, todoId: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<void>
+    toggle(): Promise<void>
+    hide(): Promise<void>
+    pin(on: boolean): Promise<boolean>
+    pinned(): Promise<boolean>
+  }
   /** An agent has a new entry in the library's log (read it again with library.uses). */
   onLibraryUse(cb: (agentId: string, how: string, item: string) => void): () => void
   /** An agent opened a page in a browser: the app shows it in that agent's Preview tab. `path` is the file, as found on this computer. */

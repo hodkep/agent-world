@@ -1,30 +1,95 @@
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { chatMenu, hire, launchApp } from './launch'
+import { hire, launchApp } from './launch'
 
-test('Save notes writes a record of the conversation outside the project', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'aw-notes-'))
-  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, home)
+test('notes: a window of Markdown notes that are kept apart, whose checklist lines become tasks and subtasks and can be asked of an agent', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-notes-e2e-'))
+  const { app, shutdown } = await launchApp(
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    home
+  )
   try {
     const page = await app.firstWindow()
+    await page.setViewportSize({ width: 1400, height: 900 })
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     await hire(page)
+
+    // The Notes button shows a window of its own.
+    const opened = app.waitForEvent('window')
+    await page.locator('header').getByRole('button', { name: 'Notes', exact: true }).click()
+    const pad = await opened
+    await expect(pad.getByRole('application', { name: 'Notes' })).toBeVisible()
+    const editor = pad.getByRole('textbox', { name: 'Note' })
+
+    // Markdown is written in it, with a checklist drawn as boxes.
+    await editor.click()
+    await pad.keyboard.insertText('# Plan\n- [ ] Umbrella\n  - [ ] Part a\n  - [ ] Part b\nplain words')
+    await expect(pad.locator('.nt-box')).toHaveCount(3)
+    await expect(pad.locator('.nt-title')).toHaveText('Plan')
+    await pad.locator('.nt-box').first().click()
+    await expect(pad.locator('.nt-box.on')).toHaveCount(1)
+    await pad.locator('.nt-box').first().click()
+
+    // A line made a task takes its parts with it as subtasks, and is marked with its number.
+    await pad.locator('.nt-item', { hasText: 'Umbrella' }).hover()
+    await pad.locator('.nt-item', { hasText: 'Umbrella' }).getByRole('button', { name: '→ Task' }).click()
+    await expect(pad.locator('.nt-linked')).toHaveCount(3)
+    await expect(pad.locator('.nt-item', { hasText: 'Umbrella' })).toContainText('(todo#1)')
+    await page.locator('header').getByRole('button', { name: /^Todos/ }).click()
+    const board = page.getByRole('dialog', { name: 'Todos' })
+    await expect(board.getByLabel('Subtasks of Umbrella')).toContainText('0 of 2 done')
+    await board.getByRole('button', { name: /^Close/ }).first().click()
+
+    await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
+    if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-hover.png` })
+    // Make tasks… shows what it would make, and a line that is a task already is not made again.
+    await editor.click()
+    await pad.keyboard.press('Control+End')
+    await pad.keyboard.insertText('\n- [ ] Later thing')
+    await pad.getByRole('button', { name: 'Make tasks…' }).click()
+    const make = pad.getByRole('dialog', { name: 'Make tasks from this note' })
+    await expect(make).toContainText('Later thing')
+    await expect(make).not.toContainText('Umbrella')
+    if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-make.png` })
+    await make.getByLabel('Give to').selectOption({ label: 'ada · Claude' })
+    await make.getByRole('button', { name: 'Make 1 task' }).click()
+    await expect(make).toHaveCount(0)
+    await expect(pad.locator('.nt-item', { hasText: 'Later thing' })).toContainText('(todo#4)')
+    // A line that is a task has Ask agent only, and asking about it sends that task, as the chat shows.
+    await pad.locator('.nt-item', { hasText: 'Part b' }).hover()
+    await expect(pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: '→ Task' })).toHaveCount(0)
+    await pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: 'Ask agent' }).click()
+    const askBox = pad.getByRole('dialog', { name: 'Ask an agent' })
+    await askBox.getByLabel('What to say').fill('Start with the tests.')
+    await askBox.getByRole('button', { name: 'Send' }).click()
+    await expect(askBox).toHaveCount(0)
+    // Giving it to the agent put a message about it in that agent's chat.
     await page.getByRole('tab', { name: 'Chat' }).click()
-    const box = page.getByRole('textbox', { name: 'Message ada' })
-    await box.fill('add a health check')
-    await box.press('Enter')
-    await expect(page.getByRole('log').locator('.tc', { hasText: 'Edited' })).toBeVisible({ timeout: 10_000 })
-    await chatMenu(page, 'Save notes')
-    await expect(page.getByRole('status').filter({ hasText: 'Notes saved' })).toBeVisible()
-    const dir = join(home, 'aw', 'notes')
-    const [slug] = readdirSync(dir)
-    const [file] = readdirSync(join(dir, slug!))
-    const md = readFileSync(join(dir, slug!, file!), 'utf8')
-    expect(md).toContain('1. add a health check')
-    expect(md).toContain('Files changed')
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await expect(log.locator('.msg.user').filter({ hasText: 'todo#4' })).toHaveCount(1)
+    await expect(log.locator('.msg.user').filter({ hasText: 'Start with the tests.' })).toContainText('todo#3')
+
+    // Another note is kept apart: it is empty, the first is as it was, and each can be opened and deleted.
+    await pad.getByRole('button', { name: 'New note' }).click()
+    await expect(pad.locator('.nt-title')).toHaveText('New note')
+    await expect(pad.locator('.nt-box')).toHaveCount(0)
+    await editor.click()
+    await pad.keyboard.insertText('Second note')
+    await pad.getByRole('button', { name: 'Notes', exact: true }).click()
+    const list = pad.getByRole('menu', { name: 'Notes of this project' })
+    await expect(list.getByRole('menuitem')).toHaveText(['Second note', 'Plan'])
+    await list.getByRole('menuitem', { name: 'Plan' }).click()
+    await expect(pad.locator('.nt-box')).toHaveCount(4)
+
+    // The preview draws the whole Markdown, and its boxes can be ticked.
+    await pad.getByRole('button', { name: 'Preview' }).click()
+    await expect(pad.locator('.nt-preview h1')).toHaveText('Plan')
+    await pad.locator('.nt-preview input[type=checkbox]').first().click()
+    await pad.getByRole('button', { name: 'Edit' }).click()
+    await expect(pad.locator('.nt-box.on')).toHaveCount(1)
   } finally {
     await shutdown()
   }

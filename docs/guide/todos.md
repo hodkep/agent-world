@@ -42,6 +42,16 @@ A bigger piece of work can be one task with smaller tasks under it. On the board
 
 A label is a word with a colour. Add one to a task with **+ label** in its panel (pick one the board has, or type a new one). The **Label** button next to **Scratch pad** shows only the tasks that have the label you choose (**Any label** shows all). Its **Manage labels…** lets you add, rename, recolour and remove labels: click a label's colour square to pick from a grid or type a `#rrggbb`. Removing a label takes it off every task but keeps the tasks. A click outside a menu closes it. Agents can label a task with `labels`.
 
+## Notes
+
+**Notes** in the top bar (or Option+Command+N, Alt+Ctrl+N elsewhere, from anywhere on the computer) shows a small window of notes that stays above every other window and on every desktop. Drag it by its top edge to put it where you like, and resize it; it comes back where you left it. The red square hides it, and the pin button lets other windows cover it.
+
+- Notes are Markdown: headings, **bold**, `code`, and checklists (`- [ ] a thing`) drawn with real boxes. The eye button shows the whole Markdown, tables and all, and its boxes can be ticked too.
+- Each project has its own notes, and each note is kept apart from the others as a file in `~/.agent-world/pad-notes`. **＋** starts a new note, the **⌘** button lists them to open or delete, and the project box at the bottom chooses whose notes you see.
+- Point at a checklist or bullet line for **→ Task** (a task from the line, and its indented lines as subtasks), **→ Subtask** (under the item above) and **Ask agent**. A line that became a task ends with its number, `(todo#7)`.
+- **Make tasks…** shows what every line that is not a task yet would make, and can give the tasks to an agent at once. Ticked lines are made as finished tasks.
+- **Ask agent** (also on a line that is a task already) picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
+
 ## Filter and search
 
 - **Everyone**, **Made by you** and **Made by name** (one button for each agent that made a task) filter the board.
