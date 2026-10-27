@@ -69,9 +69,11 @@ export interface Todo {
   labels?: string[]
 }
 
-/** The colours a label can have, in the order new labels take them. */
-export const LABEL_COLORS = ['cyan', 'brass', 'violet', 'green', 'red'] as const
-export type LabelColor = (typeof LABEL_COLORS)[number]
+/** The colours offered for a label, in the order new labels take them. Any #rrggbb is allowed too. */
+export const LABEL_PRESETS = ['#6ad0e0', '#f2c230', '#c58af2', '#5f9e5f', '#ff8a8a', '#e8884a', '#5b8def', '#e06aa8', '#9fdc9f', '#a4a2b8', '#d83a3a', '#8e5b34', '#3fb8af', '#b5d34a', '#7d6bdc', '#e4e4ee']
+/** A label colour: #rrggbb, lower case. */
+export type LabelColor = string
+export const isLabelColor = (c: unknown): c is string => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)
 export interface Label {
   name: string
   color: LabelColor
@@ -160,7 +162,7 @@ export function addLabel(b: TodoBoard, name: string, color?: LabelColor): TodoBo
   if (!n) throw new Error('A label needs a name.')
   if (labelNamed(b, n)) return b
   const used = b.labels ?? []
-  const pick = color && LABEL_COLORS.includes(color) ? color : LABEL_COLORS[used.length % LABEL_COLORS.length]!
+  const pick = isLabelColor(color) ? color.toLowerCase() : LABEL_PRESETS[used.length % LABEL_PRESETS.length]!
   return { ...b, labels: [...used, { name: n, color: pick }] }
 }
 
@@ -176,8 +178,8 @@ export function renameLabel(b: TodoBoard, from: string, to: string): TodoBoard {
 export function recolorLabel(b: TodoBoard, name: string, color: LabelColor): TodoBoard {
   const old = labelNamed(b, name)
   if (!old) throw new Error(`No label ${name}.`)
-  if (!LABEL_COLORS.includes(color)) throw new Error(`No colour ${color}.`)
-  return { ...b, labels: b.labels!.map((l) => (l === old ? { ...l, color } : l)) }
+  if (!isLabelColor(color)) throw new Error(`${color} is not a colour: use #rrggbb.`)
+  return { ...b, labels: b.labels!.map((l) => (l === old ? { ...l, color: color.toLowerCase() } : l)) }
 }
 
 export function removeLabel(b: TodoBoard, name: string): TodoBoard {
