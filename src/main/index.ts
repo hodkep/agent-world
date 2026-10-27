@@ -191,6 +191,8 @@ async function askLimits() {
 const pollLimits = singleFlight(askLimits)
 // What the /btw overlay last showed each agent, so the window hears only about changes.
 const btwSent = new Map<string, string>()
+// Agents whose side question was dismissed in the chat before the program had opened its overlay: it is closed as soon as it shows.
+const btwCloseWhenSeen = new Set<string>()
 const lastStats = new Map<string, AgentStats>()
 const MEMORY_HINT =
   'This project keeps shared notes for every agent. Near the start of a task, call the agent-world recall tool with a few words about it. When you learn something a future agent should know (how to run the tests, a decision and why, a trap), save it with the remember tool. Keep notes short; never save secrets.'
@@ -1225,6 +1227,10 @@ async function main() {
       const text = screens.get(a.id)?.text() ?? ''
       surfaceTerminalMenu(a.id, text)
       const btw = ui(a.id).btwOverlay(text)
+      if (btw && btwCloseWhenSeen.delete(a.id)) {
+        sessions.get(a.id)?.write(keysOf(a.id).cancel)
+        continue
+      }
       const sig = btw ? JSON.stringify(btw) : ''
       if (btwSent.get(a.id) !== sig && (btw || btwSent.has(a.id))) (btwSent.set(a.id, sig), send('btw', a.id, btw))
       if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !ui(a.id).inputReady(text) || ui(a.id).anyMenu(text) || ui(a.id).looksWorking(text)) continue
@@ -1563,6 +1569,8 @@ async function main() {
     if (!p) throw new Error('That agent is not running. Wake it first.')
     const text = raw.replace(/\x1b\[20[01]~/g, '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').trim()
     if (!text) return
+    // A new side question is wanted, whatever was dismissed before it.
+    if (/^\/btw\s/i.test(text)) btwCloseWhenSeen.delete(id)
     if (ui(id).anyMenu(screens.get(id)?.text() ?? '')) throw new Error('Claude is showing a menu. Answer it first (or finish it in the Terminal tab).')
     // Only an agent that is free takes /clear at once; a busy one queues it, and its conversation is still there.
     const clearing = /^\/clear$/i.test(text) && ['idle', 'waiting', undefined].includes(lastActivity.get(id))
@@ -1717,6 +1725,7 @@ async function main() {
   })
   ipcMain.handle('btw:close', (_, id: string) => {
     if (ui(id).btwOverlay(screens.get(id)?.text() ?? '')) sessions.get(id)?.write(keysOf(id).cancel)
+    else btwCloseWhenSeen.add(id)
   })
   ipcMain.handle('procs:list', (_, id: string) => (sessions.get(id) ? listProcs(sessions.get(id)!.pid) : []))
   ipcMain.handle('procs:stop', (_, id: string, pid: number) => (sessions.get(id) ? stopProc(sessions.get(id)!.pid, pid) : false))
