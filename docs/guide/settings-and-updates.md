@@ -66,6 +66,8 @@ The installed app looks for a newer version about 15 seconds after it starts and
 
 The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app), and **Check now**. The line below says what was found. Once a download has started, **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
 
+The notes of the new version (**What's new in** its number) are shown under the update's progress while it downloads, when it is ready to install and while it installs, in the popover under the top bar and here.
+
 ![The installed version, What's new, and Check now greyed while 0.9.0 is downloaded](../images/updates-version-and-notes.png)
 
 The first start after an update says so in a line under the top bar, with **See what's new**; it shows once.

@@ -97,3 +97,45 @@ test('a copy installed with Homebrew is told the command to run, with a Copy but
     await shutdown()
   }
 })
+
+test('the notes of the new version stay on screen while it downloads, when it is ready and while it installs, in the popover and in Settings', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-update-notes-'))
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs') }, home)
+  try {
+    const page = await app.firstWindow()
+    const tell = (s: object) => app.evaluate(({ BrowserWindow }, state) => BrowserWindow.getAllWindows()[0]!.webContents.send('update-state', state), s)
+    const found = { state: 'available', detail: '0.2.0 is available.', latest: '0.2.0', current: '0.1.0', tag: 'v0.2.0', url: RELEASE, notes: '## What changed\n\n- Tasks can have subtasks' }
+    const popover = page.getByRole('dialog', { name: 'Agent World update' })
+    await expect(page.locator('header').getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
+
+    // Downloading: the bar runs and the notes are under it.
+    await tell({ ...found, install: { phase: 'downloading', version: '0.2.0', received: 9 * 1024 * 1024, total: 22 * 1024 * 1024 } })
+    await page.locator('header').getByRole('button', { name: 'Downloading 0.2.0' }).click()
+    await expect(popover.getByRole('progressbar')).toBeVisible()
+    await expect(popover).toContainText("What's new in 0.2.0")
+    await expect(popover).toContainText('Tasks can have subtasks')
+    await page.keyboard.press('Escape')
+
+    // Ready to install: still there, as before.
+    await tell({ ...found, install: { phase: 'ready', version: '0.2.0', file: '/tmp/x.zip' } })
+    await page.locator('header').getByRole('button', { name: 'Agent World 0.2.0 is available' }).or(page.locator('header .update-chip')).first().click()
+    await expect(popover).toContainText('Tasks can have subtasks')
+    await page.keyboard.press('Escape')
+
+    // Installing: still there, and Settings shows the same.
+    await tell({ ...found, install: { phase: 'installing', version: '0.2.0' } })
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: /Updates/ }).click()
+    await expect(settings).toContainText('Installing 0.2.0')
+    await expect(settings).toContainText("What's new in 0.2.0")
+    await expect(settings).toContainText('Tasks can have subtasks')
+    // And back to a download in Settings: the notes do not go.
+    await tell({ ...found, install: { phase: 'downloading', version: '0.2.0', received: 1024, total: 22 * 1024 * 1024 } })
+    await expect(settings.getByRole('progressbar')).toBeVisible()
+    await expect(settings).toContainText('Tasks can have subtasks')
+  } finally {
+    await shutdown()
+  }
+})
+

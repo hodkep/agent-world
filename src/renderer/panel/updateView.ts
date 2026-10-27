@@ -64,7 +64,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   if (!install || install.phase === 'idle') return offer()
   switch (install.phase) {
     case 'downloading':
-      return { chip: `↓ ${Math.round((install.received / install.total) * 100)}%`, title: `Downloading ${install.version}`, progress: { fraction: install.received / install.total, label: `${mb(install.received)} of ${mb(install.total)} MB` }, actions: [{ id: 'cancel', label: 'Cancel' }] }
+      return { chip: `↓ ${Math.round((install.received / install.total) * 100)}%`, title: `Downloading ${install.version}`, progress: { fraction: install.received / install.total, label: `${mb(install.received)} of ${mb(install.total)} MB` }, ...(info.notes && { notes: info.notes }), actions: [{ id: 'cancel', label: 'Cancel' }] }
     case 'ready':
       return {
         chip,
@@ -77,7 +77,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
         actions: [{ id: 'install', label: 'Install and restart', primary: true }, { id: 'later', label: 'Later' }]
       }
     case 'installing':
-      return { chip, title: `Installing ${install.version}…`, body: 'If something goes wrong the old version is put back and opened, with the reason.', actions: [] }
+      return { chip, title: `Installing ${install.version}…`, body: 'If something goes wrong the old version is put back and opened, with the reason.', ...(info.notes && { notes: info.notes }), actions: [] }
     case 'failed': {
       const v = install.version ?? latest
       const again = (label: string): UpdateAction[] => [{ id: 'retry', label, primary: true }, PAGE]
