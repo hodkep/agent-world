@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_MOD, type ChatModState } from '../shared/chatMod'
 import { WIDGET_CSP, widgetPage, widgetResponse } from './widgetPage'
 
-const widget = { id: 'spend', slot: 'above-composer' as const, height: 32, html: '<b id="n">…</b><script>onData(d => n.textContent = d.meters.cost)</script>', meters: ['cost' as const] }
-const state = (over: Partial<ChatModState> = {}): ChatModState => ({ current: { ...EMPTY_MOD, widgets: [widget] }, draft: null, draftBy: null, draftWhy: '', history: 0, ...over })
+const widget = { id: 'spend', slot: 'above-composer' as const, height: 32, html: '<b id="n">…</b><script>onData(d => n.textContent = d.meters.cost)</script>', meters: ['cost' as const], fetch: [] }
+const state = (over: Partial<ChatModState> = {}): ChatModState => ({ current: { ...EMPTY_MOD, widgets: [widget] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, ...over })
 
 describe('the page a widget runs in', () => {
   it('cuts it off from everything: no network, no frames, no forms, no objects, no base, and a sandbox even if it is opened bare', () => {
-    for (const d of ['sandbox allow-scripts', "default-src 'none'", "connect-src 'none'", "worker-src 'none'", "frame-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "img-src data:"]) expect(WIDGET_CSP, d).toContain(d)
+    for (const d of ['sandbox allow-scripts', "default-src 'none'", "connect-src 'none'", "script-src-attr 'none'", "worker-src 'none'", "frame-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "img-src data:"]) expect(WIDGET_CSP, d).toContain(d)
     expect(WIDGET_CSP).not.toMatch(/allow-same-origin|allow-top-navigation|allow-popups|allow-forms|allow-modals|unsafe-eval|https?:|\*/)
   })
   it('holds the agent\'s html and the way numbers come in, and nothing that sends anything out', () => {

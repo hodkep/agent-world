@@ -2,10 +2,10 @@ import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } fro
 import { OutlineIcon } from '../panel/IconButton'
 import { DEFAULT_LAYOUT, type ChatLayout, type Pack } from '../../shared/chatLayout'
 import { EMPTY_MOD, GUARD_CSS, isEmptyMod, type ChatMod, type ChatModState } from '../../shared/chatMod'
-import type { MeterName, Meters, Widget, WidgetSlot } from '../../shared/widgets'
+import { type FeedResult, type MeterName, type Meters, type Widget, type WidgetSlot, feedHost } from '../../shared/widgets'
 
 // POC: the look an agent wrote for the chat. The main process holds it; this is the window's copy, kept current by what main announces.
-const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0 }
+const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false }
 let state: ChatModState = NONE
 const listeners = new Set<() => void>()
 let started = false
@@ -76,6 +76,8 @@ export function ModBar() {
     return () => (window.removeEventListener('blur', off), window.removeEventListener('pointerup', off))
   }, [])
   if (!s.draft) return null
+  // A draft's widgets that ask to load something from the internet do not, until the person says so (or keeps the look): the bar says where from.
+  const hosts = [...new Set(s.draft.widgets.flatMap((w) => w.fetch.map((f) => feedHost(f.url))))]
   return (
     <div className="mod-bar" role="status" aria-label="A new look for the chat" data-comparing={compare}>
       <span>
@@ -86,9 +88,15 @@ export function ModBar() {
         ) : (
           <>
             <b>{s.draftBy ?? 'An agent'}</b> changed how the chat looks{s.draftWhy ? `: ${s.draftWhy}` : ''}
+            {hosts.length > 0 && <small className="mod-hosts"> Loads data from {hosts.join(', ')}{s.draftData ? '' : ' once you allow it.'}</small>}
           </>
         )}
       </span>
+      {hosts.length > 0 && !s.draftData && (
+        <button onClick={() => void window.aw.chatModLoadData()} title={`Let this look load data from ${hosts.join(', ')} now, before you keep it`}>
+          Load data
+        </button>
+      )}
       <button
         className="mod-compare"
         aria-label="Hold to compare with the current look"
@@ -151,6 +159,26 @@ export function PackView<T>({ pack, draw }: { pack: Pack<T>; draw: (item: T) => 
   )
 }
 
+// What the widgets' addresses answered, kept by `current:<id>` or `draft:<id>`; main tells us each time one loads.
+let feedState: Record<string, Record<string, FeedResult>> = {}
+const feedListeners = new Set<() => void>()
+let feedsStarted = false
+function startFeeds() {
+  if (feedsStarted || !window.aw?.widgetFeeds) return
+  feedsStarted = true
+  const tell = () => feedListeners.forEach((l) => l())
+  void window.aw.widgetFeeds().then((s) => ((feedState = s), tell()), () => {})
+  window.aw.onWidgetFeed(({ key, feed, r }) => {
+    feedState = { ...feedState, [key]: { ...feedState[key], [feed]: r } }
+    tell()
+  })
+}
+const useFeeds = () =>
+  useSyncExternalStore(
+    (cb) => (startFeeds(), feedListeners.add(cb), () => void feedListeners.delete(cb)),
+    () => feedState
+  )
+
 const THEME_VARS = ['--bg', '--panel', '--panel-2', '--line', '--ink', '--text', '--muted', '--accent', '--ok', '--danger', '--think', '--violet', '--well']
 const themeNow = () => {
   const cs = getComputedStyle(document.documentElement)
@@ -165,8 +193,10 @@ const stamp = (t: string) => [...t].reduce((h, c) => (Math.imul(h, 31) + c.charC
  */
 function WidgetFrame({ widget, which, meters, css }: { widget: Widget; which: 'draft' | 'current'; meters: Meters; css: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
-  const key = JSON.stringify(meters)
-  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters, theme: themeNow() }, '*')
+  const feeds = useFeeds()[`${which}:${widget.id}`]
+  // What an address answered is handed over as text, never as markup; a widget that loaded nothing is given nothing.
+  const key = JSON.stringify(meters) + Object.entries(feeds ?? {}).map(([k, v]) => `${k}${v.at}${v.ok}`).join()
+  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters, feeds: feeds ?? {}, theme: themeNow() }, '*')
   useEffect(send, [key, css]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <iframe
