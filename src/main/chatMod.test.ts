@@ -13,7 +13,7 @@ const hide = [{ match: { kind: ['thinking'] }, place: 'hidden' }]
 describe('the look an agent writes', () => {
   it('starts as the system default: no look, no draft', () => {
     const m = createChatMod(dir)
-    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '', widgets: [] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false })
+    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '', widgets: [] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, recent: [] })
   })
 
   it('a write is a draft: it shows, but is not what stays until the person keeps it', () => {
@@ -166,6 +166,75 @@ describe('the look an agent writes', () => {
     m.loadData()
     m.keep()
     expect(m.state().draftData).toBe(false)
+  })
+
+  describe('telling the agent what the person did', () => {
+    it('remembers each answer: Undo and Keep of a draft, restoring the system look, going back; newest first, eight at most, and after a restart', () => {
+      const m = createChatMod(dir)
+      m.write({ css: '.a { color: red }', by: 'ada', why: 'swap the sides' })
+      m.undo()
+      m.write({ css: '.b { color: red }', by: 'ada', why: 'move the button' })
+      m.keep()
+      m.reset()
+      m.back()
+      expect(m.state().recent.map((r) => [r.outcome, r.by, r.why])).toEqual([['went back', 'the person', ''], ['restored the system look', 'the person', ''], ['kept', 'ada', 'move the button'], ['undone', 'ada', 'swap the sides']])
+      expect(createChatMod(dir).state().recent).toHaveLength(4)
+      for (let i = 0; i < 12; i++) (m.write({ css: `.c${i} { order: ${i} }`, by: 'ada', why: `w${i}` }), m.undo())
+      expect(m.state().recent).toHaveLength(8)
+      expect(m.state().recent[0]!.why).toBe('w11')
+    })
+
+    it('says in the refusal what the person did, so an agent that had not been told knows the draft was rejected', () => {
+      const m = createChatMod(dir)
+      m.read('a1')
+      m.write({ css: '.a { color: red }', by: 'ada', who: 'a1', why: 'swap the sides' })
+      m.undo()
+      const r = m.write({ css: '.b { color: red }', by: 'ada', who: 'a1', why: 'x' })
+      expect(r.problems[0]).toMatch(/pressed Undo.*"swap the sides".*did not want/s)
+    })
+  })
+
+  describe('adding without carrying everything', () => {
+    const w = (id: string) => ({ id, slot: 'chat-top', html: id })
+    const start = () => {
+      const m = createChatMod(join(dir, Math.random().toString(36).slice(2)))
+      m.write({ css: '.one { order: 1 }', widgets: [w('a'), w('b')], layout: [{ match: { kind: ['thinking'] }, place: 'hidden' }], by: 'ada', why: 'start' })
+      m.keep()
+      return m
+    }
+    it('addCss goes after the css in force, and the rest stays', () => {
+      const m = start()
+      m.write({ addCss: '.two { order: 2 }', by: 'ada', why: 'x' })
+      expect(m.state().draft!.css).toBe('.one { order: 1 }\n.two { order: 2 }')
+      expect(m.state().draft!.widgets.map((x) => x.id)).toEqual(['a', 'b'])
+      expect(m.state().draft!.layout.rules).toHaveLength(1)
+    })
+    it('addWidgets puts new ones in and replaces one with the same id; removeWidgets takes some out', () => {
+      const m = start()
+      m.write({ addWidgets: [w('c'), { ...w('a'), html: 'changed' }], removeWidgets: ['b'], by: 'ada', why: 'x' })
+      expect(m.state().draft!.widgets.map((x) => [x.id, x.html])).toEqual([['a', 'changed'], ['c', 'c']])
+    })
+    it('working on a draft adds to the draft, not to what was kept', () => {
+      const m = start()
+      m.write({ addCss: '.two { order: 2 }', by: 'ada', why: 'x' })
+      m.write({ addCss: '.three { order: 3 }', by: 'ada', why: 'y' })
+      expect(m.state().draft!.css).toBe('.one { order: 1 }\n.two { order: 2 }\n.three { order: 3 }')
+    })
+    it('after Undo an addition is made to what is in force, so what was undone does not come back', () => {
+      const m = start()
+      m.read('a1')
+      m.write({ addCss: '.undone { order: 9 }', by: 'ada', who: 'a1', why: 'x' })
+      m.undo()
+      m.read('a1')
+      m.write({ addCss: '.new { order: 3 }', by: 'ada', who: 'a1', why: 'y' })
+      expect(m.state().draft!.css).toBe('.one { order: 1 }\n.new { order: 3 }')
+    })
+    it('asking for a whole list and an addition to it at once is refused', () => {
+      const m = start()
+      expect(m.write({ css: 'a{}', addCss: 'b{}', by: 'ada', why: 'x' }).problems[0]).toMatch(/not both/)
+      expect(m.write({ widgets: [w('z')], addWidgets: [w('y')], by: 'ada', why: 'x' }).problems[0]).toMatch(/not both/)
+      expect(m.write({ widgets: [w('z')], removeWidgets: ['a'], by: 'ada', why: 'x' }).problems[0]).toMatch(/not both/)
+    })
   })
 
   it('Undo throws the draft away and leaves what was in force', () => {

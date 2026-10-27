@@ -113,6 +113,12 @@ test('POC: an agent changes the chat look through its tools; it shows as a draft
     const stale = await raw('chat_mod_write', { css: '.msg.assistant { border-left: 4px solid #ff6600 }', why: 'again' })
     expect(stale.err).toBe(true)
     expect(stale.text).toMatch(/changed since you last read it.*chat_mod_get/s)
+    // It is told what the person did, not left to think the draft was lost.
+    expect(stale.text).toMatch(/pressed Undo on ada's draft.*did not want it/s)
+    const got = JSON.parse((await raw('chat_mod_get')).text)
+    expect(got.recent[0]).toMatch(/^undone: ".*" \(ada, \d+ min ago\).*do not write it in again/)
+    // To add something it need not carry what is in force: only the addition changes.
+    expect(got.draft).toBeNull()
     await expect(bar).toHaveCount(0)
 
     // Write again and Keep: it stays, also after the window is reloaded.

@@ -20,7 +20,7 @@ async function connect(chatMod?: Mod) {
 }
 const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text
 const isErr = (r: unknown) => (r as { isError?: boolean }).isError === true
-const state = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false }
+const state = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, recent: [] }
 
 describe('the chat look tools: an agent reads and writes a draft, only the person keeps it', () => {
   it('are offered only when the app supports them', async () => {
@@ -83,6 +83,20 @@ describe('the chat look tools: an agent reads and writes a draft, only the perso
     expect(seen).toEqual([{ widgets: [w], why: 'a spend line' }])
     for (const bad of [{ ...w, slot: 'floating' }, { ...w, meters: ['everything'] }, { ...w, height: 9999 }]) expect(isErr(await c.callTool({ name: 'chat_mod_write', arguments: { widgets: [bad], why: 'x' } }))).toBe(true)
     expect(seen).toHaveLength(1)
+  })
+
+  it('tell the agent what the person did with earlier drafts, in words, in what it reads', async () => {
+    const c = await connect({ state: () => ({ ...state, recent: [{ at: Date.now() - 180_000, outcome: 'undone', by: 'ada', why: 'swap the sides' }, { at: Date.now() - 600_000, outcome: 'kept', by: 'ada', why: 'a bar' }] }), write: () => ({ problems: [] }) })
+    const got = JSON.parse(text(await c.callTool({ name: 'chat_mod_get', arguments: {} })))
+    expect(got.recent[0]).toMatch(/undone: "swap the sides" \(ada, 3 min ago\).*did not want this; do not write it in again/)
+    expect(got.recent[1]).toMatch(/^kept: "a bar"/)
+  })
+
+  it('hand additions over as they are, and refuse an empty call', async () => {
+    const seen: unknown[] = []
+    const c = await connect({ state: () => state, write: (_w, i) => (seen.push(i), { problems: [] }) })
+    await c.callTool({ name: 'chat_mod_write', arguments: { addCss: '.a{}', removeWidgets: ['old'], why: 'x' } })
+    expect(seen).toEqual([{ addCss: '.a{}', removeWidgets: ['old'], why: 'x' }])
   })
 
   it('pass reset through, to ask for the system default', async () => {

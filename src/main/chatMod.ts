@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { EMPTY_MOD, checkMod, isEmptyMod, type ChatMod, type ChatModState } from '../shared/chatMod'
+import { EMPTY_MOD, checkMod, isEmptyMod, type ChatMod, type ChatModState, type Outcome } from '../shared/chatMod'
 
 const KEEP = 20
 
@@ -41,6 +41,15 @@ export function createChatMod(dir: string) {
   let why = dj?.why ?? ''
   // A draft's widgets load nothing from the internet until the person says so (or keeps it).
   let draftData = false
+  // What the person answered, newest first: an agent cannot see the buttons pressed, and one that is not told Undo was pressed takes the empty look for a lost draft and writes the change in again.
+  const OUTCOMES = ['kept', 'undone', 'restored the system look', 'went back']
+  const stored = read('outcomes.json')
+  let recent: Outcome[] = (Array.isArray(stored) ? stored : []).filter((o): o is Outcome => !!o && typeof o === 'object' && OUTCOMES.includes((o as Outcome).outcome) && typeof (o as Outcome).at === 'number').slice(0, 8).map((o) => ({ at: o.at, outcome: o.outcome, by: String(o.by ?? '').slice(0, 40), why: String(o.why ?? '').slice(0, 200) }))
+  const record = (outcome: Outcome['outcome'], by: string, why: string) => {
+    recent = [{ at: Date.now(), outcome, by, why }, ...recent].slice(0, 8)
+    write('outcomes.json', JSON.stringify(recent))
+  }
+  const said = (o: Outcome) => (o.outcome === 'undone' ? `the person pressed Undo on ${o.by}'s draft "${o.why}": they did not want it, so it is not in force and must not be written in again unless they ask` : o.outcome === 'kept' ? `the person kept ${o.by}'s draft "${o.why}": it is in force now` : o.outcome === 'restored the system look' ? 'the person restored the system look: nothing of any earlier look is in force' : 'the person went back to the look before the last one')
 
   const saveCurrent = () => {
     if (isEmptyMod(current)) (drop('current.json'), drop('current.css'))
@@ -73,18 +82,19 @@ export function createChatMod(dir: string) {
   const seen = new Map<string, number>()
   const changed = () => (rev++, listeners.forEach((l) => l()))
   const STALE = 'The look changed since you last read it (the person pressed Keep or Undo, restored it, or another agent wrote), or you have not read it yet. Call chat_mod_get to see what is in force now, then write again from that.'
+  const stale = () => (recent[0] ? `${STALE} Most recently, ${said(recent[0])}.` : STALE)
 
   return {
     state(): ChatModState {
-      return { current, draft, draftBy: by, draftWhy: why, history: files().length, draftData }
+      return { current, draft, draftBy: by, draftWhy: why, history: files().length, draftData, recent }
     },
     /** An agent's version, kept as a draft; what could not be read is named and left out. The part it does not mention stays as it is in force. */
     /** An agent has read the look: its next write is judged against what it saw. */
     read(who: string) {
       seen.set(who, rev)
     },
-    write(i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; by: string; who?: string; why: string }): { problems: string[] } {
-      if (i.who !== undefined && seen.get(i.who) !== rev) return { problems: [STALE] }
+    write(i: { layout?: unknown; css?: string; widgets?: unknown; addCss?: string; addWidgets?: unknown; removeWidgets?: unknown; reset?: boolean; by: string; who?: string; why: string }): { problems: string[] } {
+      if (i.who !== undefined && seen.get(i.who) !== rev) return { problems: [stale()] }
       if (i.reset) {
         draft = EMPTY_MOD
         draftData = false
@@ -97,7 +107,23 @@ export function createChatMod(dir: string) {
         return { problems: [] }
       }
       const base = draft ?? current
-      const c = checkMod({ layout: i.layout === undefined ? base.layout.rules : i.layout, css: i.css === undefined ? base.css : i.css, widgets: i.widgets === undefined ? base.widgets : i.widgets })
+      // Adding changes only what is added: nothing has to be carried over, so nothing that is not in force can come back with it.
+      if (i.css !== undefined && i.addCss !== undefined) return { problems: ['Give css (the whole stylesheet) or addCss (only what to add), not both.'] }
+      if (i.widgets !== undefined && (i.addWidgets !== undefined || i.removeWidgets !== undefined)) return { problems: ['Give widgets (the whole list) or addWidgets / removeWidgets (only the change), not both.'] }
+      const css = i.css !== undefined ? i.css : i.addCss ? (base.css ? `${base.css}\n${i.addCss}` : i.addCss) : base.css
+      let widgets: unknown = i.widgets
+      if (widgets === undefined) {
+        const keep = new Map<string, unknown>(base.widgets.map((w) => [w.id, w]))
+        for (const id of Array.isArray(i.removeWidgets) ? i.removeWidgets : []) keep.delete(String(id))
+        const unnamed: unknown[] = []
+        for (const a of Array.isArray(i.addWidgets) ? i.addWidgets : []) {
+          const id = (a as { id?: unknown } | null)?.id
+          if (typeof id === 'string') keep.set(id, a)
+          else unnamed.push(a)
+        }
+        widgets = [...keep.values(), ...unnamed]
+      }
+      const c = checkMod({ layout: i.layout === undefined ? base.layout.rules : i.layout, css, widgets })
       // Nothing is half-applied: an agent that wrote something unreadable fixes it and writes again.
       if (c.problems.length) return { problems: c.problems }
       draft = c.mod
@@ -113,6 +139,7 @@ export function createChatMod(dir: string) {
     /** The person keeps the draft: the look before it goes to history. */
     keep() {
       if (!draft) return
+      record('kept', by ?? 'An agent', why)
       push(current)
       current = draft
       dropDraft()
@@ -128,11 +155,13 @@ export function createChatMod(dir: string) {
     /** The person throws the draft away. */
     undo() {
       if (!draft) return
+      record('undone', by ?? 'An agent', why)
       dropDraft()
       changed()
     },
     /** The system default, at once. The look it replaces can be brought back. */
     reset() {
+      record('restored the system look', 'the person', '')
       dropDraft()
       if (!isEmptyMod(current)) push(current)
       current = EMPTY_MOD
@@ -146,6 +175,7 @@ export function createChatMod(dir: string) {
       const saved = JSON.parse(readFileSync(join(hist, last), 'utf8')) as { layout?: { rules?: unknown }; css?: unknown; widgets?: unknown }
       const prev = checkMod({ layout: saved.layout?.rules, css: saved.css, widgets: saved.widgets })
       rmSync(join(hist, last), { force: true })
+      record('went back', 'the person', '')
       dropDraft()
       current = prev.mod
       saveCurrent()
