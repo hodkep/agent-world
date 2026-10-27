@@ -2,8 +2,8 @@ import type { ChatModState } from '../shared/chatMod'
 
 export const WIDGET_SCHEME = 'aw-widget'
 
-// A widget page may draw and compute and nothing else: it cannot connect anywhere, open anything, submit anything or reach the app. `sandbox` is also here so the page is cut off even if something opens it bare.
-export const WIDGET_CSP = ["sandbox allow-scripts", "default-src 'none'", "script-src 'unsafe-inline'", "style-src 'unsafe-inline'", 'img-src data:', 'font-src data:', "media-src 'none'", "worker-src 'none'", "connect-src 'none'", "frame-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'"].join('; ')
+// A widget page may draw and compute and nothing else (and an inline handler like onerror, which a careless use of loaded text could create, does not run): it cannot connect anywhere, open anything, submit anything or reach the app. `sandbox` is also here so the page is cut off even if something opens it bare.
+export const WIDGET_CSP = ["sandbox allow-scripts", "default-src 'none'", "script-src 'unsafe-inline'", "script-src-attr 'none'", "style-src 'unsafe-inline'", 'img-src data:', 'font-src data:', "media-src 'none'", "worker-src 'none'", "connect-src 'none'", "frame-src 'none'", "object-src 'none'", "base-uri 'none'", "form-action 'none'"].join('; ')
 
 // Numbers and colours come in from the window that holds the frame; nothing goes out, and the page has no way to send anything.
 const PRELUDE = `<script>

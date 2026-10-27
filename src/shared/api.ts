@@ -364,6 +364,11 @@ export interface AwApi {
   chatModUndo(): Promise<void>
   chatModReset(): Promise<void>
   chatModBack(): Promise<void>
+  /** Lets the draft's widgets load their data before it is kept. */
+  chatModLoadData(): Promise<void>
+  /** What the widgets' addresses answered, by `current:<id>` or `draft:<id>`, then by the feed's id. */
+  widgetFeeds(): Promise<Record<string, Record<string, import('./widgets').FeedResult>>>
+  onWidgetFeed(cb: (u: { key: string; feed: string; r: import('./widgets').FeedResult }) => void): () => void
   /** An agent asks for a picture of the window; nothing is taken until the person answers. */
   onShotAsk(cb: (ask: { id: string; agent: string }) => void): () => void
   answerShot(id: string, ok: boolean): Promise<void>

@@ -80,6 +80,8 @@ import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type Switc
 import { startMcpServer } from './mcpServer'
 import { createChatMod } from './chatMod'
 import { WIDGET_SCHEME, widgetResponse } from './widgetPage'
+import { createWidgetFeeds } from './widgetFeeds'
+import { fetchPublic } from './widgetFetch'
 import { outlineOf } from '../shared/uiOutline'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
@@ -474,7 +476,14 @@ const send = (channel: string, ...args: unknown[]) => {
 // POC: the look an agent wrote for the chat; only the person's Keep makes it permanent.
 const shotAsks = new Map<string, (ok: boolean) => void>()
 const chatMod = createChatMod(join(HOME, 'mods', 'chat'))
-chatMod.onChange(() => send('chatmod-state', chatMod.state()))
+// What the widgets on screen asked the app to load (see widgetFeeds): a kept widget's loads always run; a draft's only after the person pressed Load data.
+const widgetFeeds = createWidgetFeeds({ fetch: (url) => fetchPublic(url), onUpdate: (key, feed, r) => send('widget-feed', { key, feed, r }) })
+const syncFeeds = () => {
+  const s = chatMod.state()
+  const of = (which: 'current' | 'draft', widgets: typeof s.current.widgets) => widgets.filter((w) => w.fetch.length).map((w) => ({ key: `${which}:${w.id}`, feeds: w.fetch }))
+  widgetFeeds.sync([...of('current', s.current.widgets), ...(s.draft && s.draftData ? of('draft', s.draft.widgets) : [])])
+}
+chatMod.onChange(() => (send('chatmod-state', chatMod.state()), syncFeeds()))
 const persist = () => saveAgents(AGENTS_FILE, agents)
 // An agent doing something, or being sent a message, is what the quick-switch lists order by; it is kept with the agent, but written out at most every 10 seconds.
 const activeSaved = new Map<string, number>()
@@ -1194,6 +1203,8 @@ protocol.registerSchemesAsPrivileged([{ scheme: WIDGET_SCHEME, privileges: { sta
 async function main() {
   await app.whenReady()
   protocol.handle(WIDGET_SCHEME, (req) => widgetResponse(chatMod.state(), req.url))
+  syncFeeds()
+  app.on('before-quit', () => widgetFeeds.stop())
   useGit(chooseGit())
   // The packaged app has its icon built in; a development run needs it set.
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
@@ -1716,6 +1727,8 @@ async function main() {
   ipcMain.handle('chatmod:undo', () => chatMod.undo())
   ipcMain.handle('chatmod:reset', () => chatMod.reset())
   ipcMain.handle('chatmod:back', () => chatMod.back())
+  ipcMain.handle('chatmod:loadData', () => chatMod.loadData())
+  ipcMain.handle('widgetfeeds:get', () => widgetFeeds.state())
   ipcMain.handle('shot:answer', (_, id: string, ok: boolean) => void shotAsks.get(String(id))?.(ok === true))
   ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))
   ipcMain.handle('prefs:set', (_, next: unknown) => {

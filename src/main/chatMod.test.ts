@@ -13,7 +13,7 @@ const hide = [{ match: { kind: ['thinking'] }, place: 'hidden' }]
 describe('the look an agent writes', () => {
   it('starts as the system default: no look, no draft', () => {
     const m = createChatMod(dir)
-    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '', widgets: [] }, draft: null, draftBy: null, draftWhy: '', history: 0 })
+    expect(m.state()).toEqual({ current: { layout: { rules: [] }, css: '', widgets: [] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false })
   })
 
   it('a write is a draft: it shows, but is not what stays until the person keeps it', () => {
@@ -79,7 +79,7 @@ describe('the look an agent writes', () => {
 
   it('widgets are written, kept, brought back and removed with the look, and one that cannot be read refuses the whole write', () => {
     const m = createChatMod(dir)
-    const w = { id: 'spend', slot: 'above-composer', height: 32, html: '<b>x</b>', meters: ['cost'] }
+    const w = { id: 'spend', slot: 'above-composer', height: 32, html: '<b>x</b>', meters: ['cost'], fetch: [] }
     expect(m.write({ widgets: [w], by: 'ada', why: 'a' }).problems).toEqual([])
     m.keep()
     expect(createChatMod(dir).state().current.widgets).toEqual([w])
@@ -147,6 +147,25 @@ describe('the look an agent writes', () => {
         expect(hi(m).problems[0], name).toMatch(stale)
       }
     })
+  })
+
+  it('a draft loads nothing from the internet until the person says so, and a new draft, Keep or Undo starts again', () => {
+    const m = createChatMod(dir)
+    m.loadData()
+    expect(m.state().draftData).toBe(false) // no draft: nothing to load for
+    m.write({ widgets: [{ id: 'q', slot: 'window-bottom', html: 'x', fetch: [{ id: 'a', url: 'https://a.example.com/q' }] }], by: 'ada', why: 'a' })
+    expect(m.state().draftData).toBe(false)
+    m.loadData()
+    expect(m.state().draftData).toBe(true)
+    m.write({ css: '.a { color: red }', by: 'ada', why: 'b' })
+    expect(m.state().draftData).toBe(false)
+    m.loadData()
+    m.undo()
+    expect(m.state().draftData).toBe(false)
+    m.write({ css: '.a { color: red }', by: 'ada', why: 'c' })
+    m.loadData()
+    m.keep()
+    expect(m.state().draftData).toBe(false)
   })
 
   it('Undo throws the draft away and leaves what was in force', () => {
