@@ -60,25 +60,47 @@ class Actions extends WidgetType {
   ignoreEvent() { return true }
 }
 
-const INLINE: [RegExp, string][] = [[/\*\*[^*\n]+\*\*/g, 'nt-b'], [/(?<![*\w])\*[^*\n]+\*(?!\*)/g, 'nt-i'], [/`[^`\n]+`/g, 'nt-code'], [/~~[^~\n]+~~/g, 'nt-s']]
+// Each Markdown mark in a line: the pattern, the class of the words, and how long its opening and closing marks are.
+const INLINE: { re: RegExp; cls: string; open: number; close: (m: RegExpMatchArray) => number }[] = [
+  { re: /\*\*[^*\n]+\*\*/g, cls: 'nt-b', open: 2, close: () => 2 },
+  { re: /(?<![*\w])\*[^*\n]+\*(?!\*)/g, cls: 'nt-i', open: 1, close: () => 1 },
+  { re: /`[^`\n]+`/g, cls: 'nt-code', open: 1, close: () => 1 },
+  { re: /~~[^~\n]+~~/g, cls: 'nt-s', open: 2, close: () => 2 },
+  { re: /\[[^\]\n]+\]\([^)\n]+\)/g, cls: 'nt-link', open: 1, close: (m) => m[0].length - m[0].indexOf('](') }
+]
 
+class Rule extends WidgetType {
+  toDOM() { const r = document.createElement('div'); r.className = 'nt-rule'; return r }
+}
+
+const hide = Decoration.replace({})
+
+/** The note drawn as it is read, except where the cursor is: there the Markdown marks show so they can be edited, and everywhere else they are hidden (a line of dashes is a rule, # is gone from a heading, ** from bold words). */
 function build(view: EditorView, h: LineActions): DecorationSet {
   const text = view.state.doc.toString()
   const lines = noteLines(text)
   const out: Range<Decoration>[] = []
+  const sel = view.state.selection.main
+  const focused = view.hasFocus
+  // The marks of a line, or of one piece of it, show while the cursor or the selection is on it.
+  const onRange = (from: number, to: number) => focused && sel.from <= to && sel.to >= from
   for (const l of lines) {
     const line = view.state.doc.line(l.line + 1)
     const raw = line.text
+    const here = onRange(line.from, line.to)
     if (l.kind === 'heading') {
-      const level = /^\s*(#{1,6})/.exec(raw)![1]!.length
-      out.push(Decoration.line({ class: `nt-h nt-h${Math.min(level, 3)}` }).range(line.from))
+      const m = /^(\s*#{1,6}\s+)/.exec(raw)!
+      out.push(Decoration.line({ class: `nt-h nt-h${Math.min(m[1]!.trim().length, 3)}` }).range(line.from))
+      if (!here) out.push(hide.range(line.from, line.from + m[1]!.length))
+    } else if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(raw)) {
+      if (here) out.push(Decoration.line({ class: 'nt-hr' }).range(line.from))
+      else if (line.to > line.from) out.push(Decoration.replace({ widget: new Rule() }).range(line.from, line.to))
       continue
-    }
-    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(raw)) {
-      out.push(Decoration.line({ class: 'nt-hr' }).range(line.from))
-      continue
-    }
-    if (l.kind === 'item') {
+    } else if (/^\s*>/.test(raw)) {
+      const m = /^(\s*>\s?)/.exec(raw)!
+      out.push(Decoration.line({ class: 'nt-quote' }).range(line.from))
+      if (!here) out.push(hide.range(line.from, line.from + m[1]!.length))
+    } else if (l.kind === 'item') {
       const m = /^(\s*)([-*+])\s+(?:\[([ xX])\]\s?)?/.exec(raw)!
       const start = line.from + m[1]!.length
       out.push(Decoration.line({ class: `nt-item${l.done ? ' done' : ''}${l.todo ? ' linked' : ''}`, attributes: { style: `padding-left:${m[1]!.length * 5 + 2}px` } }).range(line.from))
@@ -90,7 +112,16 @@ function build(view: EditorView, h: LineActions): DecorationSet {
       }
       out.push(Decoration.widget({ widget: new Actions(l.line, l.indent >= 2, !!l.todo, h), side: 1 }).range(line.to))
     }
-    for (const [re, cls] of INLINE) for (const x of raw.matchAll(re)) out.push(Decoration.mark({ class: cls }).range(line.from + x.index!, line.from + x.index! + x[0].length))
+    for (const { re, cls, open, close } of INLINE) {
+      for (const x of raw.matchAll(re)) {
+        const from = line.from + x.index!
+        const to = from + x[0].length
+        out.push(Decoration.mark({ class: cls }).range(from, to))
+        if (!onRange(from, to)) out.push(hide.range(from, from + open), hide.range(to - close(x), to))
+        // A link's address is kept as the target of the words.
+        if (cls === 'nt-link') out.push(Decoration.mark({ class: 'nt-link', attributes: { title: x[0].slice(x[0].indexOf('](') + 2, -1) } }).range(from + 1, from + x[0].indexOf('](')))
+      }
+    }
   }
   return Decoration.set(out, true)
 }
@@ -118,7 +149,7 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
       class {
         deco: DecorationSet
         constructor(v: EditorView) { this.deco = build(v, handlers) }
-        update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.deco = build(u.view, handlers) }
+        update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged || u.selectionSet || u.focusChanged) this.deco = build(u.view, handlers) }
       },
       { decorations: (p) => p.deco, provide: (p) => EditorView.atomicRanges.of((v) => v.plugin(p)?.deco ?? Decoration.none) }
     )

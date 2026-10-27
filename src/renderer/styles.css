@@ -3846,3 +3846,8 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-bar { position: relative; } .nt-tools { position: static; }
 .nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { right: 8px; left: auto; transform: none; max-width: min(240px, calc(100vw - 24px)); }
 .nt-tools .tip-btn[aria-expanded='true']::after { display: none; }
+.nt-rule { border-top: 2px solid var(--line); margin: 9px 0; height: 0; }
+.nt-quote { border-left: 3px solid var(--accent); padding-left: 10px; color: var(--muted); }
+.nt-link { color: var(--think); text-decoration: underline; text-underline-offset: 2px; }
+/* Dropdowns: room around the words and for the arrow on both sides. */
+.nt select, .td-modal select { appearance: none; -webkit-appearance: none; padding: 4px 28px 4px 10px; background-color: var(--well); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%23a4a2b8' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 10px 6px; text-overflow: ellipsis; }
