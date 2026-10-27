@@ -23,6 +23,15 @@ const select = (page: import('@playwright/test').Page, words: string, within = '
     throw new Error(`not on the page: ${w}`)
   }, [words, within])
 
+/** Select the words and press Shift+Mod+L, again from the selection if the chat re-drew the reply meanwhile: a re-draw drops the selection, and the key then finds nothing to act on. */
+const openAsk = (page: import('@playwright/test').Page, words: string, box: import('@playwright/test').Locator) =>
+  expect(async () => {
+    await select(page, words)
+    await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible({ timeout: 1000 })
+    await page.keyboard.press('Control+Shift+L')
+    await expect(box).toBeFocused({ timeout: 1000 })
+  }).toPass({ timeout: 15_000 })
+
 test('Shift+Mod+L opens the Ask box on the selected words in a reply, as the Ask button does, and does nothing without a selection', async () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-addsel-')))
   const dir = join(tmp, 'proj')
@@ -48,11 +57,8 @@ test('Shift+Mod+L opens the Ask box on the selected words in a reply, as the Ask
     await expect(quotes).toHaveCount(0)
 
     // Words selected in a reply: the key opens the box the Ask button opens, with the words still marked, and adds nothing yet.
-    await select(page, 'rewrite')
-    await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible()
-    await page.keyboard.press('Control+Shift+L')
     const here = page.getByRole('textbox', { name: 'Ask ada about the selection' })
-    await expect(here).toBeFocused()
+    await openAsk(page, 'rewrite', here)
     await expect(quotes).toHaveCount(0)
     // With the box open the key leaves it alone; typing and Enter adds the quote with the question under it.
     await page.keyboard.press('Control+Shift+L')
@@ -64,13 +70,13 @@ test('Shift+Mod+L opens the Ask box on the selected words in a reply, as the Ask
     await expect(here).toHaveCount(0)
 
     // A second selection: the plain Ctrl+L opens nothing; the key opens the box, and Enter with no question adds the words alone.
-    await select(page, 'rollback')
-    // The key acts on the selection the chat has seen: wait for its Ask button, as for the first one, or a slow machine presses it too early.
-    await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible()
+    await expect(async () => {
+      await select(page, 'rollback')
+      await expect(page.getByRole('button', { name: 'Ask ada' })).toBeVisible({ timeout: 1000 })
+    }).toPass({ timeout: 15_000 })
     await page.keyboard.press('Control+L')
     await expect(here).toHaveCount(0)
-    await page.keyboard.press('Control+Shift+L')
-    await expect(here).toBeFocused()
+    await openAsk(page, 'rollback', here)
     await here.press('Enter')
     await expect(quotes).toHaveText(['rewrite', 'rollback'])
   } finally {
