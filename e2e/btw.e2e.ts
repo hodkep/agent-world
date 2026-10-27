@@ -34,6 +34,10 @@ test('a /btw side question is answered in a card in the chat and can be dismisse
     await expect(card).toContainText('It is 4.')
     await card.getByRole('button', { name: 'Dismiss' }).click()
     await expect(card).toHaveCount(0, { timeout: 8_000 })
+    // Asked again after dismissing, it shows again, with the new question.
+    await box.fill('/btw and 3+3?')
+    await box.press('Enter')
+    await expect(card).toContainText('and 3+3?', { timeout: 25_000 })
   } finally {
     await shutdown()
   }

@@ -19,6 +19,10 @@ describe('the /btw side-question overlay', () => {
     expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw what is 2+2?\n      4.\n    ↑/↓ to scroll · c to copy · f to fork · Esc to\n    close')).toEqual({ question: 'what is 2+2?', answer: '4.' })
     expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw why?\n      ✻ Answering…\n    Esc to\n    close')).toEqual({ question: 'why?', answer: null })
   })
+  it('shows the latest question when the overlay lists the ones asked before it', () => {
+    expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw what is 2+2?\n    /btw what is 3+3?\n      6.\n    ⇧←/→ to browse · c to copy · f to fork · x to\n    clear history · Esc to close')).toEqual({ question: 'what is 3+3?', answer: '6.' })
+    expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw a?\n    /btw b?\n      ✻ Answering…\n    Esc to close')).toEqual({ question: 'b?', answer: null })
+  })
   it('sees nothing on an ordinary screen', () => {
     expect(btwOverlay('  hello\n❯ \n  ⏸ manual mode on')).toBeNull()
   })
