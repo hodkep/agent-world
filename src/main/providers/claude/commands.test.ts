@@ -28,6 +28,8 @@ describe('command palette sources', () => {
     const list = await listCommands(project, home)
     const byName = Object.fromEntries(list.map((c) => [c.name, c]))
     expect(byName.compact).toMatchObject({ source: 'built-in' })
+    // /btw works in Claude's terminal and its answer is drawn in the chat, so it is offered in the chat's command list too, as it is for agy.
+    expect(byName.btw).toMatchObject({ source: 'built-in', args: true })
     expect(byName.clear).toMatchObject({ source: 'built-in' })
     expect(byName.release).toMatchObject({ source: 'project skill', description: 'Cut a release and tag it' })
     expect(byName.tdd).toMatchObject({ source: 'your skill', description: 'Test-driven development loop' })

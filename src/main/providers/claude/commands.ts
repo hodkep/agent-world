@@ -10,6 +10,7 @@ const BUILT_INS: PaletteCommand[] = [
   { name: 'compact', description: 'Summarize the conversation to free up context', source: 'built-in', args: true },
   { name: 'clear', description: 'Start a fresh conversation in the same terminal', source: 'built-in', args: false },
   { name: 'context', description: 'Show what is using the context window', source: 'built-in', args: false },
+  { name: 'btw', description: 'Ask a side question without interrupting the current task', source: 'built-in', args: true },
   { name: 'rewind', description: 'Go back to an earlier point (code and conversation)', source: 'built-in', args: false },
   { name: 'review', description: 'Review the changes on this branch', source: 'built-in', args: true },
   { name: 'security-review', description: 'Security review of the pending changes', source: 'built-in', args: false },

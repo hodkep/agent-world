@@ -31,7 +31,7 @@ The agent's calls to Agent World's own tools fold into a row for each area: **Wo
 - **!** at the start of a message runs it as a shell command.
 - Pictures and files: click **Attach** (the **+**), paste a picture, or drop files on the box. Click a picture's thumbnail, then **Edit**, to mark it up, then **Save**.
 - Up Arrow brings back your earlier messages; Ctrl+R searches them.
-- `/btw` and a question shows the answer in a **Side question** card with **Dismiss**.
+- `/btw` is offered in the command list when you type `/`. Type `/btw` and a question: the answer shows in a **Side question** card with **Dismiss**, and the agent's own work is not interrupted.
 
 ## Permission modes
 
