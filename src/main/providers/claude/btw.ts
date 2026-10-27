@@ -11,7 +11,8 @@ export function btwOverlay(screen: string): Btw | null {
     if (/^\s+\/btw\s+\S/.test(l) && above !== undefined && RULE.test(above)) at = i
   })
   if (at < 0) return null
-  const end = lines.findIndex((l, i) => i > at && /Esc to close/.test(l))
+  // The line that says how to close it can wrap on a narrow terminal ("… Esc to" and "close"), so its start is enough.
+  const end = lines.findIndex((l, i) => i > at && /Esc to( close|\s*$)|^\s*↑\/↓ to scroll/.test(l))
   if (end < 0) return null
   const body = lines.slice(at + 1, end).map((l) => l.trim()).filter(Boolean)
   const pending = body.length === 1 && /Answering/.test(body[0]!)
