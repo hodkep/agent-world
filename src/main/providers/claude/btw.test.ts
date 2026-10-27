@@ -15,6 +15,10 @@ describe('the /btw side-question overlay', () => {
   it('copes with blank lines around the question', () => {
     expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n\n    /btw why?\n\n      Because.\n\n    Esc to close')).toEqual({ question: 'why?', answer: 'Because.' })
   })
+  it('still reads it when the terminal is narrow and the line that says how to close it wraps', () => {
+    expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw what is 2+2?\n      4.\n    ↑/↓ to scroll · c to copy · f to fork · Esc to\n    close')).toEqual({ question: 'what is 2+2?', answer: '4.' })
+    expect(btwOverlay('▔▔▔▔▔▔▔▔▔▔\n    /btw why?\n      ✻ Answering…\n    Esc to\n    close')).toEqual({ question: 'why?', answer: null })
+  })
   it('sees nothing on an ordinary screen', () => {
     expect(btwOverlay('  hello\n❯ \n  ⏸ manual mode on')).toBeNull()
   })

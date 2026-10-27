@@ -28,6 +28,10 @@ test('a /btw side question is answered in a card in the chat and can be dismisse
     await expect(card).toContainText('It is 4.', { timeout: 25_000 })
     // The question is not a message of the conversation: it is in the card only, not as a message waiting to be sent.
     await expect(page.locator('.msg.user')).toHaveCount(0)
+    // The card is still there after looking at the terminal and coming back, as the overlay is still open in the terminal.
+    await page.getByRole('tab', { name: 'Terminal' }).click()
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await expect(card).toContainText('It is 4.')
     await card.getByRole('button', { name: 'Dismiss' }).click()
     await expect(card).toHaveCount(0, { timeout: 8_000 })
   } finally {

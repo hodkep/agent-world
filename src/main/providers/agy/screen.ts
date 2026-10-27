@@ -200,7 +200,7 @@ function btwOverlay(screen: string): Btw | null {
   for (const l of all.slice(at + 1)) {
     if (!/^\s*┃/.test(l)) break
     const t = l.replace(/^\s*┃ ?/, '')
-    if (/Enter\/Esc to dismiss/.test(t)) {
+    if (/Enter\/Esc to( dismiss|\s*$)/.test(t)) {
       dismiss = true
       break
     }
