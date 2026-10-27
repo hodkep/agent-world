@@ -34,6 +34,9 @@ describe('the numbers a widget may be given', () => {
     expect(metersFor(['cost'], { limits, costUsd: 0.43 })).toEqual({ cost: 0.43 })
     expect(metersFor([], { limits, costUsd: 1 })).toEqual({})
   })
+  it('typing and sent are counts the window adds itself, never made from what is typed', () => {
+    expect(metersFor(['typing', 'sent'], { limits })).toEqual({})
+  })
   it('say nothing for what is not known, rather than zero', () => {
     expect(metersFor(['tokens', 'todos'], { limits })).toEqual({ tokens: null, todos: null })
   })
@@ -87,6 +90,11 @@ describe('data a widget loads from the internet', () => {
   it('names the host, for the bar that asks the person to load it', () => {
     expect(feedHost('https://Query1.Finance.Yahoo.com/v8/x?y=1')).toBe('query1.finance.yahoo.com')
     expect(feedHost('nonsense')).toBe('?')
+  })
+  it('the chat\'s background is a place for a widget, and typing and sent are numbers it may ask for', () => {
+    const c = checkWidgets([w({ slot: 'chat-behind', meters: ['typing', 'sent'] })])
+    expect(c.problems).toEqual([])
+    expect(c.widgets[0]).toMatchObject({ slot: 'chat-behind', meters: ['typing', 'sent'] })
   })
   it('the bottom of the window is a place for a widget', () => {
     expect(checkWidgets([wf([feed()], { slot: 'window-bottom' })]).widgets).toHaveLength(1)
