@@ -10,6 +10,22 @@ A release is a tag. Pushing a tag that starts with `v` builds the Mac installers
    - macOS: `Agent-World-<version>-arm64.dmg` and `-x64.dmg` to install from, the matching `.zip` files and `latest-mac.yml` for the updater.
 4. The release is created as a **draft**. When the upload has finished, open it on GitHub and press **Publish release**. The updater only sees published releases, so nobody is offered a half-uploaded one.
 
+## Pictures in the release notes
+
+Each new feature in a release's notes carries a picture and its icon. The pictures live in the repository, under `docs/images/releases/<version>/`, and the notes point at them by a URL that never moves.
+
+1. **Take the pictures in the release pull request**, one for each new feature. Set `VERSION` and the scenes in `e2e/shots-release.e2e.ts` to the release's own, then `pnpm build` and `AW_SHOTS=1 pnpm exec playwright test e2e/shots-release.e2e.ts`. Each picture shows the feature and little else, at twice the window's pixels. A feature's icon is a file in `docs/images/icons/`: to make one, add a 12 by 12 bitmap to `ICONS` in `scripts/readme-art.mjs` and run `pnpm readme:art`.
+2. **Point at them by the tag.** In the GitHub release's notes, write each picture's address as `https://raw.githubusercontent.com/hodkep/agent-world/v<version>/docs/images/releases/<version>/<feature>.png` (and the icon as `.../v<version>/docs/images/icons/<name>.svg`). A tag is never moved, so the picture stays as it was whatever happens to `main`. The pictures must be in the tagged commit, which is why they go in the release pull request (or earlier), never after the tag. For a release that was tagged without them, use the full commit hash of the commit that added them in place of `v<version>`.
+3. **Write one block for each feature** in the release's notes (the GitHub release only; CHANGELOG.md stays text):
+
+```
+### <img src="https://raw.githubusercontent.com/hodkep/agent-world/v0.6.0/docs/images/icons/notes.svg" width="20" height="20" alt=""> Notes
+
+One sentence, the one under Added in the changelog.
+
+![The Notes window with a checklist whose lines became tasks](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.0/docs/images/releases/0.6.0/notes.png)
+```
+
 ## Check a build before you tag it
 
 `pnpm run pack` builds the app folder for this computer (it downloads the git that is bundled with the app first, see below). Start it the way Finder does, with a bare path and a home folder of its own, and the bundled git forced on:
