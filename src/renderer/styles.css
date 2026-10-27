@@ -3854,3 +3854,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 /* A button's tip is placed against the notes bar, not the button (a button is positioned itself, so the tip would hang off its left edge and be cut). */
 .nt-tools .tip-btn { position: static; }
 .nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { top: calc(100% - 4px); right: 8px; }
+/* The buttons that appear on a line sit at its right end over a fade, not in its words: the line does not grow when they show, and they never touch the text. */
+.nt-item { position: relative; }
+.nt-act { position: absolute; right: 0; top: 50%; transform: translateY(-50%); gap: 8px; margin: 0; padding: 2px 0 2px 28px; background: linear-gradient(90deg, transparent, var(--panel) 22px); }
+.nt-act button { padding: 3px 12px; font-size: 12px; line-height: 1.5; }
