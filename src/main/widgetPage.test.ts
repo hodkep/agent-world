@@ -3,7 +3,7 @@ import { EMPTY_MOD, type ChatModState } from '../shared/chatMod'
 import { WIDGET_CSP, widgetPage, widgetResponse } from './widgetPage'
 
 const widget = { id: 'spend', slot: 'above-composer' as const, height: 32, html: '<b id="n">…</b><script>onData(d => n.textContent = d.meters.cost)</script>', meters: ['cost' as const], fetch: [] }
-const state = (over: Partial<ChatModState> = {}): ChatModState => ({ current: { ...EMPTY_MOD, widgets: [widget] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, ...over })
+const state = (over: Partial<ChatModState> = {}): ChatModState => ({ current: { ...EMPTY_MOD, widgets: [widget] }, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, recent: [], ...over })
 
 describe('the page a widget runs in', () => {
   it('cuts it off from everything: no network, no frames, no forms, no objects, no base, and a sandbox even if it is opened bare', () => {
