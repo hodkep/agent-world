@@ -34,9 +34,16 @@ test('a reply can hold a diagram and a form the agent drew: the diagram is a pic
     await form.getByLabel(/Batch size/).fill('2500')
 
     await form.getByRole('button', { name: 'Start' }).click()
-    // What the agent is told is the A2UI action, with the values read from the form as it was left.
-    const said = log.getByText(/A2UI action "start_fix"/)
+    // Your answer is a card in the form's words: its question and each field; what the agent was told (the A2UI action, with the values read from the form as it was left) is folded under it.
+    const answer = log.locator('.ans')
+    await expect(answer).toBeVisible()
+    await expect(answer).toContainText('Which pipeline first?')
+    await expect(answer.locator('.ans-rows')).toHaveText('Pipelinedaily' + 'Batch size2500' + 'Dry run onlyyes')
+    await expect(answer.locator('pre')).toBeHidden()
+    await answer.getByText('What the agent got').click()
+    const said = answer.locator('pre')
     await expect(said).toBeVisible()
+    await expect(said).toContainText('"name":"start_fix"')
     await expect(said).toContainText('"pipeline":["daily"]')
     await expect(said).toContainText('"batch":2500')
     await expect(said).toContainText('"dry":true')

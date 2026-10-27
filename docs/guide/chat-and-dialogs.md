@@ -22,7 +22,7 @@ Everything the agent does is a card. Commands, reads and searches in a row fold 
 
 <img src="../images/chat.png" alt="The chat of an agent: a command folded into one line, the Library and Notes rows of the office&#x27;s own calls, an edit shown as a diff, and the agent&#x27;s reply" width="720">
 
-The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board. A button such as "2 commands running" above the box lists them with **Stop**.
+The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board; a subtask's line reads `todo#2 › todo#3`, and a click on the first number opens the task it is part of. A button such as "2 commands running" above the box lists them with **Stop**.
 
 ## Diagrams and forms
 
@@ -32,7 +32,7 @@ An agent can draw a diagram in its reply (a flowchart or a sequence diagram) and
 
 - **A diagram** is a picture in the chat. A click on a box picks it (another click picks another), and **Ask about them** adds the picked boxes, with the diagram, to your message. **Add to message** adds the whole diagram. **Clear** lets go of the picks.
 - **Expand**, or a click on the empty part of the diagram, opens it large. Zoom with the buttons or the scroll wheel (**Fit** goes back to 100%), pick boxes, notes or messages to ask about (an arrow cannot be picked), and draw on it. **Let go of** a name takes a pick away.
-- **A form** is a card of fields (choices, a slider, boxes to tick) with a button. The fields start as the agent set them. Press the button and the agent is told what the form held when you pressed it. A form answers once: its button is greyed afterwards.
+- **A form** is a card of fields (choices, a slider, boxes to tick) with a button. The fields start as the agent set them. Press the button and the agent is told what the form held when you pressed it. Your answer shows as a sent card with the form's question and each field in words (the label of what you picked, yes or no, what you typed); **What the agent got** under it unfolds the text the agent was sent. A form answers once: its button is greyed afterwards.
 
 <img src="../images/chat-form.png" alt="A form the agent asked with: a choice of pipeline, a batch size slider, a Dry run only box and a Start button" width="720">
 
