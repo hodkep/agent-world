@@ -459,10 +459,12 @@ export function ChatView({
       setGone((g) => g && { ...g, until: Date.now() })
       const p = { id: `pending-${Date.now()}`, text: text.trim(), at: Date.now(), queued: busy }
       // /clear empties the conversation at once (the main process does the same on its side); a busy agent only queues it.
+      // A /btw side question is answered in its own card and is no message of the conversation: nothing waits to be sent, and it goes at once even when the agent is busy.
+      const side = /^\/btw\s/i.test(p.text)
       if (/^\/clear$/i.test(p.text) && !p.queued) {
         setItems([])
         setSent([])
-      } else setSent((cur) => [...cur, p])
+      } else if (!side) setSent((cur) => [...cur, p])
       stick.current = true
       if (!p.queued && !p.text.startsWith('/')) setEagerAt(Date.now())
       try {
@@ -476,7 +478,7 @@ export function ChatView({
         throw err
       }
       // If the transcript never shows it (the agent dropped it), stop pretending after a while. A queued one waits for the step to end, which can take minutes: see the effect below.
-      if (!p.queued) setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
+      if (!p.queued && !side) setTimeout(() => setSent((cur) => cur.filter((x) => x.id !== p.id)), 20_000)
     },
     [agentId, busy]
   )
