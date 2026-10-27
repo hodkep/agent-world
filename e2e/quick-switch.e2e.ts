@@ -192,6 +192,10 @@ test('the agent number shows a red dot while another agent of this project waits
     await page.getByRole('tab', { name: 'Chat' }).click()
     await expect(page.getByTestId('agents-dot')).toHaveClass(/need/)
     await expect(page.locator('.hc-switch')).toHaveAttribute('title', /Another agent needs you/)
+    // The button counts the agents to look at, and ada's tile in the list carries the same red mark.
+    await expect(page.getByTestId('agents-dot')).toHaveText('1')
+    await page.locator('.hc-switch').hover()
+    await expect(page.getByRole('menu', { name: 'Agents' }).getByRole('menuitem', { name: /ada/ }).locator('.wt-mark.need')).toBeVisible()
   } finally {
     await shutdown()
   }

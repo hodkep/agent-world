@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentDot, createDoneTracker, projectDot } from './attention'
+import { agentDot, agentMarks, createDoneTracker, projectDot } from './attention'
 
 const a = (id: string, repoPath: string, activity: string) => ({ id, repoPath, activity })
 
@@ -63,5 +63,20 @@ describe('the dot on the agent number', () => {
     expect(agentDot({ selected: 'a1', agents, done: new Set(['a3']) })).toBe('done')
     expect(agentDot({ selected: 'a2', agents, done: new Set(['a3']) })).toBe('need')
     expect(agentDot({ selected: 'a3', agents: agents.map((x) => ({ ...x, asks: false })), done: new Set(['a3']) })).toBeNull()
+  })
+})
+
+describe('the marks on the agent tiles', () => {
+  const agents = [{ id: 'a1', asks: false }, { id: 'a2', asks: true }, { id: 'a3', asks: false }, { id: 'a4', asks: false }]
+  it('mark each other agent red when it needs you, else green when it finished unseen, else nothing', () => {
+    const m = agentMarks({ selected: 'a1', agents, done: new Set(['a3', 'a2']) })
+    expect(m.get('a2')).toBe('need')
+    expect(m.get('a3')).toBe('done')
+    expect(m.has('a4')).toBe(false)
+  })
+  it('never mark the agent you are on, so the count is of the others', () => {
+    const m = agentMarks({ selected: 'a2', agents, done: new Set(['a2', 'a3']) })
+    expect(m.has('a2')).toBe(false)
+    expect(m.size).toBe(1)
   })
 })

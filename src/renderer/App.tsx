@@ -14,7 +14,7 @@ import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
 import { agentsByRecent } from '../shared/recent'
 import { useHoverMenu } from './panel/hoverMenu'
-import { agentDot, createDoneTracker, projectDot } from '../shared/attention'
+import { agentDot, agentMarks, createDoneTracker, projectDot } from '../shared/attention'
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
 import { useConfirm } from './panel/ConfirmDialog'
@@ -768,7 +768,9 @@ export function App() {
     setFinishedKey(`${[...t.projects()].sort().join('|')}#${[...t.agents()].sort().join('|')}`)
   }, [world, allAgents, folder, selected])
   // What each project's agents are doing, for its tile in the project switcher: some wait for the person (a permission, a question, a plan, a gate), some are working.
-  const agentsDot = agentDot({ selected, agents: agents.map((a) => ({ id: a.id, asks: askWord(a.id) !== null })), done: finished.current.agents() })
+  const attention = { selected, agents: agents.map((a) => ({ id: a.id, asks: askWord(a.id) !== null })), done: finished.current.agents() }
+  const tileMarks = agentMarks(attention)
+  const agentsDot = agentDot(attention)
   const wsActivity: Record<string, WorkspaceActivity> = {}
   for (const a of allAgents) {
     const w = (wsActivity[a.repoPath] ??= { waiting: 0, working: 0 })
@@ -1691,7 +1693,7 @@ export function App() {
                   {agents.length}
                   <span aria-hidden="true">▾</span>
                 </button>
-                {agentsDot && <span className={`adot ${agentsDot}`} aria-hidden="true" data-testid="agents-dot" />}
+                {agentsDot && <span className={`adot cnt ${agentsDot}`} aria-hidden="true" data-testid="agents-dot">{tileMarks.size}</span>}
                 {sw.open && (
                   <div className="qp-wrap hc" data-pinned={sw.pinned}>
                     <QuickPanel
@@ -1718,9 +1720,10 @@ export function App() {
                                 <span className="wt-top">
                                   <Identicon name={a.name} />
                                   <span className="wt-state" aria-hidden="true" />
+                                  {tileMarks.has(a.id) && <span className={`wt-mark ${tileMarks.get(a.id)}`} aria-hidden="true" />}
                                 </span>
                                 <span className="wt-name">{a.name}</span>
-                                <span className="wt-sub">{ask ? <span className="ask-pill">{ask}</span> : activity}</span>
+                                <span className="wt-sub">{ask ? <span className="ask-pill">{ask}</span> : tileMarks.get(a.id) === 'done' ? <span className="wt-tag done">Finished</span> : activity}</span>
                               </button>
                             </div>
                           </Fragment>
