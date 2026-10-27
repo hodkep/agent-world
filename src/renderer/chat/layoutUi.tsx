@@ -1,4 +1,6 @@
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { AgentIdContext } from '../files/context'
+import { useTicks } from './ticks'
 import { OutlineIcon } from '../panel/IconButton'
 import { DEFAULT_LAYOUT, type ChatLayout, type Pack } from '../../shared/chatLayout'
 import { EMPTY_MOD, GUARD_CSS, isEmptyMod, type ChatMod, type ChatModState } from '../../shared/chatMod'
@@ -194,9 +196,12 @@ const stamp = (t: string) => [...t].reduce((h, c) => (Math.imul(h, 31) + c.charC
 function WidgetFrame({ widget, which, meters, css }: { widget: Widget; which: 'draft' | 'current'; meters: Meters; css: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const feeds = useFeeds()[`${which}:${widget.id}`]
+  // How often the message box was changed and a message sent in this chat: counts only, given only to a widget that asked, and never what was typed.
+  const ticks = useTicks(useContext(AgentIdContext) ?? '')
+  const given: Meters = { ...meters, ...(widget.meters.includes('typing') && { typing: ticks.typing }), ...(widget.meters.includes('sent') && { sent: ticks.sent }) }
   // What an address answered is handed over as text, never as markup; a widget that loaded nothing is given nothing.
-  const key = JSON.stringify(meters) + Object.entries(feeds ?? {}).map(([k, v]) => `${k}${v.at}${v.ok}`).join()
-  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters, feeds: feeds ?? {}, theme: themeNow() }, '*')
+  const key = JSON.stringify(given) + Object.entries(feeds ?? {}).map(([k, v]) => `${k}${v.at}${v.ok}`).join()
+  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters: given, feeds: feeds ?? {}, theme: themeNow() }, '*')
   useEffect(send, [key, css]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <iframe
@@ -206,7 +211,7 @@ function WidgetFrame({ widget, which, meters, css }: { widget: Widget; which: 'd
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
       src={`aw-widget://look/${which}/${widget.id}?v=${stamp(widget.html)}`}
-      style={{ height: widget.height }}
+      style={{ height: widget.slot === 'chat-behind' ? '100%' : widget.height }}
       onLoad={send}
     />
   )

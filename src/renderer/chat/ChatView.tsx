@@ -45,7 +45,8 @@ import { hint, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
-import { LookRows, PackView, WidgetSlot, useChatLayout } from './layoutUi'
+import { LookRows, PackView, WidgetSlot, useChatLayout, useChatMod } from './layoutUi'
+import { noteKey, noteSent } from './ticks'
 import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
 
@@ -326,6 +327,7 @@ export function ChatView({
   const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
   // POC: the person's layout rules say where rows sit (in the chat, as a count, under the reply, hidden); no rules is the chat as it always was.
   const layout = useChatLayout()
+  const behind = useChatMod().widgets.some((w) => w.slot === 'chat-behind')
   // The only numbers a widget is ever given; it asks for them by name and gets nothing else of the app's.
   const widgetMeters = (want: MeterName[]) => metersFor(want, { limits, tokens: info?.tokens ?? null, costUsd: info?.costUsd, todosUpdated })
   const arranged = useMemo(() => {
@@ -614,7 +616,7 @@ export function ChatView({
   return (
     <AgentIdContext.Provider value={agentId}>
     <div
-      className="chat"
+      className={`chat ${behind ? 'has-behind' : ''}`}
       data-agent={agentId}
       ref={chatEl}
       hidden={!visible}
@@ -648,6 +650,7 @@ export function ChatView({
         }
       }}
     >
+      <WidgetSlot slot="chat-behind" meters={widgetMeters} />
       {pick && (
         <div ref={askBox} className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
           {asking === null ? (
@@ -1430,6 +1433,7 @@ function Composer({
   const undo = useRef<UndoStack>(null!)
   undo.current ??= new UndoStack({ text, caret: text.length })
   const edit = (next: string, kind: 'type' | 'edit' = 'edit', caret = next.length) => {
+    noteKey(agentId)
     undo.current.record({ text: next, caret }, kind, Date.now())
     setText(next)
     setCaret(caret)
@@ -1627,6 +1631,7 @@ function Composer({
   const submit = async () => {
     const value = unwrapPasted(text).trim()
     if (!value && attached.length === 0 && quotes.length === 0) return
+    noteSent(agentId)
     const mentions = attached.filter((a) => !a.context).map((a) => `@"${a.path}"`).join(' ')
     // What was picked on the Preview page goes ahead of the question, words first and then its picture.
     const picked = pickedMessage(attached.filter((a) => a.context).map((a) => ({ text: `${a.context!.text}${a.path ? `\nPicture of it: @"${a.path}"` : ''}`, view: a.context!.view })))

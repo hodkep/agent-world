@@ -49,7 +49,7 @@ describe('a look as written', () => {
 describe('what an agent is told', () => {
   it('names the tools to look with and the parts of the chat it is likely to be asked about', async () => {
     const { CHAT_MOD_GUIDE } = await import('./chatMod')
-    for (const word of ['app_ui_outline', 'app_ui_screenshot', 'chat_mod_write', '.of-head', '.of-card', '.tc-line', '.lay-chip', '.composer', '--ink', 'OUTLINE', 'map its editor background', 'chat-top', 'above-composer', 'window-bottom', 'onData', 'no network', 'meters', 'd.feeds', 'textContent', 'Load data', 'never code']) expect(CHAT_MOD_GUIDE, word).toContain(word)
+    for (const word of ['app_ui_outline', 'app_ui_screenshot', 'chat_mod_write', '.of-head', '.of-card', '.tc-line', '.lay-chip', '.composer', '--ink', 'OUTLINE', 'map its editor background', 'chat-top', 'above-composer', 'window-bottom', 'onData', 'no network', 'meters', 'd.feeds', 'textContent', 'Load data', 'never code', 'chat-behind', 'typing', 'never the letters']) expect(CHAT_MOD_GUIDE, word).toContain(word)
   })
 })
 

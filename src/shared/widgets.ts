@@ -2,10 +2,10 @@
 import type { UsageLimits } from './usage'
 import type { Todo } from './todos'
 
-export type WidgetSlot = 'chat-top' | 'above-composer' | 'window-bottom'
-export const SLOTS: WidgetSlot[] = ['chat-top', 'above-composer', 'window-bottom']
-export type MeterName = 'usage' | 'tokens' | 'cost' | 'todos'
-export const METERS: MeterName[] = ['usage', 'tokens', 'cost', 'todos']
+export type WidgetSlot = 'chat-top' | 'above-composer' | 'window-bottom' | 'chat-behind'
+export const SLOTS: WidgetSlot[] = ['chat-top', 'above-composer', 'window-bottom', 'chat-behind']
+export type MeterName = 'usage' | 'tokens' | 'cost' | 'todos' | 'typing' | 'sent'
+export const METERS: MeterName[] = ['usage', 'tokens', 'cost', 'todos', 'typing', 'sent']
 
 export interface Widget {
   id: string
@@ -76,6 +76,10 @@ export interface Meters {
   tokens?: { input: number; output: number } | null
   cost?: number
   todos?: number | null
+  /** How many times the message box has been changed in this chat: a count, never what was typed. */
+  typing?: number
+  /** How many messages have been sent from this chat. */
+  sent?: number
 }
 
 export function checkWidgets(raw: unknown): { widgets: Widget[]; problems: string[] } {
