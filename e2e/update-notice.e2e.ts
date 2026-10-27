@@ -104,7 +104,10 @@ test('the notes of the new version stay on screen while it downloads, when it is
   try {
     const page = await app.firstWindow()
     const tell = (s: object) => app.evaluate(({ BrowserWindow }, state) => BrowserWindow.getAllWindows()[0]!.webContents.send('update-state', state), s)
-    const found = { state: 'available', detail: '0.2.0 is available.', latest: '0.2.0', current: '0.1.0', tag: 'v0.2.0', url: RELEASE, notes: '## What changed\n\n- Tasks can have subtasks' }
+    // The notes carry pictures: one from the repository on GitHub (kept, full width, its words under it), one from elsewhere (dropped), and one from the repository that is not there (its words stay in its place).
+    const ours = 'https://raw.githubusercontent.com/hodkep/agent-world/0609c319/docs/images/releases/0.6.0'
+    const notes = `## What changed\n\n- Tasks can have subtasks\n\n![A task card with its subtasks as a checklist](${ours}/subtasks-labels.png)\n\n![Not ours](https://evil.example/pixel.png)\n\n![A picture that is gone](${ours}/no-such-picture.png)`
+    const found = { state: 'available', detail: '0.2.0 is available.', latest: '0.2.0', current: '0.1.0', tag: 'v0.2.0', url: RELEASE, notes }
     const popover = page.getByRole('dialog', { name: 'Agent World update' })
     await expect(page.locator('header').getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
 
@@ -114,6 +117,16 @@ test('the notes of the new version stay on screen while it downloads, when it is
     await expect(popover.getByRole('progressbar')).toBeVisible()
     await expect(popover).toContainText("What's new in 0.2.0")
     await expect(popover).toContainText('Tasks can have subtasks')
+    const shots = popover.locator('figure.rn-shot')
+    await expect(shots).toHaveCount(2)
+    await expect(shots.first().locator('img')).toHaveAttribute('src', `${ours}/subtasks-labels.png`)
+    await expect(shots.first().locator('figcaption')).toHaveText('A task card with its subtasks as a checklist')
+    await expect(popover.locator('img[src*="evil.example"]')).toHaveCount(0)
+    await expect(popover).not.toContainText('Not ours')
+    // The picture that is not there: once it fails to load, only its words are left, in a box of their own.
+    await expect(shots.nth(1)).toHaveClass(/rn-gone/, { timeout: 20_000 })
+    await expect(shots.nth(1).locator('img')).toHaveCount(0)
+    await expect(shots.nth(1)).toHaveText('A picture that is gone')
     await page.keyboard.press('Escape')
 
     // Ready to install: still there, as before.
