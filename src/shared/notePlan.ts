@@ -22,7 +22,8 @@ export function noteLines(text: string): NoteLine[] {
     const h = HEADING.exec(raw)
     if (h) return { line, kind: 'heading', indent: 0, title: h[1]!, done: false }
     const m = ITEM.exec(raw)
-    if (m && m[3]!.trim()) {
+    // An item with no words yet (the one Enter has just started) is an item, drawn with its box; it makes no task until it has words.
+    if (m) {
       const link = LINKED.exec(m[3]!)
       return { line, kind: 'item', indent: m[1]!.replace(/\t/g, '    ').length, title: m[3]!.replace(LINKED, '').trim(), done: m[2] === 'x' || m[2] === 'X', ...(link && { todo: link[1] }) }
     }
@@ -54,7 +55,7 @@ export function notePlan(text: string, lists: string[], only?: Set<number>): Not
       top = undefined
       continue
     }
-    if (l.kind !== 'item') continue
+    if (l.kind !== 'item' || !l.title) continue
     const sub = l.indent >= 2 && top !== undefined
     if (!sub) top = l
     if (l.todo || (only && !only.has(l.line))) continue
@@ -113,4 +114,16 @@ export function indentUnder(text: string, line: number): string | null {
   const lines = text.split('\n')
   for (const i of [line, ...childLines(text, line)]) lines[i] = `  ${lines[i]}`
   return lines.join('\n')
+}
+
+/** What Enter does in a bullet or checklist line: the next line begins with the same bullet (and an empty box, for a checklist) at the same indent; on an empty item it takes the bullet away instead, which ends the list. Null when the line is not an item or the cursor is before its words, so the editor does its own. */
+export function continueList(text: string, pos: number): { from: number; to: number; insert: string } | null {
+  const start = text.lastIndexOf('\n', pos - 1) + 1
+  const nl = text.indexOf('\n', pos)
+  const end = nl === -1 ? text.length : nl
+  const line = text.slice(start, end)
+  const m = /^(\s*)([-*+])\s+(?:(\[[ xX]\])\s?)?/.exec(line)
+  if (!m || pos - start < m[0].length) return null
+  if (!line.slice(m[0].length).trim()) return { from: start, to: end, insert: '' }
+  return { from: pos, to: pos, insert: `\n${m[1]}${m[2]} ${m[3] ? '[ ] ' : ''}` }
 }

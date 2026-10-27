@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { EditorState, type Range } from '@codemirror/state'
+import { EditorState, Prec, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap, placeholder, type ViewUpdate } from '@codemirror/view'
-import { noteLines } from '../../shared/notePlan'
+import { continueList, noteLines } from '../../shared/notePlan'
 
 export interface LineActions {
   /** Make a task of the line (and the lines indented under it). */
@@ -110,7 +110,7 @@ function build(view: EditorView, h: LineActions): DecorationSet {
         const at = raw.lastIndexOf('(todo#')
         out.push(Decoration.mark({ class: 'nt-linked' }).range(line.from + at, line.to))
       }
-      out.push(Decoration.widget({ widget: new Actions(l.line, l.indent >= 2, !!l.todo, h), side: 1 }).range(line.to))
+      if (l.title) out.push(Decoration.widget({ widget: new Actions(l.line, l.indent >= 2, !!l.todo, h), side: 1 }).range(line.to))
     }
     for (const { re, cls, open, close } of INLINE) {
       for (const x of raw.matchAll(re)) {
@@ -160,6 +160,18 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
         doc: value,
         extensions: [
           history(),
+          // Enter in a list item starts the next item (with an empty box in a checklist), and on an empty item ends the list.
+          Prec.high(keymap.of([{
+            key: 'Enter',
+            run: (v) => {
+              const sel = v.state.selection.main
+              if (!sel.empty) return false
+              const c = continueList(v.state.doc.toString(), sel.head)
+              if (!c) return false
+              v.dispatch({ changes: { from: c.from, to: c.to, insert: c.insert }, selection: { anchor: c.from + c.insert.length }, userEvent: 'input' })
+              return true
+            }
+          }])),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
           placeholder(hint()),
