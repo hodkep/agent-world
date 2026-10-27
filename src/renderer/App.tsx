@@ -9,6 +9,7 @@ import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
 import type { DevServer, Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
+import { ModBar, ModStyle } from './chat/layoutUi'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
@@ -1492,6 +1493,8 @@ export function App() {
           onRun={(name, args) => run(() => window.aw.runCommand(current.id, name, args))}
         />
       )}
+      <ModStyle />
+      <ModBar />
       <header>
         <h1>
           <PixelWord text="agent world" />

@@ -357,6 +357,13 @@ export interface AwApi {
   onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
+  /** POC: the look an agent wrote for the chat, a draft waiting for Keep or Undo, and the way back to the system default. */
+  chatModState(): Promise<import('./chatMod').ChatModState>
+  onChatMod(cb: (s: import('./chatMod').ChatModState) => void): () => void
+  chatModKeep(): Promise<void>
+  chatModUndo(): Promise<void>
+  chatModReset(): Promise<void>
+  chatModBack(): Promise<void>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
   closeBtw(agentId: string): Promise<void>
   onChatReset(cb: (agentId: string, sessionId: string) => void): () => void

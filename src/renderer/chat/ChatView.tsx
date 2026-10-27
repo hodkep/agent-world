@@ -44,6 +44,8 @@ import { ADD_SELECTION_EVENT } from '../addSelection'
 import { hint, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
+import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
+import { LookRows, PackView, useChatLayout } from './layoutUi'
 import type { UsageLimits } from '../../shared/usage'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
@@ -318,6 +320,22 @@ export function ChatView({
   const [shown, setShown] = useState(WINDOW)
   useEffect(() => setShown(WINDOW), [agentId])
   const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
+  // POC: the person's layout rules say where rows sit (in the chat, as a count, under the reply, hidden); no rules is the chat as it always was.
+  const layout = useChatLayout()
+  const arranged = useMemo(() => {
+    type Drawn = Row | StepGroup | OfficeGroup
+    const settle = (rs: Row[]) => groupOffice(groupSteps(rs)) as Drawn[]
+    if (searching) return settle(rows)
+    const out: (Drawn | Pack<Drawn>)[] = []
+    let run: Row[] = []
+    const flush = () => (out.push(...settle(run)), (run = []))
+    for (const x of arrange(rows, layout, describeRow)) {
+      if (x.kind === 'pack') (flush(), out.push({ ...x, items: settle(x.items) }))
+      else run.push(x)
+    }
+    flush()
+    return out
+  }, [rows, searching, layout])
   // A todo asks for a message: open the chat at it and flash it, or, when it is gone (the conversation was cleared), show what it said.
   const [flash, setFlash] = useState<string | null>(null)
   const [lost, setLost] = useState<string | null>(null)
@@ -687,7 +705,8 @@ export function ChatView({
             Show earlier ({found.length - rows.length} more)
           </button>
         )}
-        {(searching ? rows : groupOffice(groupSteps(rows)) as (Row | StepGroup | OfficeGroup)[]).map((r, at, list) => {
+        {arranged.map(function draw(r, at, list): ReactNode {
+          if (r.kind === 'pack') return <PackView key={r.id} pack={r} draw={(i) => draw(i, 0, [i])} />
           const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : r.kind === 'office' ? r.calls.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
           // A step with a note beside it gets the same wrapper as a message does: a margin for the note in a wide chat, the note under it in a narrow one.
           const withNote = (el: ReactElement) => (here.length ? <div key={r.id} className="turn step"><div className="turn-row">{el}</div><LibrarySlips slips={here} starts={[]} told={0} items={lib.items} /></div> : el)
@@ -800,6 +819,30 @@ export function ChatView({
   )
 }
 
+/** What a layout rule can see of a row: its kind, the tools it ran, its words, and whether it went wrong. */
+function describeRow(r: Row): Desc {
+  switch (r.kind) {
+    case 'tool':
+      return { kind: 'tool', tools: [r.run.name], text: `${r.run.name} ${JSON.stringify(r.run.input).slice(0, 400)} ${(r.run.result?.text ?? '').slice(0, 200)}`, bad: !!r.run.result?.isError }
+    case 'events':
+      return { kind: 'event', tools: [], text: r.chips.map((c) => c.text).join(' '), bad: r.chips.some((c) => c.tone === 'bad' || c.event === 'failed') }
+    case 'note':
+      return { kind: r.hook ? 'hook' : r.event ? 'event' : 'note', tools: [], text: `${r.text} ${r.detail ?? ''}`, bad: r.tone === 'bad' || r.event === 'failed' }
+    case 'delegation':
+      return { kind: 'delegation', tools: ['Task'], text: r.calls.map((c) => `${c.subagentType} ${c.description}`).join(' '), bad: false }
+    case 'assistant':
+      return { kind: 'assistant', tools: [], text: r.text, bad: false }
+    case 'user':
+    case 'handoff-out':
+    case 'shell':
+    case 'command':
+    case 'image':
+    case 'report':
+    case 'thinking':
+      return { kind: r.kind === 'handoff-out' ? 'handoff' : r.kind, tools: [], text: 'text' in r ? r.text : 'command' in r ? r.command : 'body' in r ? r.body : '', bad: false }
+  }
+}
+
 /** Commands and servers running under the agent, with a way to stop them. */
 /** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export. */
 function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /** Absent for a program that cannot be continued from a phone. */ remote?: RemoteState; markdown: () => string; onSearch: () => void }) {
@@ -827,7 +870,10 @@ function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /*
       {open && (
         <div className="pop-menu right" role="menu" aria-label="Conversation tools">
           <button role="menuitem" title={hint('chat-find')} onClick={() => (setOpen(false), onSearch())}>
-            Search
+            <span className="l">
+              <OutlineIcon name="search" size={14} />
+              Search
+            </span>
           </button>
           <button
             role="menuitem"
@@ -839,11 +885,18 @@ function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /*
               )
             }
           >
-            Save notes
+            <span className="l">
+              <OutlineIcon name="notes" size={14} />
+              Save notes
+            </span>
           </button>
           <button role="menuitem" onClick={() => void navigator.clipboard.writeText(markdown()).then(() => (setOpen(false), flash('Copied')))}>
-            Copy as Markdown
+            <span className="l">
+              <OutlineIcon name="copy" size={14} />
+              Copy as Markdown
+            </span>
           </button>
+          <LookRows close={() => setOpen(false)} />
           {remote && <RemoteRows state={remote} onToggle={() => askRemote(agentId, remote.state === 'off' ? 'on' : 'off')} onCopy={() => askRemote(agentId, 'link')} onQr={() => askRemote(agentId, 'qr')} close={() => setOpen(false)} />}
         </div>
       )}

@@ -78,6 +78,8 @@ import { Mailbox } from './mailbox'
 import { inBatches } from '../shared/pool'
 import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
 import { startMcpServer } from './mcpServer'
+import { createChatMod } from './chatMod'
+import { outlineOf } from '../shared/uiOutline'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
@@ -468,6 +470,9 @@ const mailbox = new Mailbox({
 const send = (channel: string, ...args: unknown[]) => {
   for (const w of liveWindows()) w.webContents.send(channel, ...args)
 }
+// POC: the look an agent wrote for the chat; only the person's Keep makes it permanent.
+const chatMod = createChatMod(join(HOME, 'mods', 'chat'))
+chatMod.onChange(() => send('chatmod-state', chatMod.state()))
 const persist = () => saveAgents(AGENTS_FILE, agents)
 // An agent doing something, or being sent a message, is what the quick-switch lists order by; it is kept with the agent, but written out at most every 10 seconds.
 const activeSaved = new Map<string, number>()
@@ -1462,6 +1467,21 @@ async function main() {
       return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), transcriptPath: providerOf(a).hookTranscript?.(a), remind: (prompt) => promptContext(id, prompt, remote.touches(id, prompt) && savedAs(a, prompt)), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
     },
     todos: todoService,
+    chatMod: {
+      state: () => chatMod.state(),
+      write: (id, i) => chatMod.write({ ...i, by: byId(id)?.name ?? 'An agent' }),
+      outline: async (selector, depth) => {
+        const w = frontWindow()
+        if (!w) return 'No window is open.'
+        return String(await w.webContents.executeJavaScript(`(${outlineOf.toString()})(document, ${JSON.stringify(selector)}, ${Math.max(1, Math.min(8, Math.round(depth)))})`))
+      },
+      screenshot: async () => {
+        const w = frontWindow()
+        if (!w) return null
+        const img = await w.webContents.capturePage()
+        return (img.getSize().width > 1100 ? img.resize({ width: 1100 }) : img).toPNG().toString('base64')
+      }
+    },
     libraryOn: () => prefs.libraryEnabled,
     builder: {
       offered: (id) => !!byId(id)?.builder,
@@ -1671,6 +1691,12 @@ async function main() {
   // An installed app looks by itself once at the start and every three hours; a build that is not installed has nothing to look for.
   if (app.isPackaged) startChecks(() => checkForUpdates((s) => send('update-state', s)))
   // Automated runs have no one to walk through setup, so they start as if it was done.
+  // POC: the chat's look, and the person's answers to it.
+  ipcMain.handle('chatmod:state', () => chatMod.state())
+  ipcMain.handle('chatmod:keep', () => chatMod.keep())
+  ipcMain.handle('chatmod:undo', () => chatMod.undo())
+  ipcMain.handle('chatmod:reset', () => chatMod.reset())
+  ipcMain.handle('chatmod:back', () => chatMod.back())
   ipcMain.handle('prefs:get', () => (process.env.AW_NO_SETUP ? { ...prefs, setup: { ...prefs.setup, done: true } } : prefs))
   ipcMain.handle('prefs:set', (_, next: unknown) => {
     prefs = cleanPrefs(next, prefs)
