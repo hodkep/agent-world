@@ -45,7 +45,7 @@ A Claude Code that runs for the first time in a configuration folder asks a few 
 
 The agent keeps waiting until the question is answered, even if you close the card.
 
-![The card in the chat for a new Claude Code's first question: choose the text style, with the options as buttons and Answer in terminal below](../images/first-run.png)
+<img src="../images/first-run.png" alt="The card in the chat for a new Claude Code&#x27;s first question: choose the text style, with the options as buttons and Answer in terminal below" width="720">
 
 ## A project folder that is a git repository with no commits yet
 

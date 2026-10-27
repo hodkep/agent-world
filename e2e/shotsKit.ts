@@ -64,9 +64,14 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
       AW_CLAUDE_BIN: join(bin, 'claude'), AW_AGY_BIN: o.agy ? join(bin, 'agy') : '/no/such/agy', AW_GEMINI_BIN: '/no/such/gemini', AW_AGY_PLUGINS: join(tmp, 'agy-plugins'), ...(o.agy && { AW_AGY_HOME: join(tmp, 'agy'), AW_AGY_CONFIG: join(tmp, 'mcp_config.json') }),
       FAKE_DELAY_MS: '150', FAKE_TRANSCRIPT: '1', FAKE_ARGS: join(tmp, 'args.log'), FAKE_ENV_FILE: join(tmp, 'env.log'), SHOTS_SCENES: JSON.stringify(o.scenes ?? {}), ...o.env
     },
-    ...(o.video && { recordVideo: { dir: o.video, size } })
+    ...(o.video && { recordVideo: { dir: o.video, size: { width: size.width * DENSITY, height: size.height * DENSITY } } })
   })
-  await app.context().addInitScript(() => localStorage.getItem('aw.compact') === null && localStorage.setItem('aw.compact', '0'))
+  // The office follows the real hour and a made-up weather: a picture taken at dusk comes out orange, and one in the rain streaked. The pictures are all of one clear midday, the office in daylight.
+  await app.context().addInitScript(() => {
+    localStorage.setItem('aw.clockHour', '12')
+    localStorage.setItem('aw.weather', 'clear')
+    if (localStorage.getItem('aw.compact') === null) localStorage.setItem('aw.compact', '0')
+  })
   const proc = app.process()
   const page = await app.firstWindow()
   await page.setViewportSize(size)

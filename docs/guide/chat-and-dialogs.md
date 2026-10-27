@@ -20,7 +20,7 @@ To find your way in a long conversation:
 
 Everything the agent does is a card. Commands, reads and searches in a row fold into one card ("Ran 4 commands"); click it to open it. An edit is a diff; click the file's name to open it (see [Code and preview](code-and-preview.md)).
 
-![The chat of an agent: a command folded into one line, the Library and Notes rows of the office's own calls, an edit shown as a diff, and the agent's reply](../images/chat.png)
+<img src="../images/chat.png" alt="The chat of an agent: a command folded into one line, the Library and Notes rows of the office&#x27;s own calls, an edit shown as a diff, and the agent&#x27;s reply" width="720">
 
 The agent's calls to Agent World's own tools fold into a row for each area: **Workflow** ([Workflows](workflows.md)), **Todos** ([Todos](todos.md)), **Library** ([Library and playbook](library-and-playbook.md)) and **Notes**. Click a row to open a line for each call, then a line, then **Call details**. A line about one task has a `todo#N ↗` chip that opens that task on the Todos board. A button such as "2 commands running" above the box lists them with **Stop**.
 
@@ -28,15 +28,15 @@ The agent's calls to Agent World's own tools fold into a row for each area: **Wo
 
 An agent can draw a diagram in its reply (a flowchart or a sequence diagram) and ask with a form instead of a list of questions. Nothing is set up for it: the agent just does it.
 
-![A reply with a flowchart of five boxes, one of them picked, and a sequence diagram under it](../images/chat-diagram.png)
+<img src="../images/chat-diagram.png" alt="A reply with a flowchart of five boxes, one of them picked, and a sequence diagram under it" width="720">
 
 - **A diagram** is a picture in the chat. A click on a box picks it (another click picks another), and **Ask about them** adds the picked boxes, with the diagram, to your message. **Add to message** adds the whole diagram. **Clear** lets go of the picks.
 - **Expand**, or a click on the empty part of the diagram, opens it large. Zoom with the buttons or the scroll wheel (**Fit** goes back to 100%), pick boxes, notes or messages to ask about (an arrow cannot be picked), and draw on it. **Let go of** a name takes a pick away.
 - **A form** is a card of fields (choices, a slider, boxes to tick) with a button. The fields start as the agent set them. Press the button and the agent is told what the form held when you pressed it. A form answers once: its button is greyed afterwards.
 
-![A form the agent asked with: a choice of pipeline, a batch size slider, a Dry run only box and a Start button](../images/chat-form.png)
+<img src="../images/chat-form.png" alt="A form the agent asked with: a choice of pipeline, a batch size slider, a Dry run only box and a Start button" width="720">
 
-![The same diagram opened large, with zoom controls and the boxes picked listed](../images/chat-diagram-large.png)
+<img src="../images/chat-diagram-large.png" alt="The same diagram opened large, with zoom controls and the boxes picked listed" width="720">
 
 ## The message box
 
@@ -44,14 +44,14 @@ An agent can draw a diagram in its reply (a flowchart or a sequence diagram) and
 - **@** opens the files and folders of the agent's folder.
 - Markdown is drawn as you type it: a heading is big, `- ` is a bullet, `>` a quote, and **bold**, *italic* and `code` look like themselves. The marks are hidden on every line but the one the caret is in. Commands, plugin skills and files are tinted wherever they are in the message. What is sent is the text as you typed it.
 
-![The message box with a heading, two bullets, a quote and a line with bold and code, drawn as they were typed, a command and a file tinted](../images/chat-markdown-box.png)
+<img src="../images/chat-markdown-box.png" alt="The message box with a heading, two bullets, a quote and a line with bold and code, drawn as they were typed, a command and a file tinted" width="400">
 
 - **!** at the start of a message runs it as a shell command.
 - Pictures and files: click **Attach** (the **+**), paste a picture, or drop files on the box. Click a picture's thumbnail, then **Edit**, to mark it up, then **Save**.
 - Up Arrow brings back your earlier messages; Ctrl+R searches them.
 - `/btw` is offered in the command list when you type `/`. Type `/btw` and a question: the answer shows in a **Side question** card with **Dismiss**, and the agent's own work is not interrupted.
 
-![The command list offering /btw with "side question", and the Side question card with its answer](../images/chat-btw.png)
+<img src="../images/chat-btw.png" alt="The command list offering /btw with &quot;side question&quot;, and the Side question card with its answer" width="720">
 
 ## Permission modes
 
@@ -92,7 +92,7 @@ To put a card away, click its **✕** or press Esc. The agent keeps waiting, and
 
 **QUESTION** One page for each question, then a review page.
 
-![A question from the agent as a dialog: page 1 of 2, with four numbered answers and a Something else field, and Answer in terminal at the foot](../images/chat-dialog.png)
+<img src="../images/chat-dialog.png" alt="A question from the agent as a dialog: page 1 of 2, with four numbered answers and a Something else field, and Answer in terminal at the foot" width="720">
 
 - Click an answer or press its number. "Something else…" takes your own words.
 - **Next** turns the page and reads **Review** on the last. Check your answers, then click **Send answers**.
@@ -110,6 +110,6 @@ The model button, the ring (**Context and usage**, with **Compact**) and **More 
 
 **More actions**, then **Restart agent**, asks "Restart name?" first. **Restart** starts the program again on the same conversation (the agent never leaves the office); **Cancel** changes nothing. Use it when an agent's program is stuck or has kept an old setting.
 
-![The question Restart nova with Cancel and Restart, which starts the program again on the same conversation](../images/chat-restart.png)
+<img src="../images/chat-restart.png" alt="The question Restart nova with Cancel and Restart, which starts the program again on the same conversation" width="720">
 
 Next: [Code and preview](code-and-preview.md)
