@@ -10,13 +10,13 @@ const read = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8') : '')
 const fakeClaude = resolve(__dirname, 'fake-claude.mjs')
 const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
 
-async function open(prefix: string) {
+async function open(prefix: string, env: Record<string, string> = {}) {
   const home = mkdtempSync(join(tmpdir(), prefix))
   const agyHome = join(home, 'agy')
   mkdirSync(agyHome)
   const folder = join(home, 'project')
   mkdirSync(folder)
-  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '600' }, home)
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '600', ...env }, home)
   const page = await app.firstWindow()
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
   await page.reload()
@@ -431,6 +431,35 @@ test('an entry agy still lists for a removed build can be taken out from Setting
     await expect(box.getByRole('alert')).toHaveCount(0)
     await expect(box.getByRole('status').filter({ hasText: 'Removed agent-world-2' })).toBeVisible()
     expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['StitchMCP'])
+  } finally {
+    await shutdown()
+  }
+})
+
+test('agy\'s requests are read from its conversation file: what came from its cache is counted apart, and writing to the cache is not reported', async () => {
+  const { page, shutdown } = await open('aw-agy-mix-', { FAKE_CACHED: '4000' })
+  try {
+    await hireAgy(page, 'ada')
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: /message/i }).first()
+    await box.fill('count these')
+    await box.press('Enter')
+    await expect(page.locator('.chat:visible').getByText('echo: count these')).toBeVisible({ timeout: 15_000 })
+    await page.setViewportSize({ width: 1400, height: 1000 })
+    await page.locator('header').getByRole('button', { name: 'Usage', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    await modal.getByRole('tab', { name: 'Tokens' }).click()
+    const row = modal.locator('.st-tokens tbody tr', { hasText: 'ada' })
+    // It read 1,000 fresh and 4,000 from the cache, and wrote 50: the cache served 80%. Counted once, not again as the old totals.
+    await expect(async () => {
+      await modal.getByRole('button', { name: 'Refresh' }).click()
+      await expect(row.locator('td').nth(3)).toHaveText('4k', { timeout: 1500 })
+    }).toPass({ timeout: 30_000 })
+    await expect(row.locator('td').nth(2)).toHaveText('1k')
+    await expect(row.locator('td').nth(4)).toHaveText('—')
+    await expect(row.locator('td').nth(5)).toHaveText('50')
+    await expect(row.locator('td').nth(6)).toHaveText('80%')
+    await expect(modal.getByRole('heading', { name: /All, 30 days/ })).toContainText('5k tokens')
   } finally {
     await shutdown()
   }

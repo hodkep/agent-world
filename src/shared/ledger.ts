@@ -1,3 +1,5 @@
+import { tokenTotal } from './tokens'
+
 /**
  * What the app records as agents work, so the Usage and Weekly Rewind screens have a history to show.
  * Claude only reports a running cost per conversation, so the app saves each increase as it arrives, with
@@ -10,6 +12,8 @@ export type LedgerEvent =
   | { k: 'limit'; t: number; provider: string; account?: string; group: string; kind: 'five_hour' | 'weekly'; usedPct: number }
   /** For a program that reports tokens, not a price: how many it used since the last record. */
   | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string; account?: string }
+  /** One request to the model, counted exactly by the program itself (see shared/tokens.ts): what it read fresh, from its cache and wrote to it, and wrote back. */
+  | { k: 'req'; t: number; agent: string; project: string; model: string; provider: string; input: number; cacheRead?: number; cacheWrite?: number; output: number; name?: string; account?: string }
 
 /** How much a running total grew; a lower total means a new conversation started from zero. */
 export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
@@ -25,7 +29,7 @@ export function parseLedger(text: string): LedgerEvent[] {
   for (const line of text.split('\n')) {
     try {
       const e = JSON.parse(line) as LedgerEvent
-      if ((e.k === 'cost' || e.k === 'work' || e.k === 'tokens' || e.k === 'limit') && Number.isFinite(e.t)) out.push(e)
+      if ((e.k === 'cost' || e.k === 'work' || e.k === 'tokens' || e.k === 'req' || e.k === 'limit') && Number.isFinite(e.t)) out.push(e)
     } catch {
       /* a half-written last line is expected after a crash */
     }
@@ -33,8 +37,8 @@ export function parseLedger(text: string): LedgerEvent[] {
   return out
 }
 
-const DAY = 86_400_000
-const dayStart = (t: number) => {
+export const DAY = 86_400_000
+export const dayStart = (t: number) => {
   const d = new Date(t)
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 }
@@ -43,7 +47,7 @@ export function weekStartOf(t: number) {
   const d = new Date(dayStart(t))
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)).getTime()
 }
-const dateKey = (t: number) => {
+export const dateKey = (t: number) => {
   const d = new Date(t)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -62,13 +66,13 @@ function* hours(t: number, ms: number): Generator<[number, number]> {
 }
 
 /** Who an agent's entries belong to: spend entries say, and work entries without a name of their own are filed with the same agent's spend. */
-function whoMap(events: LedgerEvent[], names: Record<string, string>) {
+export function whoMap(events: LedgerEvent[], names: Record<string, string>) {
   const who = new Map<string, { t: number; provider: string; account: string; name: string }>()
   for (const e of events) {
     if (e.k === 'limit') continue
     const last = who.get(e.agent)
     // The latest spend wins, so an agent moved to another account has its work filed with the account it is on now.
-    if ((e.k === 'cost' || e.k === 'tokens') && (!last || e.t >= last.t)) who.set(e.agent, { t: e.t, provider: e.provider ?? LEGACY_PROGRAM[e.k], account: e.account ?? '', name: e.name ?? last?.name ?? names[e.agent] ?? 'removed agent' })
+    if ((e.k === 'cost' || e.k === 'tokens' || e.k === 'req') && (!last || e.t >= last.t)) who.set(e.agent, { t: e.t, provider: e.provider ?? LEGACY_PROGRAM[e.k], account: e.account ?? '', name: e.name ?? last?.name ?? names[e.agent] ?? 'removed agent' })
   }
   return (e: { agent: string; provider?: string; account?: string; name?: string }) => {
     const w = who.get(e.agent)
@@ -166,7 +170,7 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
       } else if (e.k === 'work') {
         before.ms += e.ms
         before.turns++
-      } else if (e.k === 'tokens') before.tokens += e.input + e.output
+      } else if (e.k === 'tokens' || e.k === 'req') before.tokens += tokenTotal(e)
     }
     if (e.t < start || e.t >= end) continue
     const day = dayOf(e.t)
@@ -177,9 +181,9 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
     }
     const w = whoOf(e)
     const a = acct(w.provider, w.account)
-    if (e.k === 'tokens') {
-      tokens += e.input + e.output
-      a.tokens += e.input + e.output
+    if (e.k === 'tokens' || e.k === 'req') {
+      tokens += tokenTotal(e)
+      a.tokens += tokenTotal(e)
       continue
     }
     const row = agentRow(e.agent, w.name, a.key)
@@ -322,7 +326,7 @@ export function usageReport(events: LedgerEvent[], days: number, now: number): U
 }
 
 /** Before entries named their program, only Claude reported a price and only agy reported tokens. */
-const LEGACY_PROGRAM = { cost: 'claude', tokens: 'agy' } as const
+const LEGACY_PROGRAM = { cost: 'claude', tokens: 'agy', req: 'claude' } as const
 
 export interface Spend {
   usd: number
@@ -420,7 +424,7 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
       }
       continue
     }
-    const spend: Spend = e.k === 'cost' ? { usd: e.usd, tokens: 0, ...(e.est && { est: e.usd }) } : { usd: 0, tokens: e.input + e.output }
+    const spend: Spend = e.k === 'cost' ? { usd: e.usd, tokens: 0, ...(e.est && { est: e.usd }) } : { usd: 0, tokens: tokenTotal(e) }
     if (e.t >= prior && e.t < first) add(before, spend)
     if (e.t >= monthStart && e.t <= now) add(month, spend)
     const i = index.get(dateKey(e.t))

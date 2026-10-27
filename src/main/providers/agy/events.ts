@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readdirSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import type { UsageRecord } from '../../../shared/tokens'
 import type { Activity, AgentEvent, AgentRecord, Question } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions, TerminalIO } from '../ports'
 import { agyContextWindow } from './launch'
@@ -34,6 +35,8 @@ export interface Deps {
   subagents: (a: AgentRecord) => { agentId: string; type: string; done: boolean; stopped: boolean }[]
   /** Tokens used so far in an agent's conversation. */
   usage: (a: AgentRecord) => { input: number; output: number; context: number } | null
+  /** The requests made after step `after` (-1 for all), and the step to go on from. */
+  requests: (a: AgentRecord, after: number, model: string) => { records: UsageRecord[]; cursor: number }
   /** The questions of the last ask_question call in an agent's saved conversation, or null when it has none (yet). */
   questions: (a: AgentRecord) => Question[] | null
   /** The model's context size in tokens, where known. */
@@ -127,6 +130,14 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
     const due = a.started && turn - (s.readAt ?? -USAGE_EVERY) >= USAGE_EVERY
     if (due) s.readAt = turn
     if (due) s.usage = deps.usage(a) ?? s.usage
+    if (due) {
+      // An old conversation's history is in the ledger already, counted the old way: only a bookmark is taken. An agent just hired is counted from its first step.
+      const fresh = a.hiredAt !== undefined && Date.now() - a.hiredAt < 30 * 60_000
+      const model = shown?.model ?? 'unknown'
+      const found = deps.requests(a, a.usageCursor ?? -1, model)
+      const first = a.usageCursor === undefined && !fresh
+      o.onUsage?.(a.id, first ? [] : found.records, found.cursor)
+    }
     const key = `${shown?.model}|${shown?.effort}|${s.usage?.input}|${s.usage?.output}`
     // A clone opened the conversation it copies; branching it gives it one of its own, and the source stays as it was.
     if (a.forkOf && !a.started && !s.forked && agyScreen.inputReady(screen) && !agyScreen.typedText?.(screen)) {
@@ -227,7 +238,7 @@ export function createAgyEvents(o: EventSourceOptions, deps: Deps) {
 
 export const agyEvents = {
   async start(o: EventSourceOptions): Promise<EventHandle> {
-    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, window: agyContextWindow, subagents: (a) => agyTranscript.subagents(a), questions: lastQuestions, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
+    const { tick, handle } = createAgyEvents(o, { conversations: savedConversations, usage: (a) => agyTranscript.usage?.(a) ?? null, requests: (a, after, model) => agyTranscript.requests?.(a, after, model) ?? { records: [], cursor: after }, window: agyContextWindow, subagents: (a) => agyTranscript.subagents(a), questions: lastQuestions, sleep: (ms) => new Promise((r) => setTimeout(r, ms)) })
     const timer = setInterval(tick, POLL_MS)
     return { ...handle, close: () => clearInterval(timer) }
   }

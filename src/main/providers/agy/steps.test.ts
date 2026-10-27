@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeStep, sumUsage, usageOf } from './steps'
+import { decodeStep, sumUsage, usageOf, usageRequests, type StepRow } from './steps'
 import { bytes, msg, str, varint } from './wire.test-helper'
 
 const at = (sec: number, nanos = 0) => msg(1, varint(1, sec), varint(2, nanos))
@@ -21,6 +21,42 @@ describe('what a model step cost in tokens', () => {
     const sum = sumUsage([usageOf(step(1000, undefined, 100, 80, 20)), null, usageOf(step(1200, 300, 50, 10, 40))])
     expect(sum).toEqual({ input: 2500, output: 150, context: 1550 })
     expect(sumUsage([])).toBeNull()
+  })
+})
+
+describe('the requests agy made, from its conversation file', () => {
+  const model = (idx: number, read: number, cached: number | undefined, wrote: number, status = 3): StepRow => ({
+    idx, type: 15, status,
+    payload: Buffer.concat([varint(1, 15), msg(5, msg(1, varint(1, 1000 + idx), varint(2, 0)), msg(9, varint(2, read), varint(3, wrote), ...(cached === undefined ? [] : [varint(5, cached)])))])
+  })
+  const other = (idx: number, status = 3): StepRow => ({ idx, type: 132, status, payload: Buffer.concat([varint(1, 132)]) })
+
+  it('gives one record per model step: read fresh, read from the cache, and written, with no figure for writing to the cache', () => {
+    const { records } = usageRequests([model(1, 2362, 14927, 275), other(2), model(3, 4395, 18704, 93)], -1, 'gemini')
+    expect(records).toEqual([
+      { id: '1', at: 1_001_000, model: 'gemini', input: 2362, cacheRead: 14927, output: 275 },
+      { id: '3', at: 1_003_000, model: 'gemini', input: 4395, cacheRead: 18704, output: 93 }
+    ])
+    expect('cacheWrite' in records[0]!).toBe(false)
+  })
+
+  it('counts a step with nothing from the cache as zero from the cache, because agy does report it', () => {
+    expect(usageRequests([model(1, 16956, undefined, 72)], -1, 'm').records[0]).toMatchObject({ input: 16956, cacheRead: 0, output: 72 })
+  })
+
+  it('takes only the steps after the bookmark, and gives the bookmark to continue from', () => {
+    const rows = [model(1, 10, 0, 1), model(3, 20, 5, 2), model(5, 30, 9, 3)]
+    expect(usageRequests(rows, 3, 'm')).toMatchObject({ records: [{ id: '5' }], cursor: 5 })
+    expect(usageRequests(rows, 5, 'm')).toEqual({ records: [], cursor: 5 })
+  })
+
+  it('stops at a step still being worked on, so it is read whole next time and never counted half', () => {
+    const rows = [model(1, 10, 0, 1), model(3, 20, 5, 2, 1), model(5, 30, 9, 3)]
+    expect(usageRequests(rows, -1, 'm')).toMatchObject({ records: [{ id: '1' }], cursor: 1 })
+  })
+
+  it('moves the bookmark past steps that carry no usage, so they are not looked at again', () => {
+    expect(usageRequests([model(1, 10, 0, 1), other(2), other(3)], -1, 'm').cursor).toBe(3)
   })
 })
 

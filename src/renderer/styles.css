@@ -1680,6 +1680,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .st-fresh i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-text, #9fdc9f); }
 .st-fresh i[data-stale=true] { background: var(--accent); }
 .st-cards.four { grid-template-columns: repeat(4, 1fr); }
+.st-cards.five { grid-template-columns: repeat(5, 1fr); }
 .st-card[data-level=hot] b { color: #ff8a8a; }
 .st-card[data-level=ok] b { color: #9fdc9f; }
 .st-two.wide { grid-template-columns: 1.5fr 1fr; }
@@ -1717,7 +1718,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .st-proj .n, .st-proj .share { color: var(--muted); font-size: 11px; }
 .st-proj .share { text-align: right; }
 .st-agents { padding: 0 0 8px 30px; }
-@media (max-width: 760px) { .st-cards.four { grid-template-columns: 1fr 1fr; } .st-two.wide { grid-template-columns: 1fr; } .st-rank { grid-template-columns: 18px minmax(0, 1fr) auto; } .st-rank .st-split, .st-proj .st-split, .st-proj .share { display: none; } .st-proj summary { grid-template-columns: 18px minmax(0, 1fr) auto; } }
+@media (max-width: 760px) { .st-cards.four, .st-cards.five { grid-template-columns: 1fr 1fr; } .st-two.wide { grid-template-columns: 1fr; } .st-rank { grid-template-columns: 18px minmax(0, 1fr) auto; } .st-rank .st-split, .st-proj .st-split, .st-proj .share { display: none; } .st-proj summary { grid-template-columns: 18px minmax(0, 1fr) auto; } }
 
 /* ---- Hire form v2: a header with the new hire, option cards, a footer that says what will happen ---- */
 .hire-dialog .hire.hire-v2 { gap: 16px; padding: 0; background: transparent; }
@@ -3861,3 +3862,16 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-menu button:first-child { background: var(--accent); color: var(--ink); font-weight: 600; }
 .nt-menu kbd { font: 11px Menlo, monospace; opacity: .7; }
 .nt-item { position: relative; }
+
+/* The Usage window's Tokens tab: fresh input, cache read, cache write and output as one bar. */
+.st-mix { display: flex; gap: 1px; width: 100%; min-width: 60px; height: 8px; background: var(--track); }
+.st-mix.tall { height: 16px; }
+.st-mix b { display: block; height: 100%; }
+.m-in { background: var(--think); }
+.m-rd { background: var(--ok); }
+.m-wr { background: var(--claude); }
+.m-out { background: var(--accent); }
+.m-old { background: repeating-linear-gradient(135deg, var(--track) 0 4px, var(--dim) 4px 6px); }
+.st-mixkey { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.st-mixkey s { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; }
+.st-tokens td:nth-child(2) { min-width: 120px; }

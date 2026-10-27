@@ -207,7 +207,7 @@ const submit = (text) => {
   working(text)
   timer = setTimeout(() => {
     // Each answer carries the token counts agy records: read 2 (cache part in 5), written 3 (thinking 9 plus reply 10).
-    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(5, msg(9, varint(2, 1000), varint(3, 50), varint(9, 30), varint(10, 20))), msg(20, str(1, `echo: ${text}`))]))
+    addStep(15, 3, Buffer.concat([varint(1, 15), stamp(), msg(5, msg(9, varint(2, 1000), varint(3, 50), ...(process.env.FAKE_CACHED ? [varint(5, Number(process.env.FAKE_CACHED))] : []), varint(9, 30), varint(10, 20))), msg(20, str(1, `echo: ${text}`))]))
     state = 'idle'
     idle()
   }, Number(process.env.FAKE_DELAY_MS ?? 1200))

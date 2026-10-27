@@ -51,6 +51,9 @@ import { pagesOpenedBy } from '../shared/pagePath'
 import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
+import type { UsageRecord } from '../shared/tokens'
+import { tokenMix } from '../shared/tokenMix'
+import { requestEvents } from './usageLedger'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
@@ -783,6 +786,21 @@ function refreshAttention() {
   }
 }
 
+/** Agents whose requests arrive exactly counted: the totals their status line carries are left out of the history. */
+const exactUsage = new Set<string>()
+const seenRequests = new Map<string, Set<string>>()
+function onUsage(agentId: string, records: UsageRecord[], cursor?: number) {
+  const a = byId(agentId)
+  if (!a) return
+  exactUsage.add(a.id)
+  if (cursor !== undefined && a.usageCursor !== cursor) {
+    a.usageCursor = cursor
+    persist()
+  }
+  const seen = seenRequests.get(a.id) ?? seenRequests.set(a.id, new Set()).get(a.id)!
+  const who = { agent: a.id, project: projectOf(a), provider: providerOf(a).id, name: a.name, ...(a.account && { account: a.account }) }
+  for (const e of requestEvents(records, who, seen, providerOf(a).capabilities.budget ? undefined : (m, i, o) => estimateUsd(m, i, o, priceBook))) record(e)
+}
 function onStats(s: AgentStats, agentId: string) {
   const a = byId(agentId)
   if (!a) return
@@ -809,7 +827,8 @@ function onStats(s: AgentStats, agentId: string) {
   // A program that counts tokens instead of dollars: record how many it used since the last report.
   // Every program's tokens are counted, and a program that reports no price is given an estimate from them.
   const used = s.tokens ?? s.tokenTotals
-  if (used) {
+  // An agent whose program counts its requests exactly (see onUsage) is not counted again from the totals it reports.
+  if (used && !exactUsage.has(a.id)) {
     const prev = a.tokensSeen ?? (fresh ? { input: 0, output: 0 } : used)
     const grew = { input: costDelta(prev.input, used.input), output: costDelta(prev.output, used.output) }
     if (!a.tokensSeen || grew.input !== 0 || grew.output !== 0) {
@@ -1210,6 +1229,7 @@ async function main() {
       if (top && ![...childAsks.values()].includes(top)) send('agent-event', { type: 'activity', agentId: top, sessionId: byId(top)?.sessionId ?? '', activity: lastActivity.get(top) ?? 'delegating' })
     },
     onStatus: onStats,
+    onUsage: onUsage,
     reminderFor: async (id, prompt, origin) => promptContext(id, prompt, remote.touches(id, prompt) ? await origin.fromProgram() : false) || null,
     callerIsProgram: async (id, port) => fromAgentProgram((await peerPids(port)) ?? [], sessions.get(id)?.pid, process.pid),
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
@@ -2858,6 +2878,8 @@ async function main() {
   })
   ipcMain.handle('ledger:week', (_, start: number) => weekReport(ledger, weekStartOf(start), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
+  ipcMain.handle('ledger:tokenMix', (_, days: number, account?: string) =>
+    tokenMix(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
   ipcMain.handle('ledger:overview', (_, days: number) =>
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))

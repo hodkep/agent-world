@@ -1,0 +1,473 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "claude-code"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.events"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1793099035721000000",
+       "observedTimeUnixNano": "1793099035721000000",
+       "body": {
+        "stringValue": "claude_code.api_request"
+       },
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "527cd640-e13c-4f38-a91e-b4b2c3ca7a42"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "api_request"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-27T11:03:55.721Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 10
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "19f123a9-4a1c-48e2-8446-f802eca61932"
+         }
+        },
+        {
+         "key": "model",
+         "value": {
+          "stringValue": "claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": 2
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": 160
+         }
+        },
+        {
+         "key": "cache_read_tokens",
+         "value": {
+          "intValue": 11990
+         }
+        },
+        {
+         "key": "cache_creation_tokens",
+         "value": {
+          "intValue": 5616
+         }
+        },
+        {
+         "key": "cache_creation_5m_tokens",
+         "value": {
+          "intValue": 0
+         }
+        },
+        {
+         "key": "cache_creation_1h_tokens",
+         "value": {
+          "intValue": 5616
+         }
+        },
+        {
+         "key": "cost_usd",
+         "value": {
+          "doubleValue": 0.025267
+         }
+        },
+        {
+         "key": "cost_usd_micros",
+         "value": {
+          "intValue": 25267
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "intValue": 1876
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgSdYGsyudaJggoqaVgi4"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "user.email",
+         "value": {
+          "stringValue": "someone@example.com"
+         }
+        },
+        {
+         "key": "organization.id",
+         "value": {
+          "stringValue": "org-0000"
+         }
+        },
+        {
+         "key": "user.account_uuid",
+         "value": {
+          "stringValue": "acct-0000"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793099039506000000",
+       "observedTimeUnixNano": "1793099039506000000",
+       "body": {
+        "stringValue": "claude_code.api_request"
+       },
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "527cd640-e13c-4f38-a91e-b4b2c3ca7a42"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "api_request"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-27T11:03:59.506Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 15
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "19f123a9-4a1c-48e2-8446-f802eca61932"
+         }
+        },
+        {
+         "key": "model",
+         "value": {
+          "stringValue": "claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": 2
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": 360
+         }
+        },
+        {
+         "key": "cache_read_tokens",
+         "value": {
+          "intValue": 17606
+         }
+        },
+        {
+         "key": "cache_creation_tokens",
+         "value": {
+          "intValue": 5597
+         }
+        },
+        {
+         "key": "cache_creation_5m_tokens",
+         "value": {
+          "intValue": 0
+         }
+        },
+        {
+         "key": "cache_creation_1h_tokens",
+         "value": {
+          "intValue": 5597
+         }
+        },
+        {
+         "key": "cost_usd",
+         "value": {
+          "doubleValue": 0.027752600000000002
+         }
+        },
+        {
+         "key": "cost_usd_micros",
+         "value": {
+          "intValue": 27753
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "intValue": 2862
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgSdYUeePcs9PhgfnvGX2"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "user.email",
+         "value": {
+          "stringValue": "someone@example.com"
+         }
+        },
+        {
+         "key": "organization.id",
+         "value": {
+          "stringValue": "org-0000"
+         }
+        },
+        {
+         "key": "user.account_uuid",
+         "value": {
+          "stringValue": "acct-0000"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793099041383000000",
+       "observedTimeUnixNano": "1793099041383000000",
+       "body": {
+        "stringValue": "claude_code.api_request"
+       },
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "527cd640-e13c-4f38-a91e-b4b2c3ca7a42"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "api_request"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-27T11:04:01.383Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 18
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "19f123a9-4a1c-48e2-8446-f802eca61932"
+         }
+        },
+        {
+         "key": "model",
+         "value": {
+          "stringValue": "claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": 2
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": 116
+         }
+        },
+        {
+         "key": "cache_read_tokens",
+         "value": {
+          "intValue": 23203
+         }
+        },
+        {
+         "key": "cache_creation_tokens",
+         "value": {
+          "intValue": 635
+         }
+        },
+        {
+         "key": "cache_creation_5m_tokens",
+         "value": {
+          "intValue": 0
+         }
+        },
+        {
+         "key": "cache_creation_1h_tokens",
+         "value": {
+          "intValue": 635
+         }
+        },
+        {
+         "key": "cost_usd",
+         "value": {
+          "doubleValue": 0.006024300000000001
+         }
+        },
+        {
+         "key": "cost_usd_micros",
+         "value": {
+          "intValue": 6024
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "intValue": 1686
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgSdYhnBak1bfgLcBLgnp"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "user.email",
+         "value": {
+          "stringValue": "someone@example.com"
+         }
+        },
+        {
+         "key": "organization.id",
+         "value": {
+          "stringValue": "org-0000"
+         }
+        },
+        {
+         "key": "user.account_uuid",
+         "value": {
+          "stringValue": "acct-0000"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793099033225000000",
+       "observedTimeUnixNano": "1793099033225000000",
+       "body": {
+        "stringValue": "claude_code.user_prompt"
+       },
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "527cd640-e13c-4f38-a91e-b4b2c3ca7a42"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "user_prompt"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-27T11:03:53.225Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 5
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "19f123a9-4a1c-48e2-8446-f802eca61932"
+         }
+        },
+        {
+         "key": "user.email",
+         "value": {
+          "stringValue": "someone@example.com"
+         }
+        },
+        {
+         "key": "organization.id",
+         "value": {
+          "stringValue": "org-0000"
+         }
+        },
+        {
+         "key": "user.account_uuid",
+         "value": {
+          "stringValue": "acct-0000"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

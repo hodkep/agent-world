@@ -103,3 +103,20 @@ export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([k]) => !HOST_SESSION_VARS.test(k) || USER_CLAUDE_VARS.test(k)))
 }
 
+
+/**
+ * Makes Claude Code export the requests it makes (what it read fresh, from its cache, wrote to it and wrote back) to the office's own
+ * server, under the agent's own token, so the Usage window counts tokens exactly. Logs only: no metrics, no traces, and no prompt or reply text.
+ */
+export function telemetryEnv(hookUrl: string, agentToken: string): Record<string, string> {
+  if (!hookUrl) return {}
+  return {
+    CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+    OTEL_LOGS_EXPORTER: 'otlp',
+    OTEL_METRICS_EXPORTER: 'none',
+    OTEL_TRACES_EXPORTER: 'none',
+    OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/json',
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${new URL(hookUrl).origin}/v1/logs`,
+    OTEL_EXPORTER_OTLP_LOGS_HEADERS: `Authorization=Bearer ${agentToken}`
+  }
+}
