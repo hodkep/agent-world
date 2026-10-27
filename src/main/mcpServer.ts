@@ -49,7 +49,8 @@ interface Options {
   todos?: TodoApi
   /** POC: the look of the chat, which agents write as a draft and only the person keeps. Offered only when set. */
   chatMod?: {
-    state: () => ChatModState
+    /** The look in force and any draft. Asking is how an agent "reads" it: a later write is judged against what it read. */
+    state: (callerId: string) => ChatModState
     write: (callerId: string, i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; why: string }) => { problems: string[] }
     /** The elements of the app's window, as indented lines. */
     outline?: (selector: string, depth: number) => Promise<string>
@@ -186,7 +187,7 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
     'chat_mod_get',
     { description: 'The look in force now and the draft waiting for the person, as JSON ({current, draft}); an empty look is the system default. Read it before you change anything.', inputSchema: {} },
     async () => {
-      const s = mod.state()
+      const s = mod.state(callerId)
       return text(JSON.stringify({ current: s.current, draft: s.draft, draftBy: s.draftBy }))
     }
   )
@@ -207,7 +208,11 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
     async (a) => {
       if (!a.reset && a.layout === undefined && a.css === undefined && a.widgets === undefined) return text('Give layout, css, widgets, or reset.', true)
       const r = mod.write(callerId, a)
-      return r.problems.length ? text(`Nothing was changed. Fix this and write again: ${r.problems.join(' ')}`, true) : text('The person is looking at it now, with Keep and Undo. Tell them what you changed; it stays only if they keep it.')
+      if (r.problems.length) return text(`Nothing was changed. Fix this and write again: ${r.problems.join(' ')}`, true)
+      // What the draft now holds, so the agent can see it is what it meant (not what it thinks was already there).
+      const d = mod.state(callerId).draft
+      const held = d ? `layout: ${d.layout.rules.length} rule(s); css: ${d.css.length} characters; widgets: ${d.widgets.map((w) => w.id).join(', ') || 'none'}` : 'nothing (the system look)'
+      return text(`The person is looking at it now, with Keep and Undo. The draft holds ${held}. Tell them what you changed; it stays only if they keep it.`)
     }
   )
 }

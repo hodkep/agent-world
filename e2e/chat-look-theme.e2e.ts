@@ -30,6 +30,7 @@ test('a Dracula theme: the old mistake is refused with the reason, the right one
     client = new Client({ name: 'ada', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(cfg.url), { requestInit: { headers: cfg.headers } }))
     const write = async (css: string) => {
+      await client!.callTool({ name: 'chat_mod_get', arguments: {} })
       const r = (await client!.callTool({ name: 'chat_mod_write', arguments: { css, why: 'theme' } })) as { isError?: boolean; content: { text: string }[] }
       return { err: !!r.isError, text: r.content[0]!.text }
     }
