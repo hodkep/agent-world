@@ -36,13 +36,19 @@ More in the [user guide](#user-guide).
 
 ### <img src="docs/images/icons/office.svg" width="24" height="24" alt=""> The office
 
-Each agent works at a desk, and what the character does is what the agent does: thinking, researching, implementing, running, delegating or waiting for you. An agent that is asleep leaves the floor and stays in the list. Click a character or its row to open its chat.
+Each agent works at a desk, and what the character does is what the agent does: thinking, researching, implementing, running, delegating or waiting for you. An agent that is asleep leaves the floor and stays in the agents panel. Click a character, or its tile in the panel, to open its chat.
 
 <img src="docs/images/office-activities.png" alt="The office with eight agents, one in each activity" width="720">
 
-The agent number beside the chat counts the other agents to look at, and their tiles in the list carry the same red mark when they wait for you.
+The number beside the chat is the agents of the project: rest the pointer on it and a panel of tiles opens, one for each agent with its picture, name and what it is doing, and a red mark on the ones that wait for you. The number counts those to look at.
 
-<img src="docs/images/office-agent-marks.png" alt="The agents list with a red mark on the tile of the agent that asks for permission" width="720">
+<img src="docs/images/office-agents-panel.png" alt="The agents panel open under the number: a tile for each agent with its number, picture, name and state, and + Agent" width="720">
+
+The project button works the same way: rest on it and a panel of your recent folders opens, each with its picture, how many agents work there and a red number when one of them waits for you. One click switches project.
+
+<img src="docs/images/office-projects-panel.png" alt="The projects panel open under the project button: a tile for each recent folder, a red number on the one with an agent waiting, Open another folder and New window" width="720">
+
+<img src="docs/images/office-agent-marks.png" alt="The agents panel with a red mark on the tile of the agent that asks for permission, and the number reading 1" width="720">
 
 ### <img src="docs/images/icons/chat.svg" width="24" height="24" alt=""> Chat
 

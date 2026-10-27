@@ -16,11 +16,48 @@ test('office: agents in every activity', async () => {
   const o = await shotApp({ scenes })
   try {
     for (const name of Object.keys(scenes)) await hireNamed(o.page, name)
-    await expect(o.page.locator('.ask-pill').first()).toBeVisible({ timeout: 20_000 })
+    await expect(o.page.getByTestId('agents-dot')).toBeVisible({ timeout: 20_000 })
     await o.page.getByRole('button', { name: 'Fit office' }).click()
-    await o.page.locator('aside, main').getByText('cy', { exact: true }).first().click().catch(() => undefined)
+    // The agents are picked from the panel under the number, as they are once one is selected.
+    await o.page.locator('.hc-switch').hover()
+    await o.page.getByRole('menu', { name: 'Agents' }).getByRole('menuitem', { name: /cy/ }).click()
+    await expect(o.page.locator('.hc-name')).toHaveText('cy')
+    await o.page.mouse.move(300, 700)
     await o.page.waitForTimeout(2500)
     await shoot(o.page, 'office-activities')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('office: the agents panel under the number, and the projects panel under the project button', async () => {
+  const scenes: Record<string, Scene> = { ada: 'idle', bo: 'thinking', cy: 'running', di: 'researching', ed: 'implementing', gus: 'permission' }
+  const o = await shotApp({ scenes })
+  try {
+    // Three projects: the first has the agents, the others have some at work and one that waits for a permission, so each tile of the projects panel says something.
+    const projects = [o.repo, makeProject(o.tmp, 'warehouse').repo, makeProject(o.tmp, 'checkout').repo]
+    const hire = async (folder: string, names: string[]) => {
+      await o.page.evaluate((f) => window.aw.activateWorkspace(f), folder)
+      await o.page.reload()
+      for (const name of names) await hireNamed(o.page, name)
+    }
+    await hire(projects[1]!, ['gus', 'di'])
+    await hire(projects[2]!, ['cy'])
+    await hire(projects[0]!, ['ada', 'bo', 'ed'])
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.page.locator('.hc-switch').hover()
+    const agents = o.page.getByRole('menu', { name: 'Agents' })
+    await expect(agents.getByRole('menuitem').first()).toBeVisible()
+    await o.page.waitForTimeout(900)
+    await shoot(o.page, 'office-agents-panel')
+    await o.page.mouse.move(300, 700)
+    await expect(agents).toBeHidden()
+    await o.page.locator('.ws-button').hover()
+    const panel = o.page.getByRole('menu', { name: 'Projects' })
+    await expect(panel.getByRole('menuitem').first()).toBeVisible()
+    await expect(panel.getByRole('menuitem', { name: /warehouse/ }).locator('.wt-need')).toHaveText('1', { timeout: 30_000 })
+    await o.page.waitForTimeout(900)
+    await shoot(o.page, 'office-projects-panel')
   } finally {
     await o.shutdown()
   }
@@ -30,10 +67,8 @@ test('permission: a request answered in the world', async () => {
   const o = await shotApp({ scenes: { ada: 'running', bo: 'thinking', gus: 'permission' } })
   try {
     for (const name of ['ada', 'bo', 'gus']) await hireNamed(o.page, name)
-    await expect(o.page.locator('.ask-pill').first()).toBeVisible({ timeout: 20_000 })
+    await expect(o.page.getByText('Wants to use Bash')).toBeVisible({ timeout: 20_000 })
     await o.page.getByRole('button', { name: 'Fit office' }).click()
-    await o.page.locator('.ask-pill').first().click()
-    await expect(o.page.getByText('Wants to use Bash')).toBeVisible()
     await o.page.waitForTimeout(1500)
     await shoot(o.page, 'permission')
   } finally {
@@ -383,8 +418,12 @@ test('usage: the tanks on the lawn say what is left of the subscription limits',
     const stage = o.page.locator('.stage')
     const box = (await stage.boundingBox())!
     const at = JSON.parse((await stage.getAttribute('data-power'))!) as { x: number; y: number }
-    await o.page.mouse.move(box.x + at.x, box.y + at.y)
-    await expect(o.page.getByRole('tooltip').getByRole('img', { name: /left, resets in/ }).first()).toBeVisible({ timeout: 15_000 })
+    // The tip shows once the pointer has come to rest on the tanks and the limits have been read: moved again until it does.
+    await expect(async () => {
+      await o.page.mouse.move(box.x + at.x + 6, box.y + at.y + 6)
+      await o.page.mouse.move(box.x + at.x, box.y + at.y)
+      await expect(o.page.getByRole('tooltip').getByRole('img', { name: /left, resets in/ }).first()).toBeVisible({ timeout: 3000 })
+    }).toPass({ timeout: 30_000 })
     await o.page.waitForTimeout(600)
     await shoot(o.page, 'usage')
   } finally {
@@ -594,10 +633,8 @@ test('hero: hire, the character walks in, works, asks permission, approved from 
     await o.page.waitForTimeout(700)
     await form.getByRole('button', { name: 'Hire' }).click()
     await form.waitFor({ state: 'detached' })
-    await expect(o.page.locator('.ask-pill').first()).toBeVisible({ timeout: 40_000 })
-    await o.page.waitForTimeout(1000)
-    await o.page.locator('.ask-pill').first().click()
-    await o.page.waitForTimeout(900)
+    await expect(o.page.getByText('Wants to use Bash')).toBeVisible({ timeout: 40_000 })
+    await o.page.waitForTimeout(1500)
     await o.page.getByRole('button', { name: 'Allow', exact: true }).click()
     await o.page.waitForTimeout(2800)
     const clip = await o.page.video()!.path()

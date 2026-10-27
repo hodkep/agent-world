@@ -70,7 +70,6 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
   await app.context().addInitScript(() => {
     localStorage.setItem('aw.clockHour', '12')
     localStorage.setItem('aw.weather', 'clear')
-    if (localStorage.getItem('aw.compact') === null) localStorage.setItem('aw.compact', '0')
   })
   const proc = app.process()
   const page = await app.firstWindow()
