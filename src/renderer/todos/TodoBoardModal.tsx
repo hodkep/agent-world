@@ -88,6 +88,12 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   const visible = shown.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))
   const openCounts = useMemo(() => Object.fromEntries(visible.map((l) => [l, shown.todos.filter((t) => t.list === l && !t.parent && t.status !== 'done').length])), [visible.join('|'), shown]) // eslint-disable-line react-hooks/exhaustive-deps
   const groups = listGroups(visible, openCounts, was)
+  // When a task is opened, its card is shown: a finished task's Done section unfolds, a quiet list's tile opens; the row then scrolls itself into view. Only on opening: finishing the open task leaves the folds as they are.
+  useEffect(() => {
+    if (!open) return
+    if (open.status === 'done' && !folded.has(open.list)) setFolded((f) => new Set(f).add(open.list))
+    if (groups.quiet.includes(open.list) && !expanded.has(open.list)) setExpanded((x) => new Set(x).add(open.list))
+  }, [open?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const ordered = [...groups.active, ...groups.quiet]
   useEffect(() => {
     if (loaded && tab === 'lists') setWas(new Map(visible.map((l) => [l, (openCounts[l] ?? 0) > 0])))
@@ -211,10 +217,12 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
 
 function TaskRow({ t, board, onOpen, act, folder, picked, picking, onPick, selected, onSelect, onTick, onDragStart, onDropOn }: { t: Todo; board: TodoBoard; onOpen: (id: string) => void; act: (p: Promise<unknown>) => void; folder: string; picked: boolean; picking: boolean; onPick: (e: { shiftKey?: boolean }) => void; selected: boolean; onSelect: () => void; onTick: () => void; onDragStart: () => void; onDropOn: () => void }) {
   const done = t.status === 'done'
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (selected) row.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [selected])
   const parts = subtasksOf(board, t.id)
   const { done: partsDone, total } = progressOf(board, t.id)
   return (
-    <div className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}${picked ? ' picked' : ''}${picking ? ' picking' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
+    <div ref={row} className={`td-task ${t.status}${t.needsYou && !done ? ' need' : ''}${selected ? ' sel' : ''}${picked ? ' picked' : ''}${picking ? ' picking' : ''}`} draggable onDragStart={onDragStart} onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), e.stopPropagation(), onDropOn())}>
       <span className="td-stripe" aria-hidden="true" />
       <button className="td-pick" role="checkbox" aria-checked={picked} aria-label={`Select ${t.title}`} onClick={(e) => onPick(e)}>{picked ? '✓' : ''}</button>
       <button className="td-ck" role="checkbox" aria-checked={done} aria-label={`${done ? 'Reopen' : 'Finish'} ${t.title}`} onClick={onTick}>{done ? '✓' : ''}</button>

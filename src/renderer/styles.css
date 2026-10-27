@@ -2754,6 +2754,9 @@ aside:not(.drawer) { flex: none; }
 .td-ck { width: 16px; height: 16px; padding: 0; margin-top: 2px; border: 2px solid var(--muted); background: var(--well); border-radius: 50%; display: grid; place-items: center; font-size: 11px; line-height: 1; color: var(--ink); }
 .td-task.done .td-ck { background: var(--ok); border-color: var(--ok); }
 .td-task.done .td-title { text-decoration: line-through; color: var(--muted); }
+/* The task whose panel is open: a brighter tint and the title in the accent colour */
+.td-task.sel { background: #3a3418; }
+.td-task.sel .td-title { color: var(--accent); }
 .td-title { font-weight: 600; }
 .td-sub { margin-top: 3px; }
 /* The opened task */
