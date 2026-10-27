@@ -65,14 +65,23 @@ export function createChatMod(dir: string) {
     writeFileSync(join(hist, `${String(n).padStart(6, '0')}.json`), JSON.stringify(m))
     for (const old of files().slice(0, -KEEP)) rmSync(join(hist, old), { force: true })
   }
-  const changed = () => listeners.forEach((l) => l())
+  // Every change gets a number, and each agent has the number of the look it last read: a write from an older picture is refused (an agent that was not told the person pressed Undo or Keep would write its old idea back in).
+  let rev = 0
+  const seen = new Map<string, number>()
+  const changed = () => (rev++, listeners.forEach((l) => l()))
+  const STALE = 'The look changed since you last read it (the person pressed Keep or Undo, restored it, or another agent wrote), or you have not read it yet. Call chat_mod_get to see what is in force now, then write again from that.'
 
   return {
     state(): ChatModState {
       return { current, draft, draftBy: by, draftWhy: why, history: files().length }
     },
     /** An agent's version, kept as a draft; what could not be read is named and left out. The part it does not mention stays as it is in force. */
-    write(i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; by: string; why: string }): { problems: string[] } {
+    /** An agent has read the look: its next write is judged against what it saw. */
+    read(who: string) {
+      seen.set(who, rev)
+    },
+    write(i: { layout?: unknown; css?: string; widgets?: unknown; reset?: boolean; by: string; who?: string; why: string }): { problems: string[] } {
+      if (i.who !== undefined && seen.get(i.who) !== rev) return { problems: [STALE] }
       if (i.reset) {
         draft = EMPTY_MOD
         by = i.by
@@ -80,6 +89,7 @@ export function createChatMod(dir: string) {
         write('draft.json', JSON.stringify({ layout: { rules: [] }, widgets: [], by, why }))
         write('draft.css', '')
         changed()
+        if (i.who !== undefined) seen.set(i.who, rev)
         return { problems: [] }
       }
       const base = draft ?? current
@@ -92,6 +102,7 @@ export function createChatMod(dir: string) {
       write('draft.json', JSON.stringify({ layout: draft.layout, widgets: draft.widgets, by, why }))
       write('draft.css', draft.css)
       changed()
+      if (i.who !== undefined) seen.set(i.who, rev)
       return { problems: c.problems }
     },
     /** The person keeps the draft: the look before it goes to history. */

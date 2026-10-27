@@ -40,6 +40,7 @@ describe('the chat look tools: an agent reads and writes a draft, only the perso
     const r = await c.callTool({ name: 'chat_mod_write', arguments: { css: ':root { --accent: #f60 }', layout: [{ match: { kind: ['thinking'] }, place: 'hidden' }], why: 'orange accent, no thinking' } })
     expect(seen).toEqual([['a1', { css: ':root { --accent: #f60 }', layout: [{ match: { kind: ['thinking'] }, place: 'hidden' }], why: 'orange accent, no thinking' }]])
     expect(text(r)).toMatch(/only if they keep it/)
+    expect(text(r)).toContain('The draft holds')
   })
 
   it('tell the agent what could not be read, so it fixes it and writes again', async () => {
