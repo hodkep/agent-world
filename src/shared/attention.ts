@@ -4,31 +4,31 @@ export type Dot = 'need' | 'done' | null
 const WORKING = new Set(['thinking', 'researching', 'implementing', 'running', 'delegating'])
 
 /**
- * Which agents finished while you were not looking at them: one that went from working to idle between two looks. It is remembered until its project is opened
- * (or the agent is selected), for this session only.
+ * Which agents finished while you were not looking at them: one that went from working to idle, or to Claude's idle prompt (waiting), between two looks. It is remembered until the agent is selected;
+ * its project's mark goes as soon as that project is opened. For this session only.
  */
 export function createDoneTracker() {
   const last = new Map<string, string>()
-  const done = new Map<string, string>()
+  const done = new Map<string, { repoPath: string; projectSeen: boolean }>()
   return {
     observe(agents: { id: string; repoPath: string; activity: string }[]) {
       const ids = new Set(agents.map((a) => a.id))
       for (const a of agents) {
-        if (WORKING.has(last.get(a.id) ?? '') && a.activity === 'idle') done.set(a.id, a.repoPath)
+        if (WORKING.has(last.get(a.id) ?? '') && (a.activity === 'idle' || a.activity === 'waiting')) done.set(a.id, { repoPath: a.repoPath, projectSeen: false })
         last.set(a.id, a.activity)
       }
       for (const id of [...last.keys()]) if (!ids.has(id)) (last.delete(id), done.delete(id))
     },
-    /** The project was opened: what finished there has been seen. */
+    /** The project was opened: its mark is gone, but its agents still wait to be looked at, one by one. */
     opened(repoPath: string) {
-      for (const [id, p] of done) if (p === repoPath) done.delete(id)
+      for (const d of done.values()) if (d.repoPath === repoPath) d.projectSeen = true
     },
     /** The agent was selected: its finish has been seen. */
     selected(id: string) {
       done.delete(id)
     },
     agents: () => new Set(done.keys()),
-    projects: () => new Set(done.values())
+    projects: () => new Set([...done.values()].filter((d) => !d.projectSeen).map((d) => d.repoPath))
   }
 }
 

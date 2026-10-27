@@ -181,6 +181,27 @@ test('an agent that finishes in another project leaves a green dot until that pr
   }
 })
 
+test('an agent of this project that finishes while you are on another agent is marked green with a Finished tag until you select it', async () => {
+  const { page, shutdown } = await office(['shop'], undefined, { FAKE_CHAT: '1', FAKE_DELAY_MS: '600' })
+  try {
+    await hire(page, { name: 'ada' })
+    await hire(page, { name: 'bo' })
+    const ada = (await page.evaluate(() => window.aw.listAgents())).find((x) => x.name === 'ada')!
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    // bo is on screen; ada works and finishes her turn.
+    await page.evaluate((id) => window.aw.chatSend(id, 'Say something'), ada.id)
+    await expect(page.getByTestId('agents-dot')).toHaveClass(/done/, { timeout: SLOW })
+    await page.locator('.hc-switch').hover()
+    const tile = page.getByRole('menu', { name: 'Agents' }).getByRole('menuitem', { name: /ada/ })
+    await expect(tile.locator('.wt-mark.done')).toBeVisible()
+    await expect(tile.locator('.wt-tag.done')).toHaveText('Finished')
+    await tile.click()
+    await expect(page.getByTestId('agents-dot')).toHaveCount(0)
+  } finally {
+    await shutdown()
+  }
+})
+
 test('the agent number shows a red dot while another agent of this project waits for you, and none when only the agent you are on does', async () => {
   const { page, shutdown } = await office(['shop'])
   try {
