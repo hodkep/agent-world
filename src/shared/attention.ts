@@ -39,9 +39,15 @@ export function projectDot(o: { activity: Record<string, { waiting: number; work
   return [...o.done].some((p) => p !== o.active) ? 'done' : null
 }
 
-/** The agent number: red when another agent here waits for you, else green when another finished unseen. The agent you are on is never counted. */
+/** The mark on each other agent's tile: red when it waits for you, else green when it finished unseen. The agent you are on is never marked. */
+export function agentMarks(o: { selected: string | null; agents: { id: string; asks: boolean }[]; done: Set<string> }): Map<string, 'need' | 'done'> {
+  const marks = new Map<string, 'need' | 'done'>()
+  for (const a of o.agents) if (a.id !== o.selected) a.asks ? marks.set(a.id, 'need') : o.done.has(a.id) && marks.set(a.id, 'done')
+  return marks
+}
+
+/** The agent number: red when another agent here waits for you, else green when another finished unseen. */
 export function agentDot(o: { selected: string | null; agents: { id: string; asks: boolean }[]; done: Set<string> }): Dot {
-  const others = o.agents.filter((a) => a.id !== o.selected)
-  if (others.some((a) => a.asks)) return 'need'
-  return others.some((a) => o.done.has(a.id)) ? 'done' : null
+  const marks = [...agentMarks(o).values()]
+  return marks.includes('need') ? 'need' : marks.length ? 'done' : null
 }
