@@ -4,33 +4,35 @@ The office shows every agent of the open project as a character. Where it stands
 
 ## Read the office
 
-<img src="../images/office-activities.png" alt="The office with agents in each activity: one idle on a sofa, others thinking, running a command, researching, implementing and delegating, one with a red bubble and an ALLOW? tag in the list, and one asleep that is only in the list" width="720">
+<img src="../images/office-activities.png" alt="The office with agents in each activity: one idle on a sofa, others thinking, running a command, researching, implementing and delegating, one with a red bubble, and one asleep that is only in the agents panel" width="720">
 
-What each activity means, as the list shows it:
+What each activity means, as the agent's bar and the agents panel show it:
 
 - **idle**: finished its turn, resting on a sofa. **waiting**: finished and waiting for you, in the lounge with a "?" bubble.
 - **thinking**, **researching** (reading, searching), **implementing** (editing files), **running** (a shell command), **delegating** (handing work to a subagent): at its desk, each with its own bubble or effect. **compacting**: summarising the conversation to free up context.
 - **permission**: it needs you. A red bubble with a blinking "!" and a waving arm.
 - **blocked**: its turn ended in an error. It waits in the lounge.
-- **asleep**: its program is not running. It is not in the office; only its row in the list says so.
+- **asleep**: its program is not running. It is not in the office; only its tile in the agents panel says so.
 
 An agent in the **Plan** mode works at the whiteboard.
 
-Roles follow from what the agent does. A **senior** is a regular agent. It becomes a **boss**, with a crown, while its subagents work. A subagent is an **intern**: it arrives by car and sits beside its boss. Interns are not rows in the list. Click **Subagents** in the top bar to see them all.
+Roles follow from what the agent does. A **senior** is a regular agent. It becomes a **boss**, with a crown, while its subagents work. A subagent is an **intern**: it arrives by car and sits beside its boss. Interns are not tiles in the agents panel. Click **Subagents** in the top bar to see them all.
 
 ## Select an agent
 
-Click an agent's character or its row in the list.
+Click an agent's character, or open the agents panel and click its tile.
 
 - The character also opens its profile card: status, context used, cost, model, thinking level and mode. Close it with **×** or Esc; click the agent's name in the panel bar to bring it back.
 - The panel on the right shows the agent's tabs. See [Chat and dialogs](chat-and-dialogs.md) and [Code and preview](code-and-preview.md).
-- With an agent selected, the list folds into a bar with **Previous agent** and **Next agent** arrows and a button with the number of agents that opens the list. **others waiting** appears when another agent needs you.
+- With an agent selected, a bar above the chat shows it, with **Previous agent** and **Next agent** arrows and a button with the number of agents. Rest the pointer on the number (or click it) and the **agents panel** opens: a tile for each agent with its number, its picture, its name, what it is doing and a mark, then **+ Agent** and "Ctrl+Tab to step". One click on a tile selects the agent. **others waiting** appears when another agent needs you. Before you select anyone, the agents are listed as rows instead.
+
+<img src="../images/office-agents-panel.png" alt="The agents panel open under the number: a tile for each agent with its number, picture, name and state, and + Agent" width="720">
 
 To hand files to an agent, drop them on its character.
 
-<img src="../images/office-agent-marks.png" alt="The agents list open under the number, with a red mark on the tile of the agent that asks for permission, and the number reading 1" width="720">
+<img src="../images/office-agent-marks.png" alt="The agents panel open under the number, with a red mark and ALLOW? on the tile of the agent that asks for permission, and the number reading 1" width="720">
 
-The number is red while another agent needs you and counts the others to look at; a tile in the list carries the same mark.
+The number is red while another agent needs you and counts the others to look at; a tile in the panel carries the same mark.
 
 ## Hire an agent
 
@@ -40,18 +42,18 @@ To continue an earlier conversation as a new agent, click **History** and pick i
 
 ## Wake an agent that is asleep
 
-1. Click its row in the list.
+1. Open the agents panel and click its tile, or click its character.
 2. In its **Chat** tab, click the button that reads **Wake** and its name, for example **Wake ada**.
 
 The agent comes back with its saved session. On the **Grid**, its tile says "asleep: open to wake".
 
 ## Answer a permission request from the world
 
-1. Click the red tag in the agent's row, the row itself or its character.
+1. Click the red tag on the agent's tile in the agents panel, the tile itself or its character.
 2. In its **Chat** tab, read what it wants to use.
 3. Click **Allow** or **Deny**.
 
-<img src="../images/permission.png" alt="A request to use Bash with the command rm -rf dist, answered with Allow or Deny in the side panel, and the agent&#x27;s red tag in the list" width="720">
+<img src="../images/permission.png" alt="A request to use Bash with the command rm -rf dist, answered with Allow or Deny in the side panel, and the agent&#x27;s red bubble over its desk" width="720">
 
 The tag says what kind of request it is. Each kind is in [Dialogs](chat-and-dialogs.md#dialogs).
 
@@ -68,6 +70,8 @@ Except for **+ Agent**, the buttons are icons. Point at one to see its name.
 - **Todos** ([Todos](todos.md)), **Workflows** ([Workflows](workflows.md)) and **Library** ([Library and playbook](library-and-playbook.md)).
 - **Usage** (**Usage & Estimated Costs**, with a number when limits are nearly used up) and **Weekly Rewind**. Its **Tokens** tab shows where the tokens went: fresh input, what was read from the program's cache, what was written to it, and output, by provider, account, agent, project or model, and **Overview** says how much of what was read the cache served. Claude Code and agy report these exactly as they work (a count a program does not give shows as a dash, and agy does not report cache writes); history from before shows with no split. Everything stays on this computer. **Weekly Rewind** shows the week's tokens too, with their rise or fall from the week before as for cost (a week before that was counted the old way is compared without the cache), and its day chart switches between dollars and tokens.
 - **Shortcuts**, **Settings**, and **Hide panel** or **Show panel**.
+
+<img src="../images/office-projects-panel.png" alt="The projects panel open under the project button: a tile for each recent folder with its picture, name and number of agents, a red number on the one with an agent waiting, Open another folder and New window" width="720">
 
 Over the office, **Zoom out**, **Zoom in**, **Fit office** and **Reset** change the view.
 
