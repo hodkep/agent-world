@@ -3936,3 +3936,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .shot-acts { display: flex; justify-content: flex-end; gap: 8px; }
 .wd-slot.window-bottom { border-top: 2px solid var(--ink); background: var(--panel); }
 .mod-hosts { display: block; color: var(--muted); font-size: 11px; }
+/* A widget behind the chat's text: it fills the panel, under everything, and lets every click through. */
+.chat.has-behind { isolation: isolate; }
+.wd-slot.chat-behind { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.wd-slot.chat-behind .wd-frame { height: 100%; pointer-events: none; }
