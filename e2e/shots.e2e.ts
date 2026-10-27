@@ -1,11 +1,11 @@
 // The pictures of the README and the user guide, taken from the real app driven by fake agents (no tokens, no sign-in).
 // Not part of the normal run: `pnpm shots` runs it and saves under docs/images. Each test is one picture.
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { SHOTS_DIR, SHOTS_ON, type Scene, agentGit, cleanEnv, exists, hireNamed, officeTools, seedRun, shoot, shootElement, shotApp, writeSkill } from './shotsKit'
+import { SHOTS_DIR, SHOTS_ON, makeProject, seedTokens, type Scene, agentGit, cleanEnv, exists, hireNamed, officeTools, seedRun, shoot, setWindow, shootElement, shotApp, writeSkill } from './shotsKit'
 import { seedWeek } from './workflowsWeek'
 
 test.skip(!SHOTS_ON, 'The pictures are taken on purpose: AW_SHOTS=1 pnpm shots')
@@ -66,6 +66,96 @@ test('chat: a question from the agent as a dialog', async () => {
     await expect(o.page.getByText('Favourite colour?')).toBeVisible({ timeout: 20_000 })
     await o.page.waitForTimeout(800)
     await shoot(o.page, 'chat-dialog')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+// ---- Chat: what an agent can draw and ask, the message box, a side question and the restart.
+const REPLY = resolve(__dirname, 'fixtures', 'a2ui-reply.md')
+
+test('chat: a diagram the agent drew, and a form it asks with', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1', FAKE_SAY_FILE: REPLY } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    const log = o.page.getByRole('log', { name: 'Conversation with ada' })
+    const diagram = log.locator('.dia').first()
+    await expect(diagram.locator('svg')).toBeVisible({ timeout: 20_000 })
+    await expect(log.locator('.a2ui')).toHaveCount(1)
+    // One box picked, so the picture shows how a diagram is asked about.
+    await diagram.locator('.rough-node', { hasText: 'android-api' }).click()
+    await expect(diagram.getByRole('toolbar', { name: 'Diagram' })).toContainText('1 picked')
+    await diagram.scrollIntoViewIfNeeded()
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'chat-diagram')
+    await log.locator('.a2ui').scrollIntoViewIfNeeded()
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'chat-form')
+    await diagram.getByRole('toolbar', { name: 'Diagram' }).getByRole('button', { name: 'Expand' }).click()
+    const viewer = o.page.getByRole('dialog', { name: 'Diagram' })
+    await expect(viewer.getByText('100%')).toBeVisible()
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'chat-diagram-large')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('chat: the message box draws markdown as it is typed', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    const box = o.page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('# Plan\n- keep it small\n- run /compact, then look at @src/cart.ts\n> no new dependency\nmake it **fast** and `cartTotal` first')
+    await expect(box.locator('.lm-h1')).toHaveText('Plan')
+    await o.page.waitForTimeout(700)
+    const at = (await box.boundingBox())!
+    await shoot(o.page, 'chat-markdown-box', { x: at.x - 16, y: at.y - 48, width: at.width + 32, height: Math.min(900 - at.y + 48, at.height + 80) })
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('chat: a /btw side question answered in its own card', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    const box = o.page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('add a health check to the shop')
+    await box.press('Enter')
+    await expect(o.page.getByRole('log', { name: 'Conversation with ada' })).toContainText('Done. I changed', { timeout: 30_000 })
+    await box.fill('/bt')
+    await expect(o.page.getByRole('option', { name: /btw/ })).toContainText('side question')
+    await o.page.waitForTimeout(500)
+    await shoot(o.page, 'chat-btw-command')
+    await box.press('Tab')
+    await box.pressSequentially('what is 2+2?')
+    await box.press('Enter')
+    const card = o.page.getByRole('region', { name: 'Side question' })
+    await expect(card).toContainText('It is 4.', { timeout: 25_000 })
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'chat-btw')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('chat: Restart agent asks first and keeps the conversation', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' } })
+  try {
+    await hireNamed(o.page, 'nova')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    await o.page.getByRole('button', { name: 'More actions' }).click()
+    await o.page.getByRole('menuitem', { name: /Restart agent/ }).hover()
+    await o.page.waitForTimeout(500)
+    await shoot(o.page, 'chat-restart-menu')
+    await o.page.getByRole('menuitem', { name: /Restart agent/ }).click()
+    await expect(o.page.getByRole('dialog', { name: 'Restart nova?' })).toBeVisible()
+    await o.page.waitForTimeout(600)
+    await shoot(o.page, 'chat-restart')
   } finally {
     await o.shutdown()
   }
@@ -166,7 +256,7 @@ test('workflows: the Runs charts and the Insights tiles of a week', async () => 
     await shootElement(win, 'runs')
     await win.getByRole('tab', { name: 'Insights' }).click()
     // Insights is short: a smaller window, so the picture has no empty half.
-    await o.page.setViewportSize({ width: 1400, height: 640 })
+    await setWindow(o.page, { width: 1400, height: 640 })
     await o.page.waitForTimeout(800)
     await shootElement(win, 'insights')
   } finally {
@@ -331,8 +421,166 @@ test('hire: the form that makes an agent', async () => {
   }
 })
 
+// ---- Todos with subtasks and labels, the Notes window, the Tokens tab and the Weekly Rewind, the agents' marks, shortcuts, accounts and terminals.
+test('todos: subtasks in a checklist on the card, labels, and the task in tabs', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' }, size: { width: 1400, height: 640 } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await expect.poll(() => exists(o.argsLog)).toBe(true)
+    await expect.poll(async () => (await o.page.evaluate(() => window.aw.listAgents())).length).toBe(1)
+    const tools = await officeTools(o.argsLog)
+    await tools.call('todo_add', { title: 'Diagrams in chat', list: 'Chat', labels: ['feature'] })
+    await tools.call('todo_add', { title: 'Pick boxes to ask about', parent: '1', labels: ['chat'] })
+    await tools.call('todo_add', { title: 'Zoom and draw on the large view', parent: '1', labels: ['chat', 'design'] })
+    await tools.call('todo_add', { title: 'Sequence diagrams', parent: '1' })
+    await tools.call('todo_add', { title: 'Write the guide page', list: 'Chat', labels: ['docs'] })
+    await tools.call('todo_add', { title: 'Retake the screenshots', list: 'Release', labels: ['docs', 'release'] })
+    await tools.call('todo_done', { id: '2', note: 'Done.' })
+    await o.page.locator('header').getByRole('button', { name: /^Todos/ }).click()
+    const board = o.page.getByRole('dialog', { name: 'Todos' })
+    await expect(board.getByLabel('Subtasks of Diagrams in chat')).toContainText('1 of 3 done')
+    await o.page.waitForTimeout(800)
+    await shootElement(board, 'todos-subtasks')
+    await board.getByRole('button', { name: 'Open Diagrams in chat' }).click()
+    const detail = board.getByRole('complementary', { name: 'Task detail' })
+    await detail.getByRole('tab', { name: /^Subtasks/ }).click()
+    await o.page.waitForTimeout(800)
+    await shootElement(board, 'todos-detail')
+    await tools.close()
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('notes: the window that stays on top, with a checklist whose lines become tasks', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' }, size: { width: 1400, height: 900 } })
+  try {
+    await hireNamed(o.page, 'ada')
+    const opened = o.app.waitForEvent('window')
+    await o.page.locator('header').getByRole('button', { name: 'Notes', exact: true }).click()
+    const pad = await opened
+    await setWindow(pad, { width: 760, height: 580 })
+    await expect(pad.getByRole('application', { name: 'Notes' })).toBeVisible()
+    await pad.getByRole('textbox', { name: 'Note' }).click()
+    await pad.keyboard.insertText('# Release 0.6.0\n\nThings to settle before the tag goes out.\n\n- [ ] Retake the screenshots\n  - [x] The office and the chat\n  - [ ] The Tokens tab\n- [ ] Ask ada about the release notes\n\n> The notes carry a picture for each new feature.\n\nmake it **short**, and link `docs/images/releases`')
+    await expect(pad.locator('.nt-box')).toHaveCount(4)
+    await pad.locator('.nt-item', { hasText: 'Retake the screenshots' }).hover()
+    await pad.locator('.nt-item', { hasText: 'Retake the screenshots' }).getByRole('button', { name: 'Line actions' }).click()
+    await pad.getByRole('menuitem', { name: /→ Task/ }).click()
+    await expect(pad.locator('.nt-linked')).toHaveCount(3)
+    await o.page.waitForTimeout(900)
+    await pad.getByRole('textbox', { name: 'Note' }).click()
+    await pad.keyboard.press('ControlOrMeta+End')
+    await pad.waitForTimeout(500)
+    await shoot(pad, 'notes')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('usage: the Tokens tab, and the Weekly Rewind with the week\'s rise or fall in tokens', async () => {
+  const o = await shotApp({ prefs: { accounts: [{ id: 'work', name: 'Work', provider: 'claude' }] }, size: { width: 1400, height: 1000 }, seed: seedTokens })
+  try {
+    await setWindow(o.page, { width: 1400, height: 800 })
+    await o.page.locator('header').getByRole('button', { name: 'Usage', exact: true }).click()
+    const usage = o.page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    await expect(usage).toBeVisible()
+    await o.page.waitForTimeout(800)
+    await shootElement(usage, 'usage-overview')
+    await usage.getByRole('tab', { name: 'Tokens' }).click()
+    await expect(usage.locator('.st-tokens tbody tr').first()).toBeVisible()
+    await o.page.waitForTimeout(800)
+    await shootElement(usage, 'usage-tokens')
+    await usage.getByRole('button', { name: /^Close/ }).first().click()
+    await setWindow(o.page, { width: 1400, height: 1000 })
+    await o.page.locator('header').getByRole('button', { name: 'Weekly Rewind', exact: true }).click()
+    const week = o.page.getByRole('dialog', { name: 'Weekly Rewind' })
+    await expect(week.locator('.st-card', { hasText: /^Tokens/ })).toBeVisible()
+    await o.page.waitForTimeout(800)
+    await shootElement(week, 'usage-rewind')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('office: the agent number and the list mark who needs you', async () => {
+  const o = await shotApp({ scenes: { gus: 'permission', di: 'thinking', ada: 'idle', bo: 'idle' } })
+  try {
+    for (const name of ['ada', 'gus', 'di', 'bo']) await hireNamed(o.page, name)
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    // bo is the agent on screen: the number counts the others to look at, and gus's tile is marked.
+    await o.page.locator('.hc-switch').hover()
+    const panel = o.page.getByRole('menu', { name: 'Agents' })
+    await expect(panel.getByRole('menuitem', { name: /gus/ }).locator('.wt-mark.need')).toBeVisible({ timeout: 30_000 })
+    await expect(o.page.getByTestId('agents-dot')).toHaveText('1')
+    await o.page.waitForTimeout(700)
+    await shoot(o.page, 'office-agent-marks')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('shortcuts: the sheet of every key', async () => {
+  const o = await shotApp({ scenes: { ada: 'idle' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.locator('header').getByRole('button', { name: 'Shortcuts' }).click()
+    await o.page.waitForTimeout(800)
+    await shoot(o.page, 'shortcuts')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('accounts: a second login signed in once, and the default for new agents', async () => {
+  const o = await shotApp({ size: { width: 1400, height: 800 }, env: { FAKE_USED_5H: '20', FAKE_USED_5H_WORK: '70' } })
+  try {
+    await o.page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = o.page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Accounts' }).click()
+    await settings.getByRole('button', { name: 'Add account' }).click()
+    await settings.getByLabel('Name').fill('Work')
+    await settings.getByRole('button', { name: 'Continue to sign in' }).click()
+    await expect.poll(() => exists(join(o.home, 'accounts', 'work', '.fake-login')), { timeout: 15_000 }).toBe(true)
+    await settings.getByRole('button', { name: 'I have signed in: check' }).click()
+    const row = settings.locator('.acct', { hasText: 'Work' })
+    await expect(row).toContainText('Signed in', { timeout: 15_000 })
+    await settings.getByRole('button', { name: 'Make default' }).last().click()
+    await expect(row).toContainText('Default for new agents')
+    await o.page.waitForTimeout(800)
+    await shootElement(settings, 'accounts')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('terminals: each project has its own, in a drawer under the chat', async () => {
+  const o = await shotApp({ scenes: { ada: 'idle', bo: 'idle' } })
+  try {
+    const other = makeProject(o.tmp, 'warehouse').repo
+    await hireNamed(o.page, 'ada')
+    await o.page.evaluate((f) => window.aw.activateWorkspace(f), other)
+    await o.page.reload()
+    await hireNamed(o.page, 'bo')
+    await o.page.evaluate((f) => window.aw.activateWorkspace(f), o.repo)
+    await o.page.reload()
+    await o.page.locator('.term-btn').click()
+    const drawer = o.page.getByRole('region', { name: 'Terminals' })
+    await expect(drawer).toBeVisible()
+    await o.page.getByRole('button', { name: 'New terminal in storefront' }).click()
+    await expect(drawer.getByRole('tab')).toHaveCount(2)
+    await drawer.locator('.xterm:visible').first().click()
+    await o.page.keyboard.type('git log --oneline')
+    await o.page.keyboard.press('Enter')
+    await o.page.waitForTimeout(1200)
+    await shoot(o.page, 'terminals')
+  } finally {
+    await o.shutdown()
+  }
+})
+
 test('hero: hire, the character walks in, works, asks permission, approved from the world', async () => {
-  test.setTimeout(120_000)
+  test.setTimeout(300_000)
   const video = join(tmpdir(), `aw-hero-${Date.now()}`)
   const o = await shotApp({ scenes: { ada: 'story' }, video })
   try {
@@ -354,11 +602,13 @@ test('hero: hire, the character walks in, works, asks permission, approved from 
     await o.page.waitForTimeout(2800)
     const clip = await o.page.video()!.path()
     await o.shutdown()
+    if (process.env.SHOTS_HERO_CLIP) copyFileSync(clip, process.env.SHOTS_HERO_CLIP)
     // The recording starts with the window: cut what came before the first click, then make the GIF small enough for a README.
     const skip = Math.max(0, (t0 - o.launchedAt) / 1000 - 0.2)
     const gif = join(SHOTS_DIR, 'hero.gif')
-    for (const [width, fps, colors] of [[880, 10, 128], [800, 8, 96], [720, 8, 64], [640, 6, 64]] as const) {
-      execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', String(skip), '-i', clip, '-vf', `fps=${fps},scale=${width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=${colors}[p];[b][p]paletteuse=dither=bayer:bayer_scale=4`, '-loop', '0', gif])
+    // The sharpest that fits: wide, at 10 frames a second with a palette of its own, and narrower and sparser only as far as the size needs.
+    for (const [width, fps, colors] of [[960, 10, 128], [920, 10, 112], [880, 10, 128], [880, 8, 96], [800, 8, 96], [720, 8, 64], [640, 6, 64]] as const) {
+      execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', String(skip), '-i', clip, '-vf', `fps=${fps},scale=${width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=${colors}[p];[b][p]paletteuse=dither=bayer:bayer_scale=5`, '-loop', '0', gif])
       if (statSync(gif).size < 4.8 * 1024 * 1024) break
     }
     expect(statSync(gif).size).toBeLessThan(5 * 1024 * 1024)

@@ -40,11 +40,35 @@ Each agent works at a desk, and what the character does is what the agent does: 
 
 ![The office with eight agents, one in each activity](docs/images/office-activities.png)
 
+The agent number beside the chat counts the other agents to look at, and their tiles in the list carry the same red mark when they wait for you.
+
+![The agents list with a red mark on the tile of the agent that asks for permission](docs/images/office-agent-marks.png)
+
 ### <img src="docs/images/icons/chat.svg" width="24" height="24" alt=""> Chat
 
-The conversation of each agent is built from Claude's saved transcript and the real terminal: tool cards, edits as diffs, pictures, and dialogs for what the agent asks. Rewind, queue messages, ask a side question with `/btw`, or run a command with `!`.
+The conversation of each agent is built from Claude's saved transcript and the real terminal: tool cards, edits as diffs, pictures, and dialogs for what the agent asks. Rewind, queue messages, or run a command with `!`. **Restart agent** starts the program again on the same conversation.
 
 ![A chat with a command, the office's own calls as rows, an edit as a diff, and the reply](docs/images/chat.png)
+
+### <img src="docs/images/icons/diagrams.svg" width="24" height="24" alt=""> Diagrams and forms in the chat
+
+Agents draw diagrams in their replies and ask with forms. Click a box to pick it and ask about it, open the diagram large to zoom and draw on it, and answer a form with its button: the agent is told what the form held.
+
+![A flowchart and a sequence diagram in a reply, one box picked, with Ask about them](docs/images/chat-diagram.png)
+
+![A form an agent asks with: a choice, a slider, a box to tick and a Start button](docs/images/chat-form.png)
+
+### <img src="docs/images/icons/chat.svg" width="24" height="24" alt=""> A message box that draws markdown
+
+The message box shows markdown as you type it, with the marks hidden on every line but the one the caret is in. Commands, skills and files are tinted wherever they are in the message, and what is sent is what you typed.
+
+![The message box with a heading, bullets, a quote, bold and code drawn as typed, and a file tinted](docs/images/chat-markdown-box.png)
+
+### <img src="docs/images/icons/btw.svg" width="24" height="24" alt=""> Side questions with /btw
+
+`/btw` asks a side question without interrupting the agent: the answer shows in its own card in the chat.
+
+![The Side question card with its answer, above the message box](docs/images/chat-btw.png)
 
 ### <img src="docs/images/icons/permission.svg" width="24" height="24" alt=""> Permissions answered in the world
 
@@ -58,11 +82,17 @@ Each agent works on its own branch (`aw/<name>`) in its own git worktree, and th
 
 ![The run track with a held push and the card at the end of the conversation where it is answered](docs/images/merge-held.png)
 
+A run is drawn as a flow diagram in the agent's **Workflow** tab, each step a card with where it stands.
+
+![The Workflow tab: a run as a flow, with the card that waits for you](docs/images/workflow-tab.png)
+
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
 A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
 
 ![The Runs tab: two charts and a ledger of runs grouped by outcome](docs/images/runs.png)
+
+![The builder's draft as a flow of steps, edited in place before it is saved](docs/images/workflow-builder.png)
 
 ### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Library and playbook
 
@@ -70,17 +100,53 @@ Skills, instructions and prompts kept once for every program, and a playbook tha
 
 ![The playbook: two rules, each with when an agent should reach for it](docs/images/playbook.png)
 
+![The shelf of skills, with one open](docs/images/library.png)
+
 ### <img src="docs/images/icons/todos.svg" width="24" height="24" alt=""> Todos
 
-One board for you and your agents: lists, tasks that need you, tasks an agent has claimed or finished. A `todo#14` in an agent's reply is a link to the task.
+One board for you and your agents: lists, tasks that need you, tasks an agent has claimed or finished. A `todo#14` in an agent's reply is a link to the task. A task can have subtasks, shown as a checklist with a progress bar on its card, and labels you add, rename and recolour; a task opens in tabs.
 
 ![The todo board with lists, a task that needs you, and two that agents are doing](docs/images/todos.png)
+
+![A task with three subtasks as a checklist with a progress bar, and labels on the cards](docs/images/todos-subtasks.png)
+
+### <img src="docs/images/icons/notes.svg" width="24" height="24" alt=""> Notes
+
+A small window of Markdown notes that stays above every other window (Option+Shift+Command+N). Each project has its own notes, checklists are drawn with boxes, and a line becomes a task, with its indented lines as subtasks, or is asked of an agent.
+
+![The Notes window with a checklist whose lines became tasks](docs/images/notes.png)
 
 ### <img src="docs/images/icons/usage.svg" width="24" height="24" alt=""> Usage limits
 
 Your Claude 5-hour and weekly limits are the tanks on the lawn behind the office. Hover them to see what is left and when it resets; the **Usage** button in the top bar opens the full picture and counts the limits that are running low.
 
 ![The tanks on the lawn with what is left of the 5-hour and weekly limits](docs/images/usage.png)
+
+### <img src="docs/images/icons/tokens.svg" width="24" height="24" alt=""> Tokens and the Weekly Rewind
+
+The **Tokens** tab of Usage shows where the tokens went, counted exactly as Claude Code and agy report them: fresh input, what the cache served, what was written to it and output, by provider, account, agent, project or model. The **Weekly Rewind** shows the week's cost and tokens with their rise or fall from the week before.
+
+![The Tokens tab: one bar for everything and a table by agent with the cache share](docs/images/usage-tokens.png)
+
+![The Weekly Rewind: the week's cost and tokens against the week before, and the day chart](docs/images/usage-rewind.png)
+
+### <img src="docs/images/icons/accounts.svg" width="24" height="24" alt=""> Accounts
+
+Sign in more than one Claude Code subscription, hire agents on any of them, and move agents between accounts without signing in again.
+
+![Settings on Accounts: this computer's login, and a second account that is the default for new agents](docs/images/accounts.png)
+
+### <img src="docs/images/icons/terminals.svg" width="24" height="24" alt=""> Terminals for each project
+
+A drawer of your own shells under the office, starting in the project's folder. Each project keeps its own, and they are still there when you come back.
+
+![The terminals drawer with two shells of the open project](docs/images/terminals.png)
+
+### <img src="docs/images/icons/shortcuts.svg" width="24" height="24" alt=""> Shortcuts
+
+Cmd+/ lists every key: stepping between agents and projects, the tabs of the side panel, Notes, the terminals and more.
+
+![The Shortcuts sheet](docs/images/shortcuts.png)
 
 ### <img src="docs/images/icons/agents.svg" width="24" height="24" alt=""> Antigravity beside Claude
 

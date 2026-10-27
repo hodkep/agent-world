@@ -138,6 +138,15 @@ const ICONS = {
   hooks: ['.b..b.', '.b..b.', 'bbbbbb', 'bbbbbb', '.bbbb.', '..bb..', '..bb..', '..bb..'],
   status: ['b.........', 'bbbbbb....', 'bbbbbbbb..', 'bbbbbb....', 'b.........', 'b.........', 'b.........', 'b.........'],
   build: ['mmmmmmmmmmm', 'm.........m', 'm.b.......m', 'm..b......m', 'm.b..ppp..m', 'm.........m', 'mmmmmmmmmmm'],
+  notes: ['bbbbbbbbb', 'pppppppp.', 'pmmmmmmp.', 'p......p.', 'pmmmmmmp.', 'p......p.', 'pmmmm.mp.', 'p......p.', 'pppppppp.'],
+  tokens: ['..bbbbbb..', '.bddddddb.', '..bbbbbb..', '..bbbbbb..', '.bddddddb.', '..bbbbbb..', '..bbbbbb..', '.bddddddb.', '..bbbbbb..'],
+  labels: ['bbbbbb....', 'bbbbbbbb..', 'bboobbbbb.', 'bboobbbbbb', 'bbbbbbbbb.', 'bbbbbbbb..', 'bbbbbb....'],
+  marks: ['.pppppppp.r', '.p......prr', '.p.cc...pr.', '.p.cc...p..', '.p......p..', '.pppppppp..'],
+  btw: ['..pppppp..', '.p......p.', 'p..b.b.b.p', '.p......p.', '..pppppp..', '.pp.......'],
+  diagrams: ['bbb...bbb', 'b.b...b.b', 'bbb...bbb', '.m.....m.', '.mmmmmmm.', '....m....', '..ccccc..', '..c...c..', '..ccccc..'],
+  accounts: ['..bbb.....', '.b...b....', '.b...b....', '..bbb.....', '...b......', '...bbbbbb.', '...b..b.b.', '...b..b.b.'],
+  terminals: ['mmmmmmmmmmm', 'm.bb.mm...m', 'mmmmmmmmmmm', 'm.........m', 'm.g.......m', 'm..g.ppp..m', 'mmmmmmmmmmm'],
+  shortcuts: ['mmmmmmmmmmmm', 'm.p.p.p.p.pm', 'mmmmmmmmmmmm', 'm.p.p.p.p.pm', 'mmmmmmmmmmmm', 'm..pppppp..m', 'mmmmmmmmmmmm'],
   contributing: ['.rr...rr.', 'rrrr.rrrr', 'rrrrrrrrr', 'rrrrrrrrr', '.rrrrrrr.', '..rrrrr..', '...rrr...', '....r....'],
   licence: ['.pppppp..', '.p....pp.', '.p....p.p', '.pmmmm..p', '.p......p', '.pmmmm..p', '.p......p', '.pppppppp']
 }
