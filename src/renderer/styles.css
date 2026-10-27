@@ -3824,3 +3824,10 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-pop .primary:disabled { opacity: .5; }
 .nt-pop select, .nt-pop textarea { width: 100%; background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 4px 6px; }
 .nt-foot select { background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 3px 4px; }
+.nt.mac .nt-bar { padding-left: 76px; }
+.nt-tools .tip-btn { background: var(--well); border: 1px solid var(--line); box-shadow: none; color: var(--muted); }
+.nt-tools .tip-btn:hover { color: var(--text); }
+.nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { left: auto; right: 0; transform: none; }
+.nt-tools .tip-btn[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.nt-editor .cm-placeholder { color: var(--muted); }
+.nt-hint { display: flex; flex-direction: column; gap: 4px; } .nt-hint b { font-size: 15px; color: var(--text); opacity: .7; } .nt-hint span { font-size: 12.5px; }

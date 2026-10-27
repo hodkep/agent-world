@@ -24,6 +24,11 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await expect(pad.getByRole('application', { name: 'Notes' })).toBeVisible()
     const editor = pad.getByRole('textbox', { name: 'Note' })
 
+    // An empty note says where to start, and each button says what it does when pointed at.
+    await expect(pad.locator('.cm-placeholder')).toContainText('Start typing')
+    await pad.getByRole('button', { name: 'Keep on top' }).or(pad.getByRole('button', { name: 'Stop keeping on top' })).hover()
+    if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-empty.png` })
+    await expect(pad.getByRole('button', { name: 'New note' })).toHaveAttribute('data-tip', /Start a new note/)
     // Markdown is written in it, with a checklist drawn as boxes.
     await editor.click()
     await pad.keyboard.insertText('# Plan\n- [ ] Umbrella\n  - [ ] Part a\n  - [ ] Part b\nplain words')
