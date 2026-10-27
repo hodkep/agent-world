@@ -29,6 +29,23 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await pad.getByRole('button', { name: 'Keep on top' }).or(pad.getByRole('button', { name: 'Stop keeping on top' })).hover()
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-empty.png` })
     await expect(pad.getByRole('button', { name: 'New note' })).toHaveAttribute('data-tip', /Start a new note/)
+    // Whichever button is pointed at, its description is wholly inside the window.
+    for (const name of ['Notes', 'Keep on top', 'Stop keeping on top', 'Preview', 'New note']) {
+      const b = pad.getByRole('button', { name, exact: true })
+      if (!(await b.count())) continue
+      await b.hover()
+      if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-tip-${name.replace(/ /g, '')}.png` })
+      const tip = await b.evaluate((el) => {
+        // The tip is drawn by the button's ::after, so its size is read from a copy of it.
+        const r = el.ownerDocument.createElement('div')
+        const cs = getComputedStyle(el, '::after')
+        const bar = el.closest('.nt-bar')!.getBoundingClientRect()
+        r.style.cssText = `position:fixed;visibility:hidden;width:${cs.width};height:${cs.height}`
+        return { right: bar.right - parseFloat(cs.right), width: parseFloat(cs.width), barLeft: bar.left, barRight: bar.right, left: cs.left }
+      })
+      expect(tip.width).toBeGreaterThan(0)
+      expect(tip.right - tip.width).toBeGreaterThanOrEqual(tip.barLeft - 1)
+    }
     // Markdown is written in it, with a checklist drawn as boxes.
     await editor.click()
     await pad.keyboard.insertText('# Plan\n- [ ] Umbrella\n  - [ ] Part a\n  - [ ] Part b\nplain words')
