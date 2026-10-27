@@ -6,7 +6,7 @@ import type { HandoffKind } from './handoff'
 import type { Role } from './roles'
 import type { UsageLimits } from './usage'
 import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, Summary as LibraryStats, Use as LibraryUse } from './library'
-import type { TodoBoard, TodoStatus } from './todos'
+import type { LabelColor, TodoBoard, TodoStatus } from './todos'
 import type { AccountInfo, Prefs, TerminalMenu, AgentEvent, AgentMessage, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, LimitWindow, PermissionRequest, ProviderId, ProviderInfo, QuestionAnswer, RemoteState, HireLeftover } from './types'
 
 export type RemoveResult = { ok: true } | { ok: false; dirty: string }
@@ -376,8 +376,12 @@ export interface AwApi {
   /** The todo board of a project: lists of tasks the person and the agents both add to and finish. */
   todos: {
     get(folder: string): Promise<{ board: TodoBoard; key: string }>
-    add(folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }): Promise<void>
-    update(folder: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string }): Promise<void>
+    add(folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }): Promise<void>
+    update(folder: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; parent?: string; labels?: string[] }): Promise<void>
+    addLabel(folder: string, name: string, color?: LabelColor): Promise<void>
+    renameLabel(folder: string, from: string, to: string): Promise<void>
+    recolorLabel(folder: string, name: string, color: LabelColor): Promise<void>
+    removeLabel(folder: string, name: string): Promise<void>
     /** Ask an agent about a task, or put it on one: recorded on the board; the message to send that agent is returned. */
     ask(folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<{ message: string }>
     /** Names and sorts the tasks waiting in the Inbox, by asking a small model; how many were named. */

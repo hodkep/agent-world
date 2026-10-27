@@ -8,7 +8,7 @@ import { createTodoService } from './todos/service'
 import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
 import { commitsSince, uncommittedFiles } from './gitops'
 import { editedFiles } from './todos/edited'
-import { excerptOf } from '../shared/todos'
+import { excerptOf, type LabelColor } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
@@ -1939,7 +1939,7 @@ async function main() {
   })
   // Opening the board first closes what an agent that has stopped left open.
   ipcMain.handle('todos:get', (_, folder: string) => (todoService.sweep(String(folder)), { board: todoService.board(String(folder)), key: repoSlug(String(folder)) }))
-  ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean }) => void todoService.addByPerson(String(folder), i))
+  ipcMain.handle('todos:add', (_, folder: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }) => void todoService.addByPerson(String(folder), i))
   ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
   ipcMain.handle('todos:ask', (_, folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string) => todoService.askAgent(String(folder), String(id), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000)))
   ipcMain.handle('todos:tidy-inbox', (_, folder: string) => todoService.tidyInbox(String(folder)))
@@ -1959,6 +1959,10 @@ async function main() {
   ipcMain.handle('todos:pad-set', (_, folder: string, text: string) => todoService.setPad(String(folder), String(text ?? '')))
   ipcMain.handle('todos:pad-make', (_, folder: string) => todoService.padToTasks(String(folder)).length)
   ipcMain.handle('todos:pad-undo', (_, folder: string) => todoService.undoPad(String(folder)))
+  ipcMain.handle('todos:add-label', (_, folder: string, name: string, color?: LabelColor) => todoService.addLabelByPerson(String(folder), String(name), color))
+  ipcMain.handle('todos:rename-label', (_, folder: string, from: string, to: string) => todoService.renameLabelByPerson(String(folder), String(from), String(to)))
+  ipcMain.handle('todos:recolor-label', (_, folder: string, name: string, color: LabelColor) => todoService.recolorLabelByPerson(String(folder), String(name), color))
+  ipcMain.handle('todos:remove-label', (_, folder: string, name: string) => todoService.removeLabelByPerson(String(folder), String(name)))
   ipcMain.handle('todos:add-list', (_, folder: string, name: string) => todoService.addList(String(folder), String(name)))
   ipcMain.handle('todos:rename-list', (_, folder: string, from: string, to: string) => todoService.renameList(String(folder), String(from), String(to)))
   ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))

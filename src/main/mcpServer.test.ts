@@ -216,6 +216,15 @@ describe('agent-world MCP server: subagents', () => {
 describe('the todo tools', () => {
   const agents = { a1: { id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }, a2: { id: 'a2', name: 'bob', provider: 'agy', repoPath: '/work/shop' } }
   const make = () => createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-mcp-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: (id) => agents[id as 'a1' | 'a2'], lastMessage: (id) => ({ agentId: id, itemId: `m-${id}`, at: 1, excerpt: 'said so' }), lastRequest: () => undefined, workSince: async () => ({ commits: [{ sha: 'abc1234', subject: 'fix: it' }], files: [] }), remember: () => undefined, now: () => Date.now(), onChange: () => undefined })
+  it('puts a task under a bigger one and labels it, and the list shows both', async () => {
+    const svc = make()
+    const a = await connect((await setup(undefined, svc)).url, 'a1')
+    await a.callTool({ name: 'todo_add', arguments: { title: 'Umbrella', list: 'Chat' } })
+    expect(text(await a.callTool({ name: 'todo_add', arguments: { title: 'Part', parent: '1', labels: ['bug'] } }))).toMatch(/^Added todo#2 to Chat/)
+    expect(text(await a.callTool({ name: 'todo_list', arguments: {} }))).toMatch(/todo#2 \[Chat\] Part.*part of todo#1.*labels: bug/)
+    await a.callTool({ name: 'todo_update', arguments: { id: '2', parent: '', labels: [] } })
+    expect(text(await a.callTool({ name: 'todo_list', arguments: {} }))).not.toMatch(/part of/)
+  })
   it('add, list, claim and finish a task, each as the calling agent', async () => {
     const svc = make()
     const a = await connect((await setup(undefined, svc)).url, 'a1')

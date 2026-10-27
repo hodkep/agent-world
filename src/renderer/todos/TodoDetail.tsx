@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { MessageLink, Todo } from '../../shared/todos'
+import { subtasksOf, type MessageLink, type Todo, type TodoBoard } from '../../shared/todos'
+import { TaskLabels } from './Labels'
 import type { AskMode } from '../../shared/todoAsk'
 import { Markdown } from '../chat/markdown'
 import type { useConfirm } from '../panel/ConfirmDialog'
@@ -87,13 +88,18 @@ export interface TodoRun {
   stands: string
 }
 
-export function TodoDetail({ t, folder, agents, runs = [], onOpenRun, onClose, act, onOpenMessage, onAsk, confirm }: {
+type Tab = 'overview' | 'subtasks' | 'activity' | 'how' | 'ask'
+
+export function TodoDetail({ t, board, folder, agents, runs = [], onOpenRun, onSelect, onClose, act, onOpenMessage, onAsk, confirm }: {
   t: Todo
+  board: TodoBoard
   folder: string
   agents: AskAgent[]
   /** The workflow runs this task belongs to. */
   runs?: TodoRun[]
   onOpenRun?: (runId: string) => void
+  /** Open another task (a subtask, or the umbrella). */
+  onSelect: (id: string) => void
   onClose: () => void
   act: (p: Promise<unknown>) => void
   onOpenMessage: (l: MessageLink) => void
@@ -102,55 +108,100 @@ export function TodoDetail({ t, folder, agents, runs = [], onOpenRun, onClose, a
 }) {
   const [title, setTitle] = useState(t.title)
   const [notes, setNotes] = useState(t.notes)
+  const [tab, setTab] = useState<Tab>('overview')
+  const [sub, setSub] = useState('')
   const done = t.status === 'done'
   const activity = activityOf(t)
+  const parts = subtasksOf(board, t.id)
+  const umbrella = t.parent ? board.todos.find((x) => x.id === t.parent) : undefined
+  const hasHow = done && !!(t.doneHow || t.doneFiles?.length || t.doneCommits?.length)
+  // An umbrella cannot be nested again, and a task with parts cannot become a part: only the others are offered.
+  const umbrellas = parts.length ? [] : board.todos.filter((x) => !x.parent && x.id !== t.id)
+  const tabs: [Tab, string][] = [['overview', 'Overview'], ...(umbrella ? [] : [['subtasks', `Subtasks ${parts.length}`] as [Tab, string]]), ['activity', `Activity ${activity.length}`], ...(hasHow ? [['how', 'How'] as [Tab, string]] : []), ['ask', 'Ask']]
+  const addPart = () => {
+    const v = sub.trim()
+    setSub('')
+    if (v) act(window.aw.todos.add(folder, { title: v, parent: t.id }))
+  }
   return (
     <aside className="td-detail" aria-label="Task detail">
       <div className="td-dhead">
-        <div className="td-dtop"><span className="td-addr">todo#{t.id} · {t.list}</span><button className="td-x" onClick={onClose} aria-label="Close detail">×</button></div>
+        <div className="td-dtop">
+          <span className="td-addr">todo#{t.id} · {t.list}{umbrella && <> · part of <button className="td-link-btn" onClick={() => onSelect(umbrella.id)}>{umbrella.title}</button></>}</span>
+          <button className="td-x" onClick={onClose} aria-label="Close detail">×</button>
+        </div>
         <input className="td-dtitle" value={title} aria-label="Task title" onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && act(window.aw.todos.update(folder, t.id, { title }))} />
-        <Banner t={t} />
+        <div className="td-chips">
+          <span className={`td-st ${t.status}`}>{t.status === 'doing' && t.claimedBy ? `doing · ${t.claimedBy.name}` : t.stale ? 'unfinished' : t.status}</span>
+          {t.needsYou && !done && <span className="td-flag">needs you</span>}
+          <TaskLabels board={board} names={t.labels ?? []} onChange={(labels) => act(window.aw.todos.update(folder, t.id, { labels }))} />
+        </div>
       </div>
-      <section className="td-sec" aria-label="Details">
-        <h5>Details</h5>
-        <Grow className="td-notes grow" rows={3} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
-        <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
-        <div className="td-by">Made by <Who a={t.createdBy} /> · {agoLabel(t.createdAt)}{t.auto ? ' · from your message' : ''}</div>
-      </section>
-      {runs.length > 0 && (
-        <section className="td-sec" aria-label="Workflow runs">
-          <h5>{runs.length === 1 ? 'Workflow run' : 'Workflow runs'}</h5>
-          {runs.map((r) => (
-            <button key={r.id} className="su-link td-run" onClick={() => onOpenRun?.(r.id)}>{r.workflow} · {r.stands} ↗</button>
-          ))}
-        </section>
-      )}
-      {t.createdLink && <Source label="Where it came from" link={t.createdLink} open="Open the message it was made in" onOpen={onOpenMessage} />}
-      {done && t.doneLink && <Source label="Where it was finished" link={t.doneLink} open="Open the message it was finished in" onOpen={onOpenMessage} />}
-      {done && (t.doneHow || t.doneFiles?.length || t.doneCommits?.length) && (
-        <section className="td-sec" aria-label="How it was done">
-          <h5>How it was done</h5>
-          {t.doneHow && <div className="td-md"><Markdown text={t.doneHow} /></div>}
-          {t.doneCommits && t.doneCommits.length > 0 && (
-            <ul className="td-commits" aria-label="Commits">
-              {t.doneCommits.map((c) => <li key={c.sha}><code>{c.sha}</code> {c.subject}</li>)}
+      <div className="td-tabs" role="tablist" aria-label="Task sections">
+        {tabs.map(([k, label]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
+      </div>
+      <div className="td-pane" role="tabpanel" aria-label={tabs.find(([k]) => k === tab)?.[1]}>
+        {tab === 'overview' && (
+          <>
+            {(done || t.status === 'blocked' || t.stale) && <Banner t={t} />}
+            <dl className="td-meta">
+              <dt>Made by</dt><dd><Who a={t.createdBy} /> · {agoLabel(t.createdAt)}{t.auto ? ' · from your message' : ''}</dd>
+              {!parts.length && (
+                <>
+                  <dt>Part of</dt>
+                  <dd>
+                    <select value={t.parent ?? ''} aria-label="Part of" onChange={(e) => act(window.aw.todos.update(folder, t.id, { parent: e.target.value }))}>
+                      <option value="">Nothing: it stands alone</option>
+                      {umbrellas.map((x) => <option key={x.id} value={x.id}>todo#{x.id} · {x.title}</option>)}
+                    </select>
+                  </dd>
+                </>
+              )}
+              {runs.length > 0 && <><dt>{runs.length === 1 ? 'Workflow run' : 'Workflow runs'}</dt><dd>{runs.map((r) => <button key={r.id} className="su-link td-run" onClick={() => onOpenRun?.(r.id)}>{r.workflow} · {r.stands} ↗</button>)}</dd></>}
+            </dl>
+            <Grow className="td-notes grow" rows={3} value={notes} placeholder="Notes" aria-label="Task notes" onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && act(window.aw.todos.update(folder, t.id, { notes }))} />
+            <label className="td-check"><input type="checkbox" checked={t.needsYou} onChange={(e) => act(window.aw.todos.update(folder, t.id, { needsYou: e.target.checked }))} /> Needs you (a step only a person can do)</label>
+            {t.createdLink && <Source label="Where it came from" link={t.createdLink} open="Open the message it was made in" onOpen={onOpenMessage} />}
+            {done && t.doneLink && <Source label="Where it was finished" link={t.doneLink} open="Open the message it was finished in" onOpen={onOpenMessage} />}
+          </>
+        )}
+        {tab === 'subtasks' && (
+          <>
+            {parts.length === 0 && <p className="hint">Nothing under this task yet. A subtask is a smaller task that is part of it; the task is done when its last one is.</p>}
+            <ul className="td-parts" aria-label="Subtasks">
+              {parts.map((x) => (
+                <li key={x.id} className={x.status}>
+                  <button className="td-ck" role="checkbox" aria-checked={x.status === 'done'} aria-label={`${x.status === 'done' ? 'Reopen' : 'Finish'} ${x.title}`} onClick={() => act(x.status === 'done' ? window.aw.todos.reopen(folder, x.id) : window.aw.todos.done(folder, x.id))}>{x.status === 'done' ? '✓' : ''}</button>
+                  <button className="td-part" onClick={() => onSelect(x.id)}>{x.title}</button>
+                  {x.status === 'doing' && <span className="td-st doing">{x.claimedBy?.name ?? 'doing'}</span>}
+                  <small>#{x.id}</small>
+                </li>
+              ))}
             </ul>
-          )}
-          {t.doneFiles && t.doneFiles.length > 0 && (
-            <div className="td-files" aria-label="Files">{t.doneFiles.map((f) => <code key={f}>{f}</code>)}</div>
-          )}
-        </section>
-      )}
-      <section className="td-sec" aria-label="Activity">
-        <h5>Activity</h5>
-        <ul className="td-act">
-          {activity.map((a, i) => <li key={i} className={`${a.key ? 'k' : ''}${a.app ? ' app' : ''}`}>{a.text} <small>· {agoLabel(a.at)}</small></li>)}
-        </ul>
-      </section>
-      <AskAgentBox t={t} agents={agents} onAsk={onAsk} folder={folder} act={act} />
+            <input className="td-new" value={sub} placeholder="＋ Add a subtask" aria-label="Add a subtask" onChange={(e) => setSub(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addPart() }} />
+          </>
+        )}
+        {tab === 'activity' && (
+          <ul className="td-act">
+            {activity.map((a, i) => <li key={i} className={`${a.key ? 'k' : ''}${a.app ? ' app' : ''}`}>{a.text} <small>· {agoLabel(a.at)}</small></li>)}
+          </ul>
+        )}
+        {tab === 'how' && (
+          <>
+            {t.doneHow && <div className="td-md"><Markdown text={t.doneHow} /></div>}
+            {t.doneCommits && t.doneCommits.length > 0 && (
+              <ul className="td-commits" aria-label="Commits">
+                {t.doneCommits.map((c) => <li key={c.sha}><code>{c.sha}</code> {c.subject}</li>)}
+              </ul>
+            )}
+            {t.doneFiles && t.doneFiles.length > 0 && <div className="td-files" aria-label="Files">{t.doneFiles.map((f) => <code key={f}>{f}</code>)}</div>}
+          </>
+        )}
+        {tab === 'ask' && <AskAgentBox t={t} agents={agents} onAsk={onAsk} folder={folder} act={act} />}
+      </div>
       <div className="td-foot">
         <button className="primary" onClick={() => act(done ? window.aw.todos.reopen(folder, t.id) : window.aw.todos.done(folder, t.id))}>{done ? 'Reopen' : 'Mark done'}</button>
-        <button className="danger" onClick={() => void confirm({ title: `Remove “${t.title}”?`, body: 'It is deleted for you and for the agents. This cannot be undone.', confirm: 'Remove', danger: true }).then((yes) => { if (yes) { act(window.aw.todos.remove(folder, t.id)); onClose() } })}>Remove</button>
+        <button className="danger" onClick={() => void confirm({ title: `Remove “${t.title}”?`, body: parts.length ? `It is deleted for you and for the agents. Its ${parts.length} subtask${parts.length === 1 ? '' : 's'} stay as tasks of their own. This cannot be undone.` : 'It is deleted for you and for the agents. This cannot be undone.', confirm: 'Remove', danger: true }).then((yes) => { if (yes) { act(window.aw.todos.remove(folder, t.id)); onClose() } })}>Remove</button>
       </div>
     </aside>
   )

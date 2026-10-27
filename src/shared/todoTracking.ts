@@ -74,7 +74,7 @@ export function reminderLine(mode: TodoTracking, prompt: string, made?: { id: st
   if (mode === 'full') {
     if (!made) return ''
     const where = lists.length ? `a list by area: ${lists.slice(0, 8).join(', ')}, or a new area (a feature, never the app) only if none fits` : 'a list named for its area (Library, Chat…)'
-    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. If it is implementation or research work, call todo_update with a title that says what is being done (your words) and ${where}, then todo_done when it is finished (todo_update with status blocked and why if it cannot be). If it is only a question or chat, leave it: the app drops it.`
+    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. If it is implementation or research work, call todo_update with a title that says what is being done (your words) and ${where}, then todo_done when it is finished (todo_update with status blocked and why if it cannot be). If it continues a bigger piece of work already on the board, pass parent (that task's number) so it nests under it. If it is only a question or chat, leave it: the app drops it.`
   }
   return deferralCue(prompt) ? 'If this puts something off, record it with todo_add so it is not forgotten.' : ''
 }
