@@ -28,6 +28,10 @@ Click an agent's character or its row in the list.
 
 To hand files to an agent, drop them on its character.
 
+![The agents list open under the number, with a red mark on the tile of the agent that asks for permission, and the number reading 1](../images/office-agent-marks.png)
+
+The number is red while another agent needs you and counts the others to look at; a tile in the list carries the same mark.
+
 ## Hire an agent
 
 Click **+ Agent** in the top bar (disabled until a folder is open), fill in the form and click **Hire**. The form is described in [Getting started](getting-started.md#hire-another-agent). The new character walks in through the front door.
@@ -67,6 +71,14 @@ Except for **+ Agent**, the buttons are icons. Point at one to see its name.
 
 Over the office, **Zoom out**, **Zoom in**, **Fit office** and **Reset** change the view.
 
+## Terminals
+
+The **Terminal** button at the foot of the office (Ctrl+`) opens a drawer of your own shells under the office, one tab for each, each starting in the project's folder. **+** adds one, **×** closes one (a shell that is still running asks first), and **▾** hides the drawer: the shells keep running. Drag the drawer's top edge to resize it.
+
+Each project has its own terminals. Switch project and you see only that project's; come back and they are as you left them, also after the window reloads.
+
+![The terminals drawer under the office with two tabs of the storefront project and a shell that has run git log](../images/terminals.png)
+
 ## The usage tanks
 
 The tanks on the lawn show how much is left of your usage limits: **5h** for the 5-hour limit and **wk** for the weekly one, a pair for each connected program.
@@ -75,9 +87,25 @@ The tanks on the lawn show how much is left of your usage limits: **5h** for the
 
 The liquid is what is left. It turns amber once 70% is used and red once 90% is used, and a tank with no reading shows "?". Point at the tanks for **Your usage limits**. The **Usage** button shows the same numbers.
 
+## Usage and the Weekly Rewind
+
+**Usage** in the top bar opens **Usage & Estimated Costs**: what was spent and used in 7, 30 or 90 days, for all accounts or one, with tabs for **Overview**, **Accounts**, **Providers**, **Projects** and **Tokens**.
+
+![The Usage window on Overview: spent, tokens, how much the cache served, the tightest limit and the month, then the day by day chart](../images/usage-overview.png)
+
+**Tokens** says where the tokens went, as one bar and a table: fresh input, what was read from the program's cache, what was written to it, and output, grouped by provider, account, agent, project or model. A dash is a figure the program does not report (agy does not report cache writes), and history from before tokens were counted this way shows hatched with no split.
+
+![The Tokens tab: one bar for all tokens, and a table by agent with a mix bar, fresh input, cache read, cache write, output, the cache share and what was spent](../images/usage-tokens.png)
+
+**Weekly Rewind** shows one week: agent time, cost, tokens with their rise or fall from the week before (a week before that was counted the old way is compared without the cache), turns, the busiest hours, and a day chart that switches between dollars and tokens.
+
+![The Weekly Rewind: the headline, five cards, the day chart and when the work happened](../images/usage-rewind.png)
+
 ## Use it from the keyboard
 
 Select an agent with Ctrl+Tab (Shift+Ctrl+Tab goes back), then Tab to **Allow**, **Deny** or **Wake**. Cmd+/ lists all shortcuts.
+
+![The Shortcuts sheet, every key listed by where it works](../images/shortcuts.png)
 
 Hold Ctrl and press Tab again to see a bar of the agents in the order the **Agents** panel lists them (the latest first); each Tab steps on, Shift+Tab steps back, and letting go of Ctrl switches. Esc stays where you are, and a single tap switches at once with no bar. Shift+Cmd+[ and ] (Shift+Ctrl+[ and ] elsewhere) do the same for the projects, in the order of the project panel.
 

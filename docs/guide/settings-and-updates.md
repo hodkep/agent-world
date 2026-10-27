@@ -46,6 +46,8 @@ Each program has a card saying whether it works here (`ready`, `not signed in` o
 
 For Claude Code, you can sign in more than one subscription and move agents between them without signing in again. Your own login is listed as **This computer**. It is only changed if it is signed out and you sign it in from here.
 
+![Settings on Accounts: This computer, and Work signed in and made the default for new agents](../images/accounts.png)
+
 To add an account: press **Add account**, type a name (only a label for you), press **Continue to sign in**, finish in the terminal and your browser, then press **I have signed in: check**.
 
 Each account has **Sign in** (when it needs one; on **This computer** the **Sign in needed** tag is the button), **Make default** and **Remove**. Click an account's name to rename it: **Enter** saves and **Esc** cancels. Only the label changes; the folder, the sign-in and the agents on it stay. This computer's own login has no label to change. The default account is used for every agent you hire, and the hire form shows an **Account** choice once you have added one.

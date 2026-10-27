@@ -1,14 +1,19 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { type Locator, type Page, _electron as electron } from '@playwright/test'
+import { weekStartOf } from '../src/shared/ledger'
+import { type CDPSession, type Locator, type Page, _electron as electron } from '@playwright/test'
 
 /** Where the README's pictures go. */
 export const SHOTS_DIR = resolve(__dirname, '..', 'docs', 'images')
 export const SHOTS_ON = !!process.env.AW_SHOTS
+
+/** Pixels in a picture for each pixel of the window: a picture stays sharp on a dense screen, and when GitHub scales it down. */
+const DENSITY = 2
+const sessions = new WeakMap<Page, CDPSession>()
 
 export type Scene = 'story' | 'idle' | 'waiting' | 'thinking' | 'researching' | 'implementing' | 'running' | 'delegating' | 'permission' | 'asleep'
 
@@ -35,13 +40,14 @@ export function makeProject(tmp: string, name = 'storefront') {
  * The app as a person has it on a fresh machine with Claude Code signed in, driven by the scripted fake agents (no tokens, no sign-in): a temp home, a project
  * folder, workflows on, and the window at a size that reads well in a README. `scenes` says what each named agent is doing; `video` records the window.
  */
-export async function shotApp(o: { env?: Record<string, string>; prefs?: object; scenes?: Record<string, Scene>; video?: string; size?: { width: number; height: number }; /** The first run: no preferences yet, so setup shows. */ fresh?: boolean; /** Antigravity (the fake agy) is on the computer too. */ agy?: boolean } = {}) {
+export async function shotApp(o: { env?: Record<string, string>; prefs?: object; scenes?: Record<string, Scene>; video?: string; size?: { width: number; height: number }; /** The first run: no preferences yet, so setup shows. */ fresh?: boolean; /** Antigravity (the fake agy) is on the computer too. */ agy?: boolean; /** Fills the office's home (a ledger, say) before the app starts, which is when it reads what is there. */ seed?: (home: string) => void } = {}) {
   const launchedAt = Date.now()
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-shots-')))
   const { repo, git } = makeProject(tmp)
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
   if (!o.fresh) writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true }, ...o.prefs }))
+  o.seed?.(home)
   // The programs the app finds are shims at plain paths, so no path of this computer's own is drawn in a picture (setup says where each program is).
   const bin = join(tmp, 'bin')
   mkdirSync(bin, { recursive: true })
@@ -64,6 +70,8 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
   const proc = app.process()
   const page = await app.firstWindow()
   await page.setViewportSize(size)
+  // Twice the pixels of the window, so a picture stays sharp on a high-density screen and when GitHub scales it down.
+  await (await app.context().newCDPSession(page)).send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: 2, mobile: false })
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), repo)
   await page.reload()
   const shutdown = async () => {
@@ -71,6 +79,30 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
     if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL')
   }
   return { app, page, repo, git, home, tmp, argsLog: join(tmp, 'args.log'), envLog: join(tmp, 'env.log'), launchedAt, shutdown }
+}
+
+/**
+ * Sizes the window and makes the page draw at twice the density. Playwright's own screenshot of an Electron window comes out at one pixel per pixel
+ * whatever the page's density, so the pictures are taken through `capture` below, which asks the browser itself.
+ */
+export async function setWindow(page: Page, size: { width: number; height: number }) {
+  await page.setViewportSize(size)
+  await (await session(page)).send('Emulation.setDeviceMetricsOverride', { ...size, deviceScaleFactor: DENSITY, mobile: false })
+}
+
+async function session(page: Page) {
+  let cdp = sessions.get(page)
+  if (!cdp) sessions.set(page, (cdp = await page.context().newCDPSession(page)))
+  return cdp
+}
+
+/** The page, or `clip` of it (in the window's own pixels), as a PNG at `DENSITY` times its size. */
+async function capture(page: Page, path: string, clip?: { x: number; y: number; width: number; height: number }) {
+  const cdp = await session(page)
+  const x = clip && Math.floor(clip.x)
+  const y = clip && Math.floor(clip.y)
+  const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', ...(clip && { clip: { x: x!, y: y!, width: Math.ceil(clip.x + clip.width) - x!, height: Math.ceil(clip.y + clip.height) - y!, scale: 1 } }) })
+  writeFileSync(path, Buffer.from(data, 'base64'))
 }
 
 /** Hire an agent by name from the form and stay on the page the app opens. */
@@ -82,10 +114,11 @@ export async function hireNamed(page: Page, name: string) {
   await form.waitFor({ state: 'detached' })
 }
 
-/** A picture of the whole window, or of `clip`, saved under docs/images. */
+/** A picture of the whole window, or of `clip`, saved under docs/images (a `name` with a folder in it, such as `releases/0.6.0/notes`, goes in that folder). */
 export async function shoot(page: Page, name: string, clip?: { x: number; y: number; width: number; height: number }) {
-  mkdirSync(SHOTS_DIR, { recursive: true })
-  await page.screenshot({ path: join(SHOTS_DIR, `${name}.png`), ...(clip && { clip }) })
+  const path = join(SHOTS_DIR, `${name}.png`)
+  mkdirSync(dirname(path), { recursive: true })
+  await capture(page, path, clip)
 }
 
 /** A skill as Claude keeps it in `~/.claude/skills`, for the library to import. */
@@ -132,6 +165,35 @@ export function agentGit(envLog: string) {
 
 /** A picture of one element (a window the app opened), saved under docs/images. */
 export async function shootElement(el: Locator, name: string) {
-  mkdirSync(SHOTS_DIR, { recursive: true })
-  await el.screenshot({ path: join(SHOTS_DIR, `${name}.png`) })
+  const path = join(SHOTS_DIR, `${name}.png`)
+  mkdirSync(dirname(path), { recursive: true })
+  const box = await el.boundingBox()
+  if (!box) throw new Error(`${name}: nothing to take a picture of`)
+  await capture(el.page(), path, box)
+}
+
+/** The week as the Usage window and the Weekly Rewind draw it: exact requests from Claude and agy, an account, and last week counted exactly too. */
+export function seedTokens(home: string) {
+  const now = Date.now()
+  const monday = weekStartOf(now)
+  const thisWeek = (n: number) => Math.min(now, monday + n * 3_600_000)
+  const lastWeek = (n: number) => monday - 6 * 86_400_000 + n * 3_600_000
+  const req = (t: number, o: object) => ({ k: 'req', t, project: 'storefront', model: 'claude-sonnet-5-5', provider: 'claude', ...o })
+  const cost = (t: number, o: object) => ({ k: 'cost', t, project: 'storefront', model: 'claude-sonnet-5-5', provider: 'claude', ...o })
+  const ev = [
+    cost(thisWeek(1), { agent: 'a', name: 'ada', usd: 6.4, account: 'work' }),
+    cost(thisWeek(30), { agent: 'b', name: 'bo', usd: 2.1 }),
+    cost(lastWeek(2), { agent: 'a', name: 'ada', usd: 4.3, account: 'work' }),
+    cost(lastWeek(6), { agent: 'b', name: 'bo', usd: 1.9 }),
+    { k: 'work', t: thisWeek(2), agent: 'a', project: 'storefront', ms: 5_400_000, provider: 'claude', name: 'ada', account: 'work' },
+    { k: 'work', t: lastWeek(3), agent: 'a', project: 'storefront', ms: 3_600_000, provider: 'claude', name: 'ada', account: 'work' },
+    req(thisWeek(1), { agent: 'a', name: 'ada', account: 'work', input: 1800, cacheRead: 412_000, cacheWrite: 21_000, output: 9400 }),
+    req(thisWeek(3), { agent: 'a', name: 'ada', account: 'work', input: 2200, cacheRead: 530_000, cacheWrite: 14_000, output: 12_100 }),
+    req(thisWeek(30), { agent: 'b', name: 'bo', input: 900, cacheRead: 160_000, cacheWrite: 8000, output: 4100 }),
+    req(thisWeek(33), { agent: 'c', name: 'cy', project: 'warehouse', provider: 'agy', model: 'Gemini 3.8 Flash', input: 24_000, cacheRead: 61_000, output: 6200 }),
+    req(lastWeek(2), { agent: 'a', name: 'ada', account: 'work', input: 1500, cacheRead: 320_000, cacheWrite: 19_000, output: 8000 }),
+    req(lastWeek(6), { agent: 'b', name: 'bo', input: 800, cacheRead: 120_000, cacheWrite: 6000, output: 3300 }),
+    req(lastWeek(7), { agent: 'c', name: 'cy', project: 'warehouse', provider: 'agy', model: 'Gemini 3.8 Flash', input: 20_000, cacheRead: 40_000, output: 5000 })
+  ]
+  writeFileSync(join(home, 'ledger.jsonl'), ev.map((e) => JSON.stringify(e)).join('\n') + '\n')
 }
