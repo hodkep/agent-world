@@ -42,3 +42,34 @@ test('a /btw side question is answered in a card in the chat and can be dismisse
     await shutdown()
   }
 })
+
+test('a /btw card shows at once with "Answering…", then the answer, however many times it is asked, and Esc dismisses it', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-btw-'))
+  // The program opens its overlay 3 seconds after the question, so what shows before that is the app's own.
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_BTW_LAG_MS: '3000' }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const box = page.getByRole('textbox', { name: 'Message ada' })
+    const card = page.getByRole('region', { name: 'Side question' })
+    for (const q of ['first one?', 'and another?', 'and a third?']) {
+      await box.click()
+      await box.pressSequentially(`/btw ${q}`)
+      await box.press('Enter')
+      // At once: the question and "Answering…", before the program has drawn anything.
+      await expect(card).toContainText(q, { timeout: 1500 })
+      await expect(card).toContainText('Answering…', { timeout: 1500 })
+      await expect(card).toContainText('It is 4.', { timeout: 25_000 })
+      // Esc closes it, from the message box, as it does in the terminal.
+      await box.click()
+      await box.press('Escape')
+      await expect(card).toHaveCount(0, { timeout: 8_000 })
+    }
+  } finally {
+    await shutdown()
+  }
+})
+

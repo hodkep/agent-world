@@ -285,6 +285,11 @@ export function ChatView({
   // A /btw side question is answered in Claude's own overlay; it shows here until dismissed and is not part of the conversation.
   const [btw, setBtw] = useState<{ question: string; answer: string | null } | null>(null)
   useEffect(() => window.aw.onBtw((id, b) => id === agentId && setBtw(b)), [agentId])
+  // Closed here at once; the program's overlay is closed too (or, if it has not opened yet, as soon as it does).
+  const dismissBtw = () => {
+    setBtw(null)
+    void window.aw.closeBtw(agentId)
+  }
   const [cut, setCut] = useState<string | null>(null)
   // After an Esc with nothing after your last message Claude takes it back: it is hidden here, whether it is still "Sending…" or already saved, until you send again.
   const takenBack = useRef(0)
@@ -465,12 +470,15 @@ export function ChatView({
         setItems([])
         setSent([])
       } else if (!side) setSent((cur) => [...cur, p])
+      // The card is there at once, with its question and "Answering…", and is filled in when the program's overlay shows the answer.
+      if (side) setBtw({ question: p.text.replace(/^\/btw\s+/i, ''), answer: null })
       stick.current = true
       if (!p.queued && !p.text.startsWith('/')) setEagerAt(Date.now())
       try {
         await window.aw.chatSend(agentId, text)
       } catch (err) {
         setEagerAt(0)
+        if (side) setBtw(null)
         setSent((cur) => cur.filter((x) => x.id !== p.id))
         // A /clear that did not go through leaves the conversation as it was.
         void window.aw.chatGet(agentId).then((c) => setItems(c.items))
@@ -600,6 +608,8 @@ export function ChatView({
           const to = here ? neighbour(log.current, here, dir) : fromView(log.current, dir, stick.current)
           if (to) show(to)
         }
+        // A side question's card closes with Esc, as its overlay does in the terminal.
+        else if (e.key === 'Escape' && btw && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (e.preventDefault(), dismissBtw())
         // With a question open the first Esc closes its card (the agent keeps waiting) and the next one stops the agent, as with the list of completions.
         else if (e.key === 'Escape' && need && !needClosed && !e.nativeEvent.isComposing && !document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) (e.preventDefault(), closeNeed())
         // Esc interrupts the agent from anywhere in the conversation, unless a menu or dialog is open: that takes the Esc to close itself.
@@ -740,7 +750,7 @@ export function ChatView({
             <b>/btw</b> {btw.question}
           </div>
           <div className="btw-a" role="status">{btw.answer ?? 'Answering…'}</div>
-          <button onClick={() => void window.aw.closeBtw(agentId)}>Dismiss</button>
+          <button onClick={dismissBtw}>Dismiss</button>
         </section>
       )}
       {!asleep && (

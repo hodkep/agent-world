@@ -428,8 +428,9 @@ if (process.env.FAKE_CHAT) {
     if (prompt.startsWith('/btw ')) {
       inMenu = true
       const draw = (body, foot) => process.stdout.write(`\x1b[2J\x1b[H\r\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\n    ${prompt}\r\n      ${body}\r\n    ${foot}\r\n`)
-      draw('✻ Answering…', 'Esc to close')
-      setTimeout(() => draw('It is 4.', '↑/↓ to scroll · c to copy · f to fork · Esc to close'), 700)
+      // FAKE_BTW_LAG_MS: the overlay opens only after that long, as a slow program's does.
+      const open = () => (draw('✻ Answering…', 'Esc to close'), setTimeout(() => draw('It is 4.', '↑/↓ to scroll · c to copy · f to fork · Esc to close'), 700))
+      Number(process.env.FAKE_BTW_LAG_MS) ? setTimeout(open, Number(process.env.FAKE_BTW_LAG_MS)) : open()
       const onKey = (d) => String(d) === '\x1b' && (process.stdin.off('data', onKey), (inMenu = false), drawFoot())
       return void process.stdin.on('data', onKey)
     }
