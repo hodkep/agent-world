@@ -12,7 +12,7 @@ Click **Settings** (the gear) in the top bar. The list on the left has three gro
 
 Each change is saved as you make it. Press **Close** when you are done. The preferences live in `~/.agent-world/preferences.json`.
 
-![The Settings dialog on the General page, with the list of pages on the left](../images/settings.png)
+<img src="../images/settings.png" alt="The Settings dialog on the General page, with the list of pages on the left" width="640">
 
 ## General
 
@@ -46,7 +46,7 @@ Each program has a card saying whether it works here (`ready`, `not signed in` o
 
 For Claude Code, you can sign in more than one subscription and move agents between them without signing in again. Your own login is listed as **This computer**. It is only changed if it is signed out and you sign it in from here.
 
-![Settings on Accounts: This computer, and Work signed in and made the default for new agents](../images/accounts.png)
+<img src="../images/accounts.png" alt="Settings on Accounts: This computer, and Work signed in and made the default for new agents" width="640">
 
 To add an account: press **Add account**, type a name (only a label for you), press **Continue to sign in**, finish in the terminal and your browser, then press **I have signed in: check**.
 
@@ -70,7 +70,7 @@ The version you have is at the top of the page, with **What's new**, which opens
 
 The notes of the new version (**What's new in** its number) are shown under the update's progress while it downloads, when it is ready to install and while it installs, in the popover under the top bar and here.
 
-![The installed version, What's new, and Check now greyed while 0.9.0 is downloaded](../images/updates-version-and-notes.png)
+<img src="../images/updates-version-and-notes.png" alt="The installed version, What&#x27;s new, and Check now greyed while 0.9.0 is downloaded" width="720">
 
 The first start after an update says so in a line under the top bar, with **See what's new**; it shows once.
 

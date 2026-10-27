@@ -24,7 +24,7 @@ On the **Shelf** tab:
 
 Click an item to read it, **Edit** to change it, or **Remove** to delete it from the library. Use **Find an item…** to search **In the box**, the items that are in no playbook. Items **On the desk** are told every time. Items **On the shelf** are pointed at.
 
-![The Shelf tab with the item commit-style open: its text, size in tokens, and the tabs What an agent reads, Files and Used by](../images/library.png)
+<img src="../images/library.png" alt="The Shelf tab with the item commit-style open: its text, size in tokens, and the tabs What an agent reads, Files and Used by" width="720">
 
 ## Choose what agents are told
 
@@ -49,7 +49,7 @@ The right half shows **What every agent starts with** for the program you pick u
 
 An agent keeps the text it started with. After you change a playbook, click **Restart N agents** in the notice to apply it.
 
-![The Playbook tab with two rules, Told every time and In the rulebook, and the opening text an agent starts with](../images/playbook.png)
+<img src="../images/playbook.png" alt="The Playbook tab with two rules, Told every time and In the rulebook, and the opening text an agent starts with" width="720">
 
 ## The guide to Agent World
 

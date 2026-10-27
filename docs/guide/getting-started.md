@@ -30,7 +30,7 @@ Setup opens by itself the first time. Its left side lists six steps. **Your agen
 5. **Features.** Three switches, each with what it costs in extra text sent to the agent: **Library and playbook**, **Track every request as a todo** and **Workflows**. You can change them later in Settings, under Features (see [Settings and updates](settings-and-updates.md)).
 6. **First agent.** Optionally type a **Name** (otherwise one is picked for you), choose the **Provider**, and switch on **Also hire a starter crew (Explorer, Test writer, Reviewer)** if you want those three too. Press **Hire and finish**.
 
-![Setup, step Your agents: Claude Code and agy (Antigravity) each marked Ready, with the Git row below](../images/setup.png)
+<img src="../images/setup.png" alt="Setup, step Your agents: Claude Code and agy (Antigravity) each marked Ready, with the Git row below" width="720">
 
 To run setup again later: open **Settings**, choose **Setup**, then press **Set up again**.
 
@@ -52,7 +52,7 @@ The form fills in the choices from Settings, and you can change any of them for 
 
 Press **Hire**. The character walks into the office.
 
-![The hire form: name, role, model, effort, budget, permissions, extra instructions and the Hire button](../images/hire.png)
+<img src="../images/hire.png" alt="The hire form: name, role, model, effort, budget, permissions, extra instructions and the Hire button" width="720">
 
 ## Where the agent works
 

@@ -6,7 +6,7 @@ One board for each project, where you and your agents add, claim and finish the 
 
 Open a project, then click **Todos** in the top bar. A number on the button counts tasks marked **needs you** that are not done. Each project has its own board, kept in `~/.agent-world/todos` by default.
 
-![The Todos board: the Workflows and Setup lists with tasks, a needs you task, and finished lists below](../images/todos.png)
+<img src="../images/todos.png" alt="The Todos board: the Workflows and Setup lists with tasks, a needs you task, and finished lists below" width="720">
 
 ## Add tasks and lists
 
@@ -38,19 +38,19 @@ Click a task to open its panel; click it again to close it. The panel has the ti
 
 A bigger piece of work can be one task with smaller tasks under it. On the board the task is a card with a progress bar and its subtasks as a checklist: tick one to finish it, click its name to open it. Add one on the **Subtasks** tab, or choose a task under **Part of** on **Overview**. A subtask is always in its task's list, and a subtask cannot have subtasks. The task is done when its last subtask is done, and it opens again when a subtask is added or reopened. Finishing the task finishes its open subtasks. Removing it leaves them as tasks of their own. Agents can put a task under another with `parent`.
 
-![The board with a task whose three subtasks are a checklist with a progress bar, one ticked, and labels on the cards](../images/todos-subtasks.png)
+<img src="../images/todos-subtasks.png" alt="The board with a task whose three subtasks are a checklist with a progress bar, one ticked, and labels on the cards" width="720">
 
 ## Labels
 
 A label is a word with a colour. Add one to a task with **+ label** in its panel (pick one the board has, or type a new one). The **Label** button next to **Scratch pad** shows only the tasks that have the label you choose (**Any label** shows all). Its **Manage labels…** lets you add, rename, recolour and remove labels: click a label's colour square to pick from a grid or type a `#rrggbb`. Removing a label takes it off every task but keeps the tasks. A click outside a menu closes it. Agents can label a task with `labels`.
 
-![A task opened in its panel on the Subtasks tab, beside the board](../images/todos-detail.png)
+<img src="../images/todos-detail.png" alt="A task opened in its panel on the Subtasks tab, beside the board" width="720">
 
 ## Notes
 
 **Notes** in the top bar (or Option+Shift+Command+N, Alt+Shift+Ctrl+N elsewhere, from anywhere on the computer; four keys on purpose, so it rarely meets a key another app or the system uses) shows a small window of notes that stays above every other window and on every desktop. Drag it by its top edge to put it where you like, and resize it; it comes back where you left it. The red square hides it, and the pin button lets other windows cover it.
 
-![The Notes window: a heading, a checklist with subtasks that became tasks, a quote and a line of bold and code](../images/notes.png)
+<img src="../images/notes.png" alt="The Notes window: a heading, a checklist with subtasks that became tasks, a quote and a line of bold and code" width="570">
 
 - Notes are Markdown: headings, **bold**, `code`, and checklists (`- [ ] a thing`) drawn with real boxes. The eye button shows the whole Markdown, tables and all, and its boxes can be ticked too.
 - Each project has its own notes, and each note is kept apart from the others as a file in `~/.agent-world/pad-notes`. **＋** starts a new note, the **⌘** button lists them to open or delete, and the project box at the bottom chooses whose notes you see.

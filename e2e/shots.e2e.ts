@@ -607,11 +607,11 @@ test('hero: hire, the character walks in, works, asks permission, approved from 
     const skip = Math.max(0, (t0 - o.launchedAt) / 1000 - 0.2)
     const gif = join(SHOTS_DIR, 'hero.gif')
     // The sharpest that fits: wide, at 10 frames a second with a palette of its own, and narrower and sparser only as far as the size needs.
-    for (const [width, fps, colors] of [[960, 10, 128], [920, 10, 112], [880, 10, 128], [880, 8, 96], [800, 8, 96], [720, 8, 64], [640, 6, 64]] as const) {
+    for (const [width, fps, colors] of [[1200, 10, 256], [1120, 10, 256], [1040, 10, 256], [960, 10, 192], [880, 10, 128], [800, 8, 96], [720, 8, 64], [640, 6, 64]] as const) {
       execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', String(skip), '-i', clip, '-vf', `fps=${fps},scale=${width}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=${colors}[p];[b][p]paletteuse=dither=bayer:bayer_scale=5`, '-loop', '0', gif])
-      if (statSync(gif).size < 4.8 * 1024 * 1024) break
+      if (statSync(gif).size < 5.9 * 1024 * 1024) break
     }
-    expect(statSync(gif).size).toBeLessThan(5 * 1024 * 1024)
+    expect(statSync(gif).size).toBeLessThan(6 * 1024 * 1024)
   } finally {
     await o.shutdown()
   }

@@ -40,7 +40,7 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - **Approval**: a step whose gate is **approve** (an audit or a pull request; a pull request with no gate while the merge gate is on) shows the same card as any step you approve, with **Approve** and **Send back**. Nothing is pushed and the agent is not told to push until you approve; a commit made after your approval asks again. With gate **auto** the app acts at once and the bar says what it is doing. A merge needs no second approval: your click on Land is it.
 - A push the app did not see (git run with its settings off) is noticed when the audited commit shows up on a remote branch: the run is recorded as pushed without the hold, and the bar moves on.
 
-![The audit card at the end of the conversation, with the findings to look at](../images/workflow-audit-card.png)
+<img src="../images/workflow-audit-card.png" alt="The audit card at the end of the conversation, with the findings to look at" width="720">
 
 The audit starts by itself, once, when the agent's steps before it have passed. It is one model call, so a run that commits again later is **not** audited again by itself; if git then holds the merge, its card has **Run the audit**. What waits for you shows as a pill beside the agent (PLAN, APPROVE, CHECK?, AUDIT, LAND), in the agent switcher and under "others waiting", and the agent raises a hand in the office.
 
@@ -71,7 +71,7 @@ Ask the agent to push the branch. If the gate holds it, git refuses, the agent t
 - Click **All seen, fine** for the findings, then ask the agent to push again.
 - Click **Set aside**. It lifts the hold, so the branch goes through once, on the agent's next try, and records the audit as not followed.
 
-![The push held card](../images/merge-held.png)
+<img src="../images/merge-held.png" alt="The push held card" width="720">
 
 A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even with **Merge gate** off.
 
@@ -81,7 +81,7 @@ A branch that shares no history with its base (the base was rewritten) cannot be
 - **Insights**: a tile for each gate of each run.
 - **Workflows**: the project's workflows, the chosen one's steps drawn as a flow (read-only) and its **History**: what was saved to it through the builder.
 
-![Runs](../images/runs.png)
+<img src="../images/runs.png" alt="Runs" width="720">
 
 ## Make or change a workflow
 
@@ -89,7 +89,7 @@ A branch that shares no history with its base (the base was rewritten) cannot be
 2. The builder only proposes. Talk to it, or edit the draft. The steps are drawn as a flow, top to bottom, a card for each: who does it (the agent, a command, a reviewer, or you) with its name, what it is told, and where it stops. Dashed lines show the loops back (a check that is tried again, work sent back). Click a card to change its name, brief, a check's command, **Tries**, stop and skills (the fields open beside the flow, or under it in a narrow panel). On the canvas itself: drag a card to move it; draw an arrow from the dot under one step to the dot over another to put it right after; the **+** on an arrow adds a step there (**Add a step** adds one at the end); **Delete** takes the picked step out. **Move up**, **Move down**, **Duplicate** and **Remove** are under the fields too. In a narrow panel the same steps are a plain list. Every step has the same settings, whatever it is. **Who does it**: **Agent**, **Command** (the app runs it), **Reviewer** (a model reads the branch) or **You**; changing it keeps the name, the brief and every setting the new one also has. A brief (the agent is told it, a reviewer is told what to look at, and it shows on the card). **Part in the run**: for an agent step, a step of work, the plan you approve before any edit, or the pull request that is held until the steps before it pass; for a step of yours, an approval or landing it into the base branch. Then two moments you can hold a step at. **Before it starts**: **Starts by itself**, or **When I press Run**, for any step the agent, a command or a reviewer does; a step like "Generate plan" then does not begin until you press **Run**, and the agent edits nothing before. **When it is done**: **Needs my approval** (the run waits for you to approve it or send it back before the next step; a check you approve has to pass first) and **Must pass** (a command). **Optional** lets you skip it and the run goes on. Skills can be named on the plan, work and pull request steps, and a reviewer takes a **Reviewer model**. **You edited N things** counts your changes; **Undo edits** goes back to the proposal. Under the steps, **Preview** says for each one what it will ask of you and where you stop; it follows your edits.
 3. Saving waits while the draft has a problem. Click **Save to** the project, or **Save for everything**; saving approves exactly the commands the draft lists.
 
-![The builder's draft](../images/workflow-builder.png)
+<img src="../images/workflow-builder.png" alt="The builder&#x27;s draft" width="720">
 
 ## A run and its todo
 
@@ -99,7 +99,7 @@ A run begun while its agent is on a [todo](todos.md) belongs to that task:
 - The task's **Workflow run** section says how the run stands, in the ledger's own words (such as **still open**). Click it to open the run.
 - Finishing the run finishes the task, if the agent has not.
 
-![A task and its run](../images/todo-run.png)
+<img src="../images/todo-run.png" alt="A task and its run" width="720">
 
 ## The three dials
 
