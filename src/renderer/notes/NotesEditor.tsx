@@ -3,6 +3,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { EditorState, Prec, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap, placeholder, type ViewUpdate } from '@codemirror/view'
 import { continueList, noteLines } from '../../shared/notePlan'
+import { keysOf } from '../shortcuts'
 
 export interface LineActions {
   /** Make a task of the line (and the lines indented under it). */
@@ -10,8 +11,6 @@ export interface LineActions {
   /** Make the line a subtask of the item above it. */
   subtask: (line: number) => void
   ask: (line: number) => void
-  /** Open the menu of what can be done with the line, under its handle. */
-  menu: (line: number, anchor: HTMLElement) => void
 }
 
 class Box extends WidgetType {
@@ -38,18 +37,32 @@ class Dot extends WidgetType {
   toDOM() { const s = document.createElement('span'); s.className = 'nt-dot'; s.textContent = '•'; return s }
 }
 
-/** The handle in the margin of a bullet or checklist line: three dots that open the line's menu. It is outside the words, so the text under the pointer can always be clicked. */
+/** What can be done with a line, as buttons in the margin that show on hover. A line that is a task already can only be asked about; a deeper one cannot be a task, only a subtask. */
+function lineButtons(l: { todo?: unknown; indent: number }): ('task' | 'subtask' | 'ask')[] {
+  return [...(l.todo || l.indent >= 2 ? [] : (['task'] as const)), ...(l.todo ? [] : (['subtask'] as const)), 'ask']
+}
+const BUTTON = {
+  task: { text: 'Task', label: 'Make a task', key: 'note-task' },
+  subtask: { text: 'Sub', label: 'Make a subtask', key: 'note-subtask' },
+  ask: { text: 'Ask', label: 'Ask an agent', key: 'note-ask' }
+} as const
+
+/** The buttons in the margin of a bullet or checklist line. They are outside the words, so the text under the pointer can always be clicked. */
 class Handle extends WidgetType {
-  constructor(readonly line: number, readonly h: LineActions) { super() }
-  eq(o: Handle) { return o.line === this.line }
+  constructor(readonly line: number, readonly kinds: ('task' | 'subtask' | 'ask')[], readonly h: LineActions) { super() }
+  eq(o: Handle) { return o.line === this.line && o.kinds.join() === this.kinds.join() }
   toDOM() {
-    const b = document.createElement('button')
-    b.className = 'nt-handle'
-    b.setAttribute('aria-label', 'Line actions')
-    b.setAttribute('aria-haspopup', 'menu')
-    b.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="10" width="4" height="4"/><rect x="10" y="10" width="4" height="4"/><rect x="17" y="10" width="4" height="4"/></svg>'
-    b.onmousedown = (e) => (e.preventDefault(), this.h.menu(this.line, b))
-    return b
+    const g = document.createElement('span')
+    g.className = 'nt-handle'
+    for (const k of this.kinds) {
+      const b = document.createElement('button')
+      b.textContent = BUTTON[k].text
+      b.setAttribute('aria-label', BUTTON[k].label)
+      b.title = `${BUTTON[k].label} (${keysOf(BUTTON[k].key)})`
+      b.onmousedown = (e) => (e.preventDefault(), this.h[k](this.line))
+      g.append(b)
+    }
+    return g
   }
   ignoreEvent() { return true }
 }
@@ -104,7 +117,7 @@ function build(view: EditorView, h: LineActions): DecorationSet {
         const at = raw.lastIndexOf('(todo#')
         out.push(Decoration.mark({ class: 'nt-linked' }).range(line.from + at, line.to))
       }
-      if (l.title) out.push(Decoration.widget({ widget: new Handle(l.line, h), side: 1 }).range(line.to))
+      if (l.title) out.push(Decoration.widget({ widget: new Handle(l.line, lineButtons(l), h), side: 1 }).range(line.to))
     }
     for (const { re, cls, open, close } of INLINE) {
       for (const x of raw.matchAll(re)) {
@@ -156,7 +169,7 @@ export function NotesEditor({ value, onChange, actions }: { value: string; onCha
       },
       { decorations: (p) => p.deco, provide: (p) => EditorView.atomicRanges.of((v) => v.plugin(p)?.deco ?? Decoration.none) }
     )
-    const handlers: LineActions = { task: (l) => cb.current.actions.task(l), subtask: (l) => cb.current.actions.subtask(l), ask: (l) => cb.current.actions.ask(l), menu: (l, a) => cb.current.actions.menu(l, a) }
+    const handlers: LineActions = { task: (l) => cb.current.actions.task(l), subtask: (l) => cb.current.actions.subtask(l), ask: (l) => cb.current.actions.ask(l) }
     const v = new EditorView({
       parent: host.current!,
       state: EditorState.create({
