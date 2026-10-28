@@ -3896,16 +3896,15 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { top: calc(100% - 4px); right: 8px; }
 
 /* The line's handle sits in a margin of its own, so the words are never under it; its menu opens below it. */
-.nt-editor .cm-content { padding-right: 44px; }
-.nt-handle { position: absolute; z-index: 1; right: -40px; top: 0; width: 28px; height: 24px; display: none; place-items: center; padding: 0; min-width: 0; min-height: 0; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: pointer; }
+.nt-editor .cm-content { padding-right: 140px; }
+
+.nt-handle { position: absolute; z-index: 1; right: -136px; top: 0; height: 24px; display: none; gap: 4px; align-items: center; }
 /* The margin the handle sits in belongs to the line for hover, so the pointer can walk to the handle without it hiding on the way. */
-.nt-item::after { content: ''; position: absolute; top: 0; bottom: 0; right: -44px; width: 44px; }
-.nt-item:hover .nt-handle, .nt-handle:focus-visible, .nt-handle[aria-expanded='true'] { display: inline-grid; }
-.nt-handle:hover { color: var(--text); border-color: var(--muted); }
-.nt-menu { position: fixed; z-index: 20; min-width: 210px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-.nt-menu button { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 7px 12px; text-align: left; }
-.nt-menu button:first-child { background: var(--accent); color: var(--ink); font-weight: 600; }
-.nt-menu kbd { font: 11px Menlo, monospace; opacity: .7; }
+.nt-item::after { content: ''; position: absolute; top: 0; bottom: 0; right: -140px; width: 140px; }
+.nt-item:hover .nt-handle, .nt-handle:focus-within { display: inline-flex; }
+.nt-handle button { min-width: 0; min-height: 0; height: 24px; padding: 0 7px; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; font-size: 12px; cursor: pointer; }
+.nt-handle button:first-child:not(:last-child) { color: var(--accent); }
+.nt-handle button:hover { color: var(--text); border-color: var(--muted); }
 .nt-item { position: relative; }
 
 /* The Usage window's Tokens tab: fresh input, cache read, cache write and output as one bar. */
