@@ -36,8 +36,10 @@ function asleep(a: { working: number; waiting: number }): string | undefined {
   return `${what} ${n === 1 ? 'It' : 'They'} will be asleep after the restart; wake ${n === 1 ? 'it' : 'them'} to resume.`
 }
 
-/** What going back from a beta to the stable release costs. */
+/** What going to an older release costs: the line under its title. */
 const GOING_BACK = 'Going back replaces the beta you have; settings made in the beta may not be read by the stable version.'
+const SWITCHING = 'Switching replaces the version you have with an older one; settings made in it may not be read by this one.'
+const isBeta = (v?: string) => /-beta\.\d+$/.test(v ?? '')
 const PAGE: UpdateAction = { id: 'page', label: 'Open the release page' }
 
 /** Null when there is nothing to show: no newer version, or a build that cannot be told about one. */
@@ -47,7 +49,11 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   const chip = `↑ ${latest}`
   const install: InstallState | undefined = info.install
   // Homebrew installed this copy and keeps its own record of the version, so it is the one to update it.
-  if (info.homebrew && info.channel !== 'beta' && !info.back)
+  const older = info.rel === 'older'
+  // An older stable, from a beta, is a way back; any other older release is a switch.
+  const toStable = older && info.channel !== 'beta' && isBeta(info.current)
+  const caution = older ? (toStable ? GOING_BACK : SWITCHING) : undefined
+  if (info.homebrew && info.channel !== 'beta' && !older)
     return {
       chip,
       title: `Agent World ${latest} is available`,
@@ -58,11 +64,11 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
     }
   const offer = (): UpdateView => ({
     chip,
-    title: info.back ? `Agent World ${latest} is the latest stable` : `Agent World ${latest} is available`,
-    ...(info.back && { warning: GOING_BACK }),
-    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' ? ' Installing a beta replaces the stable app you have.' : ''}`,
+    title: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}, older than your version`) : `Agent World ${latest} is available`,
+    ...(caution && { warning: caution }),
+    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' && !isBeta(info.current) ? ' Installing a beta replaces the stable app you have.' : ''}`,
     ...(info.notes && { notes: info.notes }),
-    actions: info.tag ? [{ id: 'download', label: info.back ? `Back to stable ${latest}` : 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
+    actions: info.tag ? [{ id: 'download', label: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}`) : 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
   })
   if (!install || install.phase === 'idle') return offer()
   switch (install.phase) {
@@ -76,7 +82,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
         ticks: ['Downloaded', "Checksum matches the release's"],
         ...(info.notes && { notes: info.notes }),
         body: 'Agent World closes, puts the new version in place of this one, and opens again. It takes a few seconds.',
-        warning: [info.back && GOING_BACK, asleep(agents)].filter(Boolean).join(' ') || undefined,
+        warning: [caution, asleep(agents)].filter(Boolean).join(' ') || undefined,
         actions: [{ id: 'install', label: 'Install and restart', primary: true }, { id: 'later', label: 'Later' }]
       }
     case 'installing':

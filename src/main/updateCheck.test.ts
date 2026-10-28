@@ -128,20 +128,25 @@ describe('asking GitHub for the latest release', () => {
   })
 })
 
-describe('going back to stable from a beta', () => {
+describe('the latest stable, whatever version is installed', () => {
   const repo = { owner: 'hodkep', repo: 'agent-world' }
   const latest = (tag: string) => async () => ({ ok: true, status: 200, json: async () => ({ tag_name: tag, body: 'notes' }) })
-  it('offers the latest stable, though older, only when asked to and only to someone on a beta', async () => {
-    expect(await latestRelease('0.7.0-beta.1', repo, latest('v0.6.3'), undefined, { back: true })).toMatchObject({ state: 'available', latest: '0.6.3', back: true, notes: 'notes', detail: '0.6.3 is the latest stable, older than the beta you have.' })
-    // the three-hourly look and the top-bar chip do not ask: no nagging a beta user to go back
-    expect(await latestRelease('0.7.0-beta.1', repo, latest('v0.6.3'))).toEqual({ state: 'none' })
-    // a copy that is not a beta is never offered an older release
-    expect(await latestRelease('0.7.0', repo, latest('v0.6.3'), undefined, { back: true })).toEqual({ state: 'none' })
+  const asked = (current: string, tag: string) => latestRelease(current, repo, latest(tag), undefined, { all: true })
+  it('is offered with how it stands to what is installed: newer, older, or the same', async () => {
+    expect(await asked('0.6.0', 'v0.6.3')).toMatchObject({ state: 'available', latest: '0.6.3', rel: 'newer', detail: '0.6.3 is available.', notes: 'notes' })
+    expect(await asked('0.7.0-beta.1', 'v0.6.3')).toMatchObject({ state: 'available', latest: '0.6.3', rel: 'older', detail: '0.6.3 is the latest stable, older than the version you have.' })
+    expect(await asked('0.8.0', 'v0.6.3')).toMatchObject({ state: 'available', rel: 'older' })
+    expect(await asked('0.7.0', 'v0.7.0')).toMatchObject({ state: 'none', latest: '0.7.0', rel: 'same', detail: 'You have 0.7.0.' })
+    // a stable newer than the beta is the ordinary update
+    expect(await asked('0.7.0-beta.3', 'v0.7.0')).toMatchObject({ state: 'available', rel: 'newer' })
   })
-  it('keeps a stable that is newer than the beta as the ordinary update', async () => {
-    const r = await latestRelease('0.7.0-beta.3', repo, latest('v0.7.0'), undefined, { back: true })
-    expect(r).toMatchObject({ state: 'available', latest: '0.7.0' })
-    expect('back' in r).toBe(false)
+  it('is only a newer one for the look the app makes by itself (and so the chip): an older stable is never offered unasked', async () => {
+    expect(await latestRelease('0.7.0-beta.1', repo, latest('v0.6.3'))).toEqual({ state: 'none' })
+    expect(await latestRelease('0.8.0', repo, latest('v0.6.3'))).toEqual({ state: 'none' })
+    expect('rel' in (await latestRelease('0.6.0', repo, latest('v0.6.3')))).toBe(false)
+  })
+  it('is nothing when the tag is not a version', async () => {
+    expect(await asked('0.7.0', 'nightly')).toEqual({ state: 'none' })
   })
 })
 
@@ -169,28 +174,33 @@ describe('whether this copy was installed with Homebrew', () => {
   })
 })
 
-describe('the newest beta', () => {
+describe('the newest beta, whatever version is installed', () => {
   const repo = { owner: 'hodkep', repo: 'agent-world' }
   const rel = (tag: string, o: object = {}) => ({ tag_name: tag, prerelease: true, draft: false, published_at: '2026-10-29T10:00:00Z', body: `notes of ${tag}`, ...o })
   const list = (items: object[]) => async () => ({ ok: true, status: 200, json: async () => items })
-  it('asks for the list of releases and takes the newest pre-release tagged -beta.N that is newer than what is installed, with its date, notes and page', async () => {
+  it('asks for the list of releases and takes the newest pre-release tagged -beta.N, with its date, notes and page', async () => {
     const asked: string[] = []
     const get = async (url: string) => (asked.push(url), { ok: true, status: 200, json: async () => [rel('v0.7.0-beta.2'), rel('v0.7.0-beta.10'), rel('v0.7.0-beta.1'), rel('v0.6.2', { prerelease: false })] })
-    expect(await latestBeta('0.6.2', repo, get)).toEqual({ state: 'available', detail: '0.7.0-beta.10 is available.', latest: '0.7.0-beta.10', notes: 'notes of v0.7.0-beta.10', date: '2026-10-29T10:00:00Z', url: 'https://github.com/hodkep/agent-world/releases/tag/v0.7.0-beta.10' })
+    expect(await latestBeta('0.6.2', repo, get)).toEqual({ state: 'available', rel: 'newer', detail: '0.7.0-beta.10 is available.', latest: '0.7.0-beta.10', notes: 'notes of v0.7.0-beta.10', date: '2026-10-29T10:00:00Z', url: 'https://github.com/hodkep/agent-world/releases/tag/v0.7.0-beta.10' })
     expect(asked).toEqual(['https://api.github.com/repos/hodkep/agent-world/releases?per_page=30'])
   })
   it('skips drafts, releases that are not pre-releases, other pre-release names and tags that are not versions', async () => {
     const r = await latestBeta('0.6.2', repo, list([rel('v0.8.0-beta.1', { draft: true }), rel('v0.8.0-beta.2', { prerelease: false }), rel('v0.8.0-rc.1'), rel('nightly'), rel('v0.7.0-beta.1')]))
     expect(r).toMatchObject({ state: 'available', latest: '0.7.0-beta.1' })
   })
-  it('says there is nothing newer when the betas are the one you have, older, or already a release', async () => {
-    expect(await latestBeta('0.7.0-beta.2', repo, list([rel('v0.7.0-beta.2'), rel('v0.7.0-beta.1')]))).toEqual({ state: 'none' })
-    expect(await latestBeta('0.7.0', repo, list([rel('v0.7.0-beta.3')]))).toEqual({ state: 'none' })
-    expect(await latestBeta('0.6.2', repo, list([]))).toEqual({ state: 'none' })
+  it('still offers a beta that is older than what is installed, or already a release, as older', async () => {
+    expect(await latestBeta('0.7.0', repo, list([rel('v0.7.0-beta.2'), rel('v0.7.0-beta.1')]))).toMatchObject({ state: 'available', latest: '0.7.0-beta.2', rel: 'older', detail: '0.7.0-beta.2 is the newest beta, older than the version you have.' })
+    expect(await latestBeta('0.7.0-beta.3', repo, list([rel('v0.7.0-beta.2')]))).toMatchObject({ rel: 'older' })
+  })
+  it('says you have it when the newest beta is the one installed', async () => {
+    expect(await latestBeta('0.7.0-beta.2', repo, list([rel('v0.7.0-beta.2'), rel('v0.7.0-beta.1')]))).toMatchObject({ state: 'none', latest: '0.7.0-beta.2', rel: 'same', detail: 'You have 0.7.0-beta.2.' })
+  })
+  it('says so when no beta is published', async () => {
+    expect(await latestBeta('0.6.2', repo, list([]))).toEqual({ state: 'none', detail: 'No beta has been published.' })
   })
   it('says what went wrong in a line', async () => {
     expect(await latestBeta('0.6.2', repo, async () => ({ ok: false, status: 403, json: async () => ({}) }))).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
-    expect(await latestBeta('0.6.2', repo, async () => ({ ok: true, status: 200, json: async () => ({ not: 'a list' }) }))).toEqual({ state: 'none' })
+    expect(await latestBeta('0.6.2', repo, async () => ({ ok: true, status: 200, json: async () => ({ not: 'a list' }) }))).toEqual({ state: 'none', detail: 'No beta has been published.' })
     expect(await latestBeta('0.6.2', repo, async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com') })).toEqual({ state: 'error', detail: 'Could not reach GitHub: getaddrinfo ENOTFOUND api.github.com' })
   })
 })

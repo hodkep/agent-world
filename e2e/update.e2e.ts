@@ -163,6 +163,56 @@ test("Settings > Updates on a beta: the stable row's Check offers the older stab
   }
 })
 
+test('Settings > Updates, any installed version: each row offers its own newest release, older ones as a switch with a warning, the same one as "You have", and the chip stays quiet', async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const rows = async (page: import('@playwright/test').Page) => {
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    return { stable: settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') }), beta: settings.locator('.upd-chan', { has: page.locator('.upd-tag.beta') }) }
+  }
+  // A stable newer than both the latest stable and the newest beta: both are older than it, and both can be taken.
+  const a = await world({ version: '0.9.5' })
+  try {
+    const { stable, beta } = await rows(a.page)
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`Switch to ${NEW}, older than your version`)
+    await expect(stable).toContainText('Switching replaces the version you have with an older one; settings made in it may not be read by this one.')
+    await expect(stable.getByRole('button', { name: `Switch to ${NEW}` })).toBeVisible()
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(`Switch to ${BETA}, older than your version`)
+    await expect(beta).toContainText('Installing a beta replaces the stable app you have.')
+    await expect(a.page.locator('header').getByRole('button', { name: /is available|Switch to/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: `Switch to ${BETA}` }).click()
+    await expect(beta).toContainText(`${BETA} is ready to install`, { timeout: 30_000 })
+  } finally {
+    await a.close()
+  }
+  // The version that is the latest stable: said, not offered; and the newest beta is older than it.
+  const b = await world({ version: NEW })
+  try {
+    const { stable, beta } = await rows(b.page)
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`You have ${NEW}.`)
+    await expect(stable.getByRole('button', { name: /Download|Switch|Back to stable/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(BETA)
+  } finally {
+    await b.close()
+  }
+  // A beta is the newest beta: said, not offered.
+  const c = await world({ version: BETA })
+  try {
+    const { beta } = await rows(c.page)
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(`You have ${BETA}.`)
+    await expect(beta.getByRole('button', { name: /Download|Switch/ })).toHaveCount(0)
+  } finally {
+    await c.close()
+  }
+})
+
 test('a download whose checksum is not the published one is dropped, and says so, with a way to try again', async () => {
   test.skip(process.platform !== 'darwin', 'it builds the fake release with ditto')
   const w = await world({ badChecksum: true })

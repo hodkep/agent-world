@@ -30,16 +30,18 @@ describe('a beta release', () => {
   })
 })
 
-describe('going back to stable', () => {
+describe('a release that is not newer', () => {
   const stable = (version: string) => parseLatestMac(YML.replaceAll('0.1.1', version))!
-  it('accepts an older stable only when asked to, from a beta', () => {
+  it('is taken only when asked to (the person chose it in Settings), whatever is installed', () => {
     const o = { manifest: stable('0.6.3'), arch: 'arm64', repo, tag: 'v0.6.3' }
     expect(assetFor({ ...o, current: '0.7.0-beta.1' })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
-    expect(assetFor({ ...o, current: '0.7.0-beta.1', back: true })).toMatchObject({ ok: true, asset: { name: 'Agent-World-0.6.3-arm64.zip' } })
-    expect(assetFor({ ...o, current: '0.7.0', back: true })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
+    expect(assetFor({ ...o, current: '0.7.0-beta.1', any: true })).toMatchObject({ ok: true, asset: { name: 'Agent-World-0.6.3-arm64.zip' } })
+    expect(assetFor({ ...o, current: '0.7.0', any: true })).toMatchObject({ ok: true })
+    expect(assetFor({ manifest: stable('0.6.0-beta.1'), arch: 'arm64', repo, tag: 'v0.6.0-beta.1', current: '0.7.0-beta.1', any: true })).toMatchObject({ ok: true, asset: { version: '0.6.0-beta.1' } })
   })
-  it('never takes an older beta that way', () => {
-    expect(assetFor({ manifest: stable('0.6.0-beta.1'), arch: 'arm64', repo, tag: 'v0.6.0-beta.1', current: '0.7.0-beta.1', back: true })).toMatchObject({ ok: false })
+  it('is still checked against its tag, and a tag that is not a stable or beta version is refused', () => {
+    expect(assetFor({ manifest: stable('0.6.3'), arch: 'arm64', repo, tag: 'v0.6.4', current: '0.7.0', any: true })).toMatchObject({ ok: false, reason: expect.stringMatching(/tag/i) })
+    expect(assetFor({ manifest: stable('0.6.0-rc.1'), arch: 'arm64', repo, tag: 'v0.6.0-rc.1', current: '0.7.0', any: true })).toMatchObject({ ok: false })
   })
 })
 
