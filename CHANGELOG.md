@@ -4,6 +4,16 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-28
+
+![Agent World 0.7.0: several repositories in the Code tab, file icons by type, and Task, Sub and Ask buttons in Notes](https://raw.githubusercontent.com/hodkep/agent-world/v0.7.0/docs/images/releases/0.7.0/poster.png)
+
+### Added
+
+- Code: a folder that holds several git repositories shows each in the Code tab, with its own changes and history, and the projects list says how many repos it holds.
+- Code: files and folders have an icon by their type in the Files tree, the open tabs and the Changes lists.
+- Notes: a line shows Task, Sub and Ask buttons when you point at it, instead of three dots with a menu.
+
 ## [0.6.4] - 2026-10-28
 
 ### Added
