@@ -297,6 +297,8 @@ export interface Prefs {
   openPagesInApp: boolean
   /** How far agents keep the project's todo board: only what is put off, or every request (which adds tokens). */
   todoTracking: 'deferred' | 'full'
+  /** The size of an agent's context (in tokens) from which it is told, with its next message, that compacting is worth it; 0 never. */
+  contextNudgeAt: number
   /** The library of skills, instructions and prompts, and the playbook that says what agents are told. Off: agents are told nothing from it, and its window says so. */
   libraryEnabled: boolean
   /** Download an update from the project's mirror first when the build names one, and from GitHub when the mirror does not do. Off: GitHub only. No screen for it; it is read from preferences.json. */

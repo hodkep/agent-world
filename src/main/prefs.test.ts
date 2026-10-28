@@ -71,6 +71,13 @@ describe('the subagent limits', () => {
 })
 
 describe('opening pages in the app', () => {
+  it('keeps the size at which agents are told their context is big: 150k by default, 0 for never, and nothing absurd', () => {
+    expect(cleanPrefs({}).contextNudgeAt).toBe(150_000)
+    expect(cleanPrefs({ contextNudgeAt: 0 }).contextNudgeAt).toBe(0)
+    expect(cleanPrefs({ contextNudgeAt: 80_000.6 }).contextNudgeAt).toBe(80_001)
+    for (const bad of [-5, 'big', null, 5_000_000, NaN]) expect(cleanPrefs({ contextNudgeAt: bad }).contextNudgeAt).toBe(150_000)
+  })
+
   it('is on unless it was switched off, and a stray value is on', () => {
     expect(cleanPrefs({}).openPagesInApp).toBe(true)
     expect(cleanPrefs({ openPagesInApp: false }).openPagesInApp).toBe(false)

@@ -91,6 +91,7 @@ import { fetchPublic } from './widgetFetch'
 import { outlineOf } from '../shared/uiOutline'
 import { contextReport, contextText, resetEffects } from '../shared/contextCurve'
 import { contextView } from '../shared/contextView'
+import { latestContext, nudgeFor } from '../shared/contextNudge'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
@@ -734,6 +735,25 @@ const todoRemind = (id: string, prompt: string): string => {
     return ''
   }
 }
+// The context an agent had when it was last told it is big, so it is told again only when the context has grown a good deal more (and again after a compaction).
+const nudged = new Map<string, number>()
+const contextRemind = (id: string): string => {
+  try {
+    const a = byId(id)
+    if (!a || a.builder) return ''
+    const ctx = latestContext(ledger, id)
+    const n = nudgeFor(ctx, nudged.get(id), prefs.contextNudgeAt)
+    if (!n) {
+      if (ctx < prefs.contextNudgeAt) nudged.delete(id)
+      return ''
+    }
+    nudged.set(id, n.at)
+    record({ k: 'mark', t: Date.now(), agent: id, project: projectOf(a), what: 'nudge', ctx: n.at, name: a.name })
+    return n.text
+  } catch {
+    return ''
+  }
+}
 // The library's tools only read, so an agent may use them without asking each time (Claude's name for an MCP tool is mcp__server__tool).
 const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search', 'library_skip'].map((t) => `mcp__agent-world__${t}`)
 // The todo board is the project's own list, so an agent may use it without asking each time too.
@@ -750,7 +770,7 @@ const libraryRemind = (id: string, prompt: string) => {
   try {
     const intro = builderIntros.get(id) ?? ''
     builderIntros.delete(id)
-    return [intro, prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt), workflowReminder(id)].filter(Boolean).join('\n') || null
+    return [intro, prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt), workflowReminder(id), contextRemind(id)].filter(Boolean).join('\n') || null
   } catch {
     return null
   }
@@ -1315,7 +1335,11 @@ async function main() {
       workflows.trouble(id, t)
       send('workflows')
     },
-    onCompact: (id) => libraryService.refresh(id),
+    onCompact: (id) => {
+      libraryService.refresh(id)
+      const a = byId(id)
+      if (a) record({ k: 'mark', t: Date.now(), agent: a.id, project: basename(a.repoPath), what: 'compact', name: a.name })
+    },
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
     onSession: (id, sessionId) => {
       const a = byId(id)

@@ -36,6 +36,10 @@ describe('parseLedger', () => {
     const text = [JSON.stringify(cost(1, 2)), '{oops', JSON.stringify({ k: 'x' }), '', JSON.stringify(work(5, 1))].join('\n')
     expect(parseLedger(text).map((e) => e.k)).toEqual(['cost', 'work'])
   })
+  it('keeps the marks of a nudge and a compaction, which have no cost of their own', () => {
+    const marks = [{ k: 'mark', t: 1, agent: 'a', project: 'p', what: 'nudge', ctx: 150000 }, { k: 'mark', t: 2, agent: 'a', project: 'p', what: 'compact' }]
+    expect(parseLedger(marks.map((m) => JSON.stringify(m)).join('\n')).map((e) => e.k)).toEqual(['mark', 'mark'])
+  })
 })
 
 describe('weekStartOf', () => {

@@ -58,7 +58,7 @@ export function runSpend(run: Run, ledger: LedgerEvent[], now: number): RunSpend
     let usd = 0
     let tokens = 0
     for (const e of ledger) {
-      if (e.k === 'limit' || e.k === 'work' || e.agent !== run.agent || e.t < round.startedAt || e.t > to) continue
+      if (e.k === 'limit' || e.k === 'mark' || e.k === 'work' || e.agent !== run.agent || e.t < round.startedAt || e.t > to) continue
       if (e.k === 'cost') usd += e.usd
       else tokens += e.input + e.output
     }

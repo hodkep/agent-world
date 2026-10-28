@@ -6,6 +6,7 @@ import { addParts, noParts, partsOf, tokenTotal, type TokenParts } from './token
  * the model that was in use, and each finished stretch of work with when it began and how long it ran.
  */
 export type LedgerEvent =
+  | LedgerMark
   | { k: 'cost'; t: number; agent: string; project: string; model: string; usd: number; provider?: string; name?: string; account?: string; /** Worked out from tokens at public rates, because the program reports no price. */ est?: boolean }
   | { k: 'work'; t: number; agent: string; project: string; ms: number; provider?: string; account?: string; name?: string }
   /** How full one allowance was when looked at, so the Weekly Rewind can say how hard each account was pushed. */
@@ -14,6 +15,9 @@ export type LedgerEvent =
   | { k: 'tokens'; t: number; agent: string; project: string; model: string; input: number; output: number; provider?: string; name?: string; account?: string }
   /** One request to the model, counted exactly by the program itself (see shared/tokens.ts): what it read fresh, from its cache and wrote to it, and wrote back. */
   | { k: 'req'; t: number; agent: string; project: string; model: string; provider: string; input: number; cacheRead?: number; cacheWrite?: number; output: number; name?: string; account?: string }
+
+/** The app's own doing, noted so its effect can be seen later: an agent told its context is big (with that size), or compacted. */
+export type LedgerMark = { k: 'mark'; t: number; agent: string; project: string; what: 'nudge' | 'compact'; ctx?: number; name?: string }
 
 /** How much a running total grew; a lower total means a new conversation started from zero. */
 export const costDelta = (prev: number, now: number) => (now >= prev ? now - prev : now)
@@ -29,7 +33,7 @@ export function parseLedger(text: string): LedgerEvent[] {
   for (const line of text.split('\n')) {
     try {
       const e = JSON.parse(line) as LedgerEvent
-      if ((e.k === 'cost' || e.k === 'work' || e.k === 'tokens' || e.k === 'req' || e.k === 'limit') && Number.isFinite(e.t)) out.push(e)
+      if ((e.k === 'cost' || e.k === 'work' || e.k === 'tokens' || e.k === 'req' || e.k === 'limit' || e.k === 'mark') && Number.isFinite(e.t)) out.push(e)
     } catch {
       /* a half-written last line is expected after a crash */
     }
@@ -69,7 +73,7 @@ function* hours(t: number, ms: number): Generator<[number, number]> {
 export function whoMap(events: LedgerEvent[], names: Record<string, string>) {
   const who = new Map<string, { t: number; provider: string; account: string; name: string }>()
   for (const e of events) {
-    if (e.k === 'limit') continue
+    if (e.k === 'limit' || e.k === 'mark') continue
     const last = who.get(e.agent)
     // The latest spend wins, so an agent moved to another account has its work filed with the account it is on now.
     if ((e.k === 'cost' || e.k === 'tokens' || e.k === 'req') && (!last || e.t >= last.t)) who.set(e.agent, { t: e.t, provider: e.provider ?? LEGACY_PROGRAM[e.k], account: e.account ?? '', name: e.name ?? last?.name ?? names[e.agent] ?? 'removed agent' })
@@ -182,6 +186,7 @@ export function weekReport(events: LedgerEvent[], start: number, names: Record<s
     if (e.t < start || e.t >= end) continue
     const day = dayOf(e.t)
     if (day < 0 || day > 6) continue
+    if (e.k === 'mark') continue
     if (e.k === 'limit') {
       limits.push(e)
       continue
@@ -424,7 +429,7 @@ export function overview(events: LedgerEvent[], days: number, now: number, names
     return a
   }
   for (const e of events) {
-    if (e.k === 'limit') continue
+    if (e.k === 'limit' || e.k === 'mark') continue
     if (e.k === 'work') {
       if (e.t >= first) {
         turns.set(e.agent, (turns.get(e.agent) ?? 0) + 1)
