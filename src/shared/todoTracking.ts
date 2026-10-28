@@ -20,7 +20,9 @@ export function similarLine(found: { id: string; title: string; by: string }[]):
 
 // What leads a message without saying what is wanted: an approval, a go-ahead, a polite opener.
 const LEAD = /^(?:not yet|yes|yep|yeah|ok(?:ay)?|sure|great|good|nice|cool|thanks?|thank you|these are good|that works|that is good|looks good(?: to me)?|lgtm|go ahead|do it|continue|proceed|please|pls|kindly|can you|could you|would you|will you|i want you to|i would like you to|we need to|lets|let's)\b[\s,.!:;-]*/i
-const GIT_ONLY = /^(?:(?:and|then|also)\s+)*(?:commit|merge|push|pull|rebase|deploy|tag)\b/i
+const GIT_ONLY = /^(?:(?:and|then|also)\s+)*(?:commit|merge|push|pull|rebase|deploy|tag|fetch|checkout|stash|squash|cherry-pick|force[- ]push|open (?:a |the )?(?:pr|pull request))\b/i
+// What a later part of a git order asks for when it is more than git: "push it, then add a search box".
+const WORK_AFTER = /^(?:(?:and|then|also|now)\s+)*(?:add(?! to\b)|fix|implement|build|create|write|make|change|update|refactor|remove|delete|test|run|investigate|look|check|explain|why|how|what|find|debug|resolve)\b/i
 
 /** The words of a message without its approvals and polite openers: what it actually asks for. */
 function ask(prompt: string): string {
@@ -44,8 +46,10 @@ export function isWork(prompt: string): boolean {
   if (!t || t.startsWith('/') || isSystemMessage(t)) return false
   const words = ask(t).split(/\s+/).filter(Boolean)
   if (words.length < 4) return false
-  // "commit those and merge to main" is an order to do git, not a piece of work to track; a long message that also commits is still work.
-  if (words.length <= 9 && GIT_ONLY.test(words.join(' '))) return false
+  // "commit those and merge to main", or "push 10 commits to a separate branch without opening a PR", is an order to do git, not a piece of work to track;
+  // a message that goes on to ask for something else ("push it, then add a search box") is still work.
+  const parts = words.join(' ').split(/,\s*|;\s*|\s+(?=(?:and|then)\s)/i)
+  if (words.length <= 25 && GIT_ONLY.test(parts[0]!) && !parts.slice(1).some((p) => WORK_AFTER.test(p.trim()))) return false
   return true
 }
 
