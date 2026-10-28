@@ -45,7 +45,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   const chip = `↑ ${latest}`
   const install: InstallState | undefined = info.install
   // Homebrew installed this copy and keeps its own record of the version, so it is the one to update it.
-  if (info.homebrew)
+  if (info.homebrew && info.channel !== 'beta')
     return {
       chip,
       title: `Agent World ${latest} is available`,
@@ -57,7 +57,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   const offer = (): UpdateView => ({
     chip,
     title: `Agent World ${latest} is available`,
-    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.`,
+    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' ? ' Installing a beta replaces the stable app you have.' : ''}`,
     ...(info.notes && { notes: info.notes }),
     actions: info.tag ? [{ id: 'download', label: 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
   })

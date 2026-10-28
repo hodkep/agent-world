@@ -3474,6 +3474,12 @@ svg.pxg { display: block; flex: none; }
 .upd-version b { font-size: 14px; }
 .upd-version small { color: var(--muted); }
 .upd-version .grow { flex: 1; }
+.upd-chan { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
+.upd-chan-head { display: flex; align-items: center; gap: 8px; }
+.upd-chan-head .grow { flex: 1; }
+.upd-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; box-shadow: 0 0 0 1px currentColor; }
+.upd-tag.stable { color: var(--ok-text); }
+.upd-tag.beta { color: var(--accent); }
 .upd-banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--selected); box-shadow: 0 0 0 1px var(--accent-dim); font-size: 12px; }
 .upd-banner .grow { flex: 1; }
 .commit-div { padding: 5px 10px; background: var(--selected); color: var(--accent); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border-top: 1px solid var(--accent-dim); border-bottom: 1px solid var(--accent-dim); list-style: none; }

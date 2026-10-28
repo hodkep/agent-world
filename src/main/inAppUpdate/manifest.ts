@@ -60,7 +60,7 @@ export function parseLatestMac(text: string): Manifest | null {
     }
   }
   close()
-  return /^\d+\.\d+\.\d+$/.test(version) && files.length > 0 ? { version, files } : null
+  return /^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(version) && files.length > 0 ? { version, files } : null
 }
 
 export type Pick = { ok: true; asset: Asset } | { ok: false; reason: string }
@@ -73,7 +73,7 @@ export type Pick = { ok: true; asset: Asset } | { ok: false; reason: string }
 export function assetFor(o: { manifest: Manifest; arch: string; current: string; repo: Repo; tag: string; downloads?: string }): Pick {
   const { manifest, arch, current, repo, tag } = o
   const downloads = o.downloads ?? 'https://github.com'
-  if (!/^v?\d+\.\d+\.\d+$/.test(tag) || tag.replace(/^v/, '') !== manifest.version) return { ok: false, reason: 'The release says another version than its tag.' }
+  if (!/^v?\d+\.\d+\.\d+(-beta\.\d+)?$/.test(tag) || tag.replace(/^v/, '') !== manifest.version) return { ok: false, reason: 'The release says another version than its tag.' }
   if (!isNewer(current, tag)) return { ok: false, reason: `${manifest.version} is not newer than ${current}.` }
   if (arch !== 'arm64' && arch !== 'x64') return { ok: false, reason: `There is no download for this kind of processor (${arch}).` }
   const name = `Agent-World-${manifest.version}-${arch}.zip`

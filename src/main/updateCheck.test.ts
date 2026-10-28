@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildInfo, isHomebrewInstall, isNewer, latestRelease, parseRepo, startChecks, updateMode } from './updateCheck'
+import { buildInfo, isHomebrewInstall, isNewer, latestBeta, latestRelease, parseRepo, startChecks, updateMode } from './updateCheck'
 
 describe('the repository an installed app takes its releases from', () => {
   it('reads it from the repository field of package.json in the forms npm allows', () => {
@@ -34,6 +34,16 @@ describe('which version is newer', () => {
   it('does not call a pre-release of the version you have newer, and is no one for a tag that is not a version', () => {
     expect(isNewer('0.2.0', 'v0.2.0-beta.1')).toBe(false)
     expect(isNewer('0.1.0', 'nightly')).toBe(false)
+  })
+  it('puts a release after its own betas, and a later beta after an earlier one, counting the beta number as a number', () => {
+    expect(isNewer('0.7.0-beta.3', 'v0.7.0')).toBe(true)
+    expect(isNewer('0.7.0-beta.1', 'v0.7.0-beta.2')).toBe(true)
+    expect(isNewer('0.7.0-beta.9', 'v0.7.0-beta.10')).toBe(true)
+    expect(isNewer('0.7.0-beta.2', 'v0.7.0-beta.1')).toBe(false)
+    expect(isNewer('0.7.0-beta.2', 'v0.7.0-beta.2')).toBe(false)
+    expect(isNewer('0.7.0', 'v0.7.0-beta.9')).toBe(false)
+    expect(isNewer('0.6.2', 'v0.7.0-beta.1')).toBe(true)
+    expect(isNewer('0.7.0-beta.1', 'v0.6.9')).toBe(false)
   })
 })
 
@@ -139,5 +149,31 @@ describe('whether this copy was installed with Homebrew', () => {
     expect(isHomebrewInstall(roots, () => false)).toBe(false)
     expect(isHomebrewInstall(roots, (p) => p === '/opt/homebrew/Caskroom/other')).toBe(false)
     expect(isHomebrewInstall([], () => true)).toBe(false)
+  })
+})
+
+describe('the newest beta', () => {
+  const repo = { owner: 'hodkep', repo: 'agent-world' }
+  const rel = (tag: string, o: object = {}) => ({ tag_name: tag, prerelease: true, draft: false, published_at: '2026-10-29T10:00:00Z', body: `notes of ${tag}`, ...o })
+  const list = (items: object[]) => async () => ({ ok: true, status: 200, json: async () => items })
+  it('asks for the list of releases and takes the newest pre-release tagged -beta.N that is newer than what is installed, with its date, notes and page', async () => {
+    const asked: string[] = []
+    const get = async (url: string) => (asked.push(url), { ok: true, status: 200, json: async () => [rel('v0.7.0-beta.2'), rel('v0.7.0-beta.10'), rel('v0.7.0-beta.1'), rel('v0.6.2', { prerelease: false })] })
+    expect(await latestBeta('0.6.2', repo, get)).toEqual({ state: 'available', detail: '0.7.0-beta.10 is available.', latest: '0.7.0-beta.10', notes: 'notes of v0.7.0-beta.10', date: '2026-10-29T10:00:00Z', url: 'https://github.com/hodkep/agent-world/releases/tag/v0.7.0-beta.10' })
+    expect(asked).toEqual(['https://api.github.com/repos/hodkep/agent-world/releases?per_page=30'])
+  })
+  it('skips drafts, releases that are not pre-releases, other pre-release names and tags that are not versions', async () => {
+    const r = await latestBeta('0.6.2', repo, list([rel('v0.8.0-beta.1', { draft: true }), rel('v0.8.0-beta.2', { prerelease: false }), rel('v0.8.0-rc.1'), rel('nightly'), rel('v0.7.0-beta.1')]))
+    expect(r).toMatchObject({ state: 'available', latest: '0.7.0-beta.1' })
+  })
+  it('says there is nothing newer when the betas are the one you have, older, or already a release', async () => {
+    expect(await latestBeta('0.7.0-beta.2', repo, list([rel('v0.7.0-beta.2'), rel('v0.7.0-beta.1')]))).toEqual({ state: 'none' })
+    expect(await latestBeta('0.7.0', repo, list([rel('v0.7.0-beta.3')]))).toEqual({ state: 'none' })
+    expect(await latestBeta('0.6.2', repo, list([]))).toEqual({ state: 'none' })
+  })
+  it('says what went wrong in a line', async () => {
+    expect(await latestBeta('0.6.2', repo, async () => ({ ok: false, status: 403, json: async () => ({}) }))).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+    expect(await latestBeta('0.6.2', repo, async () => ({ ok: true, status: 200, json: async () => ({ not: 'a list' }) }))).toEqual({ state: 'none' })
+    expect(await latestBeta('0.6.2', repo, async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com') })).toEqual({ state: 'error', detail: 'Could not reach GitHub: getaddrinfo ENOTFOUND api.github.com' })
   })
 })

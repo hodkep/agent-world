@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { BREW_UPGRADE, type InstallState } from '../../shared/updateInstall'
+import { BREW_UPGRADE, type BetaState, type InstallState } from '../../shared/updateInstall'
 import { NotesBox } from './ReleaseNotes'
 import { type UpdateAction, type UpdateView, updateView } from './updateView'
 
-export type UpdateInfo = { homebrew?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
+export type UpdateInfo = { homebrew?: boolean; /** Set on the view of the beta row, never on the stable state. */ channel?: 'beta'; beta?: BetaState; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
 
 // What the last look found, kept for the whole window so a screen opened after it (Settings) still knows.
 let last: UpdateInfo = { state: 'off' }
@@ -32,15 +32,16 @@ export function useUpdateInfo(): UpdateInfo {
 
 /** What a press of one of the update buttons does. */
 export function runUpdateAction(id: UpdateAction['id'], info: UpdateInfo, close?: () => void) {
+  const channel = info.channel ?? 'stable'
   const quiet = () => undefined
   switch (id) {
     case 'download':
     case 'retry':
-      return void window.aw.downloadUpdate().catch(quiet)
+      return void window.aw.downloadUpdate(channel).catch(quiet)
     case 'cancel':
-      return void window.aw.cancelUpdateDownload().catch(quiet)
+      return void window.aw.cancelUpdateDownload(channel).catch(quiet)
     case 'install':
-      return void window.aw.installUpdate().catch(quiet)
+      return void window.aw.installUpdate(channel).catch(quiet)
     case 'later':
       return close?.()
     case 'copy':
@@ -49,9 +50,9 @@ export function runUpdateAction(id: UpdateAction['id'], info: UpdateInfo, close?
     case 'changes':
       return void (info.url && window.aw.openExternal(info.url).catch(quiet))
     case 'finder':
-      return void window.aw.revealUpdate('file').catch(quiet)
+      return void window.aw.revealUpdate('file', channel).catch(quiet)
     case 'log':
-      return void window.aw.revealUpdate('log').catch(quiet)
+      return void window.aw.revealUpdate('log', channel).catch(quiet)
   }
 }
 
