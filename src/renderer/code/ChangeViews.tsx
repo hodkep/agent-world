@@ -1,3 +1,4 @@
+import { FileIcon } from './FileIcon'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeStatus, CommitDetail, CommitInfo, CommitPage, WorktreeStatus } from '../../shared/api'
 import { agoLabel } from '../profile/format'
@@ -38,6 +39,7 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
     <li key={`${group}:${f.path}`} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
       <button className={`file is-${f.status}`} onClick={() => onPick(f.path)} title={f.path} data-reveal={f.path}>
         <span className="mark">{MARK[f.status]}</span>
+        <FileIcon path={f.path} />
         <span className="nm">{baseName(f.path)}</span>
         {view === 'list' && dirName(f.path) && <span className="dir">{dirName(f.path)}</span>}
       </button>
@@ -58,6 +60,7 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
           <li key={`${group}:d:${r.path}`} role="treeitem" aria-expanded={!mine.has(r.path)} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
             <button className="file" title={r.path} data-reveal={r.path} onClick={() => toggle(`${group}\0${r.path}`)}>
               <span className="chev">{mine.has(r.path) ? '▸' : '▾'}</span>
+              <FileIcon path={r.path} dir open={!mine.has(r.path)} />
               <span className="nm dirname">{r.name}</span>
               <span className="n">{r.count}</span>
             </button>

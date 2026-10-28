@@ -3940,3 +3940,6 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .repos .pop .r:hover { background: var(--panel-2); }
 .repos .pop .r b { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repos .pop .r i { font: normal 11px Menlo, Consolas, monospace; color: var(--think); white-space: nowrap; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+
+/* The icon of a file or folder, beside its name (Files, open tabs, Changes). */
+.fi { width: 16px; height: 16px; flex: none; vertical-align: middle; margin-right: 6px; }

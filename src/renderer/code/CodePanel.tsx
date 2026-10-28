@@ -11,6 +11,7 @@ import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { BasePicker } from '../panel/BasePicker'
 import { ancestors, changeRows, visibleRows } from './tree'
+import { FileIcon } from './FileIcon'
 import { RepoStrip } from './RepoStrip'
 import { pickRepo, type RepoInfo } from './repoChips'
 import { type ChangeMode, HistoryList, UncommittedList, ViewSwitch } from './ChangeViews'
@@ -276,6 +277,7 @@ function ChangesView({ agentId, repo, agentName, workDone, onJump, onOpenChat, p
       <li key={f.path} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
         <button className={`file is-${f.status}`} onClick={() => setPath(f.path)} title={f.path} data-reveal={f.path}>
           <span className="mark">{STATUS_MARK[f.status]}</span>
+          <FileIcon path={f.path} />
           <span className="nm">{name}</span>
           {view === 'list' && dir && <span className="dir">{dir}</span>}
         </button>
@@ -372,6 +374,7 @@ function ChangesView({ agentId, repo, agentName, workDone, onJump, onOpenChat, p
                 <li key={`d:${r.path}`} role="treeitem" aria-expanded={!shut} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
                   <button className="file" title={r.path} onClick={() => setClosed((c) => { const n = new Set(c); if (!n.delete(r.path)) n.add(r.path); return n })}>
                     <span className="chev">{shut ? '▸' : '▾'}</span>
+                    <FileIcon path={r.path} dir open={!shut} />
                     <span className="nm dirname">{r.name}</span>
                     <span className="n">{r.count}</span>
                   </button>
@@ -677,6 +680,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 data-reveal={r.path}
               >
                 <span className="chev">{r.dir ? (filter !== '' || openDirs.has(r.path) ? '▾' : '▸') : ''}</span>
+                <FileIcon path={r.path} dir={r.dir} open={r.dir && (filter !== '' || openDirs.has(r.path))} />
                 {r.name}
               </button>
             </li>
@@ -702,6 +706,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 onAuxClick={(e) => e.button === 1 && (e.preventDefault(), close(p))}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), switchTo(p))}
               >
+                <FileIcon path={p} />
                 <span className="nm">{baseName(p)}</span>
                 {dirtyOf(p) && <i className="fdot" title="Unsaved changes" />}
                 <button className="x" aria-label={`Close ${baseName(p)}`} title="Close (⌘W)" onClick={(e) => (e.stopPropagation(), close(p))}>
