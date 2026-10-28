@@ -3,7 +3,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { EditorState, Prec, type Range } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap, placeholder, type ViewUpdate } from '@codemirror/view'
 import { continueList, noteLines } from '../../shared/notePlan'
-import { keysOf } from '../shortcuts'
+import { hint as keyHint } from '../shortcuts'
 
 export interface LineActions {
   /** Make a task of the line (and the lines indented under it). */
@@ -58,7 +58,8 @@ class Handle extends WidgetType {
       const b = document.createElement('button')
       b.textContent = BUTTON[k].text
       b.setAttribute('aria-label', BUTTON[k].label)
-      b.title = `${BUTTON[k].label} (${keysOf(BUTTON[k].key)})`
+      b.className = 'tip-btn'
+      b.dataset.tip = keyHint(BUTTON[k].key)
       b.onmousedown = (e) => (e.preventDefault(), this.h[k](this.line))
       g.append(b)
     }

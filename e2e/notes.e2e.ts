@@ -60,6 +60,18 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     // Its buttons show on hover: Task, Subtask and Ask for a line that is not a task yet.
     const umbrella = pad.locator('.nt-item', { hasText: 'Umbrella' }).locator('.nt-handle')
     await expect(umbrella.getByRole('button')).toHaveText(['Task', 'Sub', 'Ask'])
+    // Each button says what it does and its keys when pointed at, and fits inside its line (nothing of it is cut off by the line below).
+    await expect(umbrella.getByRole('button', { name: 'Make a task' })).toHaveAttribute('data-tip', /Make the line a task \((⌘|Ctrl)/)
+    await expect(umbrella.getByRole('button', { name: 'Make a subtask' })).toHaveAttribute('data-tip', /Make the line a subtask of the item above \(.*(Shift|⇧)/)
+    await expect(umbrella.getByRole('button', { name: 'Ask an agent' })).toHaveAttribute('data-tip', /Ask an agent about the line.*(⌥|Alt)/)
+    const line = (await pad.locator('.nt-item', { hasText: 'Umbrella' }).boundingBox())!
+    for (const b of await umbrella.getByRole('button').all()) {
+      const r = (await b.boundingBox())!
+      expect(r.y).toBeGreaterThanOrEqual(line.y - 0.5)
+      expect(r.y + r.height).toBeLessThanOrEqual(line.y + line.height + 0.5)
+    }
+    await umbrella.getByRole('button', { name: 'Make a subtask' }).hover()
+    await expect.poll(() => umbrella.getByRole('button', { name: 'Make a subtask' }).evaluate((e) => getComputedStyle(e, '::after').display)).toBe('block')
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-menu.png` })
     await umbrella.getByRole('button', { name: 'Make a task' }).click()
     await expect(pad.locator('.nt-linked')).toHaveCount(3)
