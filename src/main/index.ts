@@ -35,6 +35,7 @@ import { installCommand, installLaunch } from './installRun'
 import { createMenuTracker } from './menuTracker'
 import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems, revealItem } from './contextMenu'
+import { zoomKey, zoomTo } from '../shared/previewZoom'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
@@ -3028,6 +3029,14 @@ async function main() {
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return
     rightClick(contents)
+    // Pinch zooms the page (Electron has it off), and Cmd+ / Cmd- / Cmd+0 over the page zoom it, not the app: the key is taken here, before the menu's own zoom shortcuts.
+    void contents.setVisualZoomLevelLimits(1, 4).catch(() => {})
+    contents.on('before-input-event', (e, input) => {
+      const to = zoomKey(input, process.platform === 'darwin')
+      if (!to) return
+      e.preventDefault()
+      contents.setZoomFactor(zoomTo(to, contents.getZoomFactor(), contents.hostWebContents?.getZoomFactor() || 1))
+    })
     // A link that asks for a new window is followed in the same pane; the pane never opens windows of its own.
     contents.setWindowOpenHandler(({ url }) => (isWebUrl(url) && void contents.loadURL(url).catch(() => {}), { action: 'deny' }))
     contents.on('will-navigate', (e, url) => !isWebUrl(url) && e.preventDefault())
