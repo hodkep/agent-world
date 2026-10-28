@@ -36,9 +36,9 @@ function Row({ row, accounts, now }: { row: BoardRow; accounts: Prefs['accounts'
 }
 
 /** The usage-limit board on the plant's tooltip: a block per program, a row per login, each window as a strip of lights. */
-export function LimitBoard({ pool, accounts, providers }: { pool: LimitWindow[]; accounts: Prefs['accounts']; providers: ProviderInfo[] }) {
+export function LimitBoard({ pool, accounts, own, providers }: { pool: LimitWindow[]; accounts: Prefs['accounts']; own?: Prefs['ownNames']; providers: ProviderInfo[] }) {
   const now = Date.now()
-  const board = limitBoard(pool, { provider: (id) => providers.find((p) => p.id === id)?.label ?? BRAND[id].short, account: (id) => accountName(accounts, id), keeps: (id) => accounts.some((a) => a.provider === id) })
+  const board = limitBoard(pool, { provider: (id) => providers.find((p) => p.id === id)?.label ?? BRAND[id].short, account: (id, provider) => accountName(accounts, id, provider, own), keeps: (id) => accounts.some((a) => a.provider === id) })
   return (
     <div className="lbd">
       {board.map((b) => (

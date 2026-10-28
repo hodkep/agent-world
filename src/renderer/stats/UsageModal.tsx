@@ -176,6 +176,7 @@ export function UsageModal({
   limits,
   limitsAt,
   accounts,
+  own,
   office,
   onRefreshLimits,
   onClose
@@ -186,6 +187,8 @@ export function UsageModal({
   limitsAt: number
   /** The extra accounts from Settings, to name the accounts behind each allowance and each share of the spend. */
   accounts: Prefs['accounts']
+  /** The names given to the programs' own logins. */
+  own?: Prefs['ownNames']
   office: { agents: number; projects: number }
   onRefreshLimits: () => Promise<void>
   onClose: () => void
@@ -214,7 +217,7 @@ export function UsageModal({
     loadMix()
     void onRefreshLimits().finally(() => (setChecking(false), setNow(Date.now())))
   }
-  const views = useMemo(() => acctViews(providers, accounts, [...(o?.accounts ?? []), ...limits.map((w) => ({ provider: w.provider, account: w.account ?? '' }))]), [providers, accounts, o, limits])
+  const views = useMemo(() => acctViews(providers, accounts, [...(o?.accounts ?? []), ...limits.map((w) => ({ provider: w.provider, account: w.account ?? '' }))], own), [providers, accounts, o, limits])
   const view = (k: string) => views.find((v) => v.key === k)
   const label = (id: string) => providers.find((p) => p.id === id)?.label ?? id
   const spendOf = (k: string): OverviewAccount | undefined => o?.accounts.find((a) => a.key === k)

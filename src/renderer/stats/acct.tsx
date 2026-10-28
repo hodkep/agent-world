@@ -15,14 +15,14 @@ export interface AcctView {
 }
 
 /** Every account worth showing: those of each ready program (the program's own login first), then any that only the history knows. */
-export function acctViews(providers: ProviderInfo[], accounts: Prefs['accounts'], seen: { provider: string; account: string }[]): AcctView[] {
+export function acctViews(providers: ProviderInfo[], accounts: Prefs['accounts'], seen: { provider: string; account: string }[], own?: Prefs['ownNames']): AcctView[] {
   const out = new Map<string, AcctView>()
   const put = (provider: string, account: string) => {
     const key = acctKey(provider, account)
     if (out.has(key)) return
     const p = providers.find((x) => x.id === provider)
     const keeps = !!p?.capabilities.accounts
-    out.set(key, { key, provider, account, keeps, name: keeps ? accountName(accounts, account) : (p?.label ?? provider), color: keeps ? accountColor(accounts, account) : colorAt(accounts.length + 1 + [...out.values()].filter((v) => !v.keeps).length) })
+    out.set(key, { key, provider, account, keeps, name: keeps ? accountName(accounts, account, provider, own) : (p?.label ?? provider), color: keeps ? accountColor(accounts, account) : colorAt(accounts.length + 1 + [...out.values()].filter((v) => !v.keeps).length) })
   }
   for (const p of providers.filter((x) => x.detection.state === 'ready')) {
     put(p.id, '')

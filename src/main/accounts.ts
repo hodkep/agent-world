@@ -2,6 +2,7 @@ import { lstat, mkdir, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { Account, AccountInfo, AgentRecord, ProviderId } from '../shared/types'
+import { ownName } from '../shared/ownAccount'
 import type { AccountSupport, Provider } from './providers/ports'
 
 /** Each extra account keeps its sign-in, settings and conversations in a folder of its own under the app's home. */
@@ -35,6 +36,8 @@ export interface AccountDeps {
   providers(): readonly Provider[]
   /** The extra accounts the user added (Settings). */
   accounts(): Account[]
+  /** The names given to each program's own login. */
+  ownNames(): Partial<Record<ProviderId, string>>
 }
 
 /**
@@ -99,7 +102,7 @@ export class AccountService {
 
   /** Every login of every program that keeps accounts, with who is signed in and how many agents use it. */
   async list(agents: AgentRecord[], binOf: (p: Provider) => string, base: NodeJS.ProcessEnv): Promise<AccountInfo[]> {
-    const own = (p: Provider): Account => ({ id: '', name: 'This computer', provider: p.id })
+    const own = (p: Provider): Account => ({ id: '', name: ownName(this.deps.ownNames(), p.id), provider: p.id })
     const rows = this.deps.providers().flatMap((p) => (p.accounts ? [own(p), ...this.deps.accounts().filter((a) => a.provider === p.id)] : []))
     return Promise.all(
       rows.map(async (x) => {
@@ -112,15 +115,34 @@ export class AccountService {
     )
   }
 
-  /** The accounts with one relabelled. Only the label changes: its id, folder, sign-in and agents stay. A name another account of the program already has is refused. */
-  rename(id: string, name: string): Account[] {
+  /** A label as kept: trimmed, forty characters at most, never empty. */
+  private label(name: string) {
     const label = name.trim().slice(0, 40)
     if (!label) throw new Error('Give the account a name.')
+    return label
+  }
+
+  /** Whether another login of the program (its own, or an added one) already has the name; `except` is the one being renamed ('' for the own login). */
+  private taken(provider: ProviderId, label: string, except: string) {
+    const same = (n: string) => n.toLowerCase() === label.toLowerCase()
+    return (except !== '' && same(ownName(this.deps.ownNames(), provider))) || this.deps.accounts().some((x) => x.id !== except && x.provider === provider && same(x.name))
+  }
+
+  /** The accounts with one relabelled. Only the label changes: its id, folder, sign-in and agents stay. A name another account of the program already has is refused. */
+  rename(id: string, name: string): Account[] {
+    const label = this.label(name)
     const all = this.deps.accounts()
     const target = all.find((x) => x.id === id)
     if (!target) throw new Error('That account was removed.')
-    if (all.some((x) => x.id !== id && x.provider === target.provider && x.name.toLowerCase() === label.toLowerCase())) throw new Error('An account with that name exists.')
+    if (this.taken(target.provider, label, id)) throw new Error('An account with that name exists.')
     return all.map((x) => (x.id === id ? { ...x, name: label } : x))
+  }
+
+  /** The names of the programs' own logins with one relabelled, by the same rules. */
+  renameOwn(provider: ProviderId, name: string): Partial<Record<ProviderId, string>> {
+    const label = this.label(name)
+    if (this.taken(provider, label, '')) throw new Error('An account with that name exists.')
+    return { ...this.deps.ownNames(), [provider]: label }
   }
 
   /** The accounts left after removing one; it refuses while an agent still runs on it. Its folder, and the sign-in in it, stay on disk. */

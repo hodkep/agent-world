@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Account, ProviderInfo } from '../../shared/types'
+import { ownName } from '../../shared/ownAccount'
+import type { Account, Prefs, ProviderInfo } from '../../shared/types'
 import { type SwitchAgent, type SwitchResult, SWITCH_BATCH, SWITCH_CONTINUE, byProject, isWorking, pickedByDefault, planSwitch } from '../../shared/switchPlan'
 import { Modal } from './Modal'
 
@@ -19,7 +20,7 @@ function ProjectBox({ label, state, onToggle }: { label: string; state: 'all' | 
  * Moves the agents the person ticks to one account (every one that is not on it yet, to begin with): the ones mid-turn are stopped first and told to continue once they
  * are back up there; the rest move quietly. A ticked agent that is already on the account is restarted on it, which puts right one whose process kept the old login.
  */
-export function SwitchAgentsDialog({ account, accounts, providers, onClose }: { account: { id: string; name: string }; accounts: Account[]; providers: ProviderInfo[]; onClose: () => void }) {
+export function SwitchAgentsDialog({ account, accounts, own, providers, onClose }: { account: { id: string; name: string }; accounts: Account[]; own?: Prefs['ownNames']; providers: ProviderInfo[]; onClose: () => void }) {
   const [agents, setAgents] = useState<SwitchAgent[] | null>(null)
   const [picked, setPicked] = useState<Set<string> | null>(null)
   const [phase, setPhase] = useState<Phase>('confirm')
@@ -36,7 +37,7 @@ export function SwitchAgentsDialog({ account, accounts, providers, onClose }: { 
     )
   useEffect(() => void look(), [])
   const plan = useMemo(() => (agents && picked ? planSwitch(agents, account.id, canSwitch, picked) : null), [agents, picked, account.id, providers])
-  const nameOf = (id: string) => (id ? (accounts.find((x) => x.id === id)?.name ?? id) : 'This computer')
+  const nameOf = (id: string, provider: string) => (id ? (accounts.find((x) => x.id === id)?.name ?? id) : ownName(own, provider))
   const choosable = (agents ?? []).filter((a) => canSwitch(a.provider))
   const toggle = (ids: string[], on: boolean) => setPicked((s) => new Set(on ? [...(s ?? []), ...ids] : [...(s ?? [])].filter((i) => !ids.includes(i))))
 
@@ -106,7 +107,7 @@ export function SwitchAgentsDialog({ account, accounts, providers, onClose }: { 
                         <input type="checkbox" aria-label={a.name} checked={ticked} onChange={(e) => toggle([a.id], e.target.checked)} />
                         <b>{a.name}</b>
                         <span>
-                          {what(a)} · {here ? `already on ${account.name}` : `on ${nameOf(a.account)}`}
+                          {what(a)} · {here ? `already on ${account.name}` : `on ${nameOf(a.account, a.provider)}`}
                         </span>
                         {ticked && isWorking(a) ? <i className="swa-chip work">will be stopped</i> : ticked && here ? <i className="swa-chip">restart</i> : a.activity === 'permission' ? <i className="swa-chip warn">needs you</i> : null}
                       </label>

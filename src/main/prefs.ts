@@ -4,7 +4,7 @@ import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -35,6 +35,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
       accounts: cleanDefaultAccounts(d.accounts, base.defaults.accounts)
     },
     accounts: cleanAccounts(r.accounts, base.accounts),
+    ownNames: cleanOwnNames(r.ownNames, base.ownNames),
     workflows: cleanWorkflows(r.workflows, base.workflows)
   }
 }
@@ -88,6 +89,16 @@ function cleanAccounts(raw: unknown, base: Prefs['accounts']): Prefs['accounts']
     // An account saved before programs had their own belongs to Claude.
     const provider = o?.provider === undefined ? DEFAULT_PROVIDER : isProviderId(o.provider) ? o.provider : null
     if (id && name && provider && /^[a-z0-9][a-z0-9-]*$/.test(id) && !out.some((x) => x.id === id)) out.push({ id, name, provider })
+  }
+  return out
+}
+
+function cleanOwnNames(raw: unknown, base: Prefs['ownNames']): Prefs['ownNames'] {
+  if (!raw || typeof raw !== 'object') return base
+  const out: Prefs['ownNames'] = {}
+  for (const [k, v] of Object.entries(raw)) {
+    const name = str(v, 40)?.trim()
+    if (isProviderId(k) && name) out[k] = name
   }
   return out
 }

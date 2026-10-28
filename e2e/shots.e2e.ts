@@ -578,7 +578,7 @@ test('accounts: a second login signed in once, and the default for new agents', 
     const settings = o.page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: 'Accounts' }).click()
     await settings.getByRole('button', { name: 'Add account' }).click()
-    await settings.getByLabel('Name').fill('Work')
+    await settings.getByPlaceholder('Work, Personal, Client…').fill('Work')
     await settings.getByRole('button', { name: 'Continue to sign in' }).click()
     await expect.poll(() => exists(join(o.home, 'accounts', 'work', '.fake-login')), { timeout: 15_000 }).toBe(true)
     await settings.getByRole('button', { name: 'I have signed in: check' }).click()

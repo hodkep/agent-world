@@ -956,7 +956,7 @@ export function App() {
         efforts: effortsFor(curProv?.models ?? MODELS, current.options?.model, cur?.model, cur?.effort),
         modes: (curProv?.modes ?? PICKABLE_MODES).filter((m) => !/bypass|skip/.test(m.id) || curProv?.relaunchModes.includes(m.id)),
         canCompact: curProv?.capabilities.compact ?? true,
-        accounts: curProv?.capabilities.accounts && prefs?.accounts.some((a) => a.provider === curProv.id) ? ['', ...prefs.accounts.filter((a) => a.provider === curProv.id).map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id), color: accountColor(prefs.accounts, id) })) : [],
+        accounts: curProv?.capabilities.accounts && prefs?.accounts.some((a) => a.provider === curProv.id) ? ['', ...prefs.accounts.filter((a) => a.provider === curProv.id).map((a) => a.id)].map((id) => ({ id, name: accountName(prefs.accounts, id, curProv.id, prefs.ownNames), color: accountColor(prefs.accounts, id) })) : [],
         accountId: current.account ?? ''
       }
     : null
@@ -1245,7 +1245,7 @@ export function App() {
                       {a.name}
                       {mixed && <Swatch id={a.provider} label={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.label ?? BRAND[DEFAULT_PROVIDER].short} />}
                       {!!prefs?.accounts.length && !!prefs.accounts.some((x) => x.provider === (a.provider ?? DEFAULT_PROVIDER)) && (
-                        <i className="acct-dot" style={{ background: accountColor(prefs.accounts, a.account) }} title={`Runs on ${accountName(prefs.accounts, a.account)}`} />
+                        <i className="acct-dot" style={{ background: accountColor(prefs.accounts, a.account) }} title={`Runs on ${accountName(prefs.accounts, a.account, a.provider ?? DEFAULT_PROVIDER, prefs.ownNames)}`} />
                       )}
                       {new Set(agents.map((x) => x.repoPath)).size > 1 && (
                         <span className="proj" title={a.repoPath}>
@@ -1399,9 +1399,9 @@ export function App() {
           actions={needActions(dialogFor)}
         />
       )}
-      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
+      {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
       {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
-      {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} onClose={() => setReport(null)} />}
+      {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">
           <div className="su-wait"><span className="su-spin" aria-hidden="true" />Getting ready…</div>
@@ -1638,7 +1638,7 @@ export function App() {
           <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
           {tip && (
             <FloatingTip x={tip.x} y={tip.y}>
-              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} providers={providers ?? []} />
+              <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} providers={providers ?? []} />
             </FloatingTip>
           )}
         </div>
@@ -1915,7 +1915,7 @@ export function App() {
         {history && folder && <History folder={folder} onResume={resume} onClose={() => setHistory(false)} />}
         {hiring && (
           <Modal label="Hire an agent dialog" className="hire-dialog" onClose={() => setHiring(false)}>
-            <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} unready={(providers ?? []).filter((p) => p.detection.state !== 'ready')} onSetUp={(id) => (setHiring(false), setSetupFor(id), setSetupAgain(true))} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
+            <HireForm folder={folder ?? ''} providers={(providers ?? []).filter((p) => p.detection.state === 'ready')} unready={(providers ?? []).filter((p) => p.detection.state !== 'ready')} onSetUp={(id) => (setHiring(false), setSetupFor(id), setSetupAgain(true))} defaultProvider={prefs?.defaults.provider || prefs?.setup.defaultProvider || ''} roles={roles} defaults={prefs?.defaults ?? { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} roleModels={prefs?.roleModels ?? {}} onHire={hire} onCancel={() => setHiring(false)} onSaveRole={async (title, options) => void (await window.aw.saveRole({ title, blurb: options.instructions?.slice(0, 120) ?? '', options }), setRoles(await window.aw.listRoles(folder ?? '')))} />
           </Modal>
         )}
         {current && subs[current.id] && (
@@ -1972,7 +1972,7 @@ function FloatingTip({ x, y, children }: { x: number; y: number; children: React
   )
 }
 
-function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts']; providers: ProviderInfo[] }) {
+function PlantTip({ five, week, pool, accounts, own, providers }: { five: LimitView; week: LimitView; pool: LimitWindow[]; accounts: Prefs['accounts']; own?: Prefs['ownNames']; providers: ProviderInfo[] }) {
   if (pool.length === 0)
     return (
       <>
@@ -1987,7 +1987,7 @@ function PlantTip({ five, week, pool, accounts, providers }: { five: LimitView; 
     <>
       <b>Your usage limits</b>
       <span className="tip-note">The tanks show the tightest of each kind; the moons above one are its logins.</span>
-      <LimitBoard pool={pool} accounts={accounts} providers={providers} />
+      <LimitBoard pool={pool} accounts={accounts} own={own} providers={providers} />
     </>
   )
 }

@@ -49,7 +49,7 @@ describe('accounts', () => {
 describe('AccountService', () => {
   const work: Account = { id: 'work', name: 'Work', provider: 'claude' }
   const svc = (accounts: Account[] = [work], support: AccountSupport | undefined = fake('/own')) =>
-    new AccountService({ home: '/h', providers: () => [provider('claude', support), provider('agy')], accounts: () => accounts })
+    new AccountService({ home: '/h', providers: () => [provider('claude', support), provider('agy')], accounts: () => accounts, ownNames: () => ({}) })
 
   it('names no folder for the program\'s own login, an account that is gone, one of another program, or a program without accounts', () => {
     expect(svc().dirOf('claude', undefined)).toBeUndefined()
@@ -88,7 +88,7 @@ describe('AccountService', () => {
 
   it('refuses a program without accounts, an empty name and a repeated one', async () => {
     const own = tmp()
-    const s = new AccountService({ home: tmp(), providers: () => [provider('claude', fake(own)), provider('agy')], accounts: () => [work] })
+    const s = new AccountService({ home: tmp(), providers: () => [provider('claude', fake(own)), provider('agy')], accounts: () => [work], ownNames: () => ({}) })
     await expect(s.create('agy', 'X')).rejects.toThrow('does not keep')
     await expect(s.create('claude', '  ')).rejects.toThrow('name')
     await expect(s.create('claude', 'work')).rejects.toThrow('exists')
@@ -98,7 +98,7 @@ describe('AccountService', () => {
 
 describe('AccountService lists and removes', () => {
   const work: Account = { id: 'work', name: 'Work', provider: 'claude' }
-  const svc = () => new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => [work] })
+  const svc = () => new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => [work], ownNames: () => ({}) })
 
   it('lists each login of each program that keeps accounts, with who is signed in and its agents', async () => {
     const rows = await svc().list([agent({ account: 'work' }), agent({ id: 'b' })], () => 'bin', {})
@@ -112,13 +112,28 @@ describe('AccountService lists and removes', () => {
 
   it('renames an account: the label changes, its id, folder and program do not, and a name is trimmed, kept to forty characters and never taken by another account of the program', () => {
     const two = [work, { id: 'home', name: 'Home', provider: 'claude' as const }]
-    const s = new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => two })
+    const s = new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy')], accounts: () => two, ownNames: () => ({}) })
     expect(s.rename('work', '  Day job  ')).toEqual([{ id: 'work', name: 'Day job', provider: 'claude' }, two[1]])
     expect(s.rename('work', 'x'.repeat(60))[0]!.name).toHaveLength(40)
     expect(s.rename('work', 'WORK')[0]!.name).toBe('WORK')
     expect(() => s.rename('work', ' home ')).toThrow('An account with that name exists.')
     expect(() => s.rename('work', '   ')).toThrow('Give the account a name.')
     expect(() => s.rename('gone', 'Other')).toThrow('That account was removed.')
+  })
+
+  it('names the program\'s own login like any account: a stored name shows in the list, and renaming it follows the same rules as for the others', async () => {
+    const two = [work, { id: 'home', name: 'Home', provider: 'claude' as const }]
+    const names = { claude: 'Laptop' }
+    const s = new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own')), provider('agy', fake('/agy'))], accounts: () => two, ownNames: () => names })
+    expect((await s.list([], () => 'bin', {})).filter((r) => r.id === '').map((r) => [r.provider, r.name])).toEqual([['claude', 'Laptop'], ['agy', 'This computer']])
+    expect(s.renameOwn('claude', '  Day laptop  ')).toEqual({ claude: 'Day laptop' })
+    expect(s.renameOwn('agy', 'Work')).toEqual({ claude: 'Laptop', agy: 'Work' })
+    expect(() => s.renameOwn('claude', ' WORK ')).toThrow('An account with that name exists.')
+    expect(() => s.renameOwn('claude', '   ')).toThrow('Give the account a name.')
+    expect(() => s.rename('work', 'laptop')).toThrow('An account with that name exists.')
+    // The built-in default is a name too: nobody can take it for another account of the program.
+    expect(() => s.rename('home', 'this computer')).not.toThrow()
+    expect(() => new AccountService({ home: '/h', providers: () => [provider('claude', fake('/own'))], accounts: () => two, ownNames: () => ({}) }).rename('home', 'This computer')).toThrow('An account with that name exists.')
   })
 
   it('signs the program\'s own login in the usual way and an account in its own folder', () => {

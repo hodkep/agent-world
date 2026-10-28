@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ownName } from '../../shared/ownAccount'
 import type { AccountInfo, Prefs, ProviderId, ProviderInfo } from '../../shared/types'
 import { ProviderTag } from './ProviderTag'
 import { accountColor } from '../accounts'
@@ -12,7 +13,7 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
   const [list, setList] = useState<AccountInfo[] | null>(null)
   const [error, setError] = useState('')
   // The account whose name is being edited, with the text so far.
-  const [renaming, setRenaming] = useState<{ id: string; text: string } | null>(null)
+  const [renaming, setRenaming] = useState<{ id: string; provider: ProviderId; text: string } | null>(null)
   // Escape cancels, and leaving the field after that must not save what was typed.
   const cancelled = useRef(false)
   // "Switch all agents here": the account whose dialog is open.
@@ -55,11 +56,11 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
   }
   const saveName = async () => {
     if (!renaming) return
-    const { id, text } = renaming
+    const { id, provider, text } = renaming
     setError('')
     try {
-      const next = await window.aw.renameAccount(id, text)
-      onChange({ accounts: next.accounts })
+      const next = await window.aw.renameAccount(id, text, provider)
+      onChange({ accounts: next.accounts, ownNames: next.ownNames })
       setRenaming(null)
     } catch (e) {
       setError((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -84,21 +85,21 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
         <div key={p.id} className="acct-group">
           {keepers.length > 1 && <ProviderTag id={p.id} label={p.label} />}
           <div className="acct-list">
-            {(list ?? [{ id: '', name: 'This computer', provider: p.id, dir: '', loggedIn: true, email: '', agents: 0 }]).filter((x) => x.provider === p.id).map((x) => {
+            {(list ?? [{ id: '', name: ownName(prefs.ownNames, p.id), provider: p.id, dir: '', loggedIn: true, email: '', agents: 0 }]).filter((x) => x.provider === p.id).map((x) => {
               const isDefault = (prefs.defaults.accounts[x.provider] ?? '') === x.id
               return (
                 <div key={x.id} className="acct" data-default={isDefault} style={{ ['--c' as string]: accountColor(prefs.accounts, x.id) }}>
                   <i className="dot" aria-hidden="true" />
                   <div className="who">
                     <b>
-                      {renaming?.id === x.id ? (
+                      {renaming?.id === x.id && renaming.provider === x.provider ? (
                         <input
                           className="acct-rename"
                           aria-label={`Name of ${x.name}`}
                           value={renaming.text}
                           maxLength={40}
                           autoFocus
-                          onChange={(e) => setRenaming({ id: x.id, text: e.target.value })}
+                          onChange={(e) => setRenaming({ id: x.id, provider: x.provider, text: e.target.value })}
                           // Escape is this field's own: the Settings dialog would close on it otherwise.
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') void saveName()
@@ -106,13 +107,11 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
                           }}
                           onBlur={() => (cancelled.current ? (cancelled.current = false) : void saveName())}
                         />
-                      ) : x.id ? (
-                        <button className="acct-name" title="Rename this account" aria-label={`Rename ${x.name}`} onClick={() => (setError(''), setRenaming({ id: x.id, text: x.name }))}>
+                      ) : (
+                        <button className="acct-name" title="Rename this account" aria-label={`Rename ${x.name}`} onClick={() => (setError(''), setRenaming({ id: x.id, provider: x.provider, text: x.name }))}>
                           {x.name}
                           <span aria-hidden="true"> ✎</span>
                         </button>
-                      ) : (
-                        x.name
                       )}
                       {isDefault && <span className="acct-tag">Default for new agents</span>}
                     </b>
@@ -140,7 +139,7 @@ export function Accounts({ prefs, providers, onChange, onSignIns }: { prefs: Pre
           </div>
         </div>
       ))}
-      {switching && <SwitchAgentsDialog account={switching} accounts={prefs.accounts} providers={providers} onClose={() => (setSwitching(null), void refresh())} />}
+      {switching && <SwitchAgentsDialog account={switching} accounts={prefs.accounts} own={prefs.ownNames} providers={providers} onClose={() => (setSwitching(null), void refresh())} />}
       {error && <p className="acct-error" role="alert">{error}</p>}
       {!adding && (
         <div className="settings-row">

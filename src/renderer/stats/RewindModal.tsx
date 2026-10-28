@@ -85,7 +85,7 @@ function LimitLine({ a, color }: { a: WeekAccount; color: string }) {
 }
 
 /** The week's work in numbers and charts, by account, from the history the app keeps. */
-export function RewindModal({ providers, accounts, onClose }: { providers: ProviderInfo[]; accounts: Prefs['accounts']; onClose: () => void }) {
+export function RewindModal({ providers, accounts, own, onClose }: { providers: ProviderInfo[]; accounts: Prefs['accounts']; own?: Prefs['ownNames']; onClose: () => void }) {
   const [start, setStart] = useState(() => weekStartOf(Date.now()))
   const [r, setR] = useState<WeekReport | null>(null)
   const [tab, setTab] = useState<Tab>('week')
@@ -100,7 +100,7 @@ export function RewindModal({ providers, accounts, onClose }: { providers: Provi
   }, [start])
   const thisWeek = start >= weekStartOf(Date.now())
   const shift = (weeks: number) => setStart((s) => weekStartOf(new Date(s).setDate(new Date(s).getDate() + 7 * weeks + 1)))
-  const views = useMemo(() => acctViews(providers, accounts, r?.accounts ?? []), [providers, accounts, r])
+  const views = useMemo(() => acctViews(providers, accounts, r?.accounts ?? [], own), [providers, accounts, own, r])
   const view = (k: string) => views.find((v) => v.key === k)
   const ordered = useMemo(() => [...views].sort((a, b) => (r?.accounts.find((x) => x.key === b.key)?.usd ?? 0) - (r?.accounts.find((x) => x.key === a.key)?.usd ?? 0)), [views, r])
   const keys = scope === 'all' || !view(scope) ? ordered.map((v) => v.key) : [scope]
