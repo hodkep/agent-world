@@ -3898,11 +3898,14 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 /* The line's handle sits in a margin of its own, so the words are never under it; its menu opens below it. */
 .nt-editor .cm-content { padding-right: 140px; }
 
-.nt-handle { position: absolute; z-index: 1; right: -136px; top: 0; height: 24px; display: none; gap: 4px; align-items: center; }
+.nt-handle { position: absolute; z-index: 1; right: -136px; top: 0; height: 21px; display: none; gap: 4px; align-items: center; }
 /* The margin the handle sits in belongs to the line for hover, so the pointer can walk to the handle without it hiding on the way. */
 .nt-item::after { content: ''; position: absolute; top: 0; bottom: 0; right: -140px; width: 140px; }
 .nt-item:hover .nt-handle, .nt-handle:focus-within { display: inline-flex; }
-.nt-handle button { min-width: 0; min-height: 0; height: 24px; padding: 0 7px; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; font-size: 12px; cursor: pointer; }
+.nt-handle button { min-width: 0; min-height: 0; height: 20px; padding: 0 7px; line-height: 1; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; font-size: 12px; cursor: pointer; }
+/* The tip of a button is drawn under the group, against its right edge, as the tips of the buttons in the title bar are. */
+.nt-handle .tip-btn { position: static; }
+.nt-handle .tip-btn::after { top: calc(100% + 4px); left: auto; right: 0; transform: none; }
 .nt-handle button:first-child:not(:last-child) { color: var(--accent); }
 .nt-handle button:hover { color: var(--text); border-color: var(--muted); }
 .nt-item { position: relative; }
