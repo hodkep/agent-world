@@ -157,6 +157,7 @@ describe('the tools that change how the app looks', () => {
     expect(says('chat_mod_write', { why: 'swap the sides', css: 'a{}' })).toEqual(['look', 'Changed the look (a draft, waiting for you)', 'swap the sides'])
     expect(says('chat_mod_write', { reset: true, why: 'back to normal' })).toEqual(['look', 'Asked to restore the system look', 'back to normal'])
     expect(says('app_ui_outline')).toEqual(['look', "Looked at the app's layout", ''])
+    expect(says('app_ui_readings')).toEqual(['look', 'Looked at what readings exist', ''])
     expect(says('app_ui_outline', { selector: '.composer' })).toEqual(['look', 'Looked at the layout of .composer', ''])
     expect(says('app_ui_screenshot', {}, 'png')).toEqual(['look', 'Asked to see the window', 'you allowed it'])
     expect(says('app_ui_screenshot', {}, 'The person did not allow a picture of the window.', true)).toEqual(['look', 'Asked to see the window', 'you said no'])
@@ -167,6 +168,7 @@ describe('the tools that change how the app looks', () => {
   it('have a stamp of their own kind', () => {
     expect(stamp('chat_mod_write')).toMatchObject({ kind: 'look', label: 'look' })
     expect(stamp('app_ui_outline')).toMatchObject({ kind: 'look', label: 'layout' })
+    expect(stamp('app_ui_readings')).toMatchObject({ kind: 'look', label: 'readings' })
     expect(stamp('app_ui_screenshot')).toMatchObject({ kind: 'look', label: 'window' })
   })
   it('are one row, Appearance, saying what was done there, apart from the other areas', () => {

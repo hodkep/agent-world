@@ -3,6 +3,7 @@ import type { AgentEvent, PermissionRequest } from '../../../shared/types'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { UsageRecord } from '../../../shared/tokens'
+import type { Reading } from '../../../shared/readings'
 import { startHookServer } from './hookServer'
 
 type Server = Awaited<ReturnType<typeof startHookServer>>
@@ -18,8 +19,10 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
   const settled: string[] = []
   const stats: unknown[] = []
   const usage: [string, UsageRecord[]][] = []
+  const readings: [string, Reading[]][] = []
   server = await startHookServer({
     onUsage: (id, records) => usage.push([id, records]),
+    onReadings: (id, rs) => readings.push([id, rs]),
     reminderFor,
     blockEdit,
     callerIsProgram,
@@ -33,7 +36,7 @@ async function setup(permissionTimeoutMs = 5_000, reminderFor?: (id: string, pro
     onPermission: (r) => asks.push(r),
     onPermissionSettled: (id) => settled.push(id)
   })
-  return { server, events, asks, settled, stats, toolInputs, tools, compacted, usage }
+  return { server, events, asks, settled, stats, toolInputs, tools, compacted, usage, readings }
 }
 
 const post = (url: string, body: unknown, token = 'secret') =>
@@ -240,10 +243,18 @@ describe('hook server', () => {
       expect(usage[0]![1].map((r) => r.output)).toEqual([160, 360, 116])
     })
 
+    it('also give the readings of the agent, the numbers for a widget', async () => {
+      const { server, readings } = await setup()
+      await post(`${base(server.url)}/v1/logs`, JSON.parse(readFileSync(join(__dirname, 'fixtures', 'otlp-tools.json'), 'utf8')))
+      expect(readings[0]![0]).toBe('a1')
+      expect(readings[0]![1].map((r) => r.kind)).toEqual(['request', 'tool', 'tool', 'request'])
+    })
+
     it('are refused without a token the office gave, and nothing is recorded', async () => {
-      const { server, usage } = await setup()
+      const { server, usage, readings } = await setup()
       expect((await post(`${base(server.url)}/v1/logs`, sample, 'wrong')).status).toBe(401)
       expect(usage).toEqual([])
+      expect(readings).toEqual([])
     })
 
     it('are answered, and ignored, when they are metrics or carry no request', async () => {

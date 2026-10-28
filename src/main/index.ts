@@ -82,6 +82,7 @@ import { inBatches } from '../shared/pool'
 import { SWITCH_BATCH, SWITCH_CONTINUE, planSwitch, type SwitchAgent, type SwitchResult } from '../shared/switchPlan'
 import { startMcpServer } from './mcpServer'
 import { createChatMod } from './chatMod'
+import { createReadings } from './readings'
 import { WIDGET_SCHEME, widgetResponse } from './widgetPage'
 import { createWidgetFeeds } from './widgetFeeds'
 import { fetchPublic } from './widgetFetch'
@@ -825,6 +826,7 @@ function refreshAttention() {
 }
 
 /** Agents whose requests arrive exactly counted: the totals their status line carries are left out of the history. */
+const readings = createReadings()
 const exactUsage = new Set<string>()
 const seenRequests = new Map<string, Set<string>>()
 function onUsage(agentId: string, records: UsageRecord[], cursor?: number) {
@@ -1280,6 +1282,7 @@ async function main() {
     },
     onStatus: onStats,
     onUsage: onUsage,
+    onReadings: (id, rs) => readings.add(id, rs),
     reminderFor: async (id, prompt, origin) => promptContext(id, prompt, remote.touches(id, prompt) ? await origin.fromProgram() : false) || null,
     callerIsProgram: async (id, port) => fromAgentProgram((await peerPids(port)) ?? [], sessions.get(id)?.pid, process.pid),
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
@@ -1750,6 +1753,7 @@ async function main() {
   ipcMain.handle('chatmod:keep', () => chatMod.keep())
   ipcMain.handle('chatmod:undo', () => chatMod.undo())
   ipcMain.handle('chatmod:reset', () => chatMod.reset())
+  ipcMain.handle('readings:series', (_, agentId: unknown, specs: unknown) => (typeof agentId === 'string' ? readings.values(agentId, specs, Date.now()) : {}))
   ipcMain.handle('chatmod:back', () => chatMod.back())
   ipcMain.handle('chatmod:loadData', () => chatMod.loadData())
   ipcMain.handle('widgetfeeds:get', () => widgetFeeds.state())
@@ -2493,6 +2497,7 @@ async function main() {
       }
     }
     agents = agents.filter((x) => x.id !== id)
+    readings.forget(id)
     buffers.delete(id)
     served.delete(id)
     serverTail.delete(id)

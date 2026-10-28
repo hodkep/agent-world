@@ -1,0 +1,497 @@
+{
+ "resourceLogs": [
+  {
+   "scopeLogs": [
+    {
+     "logRecords": [
+      {
+       "timeUnixNano": "1793186399343000000",
+       "observedTimeUnixNano": "1793186399343000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "30777985-6a5e-4dd5-9a53-8507bc3cda52"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "user_prompt"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-28T11:19:59.343Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 57
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "3880b28c-b0ed-4634-a1b5-0303935a1d7d"
+         }
+        },
+        {
+         "key": "prompt_length",
+         "value": {
+          "stringValue": "74"
+         }
+        },
+        {
+         "key": "prompt",
+         "value": {
+          "stringValue": "<REDACTED>"
+         }
+        },
+        {
+         "key": "prompt_text",
+         "value": {
+          "stringValue": "<REDACTED>"
+         }
+        },
+        {
+         "key": "message.uuid",
+         "value": {
+          "stringValue": "a5fdc61b-f7d1-4c2f-be09-4e850bb5a190"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793186401749000000",
+       "observedTimeUnixNano": "1793186401749000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "30777985-6a5e-4dd5-9a53-8507bc3cda52"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "api_request"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-28T11:20:01.749Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 67
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "3880b28c-b0ed-4634-a1b5-0303935a1d7d"
+         }
+        },
+        {
+         "key": "model",
+         "value": {
+          "stringValue": "claude-haiku-5-5"
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": 2
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": 317
+         }
+        },
+        {
+         "key": "cache_read_tokens",
+         "value": {
+          "intValue": 11990
+         }
+        },
+        {
+         "key": "cache_creation_tokens",
+         "value": {
+          "intValue": 25200
+         }
+        },
+        {
+         "key": "cache_creation_5m_tokens",
+         "value": {
+          "intValue": 0
+         }
+        },
+        {
+         "key": "cache_creation_1h_tokens",
+         "value": {
+          "intValue": 25200
+         }
+        },
+        {
+         "key": "cost_usd",
+         "value": {
+          "doubleValue": 0.005318600000000001
+         }
+        },
+        {
+         "key": "cost_usd_micros",
+         "value": {
+          "intValue": 5319
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "intValue": 2219
+         }
+        },
+        {
+         "key": "ttft_ms",
+         "value": {
+          "intValue": 1113
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgUYaNgxbpDJsfQDSJwB5"
+         }
+        },
+        {
+         "key": "client_request_id",
+         "value": {
+          "stringValue": "3a028434-00fa-437d-bd92-532753ca2b99"
+         }
+        },
+        {
+         "key": "speed",
+         "value": {
+          "stringValue": "normal"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "effort",
+         "value": {
+          "stringValue": "medium"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793186402358000000",
+       "observedTimeUnixNano": "1793186402358000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "30777985-6a5e-4dd5-9a53-8507bc3cda52"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "tool_result"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-28T11:20:02.358Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 70
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "3880b28c-b0ed-4634-a1b5-0303935a1d7d"
+         }
+        },
+        {
+         "key": "tool_name",
+         "value": {
+          "stringValue": "Bash"
+         }
+        },
+        {
+         "key": "tool_use_id",
+         "value": {
+          "stringValue": "toolu_019YvpWqTybyaCennmwMC4Pb"
+         }
+        },
+        {
+         "key": "success",
+         "value": {
+          "stringValue": "true"
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "stringValue": "745"
+         }
+        },
+        {
+         "key": "tool_input_size_bytes",
+         "value": {
+          "stringValue": "46"
+         }
+        },
+        {
+         "key": "tool_result_size_bytes",
+         "value": {
+          "stringValue": "2"
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgUYaNgxbpDJsfQDSJwB5"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793186402372000000",
+       "observedTimeUnixNano": "1793186402372000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "30777985-6a5e-4dd5-9a53-8507bc3cda52"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "tool_result"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-28T11:20:02.372Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 72
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "3880b28c-b0ed-4634-a1b5-0303935a1d7d"
+         }
+        },
+        {
+         "key": "tool_name",
+         "value": {
+          "stringValue": "Bash"
+         }
+        },
+        {
+         "key": "tool_use_id",
+         "value": {
+          "stringValue": "toolu_01RcLV48BAMMf4gmEyFQjFyX"
+         }
+        },
+        {
+         "key": "success",
+         "value": {
+          "stringValue": "false"
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "stringValue": "574"
+         }
+        },
+        {
+         "key": "error_type",
+         "value": {
+          "stringValue": "ShellError"
+         }
+        },
+        {
+         "key": "tool_input_size_bytes",
+         "value": {
+          "stringValue": "76"
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgUYaNgxbpDJsfQDSJwB5"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      },
+      {
+       "timeUnixNano": "1793186403389000000",
+       "observedTimeUnixNano": "1793186403389000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "30777985-6a5e-4dd5-9a53-8507bc3cda52"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "api_request"
+         }
+        },
+        {
+         "key": "event.timestamp",
+         "value": {
+          "stringValue": "2026-10-28T11:20:03.389Z"
+         }
+        },
+        {
+         "key": "event.sequence",
+         "value": {
+          "intValue": 76
+         }
+        },
+        {
+         "key": "prompt.id",
+         "value": {
+          "stringValue": "3880b28c-b0ed-4634-a1b5-0303935a1d7d"
+         }
+        },
+        {
+         "key": "model",
+         "value": {
+          "stringValue": "claude-haiku-5-5"
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": 2
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": 54
+         }
+        },
+        {
+         "key": "cache_read_tokens",
+         "value": {
+          "intValue": 37190
+         }
+        },
+        {
+         "key": "cache_creation_tokens",
+         "value": {
+          "intValue": 4309
+         }
+        },
+        {
+         "key": "cache_creation_5m_tokens",
+         "value": {
+          "intValue": 0
+         }
+        },
+        {
+         "key": "cache_creation_1h_tokens",
+         "value": {
+          "intValue": 4309
+         }
+        },
+        {
+         "key": "cost_usd",
+         "value": {
+          "doubleValue": 0.0012609000000000001
+         }
+        },
+        {
+         "key": "cost_usd_micros",
+         "value": {
+          "intValue": 1261
+         }
+        },
+        {
+         "key": "duration_ms",
+         "value": {
+          "intValue": 979
+         }
+        },
+        {
+         "key": "ttft_ms",
+         "value": {
+          "intValue": 848
+         }
+        },
+        {
+         "key": "request_id",
+         "value": {
+          "stringValue": "req_011CgUYaapDBZUa39A3dJiwP"
+         }
+        },
+        {
+         "key": "client_request_id",
+         "value": {
+          "stringValue": "c70a82e6-6ad2-41b2-8027-dce5f0878a68"
+         }
+        },
+        {
+         "key": "speed",
+         "value": {
+          "stringValue": "normal"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "effort",
+         "value": {
+          "stringValue": "medium"
+         }
+        }
+       ],
+       "droppedAttributesCount": 0
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

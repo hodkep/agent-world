@@ -112,6 +112,7 @@ function said(run: ToolRun): Whisper {
     case 'chat_mod_get': return { kind: 'look', icon: '✎', bold: 'Checked', rest: 'what look is in force', why: '' }
     case 'chat_mod_write': return { kind: 'look', icon: '✎', bold: i.reset ? 'Asked to restore' : 'Changed', rest: i.reset ? 'the system look' : 'the look (a draft, waiting for you)', why: clip(str(i.why), 120) }
     case 'app_ui_outline': return { kind: 'look', icon: '✎', bold: 'Looked at', rest: str(i.selector) ? `the layout of ${clip(str(i.selector), 40)}` : "the app's layout", why: '' }
+    case 'app_ui_readings': return { kind: 'look', icon: '✎', bold: 'Looked at', rest: 'what readings exist', why: '' }
     case 'app_ui_screenshot': return { kind: 'look', icon: '✎', bold: 'Asked to see', rest: 'the window', why: !run.result ? '' : run.result.isError ? 'you said no' : 'you allowed it' }
     default: return { kind: 'other', icon: '·', bold: humanize(tool), rest: '', why: '' }
   }
@@ -153,7 +154,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (tool === 'todo_add') return { kind: 'todo', label: clip(str(i.title), 14), tip, state }
   if (tool.startsWith('todo_')) return { kind: 'todo', label: id ? `#${id}` : 'todos', tip, state }
   if (tool === 'remember' || tool === 'recall') return { kind: 'note', label: tool === 'remember' ? 'noted' : 'recalled', tip, state }
-  if (isLook(tool)) return { kind: 'look', label: tool === 'app_ui_outline' ? 'layout' : tool === 'app_ui_screenshot' ? 'window' : 'look', tip, state }
+  if (isLook(tool)) return { kind: 'look', label: tool === 'app_ui_outline' ? 'layout' : tool === 'app_ui_screenshot' ? 'window' : tool === 'app_ui_readings' ? 'readings' : 'look', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
   const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
@@ -184,7 +185,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
     else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
     else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' || tool === 'workflow_history' ? 'read' : 'looked'))
-    else if (isLook(tool)) (seen('Appearance'), looks.add({ chat_mod_guide: 'read the look guide', chat_mod_get: 'checked the look', chat_mod_write: i.reset ? 'asked to restore the system look' : 'changed the look', app_ui_outline: 'looked at the layout', app_ui_screenshot: 'asked to see the window' }[tool] ?? 'looked'))
+    else if (isLook(tool)) (seen('Appearance'), looks.add({ chat_mod_guide: 'read the look guide', chat_mod_get: 'checked the look', chat_mod_write: i.reset ? 'asked to restore the system look' : 'changed the look', app_ui_outline: 'looked at the layout', app_ui_readings: 'looked at what readings exist', app_ui_screenshot: 'asked to see the window' }[tool] ?? 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
     else if (tool === 'recall') (seen('Notes'), notes.add('recalled'))
     else if (tool.startsWith('todo_')) {
