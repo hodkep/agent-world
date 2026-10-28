@@ -92,7 +92,7 @@ const TITLE_MAX = 200
 const NOTES_MAX = 4000
 const NOTE_MAX = 500
 
-const EXCERPT_MAX = 800
+const EXCERPT_MAX = 4000
 
 /** The start of a message kept with a task, as the writer wrote it (markdown and all), cut at a line when it is long. */
 export function excerptOf(text: string, max = EXCERPT_MAX): string {
@@ -379,4 +379,10 @@ export const needsYou = (b: TodoBoard): number => b.todos.filter((t) => t.needsY
 /** The task an agent is on: the one it claimed last that is not finished. A workflow run begun while it is on one is linked to it. */
 export function currentTodoOf(b: TodoBoard, agentId: string): Todo | undefined {
   return b.todos.filter((t) => t.status === 'doing' && t.claimedBy?.id === agentId).sort((x, y) => y.updatedAt - x.updatedAt || Number(y.id) - Number(x.id))[0]
+}
+
+/** The task an agent was on last (claimed or finished), as the one a follow-up belongs under: its umbrella when it was a part; never the task given, which is the follow-up itself. */
+export function lastTaskOf(b: TodoBoard, agentId: string, except?: string): Todo | undefined {
+  const last = b.todos.filter((t) => t.id !== except && (t.claimedBy?.id === agentId || t.doneBy?.id === agentId)).sort((x, y) => y.updatedAt - x.updatedAt || Number(y.id) - Number(x.id))[0]
+  return last?.parent ? b.todos.find((t) => t.id === last.parent) : last
 }

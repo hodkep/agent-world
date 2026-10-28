@@ -13,6 +13,8 @@ export type { InstallState }
 
 export interface InstallerDeps {
   current: string
+  /** The person chose the release in Settings: it is downloaded though it is not newer than the running version. */
+  any?: boolean
   repo: Repo
   arch: string
   appPath: string
@@ -47,7 +49,7 @@ export function createInstaller(d: InstallerDeps) {
     if (!got.ok) return set({ phase: 'failed', kind: got.kind, reason: got.reason })
     const manifest = parseLatestMac(got.text)
     if (!manifest) return set({ phase: 'failed', kind: 'manifest', reason: 'The release information could not be read.' })
-    const pick = assetFor({ manifest, arch: d.arch, current: d.current, repo: d.repo, tag, downloads: d.origins.downloads })
+    const pick = assetFor({ manifest, arch: d.arch, current: d.current, repo: d.repo, tag, downloads: d.origins.downloads, any: d.any })
     if (!pick.ok) return set({ phase: 'failed', kind: 'manifest', reason: pick.reason })
     const version = pick.asset.version
     set({ phase: 'downloading', version, received: 0, total: pick.asset.size })

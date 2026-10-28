@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { constants } from 'node:fs'
-import { openNoFollow, assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, noMergeBase, moveOntoBase, undoMove, unrelatedPlan, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { reposIn, repoFolder, openNoFollow, assertBranch, branchDiff, branches, changes, commitsSince, uncommittedFiles, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, noMergeBase, moveOntoBase, undoMove, unrelatedPlan, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, finishReadiness, discardFile, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { createWorktree } from './worktree'
 import { useGit } from './gitProgram'
 import { chmodSync } from 'node:fs'
@@ -730,5 +730,42 @@ describe('moving a branch onto a base whose history was rewritten', () => {
     const again = await moveOntoBase(rw, 'feature', 'main2', [])
     commit(rw, 'later.txt', 'x', 'work after the move')
     await expect(undoMove(rw, 'feature', again.backup, again.head)).rejects.toThrow(/since/)
+  })
+})
+
+describe('a folder that holds several repositories', () => {
+  let ws: string
+  const mk = (name: string, dirty = false) => {
+    const d = join(ws, name)
+    mkdirSync(d)
+    git(d, 'init', '-q', '-b', 'main')
+    git(d, 'config', 'user.email', 't@t')
+    git(d, 'config', 'user.name', 't')
+    writeFileSync(join(d, 'a.txt'), 'x\n')
+    git(d, 'add', '.')
+    git(d, 'commit', '-qm', 'init')
+    if (dirty) writeFileSync(join(d, 'new.txt'), 'y\n')
+  }
+  beforeEach(() => {
+    ws = join(tmp, 'ws')
+    mkdirSync(ws)
+    mk('api', true)
+    mk('web')
+    mkdirSync(join(ws, 'docs'))
+    mkdirSync(join(ws, 'node_modules'))
+    mkdirSync(join(ws, '.hidden'))
+  })
+  it('lists its direct child repositories with branch and uncommitted count, and skips the rest', async () => {
+    expect(await reposIn(ws)).toEqual([
+      { name: 'api', branch: 'main', dirty: 1 },
+      { name: 'web', branch: 'main', dirty: 0 }
+    ])
+  })
+  it('lists none for a repository itself, whose children are not repos of their own', async () => {
+    expect(await reposIn(repo)).toEqual([])
+  })
+  it('names only a listed child as a folder to read, never a path that leaves the workspace', async () => {
+    expect(await repoFolder(ws, 'api')).toBe(join(ws, 'api'))
+    for (const bad of ['../repo', 'api/..', 'a/b', '', 'docs', 'nope', '/tmp']) await expect(repoFolder(ws, bad)).rejects.toThrow(/not a repository/)
   })
 })

@@ -1,6 +1,6 @@
 {
   "name": "agent-world",
-  "version": "0.6.2",
+  "version": "0.7.1",
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "engines": {

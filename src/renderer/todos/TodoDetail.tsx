@@ -50,18 +50,31 @@ function Banner({ t }: { t: Todo }) {
 }
 
 /** A message a task points at: what it said, as markdown, and a way to open it in its chat. */
+/** How many blocks of the message (a paragraph, a code block, a table) show before the rest is a click away. */
+const FOLD = 3
+
 function Source({ label, link, open, onOpen }: { label: string; link: MessageLink; open: string; onOpen: (l: MessageLink) => void }) {
   const [whole, setWhole] = useState(false)
+  const quote = useRef<HTMLDivElement>(null)
+  const [blocks, setBlocks] = useState(0)
+  // The fold is on whole drawn blocks, never mid-line, so the count is read from what markdown drew.
+  useLayoutEffect(() => setBlocks(quote.current?.querySelector('.md')?.childElementCount ?? 0), [link.excerpt])
+  const hidden = blocks - FOLD
   return (
     <section className="td-sec" aria-label={label}>
       <h5>{label}</h5>
       {link.excerpt && (
-        <div className={`td-quote td-md${whole ? ' whole' : ''}`}>
+        <div ref={quote} className={`td-quote td-md${whole ? ' whole' : ''}`}>
           <Markdown text={link.excerpt} />
         </div>
       )}
-      {link.excerpt.length > 280 && <button className="td-link-btn" onClick={() => setWhole((w) => !w)}>{whole ? 'Show less' : 'Show the whole excerpt'}</button>}
+      {hidden > 0 && (
+        <button className="td-link-btn td-more" onClick={() => setWhole((w) => !w)}>
+          {whole ? 'Show less' : <>Show the rest<span className="n">{hidden} more</span></>}
+        </button>
+      )}
       <button className="primary td-open" onClick={() => onOpen(link)}>{open} ↗</button>
+      {link.excerpt.endsWith('…') && <span className="td-rest">The rest is in the message</span>}
     </section>
   )
 }

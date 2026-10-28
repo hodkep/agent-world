@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { activityByProject, projectsByRecent } from '../../shared/recent'
-import type { WorkspaceInfo, Workspaces } from '../../shared/api'
+import { gitTag, type WorkspaceInfo, type Workspaces } from '../../shared/api'
 import type { Dot } from '../../shared/attention'
 import { Identicon } from './Identicon'
 import { useHoverMenu } from './hoverMenu'
@@ -80,7 +80,7 @@ export function WorkspaceMenu({
     <div className="ws" ref={wrap as React.RefObject<HTMLDivElement>} onMouseEnter={() => menu.enter()} onMouseLeave={() => menu.leave()}>
       <button className={`ws-button ${open ? 'open' : ''}`} onClick={() => menu.click()} onKeyDown={buttonKeys} aria-haspopup="menu" aria-expanded={open} title={workspaces?.active ?? 'Choose a project folder'}>
         <span className="ws-name">{active?.name ?? (workspaces?.active ? workspaces.active.split(/[\\/]/).pop() : 'Choose a project')}</span>
-        {active && <span className={`ws-tag ${active.git ? 'git' : ''}`}>{active.git ? 'git' : 'no git'}</span>}
+        {active && <span className={`ws-tag ${active.git ? 'git' : active.repos > 0 ? 'multi' : ''}`}>{gitTag(active)}</span>}
         <span className="ws-caret" aria-hidden="true" />
         {dot && <span className="sr-only">{dot === 'need' ? ' Another project needs you' : ' An agent in another project finished'}</span>}
       </button>
@@ -117,7 +117,7 @@ export function WorkspaceMenu({
                       <span className="wt-name">{w.name}</span>
                       <span className="wt-sub">
                         {sub}
-                        {w.exists && <em className={w.git ? 'git' : ''}>{w.git ? 'git' : 'no git'}</em>}
+                        {w.exists && <em className={w.git ? 'git' : w.repos > 0 ? 'multi' : ''}>{gitTag(w)}</em>}
                       </span>
                     </button>
                     {(w.saved || !w.exists) && <button className="wt-x" onClick={() => onForget(w.path)} aria-label={`${w.exists ? 'Forget' : 'Remove'} ${w.name}`} title={w.exists ? 'Forget this project (nothing on disk is deleted)' : 'Remove this project and the agents that worked in it (its folder is gone)'} />}

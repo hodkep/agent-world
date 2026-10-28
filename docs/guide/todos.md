@@ -28,6 +28,7 @@ A task is open, doing, blocked or done. **needs you** marks a step only a person
 Click a task to open its panel; click it again to close it. The open task's card is tinted with its title in gold, and it is scrolled into view when the panel opens from elsewhere (a `todo#N` chip in a chat, a subtask's name): a finished task's **Done** section unfolds and a quiet list's tile opens for it. A subtask has no card of its own, so its task's card comes into view, tinted, with the subtask's line in gold. The panel has the title, its status and its labels at the top, then tabs: **Overview**, **Subtasks**, **Activity**, **How** (a finished task that has one) and **Ask**. In the panel you can:
 
 - On **Overview**, edit **Notes**, tick **Needs you**, and choose what the task is **Part of**.
+- Read **Where it came from**: the start of the message, folded to its first three blocks (a paragraph, a code line, a table), with **Show the rest** (and a count of what is folded) to read all of it at full height. A wide table scrolls sideways in its own box. The task keeps up to 4000 characters, and when the message is longer it says **The rest is in the message**.
 - Click **Open the message it was made in**, or on a finished task **Open the message it was finished in**. The chat of that agent opens at the message.
 - Read **How** (the approach, commits and files) and **Activity**.
 - See **Workflow run**, when the agent began a workflow run while on this task: it says how the run stands, and a click opens it in **Workflows**. Finishing the run finishes the task if the agent has not. The task also shows as a `todo#N` chip on the run's row in the **Runs** ledger.
@@ -54,10 +55,10 @@ A label is a word with a colour. Add one to a task with **+ label** in its panel
 
 - Notes are Markdown: headings, **bold**, `code`, and checklists (`- [ ] a thing`) drawn with real boxes. The eye button shows the whole Markdown, tables and all, and its boxes can be ticked too.
 - Each project has its own notes, and each note is kept apart from the others as a file in `~/.agent-world/pad-notes`. **＋** starts a new note, the **⌘** button lists them to open or delete, and the project box at the bottom chooses whose notes you see.
-- Point at a checklist or bullet line and a **Line actions** handle (three dots) shows in the margin on its right, never over the words. Its menu has **→ Task** (a task from the line, and its indented lines as subtasks), **→ Subtask** (under the item above) and **Ask agent**. The same three are on the keys Command+Enter, Shift+Command+Enter and Option+Command+Enter (Ctrl instead of Command elsewhere). A line that became a task ends with its number, `(todo#7)`, and its menu has only **Ask agent**.
+- Point at a checklist or bullet line and three buttons show at its right, on the edge above the line: **Task** (a task from the line, and its indented lines as subtasks), **Sub** (a subtask under the item above) and **Ask** (ask an agent about it). The same three are on the keys Command+Enter, Shift+Command+Enter and Option+Command+Enter (Ctrl instead of Command elsewhere). A line that became a task ends with its number, `(todo#7)`, and it has only **Ask**.
 - Enter on a bullet or checklist item starts the next item (with an empty box, on a checklist); Enter on an empty item ends the list.
 - **Make tasks…** opens a panel beside the note (the window widens, never covering the note) that shows what every line that is not a task yet would make, and can give the tasks to an agent at once. Ticked lines are made as finished tasks.
-- **Ask agent** (also on a line that is a task already) opens the same panel and picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
+- **Ask** (also on a line that is a task already) opens the same panel and picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
 
 ## Filter and search
 
@@ -92,7 +93,7 @@ Agents work on the same board through these tools.
 | `todo_add` | Adds a task. With no list it goes to the **Inbox**. It can name a `parent` task and `labels`. |
 | `todo_claim` | Says the agent is doing it now. Another agent cannot claim it meanwhile. |
 | `todo_update` | Changes title, list, notes, needs you, status, parent or labels. |
-| `todo_done` | Marks it done with a note and how it was done. Agents are asked to call it once the change is pushed (on your word to push, tested or not) or has been tested, by them or by you, and not when the code is merely written. |
+| `todo_done` | Marks it done with a note and how it was done, and can put it under a `parent` task in the same call. Agents are asked to call it once the change is pushed (on your word to push, tested or not) or has been tested, by them or by you, and not when the code is merely written. |
 
 Everyone sees the same board. **Activity** says who changed what. A finished task keeps the commits and files git shows the agent changed. Agents have no tool to delete or reopen a task. Only you can.
 
@@ -102,6 +103,6 @@ Everyone sees the same board. **Activity** says who changed what. A finished tas
 
 ## Track every request
 
-By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists.
+By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists. A plain git order (commit, push, rebase, open a PR) makes no task; a follow-up to a task (a fix to its review, more work on it) is told which task the agent was on last, so it goes under it as a subtask.
 
 Next: [Settings and updates](settings-and-updates.md)

@@ -82,6 +82,15 @@ describe('reminderLine', () => {
   it('in full mode says nothing when no task was made (a thank-you)', () => {
     expect(reminderLine('full', 'thanks')).toBe('')
   })
+  it('in full mode names the task the agent was on last, and says a push, a pull request or a fix to its review is part of it, by parent, on todo_update or todo_done', () => {
+    const l = reminderLine('full', 'push it and raise a PR', { id: '12', list: 'Inbox' }, [], { id: '7', title: 'Build the Tokens tab' })
+    expect(l).toMatch(/todo#7\b.*Build the Tokens tab/)
+    expect(l).toMatch(/pull request/)
+    expect(l).toMatch(/parent/)
+    expect(l).toMatch(/todo_done/)
+    // Without one, it still says how to nest a follow-up.
+    expect(reminderLine('full', 'push it', { id: '12', list: 'Inbox' })).toMatch(/parent/)
+  })
 })
 
 describe('trackingCost', () => {
@@ -122,6 +131,12 @@ describe('what is not a task', () => {
   })
   it('a plain git instruction is not a task', () => {
     for (const s of ['commit those and merge to main', 'please merge your changes in main', 'commit and add to main', 'push it to origin', 'lets merge to main']) expect(isWork(s), s).toBe(false)
+  })
+  it('a git instruction with where and how is still not a task, however many words it takes', () => {
+    for (const s of ['Push 10 commits to a separate branch without opening a PR', 'rebase your branch onto origin/main and force push it with lease, no pr', 'pull the latest main and then rebase this branch on it', 'open a PR for this branch against main with the release note', 'push this to fix/terminal-size and tell me the commit hash when it is there']) expect(isWork(s), s).toBe(false)
+  })
+  it('a git instruction followed by real work is a task', () => {
+    for (const s of ['push it, then add a search box to the todo board that filters by agent', 'rebase on main and fix the conflicts in the settings pane by keeping both sides', 'pull main, run the tests, and investigate why the update spec fails']) expect(isWork(s), s).toBe(true)
   })
   it('an approval with a real request after it is one', () => {
     expect(isWork('not yet, I want this to act as a knowledge base of what is done and how')).toBe(true)

@@ -9,7 +9,7 @@ import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  INBOX, MAX_LISTS, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, MAX_LISTS, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, lastTaskOf, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -390,7 +390,7 @@ export function createTodoService(d: TodoDeps) {
       const link = d.lastMessage(a.id)
       let board = b
       for (const t of open) {
-        board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt, 2000) })
+        board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt) })
         board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true, closedBy: 'turn' as const } : x)) }
       }
       save(key, board)
@@ -442,7 +442,7 @@ export function createTodoService(d: TodoDeps) {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
         const l = d.lastMessage(a.id)
-        const r = addTodo(b, { ...i, list: i.list?.trim() ? listFor(b, i.list) : INBOX }, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt, 800) })
+        const r = addTodo(b, { ...i, list: i.list?.trim() ? listFor(b, i.list) : INBOX }, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt) })
         return { board: r.board, out: r.todo }
       })
     },
@@ -458,6 +458,11 @@ export function createTodoService(d: TodoDeps) {
       const a = d.agent(agentId)
       return a ? currentTodoOf(load(keyOf(a.repoPath)), agentId)?.id : undefined
     },
+    /** The task an agent was on last, the one a follow-up of its work belongs under; not the task given (the follow-up itself). */
+    lastTaskOf(agentId: string, except?: string): Todo | undefined {
+      const a = d.agent(agentId)
+      return a ? lastTaskOf(load(keyOf(a.repoPath)), agentId, except) : undefined
+    },
     /** A workflow run ended: the tasks it belongs to that are still the agent's and in hand are finished with it, so the agent need not say so twice. Others are left as they are. */
     finishLinked(agentId: string, ids: string[], summary: string) {
       const a = d.agent(agentId)
@@ -467,17 +472,17 @@ export function createTodoService(d: TodoDeps) {
       if (!open.length) return
       const l = d.lastMessage(a.id)
       let board = load(key)
-      for (const t of open) board = doneTodo(board, t.id, actor(agentOf(agentId)), `Finished with its run${summary ? `: ${summary}` : ''}`, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) })
+      for (const t of open) board = doneTodo(board, t.id, actor(agentOf(agentId)), `Finished with its run${summary ? `: ${summary}` : ''}`, now(), l && { ...l, excerpt: excerptOf(l.excerpt) })
       save(key, board)
       for (const t of open) recordWork(agentOf(agentId), t.id)
     },
-    doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }): Todo {
+    doneByAgent(agentId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string; parent?: string }): Todo {
       const a = agentOf(agentId)
       const t = change(a.repoPath, (b0) => {
-        // Naming the task and sorting it into a list can be done as it is finished, which costs no call of its own.
-        const b = extra?.title?.trim() || extra?.list?.trim() ? updateTodo(b0, id, { ...(extra.title?.trim() && { title: extra.title }), ...(extra.list?.trim() && { list: listFor(b0, extra.list) }) }, actor(a), now()) : b0
+        // Naming the task, sorting it into a list and putting it under its umbrella can be done as it is finished, which costs no call of its own.
+        const b = extra?.title?.trim() || extra?.list?.trim() || extra?.parent?.trim() ? updateTodo(b0, id, { ...(extra.title?.trim() && { title: extra.title }), ...(extra.list?.trim() && { list: listFor(b0, extra.list) }), ...(extra.parent?.trim() && { parent: extra.parent }) }, actor(a), now()) : b0
         const l = d.lastMessage(a.id)
-        const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) }, extra)
+        const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt) }, extra)
         return { board, out: lastTodo(board, id) }
       })
       recordWork(a, id)

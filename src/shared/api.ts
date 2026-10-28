@@ -1,4 +1,4 @@
-import type { InstallState } from './updateInstall'
+import type { BetaState, InstallState, UpdateChannel, UpdateRel } from './updateInstall'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
@@ -90,12 +90,17 @@ export interface ToolsInfo {
   plugins: { id: string; version: string; scope: string; enabled: boolean }[]
 }
 
+/** The word on a project's chip: git, how many repositories it holds when it is not one itself, or no git. */
+export const gitTag = (w: { git: boolean; repos: number }) => (w.git ? 'git' : w.repos > 0 ? `${w.repos} repo${w.repos === 1 ? '' : 's'}` : 'no git')
+
 export interface WorkspaceInfo {
   path: string
   name: string
   exists: boolean
   /** Git is optional: agents in a git folder get their own branch and worktree, others share the folder. */
   git: boolean
+  /** How many repositories sit directly inside a folder that is not one itself. */
+  repos: number
   agents: number
   /** Remembered because an agent has worked here (as opposed to just being open right now). */
   saved: boolean
@@ -125,22 +130,24 @@ export interface CodeApi {
   mentionFiles(agentId: string): Promise<string[]>
   read(agentId: string, path: string): Promise<string>
   write(agentId: string, path: string, content: string): Promise<void>
-  commit(agentId: string, message: string): Promise<void>
-  discard(agentId: string, path: string): Promise<void>
+  commit(agentId: string, message: string, repo?: string): Promise<void>
+  discard(agentId: string, path: string, repo?: string): Promise<void>
   /** What is uncommitted: staged, edited and new files. */
-  status(agentId: string): Promise<WorktreeStatus>
-  stage(agentId: string, paths: string[]): Promise<void>
-  unstage(agentId: string, paths: string[]): Promise<void>
+  status(agentId: string, repo?: string): Promise<WorktreeStatus>
+  stage(agentId: string, paths: string[], repo?: string): Promise<void>
+  unstage(agentId: string, paths: string[], repo?: string): Promise<void>
   /** Commits what is staged and nothing else. */
-  commitStaged(agentId: string, message: string): Promise<void>
+  commitStaged(agentId: string, message: string, repo?: string): Promise<void>
   /** An uncommitted file: the last commit's version and the worktree's. */
-  dirtyDiff(agentId: string, path: string): Promise<{ original: string; current: string }>
+  dirtyDiff(agentId: string, path: string, repo?: string): Promise<{ original: string; current: string }>
   /** Where an agent that has no branch of its own works: whether the folder is a git repository, and the branch it is on. */
   place(agentId: string): Promise<{ git: boolean; branch: string }>
+  /** The repositories directly inside the folder when it is not one itself (a workspace of several projects). The `repo` argument of the calls below names one of them. */
+  repos(agentId: string): Promise<{ name: string; branch: string; dirty: number }[]>
   /** The branch's commits, newest first: those since its base ("branch") or all of them; for an agent in the folder itself, those since it was hired. */
-  log(agentId: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }): Promise<CommitPage>
-  commitDetail(agentId: string, hash: string): Promise<CommitDetail>
-  commitDiff(agentId: string, hash: string, path: string): Promise<{ original: string; current: string }>
+  log(agentId: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }, repo?: string): Promise<CommitPage>
+  commitDetail(agentId: string, hash: string, repo?: string): Promise<CommitDetail>
+  commitDiff(agentId: string, hash: string, path: string, repo?: string): Promise<{ original: string; current: string }>
   /** Merges the agent's branch into its base branch in the user's checkout; returns the base branch name. */
   merge(agentId: string): Promise<string>
   /** Pushes the branch and opens a pull request; returns the PR URL. */
@@ -344,17 +351,18 @@ export interface AwApi {
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
-  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }>
+  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }>
   /** The version running, and the notes of it from the changelog that came with the app (null when this build has none for it). */
   appInfo(): Promise<{ version: string; notes: import('./changelog').ReleaseNotes | null }>
   /** Unsigned Mac build: download the newer release, stop it, or replace the app with it and restart. */
-  downloadUpdate(): Promise<void>
-  cancelUpdateDownload(): Promise<void>
-  installUpdate(): Promise<void>
+  downloadUpdate(channel?: UpdateChannel): Promise<void>
+  cancelUpdateDownload(channel?: UpdateChannel): Promise<void>
+  installUpdate(channel?: UpdateChannel): Promise<void>
   /** Show the downloaded update, or the update log, in Finder. */
-  revealUpdate(kind: 'file' | 'log'): Promise<void>
-  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }>
-  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }) => void): () => void
+  revealUpdate(kind: 'file' | 'log', channel?: UpdateChannel): Promise<void>
+  /** Look for the latest release (stable), or for the newest beta; nothing is downloaded by a look. */
+  checkUpdates(channel?: UpdateChannel): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }>
+  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   /** POC: the look an agent wrote for the chat, a draft waiting for Keep or Undo, and the way back to the system default. */

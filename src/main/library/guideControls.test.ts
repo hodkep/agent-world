@@ -12,8 +12,8 @@ const source = walk(join(root, 'src'))
   .join('\n')
   .toLowerCase()
   .replace(/&amp;/g, '&')
-  // What the app fills in (a name, a count, a program's label) is a gap in the text.
-  .replace(/\$\{[^{}\n]*\}|\{[^{}:\n]*\}/g, '\u0001')
+  // What the app fills in (a name, a count, a program's label) is a gap in the text; a JSX branch with markup in it is not a fill-in, so its words stay.
+  .replace(/\$\{[^{}\n]*\}|\{[^{}:<\n]*\}/g, '\u0001')
 
 /** Bold words that are not controls of the app: other programs' menus, versions, and the like. Say why each is here. */
 const NOT_THE_APP = new Set([

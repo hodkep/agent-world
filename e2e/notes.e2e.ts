@@ -57,9 +57,38 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
 
     // A line made a task takes its parts with it as subtasks, and is marked with its number.
     await pad.locator('.nt-item', { hasText: 'Umbrella' }).hover()
-    await pad.locator('.nt-item', { hasText: 'Umbrella' }).getByRole('button', { name: 'Line actions' }).click()
+    // Its buttons show on hover: Task, Subtask and Ask for a line that is not a task yet.
+    const umbrella = pad.locator('.nt-item', { hasText: 'Umbrella' }).locator('.nt-handle')
+    await expect(umbrella.getByRole('button')).toHaveText(['Task', 'Sub', 'Ask'])
+    // Each button says what it does and its keys when pointed at, and fits inside its line (nothing of it is cut off by the line below).
+    await expect(umbrella.getByRole('button', { name: 'Make a task' })).toHaveAttribute('data-tip', /Make the line a task \((⌘|Ctrl)/)
+    await expect(umbrella.getByRole('button', { name: 'Make a subtask' })).toHaveAttribute('data-tip', /Make the line a subtask of the item above \(.*(Shift|⇧)/)
+    await expect(umbrella.getByRole('button', { name: 'Ask an agent' })).toHaveAttribute('data-tip', /Ask an agent about the line.*(⌥|Alt)/)
+    // The words use the whole width: no margin is kept for the buttons, which sit on the edge between this line and the one above, at the right.
+    expect(await pad.locator('.cm-content').evaluate((e) => parseFloat(getComputedStyle(e).paddingRight))).toBeLessThanOrEqual(16)
+    const line = (await pad.locator('.nt-item', { hasText: 'Umbrella' }).boundingBox())!
+    const scroll = (await pad.locator('.cm-scroller').boundingBox())!
+    for (const b of await umbrella.getByRole('button').all()) {
+      const r = (await b.boundingBox())!
+      expect(r.y).toBeGreaterThanOrEqual(scroll.y)
+      expect(r.x + r.width).toBeLessThanOrEqual(line.x + line.width + 0.5)
+      expect(r.y).toBeLessThan(line.y)
+      expect(r.y + r.height).toBeGreaterThan(line.y)
+    }
+    const sub = umbrella.getByRole('button', { name: 'Make a subtask' })
+    await sub.hover()
+    await expect.poll(() => sub.evaluate((e) => getComputedStyle(e, '::after').display)).toBe('block')
+    // Its tip is wholly inside the editor, on the left too.
+    const tip = await sub.evaluate((e) => ({ w: parseFloat(getComputedStyle(e, '::after').width), right: e.parentElement!.getBoundingClientRect().right }))
+    expect(tip.right - tip.w).toBeGreaterThanOrEqual(scroll.x)
+    // The tip of a button on the last line is drawn under it, so the note keeps room below its last line for it, or the editor's edge would cut it off.
+    const room = await pad.locator('.cm-scroller').evaluate((sc) => {
+      const last = [...sc.querySelectorAll('.cm-line')].pop()!.getBoundingClientRect()
+      return sc.scrollHeight - (last.bottom - sc.getBoundingClientRect().top + sc.scrollTop)
+    })
+    expect(room).toBeGreaterThanOrEqual(64)
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-menu.png` })
-    await pad.getByRole('menuitem', { name: /→ Task/ }).click()
+    await umbrella.getByRole('button', { name: 'Make a task' }).click()
     await expect(pad.locator('.nt-linked')).toHaveCount(3)
     await expect(pad.locator('.nt-item', { hasText: 'Umbrella' })).toContainText('(todo#1)')
     await page.locator('header').getByRole('button', { name: /^Todos/ }).click()
@@ -68,12 +97,23 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await board.getByRole('button', { name: /^Close/ }).first().click()
 
     await pad.locator('.nt-item', { hasText: 'Part a' }).hover()
-    // The line's handle is in a margin of its own: it is not over any of the words, which can be clicked and edited.
+    // The line's buttons sit on the edge above it, at the right, so the words can be clicked and edited.
     const partA = pad.locator('.nt-item', { hasText: 'Part a' })
-    const handle = partA.getByRole('button', { name: 'Line actions' })
+    const handle = partA.locator('.nt-handle')
+    // A line that is a task already can only be asked about.
+    await expect(handle.getByRole('button')).toHaveText(['Ask'])
+    const ask = handle.getByRole('button', { name: 'Ask an agent' })
     const hb = (await handle.boundingBox())!
     const eb = (await partA.boundingBox())!
-    expect(hb.x).toBeGreaterThanOrEqual(eb.x + eb.width - 1)
+    expect(hb.x + hb.width).toBeLessThanOrEqual(eb.x + eb.width + 1)
+    // Walking the pointer from the words to the handle keeps it there (no gap between them where it would hide), and it can be clicked.
+    await pad.mouse.move(eb.x + 20, eb.y + eb.height / 2)
+    await pad.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2, { steps: 40 })
+    await expect(ask).toBeVisible()
+    await pad.mouse.down()
+    await pad.mouse.up()
+    await expect(pad.getByRole('dialog', { name: 'Ask an agent' })).toBeVisible()
+    await pad.getByRole('dialog', { name: 'Ask an agent' }).getByRole('button', { name: 'Cancel' }).click()
     await partA.click({ position: { x: 70, y: 10 } })
     await pad.keyboard.type('!')
     await expect(pad.locator('.cm-content')).toContainText('!')
@@ -97,11 +137,10 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     await expect(make).toHaveCount(0)
     await expect(pad.locator('.nt-side')).toHaveCount(0)
     await expect(pad.locator('.nt-item', { hasText: 'Later thing' })).toContainText('(todo#4)')
-    // A line that is a task has Ask agent only, and asking about it sends that task, as the chat shows.
+    // A line that is a task has Ask only, and asking about it sends that task, as the chat shows.
     await pad.locator('.nt-item', { hasText: 'Part b' }).hover()
-    await pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: 'Line actions' }).click()
-    await expect(pad.getByRole('menuitem')).toHaveText([/Ask agent/])
-    await pad.getByRole('menuitem', { name: /Ask agent/ }).click()
+    await expect(pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button')).toHaveText(['Ask'])
+    await pad.locator('.nt-item', { hasText: 'Part b' }).getByRole('button', { name: 'Ask an agent' }).click()
     const askBox = pad.getByRole('dialog', { name: 'Ask an agent' })
     await askBox.getByLabel('What to say').fill('Start with the tests.')
     await askBox.getByRole('button', { name: 'Send' }).click()

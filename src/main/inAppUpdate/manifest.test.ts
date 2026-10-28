@@ -19,6 +19,32 @@ releaseDate: '2026-10-17T20:37:59.331Z'
 `
 const repo = { owner: 'hodkep', repo: 'agent-world' }
 
+describe('a beta release', () => {
+  const beta = YML.replaceAll('0.1.1', '0.2.0-beta.1')
+  it('is taken when its tag, its manifest and its file name agree, and is newer than the stable version you have', () => {
+    expect(assetFor({ manifest: parseLatestMac(beta)!, arch: 'arm64', current: '0.1.0', repo, tag: 'v0.2.0-beta.1' })).toMatchObject({ ok: true, asset: { name: 'Agent-World-0.2.0-beta.1-arm64.zip', version: '0.2.0-beta.1' } })
+    expect(assetFor({ manifest: parseLatestMac(beta)!, arch: 'arm64', current: '0.2.0', repo, tag: 'v0.2.0-beta.1' })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
+  })
+  it('is refused for any other pre-release name', () => {
+    expect(assetFor({ manifest: parseLatestMac(YML.replaceAll('0.1.1', '0.2.0-rc.1'))!, arch: 'arm64', current: '0.1.0', repo, tag: 'v0.2.0-rc.1' })).toMatchObject({ ok: false })
+  })
+})
+
+describe('a release that is not newer', () => {
+  const stable = (version: string) => parseLatestMac(YML.replaceAll('0.1.1', version))!
+  it('is taken only when asked to (the person chose it in Settings), whatever is installed', () => {
+    const o = { manifest: stable('0.6.3'), arch: 'arm64', repo, tag: 'v0.6.3' }
+    expect(assetFor({ ...o, current: '0.7.0-beta.1' })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
+    expect(assetFor({ ...o, current: '0.7.0-beta.1', any: true })).toMatchObject({ ok: true, asset: { name: 'Agent-World-0.6.3-arm64.zip' } })
+    expect(assetFor({ ...o, current: '0.7.0', any: true })).toMatchObject({ ok: true })
+    expect(assetFor({ manifest: stable('0.6.0-beta.1'), arch: 'arm64', repo, tag: 'v0.6.0-beta.1', current: '0.7.0-beta.1', any: true })).toMatchObject({ ok: true, asset: { version: '0.6.0-beta.1' } })
+  })
+  it('is still checked against its tag, and a tag that is not a stable or beta version is refused', () => {
+    expect(assetFor({ manifest: stable('0.6.3'), arch: 'arm64', repo, tag: 'v0.6.4', current: '0.7.0', any: true })).toMatchObject({ ok: false, reason: expect.stringMatching(/tag/i) })
+    expect(assetFor({ manifest: stable('0.6.0-rc.1'), arch: 'arm64', repo, tag: 'v0.6.0-rc.1', current: '0.7.0', any: true })).toMatchObject({ ok: false })
+  })
+})
+
 describe('reading latest-mac.yml', () => {
   it('lists the files with their name, checksum and size, and the version', () => {
     const m = parseLatestMac(YML)!

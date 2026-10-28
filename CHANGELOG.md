@@ -4,6 +4,51 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-28
+
+### Fixed
+
+- Updates: Settings > Updates lets you download the latest stable or the newest beta whatever version you have, says when it is older, and warns that going older may not read newer settings.
+
+## [0.7.0] - 2026-10-28
+
+![Agent World 0.7.0: several repositories in the Code tab, file icons by type, and Task, Sub and Ask buttons in Notes](https://raw.githubusercontent.com/hodkep/agent-world/v0.7.0/docs/images/releases/0.7.0/poster.png)
+
+### Added
+
+- Code: a folder that holds several git repositories shows each in the Code tab, with its own changes and history, and the projects list says how many repos it holds.
+- Code: files and folders have an icon by their type in the Files tree, the open tabs and the Changes lists.
+- Notes: a line shows Task, Sub and Ask buttons when you point at it, instead of three dots with a menu.
+
+## [0.6.4] - 2026-10-28
+
+### Added
+
+- Updates: on a beta, Settings > Updates offers the way back to the latest stable as Back to stable, with a note that settings made in the beta may not be read by the stable version.
+
+![Settings, Updates, on a beta, with Back to stable 0.6.3 and its warning](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.4/docs/images/releases/0.6.4/back-to-stable.png)
+
+### Fixed
+
+- Todos: a follow-up request (a push, a pull request, a fix to a review) is told which task the agent was on, so it goes under it as a subtask, and an agent can nest a task as it marks it done.
+
+## [0.6.3] - 2026-10-28
+
+### Added
+
+- Updates: Settings > Updates has a Stable row and a Beta row, each with its own Check and Download, so you choose whether to try a beta; installing a beta replaces the stable app you have.
+
+![Settings, Updates, with the Stable row up to date and a beta ready to download](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.3/docs/images/releases/0.6.3/beta-row.png)
+
+### Fixed
+
+- Chat: git graphs, mindmaps, timelines, Gantt charts and quadrant charts in a reply are drawn in readable colours on the dark theme.
+
+![A git graph in a chat reply, drawn in readable colours](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.3/docs/images/releases/0.6.3/git-graph.png)
+
+- Todos: a task's Where it came from folds a long message on whole blocks, opens to all of it, scrolls a wide table sideways, and keeps 4000 characters.
+- Todos: asking an agent to push, rebase or pull, even with details, no longer creates a to-do.
+
 ## [0.6.2] - 2026-10-28
 
 ### Added

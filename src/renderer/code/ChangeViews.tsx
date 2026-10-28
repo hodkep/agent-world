@@ -1,3 +1,4 @@
+import { FileIcon } from './FileIcon'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeStatus, CommitDetail, CommitInfo, CommitPage, WorktreeStatus } from '../../shared/api'
 import { agoLabel } from '../profile/format'
@@ -38,6 +39,7 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
     <li key={`${group}:${f.path}`} className={f.path === path ? 'on' : ''} style={depth ? { paddingLeft: depth * 12 } : undefined} role={view === 'tree' ? 'treeitem' : undefined}>
       <button className={`file is-${f.status}`} onClick={() => onPick(f.path)} title={f.path} data-reveal={f.path}>
         <span className="mark">{MARK[f.status]}</span>
+        <FileIcon path={f.path} />
         <span className="nm">{baseName(f.path)}</span>
         {view === 'list' && dirName(f.path) && <span className="dir">{dirName(f.path)}</span>}
       </button>
@@ -58,6 +60,7 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
           <li key={`${group}:d:${r.path}`} role="treeitem" aria-expanded={!mine.has(r.path)} className="dir-row" style={{ paddingLeft: r.depth * 12 }}>
             <button className="file" title={r.path} data-reveal={r.path} onClick={() => toggle(`${group}\0${r.path}`)}>
               <span className="chev">{mine.has(r.path) ? '▸' : '▾'}</span>
+              <FileIcon path={r.path} dir open={!mine.has(r.path)} />
               <span className="nm dirname">{r.name}</span>
               <span className="n">{r.count}</span>
             </button>
@@ -73,6 +76,8 @@ function Files({ group, files, view, closed, toggle, path, onPick, actions }: { 
 /** The worktree's uncommitted files: staged, edited and new, with a button on each row to stage, unstage or discard it, and a commit line for what is staged. */
 export function UncommittedList(p: {
   agentId: string
+  /** A repository inside the folder, when the folder holds several: every call is about it. The list is told apart by a key, so this does not change while it is shown. */
+  repo?: string
   tick: number
   path: string | null
   onPick: (path: string | null) => void
@@ -82,14 +87,14 @@ export function UncommittedList(p: {
   run: <T>(f: () => Promise<T>) => Promise<T | undefined>
   notice: (text: string) => void
 }) {
-  const { agentId, tick, path, onPick, onChanged, view, run, notice } = p
+  const { agentId, repo, tick, path, onPick, onChanged, view, run, notice } = p
   const [status, setStatus] = useState<WorktreeStatus | null>(null)
   const [find, setFind] = useState('')
   const [message, setMessage] = useState('')
   const [closed, setClosed] = useState<Set<string>>(new Set())
   const toggle = (k: string) => setClosed((c) => { const n = new Set(c); if (!n.delete(k)) n.add(k); return n })
 
-  const load = useCallback(() => void run(async () => setStatus(await window.aw.code.status(agentId))), [agentId, run])
+  const load = useCallback(() => void run(async () => setStatus(await window.aw.code.status(agentId, repo))), [agentId, run])
   useEffect(load, [load, tick])
 
   const q = find.trim().toLowerCase()
@@ -117,12 +122,12 @@ export function UncommittedList(p: {
     )
   }
   const discard = (f: File, fresh: boolean) => (
-    <button className="discard" title={fresh ? `Delete the new file ${f.path}` : `Discard uncommitted changes to ${f.path}`} aria-label={fresh ? `Delete ${f.path}` : `Discard changes to ${f.path}`} onClick={() => window.confirm(fresh ? `Delete the new file ${f.path}? This cannot be undone.` : `Discard uncommitted changes to ${f.path}? This cannot be undone.`) && void act(fresh ? 'Deleted' : 'Discarded', () => window.aw.code.discard(agentId, f.path))}>
+    <button className="discard" title={fresh ? `Delete the new file ${f.path}` : `Discard uncommitted changes to ${f.path}`} aria-label={fresh ? `Delete ${f.path}` : `Discard changes to ${f.path}`} onClick={() => window.confirm(fresh ? `Delete the new file ${f.path}? This cannot be undone.` : `Discard uncommitted changes to ${f.path}? This cannot be undone.`) && void act(fresh ? 'Deleted' : 'Discarded', () => window.aw.code.discard(agentId, f.path, repo))}>
       ✕
     </button>
   )
   const plus = (f: File) => (
-    <button className="rowact" title={`Stage ${f.path}`} aria-label={`Stage ${f.path}`} onClick={() => void act('Staged', () => window.aw.code.stage(agentId, [f.path]))}>
+    <button className="rowact" title={`Stage ${f.path}`} aria-label={`Stage ${f.path}`} onClick={() => void act('Staged', () => window.aw.code.stage(agentId, [f.path], repo))}>
       +
     </button>
   )
@@ -144,20 +149,20 @@ export function UncommittedList(p: {
       )}
       <ul className={view === 'tree' ? 'tree' : undefined} role={view === 'tree' ? 'tree' : undefined} aria-label="Uncommitted files">
         {status &&
-          group('staged', 'Staged', status.staged, ['Unstage all', () => void act('Unstaged', () => window.aw.code.unstage(agentId, paths(status.staged)))], (f) => (
-            <button className="rowact" title={`Unstage ${f.path}`} aria-label={`Unstage ${f.path}`} onClick={() => void act('Unstaged', () => window.aw.code.unstage(agentId, [f.path]))}>
+          group('staged', 'Staged', status.staged, ['Unstage all', () => void act('Unstaged', () => window.aw.code.unstage(agentId, paths(status.staged), repo))], (f) => (
+            <button className="rowact" title={`Unstage ${f.path}`} aria-label={`Unstage ${f.path}`} onClick={() => void act('Unstaged', () => window.aw.code.unstage(agentId, [f.path], repo))}>
               −
             </button>
           ))}
         {status &&
-          group('changed', 'Changes', status.changed, ['Stage all', () => void act('Staged', () => window.aw.code.stage(agentId, paths(status.changed)))], (f) => (
+          group('changed', 'Changes', status.changed, ['Stage all', () => void act('Staged', () => window.aw.code.stage(agentId, paths(status.changed), repo))], (f) => (
             <>
               {plus(f)}
               {discard(f, false)}
             </>
           ))}
         {status &&
-          group('untracked', 'New files', status.untracked, ['Stage all', () => void act('Staged', () => window.aw.code.stage(agentId, paths(status.untracked)))], (f) => (
+          group('untracked', 'New files', status.untracked, ['Stage all', () => void act('Staged', () => window.aw.code.stage(agentId, paths(status.untracked), repo))], (f) => (
             <>
               {plus(f)}
               {discard(f, true)}
@@ -176,7 +181,7 @@ export function UncommittedList(p: {
           onSubmit={(e) => {
             e.preventDefault()
             void act('Committed', async () => {
-              await (staged.length > 0 ? window.aw.code.commitStaged(agentId, message) : window.aw.code.commit(agentId, message))
+              await (staged.length > 0 ? window.aw.code.commitStaged(agentId, message, repo) : window.aw.code.commit(agentId, message, repo))
               setMessage('')
             })
           }}
@@ -197,6 +202,7 @@ const PAGE = 50
 /** The branch's commits, newest first, a search over them, and one commit's files when it is opened. */
 export function HistoryList(p: {
   agentId: string
+  repo?: string
   base: string
   /** An agent in the folder itself: every commit of the folder, with a divider where the agent started (named here), and no branch to say "since" of. */
   inPlace?: boolean
@@ -210,7 +216,7 @@ export function HistoryList(p: {
   run: <T>(f: () => Promise<T>) => Promise<T | undefined>
   notice: (text: string) => void
 }) {
-  const { agentId, base, tick, commit, onCommit, path, onPick, view, run, notice } = p
+  const { agentId, repo, base, tick, commit, onCommit, path, onPick, view, run, notice } = p
   const [scope, setScope] = useState<'branch' | 'all'>('branch')
   const [find, setFind] = useState('')
   const [query, setQuery] = useState('')
@@ -233,7 +239,7 @@ export function HistoryList(p: {
   useEffect(() => {
     const mine = ++seq.current
     void run(async () => {
-      const page = await window.aw.code.log(agentId, { scope, search: query, limit: PAGE })
+      const page = await window.aw.code.log(agentId, { scope, search: query, limit: PAGE }, repo)
       if (mine !== seq.current) return
       setList(page.commits)
       setTotal(page.total)
@@ -243,7 +249,7 @@ export function HistoryList(p: {
     })
   }, [agentId, scope, query, tick, run])
   useEffect(() => {
-    if (branchTotal === null) void window.aw.code.log(agentId, { scope: 'branch', limit: 1 }).then((p) => setBranchTotal(p.total), () => {})
+    if (branchTotal === null) void window.aw.code.log(agentId, { scope: 'branch', limit: 1 }, repo).then((p) => setBranchTotal(p.total), () => {})
   }, [agentId, branchTotal, tick])
 
   // Where the agent started, in a list of all the folder's commits: a line above the first commit made since, and above the first made before.
@@ -260,14 +266,14 @@ export function HistoryList(p: {
 
   const older = () =>
     void run(async () => {
-      const page = await window.aw.code.log(agentId, { scope, search: query, limit: PAGE, skip: list?.length ?? 0 })
+      const page = await window.aw.code.log(agentId, { scope, search: query, limit: PAGE, skip: list?.length ?? 0 }, repo)
       setList((cur) => [...(cur ?? []), ...page.commits])
       setMore(page.more)
     })
 
   useEffect(() => {
     setDetail(null)
-    if (commit) void run(async () => setDetail(await window.aw.code.commitDetail(agentId, commit)))
+    if (commit) void run(async () => setDetail(await window.aw.code.commitDetail(agentId, commit, repo)))
   }, [agentId, commit, run])
 
   if (commit) {

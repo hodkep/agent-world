@@ -13,6 +13,7 @@ import pkg from '../package.json'
 // The update of a build without a Developer ID, against a release server of the test's own (AW_UPDATE_RELEASES: honoured only by an app that is not installed)
 // and a fake app bundle to replace (AW_UPDATE_APP_PATH). A real replacement on a real Mac, with a real codesign and open, is tried by hand.
 const NEW = '0.9.0'
+const BETA = '0.9.1-beta.1'
 const plist = (version: string) => `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.agentworld.app</string><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`
 const bundle = (parent: string, name: string, version: string, marker: string) => {
   const b = join(parent, name)
@@ -28,7 +29,7 @@ const tool = (root: string, name: string, body: string) => {
   return p
 }
 
-async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean } = {}) {
+async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean; version?: string } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'aw-upd-')))
   const src = join(root, 'src')
   mkdirSync(src)
@@ -37,12 +38,19 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
   expect(spawnSync('/usr/bin/ditto', ['-c', '-k', src, zip]).status).toBe(0)
   const bytes = readFileSync(zip)
   const sha = o.badChecksum ? createHash('sha512').update('other').digest('base64') : createHash('sha512').update(bytes).digest('base64')
-  const yml = `version: ${NEW}\nfiles:\n${['arm64', 'x64'].map((a) => `  - url: Agent-World-${NEW}-${a}.zip\n    sha512: ${sha}\n    size: ${bytes.length}\n`).join('')}path: Agent-World-${NEW}-x64.zip\n`
-  const base = `/hodkep/agent-world/releases/download/v${NEW}`
+  const ymlOf = (v: string) => `version: ${v}\nfiles:\n${['arm64', 'x64'].map((a) => `  - url: Agent-World-${v}-${a}.zip\n    sha512: ${sha}\n    size: ${bytes.length}\n`).join('')}path: Agent-World-${v}-x64.zip\n`
+  const base = (v: string) => `/hodkep/agent-world/releases/download/v${v}`
+  const releases = [
+    { tag_name: `v${NEW}`, prerelease: false, draft: false, published_at: '2026-10-28T10:00:00Z', body: 'stable' },
+    { tag_name: `v${BETA}`, prerelease: true, draft: false, published_at: '2026-10-29T10:00:00Z', body: '## Beta notes\n\n- A rough thing' }
+  ]
   const server = createServer((req, res) => {
     if (req.url === '/api/repos/hodkep/agent-world/releases/latest') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ tag_name: `v${NEW}`, ...(o.body && { body: o.body }) }))
-    if (req.url === `${base}/latest-mac.yml`) return void res.writeHead(200).end(yml)
-    if (req.url?.startsWith(`${base}/Agent-World-${NEW}-`) && req.url.endsWith('.zip')) return void res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+    if (req.url === '/api/repos/hodkep/agent-world/releases?per_page=30') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(releases))
+    for (const v of [NEW, BETA]) {
+      if (req.url === `${base(v)}/latest-mac.yml`) return void res.writeHead(200).end(ymlOf(v))
+      if (req.url?.startsWith(`${base(v)}/Agent-World-${v}-`) && req.url.endsWith('.zip')) return void res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+    }
     res.writeHead(404).end('no')
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
@@ -53,7 +61,7 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
   const opened = join(root, 'opened.log')
   // A fake Homebrew prefix: the cask's folder in it is what says Homebrew installed this copy.
   if (o.caskroom) mkdirSync(join(root, 'Caskroom', 'agent-world'), { recursive: true })
-  const env = { ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
+  const env = { ...(o.version && { AW_APP_VERSION: o.version }), ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
   if (o.prefs) {
     mkdirSync(join(root, 'home'), { recursive: true })
     writeFileSync(join(root, 'home', 'preferences.json'), JSON.stringify(o.prefs))
@@ -95,6 +103,113 @@ test('an unsigned Mac build is offered the update, downloads it with progress, c
     await expect.poll(() => (existsSync(w.opened) ? readFileSync(w.opened, 'utf8').trim() : ''), { timeout: 30_000 }).toBe(w.app)
   } finally {
     await w.close()
+  }
+})
+
+test("Settings > Updates has a Beta row of its own: its Check finds the newest beta, Download takes it with progress and checks it, and the stable row and the top-bar chip are not touched", async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const w = await world()
+  try {
+    const { page } = w
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    const stable = settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') })
+    const beta = settings.locator('.upd-chan', { has: page.locator('.upd-tag.beta') })
+    await expect(beta).toContainText('Not checked yet')
+    // Nothing downloads by itself, and a beta look is not a stable one.
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(BETA)
+    await expect(beta).toContainText('Released')
+    await expect(beta).toContainText('A rough thing')
+    await expect(beta).toContainText('replaces the stable app you have')
+    await expect(stable.getByRole('button', { name: 'Download' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /is available/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: 'Download' }).click()
+    await expect(beta).toContainText(`${BETA} is ready to install`, { timeout: 30_000 })
+    await expect(beta).toContainText("Checksum matches the release's")
+    // The stable row still looks on its own, and the beta download stays as it was.
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText('0.9.0 is available')
+    await expect(stable.getByRole('button', { name: 'Download' })).toBeVisible()
+    await expect(beta).toContainText(`${BETA} is ready to install`)
+    await expect(beta.getByRole('button', { name: 'Install and restart' })).toBeVisible()
+  } finally {
+    await w.close()
+  }
+})
+
+test("Settings > Updates on a beta: the stable row's Check offers the older stable as a way back, with a warning, and the top-bar chip stays quiet", async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const w = await world({ version: '0.9.1-beta.1' })
+  try {
+    const { page } = w
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    const stable = settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') })
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`Back to stable ${NEW}`)
+    await expect(stable).toContainText('Going back replaces the beta you have; settings made in the beta may not be read by the stable version.')
+    await expect(page.getByRole('button', { name: /is available/ })).toHaveCount(0)
+    await stable.getByRole('button', { name: `Back to stable ${NEW}` }).click()
+    await expect(stable).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
+    await expect(stable).toContainText("Checksum matches the release's")
+    await expect(stable.getByRole('button', { name: 'Install and restart' })).toBeVisible()
+  } finally {
+    await w.close()
+  }
+})
+
+test('Settings > Updates, any installed version: each row offers its own newest release, older ones as a switch with a warning, the same one as "You have", and the chip stays quiet', async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const rows = async (page: import('@playwright/test').Page) => {
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    return { stable: settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') }), beta: settings.locator('.upd-chan', { has: page.locator('.upd-tag.beta') }) }
+  }
+  // A stable newer than both the latest stable and the newest beta: both are older than it, and both can be taken.
+  const a = await world({ version: '0.9.5' })
+  try {
+    const { stable, beta } = await rows(a.page)
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`Switch to ${NEW}, older than your version`)
+    await expect(stable).toContainText('Switching replaces the version you have with an older one; settings made in it may not be read by this one.')
+    await expect(stable.getByRole('button', { name: `Switch to ${NEW}` })).toBeVisible()
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(`Switch to ${BETA}, older than your version`)
+    await expect(beta).toContainText('Installing a beta replaces the stable app you have.')
+    await expect(a.page.locator('header').getByRole('button', { name: /is available|Switch to/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: `Switch to ${BETA}` }).click()
+    await expect(beta).toContainText(`${BETA} is ready to install`, { timeout: 30_000 })
+  } finally {
+    await a.close()
+  }
+  // The version that is the latest stable: said, not offered; and the newest beta is older than it.
+  const b = await world({ version: NEW })
+  try {
+    const { stable, beta } = await rows(b.page)
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`You have ${NEW}.`)
+    await expect(stable.getByRole('button', { name: /Download|Switch|Back to stable/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(BETA)
+  } finally {
+    await b.close()
+  }
+  // A beta is the newest beta: said, not offered.
+  const c = await world({ version: BETA })
+  try {
+    const { beta } = await rows(c.page)
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(`You have ${BETA}.`)
+    await expect(beta.getByRole('button', { name: /Download|Switch/ })).toHaveCount(0)
+  } finally {
+    await c.close()
   }
 })
 
