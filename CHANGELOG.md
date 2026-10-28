@@ -4,6 +4,20 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-28
+
+### Added
+
+- Accounts: the row for This computer, your own login, can be renamed like the others.
+
+![Settings, Accounts, with the own login renamed to Laptop](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.2/docs/images/releases/0.6.2/rename-own-login.png)
+
+### Fixed
+
+- Todos: opening a subtask on the Todos board brings its task's card into view with the subtask's line in gold.
+- Chat: while an agent works, its group of steps says Thinking… between steps instead of going quiet.
+- Terminal: the Terminal tab no longer opens with its text wrapped wrongly until the panel is resized.
+
 ## [0.6.1] - 2026-10-28
 
 ### Added
