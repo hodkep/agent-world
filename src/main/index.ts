@@ -631,7 +631,7 @@ const todoService = createTodoService({
   lastMessage: (id) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'assistant') ?? items.at(-1)
-    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text, 2000) : '' } : undefined
+    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text) : '' } : undefined
   },
   // The message the person just sent: found among the chat's items when the transcript already has it, else pointed at by its words (the chat finds it by them).
   // Which agent another agent's message came from, so a request it sent is recorded as its own.

@@ -92,7 +92,7 @@ const TITLE_MAX = 200
 const NOTES_MAX = 4000
 const NOTE_MAX = 500
 
-const EXCERPT_MAX = 800
+const EXCERPT_MAX = 4000
 
 /** The start of a message kept with a task, as the writer wrote it (markdown and all), cut at a line when it is long. */
 export function excerptOf(text: string, max = EXCERPT_MAX): string {
