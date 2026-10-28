@@ -93,7 +93,7 @@ Agents work on the same board through these tools.
 | `todo_add` | Adds a task. With no list it goes to the **Inbox**. It can name a `parent` task and `labels`. |
 | `todo_claim` | Says the agent is doing it now. Another agent cannot claim it meanwhile. |
 | `todo_update` | Changes title, list, notes, needs you, status, parent or labels. |
-| `todo_done` | Marks it done with a note and how it was done. Agents are asked to call it once the change is pushed (on your word to push, tested or not) or has been tested, by them or by you, and not when the code is merely written. |
+| `todo_done` | Marks it done with a note and how it was done, and can put it under a `parent` task in the same call. Agents are asked to call it once the change is pushed (on your word to push, tested or not) or has been tested, by them or by you, and not when the code is merely written. |
 
 Everyone sees the same board. **Activity** says who changed what. A finished task keeps the commits and files git shows the agent changed. Agents have no tool to delete or reopen a task. Only you can.
 
@@ -103,6 +103,6 @@ Everyone sees the same board. **Activity** says who changed what. A finished tas
 
 ## Track every request
 
-By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists.
+By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists. A plain git order (commit, push, rebase, open a PR) makes no task; a follow-up to a task (a fix to its review, more work on it) is told which task the agent was on last, so it goes under it as a subtask.
 
 Next: [Settings and updates](settings-and-updates.md)

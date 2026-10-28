@@ -20,7 +20,7 @@ export interface TodoApi {
   getForAgent: (callerId: string, id: string) => Todo
   addByAgent: (callerId: string, i: { title: string; list?: string; notes?: string; needsYou?: boolean; parent?: string; labels?: string[] }) => Todo
   claimByAgent: (callerId: string, id: string) => Todo
-  doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string }) => Todo
+  doneByAgent: (callerId: string, id: string, note: string, extra?: { how?: string; files?: string[]; title?: string; list?: string; parent?: string }) => Todo
   searchForAgent: (callerId: string, query: string, o: { status?: TodoStatus | 'any'; limit?: number }) => TodoHit[]
   updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string; parent?: string; labels?: string[] }) => Todo
   /** The lists by area on the board (not the Inbox). */
@@ -383,10 +383,11 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         how: z.string().max(1500).optional().describe('How: the approach, the steps, anything a later reader needs'),
         files: z.array(z.string().max(300)).max(30).optional().describe('The main files you changed or read'),
         title: z.string().min(1).max(200).optional().describe('A line that says what was done, if the task still has the person\'s words for a title'),
-        list: z.string().max(60).optional().describe('The list for its area, if it is still in the Inbox')
+        list: z.string().max(60).optional().describe('The list for its area, if it is still in the Inbox'),
+        parent: z.string().optional().describe('The number of the larger task this was a part of (a push, a pull request or a fix to the review of a task on the board belongs under that task)')
       }
     },
-    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? '', { how: a.how, files: a.files, title: a.title, list: a.list }); return `Marked todo#${t.id} done.` })
+    async (a) => run(() => { const t = todos.doneByAgent(callerId, a.id, a.note ?? '', { how: a.how, files: a.files, title: a.title, list: a.list, parent: a.parent }); return `Marked todo#${t.id} done.` })
   )
   server.registerTool(
     'todo_update',

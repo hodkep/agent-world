@@ -74,11 +74,11 @@ export function requestTitle(prompt: string): string {
 export const deferralCue = (prompt: string): boolean => DEFER.test(prompt)
 
 /** What is added to a message an agent is sent, in the mode in force: nothing most of the time. */
-export function reminderLine(mode: TodoTracking, prompt: string, made?: { id: string; list: string }, lists: string[] = []): string {
+export function reminderLine(mode: TodoTracking, prompt: string, made?: { id: string; list: string }, lists: string[] = [], last?: { id: string; title: string }): string {
   if (mode === 'full') {
     if (!made) return ''
     const where = lists.length ? `a list by area: ${lists.slice(0, 8).join(', ')}, or a new area (a feature, never the app) only if none fits` : 'a list named for its area (Library, Chat…)'
-    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. If it is implementation or research work, call todo_update with a title that says what is being done (your words) and ${where}, then todo_done once the change is pushed on the person's word or has been tested (by you or them), not when the code is merely written; until then leave it doing (todo_update with status blocked and why if it cannot be). Research is done when answered. If it continues a bigger piece of work already on the board, pass parent (that task's number) so it nests under it. If it is only a question or chat, leave it: the app drops it.`
+    return `todo#${made.id} (${made.list}) tracks this request, and you are on it. If it is implementation or research work, call todo_update with a title that says what is being done (your words) and ${where}, then todo_done once the change is pushed on the person's word or has been tested (by you or them), not when the code is merely written; until then leave it doing (todo_update with status blocked and why if it cannot be). Research is done when answered. ${last ? `You were on todo#${last.id}, "${last.title}", last: a push, a pull request, a rebase or a fix to its review is part of it, so pass parent ${last.id} (to todo_update or todo_done); a different piece of work stands alone.` : 'A push, a pull request or a fix to the review of a task on the board is part of that task: pass parent, its number, to todo_update or todo_done.'} If it is only a question or chat, leave it: the app drops it.`
   }
   return deferralCue(prompt) ? 'If this puts something off, record it with todo_add so it is not forgotten.' : ''
 }

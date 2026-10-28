@@ -82,6 +82,15 @@ describe('reminderLine', () => {
   it('in full mode says nothing when no task was made (a thank-you)', () => {
     expect(reminderLine('full', 'thanks')).toBe('')
   })
+  it('in full mode names the task the agent was on last, and says a push, a pull request or a fix to its review is part of it, by parent, on todo_update or todo_done', () => {
+    const l = reminderLine('full', 'push it and raise a PR', { id: '12', list: 'Inbox' }, [], { id: '7', title: 'Build the Tokens tab' })
+    expect(l).toMatch(/todo#7\b.*Build the Tokens tab/)
+    expect(l).toMatch(/pull request/)
+    expect(l).toMatch(/parent/)
+    expect(l).toMatch(/todo_done/)
+    // Without one, it still says how to nest a follow-up.
+    expect(reminderLine('full', 'push it', { id: '12', list: 'Inbox' })).toMatch(/parent/)
+  })
 })
 
 describe('trackingCost', () => {
