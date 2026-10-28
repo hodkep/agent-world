@@ -445,6 +445,7 @@ button.choice.on:hover { background: color-mix(in srgb, var(--selected), var(--a
 .ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ws-tag { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 5px; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--ink); flex: none; }
 .ws-tag.git { color: var(--ok); }
+.ws-tag.multi, .wt-sub em.multi { color: var(--think); }
 .ws-caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--muted); flex: none; }
 
 /* Narrow windows: the panel slides over the office instead of squeezing it. */
@@ -3923,3 +3924,19 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .st-mixkey { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 11px; color: var(--muted); }
 .st-mixkey s { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: -1px; }
 .st-tokens td:nth-child(2) { min-width: 120px; }
+
+/* ---- Repositories of a folder that holds several ------------------------------------------------ */
+.repos { position: relative; display: flex; gap: 6px; padding: 8px 12px 2px; flex: none; min-width: 0; }
+.repos .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; padding: 3px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); border: 0; color: var(--muted); font-weight: 600; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.repos .chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repos .chip i { font: normal 11px Menlo, Consolas, monospace; color: var(--think); flex: none; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repos .chip.on { background: var(--panel-2); color: var(--accent); box-shadow: 0 0 0 1px var(--ink), inset 0 -2px 0 var(--accent); }
+.repos .chip:hover:not(.on) { background: var(--panel-2); color: var(--text); }
+.repos .n { font: 700 10px Menlo, Consolas, monospace; padding: 0 5px; background: var(--ink); color: var(--text); flex: none; }
+.repos .more { flex: none; }
+.repos .pop { position: absolute; top: 100%; left: 12px; right: 12px; margin-top: 4px; box-sizing: border-box; max-height: 280px; overflow-y: auto; z-index: 5; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--accent); }
+.repos .pop input { width: calc(100% - 16px); margin: 8px; }
+.repos .pop .r { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 10px; background: transparent; border: 0; border-top: 1px solid var(--line); box-shadow: none; color: var(--text); text-align: left; }
+.repos .pop .r:hover { background: var(--panel-2); }
+.repos .pop .r b { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repos .pop .r i { font: normal 11px Menlo, Consolas, monospace; color: var(--think); white-space: nowrap; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }

@@ -11,6 +11,8 @@ import { closeTab, openTab, type TabState } from './tabs'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { BasePicker } from '../panel/BasePicker'
 import { ancestors, changeRows, visibleRows } from './tree'
+import { RepoStrip } from './RepoStrip'
+import { pickRepo, type RepoInfo } from './repoChips'
 import { type ChangeMode, HistoryList, UncommittedList, ViewSwitch } from './ChangeViews'
 
 type Tab = 'changes' | 'files'
@@ -44,6 +46,19 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
   useEffect(() => {
     if (inPlace) void window.aw.code.place(agentId).then(setPlace, () => setPlace({ git: false, branch: '' }))
   }, [agentId, inPlace])
+  // A folder that is not a repository may hold several: their branches and uncommitted counts, read again when the agent writes a file.
+  const [repos, setRepos] = useState<RepoInfo[] | null>(null)
+  useEffect(() => {
+    if (inPlace && place && !place.git) void window.aw.code.repos(agentId).then(setRepos, () => setRepos([]))
+  }, [agentId, inPlace, place, workDone])
+  const [remembered, setRemembered] = useState<string | null>(() => {
+    try { return localStorage.getItem(`aw.repo.${agentId}`) } catch { return null }
+  })
+  const repo = repos ? pickRepo(repos, remembered) : null
+  const chooseRepo = (name: string) => {
+    setRemembered(name)
+    try { localStorage.setItem(`aw.repo.${agentId}`, name) } catch { /* not remembered, still picked */ }
+  }
   const [tab, setTab] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : 'changes')
   // What to open in the Files tab: what was asked from outside, or the lines of a chip clicked under the editor.
   const [request, setRequest] = useState<OpenRequest | undefined>(openFile)
@@ -52,7 +67,7 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
   }, [openFile])
   const jump = (j: CodeJump) => (setRequest({ path: j.path, tab: 'files', range: { from: j.from, to: j.to } }), setTab('files'))
   // A folder that is not a git repository has no changes to track: its files, as in a repository, and one line that says why there is no Changes.
-  if (inPlace && place && !place.git) {
+  if (inPlace && place && !place.git && repos && repos.length === 0) {
     return (
       <div className="code code-plain">
         <p className="plain-note" role="note" aria-label="No git worktree">
@@ -62,7 +77,7 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
       </div>
     )
   }
-  if (inPlace && !place) return <div className="code code-inplace" aria-busy="true" />
+  if (inPlace && (!place || (!place.git && !repos))) return <div className="code code-inplace" aria-busy="true" />
   return (
     <div className="code">
       <div className="tabs" role="tablist">
@@ -72,7 +87,8 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
           </button>
         ))}
       </div>
-      {tab === 'changes' ? <ChangesView agentId={agentId} agentName={agentName} workDone={workDone} onJump={jump} onOpenChat={onOpenChat} place={inPlace ? place! : undefined} /> : <FilesView agentId={agentId} agentName={agentName} openFile={request} onOpenChat={onOpenChat} />}
+      {tab === 'changes' && repos && repo && <RepoStrip repos={repos} picked={repo} onPick={chooseRepo} />}
+      {tab === 'changes' ? <ChangesView key={repo ?? ''} repo={repo ?? undefined} agentId={agentId} agentName={agentName} workDone={workDone} onJump={jump} onOpenChat={onOpenChat} place={inPlace ? (repo ? { branch: repos!.find((r) => r.name === repo)?.branch ?? '' } : place!) : undefined} /> : <FilesView agentId={agentId} agentName={agentName} openFile={request} onOpenChat={onOpenChat} />}
     </div>
   )
 }
@@ -82,7 +98,7 @@ const ROW_CAP = 400
 /** Base-branch notes the user answered "Keep it" to, kept while the app runs so the note does not come back on every refresh. */
 const hintOff = new Set<string>()
 
-function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }: { agentId: string; agentName: string; workDone: number; onJump: (j: CodeJump) => void; onOpenChat: () => void; /** Set for an agent working in the folder itself: no branch to compare, only what is uncommitted and the commits since it was hired. */ place?: { branch: string } }) {
+function ChangesView({ agentId, repo, agentName, workDone, onJump, onOpenChat, place }: { agentId: string; /** A repository inside the folder, when the folder holds several. */ repo?: string; agentName: string; workDone: number; onJump: (j: CodeJump) => void; onOpenChat: () => void; /** Set for an agent working in the folder itself: no branch to compare, only what is uncommitted and the commits since it was hired. */ place?: { branch: string } }) {
   const side = useSideWidth()
   const [data, setData] = useState<Changes | null>(null)
   const [path, setPath] = useState<string | null>(null)
@@ -188,10 +204,10 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
         if (!place) setData(await window.aw.code.changes(agentId))
         setTick((n) => n + 1)
         // The two other views show their counts on the switch whichever one is open.
-        const [st, log] = await Promise.all([window.aw.code.status(agentId), window.aw.code.log(agentId, { scope: 'branch', limit: 1 })])
+        const [st, log] = await Promise.all([window.aw.code.status(agentId, repo), window.aw.code.log(agentId, { scope: 'branch', limit: 1 }, repo)])
         setCounts({ dirty: st.staged.length + st.changed.length + st.untracked.length, history: log.total })
       }),
-    [agentId, run, place]
+    [agentId, repo, run, place]
   )
   // Re-read whenever the agent writes or edits another file.
   useEffect(refresh, [refresh, workDone])
@@ -225,7 +241,7 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
       return
     }
     void run(async () => {
-      const { original, current } = await (mode === 'dirty' ? window.aw.code.dirtyDiff(agentId, path) : mode === 'history' && commit ? window.aw.code.commitDiff(agentId, commit, path) : window.aw.code.diff(agentId, path))
+      const { original, current } = await (mode === 'dirty' ? window.aw.code.dirtyDiff(agentId, path, repo) : mode === 'history' && commit ? window.aw.code.commitDiff(agentId, commit, path, repo) : window.aw.code.diff(agentId, path))
       const lang = languageFor(path)
       const old = diff.current!.getModel()
       diff.current!.setModel({ original: monaco.editor.createModel(original, lang), modified: monaco.editor.createModel(current, lang) })
@@ -291,10 +307,10 @@ function ChangesView({ agentId, agentName, workDone, onJump, onOpenChat, place }
         <ViewSwitch inPlace={!!place} mode={mode} onMode={pickMode} counts={{ branch: data?.files.length ?? null, dirty: counts.dirty, history: counts.history }} />
         {place && mode === 'dirty' && <div className="ch-note" role="note">{agentName} works straight in this folder, so these are all the uncommitted changes in it, not only {agentName}'s.</div>}
         {mode === 'dirty' && (
-          <UncommittedList agentId={agentId} tick={tick} path={path} onPick={setPath} onChanged={refresh} view={view} run={run} notice={(t) => setNotice(t)} />
+          <UncommittedList agentId={agentId} repo={repo} tick={tick} path={path} onPick={setPath} onChanged={refresh} view={view} run={run} notice={(t) => setNotice(t)} />
         )}
         {mode === 'history' && (data || place) && (
-          <HistoryList agentId={agentId} base={data?.base ?? ''} inPlace={!!place} startedBy={agentName} tick={tick} commit={commit} onCommit={setCommit} path={path} onPick={setPath} view={view} run={run} notice={(t) => setNotice(t)} />
+          <HistoryList agentId={agentId} repo={repo} base={data?.base ?? ''} inPlace={!!place} startedBy={agentName} tick={tick} commit={commit} onCommit={setCommit} path={path} onPick={setPath} view={view} run={run} notice={(t) => setNotice(t)} />
         )}
         {mode !== 'branch' && (notice || error) && (
           <div className="ch-foot ch-status">

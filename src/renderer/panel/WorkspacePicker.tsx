@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { WorkspaceInfo, Workspaces } from '../../shared/api'
+import { gitTag, type WorkspaceInfo, type Workspaces } from '../../shared/api'
 import { PixelWord } from '../PixelWord'
 
 /** The folders just above a project, which tell two projects with the same name apart; the whole path is in the tooltip. */
@@ -83,7 +83,7 @@ export function WorkspacePicker({ workspaces, onOpen, onPick, onForget }: { work
                 <span className="floor-name">{w.name}</span>
                 <span className="floor-path">{w.exists ? parentOf(w.path) : 'folder is missing'}</span>
                 <span className="floor-tags">
-                  <span className={`ws-tag ${w.git ? 'git' : ''}`}>{w.git ? 'git' : 'no git'}</span>
+                  <span className={`ws-tag ${w.git ? 'git' : w.repos > 0 ? 'multi' : ''}`}>{gitTag(w)}</span>
                   {w.agents > 0 && <span className="ws-tag">{w.agents} agent{w.agents === 1 ? '' : 's'} at work</span>}
                 </span>
               </button>

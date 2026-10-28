@@ -7,7 +7,7 @@ import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
-import type { DevServer, Workspaces } from '../shared/api'
+import { gitTag, type DevServer, type Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
@@ -837,7 +837,7 @@ export function App() {
               <span className="wt-name">{w.name}</span>
               <span className="wt-sub">
                 {sub}
-                <em className={w.git ? 'git' : ''}>{w.git ? 'git' : 'no git'}</em>
+                <em className={w.git ? 'git' : w.repos > 0 ? 'multi' : ''}>{gitTag(w)}</em>
               </span>
             </>
           )

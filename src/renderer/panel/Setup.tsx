@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Workspaces } from '../../shared/api'
+import { gitTag, type Workspaces } from '../../shared/api'
 import { MailConnect } from './MailConnect'
 import { TerminalView } from './TerminalView'
 import { ProviderCard } from './ProviderCard'
@@ -208,7 +208,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                 {(workspaces?.items ?? []).filter((w) => w.exists).slice(0, 4).map((w) => (
                   <button key={w.path} className="su-card" aria-pressed={folder === w.path} onClick={() => onOpen(w.path)} title={w.path}>
                     <b>{w.name}</b>
-                    <small>{w.git ? 'git' : 'no git, agents share the folder'}</small>
+                    <small>{w.git ? 'git' : w.repos > 0 ? `${gitTag(w)}, agents share the folder` : 'no git, agents share the folder'}</small>
                   </button>
                 ))}
                 <button className="su-card dashed" onClick={onPick}>
