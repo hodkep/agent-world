@@ -32,6 +32,7 @@ const api: AwApi = {
   usageReport: (days) => ipcRenderer.invoke('ledger:usage', days),
   overview: (days) => ipcRenderer.invoke('ledger:overview', days),
   tokenMix: (days, account) => ipcRenderer.invoke('ledger:tokenMix', days, account),
+  contextView: (days, account) => ipcRenderer.invoke('ledger:context', days, account),
   setRole: (id, role) => ipcRenderer.invoke('agent-set-role', id, role),
   setGroup: (id, group) => ipcRenderer.invoke('set-group', id, group),
   renameAgent: (id, name) => ipcRenderer.invoke('rename-agent', id, name),

@@ -3,6 +3,7 @@ import { mixSize, type GroupBy, type MixRow, type TokenMix } from '../../shared/
 import { isProviderId, type ProviderInfo } from '../../shared/types'
 import { tokenLabel } from '../../shared/usage'
 import { ProviderTag } from '../panel/ProviderTag'
+import { ContextPanel } from './ContextPanel'
 import { AcctName, type AcctView } from './acct'
 
 const GROUPS: { id: GroupBy; label: string }[] = [
@@ -44,7 +45,7 @@ function Key({ r }: { r: MixRow }) {
 }
 
 /** Where the tokens went, grouped by whichever of program, account, agent, project or model is chosen. */
-export function TokensTab({ mix, days, providers, view }: { mix: TokenMix; days: number; providers: ProviderInfo[]; view: (key: string) => AcctView | undefined }) {
+export function TokensTab({ mix, days, account, providers, view }: { mix: TokenMix; days: number; account?: string; providers: ProviderInfo[]; view: (key: string) => AcctView | undefined }) {
   const [by, setBy] = useState<GroupBy>('agent')
   const rows = mix.groups[by]
   const name = (r: MixRow) => {
@@ -90,6 +91,7 @@ export function TokensTab({ mix, days, providers, view }: { mix: TokenMix; days:
           </section>
         </>
       )}
+      <ContextPanel days={days} account={account} />
       <p className="st-note">A dash is a figure the program does not report. Cache is the part of what was read that came from the program's cache, over requests counted exactly{mix.total.legacy > 0 ? `; ${tokenLabel(mix.total.legacy)} tokens from before that was counted have no split and show hatched` : ''}.</p>
     </>
   )

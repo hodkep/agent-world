@@ -100,6 +100,8 @@ The liquid is what is left. It turns amber once 70% is used and red once 90% is 
 
 **Tokens** says where the tokens went, as one bar and a table: fresh input, what was read from the program's cache, what was written to it, and output, grouped by provider, account, agent, project or model. A dash is a figure the program does not report (agy does not report cache writes), and history from before tokens were counted this way shows hatched with no split.
 
+Below the table, **Context size** shows how big the context was at each request, because a request re-reads everything said so far and a long conversation pays for it again and again. **All** shows the cost split by size (under 100k, 100k to 200k, over 200k) and a line on how it compares with the days before; click an agent's name for a chart of its context with the 100k and 200k marks, a gold mark and a chip ("compacted 746k → 88k") where it was compacted, and three sentences on where its cost was, what the compactions did and what holding it to 100k would have saved. The shares are an estimate, and a compaction is a fall to under 60% of the context before that stays low. An agent can read the same numbers in words with `token_report`: ask it why a week was dear.
+
 <img src="../images/usage-tokens.png" alt="The Tokens tab: one bar for all tokens, and a table by agent with a mix bar, fresh input, cache read, cache write, output, the cache share and what was spent" width="720">
 
 **Weekly Rewind** shows one week: agent time, cost, tokens with their rise or fall from the week before (a week before that was counted the old way is compared without the cache), turns, the busiest hours, and a day chart that switches between dollars and tokens.

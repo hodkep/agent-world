@@ -59,6 +59,8 @@ interface Options {
     /** The window as the person sees it, as a base64 PNG, after the person allows it; null when they do not, or no window is open. */
     screenshot?: (callerId: string) => Promise<string | null>
   }
+  /** How big the context got and where the cost went, for the caller alone or the whole office, as plain words. Offered only when set. */
+  tokens?: (callerId: string, days: number, all: boolean) => string
   /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
   libraryOn?: () => boolean
   /** The shared library of skills and instructions, as far as the caller's playbook allows. */
@@ -330,6 +332,18 @@ function toolsFor(callerId: string, o: Options) {
   if (o.library && (o.libraryOn?.() ?? true)) addLibraryTools(server, callerId, o.library)
   if (o.todos) addTodoTools(server, callerId, o.todos)
   if (o.chatMod) addChatModTools(server, callerId, o.chatMod)
+  if (o.tokens) {
+    const tokens = o.tokens
+    server.registerTool(
+      'token_report',
+      {
+        description: 'How big your context got over the last days, which sizes the cost came from, what holding it smaller would save, and what compacting did. Read it to answer a question about token use.',
+        inputSchema: { days: z.number().int().min(1).max(365).optional().describe('The last how many days (7 when left out)'), all: z.boolean().optional().describe('true for every agent in the office, not only you') },
+        annotations: READ_ONLY
+      },
+      async ({ days, all }) => ({ content: [{ type: 'text' as const, text: tokens(callerId, days ?? 7, all ?? false) }] })
+    )
+  }
   if (o.workflows?.offered(callerId)) addWorkflowTools(server, callerId, o.workflows)
   if (o.builder?.offered(callerId)) addBuilderTools(server, callerId, o.builder)
   return server

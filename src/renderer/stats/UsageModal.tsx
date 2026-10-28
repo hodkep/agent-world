@@ -355,7 +355,7 @@ export function UsageModal({
             </>
           )}
 
-          {tab === 'tokens' && (mix ? <TokensTab mix={mix} days={days} providers={providers} view={view} /> : <p className="st-note">Loading…</p>)}
+          {tab === 'tokens' && (mix ? <TokensTab mix={mix} days={days} account={scope === 'all' ? undefined : scope} providers={providers} view={view} /> : <p className="st-note">Loading…</p>)}
 
           {tab === 'accounts' && (
             <>

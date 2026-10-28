@@ -40,7 +40,7 @@ import { contextItems, revealItem } from './contextMenu'
 import { zoomKey, zoomTo } from '../shared/previewZoom'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
-import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
+import { costDelta, DAY, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import { isProviderId } from '../shared/types'
 import type { AccountInfo, Activity, Detection, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
@@ -89,6 +89,8 @@ import { WIDGET_SCHEME, widgetResponse } from './widgetPage'
 import { createWidgetFeeds } from './widgetFeeds'
 import { fetchPublic } from './widgetFetch'
 import { outlineOf } from '../shared/uiOutline'
+import { contextReport, contextText, resetEffects } from '../shared/contextCurve'
+import { contextView } from '../shared/contextView'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
@@ -1563,6 +1565,11 @@ async function main() {
         const img = await w.webContents.capturePage()
         return (img.getSize().width > 1100 ? img.resize({ width: 1100 }) : img).toPNG().toString('base64')
       }
+    },
+    tokens: (id, days, all) => {
+      const from = Date.now() - days * DAY
+      const reqs = ledger.filter((e) => e.k === 'req' && e.t >= from && (all || e.agent === id)).flatMap((e) => (e.k === 'req' ? [e] : []))
+      return contextText(contextReport(reqs), resetEffects(reqs), `The last ${days} day${days === 1 ? '' : 's'}, ${all ? 'every agent' : 'you'}`)
     },
     libraryOn: () => prefs.libraryEnabled,
     builder: {
@@ -3162,6 +3169,8 @@ async function main() {
   ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
   ipcMain.handle('ledger:tokenMix', (_, days: number, account?: string) =>
     tokenMix(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
+  ipcMain.handle('ledger:context', (_, days: number, account?: string) =>
+    contextView(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
   ipcMain.handle('ledger:overview', (_, days: number) =>
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))

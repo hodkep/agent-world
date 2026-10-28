@@ -3972,6 +3972,37 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .st-mix { display: flex; gap: 1px; width: 100%; min-width: 60px; height: 8px; background: var(--track); }
 .st-mix.tall { height: 16px; }
 .st-mix b { display: block; height: 100%; }
+.cx { margin-top: 18px; }
+.cx-trend { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+.cx-trend b.down { color: var(--ok-text); }
+.cx-trend b.up { color: var(--danger-text); }
+.cx-chart { display: block; width: 100%; height: auto; background: var(--well); border: 1px solid var(--line); }
+.cx-b3 { fill: var(--danger-well); }
+.cx-b2 { fill: var(--panel-2); }
+.cx-grid { stroke: var(--track); stroke-dasharray: 3 3; }
+.cx-tick { fill: var(--muted); font-size: 10px; }
+.cx-area { fill: color-mix(in srgb, var(--think) 28%, transparent); stroke: var(--think); stroke-width: 1.3; }
+.cx-flag { stroke: var(--accent); stroke-width: 1; opacity: 0.55; }
+.cx-dot { fill: var(--accent); }
+.cx-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+.cx-chip { background: var(--well); border: 1px solid var(--accent); padding: 3px 9px; font-size: 12px; }
+.cx-chip b { color: var(--accent); }
+.cx-bar { display: flex; height: 18px; border: 1px solid var(--line); background: var(--well); }
+.cx-bar i, .cx-key s { display: block; }
+.cx-s1 { background: var(--ok); }
+.cx-s2 { background: var(--claude); }
+.cx-s3 { background: var(--danger); }
+.cx-key { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.cx-key span { display: inline-flex; align-items: center; gap: 6px; }
+.cx-key b { color: var(--text); }
+.cx-key s { width: 9px; height: 9px; text-decoration: none; }
+.cx .st-note { margin-top: 12px; }
+.cx-ins { display: grid; gap: 8px; margin-top: 12px; }
+.cx-ins div { display: flex; gap: 9px; align-items: baseline; font-size: 13px; }
+.cx-ins div::before { content: ''; flex: none; width: 7px; height: 7px; background: var(--line); }
+.cx-ins div:nth-child(1)::before { background: var(--danger); }
+.cx-ins div:nth-child(2)::before { background: var(--accent); }
+.cx-ins div:nth-child(3)::before { background: var(--ok); }
 .m-in { background: var(--think); }
 .m-rd { background: var(--ok); }
 .m-wr { background: var(--claude); }

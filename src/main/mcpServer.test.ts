@@ -511,3 +511,26 @@ describe('builder tools', () => {
     expect(text(none)).toBe('No workflow "nope".')
   })
 })
+
+describe('agent-world MCP server: token_report', () => {
+  const base = { agentForToken: (t: string) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued' as const, remember: () => {}, recall: () => [] }
+
+  it('offers token_report only when the office can report tokens', async () => {
+    const without = await connect((await setup()).url, 'a1')
+    expect((await without.listTools()).tools.map((t) => t.name)).not.toContain('token_report')
+    server?.close()
+    server = await startMcpServer({ ...base, tokens: () => 'ok' })
+    expect((await (await connect(server.url, 'a1')).listTools()).tools.map((t) => t.name)).toContain('token_report')
+  })
+
+  it('answers for the caller alone by default, for the whole office with all, and keeps the days within a year', async () => {
+    const asked: string[] = []
+    server?.close()
+    server = await startMcpServer({ ...base, tokens: (caller, days, all) => (asked.push(`${caller}:${days}:${all}`), 'the report') })
+    const c = await connect(server.url, 'a1')
+    expect(text(await c.callTool({ name: 'token_report', arguments: {} }))).toBe('the report')
+    await c.callTool({ name: 'token_report', arguments: { days: 30, all: true } })
+    expect((await c.callTool({ name: 'token_report', arguments: { days: 4000 } })).isError).toBe(true)
+    expect(asked).toEqual(['a1:7:false', 'a1:30:true'])
+  })
+})
