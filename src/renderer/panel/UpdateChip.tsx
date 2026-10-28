@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { BREW_UPGRADE, type BetaState, type InstallState } from '../../shared/updateInstall'
+import { BREW_UPGRADE, type BetaState, type InstallState, type UpdateRel } from '../../shared/updateInstall'
 import { NotesBox } from './ReleaseNotes'
 import { type UpdateAction, type UpdateView, updateView } from './updateView'
 
-export type UpdateInfo = { homebrew?: boolean; /** Set on the view of the beta row, never on the stable state. */ channel?: 'beta'; beta?: BetaState; back?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
+export type UpdateInfo = { homebrew?: boolean; /** Set on the view of the beta row, never on the stable state. */ channel?: 'beta'; beta?: BetaState; rel?: UpdateRel; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; current?: string; install?: InstallState }
 
 // What the last look found, kept for the whole window so a screen opened after it (Settings) still knows.
 let last: UpdateInfo = { state: 'off' }
@@ -119,8 +119,8 @@ export function UpdateChip({ agents }: { agents: { working: number; waiting: num
     document.addEventListener('keydown', esc)
     return () => (document.removeEventListener('mousedown', away), document.removeEventListener('keydown', esc))
   }, [open])
-  // A way back from a beta is offered in Settings only: no nagging a beta user to downgrade.
-  const view = info.back ? null : updateView(info, agents)
+  // A release older than the one installed is offered in Settings only: no nagging anyone to downgrade.
+  const view = info.rel === 'older' ? null : updateView(info, agents)
   if (!view) return null
   const say = `Agent World ${info.latest} is available`
   return (

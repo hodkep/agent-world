@@ -306,7 +306,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <div className="upd-chan">
                 <div className="upd-chan-head">
                   <span className="upd-tag stable">Stable</span>
-                  <b>{found.back && found.latest ? `Back to stable ${found.latest}` : 'Latest release'}</b>
+                  <b>{found.rel === 'older' && shown ? shown.title : 'Latest release'}</b>
                   <span className="grow" />
                   <button onClick={() => void window.aw.checkUpdates('stable')} disabled={check.disabled} title={check.reason}>{check.label}</button>
                 </div>

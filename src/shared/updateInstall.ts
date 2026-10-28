@@ -18,4 +18,7 @@ export const lookAllowed = (install: InstallState | undefined) => !install || ![
 export type UpdateChannel = 'stable' | 'beta'
 
 /** What the last beta look found: the same fields as the stable state, kept apart so the top-bar chip and the three-hourly look stay stable only. */
-export type BetaState = { state: 'off' | 'checking' | 'none' | 'available' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; /** When the release was published. */ date?: string; install?: InstallState }
+/** How a release stands to the version installed: after it, before it, or the same. */
+export type UpdateRel = 'newer' | 'same' | 'older'
+
+export type BetaState = { rel?: UpdateRel; state: 'off' | 'checking' | 'none' | 'available' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; /** When the release was published. */ date?: string; install?: InstallState }

@@ -28,12 +28,34 @@ describe('what the update chip and its popover show', () => {
     expect(updateView({ ...base, channel: 'beta', homebrew: true }, { working: 0, waiting: 0 })!.command).toBeUndefined()
   })
 
+  const none = { working: 0, waiting: 0 }
+  const SWITCH = 'Switching replaces the version you have with an older one; settings made in it may not be read by this one.'
   it('for the stable a beta goes back to says so, warns, and offers the download as going back', () => {
-    const v = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.7.0-beta.1', back: true, homebrew: true }, { working: 0, waiting: 0 })!
-    expect(v.title).toBe('Agent World 0.6.3 is the latest stable')
+    const v = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.7.0-beta.1', rel: 'older', homebrew: true }, none)!
+    expect(v.title).toBe('Back to stable 0.6.3')
     expect(v.warning).toBe('Going back replaces the beta you have; settings made in the beta may not be read by the stable version.')
     expect(v.actions).toEqual([{ id: 'download', label: 'Back to stable 0.6.3', primary: true }, { id: 'changes', label: 'What changed' }])
     expect(v.command).toBeUndefined()
+  })
+  it('for any other release older than what is installed says it is older, warns, and offers the download as a switch', () => {
+    const stable = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.8.0', rel: 'older' }, none)!
+    expect(stable.title).toBe('Switch to 0.6.3, older than your version')
+    expect(stable.warning).toBe(SWITCH)
+    expect(stable.actions[0]).toEqual({ id: 'download', label: 'Switch to 0.6.3', primary: true })
+    const beta = updateView({ ...base, latest: '0.9.1-beta.1', tag: 'v0.9.1-beta.1', current: '0.9.5', rel: 'older', channel: 'beta' }, none)!
+    expect(beta.title).toBe('Switch to 0.9.1-beta.1, older than your version')
+    expect(beta.body).toContain('Installing a beta replaces the stable app you have.')
+    expect(beta.warning).toBe(SWITCH)
+    // on a beta, a beta is not said to replace a stable app
+    expect(updateView({ ...base, latest: '0.9.1-beta.1', tag: 'v0.9.1-beta.1', current: '0.9.5-beta.2', rel: 'older', channel: 'beta' }, none)!.body).not.toContain('stable app')
+  })
+  it('keeps the warning with the agents note once the older release is downloaded', () => {
+    const v = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.7.0-beta.1', rel: 'older', install: { phase: 'ready', version: '0.6.3', file: '/f.zip' } }, { working: 1, waiting: 0 })!
+    expect(v.warning).toContain('Going back replaces the beta you have')
+    expect(v.warning).toContain('asleep after the restart')
+  })
+  it('shows nothing for a release that is the one you have', () => {
+    expect(updateView({ state: 'none', latest: '0.7.0', rel: 'same', detail: 'You have 0.7.0.' }, none)).toBeNull()
   })
 
   it('for a copy installed with Homebrew gives the command to run, and never a download or an install', () => {

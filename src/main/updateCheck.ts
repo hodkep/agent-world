@@ -1,3 +1,5 @@
+import type { UpdateRel } from '../shared/updateInstall'
+
 export interface Repo {
   owner: string
   repo: string
@@ -13,8 +15,8 @@ export interface ReleaseState {
   notes?: string
   /** When the release was published (beta looks only), as GitHub says it. */
   date?: string
-  /** Set when `latest` is a stable release older than the beta that is installed: it is offered as a way back, not as an update. */
-  back?: boolean
+  /** How `latest` stands to the version installed, when the look was the person's own (Settings). */
+  rel?: UpdateRel
 }
 
 /** The GitHub repository of the `repository` field of package.json: "github:owner/repo", an address, or {url}. */
@@ -102,39 +104,43 @@ function releaseNotesOf(body: unknown): string | undefined {
 type Origins = { api: string; downloads: string }
 const GITHUB: Origins = { api: 'https://api.github.com', downloads: 'https://github.com' }
 
-function found(tag: string, repo: Repo, origins: Origins, body: unknown, date?: unknown): ReleaseState {
+const relOf = (current: string, tag: string): UpdateRel => (isNewer(current, tag) ? 'newer' : isNewer(tag, current) ? 'older' : 'same')
+
+/**
+ * What a look found: the release, its page, and (when the person asked, `kind`) how it stands to `current`. A release that is the version installed
+ * is not offered, only said ("You have 0.7.0."); an older one is offered, with its place said in the line.
+ */
+function found(tag: string, repo: Repo, origins: Origins, body: unknown, date?: unknown, ask?: { current: string; kind: 'stable' | 'beta' }): ReleaseState {
   const notes = releaseNotesOf(body)
   const latest = tag.replace(/^v/, '')
+  const rel = ask ? relOf(ask.current, tag) : undefined
   // The page is built from the repository and the tag, not taken from the answer: only a page of this repository is ever opened.
-  return { state: 'available', detail: `${latest} is available.`, latest, ...(notes && { notes }), ...(typeof date === 'string' && { date }), url: `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}` }
+  const url = `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}`
+  const detail = rel === 'same' ? `You have ${latest}.` : rel === 'older' ? `${latest} is the ${ask!.kind === 'beta' ? 'newest beta' : 'latest stable'}, older than the version you have.` : `${latest} is available.`
+  return { state: rel === 'same' ? 'none' : 'available', detail, latest, ...(rel && { rel }), ...(notes && { notes }), ...(typeof date === 'string' && { date }), url }
 }
 
 const unreachable = (e: unknown): ReleaseState => ({ state: 'error', detail: `Could not reach GitHub: ${(e as Error).message.split('\n')[0]}` })
 
-/** Whether `version` is a beta build (the only kind a person can be asked to go back from). */
-export const isBeta = (version: string) => /^v?\d+\.\d+\.\d+-beta\.\d+$/.test(version.trim())
-
 /**
  * Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release.
- * With `back` (a look the person asked for in Settings), a beta's owner is also shown the latest stable when it is older than the beta, as a way back.
+ * With `all` (a look the person asked for in Settings) it is the latest release whatever version is installed, with how it stands to it.
  */
-export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB, o: { back?: boolean } = {}): Promise<ReleaseState> {
+export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB, o: { all?: boolean } = {}): Promise<ReleaseState> {
   try {
     const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases/latest`)
     if (res.status === 404) return { state: 'none', detail: 'No release is published yet.' }
     if (!res.ok) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
     const answer = (await res.json()) as { tag_name?: unknown; body?: unknown }
     const tag = String(answer.tag_name ?? '')
-    if (isNewer(current, tag)) return found(tag, repo, origins, answer.body)
-    const t = parse(tag)
-    if (!o.back || !isBeta(current) || !t || t.pre) return { state: 'none' }
-    return { ...found(tag, repo, origins, answer.body), back: true, detail: `${tag.replace(/^v/, '')} is the latest stable, older than the beta you have.` }
+    if (!parse(tag) || (!o.all && !isNewer(current, tag))) return { state: 'none' }
+    return found(tag, repo, origins, answer.body, undefined, o.all ? { current, kind: 'stable' } : undefined)
   } catch (e) {
     return unreachable(e)
   }
 }
 
-/** Asks GitHub for the recent releases and takes the newest pre-release tagged -beta.N that is newer than `current`. Never looked for by itself: only when the person asks. */
+/** Asks GitHub for the recent releases and takes the newest pre-release tagged -beta.N, whatever version is installed. Never looked for by itself: only when the person asks. */
 export async function latestBeta(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB): Promise<ReleaseState> {
   try {
     const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases?per_page=30`)
@@ -144,10 +150,10 @@ export async function latestBeta(current: string, repo: Repo, get: Fetch, origin
     let best: Rel | undefined
     for (const r of Array.isArray(list) ? (list as Rel[]) : []) {
       const tag = String(r?.tag_name ?? '')
-      if (r?.draft === true || r?.prerelease !== true || !/^v?\d+\.\d+\.\d+-beta\.\d+$/.test(tag) || !isNewer(current, tag)) continue
+      if (r?.draft === true || r?.prerelease !== true || !/^v?\d+\.\d+\.\d+-beta\.\d+$/.test(tag)) continue
       if (!best || isNewer(String(best.tag_name), tag)) best = r
     }
-    return best ? found(String(best.tag_name), repo, origins, best.body, best.published_at) : { state: 'none' }
+    return best ? found(String(best.tag_name), repo, origins, best.body, best.published_at, { current, kind: 'beta' }) : { state: 'none', detail: 'No beta has been published.' }
   } catch (e) {
     return unreachable(e)
   }

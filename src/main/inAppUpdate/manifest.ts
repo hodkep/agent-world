@@ -1,4 +1,4 @@
-import { type Repo, isBeta, isNewer } from '../updateCheck'
+import { type Repo, isNewer } from '../updateCheck'
 
 /** The largest download that is accepted: the zip is about 290 MB today. */
 export const MAX_BYTES = 600 * 1024 * 1024
@@ -70,12 +70,11 @@ export type Pick = { ok: true; asset: Asset } | { ok: false; reason: string }
  * only names which file: a name that is a path or an address, another version, another processor or another kind of file is refused, and so is a
  * version that is not newer than the running one, or a size that is nothing or over the cap.
  */
-export function assetFor(o: { manifest: Manifest; arch: string; current: string; repo: Repo; tag: string; downloads?: string; /** Going back from a beta: a stable release older than the running beta is accepted. */ back?: boolean }): Pick {
+export function assetFor(o: { manifest: Manifest; arch: string; current: string; repo: Repo; tag: string; downloads?: string; /** The person chose this release in Settings: it is taken whether or not it is newer than the running version. */ any?: boolean }): Pick {
   const { manifest, arch, current, repo, tag } = o
   const downloads = o.downloads ?? 'https://github.com'
   if (!/^v?\d+\.\d+\.\d+(-beta\.\d+)?$/.test(tag) || tag.replace(/^v/, '') !== manifest.version) return { ok: false, reason: 'The release says another version than its tag.' }
-  const back = o.back && isBeta(current) && !/-/.test(tag)
-  if (!back && !isNewer(current, tag)) return { ok: false, reason: `${manifest.version} is not newer than ${current}.` }
+  if (!o.any && !isNewer(current, tag)) return { ok: false, reason: `${manifest.version} is not newer than ${current}.` }
   if (arch !== 'arm64' && arch !== 'x64') return { ok: false, reason: `There is no download for this kind of processor (${arch}).` }
   const name = `Agent-World-${manifest.version}-${arch}.zip`
   const file = manifest.files.find((f) => f.url === name)

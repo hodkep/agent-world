@@ -2,7 +2,7 @@ import { app, shell } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { type BetaState, type InstallState, type UpdateChannel, lookAllowed } from '../shared/updateInstall'
+import { type BetaState, type InstallState, type UpdateChannel, type UpdateRel, lookAllowed } from '../shared/updateInstall'
 import { createInstaller } from './inAppUpdate/installer'
 import { helperEnv, releaseOrigins } from './inAppUpdate/origins'
 import { placeOf } from './inAppUpdate/installScript'
@@ -10,7 +10,7 @@ import { buildInfo, isHomebrewInstall, latestBeta, latestRelease, updateMode } f
 import { updateFeed } from './updateFeed'
 
 /** `latest` and `url` are set when a newer version is out but this build cannot install it itself: the page of its release is what the person is pointed to. */
-export type UpdateState = { /** Installed with Homebrew: updated with `brew upgrade`, not from here. */ homebrew?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** `latest` is an older stable offered as a way back from the beta that is installed (asked for in Settings, never by the three-hourly look). */ back?: boolean; /** The new version's own notes (Markdown), from the same answer. */ notes?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The last beta look, apart from the stable fields above. */ beta?: BetaState; /** The version running now. */ current?: string; install?: InstallState }
+export type UpdateState = { /** Installed with Homebrew: updated with `brew upgrade`, not from here. */ homebrew?: boolean; state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; /** How `latest` stands to the version installed (set by a look the person asked for in Settings, never by the three-hourly look). */ rel?: UpdateRel; /** The new version's own notes (Markdown), from the same answer. */ notes?: string; /** The release's tag, and (for an unsigned Mac build) where its in-app download and install stand. */ tag?: string; /** The last beta look, apart from the stable fields above. */ beta?: BetaState; /** The version running now. */ current?: string; install?: InstallState }
 
 /** The version running now. A build that is not installed (a test run) may say another one in AW_APP_VERSION, to stand in for an installed beta. */
 export const runningVersion = () => (!app.isPackaged && process.env.AW_APP_VERSION) || app.getVersion()
@@ -48,10 +48,10 @@ let started = false
 
 const getRelease = (url: string) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } })
 
-function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, origins: ReturnType<typeof releaseOrigins>, onState: (i: InstallState) => void, back = false) {
+function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, origins: ReturnType<typeof releaseOrigins>, onState: (i: InstallState) => void, any = false) {
   return createInstaller({
     current: runningVersion(),
-    back,
+    any,
     repo,
     arch: process.arch,
     appPath: appBundle(origins.testing),
@@ -91,7 +91,7 @@ async function checkBeta(onState: (s: UpdateState) => void): Promise<UpdateState
   const found = await latestBeta(runningVersion(), info.repo, getRelease, origins)
   if (found.state !== 'available' || !found.latest) return set(found)
   if (!origins.testing && process.platform !== 'darwin') return set(found)
-  const installer = (installers.beta = installerFor(info.repo, origins, (i) => current.beta && set({ ...current.beta, install: i })))
+  const installer = (installers.beta = installerFor(info.repo, origins, (i) => current.beta && set({ ...current.beta, install: i }), true))
   const failure = installer.lastFailure()
   return set({ ...found, tag: `v${found.latest}`, ...(failure && { install: { phase: 'failed' as const, kind: 'install' as const, reason: `The last update was not installed: ${failure}` } }) })
 }
@@ -100,7 +100,7 @@ async function checkBeta(onState: (s: UpdateState) => void): Promise<UpdateState
  * Looks for a newer build in the releases of the project on GitHub, which the build bakes into the installed app (its publish setting).
  * Nothing runs for a development build.
  */
-export async function checkForUpdates(onState: (s: UpdateState) => void, channel: UpdateChannel = 'stable', back = false): Promise<UpdateState> {
+export async function checkForUpdates(onState: (s: UpdateState) => void, channel: UpdateChannel = 'stable', manual = false): Promise<UpdateState> {
   if (channel === 'beta') return checkBeta(onState)
   // A download under way, or waiting for the restart, is left as it is: looking again would start it over.
   if (!lookAllowed(installers.stable?.state())) return current
@@ -115,13 +115,13 @@ export async function checkForUpdates(onState: (s: UpdateState) => void, channel
   if (updateMode({ packaged: app.isPackaged || origins.testing, platform: origins.testing ? 'darwin' : process.platform, signed: info.signed }) === 'tell') {
     if (!info.repo) return set({ state: 'off', detail: 'This build does not say where its releases are.' })
     set({ state: 'checking' })
-    const found = await latestRelease(runningVersion(), info.repo, getRelease, origins, { back })
+    const found = await latestRelease(runningVersion(), info.repo, getRelease, origins, { all: manual })
     if (found.state !== 'available' || !found.latest) return set(found)
     // A copy Homebrew installed is updated by Homebrew: it is told so, and nothing here replaces it behind Homebrew's back.
     const casks = origins.testing ? [process.env.AW_UPDATE_CASKROOM ?? ''].filter(Boolean) : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']
-    if (isHomebrewInstall(casks, existsSync)) return found.back ? set({ state: 'none' }) : set({ ...found, current: runningVersion(), homebrew: true })
+    if (isHomebrewInstall(casks, existsSync)) return found.rel === 'older' ? set({ state: 'none' }) : set({ ...found, current: runningVersion(), homebrew: true })
     // Only this build can install by itself, from the same release it was told about.
-    const installer = (installers.stable = installerFor(info.repo, origins, (i) => set({ ...current, install: i }), found.back))
+    const installer = (installers.stable = installerFor(info.repo, origins, (i) => set({ ...current, install: i }), manual))
     const failure = installer.lastFailure()
     return set({ ...found, tag: `v${found.latest}`, current: runningVersion(), ...(failure && { install: { phase: 'failed' as const, kind: 'install' as const, reason: `The last update was not installed: ${failure}` } }) })
   }
