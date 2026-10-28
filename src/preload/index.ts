@@ -148,6 +148,7 @@ const api: AwApi = {
   chatModKeep: () => ipcRenderer.invoke('chatmod:keep'),
   chatModUndo: () => ipcRenderer.invoke('chatmod:undo'),
   chatModReset: () => ipcRenderer.invoke('chatmod:reset'),
+  readingSeries: (agentId, series) => ipcRenderer.invoke('readings:series', agentId, series),
   chatModBack: () => ipcRenderer.invoke('chatmod:back'),
   chatModLoadData: () => ipcRenderer.invoke('chatmod:loadData'),
   widgetFeeds: () => ipcRenderer.invoke('widgetfeeds:get'),

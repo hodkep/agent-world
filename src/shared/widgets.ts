@@ -1,6 +1,7 @@
 // POC: small pages an agent writes for the person's look. A widget runs in a sandbox with no network and no way back into the app: it is given numbers and draws them.
 import type { UsageLimits } from './usage'
 import type { Todo } from './todos'
+import { checkSeries, type SeriesSpec } from './readings'
 
 export type WidgetSlot = 'chat-top' | 'above-composer' | 'window-bottom' | 'chat-behind'
 export const SLOTS: WidgetSlot[] = ['chat-top', 'above-composer', 'window-bottom', 'chat-behind']
@@ -18,6 +19,8 @@ export interface Widget {
   meters: MeterName[]
   /** Public addresses the app loads for it and hands over as text. Only for a widget that is given no numbers. */
   fetch: FeedSpec[]
+  /** Figures made from the agent's own telemetry (see readings.ts), handed over as `data.series[id]`. Like the meters, not together with fetch. */
+  series: SeriesSpec[]
 }
 
 /** One address a widget wants loaded: any public https address, the same each time, so nothing the widget knows can be put into it. */
@@ -113,10 +116,12 @@ export function checkWidgets(raw: unknown): { widgets: Widget[]; problems: strin
       if (typeof every !== 'number' || !Number.isInteger(every) || every < 15 || every > 3600) return void problems.push(`${at}: fetch ${fid}: every must be a whole number of seconds from 15 to 3600.`)
       feeds.push({ id: fid, url: fo.url as string, every })
     }
-    if (feeds.length > 0 && meters.length > 0) return void problems.push(`${at}: a widget gets the app's numbers or loads data, never both (the numbers could leave in an address).`)
+    const ser = checkSeries(o.series)
+    if (ser.problems.length) return void problems.push(...ser.problems.map((m) => `${at}: ${m}`))
+    if (feeds.length > 0 && (meters.length > 0 || ser.series.length > 0)) return void problems.push(`${at}: a widget gets the app's numbers or loads data, never both (the numbers could leave in an address).`)
     if (widgets.length >= MAX_WIDGETS) return
     if (widgets.reduce((n, w) => n + w.fetch.length, 0) + feeds.length > MAX_FEEDS) return void problems.push(`${at}: at most ${MAX_FEEDS} fetches over all widgets.`)
-    widgets.push({ id, slot: o.slot as WidgetSlot, height, html: o.html, meters: [...new Set(meters as MeterName[])], fetch: feeds })
+    widgets.push({ id, slot: o.slot as WidgetSlot, height, html: o.html, meters: [...new Set(meters as MeterName[])], fetch: feeds, series: ser.series })
   })
   return { widgets, problems }
 }

@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import type { AgentEvent, Decision, PermissionRequest } from '../../../shared/types'
 import type { EventHandle, EventSourceOptions } from '../ports'
 import { activityFor, describeTool, normalize } from './events'
-import { parseOtlpLogs } from './otlp'
+import { parseOtlpLogs, parseOtlpReadings } from './otlp'
 import { parseStatus, statusText } from './status'
 
 // Write tool payloads carry whole files; anything past this is not a legit hook call.
@@ -93,6 +93,8 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
     if (req.url === '/v1/logs' || req.url === '/v1/metrics') {
       const records = req.url === '/v1/logs' ? parseOtlpLogs(payload) : []
       if (records.length) o.onUsage?.(agentId, records)
+      const readings = req.url === '/v1/logs' ? parseOtlpReadings(payload) : []
+      if (readings.length) o.onReadings?.(agentId, readings)
       return void res.writeHead(200, { 'content-type': 'application/json' }).end('{}')
     }
     // Debugging aid: AW_HOOK_LOG=<file> records every raw payload, to learn shapes the docs leave out.

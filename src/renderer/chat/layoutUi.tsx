@@ -262,15 +262,25 @@ const stamp = (t: string) => [...t].reduce((h, c) => (Math.imul(h, 31) + c.charC
  * A widget in its sandbox: a frame that may run script and nothing else (no same-origin, no forms, no popups, no navigation of the window) on an address of its own with a policy that forbids every connection.
  * Numbers and the theme's colours are sent into it; the window never listens to anything it says.
  */
-function WidgetFrame({ widget, which, meters, css }: { widget: Widget; which: 'draft' | 'current'; meters: Meters; css: string }) {
+function WidgetFrame({ widget, which, meters, css, agentId }: { widget: Widget; which: 'draft' | 'current'; meters: Meters; css: string; agentId: string }) {
   const ref = useRef<HTMLIFrameElement>(null)
+  // The figures its series ask for, made in the main process from the agent's own telemetry; asked again every two seconds while the widget is on screen.
+  const [series, setSeries] = useState<Record<string, number | null>>({})
+  const asked = JSON.stringify(widget.series)
+  useEffect(() => {
+    if (!agentId || asked === '[]') return setSeries({})
+    const load = () => void window.aw.readingSeries(agentId, JSON.parse(asked)).then(setSeries, () => {})
+    load()
+    const t = setInterval(load, 2000)
+    return () => clearInterval(t)
+  }, [agentId, asked])
   const feeds = useFeeds()[`${which}:${widget.id}`]
   // How often the message box was changed and a message sent in this chat: counts only, given only to a widget that asked, and never what was typed.
   const ticks = useTicks(useContext(AgentIdContext) ?? '')
   const given: Meters = { ...meters, ...(widget.meters.includes('typing') && { typing: ticks.typing }), ...(widget.meters.includes('sent') && { sent: ticks.sent }) }
   // What an address answered is handed over as text, never as markup; a widget that loaded nothing is given nothing.
-  const key = JSON.stringify(given) + Object.entries(feeds ?? {}).map(([k, v]) => `${k}${v.at}${v.ok}`).join()
-  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters: given, feeds: feeds ?? {}, theme: themeNow() }, '*')
+  const key = JSON.stringify(given) + JSON.stringify(series) + Object.entries(feeds ?? {}).map(([k, v]) => `${k}${v.at}${v.ok}`).join()
+  const send = () => ref.current?.contentWindow?.postMessage({ type: 'data', meters: given, series, feeds: feeds ?? {}, theme: themeNow() }, '*')
   useEffect(send, [key, css]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <iframe
@@ -287,7 +297,8 @@ function WidgetFrame({ widget, which, meters, css }: { widget: Widget; which: 'd
 }
 
 /** The widgets of the look on screen that sit in one place, each given only the numbers it asked for. */
-export function WidgetSlot({ slot, meters }: { slot: WidgetSlot; meters: (want: MeterName[]) => Meters }) {
+export function WidgetSlot({ slot, meters, agentId }: { slot: WidgetSlot; meters: (want: MeterName[]) => Meters; agentId?: string }) {
+  const inChat = useContext(AgentIdContext) ?? ''
   const s = useChatModState()
   const mod = useChatMod()
   const which = s.draft && mod === s.draft ? 'draft' : 'current'
@@ -296,7 +307,7 @@ export function WidgetSlot({ slot, meters }: { slot: WidgetSlot; meters: (want: 
   return (
     <div className={`wd-slot ${slot}`}>
       {list.map((w) => (
-        <WidgetFrame key={`${which}:${w.id}`} widget={w} which={which} meters={meters(w.meters)} css={mod.css} />
+        <WidgetFrame key={`${which}:${w.id}`} widget={w} which={which} meters={meters(w.meters)} css={mod.css} agentId={agentId ?? inChat} />
       ))}
     </div>
   )

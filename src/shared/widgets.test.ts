@@ -6,8 +6,8 @@ const w = (o: Record<string, unknown> = {}) => ({ id: 'spend', slot: 'above-comp
 
 describe('a widget an agent writes', () => {
   it('is kept as written, with defaults for what it leaves out', () => {
-    expect(checkWidgets([w()]).widgets).toEqual([{ id: 'spend', slot: 'above-composer', height: 40, html: '<b>hi</b>', meters: ['usage'], fetch: [] }])
-    expect(checkWidgets([{ id: 'a', slot: 'chat-top', html: 'x' }]).widgets).toEqual([{ id: 'a', slot: 'chat-top', height: 40, html: 'x', meters: [], fetch: [] }])
+    expect(checkWidgets([w()]).widgets).toEqual([{ id: 'spend', slot: 'above-composer', height: 40, html: '<b>hi</b>', meters: ['usage'], fetch: [], series: [] }])
+    expect(checkWidgets([{ id: 'a', slot: 'chat-top', html: 'x' }]).widgets).toEqual([{ id: 'a', slot: 'chat-top', height: 40, html: 'x', meters: [], fetch: [], series: [] }])
   })
   it('is left out, with the reason, when its id, place, size, page or numbers are not allowed', () => {
     for (const bad of [{ id: 'Bad Id' }, { id: '' }, { id: 'x'.repeat(31) }, { slot: 'floating' }, { height: 5 }, { height: 999 }, { html: '' }, { html: 'x'.repeat(100_001) }, { meters: ['everything'] }, { meters: 'usage' }]) {
@@ -98,5 +98,27 @@ describe('data a widget loads from the internet', () => {
   })
   it('the bottom of the window is a place for a widget', () => {
     expect(checkWidgets([wf([feed()], { slot: 'window-bottom' })]).widgets).toHaveLength(1)
+  })
+})
+
+describe('a widget that asks for readings of the agent (series)', () => {
+  const ser = { id: 'hit', kind: 'request', of: ['cacheRead'], op: 'ratio', per: ['input', 'cacheRead', 'cacheWrite'], over: 'last:20' }
+
+  it('keeps a good series, next to the meters it also asks for', () => {
+    const c = checkWidgets([w({ meters: ['usage'], series: [ser] })])
+    expect(c.problems).toEqual([])
+    expect(c.widgets[0]!.series).toEqual([ser])
+  })
+
+  it('refuses a bad series, with the reason in words, and the widget with it', () => {
+    const c = checkWidgets([w({ series: [{ ...ser, of: ['prompt'] }] })])
+    expect(c.widgets).toEqual([])
+    expect(c.problems[0]).toMatch(/Widget 1: Series 1.*prompt/)
+  })
+
+  it('is never given together with loaded data: the numbers could leave in an address', () => {
+    const c = checkWidgets([w({ meters: [], series: [ser], fetch: [{ id: 'a', url: 'https://example.org/x.json' }] })])
+    expect(c.widgets).toEqual([])
+    expect(c.problems[0]).toMatch(/never both/)
   })
 })

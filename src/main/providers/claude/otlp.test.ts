@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseOtlpLogs } from './otlp'
+import { parseOtlpLogs, parseOtlpReadings } from './otlp'
 
 // Taken from a real Claude Code 2.1.311 run exporting its events as OTLP over HTTP/JSON, with the personal attributes replaced.
 const sample = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'otlp-logs.json'), 'utf8'))
@@ -43,5 +43,39 @@ describe('Claude Code OpenTelemetry events', () => {
     const rec = (attrs: Record<string, unknown>) => ({ resourceLogs: [{ scopeLogs: [{ logRecords: [{ attributes: Object.entries({ 'event.name': 'api_request', model: 'm', 'event.timestamp': '2026-10-27T11:03:55.721Z', ...attrs }).map(([key, v]) => ({ key, value: typeof v === 'number' ? { intValue: v } : { stringValue: v } })) }] }] }] })
     expect(parseOtlpLogs(rec({ input_tokens: 1, output_tokens: 1 }))).toEqual([])
     expect(parseOtlpLogs(rec({ request_id: 'r', model: 'm' }))).toEqual([])
+  })
+})
+
+// A real run (Claude Code, 2026-10-28) that ran one command that worked and one that failed, with the personal attributes taken out.
+describe('Claude Code OpenTelemetry events, as readings for widgets', () => {
+  const tools = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'otlp-tools.json'), 'utf8'))
+
+  it('give a reading per request, with how long it took and how long until the first word', () => {
+    const rs = parseOtlpReadings(tools).filter((r) => r.kind === 'request')
+    expect(rs).toHaveLength(2)
+    expect(rs[0]!.v).toMatchObject({ input: 2, output: 317, cacheRead: 11990, cacheWrite: 25200, durationMs: 2219, firstTokenMs: 1113 })
+    expect(rs[0]!.v.costUsd).toBeCloseTo(0.0053186)
+    expect(rs[0]!.turn).toBeTruthy()
+  })
+
+  it('give a reading per tool call: its name, how long it took and whether it failed', () => {
+    const rs = parseOtlpReadings(tools).filter((r) => r.kind === 'tool')
+    expect(rs.map((r) => [r.tool, r.v.failed])).toEqual([['Bash', 0], ['Bash', 1]])
+    expect(rs[0]!.v.durationMs).toBe(745)
+  })
+
+  it('keep a number Claude left out absent, not zero', () => {
+    const rs = parseOtlpReadings(sample)
+    expect(rs.every((r) => !('firstTokenMs' in r.v))).toBe(true)
+  })
+
+  it('carry only numbers, a tool name and an opaque prompt id: nothing of the person, the prompt or a tool input', () => {
+    const text = JSON.stringify(parseOtlpReadings(tools))
+    expect(text).not.toMatch(/example\.com|@|REDACTED|echo|nonexistent|prompt_text/)
+    for (const r of parseOtlpReadings(tools)) expect(Object.keys(r).sort()).toEqual(expect.arrayContaining(['at', 'kind', 'v']))
+  })
+
+  it('give nothing, and do not throw, for what is not a batch of events', () => {
+    for (const bad of [null, 'x', [], {}, { resourceLogs: [{ scopeLogs: [{ logRecords: [{ attributes: 'no' }] }] }] }]) expect(parseOtlpReadings(bad)).toEqual([])
   })
 })

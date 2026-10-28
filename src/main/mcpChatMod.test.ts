@@ -43,6 +43,22 @@ describe('the chat look tools: an agent reads and writes a draft, only the perso
     expect(text(r)).toContain('The draft holds')
   })
 
+  it('give the agent the readings it may ask for, as a catalog of names and operations', async () => {
+    const c = await connect({ state: () => state, write: () => ({ problems: [] }) })
+    const t = text(await c.callTool({ name: 'app_ui_readings', arguments: {} }))
+    expect(t).toMatch(/cacheRead.*tokens/)
+    expect(t).toMatch(/firstTokenMs/)
+    expect(t).toMatch(/ratio/)
+  })
+
+  it('pass a widget\'s series on as it was written', async () => {
+    const seen: { widgets?: { series?: unknown }[] }[] = []
+    const c = await connect({ state: () => state, write: (_w, i) => (seen.push(i as never), { problems: [] }) })
+    const series = [{ id: 'hit', kind: 'request', of: ['cacheRead'], op: 'ratio', per: ['input', 'cacheRead'], over: 'last:20' }]
+    await c.callTool({ name: 'chat_mod_write', arguments: { widgets: [{ id: 'w', slot: 'above-composer', html: '<b></b>', series }], why: 'x' } })
+    expect(seen[0]!.widgets![0]!.series).toEqual(series)
+  })
+
   it('tell the agent what could not be read, so it fixes it and writes again', async () => {
     const c = await connect({ state: () => state, write: () => ({ problems: ['@import is not allowed.'] }) })
     const r = await c.callTool({ name: 'chat_mod_write', arguments: { css: '@import url(x);', why: 'x' } })

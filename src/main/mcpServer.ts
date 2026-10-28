@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod'
 import type { Todo, TodoStatus } from '../shared/todos'
 import type { TodoHit } from '../shared/todoSearch'
+import { catalogText } from '../shared/readings'
 import { CHAT_MOD_GUIDE, type ChatModState } from '../shared/chatMod'
 
 export interface Colleague {
@@ -158,6 +159,7 @@ const WIDGET = z.object({
   height: z.number().int().min(24).max(240).optional(),
   html: z.string().max(100000).describe('The page: html with its own style and script'),
   meters: z.array(z.enum(['usage', 'tokens', 'cost', 'todos', 'typing', 'sent'])).max(6).optional(),
+  series: z.array(z.object({ id: z.string().max(20), kind: z.enum(['request', 'tool']), of: z.array(z.string().max(20)).max(8), op: z.enum(['sum', 'avg', 'max', 'last', 'count', 'ratio']), per: z.array(z.string().max(20)).max(8).optional(), over: z.string().max(12), tool: z.string().max(80).optional() })).max(8).optional().describe('Figures made from the agent\'s own telemetry, handed to the widget as data.series; read app_ui_readings first; not together with fetch'),
   fetch: z.array(z.object({ id: z.string().max(20), url: z.string().max(500).describe('A public https address, the same every time'), every: z.number().int().min(15).max(3600).optional() })).max(4).optional().describe('Addresses the app loads for the widget and hands over as text; not together with meters')
 })
 /** How the person's chat looks, written by agents as a draft that shows at once and that only the person's Keep makes permanent. */
@@ -175,6 +177,11 @@ function addChatModTools(server: McpServer, callerId: string, mod: NonNullable<O
       inputSchema: { selector: z.string().max(200).optional().describe('A CSS selector; the whole app when empty'), depth: z.number().int().min(1).max(8).optional() }
     },
     async (a) => (mod.outline ? text(await mod.outline(a.selector ?? '', a.depth ?? 4)) : text('Not available.', true))
+  )
+  server.registerTool(
+    'app_ui_readings',
+    { description: 'The readings the app has about what its agents do (requests to the model, tool calls), by name, and how a widget may ask for a figure made from them (a series). Read it before you write a widget that shows tokens, cache hits, timings or tool calls beyond the ready-made meters.', inputSchema: {} },
+    async () => text(catalogText())
   )
   server.registerTool(
     'app_ui_screenshot',
