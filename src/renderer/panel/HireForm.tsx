@@ -36,6 +36,7 @@ export function HireForm({
   defaults,
   roleModels,
   accounts,
+  own,
   folder,
   onHire,
   onCancel,
@@ -54,6 +55,8 @@ export function HireForm({
   roleModels: Prefs['roleModels']
   /** The extra Claude accounts from Settings; the choice shows only when there is one. */
   accounts: Prefs['accounts']
+  /** The names given to the programs' own logins. */
+  own?: Prefs['ownNames']
   /** The project the agent is hired into, to offer its branches. */
   folder: string
   /** `base` is set only when another branch than the folder's own was chosen; `leftover` says what to do with one an earlier agent left under the name. A refusal is shown in this form. */
@@ -212,7 +215,7 @@ export function HireForm({
             {['', ...mine.map((a) => a.id)].map((id) => (
               <label key={id} className="hire-opt" data-on={account === id} style={{ ['--c' as string]: accountColor(accounts, id) }}>
                 <input type="radio" name="account" value={id} checked={account === id} onChange={() => setAccount(id)} />
-                <b><i className="dot" />{accountName(accounts, id)}</b>
+                <b><i className="dot" />{accountName(accounts, id, chosen?.id ?? '', own)}</b>
               </label>
             ))}
           </div>

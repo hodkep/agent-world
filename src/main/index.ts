@@ -38,6 +38,7 @@ import { contextItems, revealItem } from './contextMenu'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
+import { isProviderId } from '../shared/types'
 import type { AccountInfo, Activity, Detection, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
 import { type Alert, budgetAlert, finishedTurn, idleCheckDelay, noticeToOpen, shouldNotify } from './attention'
 import { providerOf, providers } from './providers/registry'
@@ -948,7 +949,7 @@ function finishRewind(id: string) {
 }
 
 // Keeps each program's logins apart (Settings > Accounts) and moves agents between them.
-const accountsSvc = new AccountService({ home: HOME, providers: () => providers(), accounts: () => prefs.accounts })
+const accountsSvc = new AccountService({ home: HOME, providers: () => providers(), accounts: () => prefs.accounts, ownNames: () => prefs.ownNames })
 
 // A program whose own login here is not signed in is still ready when an account kept for it is: the accounts signed in are asked of the program, and remembered a few seconds because every screen and check asks.
 const signedInAccounts = new Map<string, { at: number; n: number }>()
@@ -2237,8 +2238,11 @@ async function main() {
     return made.id
   })
   // A label is only for the person: the folder, the sign-in and the agents on it stay as they are.
-  ipcMain.handle('accounts:rename', (_, id: string, name: string) => {
-    prefs = cleanPrefs({ ...prefs, accounts: accountsSvc.rename(String(id ?? ''), String(name ?? '')) }, prefs)
+  ipcMain.handle('accounts:rename', (_, id: string, name: string, provider: string) => {
+    // The program's own login has no id; it is named by its program.
+    if (!id && !isProviderId(provider)) throw new Error('That program is not known.')
+    const named = id ? { accounts: accountsSvc.rename(String(id), String(name ?? '')) } : { ownNames: accountsSvc.renameOwn(provider as ProviderId, String(name ?? '')) }
+    prefs = cleanPrefs({ ...prefs, ...named }, prefs)
     savePrefs(join(HOME, 'preferences.json'), prefs)
     return prefs
   })

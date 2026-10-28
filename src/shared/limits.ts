@@ -67,7 +67,7 @@ export interface BoardProvider {
  * The windows as a board: one block per program, a row per login, and under a login a row for each model group the program limits
  * on its own ("Claude Code (Fable)"). A program with one login names its rows by group instead, as the program does.
  */
-export function limitBoard(ws: LimitWindow[], names: { provider: (id: LimitWindow['provider']) => string; account: (id: string) => string; /** The program has extra logins, so its rows are named by login even while only one has reported. */ keeps?: (id: LimitWindow['provider']) => boolean }): BoardProvider[] {
+export function limitBoard(ws: LimitWindow[], names: { provider: (id: LimitWindow['provider']) => string; account: (id: string, provider: LimitWindow['provider']) => string; /** The program has extra logins, so its rows are named by login even while only one has reported. */ keeps?: (id: LimitWindow['provider']) => boolean }): BoardProvider[] {
   const ids = [...new Set(ws.map((w) => w.provider))]
   return ids.map((provider) => {
     const mine = ws.filter((w) => w.provider === provider)
@@ -82,7 +82,7 @@ export function limitBoard(ws: LimitWindow[], names: { provider: (id: LimitWindo
         const short = group.startsWith(label) ? group.slice(label.length).replace(/^\s*\((.*)\)\s*$/, '$1').trim() || label : group
         return {
           key: `${login}|${group}`,
-          label: several ? (i === 0 ? names.account(login) : short) : groups.length > 1 ? short : label,
+          label: several ? (i === 0 ? names.account(login, provider) : short) : groups.length > 1 ? short : label,
           account: several || mine.some((w) => w.account !== undefined) ? login : undefined,
           sub: several && i > 0,
           five: in_.find((w) => w.kind === 'five_hour') ?? null,

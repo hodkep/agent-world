@@ -18,8 +18,8 @@ test('an account can be renamed by clicking its name: Enter saves, Escape cancel
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: 'Accounts' }).click()
-    // Your own login is not a label you chose, so it has nothing to rename.
-    await expect(settings.getByRole('button', { name: 'Rename This computer' })).toHaveCount(0)
+    // Your own login is named like any other.
+    await expect(settings.getByRole('button', { name: 'Rename This computer' })).toBeVisible()
 
     // Escape leaves the name as it was.
     await settings.getByRole('button', { name: 'Rename Work' }).click()
@@ -41,6 +41,16 @@ test('an account can be renamed by clicking its name: Enter saves, Escape cancel
     await expect(settings.getByRole('button', { name: 'Rename Day job' })).toBeVisible()
     await expect(settings.locator('.acct', { hasText: 'Day job' })).toContainText('accounts/work')
     await expect.poll(() => JSON.parse(readFileSync(prefsFile, 'utf8')).accounts).toEqual([{ id: 'work', name: 'Day job', provider: 'claude' }, { id: 'home', name: 'Home', provider: 'claude' }])
+
+    // The own login takes the same rules: another account's name is refused, a free name is kept and shown, and no folder or id appears for it.
+    await settings.getByRole('button', { name: 'Rename This computer' }).click()
+    await settings.getByLabel('Name of This computer').fill(' day job ')
+    await settings.getByLabel('Name of This computer').press('Enter')
+    await expect(settings.getByRole('alert')).toContainText('An account with that name exists.')
+    await settings.getByLabel('Name of This computer').fill('Laptop')
+    await settings.getByLabel('Name of This computer').press('Enter')
+    await expect(settings.getByRole('button', { name: 'Rename Laptop' })).toBeVisible()
+    await expect.poll(() => JSON.parse(readFileSync(prefsFile, 'utf8')).ownNames).toEqual({ claude: 'Laptop' })
   } finally {
     await shutdown()
   }
