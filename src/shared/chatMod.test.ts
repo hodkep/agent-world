@@ -26,6 +26,25 @@ describe('CSS an agent writes', () => {
     expect(cleanCss('/* @import url(x) */ .a { color: red }').problems).toEqual([])
     expect(cleanCss('.a { background: u/**/rl(https://x.y/a.png) }').problems.length).toBeGreaterThan(0)
   })
+  it('is not fooled by comment marks inside strings, which a browser does not read as a comment', () => {
+    const attacks = [
+      '.a::before { content: "/*"; background: url(https://x.y/a.png); } .b::after { content: "*/" }',
+      ".a::before { content: '/*'; background: url(https://x.y/a.png); } .b::after { content: '*/' }",
+      // a string a browser ends at the line break, so what follows on the next line is code, though a comment seems to open on the first
+      '.a::before { content: "abc /* \n background: url(https://x.y/a.png); } /* */ .b { color: red }',
+      '.a { background: url(https://x.y/a.png) } /* " */ .b { content: "x" }'
+    ]
+    // the same for an escape that spells url on the line after a string a browser has already ended
+    attacks.push('.a::before { content: "abc\n} .b { background: \\75rl(https://x.y/a.png) } .c::after { content: "x" }')
+    // a carriage return or a form feed ends a line as much as a line feed does
+    for (const brk of ['\r', '\f', '\r\n']) attacks.push(`.a::before { content: "abc${brk}} .b { background: \\75rl(https://x.y/a.png) } .c::after { content: "x" }`, `.a::before { content: "abc /* ${brk} background: url(https://x.y/a.png); } /* */ .b { color: red }`)
+    // an unquoted url() holds a /* as plain text: it is a whole address up to the first ), and what follows is code
+    attacks.push('.a { background: url(data:image/png,/*), url(https://x.y/a.png) /* */ ) }', '.a { background: URL( data:image/png,/*), url(https://x.y/a.png) /* */ ) }')
+    for (const bad of attacks) expect(cleanCss(bad).problems.length, bad).toBeGreaterThan(0)
+    expect(cleanCss('.a { background: url(data:image/png;base64,AAA/*AAA) }').problems).toEqual([])
+    expect(cleanCss('.a { color: red }\r\n.b { color: blue }').css).toBe('.a { color: red }\n.b { color: blue }')
+    expect(cleanCss('.a::before { content: "/* not a comment */" } /* a real one */ .b { color: red }').problems).toEqual([])
+  })
   it('is not fooled by an escape spelling a word the checks look for, but allows one inside a string', () => {
     for (const bad of ['.a { background: \\75rl(https://x.y/a.png) }', '@\\69mport "x.css";', '.a { background: u\\72l(https://x.y/a.png) }']) expect(cleanCss(bad).problems.length, bad).toBeGreaterThan(0)
     expect(cleanCss('.a::before { content: "\\2022" }').problems).toEqual([])
