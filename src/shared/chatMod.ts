@@ -42,11 +42,17 @@ export const MAX_CSS = 60_000
 export function cleanCss(raw: unknown): { css: string; problems: string[] } {
   if (raw == null || raw === '') return { css: '', problems: [] }
   if (typeof raw !== 'string') return { css: '', problems: ['css must be text.'] }
-  const css = raw.replace(/\/\*[\s\S]*?\*\//g, '')
+  // CSS counts \r, \r\n and \f as a line break, like \n: they are made \n first, and the text that is checked is the text that is used.
+  const text = raw.replace(/\r\n?|\f/g, '\n')
+  // Strings are read as a browser reads them: to the closing quote or to the line break, whichever comes first. A /* inside one opens no comment.
+  const STRING = /"(?:[^"\\\n]|\\[\s\S])*(?:"|(?=\n)|$)|'(?:[^'\\\n]|\\[\s\S])*(?:'|(?=\n)|$)/
+  // An unquoted url( … ) is one token up to its first ): a /* in it is part of the address, not a comment, so it is kept whole like a string.
+  const URL_TOKEN = /url\(\s*[^"'\s)][^)]*(?:\)|$)/
+  const css = text.replace(new RegExp(`(${STRING.source}|${URL_TOKEN.source})|/\\*[\\s\\S]*?\\*/`, 'gi'), (_, keep: string | undefined) => keep ?? '')
   const problems: string[] = []
   if (raw.length > MAX_CSS) problems.push(`css is longer than ${MAX_CSS} characters.`)
   // An escape can spell a word the checks below look for (\75rl is url), so outside a quoted string there are none.
-  if (/\\/.test(css.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, ''))) problems.push('A backslash outside a quoted string is not allowed.')
+  if (/\\/.test(css.replace(new RegExp(STRING.source, 'g'), ''))) problems.push('A backslash outside a quoted string is not allowed.')
   if (/@import\b/i.test(css)) problems.push('@import is not allowed: put the rules in the css itself.')
   if (/url\s*\(\s*(?!['"]?data:image\/)/i.test(css)) problems.push('url() may only hold a data:image/ address: nothing is loaded from outside.')
   // These take a quoted address with no url() around it, so the url() check cannot see them; nothing in the look needs them.
@@ -58,7 +64,7 @@ export function cleanCss(raw: unknown): { css: string; problems: string[] } {
     if (depth < 0) break
   }
   if (depth !== 0) problems.push('The braces do not match.')
-  return { css: problems.length ? '' : raw, problems }
+  return { css: problems.length ? '' : text, problems }
 }
 
 // The theme variables as the app ships them, for judging a colour against the ones a look leaves alone.
