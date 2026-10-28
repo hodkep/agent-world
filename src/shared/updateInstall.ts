@@ -13,3 +13,9 @@ export type InstallState =
 
 /** A look for a newer version is not made while a download runs or waits for the restart: it would start the same download again. */
 export const lookAllowed = (install: InstallState | undefined) => !install || !['downloading', 'ready', 'installing'].includes(install.phase)
+
+/** Which kind of release a look, a download or an install is about. Stable is the latest release; beta the newest pre-release tagged -beta.N. */
+export type UpdateChannel = 'stable' | 'beta'
+
+/** What the last beta look found: the same fields as the stable state, kept apart so the top-bar chip and the three-hourly look stay stable only. */
+export type BetaState = { state: 'off' | 'checking' | 'none' | 'available' | 'error'; detail?: string; latest?: string; url?: string; notes?: string; tag?: string; /** When the release was published. */ date?: string; install?: InstallState }

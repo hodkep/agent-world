@@ -13,6 +13,7 @@ import pkg from '../package.json'
 // The update of a build without a Developer ID, against a release server of the test's own (AW_UPDATE_RELEASES: honoured only by an app that is not installed)
 // and a fake app bundle to replace (AW_UPDATE_APP_PATH). A real replacement on a real Mac, with a real codesign and open, is tried by hand.
 const NEW = '0.9.0'
+const BETA = '0.9.1-beta.1'
 const plist = (version: string) => `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.agentworld.app</string><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`
 const bundle = (parent: string, name: string, version: string, marker: string) => {
   const b = join(parent, name)
@@ -37,12 +38,19 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
   expect(spawnSync('/usr/bin/ditto', ['-c', '-k', src, zip]).status).toBe(0)
   const bytes = readFileSync(zip)
   const sha = o.badChecksum ? createHash('sha512').update('other').digest('base64') : createHash('sha512').update(bytes).digest('base64')
-  const yml = `version: ${NEW}\nfiles:\n${['arm64', 'x64'].map((a) => `  - url: Agent-World-${NEW}-${a}.zip\n    sha512: ${sha}\n    size: ${bytes.length}\n`).join('')}path: Agent-World-${NEW}-x64.zip\n`
-  const base = `/hodkep/agent-world/releases/download/v${NEW}`
+  const ymlOf = (v: string) => `version: ${v}\nfiles:\n${['arm64', 'x64'].map((a) => `  - url: Agent-World-${v}-${a}.zip\n    sha512: ${sha}\n    size: ${bytes.length}\n`).join('')}path: Agent-World-${v}-x64.zip\n`
+  const base = (v: string) => `/hodkep/agent-world/releases/download/v${v}`
+  const releases = [
+    { tag_name: `v${NEW}`, prerelease: false, draft: false, published_at: '2026-10-28T10:00:00Z', body: 'stable' },
+    { tag_name: `v${BETA}`, prerelease: true, draft: false, published_at: '2026-10-29T10:00:00Z', body: '## Beta notes\n\n- A rough thing' }
+  ]
   const server = createServer((req, res) => {
     if (req.url === '/api/repos/hodkep/agent-world/releases/latest') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ tag_name: `v${NEW}`, ...(o.body && { body: o.body }) }))
-    if (req.url === `${base}/latest-mac.yml`) return void res.writeHead(200).end(yml)
-    if (req.url?.startsWith(`${base}/Agent-World-${NEW}-`) && req.url.endsWith('.zip')) return void res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+    if (req.url === '/api/repos/hodkep/agent-world/releases?per_page=30') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(releases))
+    for (const v of [NEW, BETA]) {
+      if (req.url === `${base(v)}/latest-mac.yml`) return void res.writeHead(200).end(ymlOf(v))
+      if (req.url?.startsWith(`${base(v)}/Agent-World-${v}-`) && req.url.endsWith('.zip')) return void res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+    }
     res.writeHead(404).end('no')
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
@@ -93,6 +101,40 @@ test('an unsigned Mac build is offered the update, downloads it with progress, c
     // The helper replaces the fake bundle after the app has quit, and opens it.
     await expect.poll(() => (existsSync(join(w.app, 'Contents', 'marker')) ? readFileSync(join(w.app, 'Contents', 'marker'), 'utf8') : ''), { timeout: 30_000 }).toBe('new')
     await expect.poll(() => (existsSync(w.opened) ? readFileSync(w.opened, 'utf8').trim() : ''), { timeout: 30_000 }).toBe(w.app)
+  } finally {
+    await w.close()
+  }
+})
+
+test("Settings > Updates has a Beta row of its own: its Check finds the newest beta, Download takes it with progress and checks it, and the stable row and the top-bar chip are not touched", async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const w = await world()
+  try {
+    const { page } = w
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    const stable = settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') })
+    const beta = settings.locator('.upd-chan', { has: page.locator('.upd-tag.beta') })
+    await expect(beta).toContainText('Not checked yet')
+    // Nothing downloads by itself, and a beta look is not a stable one.
+    await beta.getByRole('button', { name: 'Check for a beta' }).click()
+    await expect(beta).toContainText(BETA)
+    await expect(beta).toContainText('Released')
+    await expect(beta).toContainText('A rough thing')
+    await expect(beta).toContainText('replaces the stable app you have')
+    await expect(stable.getByRole('button', { name: 'Download' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /is available/ })).toHaveCount(0)
+    await beta.getByRole('button', { name: 'Download' }).click()
+    await expect(beta).toContainText(`${BETA} is ready to install`, { timeout: 30_000 })
+    await expect(beta).toContainText("Checksum matches the release's")
+    // The stable row still looks on its own, and the beta download stays as it was.
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText('0.9.0 is available')
+    await expect(stable.getByRole('button', { name: 'Download' })).toBeVisible()
+    await expect(beta).toContainText(`${BETA} is ready to install`)
+    await expect(beta.getByRole('button', { name: 'Install and restart' })).toBeVisible()
   } finally {
     await w.close()
   }

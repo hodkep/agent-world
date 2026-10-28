@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { UpdatePanel, useUpdateInfo } from './UpdateChip'
+import { type UpdateInfo, UpdatePanel, useUpdateInfo } from './UpdateChip'
 import { checkNowButton, updateView } from './updateView'
 import { WhatsNew } from './ReleaseNotes'
 import type { Role } from '../../shared/roles'
@@ -94,6 +94,12 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const [notesOpen, setNotesOpen] = useState(false)
   useEffect(() => void window.aw.appInfo().then((i) => setVersion(i.version), () => undefined), [])
   const check = checkNowButton(found)
+  // The beta row: what the last beta look found, shown by the same view as the stable update (it never reaches the top-bar chip).
+  const beta: UpdateInfo = { ...found.beta, state: found.beta?.state ?? 'none', channel: 'beta', current: version }
+  const betaShown = found.beta ? updateView(beta, updateAgents) : null
+  const betaCheck = checkNowButton(beta)
+  const betaLabel = betaCheck.label === 'Check now' ? 'Check' : betaCheck.label
+  const betaSays = found.beta ? (found.beta.detail ?? { off: '', checking: 'Checking…', none: 'No newer beta than the version you have.', available: 'Beta found.', error: 'Could not check.' }[found.beta.state]) : 'Not checked yet. A beta may be rough and can differ from the stable version you have.'
   useEffect(() => dialog.current?.showModal(), [])
   const set = (patch: Partial<Prefs>) => onChange(patch)
   const setRoleModel = (title: string, model: string) => {
@@ -294,18 +300,33 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
                 <small>installed</small>
                 <span className="grow" />
                 <button className="su-link" onClick={() => setNotesOpen(true)}>What's new</button>
-                <button onClick={() => void window.aw.checkUpdates()} disabled={check.disabled} title={check.reason}>{check.label}</button>
               </div>
-              <div className="settings-row">
+              <div className="upd-chan">
+                <div className="upd-chan-head">
+                  <span className="upd-tag stable">Stable</span>
+                  <b>Latest release</b>
+                  <span className="grow" />
+                  <button onClick={() => void window.aw.checkUpdates('stable')} disabled={check.disabled} title={check.reason}>{check.label}</button>
+                </div>
                 <span className="hint" role="status">{update}</span>
+                {shown && (
+                  <div className="set-update">
+                    <UpdatePanel view={shown} info={found} />
+                    <p className="hint">This build is not signed with an Apple Developer ID, so an update is checked against the checksum published with its release on GitHub, and put in place by Agent World itself.</p>
+                  </div>
+                )}
               </div>
               {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
-              {shown && (
-                <div className="set-update">
-                  <UpdatePanel view={shown} info={found} />
-                  <p className="hint">This build is not signed with an Apple Developer ID, so an update is checked against the checksum published with its release on GitHub, and put in place by Agent World itself.</p>
+              <div className="upd-chan">
+                <div className="upd-chan-head">
+                  <span className="upd-tag beta">Beta</span>
+                  <b>{found.beta?.state === 'available' && found.beta.latest ? found.beta.latest : 'Early builds'}</b>
+                  <span className="grow" />
+                  <button onClick={() => void window.aw.checkUpdates('beta')} disabled={betaCheck.disabled} title={betaCheck.reason} aria-label={`${betaLabel} for a beta`}>{betaLabel}</button>
                 </div>
-              )}
+                <span className="hint" aria-live="polite">{betaSays}{found.beta?.state === 'available' && found.beta.date ? ` Released ${new Date(found.beta.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.` : ''}</span>
+                {betaShown && <UpdatePanel view={betaShown} info={beta} />}
+              </div>
             </>
           )}
           {pane === 'setup' && (
