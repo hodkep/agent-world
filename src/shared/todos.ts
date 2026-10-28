@@ -380,3 +380,9 @@ export const needsYou = (b: TodoBoard): number => b.todos.filter((t) => t.needsY
 export function currentTodoOf(b: TodoBoard, agentId: string): Todo | undefined {
   return b.todos.filter((t) => t.status === 'doing' && t.claimedBy?.id === agentId).sort((x, y) => y.updatedAt - x.updatedAt || Number(y.id) - Number(x.id))[0]
 }
+
+/** The task an agent was on last (claimed or finished), as the one a follow-up belongs under: its umbrella when it was a part; never the task given, which is the follow-up itself. */
+export function lastTaskOf(b: TodoBoard, agentId: string, except?: string): Todo | undefined {
+  const last = b.todos.filter((t) => t.id !== except && (t.claimedBy?.id === agentId || t.doneBy?.id === agentId)).sort((x, y) => y.updatedAt - x.updatedAt || Number(y.id) - Number(x.id))[0]
+  return last?.parent ? b.todos.find((t) => t.id === last.parent) : last
+}
