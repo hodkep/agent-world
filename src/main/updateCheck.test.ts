@@ -128,6 +128,23 @@ describe('asking GitHub for the latest release', () => {
   })
 })
 
+describe('going back to stable from a beta', () => {
+  const repo = { owner: 'hodkep', repo: 'agent-world' }
+  const latest = (tag: string) => async () => ({ ok: true, status: 200, json: async () => ({ tag_name: tag, body: 'notes' }) })
+  it('offers the latest stable, though older, only when asked to and only to someone on a beta', async () => {
+    expect(await latestRelease('0.7.0-beta.1', repo, latest('v0.6.3'), undefined, { back: true })).toMatchObject({ state: 'available', latest: '0.6.3', back: true, notes: 'notes', detail: '0.6.3 is the latest stable, older than the beta you have.' })
+    // the three-hourly look and the top-bar chip do not ask: no nagging a beta user to go back
+    expect(await latestRelease('0.7.0-beta.1', repo, latest('v0.6.3'))).toEqual({ state: 'none' })
+    // a copy that is not a beta is never offered an older release
+    expect(await latestRelease('0.7.0', repo, latest('v0.6.3'), undefined, { back: true })).toEqual({ state: 'none' })
+  })
+  it('keeps a stable that is newer than the beta as the ordinary update', async () => {
+    const r = await latestRelease('0.7.0-beta.3', repo, latest('v0.7.0'), undefined, { back: true })
+    expect(r).toMatchObject({ state: 'available', latest: '0.7.0' })
+    expect('back' in r).toBe(false)
+  })
+})
+
 describe('where the release is asked for', () => {
   const repo = { owner: 'hodkep', repo: 'agent-world' }
   it('is GitHub unless a test run gave a server of its own, and the page and the question are built from that origin and the repository', async () => {

@@ -29,7 +29,7 @@ const tool = (root: string, name: string, body: string) => {
   return p
 }
 
-async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean } = {}) {
+async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean; version?: string } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'aw-upd-')))
   const src = join(root, 'src')
   mkdirSync(src)
@@ -61,7 +61,7 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
   const opened = join(root, 'opened.log')
   // A fake Homebrew prefix: the cask's folder in it is what says Homebrew installed this copy.
   if (o.caskroom) mkdirSync(join(root, 'Caskroom', 'agent-world'), { recursive: true })
-  const env = { ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
+  const env = { ...(o.version && { AW_APP_VERSION: o.version }), ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
   if (o.prefs) {
     mkdirSync(join(root, 'home'), { recursive: true })
     writeFileSync(join(root, 'home', 'preferences.json'), JSON.stringify(o.prefs))
@@ -135,6 +135,29 @@ test("Settings > Updates has a Beta row of its own: its Check finds the newest b
     await expect(stable.getByRole('button', { name: 'Download' })).toBeVisible()
     await expect(beta).toContainText(`${BETA} is ready to install`)
     await expect(beta.getByRole('button', { name: 'Install and restart' })).toBeVisible()
+  } finally {
+    await w.close()
+  }
+})
+
+test("Settings > Updates on a beta: the stable row's Check offers the older stable as a way back, with a warning, and the top-bar chip stays quiet", async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(120_000)
+  const w = await world({ version: '0.9.1-beta.1' })
+  try {
+    const { page } = w
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Updates' }).click()
+    const stable = settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') })
+    await stable.getByRole('button', { name: 'Check now' }).click()
+    await expect(stable).toContainText(`Back to stable ${NEW}`)
+    await expect(stable).toContainText('Going back replaces the beta you have; settings made in the beta may not be read by the stable version.')
+    await expect(page.getByRole('button', { name: /is available/ })).toHaveCount(0)
+    await stable.getByRole('button', { name: `Back to stable ${NEW}` }).click()
+    await expect(stable).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
+    await expect(stable).toContainText("Checksum matches the release's")
+    await expect(stable.getByRole('button', { name: 'Install and restart' })).toBeVisible()
   } finally {
     await w.close()
   }

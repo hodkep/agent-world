@@ -14,7 +14,7 @@ import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { installedNotes } from './releaseNotes'
-import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, updateState } from './updates'
+import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, runningVersion, updateState } from './updates'
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { remoteState } from './remoteState'
@@ -1660,10 +1660,10 @@ async function main() {
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
     for (const [id, s] of seenRemote) send('remote', id, s)
   })
-  ipcMain.handle('updates:check', (_, channel?: unknown) => checkForUpdates((s) => send('update-state', s), channel === 'beta' ? 'beta' : 'stable'))
+  ipcMain.handle('updates:check', (_, channel?: unknown) => checkForUpdates((s) => send('update-state', s), channel === 'beta' ? 'beta' : 'stable', true))
   ipcMain.handle('updates:state', () => updateState())
   // The changelog travels with the app: next to its resources when installed, in the project folder when run from source.
-  ipcMain.handle('app:info', () => ({ version: app.getVersion(), notes: installedNotes([process.resourcesPath, app.getAppPath()], app.getVersion()) }))
+  ipcMain.handle('app:info', () => ({ version: runningVersion(), notes: installedNotes([process.resourcesPath, app.getAppPath()], app.getVersion()) }))
   ipcMain.handle('updates:download', (_, c?: unknown) => downloadUpdate(c === 'beta' ? 'beta' : 'stable'))
   ipcMain.handle('updates:cancel', (_, c?: unknown) => cancelUpdateDownload(c === 'beta' ? 'beta' : 'stable'))
   ipcMain.handle('updates:install', (_, c?: unknown) => installUpdate(c === 'beta' ? 'beta' : 'stable'))

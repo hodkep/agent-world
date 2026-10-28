@@ -87,10 +87,12 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   }
   // What the app last found about a newer version, said as it looks (and a page to open when this build cannot install it itself).
   const found = useUpdateInfo()
-  const update = found.detail ?? { off: '', checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.' }[found.state]
+  const [version, setVersion] = useState('')
+  // On a beta the stable row says what its Check is for: the latest stable can be older, and is then offered as a way back.
+  const onBeta = /-beta\.\d+$/.test(version)
+  const update = found.detail ?? (onBeta && found.state === 'none' ? 'You are on a beta. Check to see the stable version you can go back to.' : undefined) ?? { off: '', checking: 'Checking…', none: 'You have the latest version.', available: 'Update found.', ready: 'Update ready.', error: 'Could not check.' }[found.state]
   const shown = updateView(found, updateAgents)
   // The version that is installed, and its notes (read from the changelog that came with the app) in a dialog.
-  const [version, setVersion] = useState('')
   const [notesOpen, setNotesOpen] = useState(false)
   useEffect(() => void window.aw.appInfo().then((i) => setVersion(i.version), () => undefined), [])
   const check = checkNowButton(found)
@@ -304,7 +306,7 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               <div className="upd-chan">
                 <div className="upd-chan-head">
                   <span className="upd-tag stable">Stable</span>
-                  <b>Latest release</b>
+                  <b>{found.back && found.latest ? `Back to stable ${found.latest}` : 'Latest release'}</b>
                   <span className="grow" />
                   <button onClick={() => void window.aw.checkUpdates('stable')} disabled={check.disabled} title={check.reason}>{check.label}</button>
                 </div>

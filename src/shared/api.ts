@@ -344,7 +344,7 @@ export interface AwApi {
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
-  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }>
+  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; back?: boolean; current?: string; install?: InstallState; beta?: BetaState }>
   /** The version running, and the notes of it from the changelog that came with the app (null when this build has none for it). */
   appInfo(): Promise<{ version: string; notes: import('./changelog').ReleaseNotes | null }>
   /** Unsigned Mac build: download the newer release, stop it, or replace the app with it and restart. */
@@ -354,8 +354,8 @@ export interface AwApi {
   /** Show the downloaded update, or the update log, in Finder. */
   revealUpdate(kind: 'file' | 'log', channel?: UpdateChannel): Promise<void>
   /** Look for the latest release (stable), or for the newest beta; nothing is downloaded by a look. */
-  checkUpdates(channel?: UpdateChannel): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }>
-  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
+  checkUpdates(channel?: UpdateChannel): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; back?: boolean; current?: string; install?: InstallState; beta?: BetaState }>
+  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; back?: boolean; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void

@@ -13,6 +13,8 @@ export interface ReleaseState {
   notes?: string
   /** When the release was published (beta looks only), as GitHub says it. */
   date?: string
+  /** Set when `latest` is a stable release older than the beta that is installed: it is offered as a way back, not as an update. */
+  back?: boolean
 }
 
 /** The GitHub repository of the `repository` field of package.json: "github:owner/repo", an address, or {url}. */
@@ -109,15 +111,24 @@ function found(tag: string, repo: Repo, origins: Origins, body: unknown, date?: 
 
 const unreachable = (e: unknown): ReleaseState => ({ state: 'error', detail: `Could not reach GitHub: ${(e as Error).message.split('\n')[0]}` })
 
-/** Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release. */
-export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB): Promise<ReleaseState> {
+/** Whether `version` is a beta build (the only kind a person can be asked to go back from). */
+export const isBeta = (version: string) => /^v?\d+\.\d+\.\d+-beta\.\d+$/.test(version.trim())
+
+/**
+ * Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release.
+ * With `back` (a look the person asked for in Settings), a beta's owner is also shown the latest stable when it is older than the beta, as a way back.
+ */
+export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB, o: { back?: boolean } = {}): Promise<ReleaseState> {
   try {
     const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases/latest`)
     if (res.status === 404) return { state: 'none', detail: 'No release is published yet.' }
     if (!res.ok) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
     const answer = (await res.json()) as { tag_name?: unknown; body?: unknown }
     const tag = String(answer.tag_name ?? '')
-    return isNewer(current, tag) ? found(tag, repo, origins, answer.body) : { state: 'none' }
+    if (isNewer(current, tag)) return found(tag, repo, origins, answer.body)
+    const t = parse(tag)
+    if (!o.back || !isBeta(current) || !t || t.pre) return { state: 'none' }
+    return { ...found(tag, repo, origins, answer.body), back: true, detail: `${tag.replace(/^v/, '')} is the latest stable, older than the beta you have.` }
   } catch (e) {
     return unreachable(e)
   }
