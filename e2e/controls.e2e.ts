@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -40,6 +40,26 @@ test('hire with options, see live cost and context, get a budget warning, switch
     await expect(row).toBeVisible()
     await page.waitForTimeout(1500)
     await expect(row).not.toContainText('asleep')
+  } finally {
+    await shutdown()
+  }
+})
+
+test('the program in the Terminal tab is told the size the terminal has when the tab opens, not the size it started at', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'aw-size-'))
+  const sizeFile = join(home, 'size.txt')
+  const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_SIZE_FILE: sizeFile }, home)
+  try {
+    const page = await app.firstWindow()
+    await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
+    await page.reload()
+    await hire(page, { name: 'nova' })
+    await chatTab(page)
+    await page.getByRole('tab', { name: 'Terminal' }).click()
+    const host = page.locator('.term-host:visible')
+    await expect(host).toHaveAttribute('data-cols', /^\d+$/)
+    // What the terminal shows and what the program is told are one size.
+    await expect.poll(async () => `${await host.getAttribute('data-cols')}x`, { timeout: 10_000 }).toBe(`${(readFileSync(sizeFile, 'utf8').split('x')[0])}x`)
   } finally {
     await shutdown()
   }

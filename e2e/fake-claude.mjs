@@ -271,6 +271,13 @@ const announceStart = async () => {
   }
 }
 if (!process.env.FAKE_CHAT) await announceStart()
+// FAKE_SIZE_FILE=path: the size of the terminal this program is told, written at the start and at every change, as a real program reads it.
+if (process.env.FAKE_SIZE_FILE) {
+  const { writeFileSync } = await import('node:fs')
+  const report = () => writeFileSync(process.env.FAKE_SIZE_FILE, `${process.stdout.columns}x${process.stdout.rows}`)
+  report()
+  process.stdout.on('resize', report)
+}
 // Echo typed or pasted input, so delivered messages are visible in this terminal.
 process.stdin.setRawMode?.(true)
 process.stdin.on('data', (d) => process.env.FAKE_PLAN || process.env.FAKE_TERMINAL_PROMPT || process.env.FAKE_ASKQ || process.env.FAKE_CHAT || process.stdout.write(String(d).replace(/\x1b\[20[01]~/g, '')))

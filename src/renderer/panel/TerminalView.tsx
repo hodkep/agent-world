@@ -20,6 +20,20 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
   askRef.current = ask
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
+  // Fits the terminal to its box and tells the program the size it ended with, even when the size is the one the terminal already had: the program may have another
+  // (it started at its own default, or restarted), and xterm only reports a change. Not measured yet (hidden, fonts loading): tries again on the next frames.
+  const sync = (tries = 6) => {
+    const term = termRef.current
+    const fit = fitRef.current
+    if (!term || !fit || !el.current?.offsetParent) return
+    const size = fit.proposeDimensions()
+    if (!size || !size.cols || !size.rows || Number.isNaN(size.cols)) return void (tries > 0 && requestAnimationFrame(() => sync(tries - 1)))
+    fit.fit()
+    window.aw.ptyResize(ptyIdRef.current, term.cols, term.rows)
+    el.current.dataset.cols = String(term.cols)
+  }
+  const ptyIdRef = useRef(ptyId)
+  ptyIdRef.current = ptyId
   // Find in the terminal: the bar, what was typed, and where the current match is.
   const [find, setFind] = useState<{ query: string; matchCase: boolean; at: number; count: number } | null>(null)
   const findRef = useRef(find)
@@ -181,7 +195,7 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     const released = () => requestAnimationFrame(place)
     el.current!.addEventListener('mouseup', released)
     const cleared = term.onSelectionChange(() => !term.hasSelection() && setPick(null))
-    const ro = new ResizeObserver(() => el.current?.offsetParent && fit.fit())
+    const ro = new ResizeObserver(() => sync())
     ro.observe(el.current!)
 
     return () => {
@@ -204,8 +218,10 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     // Selecting an agent means "talk to it": keys go straight to its terminal.
     if (visible)
       requestAnimationFrame(() => {
-        fitRef.current?.fit()
+        sync()
         termRef.current?.focus()
+        // Fonts and the panel's own layout may still be settling on the first frame.
+        setTimeout(sync, 250)
       })
   }, [visible, focusTick])
 
