@@ -703,7 +703,7 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .composer-editor .lm-h1 { font-size: 16px; }
 .composer-editor .lm-h2 { font-size: 15px; }
 .composer-editor .lm-h3 { font-size: 13px; color: var(--accent); }
-.composer-editor .lm-quote { border-left: 3px solid var(--line); padding-left: 8px; color: var(--muted); }
+.composer-editor .lm-quote { background: color-mix(in srgb, var(--line) 35%, transparent); padding: 0 8px; color: var(--muted); }
 .composer-editor .lm-codeline, .composer-editor .lm-fence { background: var(--panel-3); font: 12px Menlo, Consolas, monospace; padding: 0 8px; }
 .composer-editor .lm-codeline { color: var(--ok-text); }
 .composer-editor .lm-fence { color: var(--muted); }
@@ -2770,7 +2770,7 @@ aside:not(.drawer) { flex: none; }
 .td-task.done .td-ck { background: var(--ok); border-color: var(--ok); }
 .td-task.done .td-title { text-decoration: line-through; color: var(--muted); }
 /* The task whose panel is open: a brighter tint and the title in the accent colour */
-.td-task.sel { background: #3a3418; }
+.td-task.sel { background: color-mix(in srgb, var(--accent) 7%, var(--selected)); }
 .td-task.sel .td-title { color: var(--accent); }
 .td-title { font-weight: 600; }
 .td-sub { margin-top: 3px; }
@@ -3829,7 +3829,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-editor .cm-line { padding: 1px 0; }
 .nt-editor .cm-cursor { border-left-color: var(--accent); }
 .nt-editor .cm-selectionBackground, .nt-editor .cm-editor.cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
-.nt-h1 { font-size: 20px; font-weight: 700; margin-top: 6px; } .nt-h2 { font-size: 17px; font-weight: 700; margin-top: 4px; } .nt-h3 { font-size: 15px; font-weight: 700; }
+.nt-h1 { font-size: 16px; font-weight: 700; margin-top: 6px; } .nt-h2 { font-size: 15px; font-weight: 700; margin-top: 4px; } .nt-h3 { font-size: 14px; font-weight: 700; }
 .nt-hr { border-bottom: 1px solid var(--line); }
 .nt-b { font-weight: 700; } .nt-i { font-style: italic; } .nt-s { text-decoration: line-through; color: var(--muted); }
 .nt-code { background: var(--well); color: var(--think); padding: 0 3px; font-family: Menlo, monospace; font-size: 12.5px; }
@@ -3877,7 +3877,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { right: 8px; left: auto; transform: none; max-width: min(240px, calc(100vw - 24px)); }
 .nt-tools .tip-btn[aria-expanded='true']::after { display: none; }
 .nt-rule { border-top: 2px solid var(--line); margin: 9px 0; height: 0; }
-.nt-quote { border-left: 3px solid var(--accent); padding-left: 10px; color: var(--muted); }
+.nt-quote { background: color-mix(in srgb, var(--accent) 8%, transparent); padding: 0 10px; color: var(--muted); }
 .nt-link { color: var(--think); text-decoration: underline; text-underline-offset: 2px; }
 /* Dropdowns: room around the words and for the arrow on both sides. */
 .nt select, .td-modal select { appearance: none; -webkit-appearance: none; padding: 4px 28px 4px 10px; background-color: var(--well); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%23a4a2b8' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 10px 6px; text-overflow: ellipsis; }
