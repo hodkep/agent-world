@@ -67,6 +67,8 @@ The first time a site on the internet opens, Preview asks **Open here** or **In 
 
 The toolbar has **Back**, **Forward**, **Reload**, **Screen size** (**Desktop**, **Tablet**, **Mobile**), **Select element** (click something on the page to send it to the agent as words and a picture) and **Open in browser**.
 
+To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back, and the rest of the app keeps its size.
+
 ## Terminal, Tools, Traces, History
 
 - **Terminal** is the agent's own terminal; keys go straight to it. A selection offers **Add selection to message**.
