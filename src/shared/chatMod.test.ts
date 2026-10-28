@@ -8,7 +8,7 @@ describe('CSS an agent writes', () => {
     expect(cleanCss(undefined)).toEqual({ css: '', problems: [] })
   })
   it('refuses what loads or runs something from outside, and says why', () => {
-    for (const bad of ['@import url(https://x.y/a.css);', '.a { background: url(https://x.y/a.png) }', '.a { background: url(/etc/passwd) }', '.a { width: expression(alert(1)) }', '.a { background: url(javascript:alert(1)) }', '.a { -moz-binding: url(x) }']) {
+    for (const bad of ['@import url(https://x.y/a.css);', '.a { background: url(https://x.y/a.png) }', '.a { background: url(/etc/passwd) }', '.a { width: expression(alert(1)) }', '.a { background: url(javascript:alert(1)) }', '.a { -moz-binding: url(x) }', '.a { background: image-set("https://x.y/a.png" 1x) }', '.a { background: -webkit-image-set("https://x.y/a.png" 1x) }', '.a { background: image("https://x.y/a.png") }', '.a { background: cross-fade("https://x.y/a.png", red) }', '.a { background: element(#b) }', '.a { background: IMAGE-SET ( \'//x.y/a.png\' 1x) }']) {
       const c = cleanCss(bad)
       expect(c.css, bad).toBe('')
       expect(c.problems.length, bad).toBeGreaterThan(0)

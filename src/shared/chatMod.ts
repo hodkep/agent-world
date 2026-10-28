@@ -49,6 +49,8 @@ export function cleanCss(raw: unknown): { css: string; problems: string[] } {
   if (/\\/.test(css.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, ''))) problems.push('A backslash outside a quoted string is not allowed.')
   if (/@import\b/i.test(css)) problems.push('@import is not allowed: put the rules in the css itself.')
   if (/url\s*\(\s*(?!['"]?data:image\/)/i.test(css)) problems.push('url() may only hold a data:image/ address: nothing is loaded from outside.')
+  // These take a quoted address with no url() around it, so the url() check cannot see them; nothing in the look needs them.
+  if (/(?:^|[^\w-])(?:-webkit-)?(?:image-set|image|cross-fade|element|src)\s*\(/i.test(css)) problems.push('image-set(), image(), cross-fade(), element() and src() are not allowed: they can load from outside. Use url(data:image/...) instead.')
   if (/expression\s*\(|javascript:|-moz-binding|behavior\s*:/i.test(css)) problems.push('That CSS can run code, which is not allowed.')
   let depth = 0
   for (const ch of css) {
@@ -133,7 +135,7 @@ You do it with three things, all written through chat_mod_write:
    - stream keeps a row in the chat (use it to keep failures visible above a rule that hides everything else). hidden drops it.
    - badge: an unbroken run of rows becomes one chip (icon, count, label) where the run was; clicking opens the rows.
    - footer: the rows of the whole reply are gathered into one chip under it. Rules with the same group share one chip, however different the rows. open: true starts it open.
-2. css: any CSS for the app. It is plain CSS (no @import, no url() except data:image/, nothing that runs code), up to 60000 characters, and it applies to the whole window, so you can restyle the chat, the office panel, the header, anything.
+2. css: any CSS for the app. It is plain CSS (no @import, no url() except data:image/, no image-set(), image(), cross-fade(), element() or src(), nothing that runs code), up to 60000 characters, and it applies to the whole window, so you can restyle the chat, the office panel, the header, anything.
    Colours come from variables on :root, so changing the theme is a :root block. What each one is for:
    --bg the window behind everything; --panel panels, the header and the message box; --panel-2 raised things on a panel (cards, buttons, tiles); --panel-3 a deeper panel (side lists, footers); --panel-hover a raised thing under the pointer; --line thin separators;
    --ink the near-black OUTLINE drawn around buttons, panels and dialogs, and the text on bright buttons: keep it darker than --panel, never use it for text (a light --ink turns every border white, and a write like that is refused);
