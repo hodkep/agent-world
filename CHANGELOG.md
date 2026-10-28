@@ -4,6 +4,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-28
+
+### Fixed
+
+- Updates: Settings > Updates lets you download the latest stable or the newest beta whatever version you have, says when it is older, and warns that going older may not read newer settings.
+
 ## [0.7.0] - 2026-10-28
 
 ![Agent World 0.7.0: several repositories in the Code tab, file icons by type, and Task, Sub and Ask buttons in Notes](https://raw.githubusercontent.com/hodkep/agent-world/v0.7.0/docs/images/releases/0.7.0/poster.png)
