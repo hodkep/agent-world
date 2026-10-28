@@ -28,7 +28,7 @@ A task is open, doing, blocked or done. **needs you** marks a step only a person
 Click a task to open its panel; click it again to close it. The open task's card is tinted with its title in gold, and it is scrolled into view when the panel opens from elsewhere (a `todo#N` chip in a chat, a subtask's name): a finished task's **Done** section unfolds and a quiet list's tile opens for it. A subtask has no card of its own, so its task's card comes into view, tinted, with the subtask's line in gold. The panel has the title, its status and its labels at the top, then tabs: **Overview**, **Subtasks**, **Activity**, **How** (a finished task that has one) and **Ask**. In the panel you can:
 
 - On **Overview**, edit **Notes**, tick **Needs you**, and choose what the task is **Part of**.
-- Read **Where it came from**: the start of the message, folded to its first three blocks (a paragraph, a code line, a table), with **Show the rest · N more** to read all of it at full height. A wide table scrolls sideways in its own box. The task keeps up to 4000 characters, and when the message is longer it says **The rest is in the message**.
+- Read **Where it came from**: the start of the message, folded to its first three blocks (a paragraph, a code line, a table), with **Show the rest** (and a count of what is folded) to read all of it at full height. A wide table scrolls sideways in its own box. The task keeps up to 4000 characters, and when the message is longer it says **The rest is in the message**.
 - Click **Open the message it was made in**, or on a finished task **Open the message it was finished in**. The chat of that agent opens at the message.
 - Read **How** (the approach, commits and files) and **Activity**.
 - See **Workflow run**, when the agent began a workflow run while on this task: it says how the run stands, and a click opens it in **Workflows**. Finishing the run finishes the task if the agent has not. The task also shows as a `todo#N` chip on the run's row in the **Runs** ledger.
@@ -58,7 +58,7 @@ A label is a word with a colour. Add one to a task with **+ label** in its panel
 - Point at a checklist or bullet line and three buttons show at its right, on the edge above the line: **Task** (a task from the line, and its indented lines as subtasks), **Sub** (a subtask under the item above) and **Ask** (ask an agent about it). The same three are on the keys Command+Enter, Shift+Command+Enter and Option+Command+Enter (Ctrl instead of Command elsewhere). A line that became a task ends with its number, `(todo#7)`, and it has only **Ask**.
 - Enter on a bullet or checklist item starts the next item (with an empty box, on a checklist); Enter on an empty item ends the list.
 - **Make tasks…** opens a panel beside the note (the window widens, never covering the note) that shows what every line that is not a task yet would make, and can give the tasks to an agent at once. Ticked lines are made as finished tasks.
-- **Ask agent** (also on a line that is a task already) opens the same panel and picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
+- **Ask** (also on a line that is a task already) opens the same panel and picks an agent and either **Work on it** or **Ask a question**, as on a task's **Ask** tab.
 
 ## Filter and search
 
