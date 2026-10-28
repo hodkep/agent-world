@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-28
+
+### Added
+
+- Updates: on a beta, Settings > Updates offers the way back to the latest stable as Back to stable, with a note that settings made in the beta may not be read by the stable version.
+
+![Settings, Updates, on a beta, with Back to stable 0.6.3 and its warning](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.4/docs/images/releases/0.6.4/back-to-stable.png)
+
+### Fixed
+
+- Todos: a follow-up request (a push, a pull request, a fix to a review) is told which task the agent was on, so it goes under it as a subtask, and an agent can nest a task as it marks it done.
+
 ## [0.6.3] - 2026-10-28
 
 ### Added
