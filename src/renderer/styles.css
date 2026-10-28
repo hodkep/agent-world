@@ -3897,7 +3897,9 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 
 /* The line's handle sits in a margin of its own, so the words are never under it; its menu opens below it. */
 .nt-editor .cm-content { padding-right: 44px; }
-.nt-handle { position: absolute; right: -40px; top: 0; width: 28px; height: 24px; display: none; place-items: center; padding: 0; min-width: 0; min-height: 0; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: pointer; }
+.nt-handle { position: absolute; z-index: 1; right: -40px; top: 0; width: 28px; height: 24px; display: none; place-items: center; padding: 0; min-width: 0; min-height: 0; background: var(--well); border: 1px solid var(--line); color: var(--muted); box-shadow: none; cursor: pointer; }
+/* The margin the handle sits in belongs to the line for hover, so the pointer can walk to the handle without it hiding on the way. */
+.nt-item::after { content: ''; position: absolute; top: 0; bottom: 0; right: -44px; width: 44px; }
 .nt-item:hover .nt-handle, .nt-handle:focus-visible, .nt-handle[aria-expanded='true'] { display: inline-grid; }
 .nt-handle:hover { color: var(--text); border-color: var(--muted); }
 .nt-menu { position: fixed; z-index: 20; min-width: 210px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }

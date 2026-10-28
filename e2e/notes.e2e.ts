@@ -74,6 +74,14 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     const hb = (await handle.boundingBox())!
     const eb = (await partA.boundingBox())!
     expect(hb.x).toBeGreaterThanOrEqual(eb.x + eb.width - 1)
+    // Walking the pointer from the words to the handle keeps it there (no gap between them where it would hide), and it can be clicked.
+    await pad.mouse.move(eb.x + 20, eb.y + eb.height / 2)
+    await pad.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2, { steps: 40 })
+    await expect(handle).toBeVisible()
+    await pad.mouse.down()
+    await pad.mouse.up()
+    await expect(pad.getByRole('menu', { name: 'Line actions' })).toBeVisible()
+    await pad.keyboard.press('Escape')
     await partA.click({ position: { x: 70, y: 10 } })
     await pad.keyboard.type('!')
     await expect(pad.locator('.cm-content')).toContainText('!')
