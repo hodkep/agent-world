@@ -24,6 +24,13 @@ describe('workspace trust prompt', () => {
     expect(trustPrompt('hello\r\n> ')).toBeNull()
   })
 
+  // Claude Code 2.1.312 draws it under a rule, wraps a long path over two lines, and adds lines about what it may do and a Security guide link.
+  it('detects the prompt as Claude Code 2.1.312 draws it, with the wrapped path joined', () => {
+    const real = readFileSync(join(__dirname, 'fixtures', 'trust-2026-10.txt'), 'utf8')
+    expect(trustPrompt(real)).toEqual({ path: '/Users/me/.agent-world/worktrees/shop-api-1234/ada', highlighted: 'no' })
+    expect(inputReady(real)).toBe(false)
+  })
+
 
 })
 
