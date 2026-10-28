@@ -106,7 +106,7 @@ import { DEFAULT_PROVIDER } from '../shared/types'
 import { signInsNeeded, withAccounts } from './readiness'
 import { Screen } from './screen'
 import { loadAgents, saveAgents } from './store'
-import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, MoveError, moveOntoBase, undoMove, unrelatedPlan, unrelatedMessage, inPlaceHistory, placeOf, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
+import { assertBranch, branchDiff, branches, changes, repoInfo, commitAll, commitDetail, commitDiff, commitStaged, dirtyDiff, history, clampPage, MoveError, moveOntoBase, undoMove, unrelatedPlan, unrelatedMessage, inPlaceHistory, placeOf, reposIn, repoFolder, stage, unstage, worktreeStatus, staleHint, createPr, discardFile, finishReadiness, listFiles, mergeInto, originalContent, pushBranch, readWorktreeFile, writeWorktreeFile } from './gitops'
 import { DirtyWorktreeError, attachLeftover, createWorktree, checkedOutBranch, git, hasCommits, isGitRepo, leftoverOf, makesBranch, nameTaken, removeLeftover, removeWorktree, slug as repoSlug, worktreeFor } from './worktree'
 
 // AW_HIDDEN=1 runs the app without a visible window, a dock icon, notifications or focus stealing: for automated tests.
@@ -1816,6 +1816,7 @@ async function main() {
         name: basename(path),
         exists: isDir(path),
         git: isDir(path) && (await isGitRepo(path)),
+        repos: isDir(path) ? (await reposIn(path)).length : 0,
         agents: agents.filter((a) => a.repoPath === path).length,
         saved: workspaces.recent.includes(path)
       }))
@@ -2408,9 +2409,14 @@ async function main() {
     return { a, base: a.base ?? (await checkedOutBranch(a.repoPath)) }
   }
   // What needs only the folder (its uncommitted files, commits and files), so it works for an agent on the branch the folder is on too.
-  const folderOf = async (id: string) => {
+  const folderOf = async (id: string, repo?: string) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
+    // A workspace that holds several repositories: one of its children, by name, stands for the folder.
+    if (repo !== undefined) {
+      if (a.branch) throw new Error(`${a.name} has a worktree of its own: there is no child repository to pick.`)
+      return { ...a, cwd: await repoFolder(a.cwd, repo) }
+    }
     // Git is what lists its files and changes: a plain folder has none to offer.
     if (!a.branch && !(await isGitRepo(a.cwd))) throw new Error(`${a.name} works directly in ${a.cwd}, not in a git worktree.`)
     return a
@@ -2427,6 +2433,12 @@ async function main() {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
     return placeOf(a.cwd)
+  })
+  // The repositories directly inside the agent's folder when it is not one itself; empty for an agent with a worktree of its own.
+  ipcMain.handle('code:repos', async (_, id: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('Unknown agent.')
+    return a.branch ? [] : reposIn(a.cwd)
   })
   ipcMain.handle('code:changes', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
@@ -2462,23 +2474,23 @@ async function main() {
   })
   ipcMain.handle('code:read', async (_, id: string, path: string) => readWorktreeFile(agentOf(id).cwd, path))
   ipcMain.handle('code:write', async (_, id: string, path: string, content: string) => writeWorktreeFile(agentOf(id).cwd, path, content))
-  ipcMain.handle('code:commit', async (_, id: string, message: string) => commitAll((await folderOf(id)).cwd, message))
-  ipcMain.handle('code:discard', async (_, id: string, path: string) => discardFile((await folderOf(id)).cwd, path))
+  ipcMain.handle('code:commit', async (_, id: string, message: string, repo?: string) => commitAll((await folderOf(id, repo)).cwd, message))
+  ipcMain.handle('code:discard', async (_, id: string, path: string, repo?: string) => discardFile((await folderOf(id, repo)).cwd, path))
   // What is not committed yet, and staging it; and the branch's commits, one commit's files, and a file of a commit.
-  ipcMain.handle('code:status', async (_, id: string) => worktreeStatus((await folderOf(id)).cwd))
-  ipcMain.handle('code:stage', async (_, id: string, paths: string[]) => stage((await folderOf(id)).cwd, paths))
-  ipcMain.handle('code:unstage', async (_, id: string, paths: string[]) => unstage((await folderOf(id)).cwd, paths))
-  ipcMain.handle('code:commit-staged', async (_, id: string, message: string) => commitStaged((await folderOf(id)).cwd, message))
-  ipcMain.handle('code:dirty-diff', async (_, id: string, path: string) => dirtyDiff((await folderOf(id)).cwd, path))
-  ipcMain.handle('code:log', async (_, id: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }) => {
-    const a = await folderOf(id)
+  ipcMain.handle('code:status', async (_, id: string, repo?: string) => worktreeStatus((await folderOf(id, repo)).cwd))
+  ipcMain.handle('code:stage', async (_, id: string, paths: string[], repo?: string) => stage((await folderOf(id, repo)).cwd, paths))
+  ipcMain.handle('code:unstage', async (_, id: string, paths: string[], repo?: string) => unstage((await folderOf(id, repo)).cwd, paths))
+  ipcMain.handle('code:commit-staged', async (_, id: string, message: string, repo?: string) => commitStaged((await folderOf(id, repo)).cwd, message))
+  ipcMain.handle('code:dirty-diff', async (_, id: string, path: string, repo?: string) => dirtyDiff((await folderOf(id, repo)).cwd, path))
+  ipcMain.handle('code:log', async (_, id: string, o: { scope: 'branch' | 'all'; search?: string; limit?: number; skip?: number }, repo?: string) => {
+    const a = await folderOf(id, repo)
     // The window asks for a page; what it sent is kept to a sane one (and a search to a sane length), whatever it was.
     const page = { scope: o?.scope === 'all' ? ('all' as const) : ('branch' as const), ...(typeof o?.search === 'string' && { search: o.search.slice(0, 200) }), ...clampPage(o ?? {}) }
     if (a.branch) return history(a.cwd, a.base ?? (await checkedOutBranch(a.repoPath)), page)
     return inPlaceHistory(a.cwd, page, a.hiredAt)
   })
-  ipcMain.handle('code:commit-detail', async (_, id: string, hash: string) => commitDetail((await folderOf(id)).cwd, hash))
-  ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string) => commitDiff((await folderOf(id)).cwd, hash, path))
+  ipcMain.handle('code:commit-detail', async (_, id: string, hash: string, repo?: string) => commitDetail((await folderOf(id, repo)).cwd, hash))
+  ipcMain.handle('code:commit-diff', async (_, id: string, hash: string, path: string, repo?: string) => commitDiff((await folderOf(id, repo)).cwd, hash, path))
   ipcMain.handle('landing:holds', () => landingHeld.list())
   ipcMain.handle('landing:allow', (_, id: string) => {
     const held = landingHeld.take(id)

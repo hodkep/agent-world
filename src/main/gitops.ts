@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
-import { lstat, mkdir, open, realpath, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { isOkfPath } from './okf'
@@ -337,6 +337,28 @@ export async function inPlaceHistory(cwd: string, o: { scope: 'branch' | 'all'; 
 export async function placeOf(cwd: string): Promise<{ git: boolean; branch: string }> {
   const repo = await isGitRepo(cwd)
   return { git: repo, branch: repo ? await checkedOutBranch(cwd) : '' }
+}
+
+/** The repositories directly inside a folder that is not one itself (a workspace of several projects), with the branch each is on and how many files are uncommitted. One level only: nothing deeper, no hidden folders, no node_modules. */
+export async function reposIn(folder: string): Promise<{ name: string; branch: string; dirty: number }[]> {
+  if (await isGitRepo(folder)) return []
+  const names = (await readdir(folder, { withFileTypes: true })).filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name !== 'node_modules').map((d) => d.name).sort()
+  const found = await Promise.all(
+    names.map(async (name) => {
+      const dir = join(folder, name)
+      // A child only counts when it is the top of a repository, not a folder inside one that happens to sit under a repository above.
+      if (!(await lstat(join(dir, '.git')).then(() => true, () => false))) return null
+      const dirty = (await git(dir, 'status', '--porcelain', '--', '.', ...NOT_WORK).catch(() => '')).split('\n').filter(Boolean).length
+      return { name, branch: await checkedOutBranch(dir), dirty }
+    })
+  )
+  return found.filter((r) => r !== null)
+}
+
+/** The folder of one child repository by its name. Only a name `reposIn` lists is accepted, so a path from the window cannot reach outside the workspace. */
+export async function repoFolder(folder: string, name: string): Promise<string> {
+  if (!(await reposIn(folder)).some((r) => r.name === name)) throw new Error(`${name || 'That folder'} is not a repository in this folder.`)
+  return join(folder, name)
 }
 
 /** One commit: its message in full and the files it changed. */
