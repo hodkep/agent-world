@@ -4,6 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.0-beta.1] - 2026-10-28
+
+A beta: it is not in the stable line yet, and installing it replaces the stable app you have.
+
+### Added
+
+- Look: an agent can change how the app looks with layout rules and CSS, which you keep or undo, compare against the system look, or go back to it.
+- Look: the Keep and Undo bar can be dragged anywhere in the window, remembered, and moved with the arrow keys.
+- Widgets: an agent can add small sandboxed widgets to the chat that draw numbers they are given; they cannot reach the app or the network.
+- Widgets: a widget can show data loaded from a public https address, as text only, after you allow it, or fill the chat panel behind the text.
+- Widgets: figures made from the agent's own telemetry, such as cache hit rate, time to first word or failed tool calls.
+- Chat: the agent's calls that change the look are a group of their own, Appearance.
+
 ## [0.6.3] - 2026-10-28
 
 ### Added
