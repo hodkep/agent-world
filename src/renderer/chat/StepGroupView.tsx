@@ -21,6 +21,9 @@ export function StepGroupView({ group, active, onImage }: { group: StepGroup; ac
   const steps = active && !all ? group.steps.slice(-WINDOW) : group.steps
   const hidden = group.steps.length - steps.length
   const label = active ? `Working · ${group.steps.length} steps` : `Ran ${commands} ${commands === 1 ? 'command' : 'commands'}${thought ? ` · thought ${spanLabel(thought)}` : ''}`
+  // Between steps Claude writes nothing until its next thought or call is complete, which can be minutes: the card says it is thinking rather than going quiet.
+  const last = group.steps.at(-1)
+  const between = active && !!last && (last.kind === 'thinking' || last.run.result !== undefined)
   const meta = [failed ? `${failed} failed` : '', sec ? spanLabel(sec) : ''].filter(Boolean).join(' · ')
   return (
     <div className={`sg ${active ? 'is-active' : ''} ${showing ? 'is-open' : ''}`}>
@@ -44,6 +47,11 @@ export function StepGroupView({ group, active, onImage }: { group: StepGroup; ac
             ) : (
               <ToolCard key={s.id} run={s.run} working={active && i === steps.length - 1} onImage={onImage} />
             )
+          )}
+          {between && (
+            <div className="sg-think sg-live" role="status">
+              <span className="tc-dot" aria-hidden="true" /> Thinking…
+            </div>
           )}
         </div>
       )}
