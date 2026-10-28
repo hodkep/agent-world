@@ -1,6 +1,7 @@
 import type { RawCall, ToolTranslator } from '../../shared/tools'
 import type { ChatItem, SubagentInfo } from '../../shared/chat'
 import type { UsageRecord } from '../../shared/tokens'
+import type { Reading } from '../../shared/readings'
 import type { PaletteCommand } from '../../shared/commands'
 import type { ModeInfo } from '../../shared/modes'
 import type { AgentEvent, AgentOptions, AgentRecord, AgentStats, AutonomyLevel, Capabilities, LimitWindow, Decision, Detection, ManageAction, PermissionRequest, ProviderId, Question, QuestionAnswer } from '../../shared/types'
@@ -204,6 +205,8 @@ export interface EventSourceOptions {
    * read (a program that is read from a file, not told), which the app keeps with the agent and gives back as `usageCursor`.
    */
   onUsage?: (agentId: string, records: UsageRecord[], cursor?: number) => void
+  /** The numbers a program's own telemetry gives about what the agent did (a request, a tool call), for the widgets that ask for them. */
+  onReadings?: (agentId: string, readings: Reading[]) => void
   /** The agent's earlier conversation was just replaced by a summary. */
   onCompact?: (agentId: string) => void
   terminal?: TerminalAccess

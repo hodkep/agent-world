@@ -1939,7 +1939,7 @@ export function App() {
           />
         )}
       </main>
-      <WidgetSlot slot="window-bottom" meters={(want) => (current ? metersFor(want as MeterName[], { limits: limitsOf(current), tokens: infoOf(current).tokens ?? null, costUsd: infoOf(current).costUsd, todosUpdated: todoBoardNow() ? todosUpdatedBy(todoBoardNow()!.todos, current.id, current.hiredAt ?? 0) : null }) : {})} />
+      <WidgetSlot slot="window-bottom" agentId={current?.id} meters={(want) => (current ? metersFor(want as MeterName[], { limits: limitsOf(current), tokens: infoOf(current).tokens ?? null, costUsd: infoOf(current).costUsd, todosUpdated: todoBoardNow() ? todosUpdatedBy(todoBoardNow()!.todos, current.id, current.hiredAt ?? 0) : null }) : {})} />
     </div>
   )
 }

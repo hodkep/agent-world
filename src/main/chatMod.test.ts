@@ -79,7 +79,7 @@ describe('the look an agent writes', () => {
 
   it('widgets are written, kept, brought back and removed with the look, and one that cannot be read refuses the whole write', () => {
     const m = createChatMod(dir)
-    const w = { id: 'spend', slot: 'above-composer', height: 32, html: '<b>x</b>', meters: ['cost'], fetch: [] }
+    const w = { id: 'spend', slot: 'above-composer', height: 32, html: '<b>x</b>', meters: ['cost'], fetch: [], series: [] }
     expect(m.write({ widgets: [w], by: 'ada', why: 'a' }).problems).toEqual([])
     m.keep()
     expect(createChatMod(dir).state().current.widgets).toEqual([w])

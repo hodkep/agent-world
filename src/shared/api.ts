@@ -363,6 +363,8 @@ export interface AwApi {
   chatModKeep(): Promise<void>
   chatModUndo(): Promise<void>
   chatModReset(): Promise<void>
+  /** The figures a widget's series ask for, from the agent's own telemetry: a number, or null where Claude has not reported it. */
+  readingSeries(agentId: string, series: import('./readings').SeriesSpec[]): Promise<Record<string, number | null>>
   chatModBack(): Promise<void>
   /** Lets the draft's widgets load their data before it is kept. */
   chatModLoadData(): Promise<void>
