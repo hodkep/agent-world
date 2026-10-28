@@ -66,7 +66,7 @@ To let an Antigravity agent message the others, press **Let agy (Antigravity) me
 
 The installed app looks for a newer version about 15 seconds after it starts and then every three hours while it is open. A development build never looks.
 
-The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app), and **Check now**. The line below says what was found. Once a download has started, **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
+The version you have is at the top of the page, with **What's new**, which opens the notes of that version (from the changelog that came with the app). Under it are two rows, **Stable** and **Beta**, each with its own check button and the line that says what was found. Once a download has started, the stable row's **Check now** is greyed (hover it for why) until the app restarts, because looking again would start the download again.
 
 The notes of the new version (**What's new in** its number) are shown under the update's progress while it downloads, when it is ready to install and while it installs, in the popover under the top bar and here. A picture in the notes shows full width with its words under it when it comes from Agent World's own repository on GitHub; pictures from anywhere else are left out, and when you are offline a picture's words stand in its place.
 
@@ -74,7 +74,13 @@ The notes of the new version (**What's new in** its number) are shown under the 
 
 The first start after an update says so in a line under the top bar, with **See what's new**; it shows once.
 
-To look now, press **Check now**. Agent World looks only at this project's releases on GitHub.
+To look now, press **Check now** on the Stable row. Agent World looks only at this project's releases on GitHub.
+
+### Beta
+
+The **Beta** row looks at the project's early builds, the pre-releases tagged `-beta.N`, and takes the newest one that is newer than the version you have. It looks only when you press its **Check**: the three-hourly look, the chip in the top bar and the Homebrew message are all about stable releases and never mention a beta. A beta shows its version, the day it was released, its notes and **Download**; nothing downloads until you press it, and the same checks as for a stable update (size, checksum, and the app being Agent World) apply. A copy installed with Homebrew is still told to use `brew` for stable, but gets **Download** for a beta.
+
+Installing a beta replaces the stable app you have. Agent World does not step back to an older version by itself: you move to stable when a stable release is newer than the beta (a release is newer than its own betas, so `0.7.0` follows `0.7.0-beta.3`), through the Stable row, or by installing it from the release page. Only a Mac downloads a beta into place; on other systems the row opens its release page.
 
 When a newer version exists:
 

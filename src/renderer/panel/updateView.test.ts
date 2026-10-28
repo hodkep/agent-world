@@ -20,6 +20,14 @@ describe('what the update chip and its popover show', () => {
     expect(v.actions).toEqual([expect.objectContaining({ id: 'download', label: 'Download', primary: true }), expect.objectContaining({ id: 'changes', label: 'What changed' })])
   })
 
+  it('for a beta says that installing it replaces the stable app, and still offers the download, even where Homebrew installed the app', () => {
+    const v = updateView({ ...base, latest: '0.7.0-beta.1', tag: 'v0.7.0-beta.1', channel: 'beta' }, { working: 0, waiting: 0 })!
+    expect(v.title).toBe('Agent World 0.7.0-beta.1 is available')
+    expect(v.body).toContain('replaces the stable app you have')
+    expect(ids(v)).toEqual(['download', 'changes'])
+    expect(updateView({ ...base, channel: 'beta', homebrew: true }, { working: 0, waiting: 0 })!.command).toBeUndefined()
+  })
+
   it('for a copy installed with Homebrew gives the command to run, and never a download or an install', () => {
     const v = updateView({ ...base, homebrew: true }, { working: 0, waiting: 0 })!
     expect(v.chip).toBe('↑ 0.1.2')

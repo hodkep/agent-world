@@ -648,7 +648,7 @@ const todoService = createTodoService({
   lastMessage: (id) => {
     const items = chats.get(id)?.items ?? []
     const said = items.findLast((i) => i.kind === 'assistant') ?? items.at(-1)
-    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text, 2000) : '' } : undefined
+    return said ? { agentId: id, itemId: said.id, at: said.at, excerpt: said.kind === 'assistant' ? excerptOf(said.text) : '' } : undefined
   },
   // The message the person just sent: found among the chat's items when the transcript already has it, else pointed at by its words (the chat finds it by them).
   // Which agent another agent's message came from, so a request it sent is recorded as its own.
@@ -1713,14 +1713,14 @@ async function main() {
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
     for (const [id, s] of seenRemote) send('remote', id, s)
   })
-  ipcMain.handle('updates:check', () => checkForUpdates((s) => send('update-state', s)))
+  ipcMain.handle('updates:check', (_, channel?: unknown) => checkForUpdates((s) => send('update-state', s), channel === 'beta' ? 'beta' : 'stable'))
   ipcMain.handle('updates:state', () => updateState())
   // The changelog travels with the app: next to its resources when installed, in the project folder when run from source.
   ipcMain.handle('app:info', () => ({ version: app.getVersion(), notes: installedNotes([process.resourcesPath, app.getAppPath()], app.getVersion()) }))
-  ipcMain.handle('updates:download', () => downloadUpdate())
-  ipcMain.handle('updates:cancel', () => cancelUpdateDownload())
-  ipcMain.handle('updates:install', () => installUpdate())
-  ipcMain.handle('updates:reveal', (_, kind: 'file' | 'log') => revealUpdate(kind === 'log' ? 'log' : 'file'))
+  ipcMain.handle('updates:download', (_, c?: unknown) => downloadUpdate(c === 'beta' ? 'beta' : 'stable'))
+  ipcMain.handle('updates:cancel', (_, c?: unknown) => cancelUpdateDownload(c === 'beta' ? 'beta' : 'stable'))
+  ipcMain.handle('updates:install', (_, c?: unknown) => installUpdate(c === 'beta' ? 'beta' : 'stable'))
+  ipcMain.handle('updates:reveal', (_, kind: 'file' | 'log', c?: unknown) => revealUpdate(kind === 'log' ? 'log' : 'file', c === 'beta' ? 'beta' : 'stable'))
   // An installed app looks by itself once at the start and every three hours; a build that is not installed has nothing to look for.
   if (app.isPackaged) startChecks(() => checkForUpdates((s) => send('update-state', s)))
   // Automated runs have no one to walk through setup, so they start as if it was done.

@@ -1,4 +1,4 @@
-import type { InstallState } from './updateInstall'
+import type { BetaState, InstallState, UpdateChannel } from './updateInstall'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
@@ -344,17 +344,18 @@ export interface AwApi {
   saveNotes(agentId: string): Promise<string>
   /** Ask the main process to say again what is waiting on the user (after this window reloaded). */
   resync(): Promise<void>
-  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }>
+  updateState(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }>
   /** The version running, and the notes of it from the changelog that came with the app (null when this build has none for it). */
   appInfo(): Promise<{ version: string; notes: import('./changelog').ReleaseNotes | null }>
   /** Unsigned Mac build: download the newer release, stop it, or replace the app with it and restart. */
-  downloadUpdate(): Promise<void>
-  cancelUpdateDownload(): Promise<void>
-  installUpdate(): Promise<void>
+  downloadUpdate(channel?: UpdateChannel): Promise<void>
+  cancelUpdateDownload(channel?: UpdateChannel): Promise<void>
+  installUpdate(channel?: UpdateChannel): Promise<void>
   /** Show the downloaded update, or the update log, in Finder. */
-  revealUpdate(kind: 'file' | 'log'): Promise<void>
-  checkUpdates(): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }>
-  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState }) => void): () => void
+  revealUpdate(kind: 'file' | 'log', channel?: UpdateChannel): Promise<void>
+  /** Look for the latest release (stable), or for the newest beta; nothing is downloaded by a look. */
+  checkUpdates(channel?: UpdateChannel): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }>
+  onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   /** POC: the look an agent wrote for the chat, a draft waiting for Keep or Undo, and the way back to the system default. */

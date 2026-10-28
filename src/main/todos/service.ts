@@ -390,7 +390,7 @@ export function createTodoService(d: TodoDeps) {
       const link = d.lastMessage(a.id)
       let board = b
       for (const t of open) {
-        board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt, 2000) })
+        board = doneTodo(board, t.id, actor(a), 'Closed when its turn ended', now(), link && { ...link, excerpt: excerptOf(link.excerpt) })
         board = { ...board, todos: board.todos.map((x) => (x.id === t.id ? { ...x, closedAtTurnEnd: true, closedBy: 'turn' as const } : x)) }
       }
       save(key, board)
@@ -442,7 +442,7 @@ export function createTodoService(d: TodoDeps) {
       const a = agentOf(agentId)
       return change(a.repoPath, (b) => {
         const l = d.lastMessage(a.id)
-        const r = addTodo(b, { ...i, list: i.list?.trim() ? listFor(b, i.list) : INBOX }, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt, 800) })
+        const r = addTodo(b, { ...i, list: i.list?.trim() ? listFor(b, i.list) : INBOX }, actor(a), now(), l && { ...l, excerpt: excerptOf(l.excerpt) })
         return { board: r.board, out: r.todo }
       })
     },
@@ -467,7 +467,7 @@ export function createTodoService(d: TodoDeps) {
       if (!open.length) return
       const l = d.lastMessage(a.id)
       let board = load(key)
-      for (const t of open) board = doneTodo(board, t.id, actor(agentOf(agentId)), `Finished with its run${summary ? `: ${summary}` : ''}`, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) })
+      for (const t of open) board = doneTodo(board, t.id, actor(agentOf(agentId)), `Finished with its run${summary ? `: ${summary}` : ''}`, now(), l && { ...l, excerpt: excerptOf(l.excerpt) })
       save(key, board)
       for (const t of open) recordWork(agentOf(agentId), t.id)
     },
@@ -477,7 +477,7 @@ export function createTodoService(d: TodoDeps) {
         // Naming the task and sorting it into a list can be done as it is finished, which costs no call of its own.
         const b = extra?.title?.trim() || extra?.list?.trim() ? updateTodo(b0, id, { ...(extra.title?.trim() && { title: extra.title }), ...(extra.list?.trim() && { list: listFor(b0, extra.list) }) }, actor(a), now()) : b0
         const l = d.lastMessage(a.id)
-        const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt, 2000) }, extra)
+        const board = doneTodo(b, id, actor(a), note, now(), l && { ...l, excerpt: excerptOf(l.excerpt) }, extra)
         return { board, out: lastTodo(board, id) }
       })
       recordWork(a, id)
