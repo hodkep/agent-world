@@ -72,6 +72,12 @@ test('notes: a window of Markdown notes that are kept apart, whose checklist lin
     }
     await umbrella.getByRole('button', { name: 'Make a subtask' }).hover()
     await expect.poll(() => umbrella.getByRole('button', { name: 'Make a subtask' }).evaluate((e) => getComputedStyle(e, '::after').display)).toBe('block')
+    // The tip of a button on the last line is drawn under it, so the note keeps room below its last line for it, or the editor's edge would cut it off.
+    const room = await pad.locator('.cm-scroller').evaluate((sc) => {
+      const last = [...sc.querySelectorAll('.cm-line')].pop()!.getBoundingClientRect()
+      return sc.scrollHeight - (last.bottom - sc.getBoundingClientRect().top + sc.scrollTop)
+    })
+    expect(room).toBeGreaterThanOrEqual(64)
     if (process.env.SHOT) await pad.screenshot({ path: `${process.env.SHOT}-menu.png` })
     await umbrella.getByRole('button', { name: 'Make a task' }).click()
     await expect(pad.locator('.nt-linked')).toHaveCount(3)

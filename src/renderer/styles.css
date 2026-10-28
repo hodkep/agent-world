@@ -3896,7 +3896,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .nt-tools .tip-btn::after, .nt-tools .tip-btn:last-child::after { top: calc(100% - 4px); right: 8px; }
 
 /* The line's handle sits in a margin of its own, so the words are never under it; its menu opens below it. */
-.nt-editor .cm-content { padding-right: 140px; }
+.nt-editor .cm-content { padding-right: 140px; padding-bottom: 72px; } /* room under the last line for the tip of a button on it */
 
 .nt-handle { position: absolute; z-index: 1; right: -136px; top: 0; height: 21px; display: none; gap: 4px; align-items: center; }
 /* The margin the handle sits in belongs to the line for hover, so the pointer can walk to the handle without it hiding on the way. */
