@@ -10,3 +10,5 @@ These marks are used only to say which program an agent runs, and are not covere
 Agent World runs the command line programs you have installed and signed in yourself. It does not include them, and it never handles their credentials.
 
 The licences of the libraries the app is built with are those of their packages (MIT, Apache-2.0, ISC, BSD and MPL-2.0; `elkjs`, which comes with `mermaid`, is EPL-2.0).
+
+File and folder icons in the Code tab come from the [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT, Copyright (c) 2025 Material Extensions), `src/renderer/assets/fileIcons`.
