@@ -4,6 +4,23 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-28
+
+### Added
+
+- Updates: Settings > Updates has a Stable row and a Beta row, each with its own Check and Download, so you choose whether to try a beta; installing a beta replaces the stable app you have.
+
+![Settings, Updates, with the Stable row up to date and a beta ready to download](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.3/docs/images/releases/0.6.3/beta-row.png)
+
+### Fixed
+
+- Chat: git graphs, mindmaps, timelines, Gantt charts and quadrant charts in a reply are drawn in readable colours on the dark theme.
+
+![A git graph in a chat reply, drawn in readable colours](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.3/docs/images/releases/0.6.3/git-graph.png)
+
+- Todos: a task's Where it came from folds a long message on whole blocks, opens to all of it, scrolls a wide table sideways, and keeps 4000 characters.
+- Todos: asking an agent to push, rebase or pull, even with details, no longer creates a to-do.
+
 ## [0.6.2] - 2026-10-28
 
 ### Added
