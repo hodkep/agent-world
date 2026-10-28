@@ -28,6 +28,14 @@ describe('what the update chip and its popover show', () => {
     expect(updateView({ ...base, channel: 'beta', homebrew: true }, { working: 0, waiting: 0 })!.command).toBeUndefined()
   })
 
+  it('for the stable a beta goes back to says so, warns, and offers the download as going back', () => {
+    const v = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.7.0-beta.1', back: true, homebrew: true }, { working: 0, waiting: 0 })!
+    expect(v.title).toBe('Agent World 0.6.3 is the latest stable')
+    expect(v.warning).toBe('Going back replaces the beta you have; settings made in the beta may not be read by the stable version.')
+    expect(v.actions).toEqual([{ id: 'download', label: 'Back to stable 0.6.3', primary: true }, { id: 'changes', label: 'What changed' }])
+    expect(v.command).toBeUndefined()
+  })
+
   it('for a copy installed with Homebrew gives the command to run, and never a download or an install', () => {
     const v = updateView({ ...base, homebrew: true }, { working: 0, waiting: 0 })!
     expect(v.chip).toBe('↑ 0.1.2')

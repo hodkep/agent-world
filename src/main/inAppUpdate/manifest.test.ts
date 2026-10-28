@@ -30,6 +30,19 @@ describe('a beta release', () => {
   })
 })
 
+describe('going back to stable', () => {
+  const stable = (version: string) => parseLatestMac(YML.replaceAll('0.1.1', version))!
+  it('accepts an older stable only when asked to, from a beta', () => {
+    const o = { manifest: stable('0.6.3'), arch: 'arm64', repo, tag: 'v0.6.3' }
+    expect(assetFor({ ...o, current: '0.7.0-beta.1' })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
+    expect(assetFor({ ...o, current: '0.7.0-beta.1', back: true })).toMatchObject({ ok: true, asset: { name: 'Agent-World-0.6.3-arm64.zip' } })
+    expect(assetFor({ ...o, current: '0.7.0', back: true })).toMatchObject({ ok: false, reason: expect.stringMatching(/not newer/i) })
+  })
+  it('never takes an older beta that way', () => {
+    expect(assetFor({ manifest: stable('0.6.0-beta.1'), arch: 'arm64', repo, tag: 'v0.6.0-beta.1', current: '0.7.0-beta.1', back: true })).toMatchObject({ ok: false })
+  })
+})
+
 describe('reading latest-mac.yml', () => {
   it('lists the files with their name, checksum and size, and the version', () => {
     const m = parseLatestMac(YML)!
