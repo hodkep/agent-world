@@ -5,6 +5,8 @@ import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
+// FAKE_ARGV_LOG=<file> keeps how this program was started (one JSON line), so a test can see which model the office launched it with.
+if (process.env.FAKE_ARGV_LOG) (await import('node:fs')).appendFileSync(process.env.FAKE_ARGV_LOG, JSON.stringify(args) + '\n')
 // Background commands under the agent, like a dev server it started.
 // FAKE_CHILD=n starts n of them (sleep 300, sleep 301, …).
 for (let i = 0; i < Number(process.env.FAKE_CHILD ?? 0); i++) spawn('sh', ['-c', `sleep ${300 + i}; true`], { stdio: 'ignore' }).unref()
@@ -329,16 +331,19 @@ async function spawnViaOffice(provider, task) {
   const server = JSON.parse(readFileSync(flag('--mcp-config'), 'utf8')).mcpServers['agent-world']
   const client = new Client({ name: 'fake-claude', version: '1' })
   await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }))
-  // The conversation shows the call the way Claude saves it, and what came back.
-  const args = { ...(provider !== '-' && { provider }), task, ...(process.env.FAKE_SPAWN_KIND && { kind: process.env.FAKE_SPAWN_KIND }), ...(process.env.FAKE_SPAWN_VAGUE && { vague: true }) }
-  const call = use('mcp__agent-world__spawn_subagent', args)
-  const r = await client.callTool({ name: 'spawn_subagent', arguments: args }, undefined, { timeout: 120000 })
-  done(call, r.content[0].text)
-  console.log(`spawn_subagent → ${r.content[0].text}`)
-  if (process.env.FAKE_RATE && !r.isError) {
-    const id = JSON.parse(r.content[0].text).id
-    const rated = await client.callTool({ name: 'rate_subagent', arguments: { id, verdict: process.env.FAKE_RATE } })
-    console.log(`rate_subagent → ${rated.content[0].text}`)
+  // FAKE_SPAWNS=[{task, kind, vague, rate}, ...] asks for several in turn, each with only the kind of work.
+  const asks = process.env.FAKE_SPAWNS ? JSON.parse(process.env.FAKE_SPAWNS) : [{ task, kind: process.env.FAKE_SPAWN_KIND, vague: !!process.env.FAKE_SPAWN_VAGUE, rate: process.env.FAKE_RATE }]
+  for (const ask of asks) {
+    const args = { ...(provider !== '-' && { provider }), task: ask.task, ...(ask.kind && { kind: ask.kind }), ...(ask.vague && { vague: true }) }
+    // The conversation shows the call the way Claude saves it, and what came back.
+    const call = use('mcp__agent-world__spawn_subagent', args)
+    const r = await client.callTool({ name: 'spawn_subagent', arguments: args }, undefined, { timeout: 120000 })
+    done(call, r.content[0].text)
+    console.log(`spawn_subagent → ${r.content[0].text}`)
+    if (ask.rate && !r.isError) {
+      const rated = await client.callTool({ name: 'rate_subagent', arguments: { id: JSON.parse(r.content[0].text).id, verdict: ask.rate } })
+      console.log(`rate_subagent → ${rated.content[0].text}`)
+    }
   }
   await client.close()
 }
