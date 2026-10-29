@@ -4,6 +4,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-29
+
+### Fixed
+
+- Chat: the Copy and Run buttons on a code block now stay in its corner while a long command scrolls sideways.
+
 ## [0.7.3] - 2026-10-29
 
 ### Added
