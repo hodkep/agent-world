@@ -4,6 +4,21 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-29
+
+### Added
+
+- Preview: pinch the trackpad, or press Cmd+ / Cmd- / Cmd+0, to zoom the page.
+
+### Fixed
+
+- Security: the Claude status line no longer puts the agent token on curl's command line, where other users of the computer could see it; it reads it from a private file.
+- Hire: you can pick the account first added on this computer as an agent's account, even after renaming it.
+- Grid: going to Overview and back to Conversations keeps the agents you had side by side.
+- Code: the repositories of a folder show their full names, two in the row and the rest in the menu.
+- Questions: Enter on the Check your answers page sends the answers, also after you typed your own answer.
+- Todos: the Notes box of a task scrolls when it is long and looks like the boxes below it.
+
 ## [0.7.1] - 2026-10-28
 
 ### Fixed
