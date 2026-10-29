@@ -45,6 +45,25 @@ export function identityEnv(profile: Profile | undefined, token: string | undefi
   }
 }
 
+/** The github.com logins gh can use (from `gh auth status --json hosts`), and which one it has active. Older gh without --json reads as none. */
+export function parseGhLogins(out: string): { login: string; active: boolean }[] {
+  try {
+    const rows = (JSON.parse(out) as { hosts?: Record<string, unknown> }).hosts?.['github.com']
+    return (Array.isArray(rows) ? rows : []).filter((r) => r?.state === 'success' && typeof r.login === 'string').map((r) => ({ login: r.login as string, active: r.active === true }))
+  } catch {
+    return []
+  }
+}
+
+/** One login's token, asked of gh when an agent or terminal starts: it never switches gh's active login and is never kept. */
+export async function ghToken(login: string, run: (file: string, args: string[]) => Promise<string>): Promise<string | undefined> {
+  try {
+    return (await run('gh', ['auth', 'token', '--user', login])).trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function loadIdentity(file: string): Identity {
   try {
     return cleanIdentity(JSON.parse(readFileSync(file, 'utf8')))
