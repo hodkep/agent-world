@@ -353,6 +353,8 @@ test('a build installed with Homebrew downloads the update and replaces itself l
     await pop.getByRole('button', { name: 'Install and restart' }).click()
     await closed
     await expect.poll(() => (existsSync(join(w.app, 'Contents', 'marker')) ? readFileSync(join(w.app, 'Contents', 'marker'), 'utf8') : ''), { timeout: 30_000 }).toBe('new')
+    // The helper is still running until it has opened the new app: closing before that deletes its folder from under it.
+    await expect.poll(() => (existsSync(w.opened) ? readFileSync(w.opened, 'utf8').trim() : ''), { timeout: 30_000 }).toBe(w.app)
   } finally {
     await w.close()
   }
