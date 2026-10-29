@@ -248,6 +248,11 @@ function Questions({
   const q = questions[page]
   const d = drafts[page]
   useEffect(() => onProgress?.(review ? 'REVIEW' : `${page + 1} OF ${questions.length}`), [page, review, questions.length, onProgress])
+  // The key handler lives on this box, so focus must stay in it: the own-answer field that Enter just left is gone from the page.
+  const root = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!root.current?.contains(document.activeElement)) root.current?.focus()
+  }, [page])
 
   const edit = (f: (d: Draft) => Draft) => setDrafts((ds) => ds.map((x, i) => (i === page ? f(x) : x)))
   const go = (p: number) => {
@@ -288,7 +293,7 @@ function Questions({
   }
 
   return (
-    <div onKeyDown={onKey} className="qd">
+    <div ref={root} tabIndex={-1} onKeyDown={onKey} className="qd">
       <ol className="steps" aria-label="Questions">
         {questions.map((x, i) => (
           <li key={i}>
