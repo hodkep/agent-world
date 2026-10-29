@@ -11,3 +11,7 @@ export const accountName = (accounts: Prefs['accounts'], id: string | undefined,
 
 /** The nth colour of the same palette, for a program that keeps no accounts of its own, so it never shares a colour with an account. */
 export const colorAt = (i: number) => COLORS[i % COLORS.length]!
+
+/** The account a hire runs on: the one picked (the program's own login, '', included) while it still exists, else the program's default, else its own login. */
+export const chosenAccount = (mine: { id: string }[], picked: string | null, preferred: string | undefined) =>
+  picked !== null && (picked === '' || mine.some((a) => a.id === picked)) ? picked : (mine.find((a) => a.id === preferred)?.id ?? '')

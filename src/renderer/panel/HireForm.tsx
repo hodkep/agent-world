@@ -8,7 +8,7 @@ import { parsePick } from '../../shared/modelPick'
 import { cssColor } from '../../shared/brand'
 import { BasePicker } from './BasePicker'
 import { PixelSprite } from './PixelSprite'
-import { accountColor, accountName } from '../accounts'
+import { accountColor, accountName, chosenAccount } from '../accounts'
 
 export const MODELS = [
   { value: '', label: 'Default model' },
@@ -89,7 +89,7 @@ export function HireForm({
   // The accounts of the program that will run it; the one chosen in Settings for that program starts selected.
   const mine = accounts.filter((a) => a.provider === chosen?.id)
   const [picked, setAccount] = useState<string | null>(null)
-  const account = picked !== null && mine.some((a) => a.id === picked) ? picked : (mine.find((a) => a.id === defaults.accounts[chosen?.id as ProviderId])?.id ?? '')
+  const account = chosenAccount(mine, picked, defaults.accounts[chosen?.id as ProviderId])
   const [busy, setBusy] = useState(false)
   // What the project's playbook would give this agent, so hiring shows what it will be told.
   const [lib, setLib] = useState<LibraryPreview | null>(null)
