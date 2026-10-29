@@ -1683,8 +1683,8 @@ export class OfficeWorld {
 
   /** The subscription's remaining limits, shown as the tanks on the back lawn. */
   /** The hoarding behind the office names the folder it works in; null takes it down. */
-  setWorkspace(name: string | null) {
-    paintBillboard(this.billboard, name)
+  setWorkspace(name: string | null, identity: { text: string; out: boolean } | null = null) {
+    paintBillboard(this.billboard, name, identity)
   }
 
   setBanks(b: import('../../shared/limits').Bank[]) {

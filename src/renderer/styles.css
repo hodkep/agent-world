@@ -3956,3 +3956,9 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .set-card { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--well); border: 1px solid var(--line); }
 .set-card label { display: flex; flex-direction: column; gap: 3px; }
 .set-row { display: flex; gap: 8px; align-items: center; }
+/* The identity chip beside the project name: a square dot, amber and blinking when the login is signed out. */
+.idc { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; font: 11px Menlo, Consolas, monospace; background: none; border: 1px solid var(--line); box-shadow: none; color: var(--muted); }
+.idc i { width: 7px; height: 7px; background: var(--ok); box-shadow: 0 0 0 1px var(--ink); flex: none; }
+.idc.out { border-color: var(--accent); color: var(--accent); background: var(--selected); }
+.idc.out i { background: var(--accent); animation: blink 1s steps(2) infinite; }
+@media (prefers-reduced-motion: reduce) { .idc.out i { animation: none; } }

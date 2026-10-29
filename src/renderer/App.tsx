@@ -82,6 +82,8 @@ import { landingPill, trackOf } from '../shared/runTrack'
 import { landingKind } from '../shared/workflow'
 import { pendingPlans } from '../shared/runs'
 import { checkPanels, toRunSteps, waitingSteps } from '../shared/steps'
+import { IdentityChip } from './panel/IdentityChip'
+import { billboardLine, profileFor, type IdentityState } from '../shared/identity'
 import { CheckGate } from './workflows/CheckGate'
 import { RunGate } from './workflows/RunGate'
 import { StepGate } from './workflows/StepGate'
@@ -707,9 +709,14 @@ export function App() {
     if (there) setSelected(there.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a project being opened restores its agent
   }, [folder, allAgents])
+  // Who this project acts as, read again when Settings closes (where it is changed) and when the project changes.
+  const [identity, setIdentity] = useState<IdentityState | null>(null)
+  useEffect(() => void (settings || window.aw.identity.state().then(setIdentity, () => undefined)), [folder, settings])
+  const identityLine = folder && identity ? billboardLine(profileFor(identity.identity, folder), identity.logins) : null
   useEffect(() => {
-    office.current?.setWorkspace(folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : null)
-  }, [folder, officeReady])
+    office.current?.setWorkspace(folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : null, identityLine)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the line is made from these
+  }, [folder, officeReady, identity])
   useEffect(() => {
     office.current?.setOfficeLife(prefs?.officeLife !== false)
   }, [prefs?.officeLife, officeReady])
@@ -1508,6 +1515,7 @@ export function App() {
           onForget={forgetProject}
           onNewWindow={() => void window.aw.newWindow()}
         />
+        <IdentityChip line={identityLine} onOpen={() => (setSettingsPane('identity'), setSettings(true))} />
         <button className="primary" onClick={() => setHiring((h) => !h)} disabled={!folder} aria-expanded={hiring}>
           + Agent
         </button>

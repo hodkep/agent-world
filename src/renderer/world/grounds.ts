@@ -375,14 +375,16 @@ export function paintScoreboard(g: G, rows: ScoreRow[]) {
   })
 }
 
-export function paintBillboard(g: G, name: string | null) {
+/** `identity` is a third line under the name: who the project acts as, amber when that login is signed out. */
+export function paintBillboard(g: G, name: string | null, identity: { text: string; out: boolean } | null = null) {
   g.clear()
   if (!name) return
   const label = name.length > MAX_BILLBOARD ? `${name.slice(0, MAX_BILLBOARD - 1)}.` : name
   const title = textPixels(label)
   const caption = textPixels('now working in')
-  const faceW = Math.max(title[0]!.length * 2, caption[0]!.length) + 16
-  const faceH = 30
+  const line = identity ? textPixels(identity.text) : null
+  const faceW = Math.max(title[0]!.length * 2, caption[0]!.length, line?.[0]!.length ?? 0) + 16
+  const faceH = line ? 40 : 30
   const x = 12
   const y = -50
   const poleTop = y + faceH
@@ -398,6 +400,7 @@ export function paintBillboard(g: G, name: string | null) {
     rows.forEach((row, ry) => [...row].forEach((c, rx) => c === '#' && r(g, ox + rx * cell, oy + ry * cell, cell, cell, color)))
   paint(caption, x + Math.floor((faceW - caption[0]!.length) / 2), y + 6, 1, 0x8fa0c8)
   paint(title, x + Math.floor((faceW - title[0]!.length * 2) / 2), y + 14, 2, 0xf2c230)
+  if (line) paint(line, x + Math.floor((faceW - line[0]!.length) / 2), y + 28, 1, identity!.out ? 0xf2c230 : 0x9fdc9f)
   for (const lx of [x + faceW / 4, x + (faceW * 3) / 4]) {
     r(g, lx - 1, y - 5, 3, 3, INK)
     r(g, lx, y - 4, 1, 1, 0xf6d27a)

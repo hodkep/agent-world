@@ -42,3 +42,21 @@ export const removeProfile = (id: Identity, profileId: string): Identity => ({
 })
 
 export const profileUse = (id: Identity, profileId: string): string[] => Object.keys(id.byProject).filter((p) => id.byProject[p] === profileId)
+
+/** The profile for a folder: the one picked for the deepest project that is the folder or holds it (an agent's worktree, a repo inside a multi-repo project). */
+export function profileFor(id: Identity, folder: string): Profile | undefined {
+  const at = Object.keys(id.byProject)
+    .filter((p) => folder === p || folder.startsWith(p.endsWith('/') || p.endsWith('\\') ? p : `${p}/`) || folder.startsWith(`${p}\\`))
+    .sort((a, b) => b.length - a.length)[0]
+  return id.profiles.find((p) => p.id === id.byProject[at ?? ''])
+}
+
+const BILLBOARD_MAX = 22
+const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}.` : text)
+
+/** The third line of the sign behind the office (its pixel font is lowercase): who the project acts as, or that the login is out. Nothing for a project with no profile. */
+export function billboardLine(profile: Profile | undefined, logins: IdentityState['logins']): { text: string; out: boolean } | null {
+  if (!profile) return null
+  const login = profile.login.toLowerCase()
+  return logins.some((l) => l.login === profile.login) ? { text: `as ${cut(login, BILLBOARD_MAX - 3)}`, out: false } : { text: `${cut(login, BILLBOARD_MAX - 4)} out`, out: true }
+}
