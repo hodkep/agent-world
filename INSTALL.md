@@ -12,7 +12,17 @@
    Because the app is not signed, it cannot replace itself when a new version comes out. It tells you when one is available and opens its page on GitHub, and you download and install it the same way.
 4. Follow the setup screens: install and sign in to Claude Code, choose a project folder, click **+ Agent**, and the character walks in.
 
-With Homebrew, one line does steps 1 to 3: `brew install --cask hodkep/tap/agent-world`. The cask removes the quarantine mark macOS puts on downloaded apps, so there is no Open Anyway step. That skips macOS's first-launch check for this app only; use the dmg above if you want that check.
+With Homebrew, three commands do steps 1 to 3:
+
+```
+brew tap hodkep/tap
+brew trust --cask hodkep/tap/agent-world
+brew install --cask hodkep/tap/agent-world
+```
+
+The cask removes the quarantine mark macOS puts on downloaded apps, so there is no Open Anyway step. That skips macOS's first-launch check for this app only; use the dmg above if you want that check.
+
+Why three: Homebrew 6 and later will not load anything from a tap that is not its own until you trust it. The old one-line `brew install --cask hodkep/tap/agent-world` stops with "Cask is unavailable", and once the tap is added it still stops with "Refusing to load cask hodkep/tap/agent-world from untrusted tap". The tap and the trust are each needed once on each Mac. Until the tap is trusted, `brew outdated` and `brew upgrade` refuse in the same way, so a Mac that installed the cask before Homebrew 6 needs the `brew trust` line too before Homebrew will upgrade it.
 
 ## Building the installers yourself
 
