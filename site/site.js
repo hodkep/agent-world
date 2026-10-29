@@ -31,3 +31,7 @@ if (input && list) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') (e.preventDefault(), input.focus())
   })
 }
+
+// On a narrow screen the menu starts folded, so the page is not pushed down by it.
+const menu = document.querySelector('details.menu')
+if (menu && matchMedia('(max-width:860px)').matches) menu.open = false
