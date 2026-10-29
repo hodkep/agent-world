@@ -100,6 +100,15 @@ describe('a key press against the table', () => {
     expect(hint('latest', false)).toBe('Jump to the latest message (Ctrl+Alt+↓)')
   })
 
+  it('also jumps to the latest message with Mod+↓, for when nothing is being typed (the box keeps Cmd+↓ for its caret)', () => {
+    expect(matches(press('ArrowDown', { metaKey: true }), 'latest-away')).toBe(true)
+    expect(matches(press('ArrowDown', { ctrlKey: true }), 'latest-away')).toBe(true)
+    expect(matches(press('ArrowDown', { metaKey: true, altKey: true }), 'latest-away')).toBe(false)
+    expect(matches(press('ArrowDown', { metaKey: true, shiftKey: true }), 'latest-away')).toBe(false)
+    expect(matches(press('ArrowUp', { metaKey: true }), 'latest-away')).toBe(false)
+    expect(hint('latest-away', true)).toContain('⌘↓')
+  })
+
   it('needs the exact modifiers: no Mod, a stray Shift or Alt, or another key is not a match', () => {
     expect(matches(press('['), 'workspace-switch')).toBe(false)
     expect(matches(press('[', { metaKey: true }), 'workspace-switch')).toBe(false)
@@ -197,4 +206,3 @@ describe('the notes shortcuts and the keys the system keeps', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 })
-

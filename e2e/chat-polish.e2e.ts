@@ -97,6 +97,41 @@ test('the Latest button rides on the top edge of the message box, however tall t
   }
 })
 
+test('Cmd+↓ goes to the latest message wherever you clicked, except in the message box where it is the caret\'s', async () => {
+  const { page, shutdown } = await start({ FAKE_LONG: '120' })
+  try {
+    await hire(page)
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    const log = page.getByRole('log', { name: 'Conversation with ada' })
+    await expect(log.getByText('old message 119')).toBeVisible({ timeout: 10_000 })
+    const box = (await log.boundingBox())!
+    const gap = () => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)
+    const toTop = async () => {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await expect.poll(async () => (await page.mouse.wheel(0, -100_000), log.evaluate((l) => l.scrollTop))).toBe(0)
+    }
+    const clicks: Record<string, () => Promise<void>> = {
+      'a message': () => log.getByText('old message 60').click(),
+      'the header': () => page.locator('header').click({ position: { x: 600, y: 5 } }),
+      'the office': () => page.locator('.stage').click({ position: { x: 200, y: 300 } }),
+      'the Chat tab': () => page.getByRole('tab', { name: 'Chat' }).click()
+    }
+    for (const [where, click] of Object.entries(clicks)) {
+      await toTop()
+      await click()
+      await page.keyboard.press('Meta+ArrowDown')
+      await expect.poll(gap, { message: `after a click on ${where}` }).toBeLessThan(2)
+    }
+    // In the message box the same key moves the caret and leaves the conversation where it is.
+    await toTop()
+    await page.getByRole('textbox', { name: /^Message/ }).click()
+    await page.keyboard.press('Meta+ArrowDown')
+    expect(await log.evaluate((l) => l.scrollTop)).toBe(0)
+  } finally {
+    await shutdown()
+  }
+})
+
 test('hiring opens a dialog over the office and Esc closes it', async () => {
   const { page, shutdown } = await start()
   try {
