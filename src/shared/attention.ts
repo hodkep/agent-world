@@ -27,6 +27,10 @@ export function createDoneTracker() {
     selected(id: string) {
       done.delete(id)
     },
+    /** The person marked these agents read without opening them. */
+    read(ids: string[]) {
+      for (const id of ids) done.delete(id)
+    },
     agents: () => new Set(done.keys()),
     projects: () => new Set([...done.values()].filter((d) => !d.projectSeen).map((d) => d.repoPath))
   }

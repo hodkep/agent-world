@@ -52,7 +52,7 @@ import { type Node, add, addAll, even, isTerm, mapTiles, place, tilesOf } from '
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
-import { IconButton } from './panel/IconButton'
+import { IconButton, OutlineIcon } from './panel/IconButton'
 import { UpdateChip } from './panel/UpdateChip'
 import { WhatsNew } from './panel/ReleaseNotes'
 import { justUpdated, learnsVersion } from '../shared/updatedNote'
@@ -782,13 +782,18 @@ export function App() {
   // Agents that finished while you were elsewhere: another project's, or another agent here. Remembered until you open that project or select the agent.
   const finished = useRef(createDoneTracker())
   const [finishedKey, setFinishedKey] = useState('')
+  const syncFinished = () => {
+    const t = finished.current
+    setFinishedKey(`${[...t.projects()].sort().join('|')}#${[...t.agents()].sort().join('|')}`)
+  }
   useEffect(() => {
     const t = finished.current
     t.observe(allAgents.map((a) => ({ id: a.id, repoPath: a.repoPath, activity: world[a.id]?.activity ?? 'asleep' })))
     if (folder) t.opened(folder)
     if (selected) t.selected(selected)
-    setFinishedKey(`${[...t.projects()].sort().join('|')}#${[...t.agents()].sort().join('|')}`)
-  }, [world, allAgents, folder, selected])
+    syncFinished()
+  }, [world, allAgents, folder, selected]) // eslint-disable-line react-hooks/exhaustive-deps
+  const markRead = (ids: string[]) => (finished.current.read(ids), syncFinished())
   // What each project's agents are doing, for its tile in the project switcher: some wait for the person (a permission, a question, a plan, a gate), some are working.
   const attention = { selected, agents: agents.map((a) => ({ id: a.id, asks: askWord(a.id) !== null })), done: finished.current.agents() }
   const tileMarks = agentMarks(attention)
@@ -1725,6 +1730,7 @@ export function App() {
                       title="Agents"
                       count={agents.length}
                       className="agents"
+                      actions={[...tileMarks.values()].includes('done') && <button className="tip-btn qh-read" data-tip="Mark all as read" aria-label="Mark all as read" onClick={() => markRead(agents.map((a) => a.id))}><OutlineIcon name="ticks" size={14} /></button>}
                       footer={
                         <>
                           <button role="menuitem" onClick={() => (sw.menu.chosen(), setHiring(true))}>+ Agent</button>
@@ -1749,6 +1755,7 @@ export function App() {
                                 <span className="wt-name">{a.name}</span>
                                 <span className="wt-sub">{ask ? <span className="ask-pill">{ask}</span> : tileMarks.get(a.id) === 'done' ? <span className="wt-tag done">Finished</span> : activity}</span>
                               </button>
+                              {tileMarks.get(a.id) === 'done' && <button className="wt-read tip-btn" data-tip="Mark as read" aria-label={`Mark ${a.name} as read`} onClick={() => markRead([a.id])}><OutlineIcon name="tick" size={12} /></button>}
                             </div>
                           </Fragment>
                         )
