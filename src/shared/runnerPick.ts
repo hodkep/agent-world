@@ -85,3 +85,24 @@ export function runnerText(p: Pick): string {
   ].filter(Boolean)
   return [who, ...how].join('\n')
 }
+
+export type RunnerMode = 'off' | 'suggest' | 'auto'
+export interface Routed {
+  provider: string
+  /** The model, as its program names it. Left out when the program's own default should run. */
+  model?: string
+  /** The name of an idle hired agent that should be given the task instead of starting a new one. */
+  idle?: string
+  pick?: Pick
+}
+
+/** What a subagent request is started on. Only in automatic mode, and only when the caller did not name a model: then the pick decides (within the program the caller named, if any). */
+export function routeSpawn(mode: RunnerMode, i: { provider?: string; model?: string; kind?: Kind; vague?: boolean }, catalog: CatalogModel[], office: Office): Routed {
+  const provider = i.provider || 'claude'
+  if (mode !== 'auto' || i.model) return { provider, ...(i.model && { model: i.model }) }
+  const pick = pickRunner({ kind: i.kind ?? 'edit', vague: i.vague }, i.provider ? catalog.filter((m) => m.program === i.provider) : catalog, office)
+  if (pick.use === 'none') return { provider, pick }
+  if (pick.use === 'idle') return { provider: pick.program, idle: pick.agent, pick }
+  const m = catalog.find((c) => c.model === pick.model)
+  return { provider: pick.program, model: m?.alias ?? pick.model, pick }
+}

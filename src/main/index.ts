@@ -93,7 +93,8 @@ import { contextReport, contextText, resetEffects } from '../shared/contextCurve
 import { contextView } from '../shared/contextView'
 import { latestContext, nudgeFor } from '../shared/contextNudge'
 import { cleanCatalog, mergeCatalog } from '../shared/runnerCatalog'
-import { pickRunner, runnerText } from '../shared/runnerPick'
+import { pickRunner, routeSpawn, runnerText, type Office } from '../shared/runnerPick'
+import { blendCatalog, cleanRuns } from '../shared/runnerScore'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
@@ -1393,6 +1394,34 @@ async function main() {
   }
   idleCheck = setTimeout(sweep, 300)
   // Agents starting agents of either program as their subagents: the child is a real agent, left out of the office, that shows in its parent's subagents.
+  // What came of each delegated run, by the model that did it: the score the picker uses learns from these.
+  const RUNS_FILE = join(HOME, 'runs.jsonl')
+  const runRated = new Set<string>()
+  const recordRun = (model: string, outcome: 'accepted' | 'rejected' | 'stopped') => appendFileSync(RUNS_FILE, JSON.stringify({ t: Date.now(), model, outcome }) + '\n')
+  const runnerCatalog = () => {
+    let own: unknown = []
+    try {
+      own = JSON.parse(readFileSync(join(HOME, 'models.json'), 'utf8'))
+    } catch {
+      /* none added */
+    }
+    let runs = ''
+    try {
+      runs = readFileSync(RUNS_FILE, 'utf8')
+    } catch {
+      /* none yet */
+    }
+    return blendCatalog(mergeCatalog(cleanCatalog(own)), cleanRuns(runs))
+  }
+  // A hired agent of the caller's project that is waiting for work. Its cache is warm if it made a request in the last 5 minutes.
+  const officeFor = (id: string): Office => {
+    const me = byId(id)
+    const now = Date.now()
+    const idle = agents
+      .filter((a) => a.id !== id && !a.builder && a.options?.model && a.repoPath === me?.repoPath && sessions.has(a.id) && (lastActivity.get(a.id) ?? 'idle') === 'idle')
+      .map((a) => ({ name: a.name, model: a.options!.model!, ctx: latestContext(ledger, a.id), warm: ledger.some((e) => e.k === 'req' && e.agent === a.id && now - e.t < 5 * 60_000) }))
+    return { idle, windows: limitWindows(), now }
+  }
   const subagents = createSubagents<AgentRecord>({
     agents: () => agents,
     byId,
@@ -1452,7 +1481,22 @@ async function main() {
   // The decisions a typed reply can make, and the hint that tells the agent their words: one for every provider's prompt hook and gate text.
   const remote = createRemoteGates({ workflows, held: landingHeld, send: (c) => send(c), afterAudit: (id) => void askForPr(id), isRemote: (id) => !!byId(id)?.options?.remote })
   const mcp = await startMcpServer({
-    subagents: { spawn: subagents.spawn, wait: subagents.wait, stop: subagents.stop },
+    subagents: {
+      // In automatic mode a subagent asked for without a model starts on the one picked for its kind of work (an idle hired agent is named instead).
+      spawn: async (id, i) => {
+        const r = routeSpawn(prefs.runnerMode, i, runnerCatalog(), officeFor(id))
+        if (r.idle) throw new Error(`${r.idle} is idle and already hired on the model picked for this work: send the task to ${r.idle} with send_message instead of starting a new agent.`)
+        const res = await subagents.spawn(id, { ...i, provider: r.provider, ...(r.model && { model: r.model }) })
+        return r.pick ? { ...res, model: r.model } : res
+      },
+      wait: subagents.wait,
+      stop: (id, subId) => {
+        const model = byId(subId)?.options?.model
+        const said = subagents.stop(id, subId)
+        if (model && !runRated.has(subId)) recordRun(model, 'stopped')
+        return said
+      }
+    },
     agentForToken: (t) => agentTokens.get(t) ?? null,
     listAgents: (caller) =>
       // The builder's agent is the builder's own: the others are not told of it.
@@ -1597,20 +1641,20 @@ async function main() {
       const reqs = ledger.filter((e) => e.k === 'req' && e.t >= from && (all || e.agent === id)).flatMap((e) => (e.k === 'req' ? [e] : []))
       return contextText(contextReport(reqs), resetEffects(reqs), `The last ${days} day${days === 1 ? '' : 's'}, ${all ? 'every agent' : 'you'}`)
     },
-    runner: (id, task) => {
-      const me = byId(id)
-      let own: unknown = []
-      try {
-        own = JSON.parse(readFileSync(join(HOME, 'models.json'), 'utf8'))
-      } catch {
-        /* none added */
-      }
-      const now = Date.now()
-      // A hired agent of the caller's project that is waiting for work. Its cache is warm if it made a request in the last 5 minutes.
-      const idle = agents
-        .filter((a) => a.id !== id && !a.builder && a.options?.model && a.repoPath === me?.repoPath && sessions.has(a.id) && (lastActivity.get(a.id) ?? 'idle') === 'idle')
-        .map((a) => ({ name: a.name, model: a.options!.model!, ctx: latestContext(ledger, a.id), warm: ledger.some((e) => e.k === 'req' && e.agent === a.id && now - e.t < 5 * 60_000) }))
-      return runnerText(pickRunner(task, mergeCatalog(cleanCatalog(own)), { idle, windows: limitWindows(), now }))
+    // Offered unless model routing is off, asked at each connection so a switch takes effect at once.
+    get runner() {
+      return prefs.runnerMode === 'off' ? undefined : (id: string, task: { kind: 'read' | 'edit' | 'feature' | 'debug' | 'review'; vague?: boolean }) => runnerText(pickRunner(task, runnerCatalog(), officeFor(id)))
+    },
+    rate: (id, subId, verdict) => {
+      const child = byId(subId)
+      if (!child || child.parent !== id) throw new Error('That is not one of your subagents.')
+      const model = child.options?.model
+      if (!model) throw new Error('That subagent ran on its program\'s default model, so there is no model to rate.')
+      if (runRated.has(subId)) throw new Error('You have already rated that subagent.')
+      runRated.add(subId)
+      recordRun(model, verdict)
+      const row = runnerCatalog().find((m) => m.model === model || m.alias === model)
+      return `Noted: ${model} ${verdict}.${row ? ` It has ${row.accepted} accepted of ${row.rated} rated runs.` : ' It is not in the model catalog, so it has no score.'}`
     },
     libraryOn: () => prefs.libraryEnabled,
     builder: {
@@ -3213,6 +3257,7 @@ async function main() {
   ipcMain.handle('ledger:tokens', (_, days: number) => tokensReport(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now()))
   ipcMain.handle('ledger:tokenMix', (_, days: number, account?: string) =>
     tokenMix(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
+  ipcMain.handle('runner:table', () => runnerCatalog())
   ipcMain.handle('ledger:context', (_, days: number, account?: string) =>
     contextView(ledger, Math.min(Math.max(Math.round(days) || 7, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
   ipcMain.handle('ledger:overview', (_, days: number) =>

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { LimitWindow } from './types'
-import { pickRunner, runnerText, type CatalogModel, type Office } from './runnerPick'
+import { pickRunner, routeSpawn, runnerText, type CatalogModel, type Office } from './runnerPick'
 
 const haiku: CatalogModel = { model: 'claude-haiku-5-5', program: 'claude', cost: 0.05, score: 0.704, n: 2 }
 const sonnet: CatalogModel = { model: 'claude-sonnet-5-5', program: 'claude', cost: 0.88, score: 0.979, n: 2 }
 const opus: CatalogModel = { model: 'claude-opus-5-5', program: 'claude', cost: 1.76, score: 0.964, n: 3 }
 const flash: CatalogModel = { model: 'gemini-3.8-flash-low', program: 'agy', cost: 0.36, score: 0.608, n: 2 }
-const catalog = [haiku, sonnet, opus, flash]
+const catalog = [{ ...haiku, alias: 'haiku' }, { ...sonnet, alias: 'sonnet' }, opus, flash]
 const office: Office = { idle: [], windows: [], now: Date.UTC(2026, 9, 29) }
 
 describe('pickRunner: which model, which checks', () => {
@@ -110,5 +110,35 @@ describe('runnerText', () => {
   it('names the idle agent to hand the work to, and says when nothing fits', () => {
     expect(runnerText({ use: 'idle', agent: 'Ada', model: 'claude-haiku-5-5', program: 'claude', checks: [] })).toContain('Send it to Ada')
     expect(runnerText({ use: 'none', why: 'no model has headroom' })).toBe('No runner picked: no model has headroom.')
+  })
+})
+
+describe('routeSpawn: what a subagent is started on', () => {
+  it('leaves the request alone unless the mode is automatic', () => {
+    expect(routeSpawn('suggest', { provider: 'claude' }, catalog, office)).toEqual({ provider: 'claude' })
+    expect(routeSpawn('off', {}, catalog, office)).toEqual({ provider: 'claude' })
+  })
+  it('keeps a model the caller named', () => {
+    expect(routeSpawn('auto', { provider: 'claude', model: 'opus' }, catalog, office)).toEqual({ provider: 'claude', model: 'opus' })
+  })
+  it('picks the model by the kind of work, and starts it on the name its program knows it by', () => {
+    expect(routeSpawn('auto', { kind: 'edit' }, catalog, office)).toMatchObject({ provider: 'claude', model: 'haiku' })
+    expect(routeSpawn('auto', { kind: 'review' }, catalog, office)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5' })
+    expect(routeSpawn('auto', {}, catalog, office)).toMatchObject({ model: 'haiku' })
+  })
+  it('stays within the program the caller named', () => {
+    expect(routeSpawn('auto', { provider: 'agy', kind: 'read' }, catalog, office)).toMatchObject({ provider: 'agy', model: 'gemini-3.8-flash-low' })
+    const none = routeSpawn('auto', { provider: 'agy', kind: 'review' }, catalog, office)
+    expect(none).toMatchObject({ provider: 'agy', pick: { use: 'none' } })
+    expect(none.model).toBeUndefined()
+  })
+  it('says which idle agent to use instead, when one is free', () => {
+    const r = routeSpawn('auto', { kind: 'edit' }, catalog, { ...office, idle: [{ name: 'Ada', model: 'haiku', ctx: 1_000, warm: false }] })
+    expect(r.idle).toBe('Ada')
+  })
+  it('falls back to the request as made when nothing can be picked, and says what it did', () => {
+    const r = routeSpawn('auto', { kind: 'edit' }, [], office)
+    expect(r).toMatchObject({ provider: 'claude' })
+    expect(r.model).toBeUndefined()
   })
 })

@@ -172,7 +172,7 @@ describe('the library tools', () => {
 describe('agent-world MCP server: subagents', () => {
   const calls: string[] = []
   const subagents = {
-    spawn: async (caller: string, i: { provider: string; task: string; background?: boolean }) => {
+    spawn: async (caller: string, i: { provider?: string; task: string; background?: boolean }) => {
       calls.push(`spawn:${caller}:${i.provider}:${i.task}:${i.background ?? false}`)
       if (i.task === 'too many') throw new Error('This agent already has 3 subagents working.')
       return { id: 'c1', name: 'bo', status: i.background ? ('working' as const) : ('done' as const), branch: 'aw/bo', ...(i.background ? {} : { report: 'Added it.' }) }
@@ -560,5 +560,33 @@ describe('agent-world MCP server: pick_runner', () => {
     await c.callTool({ name: 'pick_runner', arguments: { kind: 'feature', vague: true } })
     expect((await c.callTool({ name: 'pick_runner', arguments: { kind: 'poetry' } })).isError).toBe(true)
     expect(asked).toEqual(['a1:edit:false', 'a1:feature:true'])
+  })
+})
+
+describe('agent-world MCP server: routing a subagent and rating its work', () => {
+  const base = { agentForToken: (t: string) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued' as const, remember: () => {}, recall: () => [] }
+
+  it('lets a subagent be asked for by the kind of work, with no program or model named', async () => {
+    const seen: unknown[] = []
+    const subagents = { spawn: async (_: string, i: unknown) => (seen.push(i), { id: 'c1', name: 'bo', status: 'done' as const, branch: null }), wait: async () => ({ id: 'c1', name: 'bo', status: 'done' as const, branch: null }), stop: () => 'ok' }
+    server?.close()
+    server = await startMcpServer({ ...base, subagents })
+    const c = await connect(server.url, 'a1')
+    await c.callTool({ name: 'spawn_subagent', arguments: { task: 'fix it', kind: 'edit', vague: true } })
+    expect(seen[0]).toMatchObject({ task: 'fix it', kind: 'edit', vague: true })
+    expect((seen[0] as { provider?: string }).provider).toBeUndefined()
+    expect((await c.callTool({ name: 'spawn_subagent', arguments: { task: 'x', kind: 'poetry' } })).isError).toBe(true)
+  })
+
+  it('offers rate_subagent only when the office keeps ratings, and passes the verdict', async () => {
+    const without = await connect((await setup()).url, 'a1')
+    expect((await without.listTools()).tools.map((t) => t.name)).not.toContain('rate_subagent')
+    const rated: string[] = []
+    server?.close()
+    server = await startMcpServer({ ...base, rate: (caller, id, verdict) => (rated.push(`${caller}:${id}:${verdict}`), 'Noted.') })
+    const c = await connect(server.url, 'a1')
+    expect(text(await c.callTool({ name: 'rate_subagent', arguments: { id: 'c1', verdict: 'accepted' } }))).toBe('Noted.')
+    expect((await c.callTool({ name: 'rate_subagent', arguments: { id: 'c1', verdict: 'meh' } })).isError).toBe(true)
+    expect(rated).toEqual(['a1:c1:accepted'])
   })
 })

@@ -12,6 +12,7 @@ import { ProviderCard } from './ProviderCard'
 import { useProviderSetup } from './useProviderSetup'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
+import { ModelRouting } from './ModelRouting'
 import { TrackingCost } from '../todos/TrackingCost'
 import { LibraryCostBox } from './LibraryCostBox'
 import { switchWorkflows } from '../../shared/workflows'
@@ -241,6 +242,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
                   </select>
                 </label>
               </div>
+              <ModelRouting mode={prefs.runnerMode} onMode={(runnerMode) => set({ runnerMode })} />
             </>
           )}
           {pane === 'rules' && (

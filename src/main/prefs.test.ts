@@ -70,6 +70,19 @@ describe('the subagent limits', () => {
   })
 })
 
+describe('model routing', () => {
+  it('suggests by default, and keeps off and auto, and nothing else', () => {
+    expect(cleanPrefs({}).runnerMode).toBe('suggest')
+    expect(cleanPrefs({ runnerMode: 'auto' }).runnerMode).toBe('auto')
+    expect(cleanPrefs({ runnerMode: 'off' }).runnerMode).toBe('off')
+    for (const bad of ['always', 1, null, undefined]) expect(cleanPrefs({ runnerMode: bad }).runnerMode).toBe('suggest')
+    // Changing back to suggest from another mode is saved, and a bad value keeps the current mode.
+    const auto = cleanPrefs({ runnerMode: 'auto' })
+    expect(cleanPrefs({ runnerMode: 'suggest' }, auto).runnerMode).toBe('suggest')
+    expect(cleanPrefs({ runnerMode: 'always' }, auto).runnerMode).toBe('auto')
+  })
+})
+
 describe('opening pages in the app', () => {
   it('keeps the size at which agents are told their context is big: 150k by default, 0 for never, and nothing absurd', () => {
     expect(cleanPrefs({}).contextNudgeAt).toBe(150_000)

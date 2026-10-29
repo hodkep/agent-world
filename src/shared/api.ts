@@ -1,6 +1,7 @@
 import type { BetaState, InstallState, UpdateChannel, UpdateRel } from './updateInstall'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { ContextView } from './contextView'
+import type { Scored } from './runnerScore'
 import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
 import type { Run } from './runs'
@@ -192,6 +193,8 @@ export interface AwApi {
   tokenMix(days: number, account?: string): Promise<TokenMix>
   /** How big each agent's context was at its requests over the last days, with its compactions; of one account when given. */
   contextView(days: number, account?: string): Promise<ContextView>
+  /** The models the office may pick for a subagent, each with its benchmark score, how its delegated runs were rated, and the score that blends them. */
+  runnerTable(): Promise<Scored[]>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** One subagent's own conversation: what it thought and said, each call and what it returned. */

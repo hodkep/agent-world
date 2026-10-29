@@ -43,7 +43,7 @@ interface Options {
   hook?: (callerId: string, event: string, payload: Record<string, unknown>) => Record<string, unknown>
   /** Starting other agents, of either program, as subagents of the caller. Offered only when set. */
   subagents?: {
-    spawn: (callerId: string, i: SpawnInput) => Promise<SubagentResult>
+    spawn: (callerId: string, i: SpawnRequest) => Promise<SubagentResult>
     wait: (callerId: string, ids: string[]) => Promise<SubagentResult>
     stop: (callerId: string, id: string) => string
   }
@@ -61,6 +61,8 @@ interface Options {
   }
   /** How big the context got and where the cost went, for the caller alone or the whole office, as plain words. Offered only when set. */
   tokens?: (callerId: string, days: number, all: boolean) => string
+  /** Record what the caller made of a subagent's work, so the model's score learns from it. Offered only when set. */
+  rate?: (callerId: string, subagentId: string, verdict: 'accepted' | 'rejected') => string
   /** Which model or idle agent should do a piece of work, and how to check it, as plain words. Offered only when set. */
   runner?: (callerId: string, task: { kind: 'read' | 'edit' | 'feature' | 'debug' | 'review'; vague?: boolean }) => string
   /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
@@ -106,6 +108,13 @@ interface Options {
   }
 }
 
+/** What an agent asks for: the program may be left out when the office picks it by the kind of work. */
+export interface SpawnRequest extends Omit<SpawnInput, 'provider'> {
+  provider?: string
+  kind?: 'read' | 'edit' | 'feature' | 'debug' | 'review'
+  vague?: boolean
+}
+
 export interface SpawnInput {
   provider: string
   task: string
@@ -124,6 +133,8 @@ export interface SubagentResult {
   report?: string
   /** Set when the answer is not final: what to do next. */
   note?: string
+  /** The model it runs on, when the office picked it for the work (so its caller knows what it got and can rate it). */
+  model?: string
 }
 
 const MAX_BODY = 1024 * 1024
@@ -285,11 +296,13 @@ function toolsFor(callerId: string, o: Options) {
           (o.runner ? ' To choose the model, or an idle agent to message instead, call pick_runner first.' : '') +
           ' It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. If it takes longer than about 45 seconds the call returns with status working and its id: then call await_subagents with that id (as often as needed) instead of starting it again. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
         inputSchema: {
-          provider: z.enum(['claude', 'agy']).describe('Which program runs the subagent'),
+          provider: z.enum(['claude', 'agy']).optional().describe('Which program runs the subagent (the office picks when left out and it is set to pick)'),
           task: z.string().min(1).max(8000).describe('What it should do, and how you will know it is done'),
           worktree: z.boolean().optional().describe('Give it a branch and folder of its own (default true). false: it shares your folder, so it should only read.'),
           branch: z.string().max(80).optional().describe('A name for its branch'),
-          model: z.string().max(80).optional().describe('A model of that program; its default when left out'),
+          model: z.string().max(80).optional().describe('A model of that program; its default, or the one the office picks for the work, when left out'),
+          kind: z.enum(['read', 'edit', 'feature', 'debug', 'review']).optional().describe('What the work is, so the office can pick a model for it: read (search, summarise), edit (a small change), feature (several files with tests), debug (a hard bug), review (design, plan, code review)'),
+          vague: z.boolean().optional().describe('true when the spec leaves things to find out'),
           background: z.boolean().optional().describe('Return at once with its id instead of waiting for its answer')
         }
       },
@@ -346,6 +359,23 @@ function toolsFor(callerId: string, o: Options) {
         annotations: READ_ONLY
       },
       async ({ days, all }) => ({ content: [{ type: 'text' as const, text: tokens(callerId, days ?? 7, all ?? false) }] })
+    )
+  }
+  if (o.rate) {
+    const rate = o.rate
+    server.registerTool(
+      'rate_subagent',
+      {
+        description: 'After you have read a subagent\'s result and checked its work, say whether you accepted it or rejected it. The model that did it earns or loses score by this, and the app picks models by score, so rate honestly: accepted only if its checks passed and you found nothing missing.',
+        inputSchema: { id: z.string().describe('Subagent id'), verdict: z.enum(['accepted', 'rejected']) }
+      },
+      async ({ id, verdict }) => {
+        try {
+          return { content: [{ type: 'text' as const, text: rate(callerId, id, verdict) }] }
+        } catch (err) {
+          return { isError: true, content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }] }
+        }
+      }
     )
   }
   if (o.runner) {

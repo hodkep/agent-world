@@ -321,7 +321,8 @@ async function sendViaOffice(to, message) {
   console.log(`send_message → ${r.content[0].text}`)
   await client.close()
 }
-// FAKE_SPAWN=ada:claude:task makes the agent named ada start a subagent through the office and print what came back.
+// FAKE_SPAWN=ada:claude:task makes the agent named ada start a subagent through the office and print what came back. A provider of - leaves it out, as an agent
+// does that lets the office pick; FAKE_SPAWN_KIND names the kind of work, and FAKE_RATE=accepted|rejected rates the subagent once it has answered.
 async function spawnViaOffice(provider, task) {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
   const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js')
@@ -329,10 +330,16 @@ async function spawnViaOffice(provider, task) {
   const client = new Client({ name: 'fake-claude', version: '1' })
   await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.headers } }))
   // The conversation shows the call the way Claude saves it, and what came back.
-  const call = use('mcp__agent-world__spawn_subagent', { provider, task })
-  const r = await client.callTool({ name: 'spawn_subagent', arguments: { provider, task } }, undefined, { timeout: 120000 })
+  const args = { ...(provider !== '-' && { provider }), task, ...(process.env.FAKE_SPAWN_KIND && { kind: process.env.FAKE_SPAWN_KIND }), ...(process.env.FAKE_SPAWN_VAGUE && { vague: true }) }
+  const call = use('mcp__agent-world__spawn_subagent', args)
+  const r = await client.callTool({ name: 'spawn_subagent', arguments: args }, undefined, { timeout: 120000 })
   done(call, r.content[0].text)
   console.log(`spawn_subagent → ${r.content[0].text}`)
+  if (process.env.FAKE_RATE && !r.isError) {
+    const id = JSON.parse(r.content[0].text).id
+    const rated = await client.callTool({ name: 'rate_subagent', arguments: { id, verdict: process.env.FAKE_RATE } })
+    console.log(`rate_subagent → ${rated.content[0].text}`)
+  }
   await client.close()
 }
 const [spawnFrom, spawnProvider, ...spawnTask] = (process.env.FAKE_SPAWN ?? '').split(':')
