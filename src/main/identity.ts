@@ -1,20 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-
-/** A GitHub login plus the name and email on commits. Two profiles may share a login: one email per team. */
-export interface Profile {
-  id: string
-  name: string
-  login: string
-  gitName: string
-  gitEmail: string
-}
-
-/** The profiles, and the one picked for each project folder. A project with none uses the machine's own gh and git settings. */
-export interface Identity {
-  profiles: Profile[]
-  byProject: Record<string, string>
-}
+import type { Identity, Profile } from '../shared/identity'
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
