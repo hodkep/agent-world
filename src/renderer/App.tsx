@@ -47,8 +47,8 @@ import { waitWord, waitsForPerson } from '../shared/waits'
 import { GridView } from './panel/GridView'
 import { AGENT_DRAG, PaneGrid, type GridLayout, type TerminalDrop } from './panel/PaneGrid'
 import { OPEN_KEY, openOf, readOpen, saveOpen, setOpen } from './panel/termMemory'
-import { MEMORY_KEY, type Slot, pruneViews, readMemory, saveMemory, setSlot, setView as withView, slotOf, termTiles } from './panel/gridMemory'
-import { add, addAll, even, isTerm, mapTiles, place, tilesOf } from './panel/tiling'
+import { MEMORY_KEY, conversationsRoot, type Slot, pruneViews, readMemory, saveMemory, setSlot, setView as withView, slotOf, termTiles } from './panel/gridMemory'
+import { type Node, add, addAll, even, isTerm, mapTiles, place, tilesOf } from './panel/tiling'
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
@@ -310,6 +310,8 @@ export function App() {
     return next
   })
   // A pane's terminal choice goes with its tile: an agent taken out of the grid and put back again starts as a chat.
+  // What the grid held when Overview was chosen, so Conversations opens on it again.
+  const beforeOverview = useRef<Record<string, Node | null | undefined>>({})
   const changeLayout = (l: GridLayout | null) => rememberGrid({ layout: l, views: pruneViews(slot.views, l?.root ?? null) })
   // With conversations laid out in the grid, the grid is where they live: the side panel stays out of the way until you ask for it.
   const [peek, setPeek] = useState(false)
@@ -1549,12 +1551,12 @@ export function App() {
           {grid && agents.length > 0 && (
             <div className="grid-area">
               <div className="grid-bar" role="toolbar" aria-label="Grid layout">
-                <button aria-pressed={!paneLayout} onClick={() => changeLayout(null)} title="Every agent as a tile with the last lines of its terminal">
+                <button aria-pressed={!paneLayout} onClick={() => (beforeOverview.current[folder ?? ''] = paneLayout?.root, changeLayout(null))} title="Every agent as a tile with the last lines of its terminal">
                   Overview
                 </button>
                 <button
                   aria-pressed={!!paneLayout}
-                  onClick={() => !paneLayout && changeLayout({ root: even([current?.id ?? agents[0]!.id]) })}
+                  onClick={() => !paneLayout && changeLayout({ root: conversationsRoot(beforeOverview.current[folder ?? ''], current?.id ?? agents[0]!.id) })}
                   title="Conversations and terminals side by side: drag them in from the list, and the grid fits itself to them"
                 >
                   Conversations
