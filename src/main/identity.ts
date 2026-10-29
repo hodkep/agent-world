@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Identity, Profile } from '../shared/identity'
+export { profileFor } from '../shared/identity'
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -15,14 +16,6 @@ export function cleanIdentity(raw: unknown): Identity {
   const picked = (r.byProject && typeof r.byProject === 'object' ? r.byProject : {}) as Record<string, unknown>
   const byProject = Object.fromEntries(Object.entries(picked).filter(([, id]) => typeof id === 'string' && profiles.some((p) => p.id === id))) as Record<string, string>
   return { profiles, byProject }
-}
-
-/** The profile for a folder: the one picked for the deepest project that is the folder or holds it (an agent's worktree, a repo inside a multi-repo project). */
-export function profileFor(id: Identity, folder: string): Profile | undefined {
-  const at = Object.keys(id.byProject)
-    .filter((p) => folder === p || folder.startsWith(p.endsWith('/') || p.endsWith('\\') ? p : `${p}/`) || folder.startsWith(`${p}\\`))
-    .sort((a, b) => b.length - a.length)[0]
-  return id.profiles.find((p) => p.id === id.byProject[at ?? ''])
 }
 
 /** The environment that makes gh and git act as the profile. The token is only added when the login is signed in; who commits is set either way. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickProfile, profileUse, removeProfile, saveProfile, type Identity } from './identity'
+import { billboardLine, pickProfile, profileFor, profileUse, removeProfile, saveProfile, type Identity } from './identity'
 
 const work = { id: 'work', name: 'Sarvaha work', login: 'pratikGhodke1', gitName: 'Pratik Ghodke', gitEmail: 'pratik.ghodke@sarvaha.com' }
 const base: Identity = { profiles: [work], byProject: { '/a': 'work' } }
@@ -38,4 +38,29 @@ describe('removeProfile', () => {
 
 describe('profileUse', () => {
   it('lists the projects that use a profile', () => expect(profileUse({ ...base, byProject: { '/a': 'work', '/b': 'work' } }, 'work')).toEqual(['/a', '/b']))
+})
+
+describe('billboardLine', () => {
+  const logins = [{ login: 'pratikGhodke1', active: true }]
+  it('says who the project acts as when the login is signed in', () => expect(billboardLine(work, logins)).toEqual({ text: 'as pratikghodke1', out: false }))
+  it('says the login is out when gh does not hold it', () => expect(billboardLine(work, [])).toEqual({ text: 'pratikghodke1 out', out: true }))
+  it('has no line without a profile, as before', () => expect(billboardLine(undefined, logins)).toBeNull())
+  it('cuts a long login the way a long project name is cut', () => {
+    const long = { ...work, login: 'a-very-long-login-name-indeed' }
+    const line = billboardLine(long, [{ login: long.login, active: false }])!
+    expect(line.text).toHaveLength(22)
+    expect(line.text.endsWith('.')).toBe(true)
+  })
+})
+
+describe('profileFor', () => {
+  const id: Identity = { profiles: [work], byProject: { '/a': 'work' } }
+  it('finds the profile picked for a project', () => expect(profileFor(id, '/a')).toEqual(work))
+  it('is undefined for a project with none, so the machine settings are used', () => expect(profileFor(id, '/other')).toBeUndefined())
+  it('covers a folder inside the project, such as an agent worktree or a repo in a multi-repo folder', () => expect(profileFor(id, '/a/sub/repo')).toEqual(work))
+  it('does not mistake a sibling that shares a name prefix', () => expect(profileFor(id, '/a-other')).toBeUndefined())
+  it('prefers the deepest project that holds the folder', () => {
+    const b = { ...work, id: 'b' }
+    expect(profileFor({ profiles: [work, b], byProject: { '/a': 'work', '/a/b': 'b' } }, '/a/b/c')).toEqual(b)
+  })
 })
