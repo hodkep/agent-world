@@ -1,4 +1,4 @@
-import { type Node, isTerm, keepOnly, readLayout, tilesOf } from './tiling'
+import { type Node, even, isTerm, keepOnly, readLayout, tilesOf } from './tiling'
 
 /** What one workspace remembers of its grid: whether it is shown, and how it is laid out (null: the overview tiles). */
 export interface Slot {
@@ -63,3 +63,6 @@ export function pruneViews(views: Slot['views'], root: Node | null): Slot['views
   const kept = Object.fromEntries(Object.entries(views ?? {}).filter(([id]) => here.has(id)))
   return Object.keys(kept).length > 0 ? (kept as Record<string, 'terminal'>) : undefined
 }
+
+/** The layout Conversations opens on: what the grid held before Overview was chosen (shells are gone with it), else just the open agent. */
+export const conversationsRoot = (before: Node | null | undefined, open: string): Node | null => keepOnly(before ?? null, (t) => !isTerm(t)) ?? even([open])

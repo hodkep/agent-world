@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { even } from './tiling'
-import { pruneViews, readMemory, saveMemory, setSlot, setView, slotOf, termTiles } from './gridMemory'
+import { even, tilesOf } from './tiling'
+import { conversationsRoot, pruneViews, readMemory, saveMemory, setSlot, setView, slotOf, termTiles } from './gridMemory'
 
 const none = { grid: null, layout: null }
 const two = { root: even(['a1', 'a2']) }
@@ -66,5 +66,15 @@ describe('which panes of a workspace show their terminal instead of the chat', (
     expect(pruneViews({ a1: 'terminal', gone: 'terminal' }, even(['a1', 'a2']))).toEqual({ a1: 'terminal' })
     expect(pruneViews({ gone: 'terminal' }, even(['a1']))).toBeUndefined()
     expect(pruneViews(undefined, even(['a1']))).toBeUndefined()
+  })
+})
+
+describe('opening Conversations again after Overview', () => {
+  it('brings back the agents that were side by side, without their shells', () => {
+    expect(tilesOf(conversationsRoot(even(['a1', 'a2', 'term:1']), 'a3'))).toEqual(['a1', 'a2'])
+  })
+  it('starts on the open agent when nothing was in the grid', () => {
+    expect(tilesOf(conversationsRoot(undefined, 'a3'))).toEqual(['a3'])
+    expect(tilesOf(conversationsRoot(even(['term:1']), 'a3'))).toEqual(['a3'])
   })
 })
