@@ -1,7 +1,7 @@
-import { BREW_UPGRADE, type InstallState } from '../../shared/updateInstall'
+import type { InstallState } from '../../shared/updateInstall'
 import type { UpdateInfo } from './UpdateChip'
 
-export type UpdateAction = { id: 'download' | 'cancel' | 'install' | 'later' | 'retry' | 'page' | 'changes' | 'finder' | 'log' | 'copy'; label: string; primary?: boolean }
+export type UpdateAction = { id: 'download' | 'cancel' | 'install' | 'later' | 'retry' | 'page' | 'changes' | 'finder' | 'log'; label: string; primary?: boolean }
 
 /** What the popover under the chip, and the Updates page of Settings, show for a newer version: all of it said here, so the two cannot differ. */
 export interface UpdateView {
@@ -9,8 +9,6 @@ export interface UpdateView {
   chip: string
   title: string
   body?: string
-  /** A command the person runs themselves, shown to copy. */
-  command?: string
   progress?: { fraction: number; label: string; ok?: boolean }
   ticks?: string[]
   /** What the new version holds (the release's own text), shown before it is downloaded or installed. */
@@ -48,25 +46,15 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   const latest = info.latest
   const chip = `↑ ${latest}`
   const install: InstallState | undefined = info.install
-  // Homebrew installed this copy and keeps its own record of the version, so it is the one to update it.
   const older = info.rel === 'older'
   // An older stable, from a beta, is a way back; any other older release is a switch.
   const toStable = older && info.channel !== 'beta' && isBeta(info.current)
   const caution = older ? (toStable ? GOING_BACK : SWITCHING) : undefined
-  if (info.homebrew && info.channel !== 'beta' && !older)
-    return {
-      chip,
-      title: `Agent World ${latest} is available`,
-      body: `${info.current ? `You have ${info.current}. ` : ''}This copy was installed with Homebrew, so Homebrew updates it. Quit Agent World, run this in Terminal, then open it again. If Homebrew says nothing is new yet, run it again in a few minutes.`,
-      command: BREW_UPGRADE,
-      ...(info.notes && { notes: info.notes }),
-      actions: [{ id: 'copy', label: 'Copy command', primary: true }, ...(info.url ? [{ id: 'changes' as const, label: 'What changed' }] : [])]
-    }
   const offer = (): UpdateView => ({
     chip,
     title: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}, older than your version`) : `Agent World ${latest} is available`,
     ...(caution && { warning: caution }),
-    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' && !isBeta(info.current) ? ' Installing a beta replaces the stable app you have.' : ''}`,
+    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' && !isBeta(info.current) ? ' Installing a beta replaces the stable app you have.' : ''}${info.homebrew && info.channel !== 'beta' ? ` Homebrew installed this copy; its record of the version may still say ${info.current ?? 'the old one'} afterwards, which does no harm.` : ''}`,
     ...(info.notes && { notes: info.notes }),
     actions: info.tag ? [{ id: 'download', label: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}`) : 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
   })
