@@ -39,6 +39,12 @@ describe('profileFor', () => {
   const id = cleanIdentity({ profiles: [work], byProject: { '/a': 'work' } })
   it('finds the profile picked for a project', () => expect(profileFor(id, '/a')).toEqual(work))
   it('is undefined for a project with none, so the machine settings are used', () => expect(profileFor(id, '/other')).toBeUndefined())
+  it('covers a folder inside the project, such as an agent worktree or a repo in a multi-repo folder', () => expect(profileFor(id, '/a/sub/repo')).toEqual(work))
+  it('does not mistake a sibling that shares a name prefix', () => expect(profileFor(id, '/a-other')).toBeUndefined())
+  it('prefers the deepest project that holds the folder', () => {
+    const nested = cleanIdentity({ profiles: [work, teamB], byProject: { '/a': 'work', '/a/b': 'team-b' } })
+    expect(profileFor(nested, '/a/b/c')).toEqual(teamB)
+  })
 })
 
 describe('identityEnv', () => {

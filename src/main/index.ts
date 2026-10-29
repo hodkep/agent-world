@@ -70,6 +70,7 @@ import { recentlyRunning, writeRunning } from './resume'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
+import { ghToken, identityEnv, loadIdentity, profileFor, type Identity } from './identity'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { createNoteStore } from './notes/store'
@@ -293,6 +294,22 @@ let workspaces: WorkspaceState = { active: null, recent: [] }
 const setWorkspaces = (next: WorkspaceState) => {
   workspaces = next
   saveWorkspaces(WORKSPACES_FILE, workspaces)
+}
+// Which GitHub login and commit name a project's agents and terminals act as. Tokens are asked of gh and kept in memory only (never written), so a profile whose login has signed out sends none.
+const IDENTITY_FILE = join(HOME, 'identity.json')
+let identity: Identity = { profiles: [], byProject: {} }
+const ghTokens = new Map<string, string>()
+const ghRun = (file: string, args: string[]) => new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 10_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+const refreshGhTokens = async () => {
+  for (const login of new Set(identity.profiles.map((p) => p.login))) {
+    const t = await ghToken(login, ghRun)
+    if (t) ghTokens.set(login, t)
+    else ghTokens.delete(login)
+  }
+}
+const identityFor = (folder: string) => {
+  const p = profileFor(identity, folder)
+  return identityEnv(p, p && ghTokens.get(p.login))
 }
 const isDir = (p: string) => {
   try {
@@ -995,7 +1012,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
-  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...gitEnv(env, GIT_HOOKS_DIR, originalHooks(a.cwd)), ...accountsSvc.envFor(a.provider, a.configDir) } })
+  const p = pty.spawn(cmd.file, cmd.args, { name: 'xterm-256color', cols, rows, cwd: a.cwd, env: { ...env, ...files.env, ...gitEnv(env, GIT_HOOKS_DIR, originalHooks(a.cwd)), ...accountsSvc.envFor(a.provider, a.configDir), ...identityFor(a.repoPath) } })
   screens.get(a.id)?.dispose()
   const screen = new Screen(cols, rows)
   screens.set(a.id, screen)
@@ -1191,6 +1208,8 @@ async function main() {
   loadPrices()
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
+  identity = loadIdentity(IDENTITY_FILE)
+  void refreshGhTokens()
   // The terminals of the agents get the bundled git first on their path, so the agent's own git and the commit hook run it.
   const env = withGitOnPath({ ...providerOf({}).env(process.env), PATH: loginShellPath() }, gitProgram(), delimiter)
 
@@ -2940,7 +2959,7 @@ async function main() {
     const file = process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh')
     // On Mac and Linux zsh and bash are started so they mark each prompt, which the terminal uses to jump between commands.
     const start = process.platform === 'win32' ? { args: [], env: {} } : shellIntegration(file, join(HOME, 'shell-integration'), process.env.ZDOTDIR ?? '')
-    const p = pty.spawn(file, start.args, { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: { ...env, ...start.env } as Record<string, string> })
+    const p = pty.spawn(file, start.args, { name: 'xterm-256color', cols: 80, rows: 24, cwd: folder, env: { ...env, ...start.env, ...identityFor(folder) } as Record<string, string> })
     shells.set(id, p)
     p.onData((d) => {
       // When the first prompt is drawn the shell is what is in front: that is its name for "waiting for a command".
