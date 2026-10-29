@@ -31,7 +31,13 @@ export function cleanIdentity(raw: unknown): Identity {
   return { profiles, byProject }
 }
 
-export const profileFor = (id: Identity, project: string): Profile | undefined => id.profiles.find((p) => p.id === id.byProject[project])
+/** The profile for a folder: the one picked for the deepest project that is the folder or holds it (an agent's worktree, a repo inside a multi-repo project). */
+export function profileFor(id: Identity, folder: string): Profile | undefined {
+  const at = Object.keys(id.byProject)
+    .filter((p) => folder === p || folder.startsWith(p.endsWith('/') || p.endsWith('\\') ? p : `${p}/`) || folder.startsWith(`${p}\\`))
+    .sort((a, b) => b.length - a.length)[0]
+  return id.profiles.find((p) => p.id === id.byProject[at ?? ''])
+}
 
 /** The environment that makes gh and git act as the profile. The token is only added when the login is signed in; who commits is set either way. */
 export function identityEnv(profile: Profile | undefined, token: string | undefined): Record<string, string> {
