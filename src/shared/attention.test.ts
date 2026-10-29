@@ -61,6 +61,26 @@ describe('an agent that finished while you were looking elsewhere', () => {
   })
 })
 
+describe('marking agents read without opening them', () => {
+  it('forgets the finish of the agents named, and only those, and the project mark goes with the last of its agents', () => {
+    const t = createDoneTracker()
+    t.observe([a('a1', '/p', 'thinking'), a('a2', '/p', 'thinking'), a('b1', '/q', 'thinking')])
+    t.observe([a('a1', '/p', 'idle'), a('a2', '/p', 'idle'), a('b1', '/q', 'idle')])
+    t.read(['a1'])
+    expect([...t.agents()].sort()).toEqual(['a2', 'b1'])
+    expect([...t.projects()].sort()).toEqual(['/p', '/q'])
+    t.read(['a2'])
+    expect([...t.agents()]).toEqual(['b1'])
+    expect([...t.projects()]).toEqual(['/q'])
+    // It is marked again only by finishing again.
+    t.observe([a('a1', '/p', 'idle'), a('a2', '/p', 'idle'), a('b1', '/q', 'idle')])
+    expect([...t.agents()]).toEqual(['b1'])
+    t.observe([a('a1', '/p', 'running'), a('a2', '/p', 'idle'), a('b1', '/q', 'idle')])
+    t.observe([a('a1', '/p', 'idle'), a('a2', '/p', 'idle'), a('b1', '/q', 'idle')])
+    expect([...t.agents()].sort()).toEqual(['a1', 'b1'])
+  })
+})
+
 describe('the dot on the project button', () => {
   const act = { '/here': { waiting: 3, working: 0 }, '/b': { waiting: 0, working: 1 }, '/c': { waiting: 0, working: 0 } }
   it('is red when another project waits for you, and never for the project you are in', () => {

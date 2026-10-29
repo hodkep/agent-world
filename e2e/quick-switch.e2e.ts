@@ -202,6 +202,36 @@ test('an agent of this project that finishes while you are on another agent is m
   }
 })
 
+test('a finished agent can be marked read from its tile, or all at once from the panel, without opening it', async () => {
+  const { page, shutdown } = await office(['shop'], undefined, { FAKE_CHAT: '1', FAKE_DELAY_MS: '600' })
+  try {
+    await hire(page, { name: 'ada' })
+    await hire(page, { name: 'cy' })
+    await hire(page, { name: 'bo' })
+    const agents = await page.evaluate(() => window.aw.listAgents())
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    for (const n of ['ada', 'cy']) await page.evaluate((id) => window.aw.chatSend(id, 'Say something'), agents.find((x) => x.name === n)!.id)
+    await expect(page.getByTestId('agents-dot')).toHaveText('2', { timeout: SLOW })
+    await page.locator('.hc-switch').hover()
+    const panel = page.getByRole('menu', { name: 'Agents' })
+    // The tile's own icon marks that agent read; the other stays marked, and the number counts one.
+    await panel.getByRole('menuitem', { name: /ada/ }).hover()
+    await panel.getByRole('button', { name: 'Mark ada as read' }).click()
+    await expect(panel.getByRole('menuitem', { name: /ada/ }).locator('.wt-mark')).toHaveCount(0)
+    await expect(panel.getByRole('menuitem', { name: /cy/ }).locator('.wt-mark.done')).toBeVisible()
+    await expect(page.getByTestId('agents-dot')).toHaveText('1')
+    // The header icon marks the rest, and with them the dot and the icon go.
+    await panel.getByRole('button', { name: 'Mark all as read' }).click()
+    await expect(panel.locator('.wt-mark')).toHaveCount(0)
+    await expect(page.getByTestId('agents-dot')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: 'Mark all as read' })).toHaveCount(0)
+    // Neither agent was opened.
+    await expect(page.locator('.hc-name')).toHaveText('bo')
+  } finally {
+    await shutdown()
+  }
+})
+
 test('the agent number shows a red dot while another agent of this project waits for you, and none when only the agent you are on does', async () => {
   const { page, shutdown } = await office(['shop'])
   try {

@@ -53,6 +53,8 @@ const ICONS = {
   search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
   file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
   tick: <path d="M5 12.5l4.5 4.5L19 7" />,
+  // Two ticks: mark all as read.
+  ticks: <path d="M2 12.5l4.5 4.5L15 8M10 14l3 3 9-10" />,
   cross: <path d="M6 6l12 12M18 6L6 18" />,
   // The Preview's browser bar.
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,

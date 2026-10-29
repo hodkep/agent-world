@@ -4,7 +4,7 @@ import { type KeyboardEvent, type ReactNode, useRef } from 'react'
  * The panel under a switcher button: a title with how many there are (and a search box when there are many), a grid of tiles that scrolls
  * when they do not all fit (the title and the footer stay), and a footer. Arrow keys move over the tiles, Enter picks, 1 to 9 pick a numbered tile.
  */
-export function QuickPanel({ label, title, count, search, onSearch, onSearchEnter, footer, children, className = '' }: { label: string; title: string; count: number; search?: string; onSearch?: (text: string) => void; onSearchEnter?: () => void; footer?: ReactNode; children: ReactNode; className?: string }) {
+export function QuickPanel({ label, title, count, search, onSearch, onSearchEnter, footer, actions, children, className = '' }: { actions?: ReactNode; label: string; title: string; count: number; search?: string; onSearch?: (text: string) => void; onSearchEnter?: () => void; footer?: ReactNode; children: ReactNode; className?: string }) {
   const grid = useRef<HTMLDivElement>(null)
   const tiles = () => [...(grid.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])]
   const columns = () => (grid.current ? getComputedStyle(grid.current).gridTemplateColumns.split(' ').length || 1 : 1)
@@ -27,6 +27,7 @@ export function QuickPanel({ label, title, count, search, onSearch, onSearchEnte
       <div className="qh">
         <b>{title}</b>
         <span>{count}</span>
+        {actions}
         {onSearch && (
           <input className="qs" value={search ?? ''} onChange={(e) => onSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSearchEnter?.()} placeholder="Find…" aria-label={`Find in ${title.toLowerCase()}`} />
         )}

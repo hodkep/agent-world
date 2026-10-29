@@ -3542,6 +3542,12 @@ svg.pxg { display: block; flex: none; }
 .wt-live { position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; background: var(--think); box-shadow: 0 0 0 2px var(--panel-2); animation: wt-blink 1.4s steps(2) infinite; }
 @keyframes wt-blink { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .wt-live { animation: none; } }
+.wt-read { position: absolute; right: 6px; bottom: 6px; display: none; padding: 3px 4px; color: var(--ok-text); background: var(--panel-3); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok-text) 40%, var(--ink)); }
+.wt-read::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; transform: none; }
+.wt-cell:hover .wt-read, .wt-read:focus-visible { display: block; }
+.wt-read:hover { background: color-mix(in srgb, var(--ok-text) 16%, var(--panel-3)); }
+.qh-read { color: var(--ok-text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok-text) 40%, var(--ink)); }
+.qh-read:hover { background: color-mix(in srgb, var(--ok-text) 12%, var(--panel-3)); }
 .wt-x { position: absolute; right: 4px; top: 4px; width: 18px; height: 18px; padding: 0; display: none; background: var(--panel); }
 .wt-cell:hover .wt-x, .wt-x:focus-visible { display: block; }
 .wt-x::before, .wt-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 9px; height: 2px; background: var(--muted); transform: translate(-50%, -50%) rotate(45deg); }
