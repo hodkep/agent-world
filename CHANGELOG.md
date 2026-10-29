@@ -4,6 +4,20 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-29
+
+### Added
+
+- GitHub identity: each project can act as its own GitHub login with its own commit name and email, set under Settings and shown beside the project name.
+
+### Changed
+
+- Updates: a copy installed with Homebrew can now download and install updates from the app; Homebrew's own record of the version may lag afterwards.
+
+### Fixed
+
+- Workflows: a run in the Runs tab with many todos shows five of them and a +N more link instead of a tall column.
+
 ## [0.7.2] - 2026-10-29
 
 ### Added
