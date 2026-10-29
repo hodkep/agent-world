@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchApp } from './launch'
 
@@ -29,7 +29,7 @@ function setup(picked: string | null) {
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' } }))
   writeFileSync(join(home, 'workspaces.json'), JSON.stringify({ active: folder, recent: [folder] }))
   writeFileSync(join(home, 'identity.json'), JSON.stringify({ profiles: [hodkep, work], byProject: picked ? { [folder]: picked } : {} }))
-  return { tmp, home, folder, env: { AW_HOME: home, HOME: tmp, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` } }
+  return { tmp, home, folder, env: { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), HOME: tmp, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` } }
 }
 
 test('a project acts as its GitHub profile: the chip, Settings and a terminal tab', async () => {
