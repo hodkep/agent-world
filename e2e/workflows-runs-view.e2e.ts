@@ -35,6 +35,13 @@ test('the Runs tab is two charts (how often each workflow ran, how well each sta
     const ledger = win.getByRole('table', { name: 'Runs' })
     await expect(ledger.locator('.rb-grp')).toHaveText([/Needs you.*2/, /Landed with trouble.*1/, /Landed clean.*4.*2 needed a second try/, /Not announced.*1.*no task was started/])
     await expect(ledger.getByRole('row').filter({ hasText: 'add csv import' })).toContainText('—')
+    // A run with many todos shows the first five as chips on a row that stays short, and "+2 more" opens the run, which lists them all.
+    const dark = ledger.getByRole('row').filter({ hasText: 'dark-mode toggle' }).first()
+    await expect(dark.locator('.rb-todo')).toHaveText(['todo#101', 'todo#102', 'todo#103', 'todo#104', 'todo#105', '+2 more'])
+    expect((await dark.boundingBox())!.height).toBeLessThan(90)
+    await dark.getByRole('button', { name: '+2 more' }).click()
+    await expect(ledger.getByLabel('Todos').locator('.rb-todo')).toHaveCount(7)
+    await dark.getByRole('button', { name: /dark-mode toggle/ }).click()
     const billing = ledger.getByRole('row').filter({ hasText: 'Billing export' })
     await expect(billing).toContainText('1 h 30 m')
     await expect(billing).toContainText('25m')

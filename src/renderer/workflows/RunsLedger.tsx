@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { type Invocations, type LedgerRow, type StageCount, type StageName, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stageCounts, timelineOf } from '../../shared/insights'
+import { type Invocations, type LedgerRow, type StageCount, type StageName, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stageCounts, timelineOf, todoChips } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
@@ -143,7 +143,15 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                           <td><i className={`rb-dot ${g.key}`} aria-hidden="true" /></td>
                           <td className="rb-t">
                             <button aria-expanded={open} aria-label={`${run.name}: ${run.title}`}><b>{run.name} · {run.title}</b><small>{meta}</small></button>
-                            {run.todos?.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={(e) => (e.stopPropagation(), openTodo(id))}>todo#{id}</button>)}
+                            {(() => {
+                              const { shown, more } = todoChips(run.todos)
+                              return shown.length > 0 && (
+                                <div className="rb-todos">
+                                  {shown.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={(e) => (e.stopPropagation(), openTodo(id))}>todo#{id}</button>)}
+                                  {more > 0 && <button className="rb-todo more" title={`Show the other ${more} in the run`} onClick={(e) => (e.stopPropagation(), setOpenId(run.id))}>+{more} more</button>}
+                                </div>
+                              )
+                            })()}
                           </td>
                           <td className={`r num ${run.status === 'open' ? 'dim' : ''}`}>{row.wallMs === null ? '—' : formatDuration(row.wallMs)}</td>
                           <td className={`r num ${share >= 0.25 ? 'you' : ''}`}>{row.youMs === 0 ? '0' : formatDuration(row.youMs)}{share >= 0.25 && <span className="rb-share" aria-hidden="true"><i style={{ width: `${Math.round(100 * share)}%` }} /></span>}</td>
@@ -157,6 +165,11 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                             <td colSpan={COLUMNS}>
                               <div className="rb-sheet" role="region" aria-label={`How ${run.title} went`}>
                                 <p className="rb-facts">{plural(rounds, 'round')} · {plural(commits, 'commit')}{flagged > 0 ? ` (${flagged} with no open task)` : ''} · {spendText(spend[run.id])}</p>
+                                {todoChips(run.todos).more > 0 && (
+                                  <div className="rb-todos all" aria-label="Todos">
+                                    {run.todos!.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={() => openTodo(id)}>todo#{id}</button>)}
+                                  </div>
+                                )}
                                 <ol className="rb-tl">
                                   {timelineOf(run, now).map((e, i) => (
                                     <li key={i} className={e.kind}>

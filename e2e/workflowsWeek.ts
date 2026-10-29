@@ -24,6 +24,7 @@ export function seedWeek(home: string, o: { ada: string; project: string; now?: 
   // ada: the dark-mode toggle, a check that failed once, two findings that were seen
   begin('r1', o.ada, 'ada', 'Add a dark-mode toggle', JOURNEY, 52)
   ev.push({ k: 'plan', t: t(52, 4), run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback: readback('Add a toggle to Settings') }, { k: 'plan', t: t(52, 7), run: 'r1', round: 1, state: 'approved' })
+  for (let i = 1; i <= 7; i++) ev.push({ k: 'todo', t: t(52, i), run: 'r1', todo: String(100 + i) })
   commit('r1', t(51.5), 'a41f9c2aaa', 'feat(settings): dark-mode toggle')
   ev.push({ k: 'step', t: t(51.4), run: 'r1', round: 1, step: 'build', state: 'done' })
   check('r1', t(51.4, 1), 1, false, 3100, 'a41f9c2aaa')

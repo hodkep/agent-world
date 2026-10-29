@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -429,5 +429,16 @@ describe('what the ledger says about a run', () => {
   })
   it('has no median when no run finished with a time', () => {
     expect(ledgerTotals([]).medianWallMs).toBeNull()
+  })
+})
+
+describe('todoChips', () => {
+  it('shows every todo up to five, and none are hidden', () => {
+    expect(todoChips([1, 2, 3, 4, 5])).toEqual({ shown: [1, 2, 3, 4, 5], more: 0 })
+    expect(todoChips(undefined)).toEqual({ shown: [], more: 0 })
+  })
+
+  it('shows the first five and counts the rest', () => {
+    expect(todoChips(Array.from({ length: 22 }, (_, i) => i + 1))).toEqual({ shown: [1, 2, 3, 4, 5], more: 17 })
   })
 })
