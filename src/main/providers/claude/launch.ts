@@ -21,17 +21,20 @@ const PERMISSION_GRACE_SEC = 30
 
 import type { AgentOptions } from '../../../shared/types'
 
-// The statusline command gets Claude's live session JSON on stdin; curl relays it to the app, and the app's
-// reply is what Claude shows in its status bar. Windows PowerShell aliases `curl`, so name the real binary.
-function statusLine(url: string, token: string, platform: NodeJS.Platform) {
+// The statusline command gets Claude's live session JSON on stdin, so the token cannot take curl's stdin as the agy hook does:
+// it is read from a private config file (`-K`), never put on the command line, where another user's `ps` would show it.
+// Windows PowerShell aliases `curl`, so name the real binary.
+export const curlHeaderConfig = (token: string) => `header = "Authorization: Bearer ${token}"\n`
+
+function statusLine(url: string, headerFile: string, platform: NodeJS.Platform) {
   const curl = platform === 'win32' ? 'curl.exe' : 'curl'
   return {
     type: 'command',
-    command: `${curl} -s --max-time 2 -X POST -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" --data-binary @- ${url}`
+    command: `${curl} -s --max-time 2 -X POST -K "${headerFile}" -H "Content-Type: application/json" --data-binary @- ${url}`
   }
 }
 
-export function hookSettings(o: { url: string; token: string; permissionTimeoutSec: number; platform: NodeJS.Platform }) {
+export function hookSettings(o: { url: string; token: string; headerFile: string; permissionTimeoutSec: number; platform: NodeJS.Platform }) {
   const hook = (timeout: number) => [
     { hooks: [{ type: 'http', url: o.url, timeout, headers: { Authorization: `Bearer ${o.token}` } }] }
   ]
@@ -40,7 +43,7 @@ export function hookSettings(o: { url: string; token: string; permissionTimeoutS
   hooks.PermissionRequest = hook(o.permissionTimeoutSec + PERMISSION_GRACE_SEC)
   return {
     hooks: hooks as Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>>,
-    statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.token, o.platform)
+    statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.headerFile, o.platform)
   }
 }
 

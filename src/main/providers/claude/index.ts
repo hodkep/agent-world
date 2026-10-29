@@ -12,7 +12,7 @@ import { startHookServer } from './hookServer'
 import { claudeCalls } from './toolTable'
 import { parseClaudeUsage } from './usage'
 import { claudeAccounts } from './accounts'
-import { agentEnv, hookSettings, launchArgs, mcpConfig, telemetryEnv } from './launch'
+import { agentEnv, curlHeaderConfig, hookSettings, launchArgs, mcpConfig, telemetryEnv } from './launch'
 import { detectClaude } from './signin'
 
 export const claude: Provider = {
@@ -65,7 +65,9 @@ export const claude: Provider = {
     mkdirSync(i.dir, { recursive: true })
     const settingsFile = join(i.dir, 'settings.json')
     const mcpFile = join(i.dir, 'mcp.json')
-    writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: i.hookUrl, token: i.agentToken, permissionTimeoutSec: i.permissionTimeoutSec, platform: i.platform })), { mode: 0o600 })
+    const headerFile = join(i.dir, 'status-curl.cfg')
+    writeFileSync(headerFile, curlHeaderConfig(i.agentToken), { mode: 0o600 })
+    writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: i.hookUrl, token: i.agentToken, headerFile, permissionTimeoutSec: i.permissionTimeoutSec, platform: i.platform })), { mode: 0o600 })
     writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: i.mcpUrl, agentToken: i.agentToken })), { mode: 0o600 })
     return { settingsFile, mcpFile, env: telemetryEnv(i.hookUrl, i.agentToken) }
   },
