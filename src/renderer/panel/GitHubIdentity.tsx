@@ -12,35 +12,38 @@ function useIdentity() {
 /** The project's own pane: which profile its agents and terminals act as. */
 export function ProjectIdentity({ project }: { project: { path: string; name: string } }) {
   const { s, save } = useIdentity()
-  if (!s) return null
-  const picked = s.identity.byProject[project.path] ?? ''
-  const profile = s.identity.profiles.find((p) => p.id === picked)
-  const signedIn = (login: string) => s.logins.some((l) => l.login === login)
-  const pick = (id: string) => void save(pickProfile(s.identity, project.path, id))
+  const picked = s?.identity.byProject[project.path] ?? ''
+  const profile = s?.identity.profiles.find((p) => p.id === picked)
+  const signedIn = (login: string) => !!s?.logins.some((l) => l.login === login)
+  const pick = (id: string) => s && void save(pickProfile(s.identity, project.path, id))
   return (
     <>
       <legend>GitHub identity</legend>
       <p className="set-lead">Who agents and terminals in <b>{project.name}</b> act as. Applies only to this project, to agents hired and terminals opened from now on.</p>
-      <div className="hire-pick" role="radiogroup" aria-label="Profile">
-        <label className="hire-opt" data-on={picked === ''}>
-          <input type="radio" name="project-profile" checked={picked === ''} onChange={() => pick('')} />
-          <b>Use current</b>
-          <span className="hint">Whatever gh and git are set to on this machine</span>
-        </label>
-        {s.identity.profiles.map((p) => (
-          <label key={p.id} className="hire-opt" data-on={picked === p.id}>
-            <input type="radio" name="project-profile" checked={picked === p.id} onChange={() => pick(p.id)} />
-            <b>{p.name} <small className={signedIn(p.login) ? 'ok-text' : 'warn-text'}>{p.login}{signedIn(p.login) ? '' : ' · signed out'}</small></b>
-            <span className="hint">{p.gitName} · {p.gitEmail}</span>
-          </label>
-        ))}
-      </div>
-      {s.identity.profiles.length === 0 && <p className="set-lead">No profiles yet. Make one under App, GitHub profiles.</p>}
-      {profile && !signedIn(profile.login) && (
-        <div className="set-warn" role="alert">
-          <span><b>{profile.login}</b> is not signed in to gh on this machine, so agents here cannot push as it. Run <code>gh auth login</code> in a terminal tab, then check again.</span>
-          <button onClick={() => void save(s.identity)}>Check sign-in</button>
-        </div>
+      {s && (
+        <>
+          <div className="hire-pick" role="radiogroup" aria-label="Profile">
+            <label className="hire-opt" data-on={picked === ''}>
+              <input type="radio" name="project-profile" checked={picked === ''} onChange={() => pick('')} />
+              <b>Use current</b>
+              <span className="hint">Whatever gh and git are set to on this machine</span>
+            </label>
+            {s.identity.profiles.map((p) => (
+              <label key={p.id} className="hire-opt" data-on={picked === p.id}>
+                <input type="radio" name="project-profile" checked={picked === p.id} onChange={() => pick(p.id)} />
+                <b>{p.name} <small className={signedIn(p.login) ? 'ok-text' : 'warn-text'}>{p.login}{signedIn(p.login) ? '' : ' · signed out'}</small></b>
+                <span className="hint">{p.gitName} · {p.gitEmail}</span>
+              </label>
+            ))}
+          </div>
+          {s.identity.profiles.length === 0 && <p className="set-lead">No profiles yet. Make one under App, GitHub profiles.</p>}
+          {profile && !signedIn(profile.login) && (
+            <div className="set-warn" role="alert">
+              <span><b>{profile.login}</b> is not signed in to gh on this machine, so agents here cannot push as it. Run <code>gh auth login</code> in a terminal tab, then check again.</span>
+              <button onClick={() => void save(s.identity)}>Check sign-in</button>
+            </div>
+          )}
+        </>
       )}
     </>
   )
@@ -52,7 +55,6 @@ const blank = { name: '', login: '', gitName: '', gitEmail: '' }
 export function GitHubProfiles() {
   const { s, save } = useIdentity()
   const [edit, setEdit] = useState<(Omit<Profile, 'id'> & { id?: string }) | null>(null)
-  if (!s) return null
   const field = (key: keyof typeof blank, label: string) => (
     <label>
       <span className="lab">{label}</span>
@@ -65,7 +67,7 @@ export function GitHubProfiles() {
     <>
       <legend>GitHub profiles</legend>
       <p className="set-lead">A profile is a login plus the name and email on commits. Two profiles can share a login, one email per team. Pick one for each project under This project.</p>
-      {!edit && (
+      {s && !edit && (
         <>
           <div className="hire-pick">
             {s.identity.profiles.map((p) => {
@@ -81,7 +83,7 @@ export function GitHubProfiles() {
           <div><button onClick={() => setEdit({ ...blank, login: s.logins.find((l) => l.active)?.login ?? '' })}>New profile</button></div>
         </>
       )}
-      {edit && (
+      {s && edit && (
         <div className="set-card">
           {field('name', 'Profile name')}
           <label>

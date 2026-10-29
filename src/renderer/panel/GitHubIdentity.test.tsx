@@ -114,3 +114,23 @@ describe('the profiles pane', () => {
     expect(save).toHaveBeenCalledWith({ profiles: [work], byProject: {} })
   })
 })
+
+describe('before the saved state has loaded', () => {
+  afterEach(() => void (document.body.innerHTML = ''))
+  const never = () => ((window as unknown as { aw: unknown }).aw = { identity: { state: () => new Promise(() => {}), save: async () => state() } })
+
+  it('the project pane already has its heading and lead line, so the Settings page is never an empty box', async () => {
+    never()
+    const host = await mount(<ProjectIdentity project={project} />)
+    expect(host.querySelector('legend')?.textContent).toBe('GitHub identity')
+    expect(host.querySelector('.set-lead')).not.toBeNull()
+    expect(host.querySelector('input')).toBeNull()
+  })
+
+  it('the profiles pane too', async () => {
+    never()
+    const host = await mount(<GitHubProfiles />)
+    expect(host.querySelector('legend')?.textContent).toBe('GitHub profiles')
+    expect(host.querySelector('.set-lead')).not.toBeNull()
+  })
+})
