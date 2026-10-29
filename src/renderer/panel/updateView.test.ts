@@ -17,6 +17,7 @@ describe('what the update chip and its popover show', () => {
     expect(v.chip).toBe('↑ 0.1.2')
     expect(v.title).toBe('Agent World 0.1.2 is available')
     expect(v.body).toContain('You have 0.1.1')
+    expect(v.body).toContain("It is downloaded from this project's mirror or its GitHub release and checked before it is used.")
     expect(v.actions).toEqual([expect.objectContaining({ id: 'download', label: 'Download', primary: true }), expect.objectContaining({ id: 'changes', label: 'What changed' })])
   })
 

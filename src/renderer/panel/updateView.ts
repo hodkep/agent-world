@@ -56,7 +56,7 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
     chip,
     title: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}, older than your version`) : `Agent World ${latest} is available`,
     ...(caution && { warning: caution }),
-    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's GitHub release and checked before it is used.${info.channel === 'beta' && !isBeta(info.current) ? ' Installing a beta replaces the stable app you have.' : ''}${info.homebrew && info.channel !== 'beta' ? ` Homebrew installed this copy; its record of the version may still say ${info.current ?? 'the old one'} afterwards, which does no harm.` : ''}`,
+    body: `${info.current ? `You have ${info.current}. ` : ''}It is downloaded from this project's mirror or its GitHub release and checked before it is used.${info.channel === 'beta' && !isBeta(info.current) ? ' Installing a beta replaces the stable app you have.' : ''}${info.homebrew && info.channel !== 'beta' ? ` Homebrew installed this copy; its record of the version may still say ${info.current ?? 'the old one'} afterwards, which does no harm.` : ''}`,
     ...(info.notes && { notes: info.notes }),
     actions: info.tag ? [{ id: 'download', label: older ? (toStable ? `Back to stable ${latest}` : `Switch to ${latest}`) : 'Download', primary: true }, { id: 'changes', label: 'What changed' }] : [{ ...PAGE, primary: true }]
   })
