@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useDismiss } from '../useDismiss'
 import { chipsOf, type RepoInfo } from './repoChips'
 
-/** The repositories of a folder that holds several: a chip each for up to four, the rest in a menu with a filter. The picked one always has a chip. */
+/** The repositories of a folder that holds several: a chip each for two, with the whole name, the rest in a menu with a filter. The picked one always has a chip. */
 export function RepoStrip({ repos, picked, onPick }: { repos: RepoInfo[]; picked: string; onPick: (name: string) => void }) {
   const { shown, more } = chipsOf(repos, picked)
   const [open, setOpen] = useState(false)

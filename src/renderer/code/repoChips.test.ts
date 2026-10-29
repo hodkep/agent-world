@@ -5,20 +5,20 @@ const r = (...names: string[]) => names.map((name) => ({ name, branch: 'main', d
 const names = (x: { name: string }[]) => x.map((y) => y.name)
 
 describe('which repositories get a chip', () => {
-  it('shows all of up to four, with no menu', () => {
-    const c = chipsOf(r('a', 'b', 'c', 'd'), 'a')
-    expect(names(c.shown)).toEqual(['a', 'b', 'c', 'd'])
+  it('shows both of up to two, with no menu', () => {
+    const c = chipsOf(r('a', 'b'), 'a')
+    expect(names(c.shown)).toEqual(['a', 'b'])
     expect(c.more).toEqual([])
   })
-  it('puts the rest behind the menu past four', () => {
+  it('puts the rest behind the menu past two', () => {
     const c = chipsOf(r('a', 'b', 'c', 'd', 'e', 'f'), 'b')
-    expect(names(c.shown)).toEqual(['a', 'b', 'c', 'd'])
-    expect(names(c.more)).toEqual(['e', 'f'])
+    expect(names(c.shown)).toEqual(['a', 'b'])
+    expect(names(c.more)).toEqual(['c', 'd', 'e', 'f'])
   })
   it('keeps the picked repository in the row, in place of the last chip, when it came from the menu', () => {
     const c = chipsOf(r('a', 'b', 'c', 'd', 'e', 'f'), 'f')
-    expect(names(c.shown)).toEqual(['a', 'b', 'c', 'f'])
-    expect(names(c.more)).toEqual(['d', 'e'])
+    expect(names(c.shown)).toEqual(['a', 'f'])
+    expect(names(c.more)).toEqual(['b', 'c', 'd', 'e'])
   })
 })
 
