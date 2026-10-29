@@ -1,0 +1,55 @@
+<section class="hero">
+  <span class="tag">v{{version}} · macOS · Apache 2.0</span>
+  <h1>Your agents, at their desks</h1>
+  <p>Run your coding agents from one pixel-art office. Each agent has its own git branch and a real Claude Code or Antigravity session. You see who is thinking, running or waiting for you, and step in from the office.</p>
+  <div class="row"><a class="btn" href="https://github.com/hodkep/agent-world/releases/latest">Download for Mac</a><a class="btn alt" href="docs/install/">Install notes</a></div>
+  <p class="brew"><code>brew install --cask hodkep/tap/agent-world</code></p>
+  <img class="banner shot" src="assets/docs/images/banner.svg" alt="A pixel-art office with five agents, each in a different state" width="760" height="260">
+</section>
+
+<section class="band">
+  <h2 class="s">Why it is different</h2>
+  <div class="grid3">
+    <div class="card"><h3>Control over spectacle</h3><p>Every visual state maps to a real agent state you can act on.</p></div>
+    <div class="card"><h3>Own the session</h3><p>The app launches and hooks the agents it shows. Your <code>claude</code> stays unmodified, and nothing global is changed.</p></div>
+    <div class="card"><h3>Never lose work</h3><p>Uncommitted changes block removal. Nothing is deleted silently.</p></div>
+  </div>
+</section>
+
+<section class="band alt see"><div>
+  <h2 class="s">See it work</h2>
+  <div class="grid2">
+    <img class="shot" src="assets/docs/images/office-activities.png" alt="The office with eight agents, one in each activity" width="720">
+    <div><h3>The office</h3><p>Each character does what its agent does: thinking, researching, implementing, running, delegating or waiting. Click one to open its chat.</p><a class="btn alt" href="guide/the-office/">The office guide</a></div>
+  </div>
+  <div class="grid2 flip" style="margin-top:28px">
+    <div><h3>Chat, code, workflows</h3><p>Tool cards, edits as diffs, a Code tab for changes and history, and workflows with plan and review gates.</p><a class="btn alt" href="guide/chat-and-dialogs/">Chat and dialogs</a></div>
+    <img class="shot" src="assets/docs/images/chat.png" alt="A chat with a command, the office's own calls as rows, an edit as a diff, and the reply" width="720">
+  </div>
+</div></section>
+
+<section class="band">
+  <h2 class="s">One day in the office</h2>
+  <div class="step"><div class="n">01</div><div><h3>Hire</h3><p>Pick a folder, name an agent, choose a role and a model. It gets its own git branch.</p><img class="shot" src="assets/docs/images/hire.png" alt="The hire form: a name, a role, a model, and how much the agent may do without asking" width="640"></div></div>
+  <div class="step"><div class="n">02</div><div><h3>Watch</h3><p>The character thinks, runs, delegates or waits. A red mark says who needs you.</p><img class="shot" src="assets/docs/images/office-agents-panel.png" alt="The agents panel open: a tile for each agent with its picture, name and state" width="640"></div></div>
+  <div class="step"><div class="n">03</div><div><h3>Step in</h3><p>Approve a permission, answer a question, read an edit as a diff.</p><img class="shot" src="assets/docs/images/permission.png" alt="A permission request from an agent" width="640"></div></div>
+  <div class="step"><div class="n">04</div><div><h3>Land it</h3><p>Review the changes and history in the Code tab, then merge.</p><img class="shot" src="assets/docs/images/code.png" alt="The Code tab with the changes of an agent" width="640"></div></div>
+</section>
+
+<section class="band alt"><div>
+  <h2 class="s">Install in four steps</h2>
+  <div class="grid3">
+    <div class="card"><h3>1 · Download</h3><p>The arm64 dmg for Apple silicon, the x64 one for Intel.</p></div>
+    <div class="card"><h3>2 · Open Anyway</h3><p>macOS 15 and later: System Settings › Privacy &amp; Security. Homebrew skips this step.</p></div>
+    <div class="card"><h3>3 · Sign in once</h3><p>Setup installs Claude Code and has you sign in, in a terminal inside the app.</p></div>
+  </div>
+  <p style="margin-top:16px"><a href="guide/getting-started/">Getting started</a> has all four, with the screens.</p>
+</div></section>
+
+<section class="band">
+  <h2 class="s">Go deeper</h2>
+  <div class="hubs">
+    <div class="hub"><span class="tag">For using it</span><h3>User guide</h3><p>Task by task, with screens.</p><ul><li>Getting started</li><li>The office, chat and code</li><li>Workflows and todos</li></ul><p style="margin-top:12px"><a class="btn alt" href="guide/">Read the guide</a></p></div>
+    <div class="hub"><span class="tag docs">For building and running it</span><h3>Documentation</h3><p>How it is made, and how to help.</p><ul><li>Install, providers, remote control</li><li>Workflows design, design system</li><li>Contributing, releasing, changelog</li></ul><p style="margin-top:12px"><a class="btn alt" href="docs/">Open the documentation</a></p></div>
+  </div>
+</section>
