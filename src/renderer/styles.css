@@ -2673,8 +2673,8 @@ aside:not(.drawer) { flex: none; }
 
 .set-sub { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 .mr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.mr-table th { text-align: left; font-weight: 600; color: var(--muted, #8a8f98); padding: 4px 8px 4px 0; }
-.mr-table td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line, rgba(128, 128, 128, 0.25)); font-variant-numeric: tabular-nums; }
+.mr-table th { text-align: left; font-weight: 600; color: var(--muted); padding: 4px 8px 4px 0; }
+.mr-table td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 
 /* The copy button on a quoted block: an icon in the corner, faint until the block is hovered. */
 .md blockquote { position: relative; }
