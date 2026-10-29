@@ -92,6 +92,8 @@ import { outlineOf } from '../shared/uiOutline'
 import { contextReport, contextText, resetEffects } from '../shared/contextCurve'
 import { contextView } from '../shared/contextView'
 import { latestContext, nudgeFor } from '../shared/contextNudge'
+import { cleanCatalog, mergeCatalog } from '../shared/runnerCatalog'
+import { pickRunner, runnerText } from '../shared/runnerPick'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
@@ -1595,6 +1597,21 @@ async function main() {
       const reqs = ledger.filter((e) => e.k === 'req' && e.t >= from && (all || e.agent === id)).flatMap((e) => (e.k === 'req' ? [e] : []))
       return contextText(contextReport(reqs), resetEffects(reqs), `The last ${days} day${days === 1 ? '' : 's'}, ${all ? 'every agent' : 'you'}`)
     },
+    runner: (id, task) => {
+      const me = byId(id)
+      let own: unknown = []
+      try {
+        own = JSON.parse(readFileSync(join(HOME, 'models.json'), 'utf8'))
+      } catch {
+        /* none added */
+      }
+      const now = Date.now()
+      // A hired agent of the caller's project that is waiting for work. Its cache is warm if it made a request in the last 5 minutes.
+      const idle = agents
+        .filter((a) => a.id !== id && !a.builder && a.options?.model && a.repoPath === me?.repoPath && sessions.has(a.id) && (lastActivity.get(a.id) ?? 'idle') === 'idle')
+        .map((a) => ({ name: a.name, model: a.options!.model!, ctx: latestContext(ledger, a.id), warm: ledger.some((e) => e.k === 'req' && e.agent === a.id && now - e.t < 5 * 60_000) }))
+      return runnerText(pickRunner(task, mergeCatalog(cleanCatalog(own)), { idle, windows: limitWindows(), now }))
+    },
     libraryOn: () => prefs.libraryEnabled,
     builder: {
       offered: (id) => !!byId(id)?.builder,
@@ -1713,9 +1730,8 @@ async function main() {
   ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => limitsBook.tightest())
-  ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
-    if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
-    // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
+  // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
+  const limitWindows = (): LimitWindow[] => {
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
     const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
     const logins = ['', ...prefs.accounts.filter((x) => x.provider === liveId).map((x) => x.id)]
@@ -1727,6 +1743,10 @@ async function main() {
     const all = [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
     snapshotLimits(all)
     return all
+  }
+  ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
+    if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
+    return limitWindows()
   })
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.

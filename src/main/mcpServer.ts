@@ -61,6 +61,8 @@ interface Options {
   }
   /** How big the context got and where the cost went, for the caller alone or the whole office, as plain words. Offered only when set. */
   tokens?: (callerId: string, days: number, all: boolean) => string
+  /** Which model or idle agent should do a piece of work, and how to check it, as plain words. Offered only when set. */
+  runner?: (callerId: string, task: { kind: 'read' | 'edit' | 'feature' | 'debug' | 'review'; vague?: boolean }) => string
   /** Whether the library is switched on: its tools are offered only then (asked at each call, so a switch takes effect at once). */
   libraryOn?: () => boolean
   /** The shared library of skills and instructions, as far as the caller's playbook allows. */
@@ -279,7 +281,9 @@ function toolsFor(callerId: string, o: Options) {
       'spawn_subagent',
       {
         description:
-          'Start another agent, running on the program you choose (claude or agy), as your subagent. It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. If it takes longer than about 45 seconds the call returns with status working and its id: then call await_subagents with that id (as often as needed) instead of starting it again. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
+          'Start another agent, running on the program you choose (claude or agy), as your subagent.' +
+          (o.runner ? ' To choose the model, or an idle agent to message instead, call pick_runner first.' : '') +
+          ' It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. If it takes longer than about 45 seconds the call returns with status working and its id: then call await_subagents with that id (as often as needed) instead of starting it again. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
         inputSchema: {
           provider: z.enum(['claude', 'agy']).describe('Which program runs the subagent'),
           task: z.string().min(1).max(8000).describe('What it should do, and how you will know it is done'),
@@ -342,6 +346,21 @@ function toolsFor(callerId: string, o: Options) {
         annotations: READ_ONLY
       },
       async ({ days, all }) => ({ content: [{ type: 'text' as const, text: tokens(callerId, days ?? 7, all ?? false) }] })
+    )
+  }
+  if (o.runner) {
+    const runner = o.runner
+    server.registerTool(
+      'pick_runner',
+      {
+        description: 'Before you hand work to another agent: which model, or which idle agent already hired, should do it, how to have its work checked, and what to escalate to. Cheaper than doing it yourself in a large context.',
+        inputSchema: {
+          kind: z.enum(['read', 'edit', 'feature', 'debug', 'review']).describe('read: search or summarise; edit: a small change; feature: a multi-file change with tests; debug: a hard cross-module bug; review: a design, plan or code review'),
+          vague: z.boolean().optional().describe('true when the spec leaves things to find out (no tests say what is wanted, or "find every place")')
+        },
+        annotations: READ_ONLY
+      },
+      async ({ kind, vague }) => ({ content: [{ type: 'text' as const, text: runner(callerId, { kind, vague }) }] })
     )
   }
   if (o.workflows?.offered(callerId)) addWorkflowTools(server, callerId, o.workflows)

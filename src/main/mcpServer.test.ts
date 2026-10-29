@@ -190,6 +190,17 @@ describe('agent-world MCP server: subagents', () => {
     expect((await c.listTools()).tools.map((t) => t.name)).toEqual(expect.arrayContaining(['spawn_subagent', 'await_subagents', 'stop_subagent']))
   })
 
+  it('tells the caller to ask pick_runner what to start, but only when pick_runner is offered', async () => {
+    const base = { agentForToken: (t: string) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued' as const, remember: () => {}, recall: () => [], subagents }
+    const desc = async (extra: object) => {
+      server?.close()
+      server = await startMcpServer({ ...base, ...extra })
+      return (await (await connect(server.url, 'a1')).listTools()).tools.find((t) => t.name === 'spawn_subagent')?.description ?? ''
+    }
+    expect(await desc({})).not.toContain('pick_runner')
+    expect(await desc({ runner: () => 'x' })).toContain('call pick_runner first')
+  })
+
   it('hands the call to the office as the caller, and answers with the child and its report', async () => {
     calls.length = 0
     server?.close()
@@ -532,5 +543,22 @@ describe('agent-world MCP server: token_report', () => {
     await c.callTool({ name: 'token_report', arguments: { days: 30, all: true } })
     expect((await c.callTool({ name: 'token_report', arguments: { days: 4000 } })).isError).toBe(true)
     expect(asked).toEqual(['a1:7:false', 'a1:30:true'])
+  })
+})
+
+describe('agent-world MCP server: pick_runner', () => {
+  const base = { agentForToken: (t: string) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued' as const, remember: () => {}, recall: () => [] }
+
+  it('offers pick_runner only when the office can pick, and passes the kind of work and whether the spec is vague', async () => {
+    const without = await connect((await setup()).url, 'a1')
+    expect((await without.listTools()).tools.map((t) => t.name)).not.toContain('pick_runner')
+    const asked: string[] = []
+    server?.close()
+    server = await startMcpServer({ ...base, runner: (caller, task) => (asked.push(`${caller}:${task.kind}:${task.vague ?? false}`), 'use haiku') })
+    const c = await connect(server.url, 'a1')
+    expect(text(await c.callTool({ name: 'pick_runner', arguments: { kind: 'edit' } }))).toBe('use haiku')
+    await c.callTool({ name: 'pick_runner', arguments: { kind: 'feature', vague: true } })
+    expect((await c.callTool({ name: 'pick_runner', arguments: { kind: 'poetry' } })).isError).toBe(true)
+    expect(asked).toEqual(['a1:edit:false', 'a1:feature:true'])
   })
 })
