@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentEnv, hookSettings, launchArgs, mcpConfig, telemetryEnv } from './launch'
+import { agentEnv, curlHeaderConfig, hookSettings, launchArgs, mcpConfig, telemetryEnv } from './launch'
 
 describe('claude launch', () => {
   it('starts a fresh session with a fixed id and name', () => {
@@ -71,18 +71,23 @@ describe('claude launch', () => {
     expect(args.slice(-2)).toEqual(['--permission-mode', 'plan'])
   })
 
-  it('pipes the statusline JSON to the app with curl, and curl.exe on Windows', () => {
-    const mac = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'darwin' })
+  it('pipes the statusline JSON to the app with curl, and curl.exe on Windows, with the token in a file and never on the command line', () => {
+    const mac = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', headerFile: '/h/curl.cfg', permissionTimeoutSec: 300, platform: 'darwin' })
     expect(mac.statusLine).toEqual({
       type: 'command',
-      command: 'curl -s --max-time 2 -X POST -H "Authorization: Bearer t" -H "Content-Type: application/json" --data-binary @- http://127.0.0.1:9/status'
+      command: 'curl -s --max-time 2 -X POST -K "/h/curl.cfg" -H "Content-Type: application/json" --data-binary @- http://127.0.0.1:9/status'
     })
-    const win = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'win32' })
+    expect(mac.statusLine.command).not.toContain('Bearer')
+    const win = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', headerFile: 'C:\\h\\curl.cfg', permissionTimeoutSec: 300, platform: 'win32' })
     expect(win.statusLine.command.startsWith('curl.exe ')).toBe(true)
   })
 
+  it("writes the token as a curl config line, for curl's -K", () => {
+    expect(curlHeaderConfig('t0k')).toBe('header = "Authorization: Bearer t0k"\n')
+  })
+
   it('routes every watched event to our HTTP hook with the token', () => {
-    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', permissionTimeoutSec: 300, platform: 'darwin' })
+    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't0k', headerFile: '/h/curl.cfg', permissionTimeoutSec: 300, platform: 'darwin' })
     const pre = s.hooks.PreToolUse[0]!.hooks[0]!
     expect(pre).toMatchObject({ type: 'http', url: 'http://127.0.0.1:9/hook', headers: { Authorization: 'Bearer t0k' } })
     expect(Object.keys(s.hooks).sort()).toEqual(
@@ -91,7 +96,7 @@ describe('claude launch', () => {
   })
 
   it('gives Claude a longer permission hook timeout than ours, so our fallback answer always lands first', () => {
-    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', permissionTimeoutSec: 300, platform: 'darwin' })
+    const s = hookSettings({ url: 'http://127.0.0.1:9/hook', token: 't', headerFile: '/h/curl.cfg', permissionTimeoutSec: 300, platform: 'darwin' })
     expect(s.hooks.PermissionRequest[0]!.hooks[0]!.timeout).toBeGreaterThan(300)
     expect(s.hooks.PreToolUse[0]!.hooks[0]!.timeout).toBeLessThanOrEqual(5)
   })
