@@ -1,4 +1,5 @@
 import { allowedHost } from './manifest'
+import { type Mirror, mirrorOf, parseTune } from './mirror'
 
 const SAFE_PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
 const TEST_TOOLS = ['AW_DITTO', 'AW_CODESIGN', 'AW_OPEN', 'AW_PLISTBUDDY', 'AW_MV']
@@ -23,21 +24,25 @@ export interface ReleaseOrigins {
   allow: (address: string) => boolean
   /** True when a test's own server stands in for GitHub. */
   testing: boolean
+  /** A mirror a test run names (AW_UPDATE_MIRROR); never set in the installed app, which takes its mirror from the build. */
+  mirror?: Mirror
 }
 
 /**
- * GitHub, always, in the installed app. A build that is not installed (a test run) may point `AW_UPDATE_RELEASES` at a server of its own, a plain
+ * GitHub, always, in the installed app (a mirror, if the build names one, is only ever a first try for the file). A build that is not installed (a test run) may point `AW_UPDATE_RELEASES` at a server of its own, a plain
  * http(s) origin, and then that origin is the only one allowed; an installed app ignores the variable altogether.
  */
 export function releaseOrigins(packaged: boolean, env: NodeJS.ProcessEnv): ReleaseOrigins {
   const github: ReleaseOrigins = { api: 'https://api.github.com', downloads: 'https://github.com', allow: allowedHost, testing: false }
+  if (packaged) return github
+  const mirror = mirrorOf(env.AW_UPDATE_MIRROR, { testing: true, tune: parseTune(env.AW_UPDATE_MIRROR_TUNE) }) ?? undefined
   const raw = env.AW_UPDATE_RELEASES?.trim()
-  if (packaged || !raw) return github
+  if (!raw) return { ...github, ...(mirror && { mirror }) }
   try {
     const u = new URL(raw)
     if (!/^https?:$/.test(u.protocol) || u.pathname !== '/' || u.search || u.hash || u.username) return github
     const origin = u.origin
-    return { api: `${origin}/api`, downloads: origin, allow: (a) => { try { return new URL(a).origin === origin } catch { return false } }, testing: true }
+    return { api: `${origin}/api`, downloads: origin, allow: (a) => { try { return new URL(a).origin === origin } catch { return false } }, testing: true, ...(mirror && { mirror }) }
   } catch {
     return github
   }

@@ -116,3 +116,34 @@ describe('downloading the update', () => {
     expect(r).toMatchObject({ ok: true })
   })
 })
+
+describe('downloading from a source that may be slow', () => {
+  const tune = { headersMs: 60, graceMs: 20, windowMs: 60, minBps: 150 * 1024 }
+  const hangs = () => new Promise<Response>(() => undefined)
+  /** A body that gives its first piece and then nothing more, as a connection that has stopped does. */
+  const stuck = () => new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(bytes.subarray(0, 1000))) } })
+
+  it('gives up on a source that does not answer within the time, and leaves nothing behind', async () => {
+    const d = dir()
+    const r = await downloadAsset({ asset: asset(), dir: d, fetch: hangs, stall: tune, onProgress: () => undefined })
+    expect(r).toMatchObject({ ok: false, kind: 'network', reason: expect.stringContaining('did not answer') })
+    expect(readdirSync(d)).toEqual([])
+  })
+
+  it('gives up on a body that stops coming, and leaves nothing behind', async () => {
+    const d = dir()
+    const r = await downloadAsset({ asset: asset(), dir: d, fetch: async () => new Response(stuck(), { status: 200 }), stall: tune, onProgress: () => undefined })
+    expect(r).toMatchObject({ ok: false, kind: 'network', reason: expect.stringContaining('too slow') })
+    expect(readdirSync(d)).toEqual([])
+  })
+
+  it('keeps a download that is quick, and a person\'s cancel is still a cancel', async () => {
+    const d = dir()
+    const f = fetcher({ [asset().url]: ok() })
+    expect(await downloadAsset({ asset: asset(), dir: d, fetch: f.fn, stall: tune, onProgress: () => undefined })).toMatchObject({ ok: true })
+    const stop = new AbortController()
+    const run = downloadAsset({ asset: asset(), dir: dir(), fetch: async () => new Response(stuck(), { status: 200 }), stall: { ...tune, graceMs: 5000 }, signal: stop.signal, onProgress: () => undefined })
+    setTimeout(() => stop.abort(), 30)
+    expect(await run).toMatchObject({ ok: false, kind: 'cancelled' })
+  })
+})

@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { type BetaState, type InstallState, type UpdateChannel, type UpdateRel, lookAllowed } from '../shared/updateInstall'
 import { createInstaller } from './inAppUpdate/installer'
+import { type Mirror, mirrorOf } from './inAppUpdate/mirror'
 import { helperEnv, releaseOrigins } from './inAppUpdate/origins'
 import { placeOf } from './inAppUpdate/installScript'
 import { buildInfo, isHomebrewInstall, latestBeta, latestRelease, updateMode } from './updateCheck'
@@ -14,6 +15,14 @@ export type UpdateState = { /** Installed with Homebrew: updated from here too, 
 
 /** The version running now. A build that is not installed (a test run) may say another one in AW_APP_VERSION, to stand in for an installed beta. */
 export const runningVersion = () => (!app.isPackaged && process.env.AW_APP_VERSION) || app.getVersion()
+
+/** Whether the person has the mirror on (the `updateMirror` preference); main sets it from the preferences. */
+let mirrorOn = () => true
+export const setMirrorSwitch = (on: () => boolean) => {
+  mirrorOn = on
+}
+/** Where the zip is tried first: the mirror the build names, or a test run's own, unless it is switched off. A test run that names none uses none. */
+const mirrorFor = (named: string | null, origins: ReturnType<typeof releaseOrigins>): Mirror | null => (!mirrorOn() ? null : origins.testing ? (origins.mirror ?? null) : (origins.mirror ?? mirrorOf(named)))
 
 let current: UpdateState = { state: 'off' }
 /** One installer for each channel: a stable download and a beta download do not share a progress bar. */
@@ -48,7 +57,7 @@ let started = false
 
 const getRelease = (url: string) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } })
 
-function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, origins: ReturnType<typeof releaseOrigins>, onState: (i: InstallState) => void, any = false) {
+function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, origins: ReturnType<typeof releaseOrigins>, onState: (i: InstallState) => void, any = false, named: string | null = null) {
   return createInstaller({
     current: runningVersion(),
     any,
@@ -59,6 +68,7 @@ function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, o
     updatesDir: join(app.getPath('userData'), 'updates'),
     fetch: (url, init) => fetch(url, init),
     origins,
+    mirror: mirrorFor(named, origins),
     place: () => placeOf(appBundle(origins.testing)),
     launch: (script, args) => spawn('/bin/sh', [script, ...args], { detached: true, stdio: 'ignore', env: helperEnv(app.isPackaged, process.env) }).unref(),
     quit: () => app.quit(),
@@ -91,7 +101,7 @@ async function checkBeta(onState: (s: UpdateState) => void): Promise<UpdateState
   const found = await latestBeta(runningVersion(), info.repo, getRelease, origins)
   if (found.state !== 'available' || !found.latest) return set(found)
   if (!origins.testing && process.platform !== 'darwin') return set(found)
-  const installer = (installers.beta = installerFor(info.repo, origins, (i) => current.beta && set({ ...current.beta, install: i }), true))
+  const installer = (installers.beta = installerFor(info.repo, origins, (i) => current.beta && set({ ...current.beta, install: i }), true, info.mirror))
   const failure = installer.lastFailure()
   return set({ ...found, tag: `v${found.latest}`, ...(failure && { install: { phase: 'failed' as const, kind: 'install' as const, reason: `The last update was not installed: ${failure}` } }) })
 }
@@ -121,7 +131,7 @@ export async function checkForUpdates(onState: (s: UpdateState) => void, channel
     const casks = origins.testing ? [process.env.AW_UPDATE_CASKROOM ?? ''].filter(Boolean) : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']
     const homebrew = isHomebrewInstall(casks, existsSync)
     // Only this build can install by itself, from the same release it was told about.
-    const installer = (installers.stable = installerFor(info.repo, origins, (i) => set({ ...current, install: i }), manual))
+    const installer = (installers.stable = installerFor(info.repo, origins, (i) => set({ ...current, install: i }), manual, info.mirror))
     const failure = installer.lastFailure()
     return set({ ...found, tag: `v${found.latest}`, current: runningVersion(), ...(homebrew && { homebrew }), ...(failure && { install: { phase: 'failed' as const, kind: 'install' as const, reason: `The last update was not installed: ${failure}` } }) })
   }

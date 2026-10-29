@@ -17,10 +17,12 @@ describe('the repository an installed app takes its releases from', () => {
 
 describe('what the build says about itself', () => {
   it('is signed only when the release workflow said so, and takes its repository from package.json', () => {
-    expect(buildInfo({ repository: 'github:hodkep/agent-world', awSigned: true })).toEqual({ repo: { owner: 'hodkep', repo: 'agent-world' }, signed: true })
+    expect(buildInfo({ repository: 'github:hodkep/agent-world', awSigned: true })).toEqual({ repo: { owner: 'hodkep', repo: 'agent-world' }, signed: true, mirror: null })
     expect(buildInfo({ repository: 'github:hodkep/agent-world' }).signed).toBe(false)
+    expect(buildInfo({ awMirror: 'https://pub-1.r2.dev' }).mirror).toBe('https://pub-1.r2.dev')
+    expect(buildInfo({ awMirror: 42 }).mirror).toBeNull()
     expect(buildInfo({ awSigned: 'yes' }).signed).toBe(false)
-    expect(buildInfo(null)).toEqual({ repo: null, signed: false })
+    expect(buildInfo(null)).toEqual({ repo: null, signed: false, mirror: null })
   })
 })
 

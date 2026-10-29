@@ -299,6 +299,8 @@ export interface Prefs {
   todoTracking: 'deferred' | 'full'
   /** The library of skills, instructions and prompts, and the playbook that says what agents are told. Off: agents are told nothing from it, and its window says so. */
   libraryEnabled: boolean
+  /** Download an update from the project's mirror first when the build names one, and from GitHub when the mirror does not do. Off: GitHub only. No screen for it; it is read from preferences.json. */
+  updateMirror: boolean
   /** An office boy and a supervisor walk the office, and the cooler's water goes down and is refilled. */
   officeLife: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
