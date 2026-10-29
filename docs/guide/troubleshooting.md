@@ -14,6 +14,15 @@ The app is not signed with an Apple Developer ID, so macOS says it cannot check 
   xattr -dr com.apple.quarantine "/Applications/Agent World.app"
   ```
 
+## Homebrew refuses the tap
+
+Homebrew 6 and later loads nothing from a tap that is not its own until you trust it, once on each Mac. Two messages mean you have not yet:
+
+- `Cask is unavailable … tap it explicitly`: the tap is not added. Run `brew tap hodkep/tap`.
+- `Refusing to load cask hodkep/tap/agent-world from untrusted tap`: the tap is added but not trusted. Run `brew trust --cask hodkep/tap/agent-world`.
+
+Then run `brew install --cask hodkep/tap/agent-world`. The same refusal stops `brew outdated` and `brew upgrade` on a Mac that installed the cask before Homebrew 6 and has not trusted it yet; the trust command fixes that too. The app's own update (the chip in the top bar) works either way.
+
 ## Setup will not let you continue
 
 On the **Your agents** step, **Continue** stays disabled until at least one agent tool is ready.

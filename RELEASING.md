@@ -56,7 +56,7 @@ The workflow signs and notarises when these five repository secrets exist (Setti
 
 ## The Homebrew tap
 
-`hodkep/homebrew-tap` holds the cask that `brew install --cask hodkep/tap/agent-world` uses. Nothing to do per release: when you press **Publish release**, `.github/workflows/notify-tap.yml` wakes the tap's `update-cask` workflow, which reads the release, updates the cask's version and sha256 values, audits it with Homebrew and commits. If the wake-up is missed, the tap checks every 6 hours anyway.
+`hodkep/homebrew-tap` holds the cask that people install with `brew tap hodkep/tap`, `brew trust --cask hodkep/tap/agent-world` and `brew install --cask hodkep/tap/agent-world` (Homebrew 6 and later refuses a tap that is not trusted, so the old one-line install no longer works). Nothing to do per release: when you press **Publish release**, `.github/workflows/notify-tap.yml` wakes the tap's `update-cask` workflow, which reads the release, updates the cask's version and sha256 values, audits it with Homebrew and commits. If the wake-up is missed, the tap checks every 6 hours anyway.
 
 The wake-up needs the repository secret `TAP_DISPATCH_TOKEN`: a fine-grained personal access token limited to `hodkep/homebrew-tap` with **Contents: read and write**. These tokens expire (at most a year): renew it and run `gh secret set TAP_DISPATCH_TOKEN -R hodkep/agent-world`. Without it the job passes and says so, and only the 6-hourly check runs.
 
