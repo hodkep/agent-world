@@ -1,6 +1,6 @@
 export interface RepoInfo { name: string; branch: string; dirty: number }
 
-const ROW = 4
+const ROW = 2
 
 /** The repositories that get a chip in the row and those behind the "more" menu. The picked one is always in the row: from the menu it takes the last chip's place. */
 export function chipsOf(repos: RepoInfo[], picked: string | null): { shown: RepoInfo[]; more: RepoInfo[] } {

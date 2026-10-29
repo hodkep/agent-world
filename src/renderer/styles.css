@@ -3927,9 +3927,10 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 
 /* ---- Repositories of a folder that holds several ------------------------------------------------ */
 .repos { position: relative; display: flex; gap: 6px; padding: 8px 12px 2px; flex: none; min-width: 0; }
-.repos .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; padding: 3px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); border: 0; color: var(--muted); font-weight: 600; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
-.repos .chip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.repos .chip i { font: normal 11px Menlo, Consolas, monospace; color: var(--think); flex: none; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repos .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); border: 0; color: var(--muted); font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+/* The name is never cut: it is what tells repositories apart, so when room runs short the branch gives way first. */
+.repos .chip > span:first-child { flex: none; white-space: nowrap; }
+.repos .chip i { font: normal 11px Menlo, Consolas, monospace; color: var(--think); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repos .chip.on { background: var(--panel-2); color: var(--accent); box-shadow: 0 0 0 1px var(--ink), inset 0 -2px 0 var(--accent); }
 .repos .chip:hover:not(.on) { background: var(--panel-2); color: var(--text); }
 .repos .n { font: 700 10px Menlo, Consolas, monospace; padding: 0 5px; background: var(--ink); color: var(--text); flex: none; }
