@@ -81,7 +81,8 @@ export function runnerText(p: Pick): string {
   const how = [
     p.checks.includes('selftest') && 'Tell it to write its own tests from the spec first (one per rule, with edge cases and exact messages), then make them and the existing tests pass before it reports.',
     p.checks.includes('review') && `The spec is vague, so after it reports start a second ${p.model} agent to read the spec line by line against the code and fix every gap.`,
-    p.escalateTo ? `If its tests fail or it reports blocked, hand the task to ${p.escalateTo}.` : 'Nothing stronger is available to hand it to.'
+    p.escalateTo ? `If its tests fail or it reports blocked, hand the task to ${p.escalateTo}.` : 'Nothing stronger is available to hand it to.',
+    p.use === 'spawn' && 'When you have read its result and checked the work, call rate_subagent with accepted or rejected: the model\'s score learns from it.'
   ].filter(Boolean)
   return [who, ...how].join('\n')
 }

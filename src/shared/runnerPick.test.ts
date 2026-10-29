@@ -106,9 +106,11 @@ describe('runnerText', () => {
     expect(t).toContain('write its own tests from the spec first')
     expect(t).toContain('second claude-haiku-5-5 agent')
     expect(t).toContain('claude-sonnet-5-5')
+    expect(t).toContain('call rate_subagent')
   })
   it('names the idle agent to hand the work to, and says when nothing fits', () => {
     expect(runnerText({ use: 'idle', agent: 'Ada', model: 'claude-haiku-5-5', program: 'claude', checks: [] })).toContain('Send it to Ada')
+    expect(runnerText({ use: 'idle', agent: 'Ada', model: 'claude-haiku-5-5', program: 'claude', checks: [] })).not.toContain('rate_subagent')
     expect(runnerText({ use: 'none', why: 'no model has headroom' })).toBe('No runner picked: no model has headroom.')
   })
 })

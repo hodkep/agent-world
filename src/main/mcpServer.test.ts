@@ -199,6 +199,8 @@ describe('agent-world MCP server: subagents', () => {
     }
     expect(await desc({})).not.toContain('pick_runner')
     expect(await desc({ runner: () => 'x' })).toContain('call pick_runner first')
+    expect(await desc({})).not.toContain('rate_subagent')
+    expect(await desc({ rate: () => 'x' })).toContain('call rate_subagent')
   })
 
   it('hands the call to the office as the caller, and answers with the child and its report', async () => {

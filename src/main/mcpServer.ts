@@ -294,6 +294,7 @@ function toolsFor(callerId: string, o: Options) {
         description:
           'Start another agent, running on the program you choose (claude or agy), as your subagent.' +
           (o.runner ? ' To choose the model, or an idle agent to message instead, call pick_runner first.' : '') +
+          (o.rate ? ' After you have read its result and checked the work, call rate_subagent (accepted or rejected).' : '') +
           ' It works on the task and its final message comes back as this call\'s answer, so you can plan, hand pieces out, then review and merge what comes back. If it takes longer than about 45 seconds the call returns with status working and its id: then call await_subagents with that id (as often as needed) instead of starting it again. Several calls in one reply run side by side. Give it a task a colleague could do alone: what to do, which files, how to check it worked. A subagent that writes gets its own branch to work on; one that only reads can share your folder. Set background to carry on meanwhile and collect the answer with await_subagents.',
         inputSchema: {
           provider: z.enum(['claude', 'agy']).optional().describe('Which program runs the subagent (the office picks when left out and it is set to pick)'),
