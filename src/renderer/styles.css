@@ -3944,3 +3944,15 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 
 /* The icon of a file or folder, beside its name (Files, open tabs, Changes). */
 .fi { width: 16px; height: 16px; flex: none; vertical-align: middle; margin-right: 6px; }
+
+/* GitHub identity panes: the project's name under its group, profile cards that are buttons, a warning and an editing card. */
+.set-nav .proj-name { display: block; padding: 0 18px 4px; font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-pane button.hire-opt { text-align: left; width: 100%; }
+.hire-opt small { font: 10px Menlo, Consolas, monospace; margin-left: 6px; font-weight: 400; }
+.hire-opt small.ok-text { color: var(--ok-text); }
+.hire-opt small.warn-text { color: var(--accent); }
+.set-warn { display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--selected); border: 2px solid var(--accent-dim); color: var(--accent); font-size: 12px; }
+.set-warn span { flex: 1; }
+.set-card { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--well); border: 1px solid var(--line); }
+.set-card label { display: flex; flex-direction: column; gap: 3px; }
+.set-row { display: flex; gap: 8px; align-items: center; }

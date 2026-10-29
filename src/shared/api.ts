@@ -363,6 +363,8 @@ export interface AwApi {
   /** Look for the latest release (stable), or for the newest beta; nothing is downloaded by a look. */
   checkUpdates(channel?: UpdateChannel): Promise<{ state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }>
   onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
+  /** The GitHub profiles, and the one each project acts as. Saving asks gh for the logins' tokens again. */
+  identity: { state(): Promise<import('./identity').IdentityState>; save(identity: import('./identity').Identity): Promise<import('./identity').IdentityState> }
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   onBtw(cb: (agentId: string, btw: { question: string; answer: string | null } | null) => void): () => void
