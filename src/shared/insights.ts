@@ -458,3 +458,7 @@ export function weekDays(runs: Run[], ctxFor: (run: Run) => StepContext, now: nu
   }
   return days
 }
+
+/** The todos a ledger row shows as chips: the first few, and how many more the opened run lists. */
+export const TODO_CHIPS = 5
+export const todoChips = <T,>(ids: T[] = []): { shown: T[]; more: number } => ({ shown: ids.slice(0, TODO_CHIPS), more: Math.max(0, ids.length - TODO_CHIPS) })
