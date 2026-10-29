@@ -64,35 +64,28 @@ test('a version the app installs itself is not a chip: it is said in Settings an
   }
 })
 
-test('a copy installed with Homebrew is told the command to run, with a Copy button and no download or install, in the popover and in Settings', async () => {
+test('a copy installed with Homebrew is offered the download and the install like any other, with a line that Homebrew\'s record may lag, in the popover and in Settings', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aw-update-brew-'))
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs') }, home)
   try {
     const page = await app.firstWindow()
-    await app.evaluate(({ shell }) => {
-      ;(globalThis as unknown as { opened: string[] }).opened = []
-      shell.openExternal = async (u: string) => void (globalThis as unknown as { opened: string[] }).opened.push(u)
-    })
     const tell = (s: object) => app.evaluate(({ BrowserWindow }, state) => BrowserWindow.getAllWindows()[0]!.webContents.send('update-state', state), s)
     await expect(page.locator('header').getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
     await tell({ state: 'available', detail: '0.2.0 is available.', latest: '0.2.0', current: '0.1.9', url: RELEASE, tag: 'v0.2.0', homebrew: true })
     await page.locator('header').getByRole('button', { name: 'Agent World 0.2.0 is available' }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
-    await expect(pop).toContainText('installed with Homebrew')
-    await expect(pop).toContainText('brew upgrade --cask hodkep/tap/agent-world')
-    await expect(pop.getByRole('button', { name: 'Download' })).toHaveCount(0)
-    await expect(pop.getByRole('button', { name: 'Install and restart' })).toHaveCount(0)
-    // Copy puts the command on the clipboard.
-    await pop.getByRole('button', { name: 'Copy command' }).click()
-    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('brew upgrade --cask hodkep/tap/agent-world')
+    await expect(pop).toContainText('Homebrew installed this copy')
+    await expect(pop).toContainText('may still say 0.1.9')
+    await expect(pop).not.toContainText('brew upgrade')
+    await expect(pop.getByRole('button', { name: 'Download' })).toBeVisible()
     await page.keyboard.press('Escape')
 
     // Settings says the same.
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: /Updates/ }).click()
-    await expect(settings).toContainText('brew upgrade --cask hodkep/tap/agent-world')
-    await expect(settings.getByRole('button', { name: 'Download' })).toHaveCount(0)
+    await expect(settings).toContainText('may still say 0.1.9')
+    await expect(settings.getByRole('button', { name: 'Download' }).first()).toBeVisible()
   } finally {
     await shutdown()
   }

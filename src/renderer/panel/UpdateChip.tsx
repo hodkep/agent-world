@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BREW_UPGRADE, type BetaState, type InstallState, type UpdateRel } from '../../shared/updateInstall'
+import { type BetaState, type InstallState, type UpdateRel } from '../../shared/updateInstall'
 import { NotesBox } from './ReleaseNotes'
 import { type UpdateAction, type UpdateView, updateView } from './updateView'
 
@@ -44,8 +44,6 @@ export function runUpdateAction(id: UpdateAction['id'], info: UpdateInfo, close?
       return void window.aw.installUpdate(channel).catch(quiet)
     case 'later':
       return close?.()
-    case 'copy':
-      return void navigator.clipboard.writeText(BREW_UPGRADE).catch(quiet)
     case 'page':
     case 'changes':
       return void (info.url && window.aw.openExternal(info.url).catch(quiet))
@@ -84,7 +82,6 @@ export function UpdatePanel({ view, info, close }: { view: UpdateView; info: Upd
       {view.error && <div className="upd-error" role="alert">{view.error}</div>}
       {view.warning && <div className="upd-warn" role="status">{view.warning}</div>}
       {view.body && <p className="upd-body">{view.body}</p>}
-      {view.command && <code className="upd-cmd">{view.command}</code>}
       {view.notes && (
         <>
           <b className="upd-notes-title">What's new in {info.latest}</b>

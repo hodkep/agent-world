@@ -333,8 +333,9 @@ test("after an update the app says so once, remembering the version the moment i
   }
 })
 
-test('a build installed with Homebrew is told the command to run and is never offered the download', async () => {
-  test.setTimeout(60_000)
+test('a build installed with Homebrew downloads the update and replaces itself like any other, and says that Homebrew\'s record may lag', async () => {
+  test.skip(process.platform !== 'darwin', 'it replaces an app bundle with ditto, as macOS does')
+  test.setTimeout(120_000)
   const w = await world({ caskroom: true })
   try {
     const { page } = w
@@ -343,12 +344,15 @@ test('a build installed with Homebrew is told the command to run and is never of
     await expect(chip).toHaveText('↑ 0.9.0')
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
-    await expect(pop).toContainText('installed with Homebrew')
-    await expect(pop).toContainText('brew upgrade --cask hodkep/tap/agent-world')
-    await expect(pop.getByRole('button', { name: 'Download' })).toHaveCount(0)
-    // Nothing was fetched: the app does not replace what Homebrew keeps a record of.
-    expect(existsSync(join(w.root, 'home', 'updates'))).toBe(false)
-    expect(readFileSync(join(w.app, 'Contents', 'marker'), 'utf8')).toBe('old')
+    await expect(pop).toContainText('Homebrew installed this copy')
+    await expect(pop).toContainText('may still say')
+    await expect(pop).not.toContainText('brew upgrade')
+    await pop.getByRole('button', { name: 'Download' }).click()
+    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    const closed = w.electron.waitForEvent('close', { timeout: 60_000 })
+    await pop.getByRole('button', { name: 'Install and restart' }).click()
+    await closed
+    await expect.poll(() => (existsSync(join(w.app, 'Contents', 'marker')) ? readFileSync(join(w.app, 'Contents', 'marker'), 'utf8') : ''), { timeout: 30_000 }).toBe('new')
   } finally {
     await w.close()
   }

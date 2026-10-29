@@ -25,7 +25,6 @@ describe('what the update chip and its popover show', () => {
     expect(v.title).toBe('Agent World 0.7.0-beta.1 is available')
     expect(v.body).toContain('replaces the stable app you have')
     expect(ids(v)).toEqual(['download', 'changes'])
-    expect(updateView({ ...base, channel: 'beta', homebrew: true }, { working: 0, waiting: 0 })!.command).toBeUndefined()
   })
 
   const none = { working: 0, waiting: 0 }
@@ -35,7 +34,6 @@ describe('what the update chip and its popover show', () => {
     expect(v.title).toBe('Back to stable 0.6.3')
     expect(v.warning).toBe('Going back replaces the beta you have; settings made in the beta may not be read by the stable version.')
     expect(v.actions).toEqual([{ id: 'download', label: 'Back to stable 0.6.3', primary: true }, { id: 'changes', label: 'What changed' }])
-    expect(v.command).toBeUndefined()
   })
   it('for any other release older than what is installed says it is older, warns, and offers the download as a switch', () => {
     const stable = updateView({ ...base, latest: '0.6.3', tag: 'v0.6.3', current: '0.8.0', rel: 'older' }, none)!
@@ -58,17 +56,16 @@ describe('what the update chip and its popover show', () => {
     expect(updateView({ state: 'none', latest: '0.7.0', rel: 'same', detail: 'You have 0.7.0.' }, none)).toBeNull()
   })
 
-  it('for a copy installed with Homebrew gives the command to run, and never a download or an install', () => {
+  it('for a copy installed with Homebrew offers the download and the install like any other, and says Homebrew\'s record may lag', () => {
     const v = updateView({ ...base, homebrew: true }, { working: 0, waiting: 0 })!
-    expect(v.chip).toBe('↑ 0.1.2')
     expect(v.title).toBe('Agent World 0.1.2 is available')
     expect(v.body).toContain('You have 0.1.1')
-    expect(v.body).toContain('installed with Homebrew')
-    expect(v.body).toContain('again in a few minutes')
-    expect(v.command).toBe('brew upgrade --cask hodkep/tap/agent-world')
-    expect(ids(v)).toEqual(['copy', 'changes'])
-    // Whatever an earlier look left behind, Homebrew's way is the only one shown.
-    expect(ids(updateView({ ...base, homebrew: true, install: { phase: 'ready', version: '0.1.2', file: '/x' } }, { working: 0, waiting: 0 })!)).toEqual(['copy', 'changes'])
+    expect(v.body).toContain('Homebrew')
+    expect(v.body).toContain('may still say 0.1.1')
+    expect(ids(v)).toEqual(['download', 'changes'])
+    expect(ids(updateView({ ...base, homebrew: true, install: { phase: 'ready', version: '0.1.2', file: '/x' } }, { working: 0, waiting: 0 })!)).toContain('install')
+    // A copy that Homebrew did not install is told nothing about it.
+    expect(view().body).not.toContain('Homebrew')
   })
 
   it('still offers just the page when the build gives no tag to download from', () => {
