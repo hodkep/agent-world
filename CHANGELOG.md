@@ -12,6 +12,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Changed
 
+- Agents: a finished agent's green mark can be cleared with a tick on its tile, or all at once with the two ticks in the agents panel header, without opening the agent.
 - Updates: a copy installed with Homebrew can now download and install updates from the app; Homebrew's own record of the version may lag afterwards.
 
 ### Fixed
