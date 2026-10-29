@@ -37,6 +37,8 @@ function asleep(a: { working: number; waiting: number }): string | undefined {
 /** What going to an older release costs: the line under its title. */
 const GOING_BACK = 'Going back replaces the beta you have; settings made in the beta may not be read by the stable version.'
 const SWITCHING = 'Switching replaces the version you have with an older one; settings made in it may not be read by this one.'
+/** Where the file came from, when a mirror was in play: said after the number or after "Downloaded". */
+const fromWhere = (i: { source?: 'mirror' | 'github'; fellBack?: boolean }, lead: string) => (i.source === 'mirror' ? `${lead}from the mirror` : i.fellBack ? `${lead}from GitHub, the mirror did not answer` : '')
 const isBeta = (v?: string) => /-beta\.\d+$/.test(v ?? '')
 const PAGE: UpdateAction = { id: 'page', label: 'Open the release page' }
 
@@ -61,13 +63,13 @@ export function updateView(info: UpdateInfo, agents: { working: number; waiting:
   if (!install || install.phase === 'idle') return offer()
   switch (install.phase) {
     case 'downloading':
-      return { chip: `↓ ${Math.round((install.received / install.total) * 100)}%`, title: `Downloading ${install.version}`, progress: { fraction: install.received / install.total, label: `${mb(install.received)} of ${mb(install.total)} MB` }, ...(info.notes && { notes: info.notes }), actions: [{ id: 'cancel', label: 'Cancel' }] }
+      return { chip: `↓ ${Math.round((install.received / install.total) * 100)}%`, title: `Downloading ${install.version}`, progress: { fraction: install.received / install.total, label: `${mb(install.received)} of ${mb(install.total)} MB${fromWhere(install, ', ')}` }, ...(info.notes && { notes: info.notes }), actions: [{ id: 'cancel', label: 'Cancel' }] }
     case 'ready':
       return {
         chip,
         title: `${install.version} is ready to install`,
         progress: { fraction: 1, label: '', ok: true },
-        ticks: ['Downloaded', "Checksum matches the release's"],
+        ticks: [`Downloaded${fromWhere(install, ' ')}`, "Checksum matches the release's"],
         ...(info.notes && { notes: info.notes }),
         body: 'Agent World closes, puts the new version in place of this one, and opens again. It takes a few seconds.',
         warning: [caution, asleep(agents)].filter(Boolean).join(' ') || undefined,

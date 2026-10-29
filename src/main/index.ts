@@ -14,7 +14,7 @@ import { isRule } from './library/playbook'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { installedNotes } from './releaseNotes'
-import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, runningVersion, updateState } from './updates'
+import { cancelUpdateDownload, checkForUpdates, downloadUpdate, installUpdate, revealUpdate, runningVersion, setMirrorSwitch, updateState } from './updates'
 import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { remoteState } from './remoteState'
@@ -1682,6 +1682,7 @@ async function main() {
     for (const [id, m] of seenMode) send('agent-event', { type: 'mode', agentId: id, sessionId: byId(id)?.sessionId ?? '', mode: m })
     for (const [id, s] of seenRemote) send('remote', id, s)
   })
+  setMirrorSwitch(() => prefs.updateMirror)
   ipcMain.handle('updates:check', (_, channel?: unknown) => checkForUpdates((s) => send('update-state', s), channel === 'beta' ? 'beta' : 'stable', true))
   ipcMain.handle('updates:state', () => updateState())
   // The changelog travels with the app: next to its resources when installed, in the project folder when run from source.

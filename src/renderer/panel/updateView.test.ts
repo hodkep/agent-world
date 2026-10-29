@@ -68,6 +68,19 @@ describe('what the update chip and its popover show', () => {
     expect(view().body).not.toContain('Homebrew')
   })
 
+  it('says where the file came from while it downloads and when it is ready, only when a mirror was in play', () => {
+    const none = { working: 0, waiting: 0 }
+    const dl = (extra: object) => updateView({ ...base, install: { phase: 'downloading', version: '0.1.2', received: 5 * 1024 * 1024, total: 20 * 1024 * 1024, ...extra } as InstallState }, none)!
+    const ready = (extra: object) => updateView({ ...base, install: { phase: 'ready', version: '0.1.2', file: '/x', ...extra } as InstallState }, none)!
+    expect(dl({ source: 'mirror' }).progress!.label).toBe('5 of 20 MB, from the mirror')
+    expect(dl({ source: 'github', fellBack: true }).progress!.label).toBe('5 of 20 MB, from GitHub, the mirror did not answer')
+    expect(dl({ source: 'github' }).progress!.label).toBe('5 of 20 MB')
+    expect(dl({}).progress!.label).toBe('5 of 20 MB')
+    expect(ready({ source: 'mirror' }).ticks).toEqual(['Downloaded from the mirror', "Checksum matches the release's"])
+    expect(ready({ source: 'github', fellBack: true }).ticks).toEqual(['Downloaded from GitHub, the mirror did not answer', "Checksum matches the release's"])
+    expect(ready({ source: 'github' }).ticks).toEqual(['Downloaded', "Checksum matches the release's"])
+  })
+
   it('still offers just the page when the build gives no tag to download from', () => {
     const v = updateView({ state: 'available', latest: '0.1.2', url: base.url }, { working: 0, waiting: 0 })!
     expect(ids(v)).toEqual(['page'])

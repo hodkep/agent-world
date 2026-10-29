@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { type InstallState, createInstaller } from './installer'
+import { mirrorOf } from './mirror'
 import { releaseOrigins } from './origins'
 
 const zip = Buffer.from('a zip, more or less'.repeat(500))
@@ -12,7 +13,7 @@ const repo = { owner: 'hodkep', repo: 'agent-world' }
 const BASE = 'https://github.com/hodkep/agent-world/releases/download/v0.1.2'
 const yml = (over: { sha?: string; size?: number } = {}) => `version: 0.1.2\nfiles:\n  - url: Agent-World-0.1.2-arm64.zip\n    sha512: ${over.sha ?? sha}\n    size: ${over.size ?? zip.length}\n  - url: Agent-World-0.1.2-x64.zip\n    sha512: ${over.sha ?? sha}\n    size: ${over.size ?? zip.length}\npath: Agent-World-0.1.2-x64.zip\n`
 
-const make = (o: { files?: Record<string, Response | Error>; place?: { parentWritable: boolean; readOnlyVolume: boolean }; origins?: ReturnType<typeof releaseOrigins> } = {}) => {
+const make = (o: { files?: Record<string, Response | Error>; place?: { parentWritable: boolean; readOnlyVolume: boolean }; origins?: ReturnType<typeof releaseOrigins>; mirror?: ReturnType<typeof mirrorOf> } = {}) => {
   const dir = mkdtempSync(join(tmpdir(), 'aw-inst-'))
   const states: InstallState[] = []
   const calls: string[] = []
@@ -33,6 +34,7 @@ const make = (o: { files?: Record<string, Response | Error>; place?: { parentWri
       return r.clone()
     },
     origins: o.origins ?? releaseOrigins(true, {}),
+    mirror: o.mirror,
     place: () => o.place ?? { parentWritable: true, readOnlyVolume: false },
     launch: (script, args) => (calls.push('launch'), launched.push({ script, args })),
     quit: () => calls.push('quit'),
@@ -138,3 +140,60 @@ describe('the in-app update, from found to installed', () => {
 
 import { mkdirSync } from 'node:fs'
 const mkdirSync2 = (p: string) => mkdirSync(p, { recursive: true })
+
+describe('the in-app update with a mirror', () => {
+  const R2 = 'https://pub-test.r2.dev'
+  const mirror = mirrorOf(R2)
+  const MZIP = `${R2}/v0.1.2/Agent-World-0.1.2-arm64.zip`
+  const GZIP = `${BASE}/Agent-World-0.1.2-arm64.zip`
+  const gh = (): Record<string, Response | Error> => ({ [`${BASE}/latest-mac.yml`]: new Response(yml()), [GZIP]: new Response(zip, { status: 200 }) })
+  const sources = (m: { states: InstallState[] }) => m.states.flatMap((s) => (s.phase === 'downloading' || s.phase === 'ready' ? [`${s.phase}:${s.source}${s.fellBack ? '+fellBack' : ''}`] : [])).filter((x, i, a) => x !== a[i - 1])
+
+  it('reads the manifest from GitHub and takes the zip from the mirror, and says so', async () => {
+    const m = make({ mirror, files: { ...gh(), [MZIP]: new Response(zip, { status: 200 }) } })
+    await m.installer.download('v0.1.2')
+    expect(m.calls).toEqual([`${BASE}/latest-mac.yml`, MZIP])
+    expect(m.installer.state()).toMatchObject({ phase: 'ready', version: '0.1.2', source: 'mirror' })
+    expect(m.installer.state()).not.toHaveProperty('fellBack')
+  })
+
+  it.each([
+    ['is not there (404)', undefined],
+    ['cannot be reached', new Error('getaddrinfo ENOTFOUND')],
+    ['gives another file than the release published', new Response(Buffer.from('stale'.repeat(1000)), { status: 200 })],
+    ['gives a short file', new Response(zip.subarray(0, 100), { status: 200 })],
+    ['sends the file somewhere else', new Response(null, { status: 302, headers: { location: 'https://evil.example/x.zip' } })]
+  ])('goes to GitHub, once, when the mirror %s, and says so', async (_, answer) => {
+    const m = make({ mirror, files: { ...gh(), ...(answer && { [MZIP]: answer }) } })
+    await m.installer.download('v0.1.2')
+    expect(m.calls.filter((c) => c.endsWith('.zip'))).toEqual([MZIP, GZIP])
+    expect(m.calls.some((c) => c.includes('evil'))).toBe(false)
+    expect(m.installer.state()).toMatchObject({ phase: 'ready', source: 'github', fellBack: true })
+    expect(sources(m)).toEqual(['downloading:mirror', 'downloading:github+fellBack', 'ready:github+fellBack'])
+  })
+
+  it('has the final word with GitHub: when both fail, GitHub\'s reason is the one shown, and it is not tried again', async () => {
+    const m = make({ mirror, files: { [`${BASE}/latest-mac.yml`]: new Response(yml()), [GZIP]: new Response('nope', { status: 503 }) } })
+    await m.installer.download('v0.1.2')
+    expect(m.installer.state()).toMatchObject({ phase: 'failed', kind: 'network', reason: expect.stringContaining('GitHub did not give the file (503)') })
+    expect(m.calls.filter((c) => c === GZIP)).toHaveLength(1)
+    expect(m.calls.filter((c) => c === MZIP)).toHaveLength(1)
+  })
+
+  it('does not fall back from a cancel', async () => {
+    const m = make({ mirror, files: { ...gh(), [MZIP]: new Response(new ReadableStream({ start() {} }), { status: 200 }) } })
+    const run = m.installer.download('v0.1.2')
+    await new Promise((r) => setTimeout(r, 20))
+    m.installer.cancel()
+    await run
+    expect(m.installer.state()).toMatchObject({ phase: 'failed', kind: 'cancelled' })
+    expect(m.calls).not.toContain(GZIP)
+  })
+
+  it('uses only GitHub when there is no mirror', async () => {
+    const m = make({ mirror: null })
+    await m.installer.download('v0.1.2')
+    expect(m.calls).toEqual([`${BASE}/latest-mac.yml`, GZIP])
+    expect(m.installer.state()).not.toHaveProperty('source', 'mirror')
+  })
+})

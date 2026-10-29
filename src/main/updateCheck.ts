@@ -49,10 +49,10 @@ function comparePre(a?: string[], b?: string[]): number {
   return 0
 }
 
-/** What package.json inside the app says: its repository, and whether the release workflow signed this build with a Developer ID (it adds `awSigned`). */
-export function buildInfo(pkg: unknown): { repo: Repo | null; signed: boolean } {
-  const p = (pkg && typeof pkg === 'object' ? pkg : {}) as { repository?: unknown; awSigned?: unknown }
-  return { repo: parseRepo(p.repository), signed: p.awSigned === true }
+/** What package.json inside the app says: its repository, and whether the release workflow signed this build with a Developer ID (it adds `awSigned`), and the mirror it names (`awMirror`: where an update is tried first). */
+export function buildInfo(pkg: unknown): { repo: Repo | null; signed: boolean; mirror: string | null } {
+  const p = (pkg && typeof pkg === 'object' ? pkg : {}) as { repository?: unknown; awSigned?: unknown; awMirror?: unknown }
+  return { repo: parseRepo(p.repository), signed: p.awSigned === true, mirror: typeof p.awMirror === 'string' ? p.awMirror : null }
 }
 
 /** Is `tag` a version after `current`? A pre-release of the version you have is not, but a release is after its own betas, and beta.2 after beta.1. A tag that is not a version is no one. */

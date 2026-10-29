@@ -5,6 +5,7 @@ import type { InstallState } from '../../shared/updateInstall'
 import { type Fetch, downloadAsset, fetchText } from './download'
 import { INSTALL_SCRIPT, installBlocker } from './installScript'
 import { assetFor, parseLatestMac } from './manifest'
+import { type Mirror, mirrorUrl } from './mirror'
 import type { ReleaseOrigins } from './origins'
 
 /** The bundle identifier the new app must have (it is the appId of electron-builder.yml). */
@@ -23,6 +24,8 @@ export interface InstallerDeps {
   fetch: Fetch
   /** Where releases are downloaded from, and which addresses may be fetched (GitHub's, unless a test's own server stands in). */
   origins: ReleaseOrigins
+  /** Where the file is tried first, if the build names a mirror; the manifest and the checks stay GitHub's, and a failure there goes on to GitHub. */
+  mirror?: Mirror | null
   place: () => { parentWritable: boolean; readOnlyVolume: boolean }
   /** Runs the helper script detached, so it outlives the app. */
   launch: (script: string, args: string[]) => void
@@ -52,9 +55,18 @@ export function createInstaller(d: InstallerDeps) {
     const pick = assetFor({ manifest, arch: d.arch, current: d.current, repo: d.repo, tag, downloads: d.origins.downloads, any: d.any })
     if (!pick.ok) return set({ phase: 'failed', kind: 'manifest', reason: pick.reason })
     const version = pick.asset.version
-    set({ phase: 'downloading', version, received: 0, total: pick.asset.size })
-    const r = await downloadAsset({ asset: pick.asset, dir: join(d.updatesDir, version), fetch: d.fetch, signal: abort.signal, allow: d.origins.allow, onProgress: (received, total) => set({ phase: 'downloading', version, received, total }) })
-    set(r.ok ? { phase: 'ready', version, file: r.file } : { phase: 'failed', version, kind: r.kind, reason: r.reason })
+    const { asset } = pick
+    const sources = [...(d.mirror ? [{ name: 'mirror' as const, url: mirrorUrl(d.mirror, tag, asset.name), allow: d.mirror.allow, stall: d.mirror.tune }] : []), { name: 'github' as const, url: asset.url, allow: d.origins.allow, stall: undefined }]
+    let fellBack = false
+    for (const [i, src] of sources.entries()) {
+      const mark = { source: src.name, ...(fellBack && { fellBack }) }
+      set({ phase: 'downloading', version, received: 0, total: asset.size, ...mark })
+      const r = await downloadAsset({ asset: { ...asset, url: src.url }, dir: join(d.updatesDir, version), fetch: d.fetch, signal: abort.signal, allow: src.allow, stall: src.stall, onProgress: (received, total) => set({ phase: 'downloading', version, received, total, ...mark }) })
+      // A cancel is the person's; any other failure of the mirror goes on to GitHub, whose own failure is final.
+      if (r.ok) return set({ phase: 'ready', version, file: r.file, ...mark })
+      if (r.kind === 'cancelled' || i === sources.length - 1) return set({ phase: 'failed', version, kind: r.kind, reason: r.reason })
+      fellBack = true
+    }
   }
 
   return {

@@ -49,3 +49,21 @@ describe('where an update is looked for and downloaded from', () => {
     for (const v of ['', 'file:///etc', 'ftp://x', 'nonsense', 'http://127.0.0.1:9999/with/path']) expect(releaseOrigins(false, { AW_UPDATE_RELEASES: v }), v).toMatchObject({ ...real, testing: false })
   })
 })
+
+describe('the mirror a test run names', () => {
+  const env = { AW_UPDATE_RELEASES: 'http://127.0.0.1:9999', AW_UPDATE_MIRROR: 'http://127.0.0.1:9100', AW_UPDATE_MIRROR_TUNE: '300,100,400' }
+
+  it('is the origin of AW_UPDATE_MIRROR, with the shortened times, in a build that is not installed', () => {
+    const m = releaseOrigins(false, env).mirror!
+    expect(m.base).toBe('http://127.0.0.1:9100')
+    expect(m.allow('http://127.0.0.1:9100/v0.1.2/x.zip')).toBe(true)
+    expect(m.allow('http://127.0.0.1:9999/x.zip')).toBe(false)
+    expect(m.tune).toMatchObject({ headersMs: 300, graceMs: 100, windowMs: 400 })
+  })
+
+  it('is ignored by the installed app, and when it is not an origin', () => {
+    expect(releaseOrigins(true, env).mirror).toBeUndefined()
+    expect(releaseOrigins(false, { ...env, AW_UPDATE_MIRROR: 'http://127.0.0.1:9100/path' }).mirror).toBeUndefined()
+    expect(releaseOrigins(false, {}).mirror).toBeUndefined()
+  })
+})

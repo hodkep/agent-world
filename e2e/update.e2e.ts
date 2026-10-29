@@ -29,7 +29,7 @@ const tool = (root: string, name: string, body: string) => {
   return p
 }
 
-async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean; version?: string } = {}) {
+async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: string; prefs?: object; caskroom?: boolean; version?: string; /** A second server standing in for the R2 mirror: what it does with the zip. */ mirror?: 'ok' | '500' | '404' | 'wrong' | 'stall' } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'aw-upd-')))
   const src = join(root, 'src')
   mkdirSync(src)
@@ -44,32 +44,46 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
     { tag_name: `v${NEW}`, prerelease: false, draft: false, published_at: '2026-10-28T10:00:00Z', body: 'stable' },
     { tag_name: `v${BETA}`, prerelease: true, draft: false, published_at: '2026-10-29T10:00:00Z', body: '## Beta notes\n\n- A rough thing' }
   ]
+  // How often each source was asked for the zip.
+  const hits = { github: 0, mirror: 0 }
   const server = createServer((req, res) => {
     if (req.url === '/api/repos/hodkep/agent-world/releases/latest') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ tag_name: `v${NEW}`, ...(o.body && { body: o.body }) }))
     if (req.url === '/api/repos/hodkep/agent-world/releases?per_page=30') return void res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(releases))
     for (const v of [NEW, BETA]) {
       if (req.url === `${base(v)}/latest-mac.yml`) return void res.writeHead(200).end(ymlOf(v))
-      if (req.url?.startsWith(`${base(v)}/Agent-World-${v}-`) && req.url.endsWith('.zip')) return void res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+      if (req.url?.startsWith(`${base(v)}/Agent-World-${v}-`) && req.url.endsWith('.zip')) return void (hits.github++, res.writeHead(200, { 'content-length': bytes.length }).end(bytes))
     }
     res.writeHead(404).end('no')
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  // The mirror holds the newest stable only, as the real one holds the newest stable and beta: anything else is a 404 there.
+  const mirror = createServer((req, res) => {
+    if (req.url !== `/v${NEW}/Agent-World-${NEW}-arm64.zip` && req.url !== `/v${NEW}/Agent-World-${NEW}-x64.zip`) return void res.writeHead(404).end('no')
+    hits.mirror++
+    if (o.mirror === '500') return void res.writeHead(500).end('broken')
+    if (o.mirror === '404') return void res.writeHead(404).end('no')
+    if (o.mirror === 'wrong') return void res.writeHead(200, { 'content-length': bytes.length }).end(Buffer.alloc(bytes.length, 1))
+    if (o.mirror === 'stall') return void (res.writeHead(200, { 'content-length': bytes.length }), res.write(bytes.subarray(0, 1000)))
+    res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
+  })
+  if (o.mirror) await new Promise<void>((r) => mirror.listen(0, '127.0.0.1', r))
+  const mirrorOrigin = o.mirror ? `http://127.0.0.1:${(mirror.address() as AddressInfo).port}` : ''
   const apps = join(root, 'Apps')
   mkdirSync(apps)
   const app = bundle(apps, 'Agent World.app', '0.1.1', 'old')
   const opened = join(root, 'opened.log')
   // A fake Homebrew prefix: the cask's folder in it is what says Homebrew installed this copy.
   if (o.caskroom) mkdirSync(join(root, 'Caskroom', 'agent-world'), { recursive: true })
-  const env = { ...(o.version && { AW_APP_VERSION: o.version }), ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
+  const env = { ...(o.version && { AW_APP_VERSION: o.version }), ...(o.caskroom && { AW_UPDATE_CASKROOM: join(root, 'Caskroom') }), AW_HOME: join(root, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_UPDATE_RELEASES: origin, ...(o.mirror && { AW_UPDATE_MIRROR: mirrorOrigin, AW_UPDATE_MIRROR_TUNE: '400,150,300' }), AW_OPEN: tool(root, 'open', `echo "$@" >> "${opened}"`), AW_CODESIGN: tool(root, 'codesign-ok', 'exit 0'), ...(o.fakeApp === false ? {} : { AW_UPDATE_APP_PATH: app }) }
   if (o.prefs) {
     mkdirSync(join(root, 'home'), { recursive: true })
     writeFileSync(join(root, 'home', 'preferences.json'), JSON.stringify(o.prefs))
   }
   const { app: electron, shutdown } = await launchApp(env, root)
   const page = await electron.firstWindow()
-  const close = async () => (server.close(), await shutdown())
-  return { root, app, opened, electron, page, close }
+  const close = async () => (server.close(), mirror.closeAllConnections(), mirror.close(), await shutdown())
+  return { root, app, opened, electron, page, close, hits }
 }
 
 test('an unsigned Mac build is offered the update, downloads it with progress, checks it, and replaces itself and reopens', async () => {
@@ -357,5 +371,70 @@ test('a build installed with Homebrew downloads the update and replaces itself l
     await expect.poll(() => (existsSync(w.opened) ? readFileSync(w.opened, 'utf8').trim() : ''), { timeout: 30_000 }).toBe(w.app)
   } finally {
     await w.close()
+  }
+})
+
+test('with a mirror, the zip comes from it, the manifest from GitHub, and the update says so', async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(60_000)
+  const w = await world({ mirror: 'ok' })
+  try {
+    const { page } = w
+    await page.evaluate(() => window.aw.checkUpdates())
+    await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+    const pop = page.getByRole('dialog', { name: 'Agent World update' })
+    await pop.getByRole('button', { name: 'Download' }).click()
+    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText('Downloaded from the mirror')
+    await expect(pop).toContainText("Checksum matches the release's")
+    expect(w.hits).toEqual({ github: 0, mirror: 1 })
+  } finally {
+    await w.close()
+  }
+})
+
+for (const mode of ['500', '404', 'wrong', 'stall'] as const) {
+  test(`a mirror that ${{ '500': 'fails', '404': 'does not have the file', wrong: 'gives other bytes', stall: 'stops sending' }[mode]} is dropped for GitHub, and the update says so`, async () => {
+    test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+    test.setTimeout(60_000)
+    const w = await world({ mirror: mode })
+    try {
+      const { page } = w
+      await page.evaluate(() => window.aw.checkUpdates())
+      await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+      const pop = page.getByRole('dialog', { name: 'Agent World update' })
+      await pop.getByRole('button', { name: 'Download' }).click()
+      await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+      await expect(pop).toContainText('Downloaded from GitHub, the mirror did not answer')
+      await expect(pop).toContainText("Checksum matches the release's")
+      expect(w.hits).toEqual({ github: 1, mirror: 1 })
+    } finally {
+      await w.close()
+    }
+  })
+}
+
+test('a release the mirror does not hold (a beta here) is taken from GitHub, and the mirror switched off in preferences is not asked at all', async () => {
+  test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
+  test.setTimeout(90_000)
+  const w = await world({ mirror: 'ok' })
+  try {
+    const { page } = w
+    await page.evaluate(async () => (await window.aw.checkUpdates('beta'), await window.aw.downloadUpdate('beta')))
+    await expect.poll(() => page.evaluate(() => window.aw.updateState().then((s) => s.beta?.install?.phase)), { timeout: 30_000 }).toBe('ready')
+    expect((await page.evaluate(() => window.aw.updateState())).beta?.install).toMatchObject({ source: 'github', fellBack: true })
+    expect(w.hits).toEqual({ github: 1, mirror: 0 })
+  } finally {
+    await w.close()
+  }
+  const off = await world({ mirror: 'ok', prefs: { updateMirror: false } })
+  try {
+    await off.page.evaluate(() => window.aw.checkUpdates())
+    await off.page.evaluate(() => window.aw.downloadUpdate('stable'))
+    await expect.poll(() => off.page.evaluate(() => window.aw.updateState().then((s) => s.install?.phase)), { timeout: 30_000 }).toBe('ready')
+    expect(off.hits).toEqual({ github: 1, mirror: 0 })
+    expect((await off.page.evaluate(() => window.aw.updateState())).install).toMatchObject({ source: 'github' })
+  } finally {
+    await off.close()
   }
 })
