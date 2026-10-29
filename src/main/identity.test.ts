@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cleanIdentity, identityEnv, loadIdentity, profileFor, saveIdentity } from './identity'
+import { cleanIdentity, ghToken, identityEnv, loadIdentity, parseGhLogins, profileFor, saveIdentity } from './identity'
 
 const work = { id: 'work', name: 'Sarvaha work', login: 'pratikGhodke1', gitName: 'Pratik Ghodke', gitEmail: 'pratik.ghodke@sarvaha.com' }
 const teamB = { ...work, id: 'team-b', name: 'Team B', gitEmail: 'pratik@teamb.sarvaha.com' }
@@ -61,6 +61,42 @@ describe('identityEnv', () => {
   })
 
   it('adds nothing without a profile', () => expect(identityEnv(undefined, 'gho_abc')).toEqual({}))
+})
+
+describe('gh logins', () => {
+  const status = JSON.stringify({
+    hosts: {
+      'github.com': [
+        { state: 'success', active: true, login: 'hodkep' },
+        { state: 'success', active: false, login: 'pratikGhodke1' },
+        { state: 'error', active: false, login: 'stale' }
+      ],
+      'ghe.example.com': [{ state: 'success', active: true, login: 'other-host' }]
+    }
+  })
+
+  it('lists the github.com logins that work, and which one gh has active', () => {
+    expect(parseGhLogins(status)).toEqual([
+      { login: 'hodkep', active: true },
+      { login: 'pratikGhodke1', active: false }
+    ])
+  })
+
+  it('reads output it cannot understand as no logins', () => {
+    for (const out of ['', 'not json', '{}', '{"hosts":{"github.com":"x"}}']) expect(parseGhLogins(out)).toEqual([])
+  })
+
+  it('asks gh for one login token without switching the active one', async () => {
+    const calls: string[][] = []
+    const token = await ghToken('pratikGhodke1', async (_file, args) => (calls.push(args), 'gho_abc\n'))
+    expect(token).toBe('gho_abc')
+    expect(calls).toEqual([['auth', 'token', '--user', 'pratikGhodke1']])
+  })
+
+  it('has no token when gh fails or says nothing', async () => {
+    expect(await ghToken('x', async () => { throw new Error('no oauth token found') })).toBeUndefined()
+    expect(await ghToken('x', async () => '\n')).toBeUndefined()
+  })
 })
 
 describe('identity file', () => {
