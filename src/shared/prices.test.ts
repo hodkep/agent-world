@@ -15,6 +15,12 @@ describe('price estimates', () => {
     for (const m of ['gemini-3.8-flash-high', 'Gemini 3.7 Flash (Low)', 'gemini-3.6-flash-medium']) expect(rateFor(m, {}, before)).toEqual({ in: 0.75, out: 3.75 })
     expect(rateFor('gemini-3.1-pro-low', {}, before)).toEqual({ in: 2, out: 12 })
   })
+  it('prices the Claude 5.x models at Anthropic\'s list rates, in any spelling', () => {
+    expect(rateFor('claude-haiku-5-5')).toEqual({ in: 0.1, out: 0.5 })
+    expect(rateFor('Claude Sonnet 5.5')).toEqual({ in: 2, out: 10 })
+    expect(rateFor('claude-opus-5-5')).toEqual({ in: 4, out: 20 })
+    expect(rateFor('claude-fable-5-1')).toEqual({ in: 10, out: 50 })
+  })
   it('doubles the Flash rates when the launch price ends on 1 January 2027', () => {
     expect(rateFor('gemini-3.8-flash-high', {}, new Date('2026-12-31T23:00:00Z'))).toEqual({ in: 0.75, out: 3.75 })
     expect(rateFor('gemini-3.8-flash-high', {}, new Date('2027-01-01T00:00:00Z'))).toEqual({ in: 1.5, out: 7.5 })

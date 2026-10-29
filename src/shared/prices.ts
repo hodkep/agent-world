@@ -14,6 +14,11 @@ export const normalizeModel = (name: string) => name.toLowerCase().replace(/\(.*
 
 // Only rates that are public and known are listed; the rest are for the user to fill in (GPT-OSS has no price of its own: every host sets a different one).
 export const DEFAULT_RATES: Record<string, Rate> = {
+  // Anthropic's list prices (platform.claude.com pricing, 2026-10-29). Haiku 5.5 costs five times as much for a prompt over 100k tokens; the lower rate is listed.
+  claudehaiku55: { in: 0.1, out: 0.5 },
+  claudesonnet55: { in: 2, out: 10 },
+  claudeopus55: { in: 4, out: 20 },
+  claudefable51: { in: 10, out: 50 },
   claudesonnet46: { in: 3, out: 15 },
   claudeopus46: { in: 5, out: 25 },
   // Google's Gemini API list price, thinking included in the output. The Pro rate is the one for prompts up to 200k tokens.
