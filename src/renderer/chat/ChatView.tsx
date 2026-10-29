@@ -41,7 +41,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 import { LibrarySlips, useLibraryUses } from './LibrarySlips'
 import { ADD_SELECTION_EVENT } from '../addSelection'
-import { hint, keysOf, matches } from '../shortcuts'
+import { hint, jumpsToLatest, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
@@ -455,6 +455,19 @@ export function ChatView({
   const reader = () => (readerAt.current = performance.now())
   // The Latest button and its shortcut: to the end, and follow it again.
   const toLatest = () => ((log.current!.scrollTop = log.current!.scrollHeight), (stick.current = true), setAway(false))
+  // The key works wherever the click was, not only inside the conversation: on the header, the office or the tab bar the focus is outside it. A dialog or menu open takes the key for itself.
+  useEffect(() => {
+    if (!visible) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !log.current || chatEl.current?.contains(e.target as Node) || !jumpsToLatest(e, e.target)) return
+      if (document.querySelector('[role="menu"], [role="dialog"], dialog[open]')) return
+      e.preventDefault()
+      toLatest()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toLatest only reads refs and a setter
+  }, [visible])
   useEffect(() => {
     const up = () => (pointerHeld.current = false)
     window.addEventListener('pointerup', up)
@@ -625,8 +638,8 @@ export function ChatView({
       onKeyDown={(e) => {
         if (['PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) reader()
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') (e.preventDefault(), setQuery((q) => q ?? ''))
-        // Mod+Alt+↓ goes to the latest message, from the message box too (where Cmd+↓ is the caret's).
-        else if (matches(e, 'latest') && log.current) (e.preventDefault(), toLatest())
+        // Mod+Alt+↓ goes to the latest message, from the message box too; Cmd+↓ does when nothing is being typed in (in the box it is the caret's).
+        else if (jumpsToLatest(e, e.target) && log.current) (e.preventDefault(), toLatest())
         // Alt+↑ / Alt+↓ jump between the messages you sent, from the one last jumped to or else from what is on screen.
         else if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && log.current) {
           e.preventDefault()

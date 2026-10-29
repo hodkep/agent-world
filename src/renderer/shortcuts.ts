@@ -31,6 +31,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'find-step', place: 'Conversation', text: 'Older or newer match', keys: ['Enter', 'Shift+Enter'] },
   { id: 'jump-messages', place: 'Conversation', text: 'Jump between your messages', keys: ['Alt+ArrowUp', 'Alt+ArrowDown'] },
   { id: 'latest', place: 'Conversation', text: 'Jump to the latest message', keys: ['Mod+Alt+ArrowDown'] },
+  { id: 'latest-away', place: 'Conversation', text: 'Jump to the latest message, when not typing in a box', keys: ['Mod+ArrowDown'] },
   { id: 'stop', place: 'Conversation', text: 'Stop the agent while it works', keys: ['Esc'] },
 
   { id: 'send', place: 'Message box', text: 'Send', keys: ['Enter'] },
@@ -93,6 +94,12 @@ export function tabNumber(e: KeyPress): number | null {
   const d = /^Digit([1-9])$/.exec(e.code ?? '')?.[1]
   return d && (e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey ? Number(d) : null
 }
+
+/** Whether the key landed in something being typed in (a box, an editor, the terminal's input): there Cmd+↓ is the caret's. */
+export const typingIn = (t: EventTarget | null): boolean => !!(t as Element | null)?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+
+/** The jump to the latest message: Mod+Alt+↓ from anywhere, and Mod+↓ too when nothing is being typed in. */
+export const jumpsToLatest = (e: KeyPress, target: EventTarget | null): boolean => matches(e, 'latest') || (matches(e, 'latest-away') && !typingIn(target))
 
 export const isMac =() => /mac/i.test(navigator.platform)
 
