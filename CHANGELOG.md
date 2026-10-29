@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-30
+
+![Agent World 0.7.5: updates download from a mirror first, and Homebrew installs need tap, trust, install](https://raw.githubusercontent.com/hodkep/agent-world/v0.7.5/docs/images/releases/0.7.5/poster.png)
+
+### Added
+
+- Updates: the update is downloaded from the project's mirror first and from GitHub when the mirror does not answer, is too slow, or sends a file that does not match the release's checksum; the panel says which one it came from. A copy gains this after it has updated once from GitHub.
+
+### Changed
+
+- Homebrew: installing is now `brew tap`, `brew trust`, then `brew install`, because Homebrew 6 and later will not load a third-party tap until it is trusted.
+
 ## [0.7.4] - 2026-10-29
 
 ### Fixed
