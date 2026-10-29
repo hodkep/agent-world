@@ -18,6 +18,7 @@ import { switchWorkflows } from '../../shared/workflows'
 import { WorkflowCost } from '../workflows/WorkflowCost'
 import { WorkflowOffConfirm } from '../workflows/WorkflowOffConfirm'
 import type { Run } from '../../shared/runs'
+import { GitHubProfiles, ProjectIdentity } from './GitHubIdentity'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -68,13 +69,15 @@ const PANES = [
   { id: 'accounts', group: 'Programs', label: 'Accounts', icon: '◉' },
   { id: 'jobs', group: 'Programs', label: 'Model by job', icon: '⚒' },
   { id: 'mail', group: 'App', label: 'Message box', icon: '✉' },
+  { id: 'profiles', group: 'App', label: 'GitHub profiles', icon: '⎇' },
+  { id: 'identity', group: 'This project', label: 'GitHub identity', icon: '◈' },
   { id: 'updates', group: 'App', label: 'Updates', icon: '↻' },
   { id: 'setup', group: 'App', label: 'Setup', icon: '⌂' }
 ] as const
 type Pane = (typeof PANES)[number]['id']
 
 /** Preferences that outlive a session. Each change is saved as it is made. */
-export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, signIns = 0, onSignIns, updateAgents = { working: 0, waiting: 0 } }: { initialPane?: string; /** Logins waiting for a sign-in: a dot on Accounts. */ signIns?: number; onSignIns?: (n: number) => void;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
+export function Settings({ project, prefs, roles, onChange, onClose, onSetup, providers, onProviders, initialPane, signIns = 0, onSignIns, updateAgents = { working: 0, waiting: 0 } }: { /** The folder this window works in: its own settings pane (GitHub identity) is shown under This project. */ project?: { path: string; name: string }; initialPane?: string; /** Logins waiting for a sign-in: a dot on Accounts. */ signIns?: number; onSignIns?: (n: number) => void;  prefs: Prefs; roles: Role[]; onChange: (patch: Partial<Prefs>) => void; onClose: () => void; onSetup: () => void; providers: ProviderInfo[]; onProviders: () => void | Promise<void>; /** Agents at work or waiting for an answer, which a restart would put to sleep. */ updateAgents?: { working: number; waiting: number } }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [rules, setRules] = useState(prefs.houseRules)
   // Turning workflows off while runs are open asks what to do with them first.
@@ -116,15 +119,16 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   const [pane, setPane] = useState<Pane>(PANES.some((p) => p.id === initialPane) ? (initialPane as Pane) : 'general')
   const connectable = providers.filter((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing'))
-  const panes = PANES.filter((p) => p.id !== 'mail' || connectable.length > 0)
+  const panes = PANES.filter((p) => (p.id !== 'mail' || connectable.length > 0) && (p.group !== 'This project' || project))
   const modes = startWith?.hireModes ?? []
   const mode = modes.some((m) => m.value === prefs.defaults.permissionMode) ? prefs.defaults.permissionMode : ''
   return (
     <dialog ref={dialog} className="settings settings-v2" aria-label="Settings" onClose={onClose} onCancel={onClose} {...closeOnBackdrop(onClose)}>
       <nav className="set-nav" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
-        {(['Office', 'Programs', 'App'] as const).map((g) => (
+        {(['Office', 'Programs', 'App', 'This project'] as const).filter((g) => panes.some((p) => p.group === g)).map((g) => (
           <div key={g}>
             <span className="g">{g}</span>
+            {g === 'This project' && project && <span className="proj-name">{project.name}</span>}
             {panes.filter((p) => p.group === g).map((p) => (
               <button key={p.id} role="tab" id={`set-tab-${p.id}`} aria-selected={pane === p.id} aria-controls={`set-pane-${p.id}`} className={pane === p.id ? 'on' : ''} onClick={() => setPane(p.id)}>
                 <span aria-hidden="true">{p.icon}</span>{p.label}
@@ -331,6 +335,8 @@ export function Settings({ prefs, roles, onChange, onClose, onSetup, providers, 
               </div>
             </>
           )}
+          {pane === 'profiles' && <GitHubProfiles />}
+          {pane === 'identity' && project && <ProjectIdentity project={project} />}
           {pane === 'setup' && (
             <>
               <legend>Setup</legend>

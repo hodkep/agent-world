@@ -70,8 +70,8 @@ import { recentlyRunning, writeRunning } from './resume'
 import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
-import { ghToken, identityEnv, loadIdentity, profileFor } from './identity'
-import type { Identity } from '../shared/identity'
+import { cleanIdentity, ghToken, identityEnv, loadIdentity, parseGhLogins, profileFor, saveIdentity } from './identity'
+import type { Identity, IdentityState } from '../shared/identity'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { createNoteStore } from './notes/store'
@@ -1699,6 +1699,15 @@ async function main() {
     savePrefs(join(HOME, 'preferences.json'), prefs)
     refreshAttention()
     return prefs
+  })
+  const identityState = async (): Promise<IdentityState> => ({ identity, logins: parseGhLogins(await ghRun('gh', ['auth', 'status', '--json', 'hosts']).catch(() => '')) })
+  ipcMain.handle('identity:state', () => identityState())
+  ipcMain.handle('identity:save', async (_, next: unknown) => {
+    identity = cleanIdentity(next)
+    saveIdentity(IDENTITY_FILE, identity)
+    // Asked again here too, so signing in and pressing Check is enough: agents hired from now on get the new token.
+    await refreshGhTokens()
+    return identityState()
   })
   // Notes are kept outside the project, so they never show up as untracked files in its git status.
   ipcMain.handle('notes:save', (_, id: string) => {

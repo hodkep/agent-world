@@ -141,6 +141,7 @@ const api: AwApi = {
   revealUpdate: (kind, channel) => ipcRenderer.invoke('updates:reveal', kind, channel),
   onUpdateState: on('update-state'),
   getPrefs: () => ipcRenderer.invoke('prefs:get'),
+  identity: { state: () => ipcRenderer.invoke('identity:state'), save: (i) => ipcRenderer.invoke('identity:save', i) },
   setPrefs: (p) => ipcRenderer.invoke('prefs:set', p),
   onBtw: on('btw'),
   closeBtw: (id) => ipcRenderer.invoke('btw:close', id),
