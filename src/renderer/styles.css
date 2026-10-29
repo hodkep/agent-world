@@ -562,8 +562,9 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .md h1 { font-size: 16px; } .md h2 { font-size: 15px; } .md h3, .md h4 { font-size: 13px; color: var(--accent); }
 .md ul, .md ol { padding-left: 1.4em; }
 .md code { font: 12px Menlo, Consolas, monospace; background: var(--panel-3); padding: 1px 5px; box-shadow: 0 0 0 1px var(--ink); }
-.md pre { background: var(--panel-3); padding: 8px 10px; overflow-x: auto; box-shadow: 0 0 0 2px var(--ink); }
-.md pre code { background: none; padding: 0; box-shadow: none; white-space: pre; }
+.md pre { background: var(--panel-3); padding: 8px 10px; box-shadow: 0 0 0 2px var(--ink); }
+/* The code scrolls, not the block: Copy and Run are the block's, and stay in its corner. */
+.md pre code { display: block; overflow-x: auto; background: none; padding: 0; box-shadow: none; white-space: pre; }
 .md a { color: var(--think); }
 .md blockquote { border: 2px solid var(--line); background: var(--well); padding: 4px 10px; color: var(--muted); margin-left: 0; }
 .md table { border-collapse: collapse; font-size: 12px; }
