@@ -304,7 +304,7 @@ aside:not(.wide) .change-list { width: 190px; }
 .dialog.kind-question { width: min(640px, 100%); }
 .dialog-count { margin-left: auto; padding: 2px 8px; background: var(--ink); color: var(--tone); font: 700 11px Menlo, Consolas, monospace; letter-spacing: 0.08em; }
 .dialog-count + .dialog-more, .dialog-count + .dialog-x { margin-left: 8px; }
-.qd { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.qd { outline: none; display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .qd .steps { list-style: none; margin: 0; padding: 0; display: flex; background: var(--panel-3); border-bottom: 2px solid var(--ink); flex: none; }
 .qd .steps li { flex: 1 1 0; min-width: 0; display: flex; }
 .qd .steps li + li { border-left: 2px solid var(--ink); }
