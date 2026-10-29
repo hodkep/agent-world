@@ -3,6 +3,7 @@ import { subtasksOf, type MessageLink, type Todo, type TodoBoard } from '../../s
 import { TaskLabels } from './Labels'
 import type { AskMode } from '../../shared/todoAsk'
 import { Markdown } from '../chat/markdown'
+import { unwrapPasted } from '../../shared/pasted'
 import type { useConfirm } from '../panel/ConfirmDialog'
 import { activityOf, actorTag, agoLabel, autoClosed } from './todoView'
 
@@ -65,7 +66,7 @@ function Source({ label, link, open, onOpen }: { label: string; link: MessageLin
       <h5>{label}</h5>
       {link.excerpt && (
         <div ref={quote} className={`td-quote td-md${whole ? ' whole' : ''}`}>
-          <Markdown text={link.excerpt} />
+          <Markdown text={unwrapPasted(link.excerpt)} />
         </div>
       )}
       {hidden > 0 && (
@@ -83,13 +84,19 @@ function Source({ label, link, open, onOpen }: { label: string; link: MessageLin
 /** A text box that is as tall as what is in it (up to a limit), so notes are read without scrolling a small box. */
 function Grow({ value, ...rest }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }) {
   const el = useRef<HTMLTextAreaElement>(null)
+  // Sized again when the text changes and when the panel is made wider or narrower (the lines wrap differently); it scrolls inside past the limit, never clips.
   useLayoutEffect(() => {
     const t = el.current
     if (!t) return
-    t.style.height = 'auto'
-    const want = t.scrollHeight + 4
-    t.style.height = `${Math.min(want, 360)}px`
-    t.style.overflowY = want > 360 ? 'auto' : 'hidden'
+    const fit = () => {
+      t.style.height = 'auto'
+      t.style.height = `${Math.min(t.scrollHeight + 4, 360)}px`
+    }
+    fit()
+    let last = t.clientWidth
+    const w = new ResizeObserver(() => t.clientWidth !== last && ((last = t.clientWidth), fit()))
+    w.observe(t)
+    return () => w.disconnect()
   }, [value])
   return <textarea ref={el} value={value} {...rest} />
 }
@@ -120,7 +127,7 @@ export function TodoDetail({ t, board, folder, agents, runs = [], onOpenRun, onS
   confirm: ReturnType<typeof useConfirm>[0]
 }) {
   const [title, setTitle] = useState(t.title)
-  const [notes, setNotes] = useState(t.notes)
+  const [notes, setNotes] = useState(unwrapPasted(t.notes))
   const [tab, setTab] = useState<Tab>('overview')
   const [sub, setSub] = useState('')
   const done = t.status === 'done'
