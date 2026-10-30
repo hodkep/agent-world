@@ -11,6 +11,8 @@ Off by default: **Settings**, then **Features**.
 - **Merge gate** (on by default): the pull request waits for an approved plan and seen findings, and then for your own approval: a **Pull request** step with no gate of its own follows this switch.
 - The dial sets how much care each task takes: [The three dials](#the-three-dials).
 
+An agent gets the workflow tools only when it starts, so one that was already running when Workflows was switched on, or when its project's workflow file last changed, does not have them: no task is recorded for it. A warning card at the top of the Workflows window and of the agent's Workflow tab names those agents and has a button that restarts them. It is gone once none is left.
+
 ## What an agent does with a workflow
 
 The default is **Standard** (**Plan**, **Build**, **Audit**, **Pull request**), or your pick for the project. For one task the agent:

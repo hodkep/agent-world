@@ -2328,6 +2328,8 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 @media (max-width: 700px) { .reach-row { grid-template-columns: 1fr; } }
 
 /* Notices: a quiet panel with a plain sentence and what to do about it; the tone is a rim colour, not a stripe. */
+.wf-notices { padding: 8px 14px 0; }
+.wf-notices:empty { display: none; }
 .lib-notices { display: flex; flex-direction: column; gap: 8px; }
 .lib-notices:empty { display: none; }
 .lib-notice { display: flex; padding: 10px 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }

@@ -84,6 +84,7 @@ import { startMcpServer } from './mcpServer'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
+import { staleAgents } from './workflows/stale'
 import { Approvals } from './workflows/approvals'
 import { Builder, Proposals } from './workflows/builder'
 import { HeldMerges } from './workflows/heldMerges'
@@ -2092,6 +2093,16 @@ async function main() {
   ipcMain.handle('todos:remove-list', (_, folder: string, name: string) => todoService.removeList(String(folder), String(name)))
   ipcMain.handle('todos:needs-you', (_, folder: string) => todoService.needsYou(String(folder)))
   // The library: items, what can be imported from this computer, and the playbooks that say how agents use them.
+  ipcMain.handle('workflows:stale', (_, project: string | null) =>
+    project
+      ? staleAgents({
+          agents: agents.filter((a) => a.repoPath === project && !a.builder).map((a) => ({ id: a.id, name: a.name, online: sessions.has(a.id), launchedAt: spawnedAt.get(a.id) ?? 0 })),
+          project,
+          workflows: prefs.workflows,
+          changedAt: workflowStore.changedAt(project, defaultWorkflow(prefs.workflows, project))
+        })
+      : []
+  )
   ipcMain.handle('workflows:summary', () => {
     const runs = workflows.runs()
     const now = Date.now()

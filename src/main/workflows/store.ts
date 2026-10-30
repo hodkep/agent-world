@@ -52,6 +52,16 @@ export class WorkflowStore {
     return [standard, ...[...found.values()].sort((a, b) => a.workflow!.name.localeCompare(b.workflow!.name)), ...broken.sort((a, b) => a.id.localeCompare(b.id))]
   }
 
+  /** When the file behind this id (the project's, else the app's) last changed, in milliseconds; 0 for the built-in Standard or an id that has no file. */
+  changedAt(project: string | null, id: string): number {
+    const file = this.list(project).find((e) => e.id === id)?.file
+    try {
+      return file ? statSync(file).mtimeMs : 0
+    } catch {
+      return 0
+    }
+  }
+
   private dirFor(project: string | null, scope: 'global' | 'project') {
     if (scope === 'global') return this.globalDir
     if (!project) throw new Error('Open a project first.')
