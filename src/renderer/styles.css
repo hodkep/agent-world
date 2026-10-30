@@ -3175,8 +3175,6 @@ svg.pxg { display: block; flex: none; }
 .rb-t small { color: var(--muted); font-size: 11px; }
 .rb-share { display: inline-block; position: relative; width: 34px; height: 3px; margin-left: 8px; vertical-align: middle; background: var(--well); }
 .rb-share i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--violet); }
-.rb-sheetrow td { padding: 0 0 8px; border-bottom: 0; white-space: normal; }
-.rb-sheet { background: var(--well); box-shadow: 0 0 0 2px var(--ink); margin: 2px 8px 4px 30px; padding: 8px 14px; font-size: 12px; color: var(--muted); }
 .rb-facts { margin: 0 0 6px; font-size: 11px; color: var(--muted); max-width: none; }
 .rb-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rb-tl li { display: grid; grid-template-columns: 54px 10px 1fr; gap: 8px; align-items: baseline; color: var(--text); }
@@ -4024,11 +4022,46 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .mod-grip:focus-visible { outline: 2px solid var(--accent); }
 
 /* The steps of a run and the items added to it, in the opened row of the Runs tab. */
-.rb-steps, .rb-items { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-.rb-steps li { display: grid; grid-template-columns: 10px minmax(120px, 220px) 1fr; gap: 8px; align-items: baseline; color: var(--text); }
-.rb-steps .dot { width: 9px; height: 9px; align-self: center; background: var(--dim); }
-.rb-steps .passed .dot { background: var(--ok); } .rb-steps .skipped .dot { background: var(--accent); } .rb-steps .failed .dot { background: var(--danger); } .rb-steps .waiting .dot, .rb-steps .running .dot { background: var(--violet); }
-.rb-steps em, .rb-items em { color: var(--muted); font-style: normal; font-size: 11px; }
-.rb-steps .failed em { color: var(--danger-text); } .rb-steps .skipped em { color: var(--accent); }
+.rb-items { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .rb-items li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: baseline; color: var(--text); }
 .rb-items .mono { color: var(--dim); text-align: right; font-size: 11px; }
+
+/* The Runs tab with a run open: the ledger keeps its width beside a panel for that run. */
+.rb.with-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 520px); gap: 20px; align-items: start; }
+.rb-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rb-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--well); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line); max-height: calc(100vh - 150px); overflow: auto; font-size: 12px; color: var(--muted); min-width: 0; }
+.rb-side header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.rb-side header b { display: block; color: var(--text); font-size: 13px; }
+.rb-side header small { color: var(--dim); }
+.rb-side .rb-facts { margin: 0; }
+.rb-side .rb-items, .rb-side .rb-tl, .rb-side .rb-commits { margin: 0; }
+.rb-why { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rb-why li { color: var(--muted); }
+.rb-why b { color: var(--text); font-weight: 600; }
+.rb-why .skipped { color: var(--accent); } .rb-why .failed { color: var(--danger-text); }
+@media (max-width: 1100px) { .rb.with-side { grid-template-columns: minmax(0, 1fr); } .rb-side { position: static; max-height: none; } }
+.rb-tab .rb-run.is-open > td { background: color-mix(in srgb, var(--accent) 8%, var(--well)); }
+
+/* Steps followed: steps down the side, runs across, one square for each. */
+.rb-grid { display: flex; flex-direction: column; gap: 5px; }
+.rb-gr { display: grid; grid-template-columns: minmax(110px, 190px) 1fr auto; gap: 12px; align-items: center; }
+.rb-gn { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-gc { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; padding: 3px; }
+.rb-cell { width: 14px; min-width: 14px; height: 14px; min-height: 14px; padding: 0; margin: 0; font-size: 0; line-height: 0; flex: none; border: 0; border-radius: 0; background: var(--well); box-shadow: 0 0 0 1px var(--ink); cursor: pointer; }
+.rb-cell.passed { background: color-mix(in srgb, var(--ok) 85%, var(--panel)); }
+.rb-cell.skipped { background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.rb-cell.failed { background: var(--danger); }
+.rb-cell.open { background: var(--panel-3); box-shadow: 0 0 0 1px var(--muted); }
+.rb-cell.none { background: transparent; box-shadow: 0 0 0 1px var(--line); cursor: default; opacity: 0.5; }
+.rb-cell.on { box-shadow: 0 0 0 1px var(--text), 0 0 0 3px var(--ink); }
+.rb-cell:not(:disabled):hover { filter: brightness(1.25); }
+.rb-gt { min-width: 7ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.rb-gt.warn { color: var(--accent); } .rb-gt.bad { color: var(--danger-text); }
+.rb-key i.open { background: var(--panel-3); box-shadow: 0 0 0 1px var(--muted); }
+
+/* With a run open the ledger is narrow: Commits and Cost are in the panel, so the columns go. */
+.rb.with-side .rb-tab thead th:nth-child(n+6), .rb.with-side .rb-tab tbody td:nth-child(n+6) { display: none; }
+
+.rb.with-side .rb-charts { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.rb.with-side .rb-tab td { white-space: normal; }
+.rb-gr { grid-template-columns: minmax(100px, 170px) minmax(0, 1fr) auto; }

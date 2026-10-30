@@ -516,3 +516,41 @@ export function stepCounts(runs: Run[], ctxFor: (run: Run) => StepContext): Step
   }
   return [...by.values()]
 }
+
+export interface MatrixCell {
+  run: string
+  title: string
+  /** How the step stood in that run; none when the run's workflow has no such step or had not got to it. */
+  state?: 'passed' | 'skipped' | 'failed' | 'open'
+  note?: string
+}
+export interface StepMatrix {
+  /** The step names: the newest run's order first, then any step only older runs had. */
+  steps: string[]
+  /** One column for each run, oldest first, at most `max` of the newest. */
+  runs: { id: string; title: string; cells: MatrixCell[] }[]
+  /** How many older runs did not fit. */
+  more: number
+}
+
+/** The runs side by side and the steps down the side: each cell is how one step ended in one run, so a skipped or failed step shows in the run it happened in. */
+export function stepMatrix(runs: Run[], ctxFor: (run: Run) => StepContext, max = 16): StepMatrix {
+  const sorted = [...runs].sort((a, b) => a.startedAt - b.startedAt)
+  const lines = new Map(sorted.map((r) => [r.id, stepLines(r, ctxFor(r))]))
+  // The newest run's steps set the order (its workflow is the one in use); a step only older runs had comes after them.
+  const steps = [...new Set([...sorted].reverse().flatMap((r) => lines.get(r.id)!.map((l) => l.name)))]
+  const shown = sorted.slice(-max)
+  return {
+    steps,
+    more: sorted.length - shown.length,
+    runs: shown.map((r) => ({
+      id: r.id,
+      title: r.title,
+      cells: steps.map((name): MatrixCell => {
+        const l = lines.get(r.id)!.find((x) => x.name === name)
+        const state = !l ? undefined : l.state === 'passed' || l.state === 'skipped' || l.state === 'failed' ? l.state : l.state === 'pending' ? undefined : 'open'
+        return { run: r.id, title: r.title, ...(state && { state }), ...(l?.note && { note: l.note }) }
+      })
+    }))
+  }
+}

@@ -24,12 +24,12 @@ async function week(old = false, openWindow = true) {
   return { page, shutdown, win: page.getByRole('dialog', { name: 'Workflows' }) }
 }
 
-test('the Runs tab is two charts (how often each workflow ran, how well each stage was followed) over a ledger of runs grouped by what to do about them, over 7 or 30 days', async () => {
+test('the Runs tab is two charts (how often each workflow ran, how each step ended in each run) over a ledger of runs grouped by what to do about them, over 7 or 30 days', async () => {
   const { win, shutdown } = await week(true)
   try {
     // The charts say their numbers in words as well.
     await expect(win.getByRole('img', { name: 'Workflows invoked: Journey 5, Bug fix 1, Quick change 1' })).toBeVisible()
-    await expect(win.getByRole('img', { name: 'Stages followed: Plan 3 of 4, Checks 5 of 5, Review 2 of 3, Landing 4 of 5' })).toBeVisible()
+    await expect(win.getByRole('group', { name: /^Steps followed: / })).toBeVisible()
 
     // The ledger: the run that waits on the person first, then what landed with trouble, then what landed clean, with how many each.
     const ledger = win.getByRole('table', { name: 'Runs' })
@@ -40,18 +40,16 @@ test('the Runs tab is two charts (how often each workflow ran, how well each sta
     await expect(dark.locator('.rb-todo')).toHaveText(['todo#101', 'todo#102', 'todo#103', 'todo#104', 'todo#105', '+2 more'])
     expect((await dark.boundingBox())!.height).toBeLessThan(90)
     await dark.getByRole('button', { name: '+2 more' }).click()
-    await expect(ledger.getByLabel('Todos').locator('.rb-todo')).toHaveCount(7)
+    await expect(win.getByLabel('Todos').locator('.rb-todo')).toHaveCount(7)
     await dark.getByRole('button', { name: /dark-mode toggle/ }).click()
     const billing = ledger.getByRole('row').filter({ hasText: 'Billing export' })
     await expect(billing).toContainText('1 h 30 m')
     await expect(billing).toContainText('25m')
-    await expect(billing).toContainText('try 2')
-    await expect(billing).toContainText('1 finding not seen · landed anyway')
+    await expect(billing).toContainText(/\d of \d met/)
     await expect(ledger.getByRole('row').filter({ hasText: 'Old export' })).toHaveCount(0)
 
     // The heading of a column carries the week's total for it.
-    await expect(ledger.getByRole('columnheader', { name: /Checks/ })).toContainText('3 of 5 first try')
-    await expect(ledger.getByRole('columnheader', { name: /Review/ })).toContainText('2 of 3 found something')
+    await expect(ledger.getByRole('columnheader', { name: /Steps/ })).toContainText('met, skipped, failed')
 
     // A click opens the run in place: line by line, what met its gate, what went with trouble and what was missed.
     await billing.getByRole('button', { name: /Billing export/ }).click()

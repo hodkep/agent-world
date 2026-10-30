@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -464,5 +464,17 @@ describe('the steps of a run, as the Runs tab lists them', () => {
   it('counts, per step name, the runs that met, skipped or failed it, leaving out the runs that have not got there', () => {
     const runs = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2')])
     expect(stepCounts(runs, () => c)).toEqual([{ name: 'Designs', met: 1, skipped: 1, failed: 0 }, { name: 'Build', met: 1, skipped: 0, failed: 0 }, { name: 'Commit', met: 0, skipped: 0, failed: 1 }])
+  })
+
+  it('lays the runs out against the steps, oldest first, so each cell says how that step ended in that run', () => {
+    const runs = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2')])
+    const m = stepMatrix(runs, () => c)
+    expect(m.steps).toEqual(['Designs', 'Build', 'Commit'])
+    expect(stepMatrix(reduceRuns([begin(0, QUICK), begin(10, FLOW, {}, 'r2')]), () => c).steps).toEqual(['Designs', 'Build', 'Commit', 'Land'])
+    expect(m.runs.map((r) => r.id)).toEqual(['r1', 'r2'])
+    expect(m.runs[0]!.cells.map((x) => x.state)).toEqual(['skipped', 'passed', 'failed'])
+    expect(m.runs[0]!.cells[0]!.note).toBe('No UI.')
+    expect(m.runs[1]!.cells.map((x) => x.state)).toEqual(['passed', 'open', undefined])
+    expect(stepMatrix(runs, () => c, 1)).toMatchObject({ more: 1, runs: [{ id: 'r2' }] })
   })
 })
