@@ -252,8 +252,9 @@ describe('a workflow file says what to do, and where the person is asked: nothin
   })
 
   it('asking the person is one thing: a step that gates on approval, or starts on Run, asks once, before it starts', () => {
-    expect(read([{ id: 'a', kind: 'work', gate: 'approve' }, { id: 'b', kind: 'pr', gate: 'approve' }, { id: 'c', kind: 'merge', gate: 'approve' }, { id: 'd', kind: 'work', start: 'run', gate: 'auto' }])).toEqual([
+    expect(read([{ id: 'a', kind: 'work', gate: 'approve' }, { id: 'gap', kind: 'work' }, { id: 'b', kind: 'pr', gate: 'approve' }, { id: 'c', kind: 'merge', gate: 'approve' }, { id: 'd', kind: 'work', start: 'run', gate: 'auto' }])).toEqual([
       { id: 'a', kind: 'work', start: 'run' },
+      { id: 'gap', kind: 'work' },
       { id: 'b', kind: 'pr', start: 'run' },
       { id: 'c', kind: 'merge' },
       { id: 'd', kind: 'work', start: 'run' }
@@ -269,5 +270,25 @@ describe('a workflow file says what to do, and where the person is asked: nothin
 
   it('a plan keeps its gate: it is the one step the person answers after it is written', () => {
     expect(read([{ id: 'p', kind: 'plan', gate: 'approve' }, { id: 'q', kind: 'plan', gate: 'auto' }].slice(0, 1))).toEqual([{ id: 'p', kind: 'plan', gate: 'approve' }])
+  })
+})
+
+describe('a Push step before a pull request step', () => {
+  const read = (steps: unknown[]) => {
+    const r = parseWorkflow(JSON.stringify({ version: 1, id: 'x', name: 'X', steps }))
+    if (!r.ok) throw new Error(r.problems.join('; '))
+    return r.workflow.steps
+  }
+
+  it('is the step that pushes, and asks: the pull request step after it is the agent opening the pull request, so each is asked once and the run does not end at the push', () => {
+    expect(read([{ id: 'push', kind: 'work', name: 'Push', start: 'run', gate: 'approve' }, { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }])).toEqual([
+      { id: 'push', kind: 'pr', name: 'Push', start: 'run' },
+      { id: 'pr', kind: 'work', name: 'Pull request', start: 'run' }
+    ])
+  })
+
+  it('leaves a pull request step alone when no asking step of the agent comes right before it', () => {
+    expect(read([{ id: 'build', kind: 'work' }, { id: 'pr', kind: 'pr', gate: 'approve' }])).toEqual([{ id: 'build', kind: 'work' }, { id: 'pr', kind: 'pr', start: 'run' }])
+    expect(read([{ id: 'ask', kind: 'work', start: 'run' }, { id: 'x', kind: 'work' }, { id: 'pr', kind: 'pr' }])[2]).toMatchObject({ kind: 'pr' })
   })
 })

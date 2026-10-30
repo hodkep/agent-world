@@ -112,6 +112,22 @@ export function modernStep(s: Step): Step {
   return { ...rest, kind, ...(asks && { start: 'run' as const }) }
 }
 
+/**
+ * The steps as the app follows them. A pull request step is the one that pushes the branch (and the person is asked before it); a Push step of its own right before it asks for
+ * the same push, so it is the pushing step and the pull request step after it is the agent opening the pull request: each is asked once, and the run does not end at the push.
+ */
+export function modernSteps(steps: Step[]): Step[] {
+  const out = steps.map(modernStep)
+  out.forEach((s, i) => {
+    const before = out[i - 1]
+    if (s.kind === 'pr' && before && before.kind === 'work' && before.start === 'run') {
+      out[i - 1] = { ...before, kind: 'pr' }
+      out[i] = { ...s, kind: 'work' }
+    }
+  })
+  return out
+}
+
 export function parseWorkflow(text: string): WorkflowResult {
   let raw: unknown
   try {
@@ -134,7 +150,7 @@ export function parseWorkflow(text: string): WorkflowResult {
   }
   if (problems.length) return { ok: false, problems }
   const workflow = f as unknown as Workflow
-  return { ok: true, workflow: { ...workflow, steps: workflow.steps.map(modernStep) } }
+  return { ok: true, workflow: { ...workflow, steps: modernSteps(workflow.steps) } }
 }
 
 /** The built-in pipeline: plan, build, the agent's own review, then the pull request (the push of the agent's branch is what is held, and the person is asked before it). */

@@ -354,7 +354,7 @@ export class Workflows {
    * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
-  stepDone(agentId: string, step?: string, o: { skipped?: boolean } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean } {
+  stepDone(agentId: string, step?: string, o: { skipped?: boolean; why?: string } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean } {
     // An agent may close the task in the same turn that its check fails, before it is told: reporting the fix then opens the task again.
     const closed = this.mine(agentId)[0]
     if (!this.openRun(agentId) && closed?.status === 'done' && this.states(closed).some((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)) this.append({ k: 'reopen', t: this.deps.now(), run: closed.id })
@@ -396,7 +396,9 @@ export class Workflows {
     if (unmet) throw new Error(`"${unmet.name}" comes before "${target.name}": ${unmet.kind === 'work' ? `report it, or skip it with step_done("${unmet.id}", skipped).` : 'it is not met yet.'}`)
     if (o.skipped) {
       if (!target.optional) throw new Error(`"${target.name}" is not optional: do it, or ask the person.`)
-      this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'skipped' })
+      const why = o.why?.trim().slice(0, 200)
+      if (!why) throw new Error('Say why in a few words: a skipped step needs a reason.')
+      this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'skipped', note: why })
       return { done: target.id, skipped: true }
     }
     this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
@@ -574,17 +576,7 @@ export class Workflows {
     }
     // Steps the person must approve before landing: named, so they know which.
     const states = this.states(run, head)
-    // A pull request step is the one that asks before the push, unless a step of the agent's that asks comes right before it (a Push step) and the person has said yes to that one:
-    // that yes is the permission to push, and the pull request step is asked later, for opening it.
-    const latestRound = run.rounds[run.rounds.length - 1]!
-    const pushAllowed = (id: string) => {
-      const at = run.workflow?.steps.findIndex((x) => x.id === id) ?? -1
-      const before = at > 0 ? run.workflow!.steps[at - 1] : undefined
-      return !!before && before.kind === 'work' && before.start === 'run' && latestRound.starts?.[before.id] !== undefined
-    }
-    states.forEach((w) => {
-      if (((w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work' || w.awaiting)) || w.gated) && !(w.kind === 'pr' && pushAllowed(w.id))) blocking.push(`"${w.name}" has not been approved.`)
-    })
+    for (const w of states) if ((w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work' || w.awaiting)) || w.gated) blocking.push(`"${w.name}" has not been approved.`)
     // Checks: a row each, and landing held by name for one that has not passed or been skipped (unless its gate is auto, which only reports).
     const latest = run.rounds[run.rounds.length - 1]!
     const checks = states.flatMap((c) => {
@@ -737,7 +729,14 @@ export class Workflows {
 
   /** A run that ends in a pull request ends when its branch is pushed: the same as the agent saying it is done, which it need not do. */
   private endAtPush(agentId: string) {
-    if (this.openRun(agentId)) this.done(agentId, undefined, { byApp: true })
+    const run = this.openRun(agentId)
+    if (!run) return
+    // Steps of the agent's after the pushing step (opening the pull request) still have to be done: the agent reports them and says it is finished.
+    const flow = run.workflow?.steps ?? []
+    const round = run.rounds[run.rounds.length - 1]!
+    const at = flow.findIndex((x) => isLanding(x.kind))
+    if (at >= 0 && flow.slice(at + 1).some((x) => x.kind === 'work' && !round.steps.some((l) => l.step === x.id && l.state !== 'changes'))) return
+    this.done(agentId, undefined, { byApp: true })
   }
 
   /** Whether this head of the agent's latest run is already recorded as landed or pushed. */

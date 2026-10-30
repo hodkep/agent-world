@@ -39,6 +39,11 @@ describe('reading the read-back block at the top of a plan', () => {
     })
   })
 
+  it('takes a bullet that says none the same way: it is not a question the person has to answer', () => {
+    const r = parsePlan(good.replace(/## Out of scope[\s\S]*?## Steps/, '## Out of scope\n- none\n\n## Open questions\n- None.\n\n## Steps'))
+    expect(r).toMatchObject({ ok: true, plan: { outOfScope: [], questions: [] } })
+  })
+
   it('takes "none" as an empty list for out of scope and for questions, whatever its case', () => {
     const r = parsePlan(good.replace(/## Out of scope[\s\S]*?## Steps/, '## Out of scope\nNone\n\n## Open questions\nnone.\n\n## Steps'))
     expect(r).toMatchObject({ ok: true, plan: { outOfScope: [], questions: [] } })

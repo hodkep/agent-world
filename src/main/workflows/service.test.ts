@@ -1262,7 +1262,7 @@ describe('steps are reported in order, and finishing a task never claims a step 
 
   it('an optional step the agent skips is marked skipped, not done, and a step that starts on Run is left for the person', () => {
     const { wf, log } = started()
-    wf.stepDone('a1', 'designs', { skipped: true })
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
     wf.stepDone('a1', 'build')
     wf.done('a1', 'Built.')
     expect(log()).toEqual(['designs:skipped', 'build:done'])
@@ -1271,7 +1271,7 @@ describe('steps are reported in order, and finishing a task never claims a step 
 
   it('finishing with an optional step never reported marks it skipped by the app', () => {
     const { wf, log } = started({ ...FLOW, steps: FLOW.steps.slice(0, 2) })
-    wf.stepDone('a1', 'designs', { skipped: true })
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
     wf.stepDone('a1', 'build')
     wf.done('a1')
     const lateSkip = started({ ...FLOW, steps: [FLOW.steps[1]!, FLOW.steps[0]!] })
@@ -1293,44 +1293,52 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(() => wf.stepDone('a1', 'build')).toThrow('"UI design options" comes before "Build": report it, or skip it with step_done("designs", skipped).')
   })
 
+  it('a skip needs a reason, which is kept on the step', () => {
+    const { wf } = started()
+    expect(() => wf.stepDone('a1', 'designs', { skipped: true })).toThrow('Say why in a few words: a skipped step needs a reason.')
+    wf.stepDone('a1', 'designs', { skipped: true, why: '  No UI change.  ' })
+    expect(wf.runs()[0]!.rounds[0]!.steps.at(-1)).toMatchObject({ step: 'designs', state: 'skipped', note: 'No UI change.' })
+  })
+
   it('only an optional step can be skipped by the agent', () => {
     const { wf } = started()
-    wf.stepDone('a1', 'designs', { skipped: true })
-    expect(() => wf.stepDone('a1', 'build', { skipped: true })).toThrow('"Build" is not optional: do it, or ask the person.')
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    expect(() => wf.stepDone('a1', 'build', { skipped: true, why: 'No UI change.' })).toThrow('"Build" is not optional: do it, or ask the person.')
   })
 })
 
-describe('a Push step you said yes to lets the push through, before the pull request step', () => {
+describe('the run ends at the push only when nothing is left after it', () => {
   const FLOW: RunWorkflow = {
     id: 'p',
     name: 'P',
     steps: [
       { id: 'build', kind: 'work', name: 'Build' },
-      { id: 'push', kind: 'work', name: 'Push', start: 'run' },
-      { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }
+      { id: 'push', kind: 'pr', name: 'Push', start: 'run' },
+      { id: 'pr', kind: 'work', name: 'Pull request', start: 'run' }
     ]
   }
-  const started = () => {
+  const pushed = (flow = FLOW) => {
     const t = make()
-    t.state.pick = () => FLOW
+    t.state.pick = () => flow
     t.wf.begin('a1', 'Task')
     t.wf.stepDone('a1', 'build')
+    t.wf.approveStep(t.wf.runs()[0]!.id, 'push', 'approved')
+    t.wf.landing('a1', 'h1')
     return t
   }
 
-  it('is held until the person presses Run on Push, and goes through after, though the pull request step is not approved yet', () => {
-    const { wf } = started()
-    expect(wf.landingHold('a1', 'h1')).not.toBeNull()
-    wf.startStep(wf.runs()[0]!.id, 'push')
-    expect(wf.landingHold('a1', 'h1')).toBeNull()
+  it('a step of the agent after the pushing step keeps the run open: the agent opens the pull request and reports it', () => {
+    const { wf } = pushed()
+    expect(wf.runs()[0]!.status).toBe('open')
+    wf.startStep(wf.runs()[0]!.id, 'pr')
+    wf.stepDone('a1', 'pr')
+    wf.done('a1', 'Pushed and opened.')
+    expect(wf.runs()[0]!.status).toBe('done')
   })
 
-  it('a pull request step with no Push step before it still holds the push until it is approved', () => {
-    const t = make()
-    t.state.pick = () => ({ ...FLOW, steps: [FLOW.steps[0]!, FLOW.steps[2]!] })
-    t.wf.begin('a1', 'Task')
-    t.wf.stepDone('a1', 'build')
-    expect(t.wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+  it('with nothing after the pushing step the run ends at the push, as before', () => {
+    const { wf } = pushed({ ...FLOW, steps: FLOW.steps.slice(0, 2) })
+    expect(wf.runs()[0]!.status).toBe('done')
   })
 })
 

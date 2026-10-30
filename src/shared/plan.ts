@@ -38,7 +38,7 @@ function sections(md: string) {
 }
 
 const bullet = (line: string) => /^(\s*)[-*]\s+(.*\S)\s*$/.exec(line)
-const isNone = (lines: string[]) => lines.filter((l) => l.trim()).length === 1 && /^none\.?$/i.test(lines.find((l) => l.trim())!.trim())
+const isNone = (lines: string[]) => lines.filter((l) => l.trim()).length === 1 && /^(?:[-*]\s+)?none\.?$/i.test(lines.find((l) => l.trim())!.trim())
 
 /** What stands under a heading as a list: bullets, or a lone "none" meaning nothing. */
 function items(lines: string[]): string[] {

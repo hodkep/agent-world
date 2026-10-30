@@ -47,7 +47,7 @@ describe('what task_begin tells the agent about its workflow', () => {
         '- fix "Fix, test first" (skill: tdd): Write a failing test, then make it pass.\n' +
         '- ok "Your review": the person approves this before it can land. Look at the diff.\n' +
         'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.\n' +
-        'Report each step you do, in order, with step_done and its id, for example step_done("fix"); with no id it reports the next one. A step that is optional and does not apply to this task is skipped with step_done("fix", skipped), using its own id. The app audits the branch and the person lands it.'
+        'Report each step you do, in order, with step_done and its id, for example step_done("fix"); with no id it reports the next one. A step that is optional and clearly does not apply to this task is skipped with step_done("fix", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. The app audits the branch and the person lands it.'
     )
   })
 
