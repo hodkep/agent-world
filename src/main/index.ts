@@ -101,6 +101,7 @@ import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
+import { auditSettled } from '../shared/mergeCheck'
 import { checkPassed, stepReply, stepSkipped, stepDeclined, stepStarted } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
@@ -2642,9 +2643,9 @@ async function main() {
     try {
       const head = await git(a.cwd, 'rev-parse', a.branch)
       const check = workflows.mergeCheck(id, head, { auditable: (await readyAskers()).length > 0 })
-      if (!check || check.commits === 0 || check.audit.state !== 'done' || workflows.landedHead(id, head) || workflows.landingHold(id, head) || prAsked.has(`${id}:${head}`)) return
+      if (!check || check.commits === 0 || !auditSettled(check.audit) || workflows.landedHead(id, head) || workflows.landingHold(id, head) || prAsked.has(`${id}:${head}`)) return
       prAsked.add(`${id}:${head}`)
-      mailbox.fromPerson(id, PR_GO(a.branch, head))
+      mailbox.fromPerson(id, PR_GO(a.branch, head, check.audit.state === 'done'))
     } catch {
       // Not ready to be asked about (git failed): the next change to the audit asks again.
     }

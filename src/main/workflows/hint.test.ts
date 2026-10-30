@@ -138,6 +138,9 @@ describe('the rules for work that ends in a pull request, in what the agent is t
     expect(WORKFLOW_HINT).toContain('own branch')
     expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('git push origin aw/ada:<name>')
     expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('abcdef1')
+    // With no audit step the go-ahead is the person's approval, not an audit that passed.
+    expect(PR_GO('aw/ada', 'abcdef1234567890', false)).toContain('The person approved the push of aw/ada (abcdef1).')
+    expect(PR_GO('aw/ada', 'abcdef1234567890', false)).not.toMatch(/audit/i)
   })
 })
 

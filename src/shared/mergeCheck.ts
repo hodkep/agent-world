@@ -30,6 +30,9 @@ export type AuditState =
   | { state: 'failed'; reason: string }
   | { state: 'done'; /** When it answered. */ t: number; findings: (Finding & { seen: boolean })[]; files: number; lines: number; truncated: boolean; cost?: number; tokens?: number; model?: string }
 
+/** Whether there is nothing to wait for from the audit: it answered, or the workflow has no audit step (the agent reviews its own work in a step). */
+export const auditSettled = (a: AuditState) => a.state === 'done' || (a.state === 'off' && a.reason === 'workflow')
+
 export interface CheckRow {
   id: string
   name: string
