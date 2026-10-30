@@ -1384,6 +1384,8 @@ async function main() {
   writeGitHooks(GIT_HOOKS_DIR)
   // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
   const landingHeld = new HeldMerges()
+  // The head the office let a push through for (git's pre-push hook runs before anything is sent): the push counts as made, and the next step may start, only once the remote has it.
+  const letThrough = new Map<string, string>()
   // What is added to a message before the agent reads it, for any provider's prompt hook: the answer to a typed reply that decides a gate, then the library's reminder.
   // `proven`: a message that is, or looks like, a decision on a gate was shown to come from the person (see remoteReply); without it the gate is left alone.
   // What the app itself reads in the provider's saved conversation (written by the program, not sent by the caller): does its latest user message say this?
@@ -1469,13 +1471,9 @@ async function main() {
           send('landing')
           return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it is pushed anyway; tell them what holds it and ask.${remote.hint(id)}`) }
         }
-        try {
-          workflows.landing(id, head, { anyway: true })
-        } catch {
-          // Only an unknown agent throws here; there is nothing to log for it.
-        }
+        // Nothing is recorded yet: the push has not happened, and may still fail. git-landed (or the look at the remotes) records it once the remote has the head.
+        letThrough.set(id, head)
         landingHeld.clear(id)
-        send('workflows')
         send('landing')
         return {}
       }
@@ -1485,11 +1483,13 @@ async function main() {
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
         // The agent's branch reached a remote (git moved its remote-tracking branch to the head it has) with no push the office let through: it skipped the hold.
         const branch = a.branch ?? currentBranch(a.cwd)
-        const tracked = refs.find((r) => branch && /^refs\/remotes\/[^/]+\//.test(r) && r.replace(/^refs\/remotes\/[^/]+\//, '') === branch)
+        const sent = branch ? branchHead(a.cwd, branch) : undefined
+        // A remote branch that now holds exactly the agent's head, under its own name or another: the push went through.
+        const tracked = refs.find((r) => /^refs\/remotes\/[^/]+\//.test(r) && !!sent && refHead(a.cwd, r) === sent)
         if (tracked && branch && where && isInside(a.cwd, where) && workflows.landKind(id) === 'pr') {
-          const head = branchHead(a.cwd, branch)
-          if (head && refHead(a.cwd, tracked) === head && !workflows.landedHead(id, head)) {
-            workflows.landing(id, head, { anyway: true, unchecked: true })
+          if (sent && !workflows.landedHead(id, sent)) {
+            workflows.landing(id, sent, { anyway: true, ...(letThrough.get(id) !== sent && { unchecked: true }) })
+            letThrough.delete(id)
             landingHeld.clear(id)
             send('workflows')
             send('landing')
@@ -2672,7 +2672,8 @@ async function main() {
         if (Number(await git(a.cwd, 'rev-list', '--count', `${base}..${head}`)) === 0) continue
         const remotes = (await git(a.cwd, 'for-each-ref', '--points-at', head, '--format=%(refname:short)', 'refs/remotes')).split('\n').filter((r) => r && !r.endsWith('/HEAD') && !r.endsWith(`/${base}`))
         if (!remotes.length) continue
-        workflows.landing(a.id, head, { anyway: true, unchecked: true })
+        workflows.landing(a.id, head, { anyway: true, ...(letThrough.get(a.id) !== head && { unchecked: true }) })
+        letThrough.delete(a.id)
         landingHeld.clear(a.id)
         send('workflows')
         send('landing')

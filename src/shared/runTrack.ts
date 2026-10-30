@@ -38,6 +38,8 @@ function waitingFor(here: StepState, runDone: boolean, landing: 'pr' | 'merge' =
   if ((kind === 'approve' || kind === 'work') && state === 'waiting') return 'needs your approval'
   if (kind === 'check' && state === 'waiting' && !here.awaiting) return 'its commands need your approval'
   if (kind === 'check' && state === 'failed') return 'out of tries: your call'
+  // A step the person refused: the workflow stops there.
+  if (state === 'failed') return 'not approved: the workflow stopped here'
   if (here.awaiting) return 'needs your approval'
   if (kind === 'audit' && runDone) return landing === 'pr' ? 'waiting for the audit' : LAND_ASK
   if (isLanding(kind) && state === 'waiting') {

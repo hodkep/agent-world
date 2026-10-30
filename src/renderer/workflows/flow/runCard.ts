@@ -30,7 +30,7 @@ export function wordOf(s: StepState): string {
     case 'pending':
       return 'later'
     case 'skipped':
-      return 'not asked'
+      return 'skipped'
     case 'failed':
       return 'failed'
     case 'waiting':

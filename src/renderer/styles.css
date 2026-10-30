@@ -3112,6 +3112,8 @@ svg.pxg { display: block; flex: none; }
 .track .st.done .sq { background: var(--ok); }
 .track .st.trouble .sq, .track .st.now .sq { background: var(--accent); }
 .track .st.failed .sq { background: var(--danger); }
+/* Skipped: a hollow yellow square, so it reads as set aside, not as met (green) and not as the step the agent is on (solid yellow). */
+.track .st.skipped .sq { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--accent); }
 .track .st.now .sq { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim); }
 .track .nm { font-size: 11px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track .st.now .nm { color: var(--text); font-weight: 700; }
@@ -3238,6 +3240,7 @@ svg.pxg { display: block; flex: none; }
 .bar-st .st.done .sq, .bar-st .st.trouble .sq, .bar-st .st.failed .sq, .bar-st .st.now .sq { color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .bar-st .st.done .sq { background: var(--ok); } .bar-st .st.trouble .sq, .bar-st .st.now .sq { background: var(--accent); } .bar-st .st.failed .sq { background: var(--danger); }
 .bar-st .st.now .sq { box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px var(--accent-dim); }
+.bar-st .st.skipped .sq { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--accent); }
 .bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
 .bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
@@ -3378,11 +3381,11 @@ svg.pxg { display: block; flex: none; }
 .rn-state.running { color: var(--think); }
 .rn-state.waiting { color: var(--accent); }
 .rn-state.pending { color: var(--dim); }
-.rn-state.skipped { color: var(--muted); }
+.rn-state.skipped { color: var(--accent); }
 .rn-state.failed { color: var(--danger-text); }
 .fl-node.rn.passed { box-shadow: 0 0 0 2px var(--ok), 0 0 0 4px var(--ink); }
 .fl-node.rn.pending { box-shadow: 0 0 0 2px var(--line), 0 0 0 4px var(--ink); opacity: 0.6; }
-.fl-node.rn.skipped { box-shadow: 0 0 0 2px var(--dim), 0 0 0 4px var(--ink); opacity: 0.7; }
+.fl-node.rn.skipped { box-shadow: 0 0 0 2px var(--accent-dim), 0 0 0 4px var(--ink); }
 .fl-node.rn.running { box-shadow: 0 0 0 2px var(--think), 0 0 0 4px var(--ink); }
 .fl-node.rn.waiting { background: var(--selected); box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--ink); }
 .fl-node.rn.failed { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px var(--ink); }
@@ -3390,7 +3393,7 @@ svg.pxg { display: block; flex: none; }
 .rn-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; box-shadow: 0 0 0 1px var(--ink); }
 .rn-mark.passed { background: var(--ok); color: var(--ink); }
 .rn-mark.failed { background: var(--danger); color: #fff; }
-.rn-mark.skipped { background: var(--panel-3); color: var(--muted); }
+.rn-mark.skipped { background: var(--accent-dim); color: var(--accent); }
 .rn-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; margin-top: 2px; }
 .rn-acts textarea { width: 100%; resize: none; font: inherit; font-size: 12px; }
 .rn-acts button { font-size: 11px; padding: 2px 10px; }

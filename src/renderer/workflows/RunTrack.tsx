@@ -3,7 +3,7 @@ import { Sprite } from '../pixel/Pixels'
 import type { LandingPill, Station, Track } from '../../shared/runTrack'
 
 const ICON: Record<Station['kind'], HeaderIconName> = { plan: 'file', work: 'terminal', approve: 'tick', check: 'tick', audit: 'search', pr: 'flag', merge: 'flag' }
-const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'not asked' }
+const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met after trouble', failed: 'failed', now: 'here now', next: 'not yet', skipped: 'skipped' }
 
 /**
  * Where one open run stands: its steps as stations on a rail, the agent standing on the one it is at, and a speech bubble when it waits on the person.
@@ -12,7 +12,7 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
 export function RunTrack({ track, seed, agentName, variant = 'full', landing, onReopen }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar'; /** Git held the agent's merge: the marker that says so, in place of what the run waits for. */ landing?: LandingPill | null; /** The person opens the band again from a marker they had said not yet to. */ onReopen?: () => void }) {
   const said = landing?.text ?? track.waiting ?? track.note
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
-  const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : ICON[s.kind])
+  const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : s.state === 'skipped' ? 'forward' : ICON[s.kind])
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
   if (variant === 'bar')
     return (

@@ -38,7 +38,7 @@ describe('what a step of a run says it is doing', () => {
     expect(wordOf(st('work', 'passed'))).toBe('done')
     expect(wordOf(st('work', 'running'))).toBe('working')
     expect(wordOf(st('work', 'pending'))).toBe('later')
-    expect(wordOf(st('audit', 'skipped'))).toBe('not asked')
+    expect(wordOf(st('audit', 'skipped'))).toBe('skipped')
     expect(wordOf(st('check', 'failed'))).toBe('failed')
   })
   it('what a waiting step waits for', () => {
