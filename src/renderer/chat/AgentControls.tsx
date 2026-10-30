@@ -238,60 +238,77 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
             <>
               <div className="cb-tiles">
                 {info.branch && (
-                  <button className="cb-tile" role="menuitem" onClick={() => setPage('review')}>
+                  <button className="cb-tile" role="menuitem" title="Ask a peer to look at the branch" onClick={() => setPage('review')}>
                     <PixelIcon name="review" />
                     Review
-                    <small>ask a peer</small>
                   </button>
                 )}
                 {info.can?.clone !== false && (
-                  <button className="cb-tile" role="menuitem" disabled={!info.started} onClick={() => setPage('clone')} title={info.started ? '' : 'Nothing to copy until the conversation has started'}>
+                  <button className="cb-tile" role="menuitem" disabled={!info.started} onClick={() => setPage('clone')} title={info.started ? 'Fork this chat into a new branch' : 'Nothing to copy until the conversation has started'}>
                     <PixelIcon name="clone" />
                     Clone
-                    <small>fork this chat</small>
                   </button>
                 )}
                 {info.branch && (
-                  <button className="cb-tile" role="menuitem" onClick={run(actions.handbook)}>
+                  <button className="cb-tile" role="menuitem" title={info.handbook ?? 'CLAUDE.md'} onClick={run(actions.handbook)}>
                     <PixelIcon name="book" />
                     Handbook
-                    <small>{info.handbook ?? 'CLAUDE.md'}</small>
                   </button>
                 )}
-                <button className="cb-tile" role="menuitem" onClick={run(actions.tools)}>
+                <button className="cb-tile" role="menuitem" title="MCP servers and plugins" onClick={run(actions.tools)}>
                   <PixelIcon name="tools" />
                   Tools
-                  <small>MCP · plugins</small>
                 </button>
               </div>
               {info.branch && (
-                <button className="cb-row" role="menuitem" onClick={run(actions.handoff)} title="Give this branch to another agent to review, continue or answer a question about">
-                  <PixelIcon name="review" />
-                  Hand off…
-                </button>
+                <>
+                  <h6>Hand over</h6>
+                  <button className="cb-row" role="menuitem" onClick={run(actions.handoff)}>
+                    <PixelIcon name="handoff" />
+                    <span className="cb-text">
+                      <span className="cb-name">Hand off…</span>
+                      <small>Give this branch to another agent</small>
+                    </span>
+                  </button>
+                </>
               )}
-              <div className="cb-sep" />
+              <h6>Manage</h6>
               <button className="cb-row" role="menuitem" onClick={run(actions.rename)}>
                 <PixelIcon name="pencil" />
-                Rename
+                <span className="cb-text">
+                  <span className="cb-name">Rename</span>
+                </span>
               </button>
               {info.can?.changeRole !== false && (
                 <button className="cb-row" role="menuitem" disabled={!info.canSwitch} title={info.canSwitch ? '' : 'Wait until it finishes its turn'} onClick={() => setPage('role')}>
                   <PixelIcon name="tag" />
-                  Change role…
+                  <span className="cb-text">
+                    <span className="cb-name">Change role…</span>
+                    <small>Now: {info.role ?? 'no role'}</small>
+                  </span>
                 </button>
               )}
               <button className="cb-row" role="menuitem" onClick={run(actions.group)}>
-                <PixelIcon name="tag" />
-                Group…
+                <PixelIcon name="group" />
+                <span className="cb-text">
+                  <span className="cb-name">Group…</span>
+                  <small>A label to group it under in the list</small>
+                </span>
               </button>
-              <button className="cb-row" role="menuitem" title="Start it again on the same conversation" onClick={run(actions.restart)}>
+              <h6>Session</h6>
+              <button className="cb-row" role="menuitem" onClick={run(actions.restart)}>
                 <PixelIcon name="restart" />
-                Restart agent
+                <span className="cb-text">
+                  <span className="cb-name">Restart agent</span>
+                  <small>Same conversation, fresh program</small>
+                </span>
               </button>
+              <div className="cb-sep roomy" />
               <button className="cb-row danger" role="menuitem" onClick={run(actions.remove)}>
                 <PixelIcon name="x" />
-                Remove agent
+                <span className="cb-text">
+                  <span className="cb-name">Remove agent</span>
+                </span>
               </button>
             </>
           )}

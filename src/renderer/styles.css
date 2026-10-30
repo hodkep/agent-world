@@ -914,12 +914,16 @@ svg.pxi { display: block; flex: none; }
 .cb-meter-note { grid-column: 2 / 4; font-size: 11px; color: var(--muted); }
 .cb-facts { display: flex; gap: 14px; margin-top: 6px; padding: 6px 8px 2px; border-top: 2px solid var(--ink); font: 12px Menlo, Consolas, monospace; color: var(--muted); }
 .cb-more, .cb-pop.more { min-width: 268px; }
-.cb-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
-.cbar .cb-tile { height: auto; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; color: var(--text); background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25); text-align: left; }
+.cb-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; margin-bottom: 4px; }
+.cbar .cb-tile { height: auto; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; color: var(--text); background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25); text-align: center; }
 .cbar .cb-tile:hover:not(:disabled) { background: var(--panel-hover); box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25), 0 0 0 2px var(--accent); }
 .cb-tile svg.pxi { color: var(--accent); margin-bottom: 4px; }
 .cb-tile small { font: 11px Menlo, monospace; color: var(--muted); }
 .cb-tile:disabled { opacity: 0.45; }
+.cb-text { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+.cb-text small { color: var(--muted); font-size: 11.5px; }
+.cb-row { gap: 10px; align-items: center; }
+.cb-sep.roomy { margin: 10px 0 6px; }
 .cbar .cb-back { width: 100%; height: auto; padding: 4px 6px 8px; margin-bottom: 4px; border: 0; border-bottom: 2px solid var(--ink); font: 600 11px Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
 
 /* The agent switcher: the list of agents, one click away when the list itself is folded. */
