@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useState } from 'react'
-import { type Invocations, type LedgerRow, type StageCount, type StageName, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stageCounts, timelineOf, todoChips } from '../../shared/insights'
+import { type Invocations, type StepCount, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stepCounts, stepLines, stepSummary, timelineOf, todoChips } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
 import { openTodo } from '../todos/todoStore'
 
-const STAGES: { stage: StageName; label: string }[] = [{ stage: 'plan', label: 'Plan' }, { stage: 'check', label: 'Checks' }, { stage: 'review', label: 'Review' }, { stage: 'land', label: 'Landing' }]
+const STEP_WORD: Record<string, string> = { passed: 'met', skipped: 'skipped', failed: 'failed', waiting: 'waits for you', running: 'in progress', pending: 'not yet' }
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' })
-const COLUMNS = 8
+const COLUMNS = 7
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /** How often each workflow ran: a bar for each, and a small column for each day. */
@@ -32,55 +32,30 @@ function InvokedChart({ inv, days, now }: { inv: Invocations; days: number; now:
   )
 }
 
-const followed = (c: StageCount) => c.ok + c.trouble
-const total = (c: StageCount) => c.ok + c.trouble + c.bad
-
-/** For each stage, how often it was followed: a bar of first time, after trouble and not followed, with its count. */
-function StagesChart({ counts }: { counts: Record<StageName, StageCount> }) {
-  const label = `Stages followed: ${STAGES.map((s) => (total(counts[s.stage]) === 0 ? `${s.label} none yet` : `${s.label} ${followed(counts[s.stage])} of ${total(counts[s.stage])}`)).join(', ')}`
+/** For each step of the workflows that ran, how often it was met, skipped or failed: a bar with its count, over the runs that reached it. */
+function StepsChart({ counts }: { counts: StepCount[] }) {
+  const of = (c: StepCount) => c.met + c.skipped + c.failed
+  const label = `Steps followed: ${counts.length === 0 ? 'none yet' : counts.map((c) => `${c.name} ${c.met} met, ${c.skipped} skipped, ${c.failed} failed`).join('; ')}`
   return (
     <div className="rb-chart">
-      <p className="rb-cap"><span>Stages followed</span><em>of the runs that reached each one</em></p>
+      <p className="rb-cap"><span>Steps followed</span><em>of the runs that reached each one</em></p>
       <div role="img" aria-label={label}>
-        {STAGES.map(({ stage, label: name }) => {
-          const c = counts[stage]
-          const n = total(c)
-          return (
-            <div key={stage} className="rb-st">
-              <span>{name}</span>
-              <i className="rb-barline">
-                <b className="ok" style={{ width: `${(100 * c.ok) / Math.max(1, n)}%` }} title={`${c.ok} first time`} />
-                <b className="trouble" style={{ width: `${(100 * c.trouble) / Math.max(1, n)}%` }} title={`${c.trouble} after trouble`} />
-                <b className="bad" style={{ width: `${(100 * c.bad) / Math.max(1, n)}%` }} title={`${c.bad} not followed`} />
-              </i>
-              <span className="rb-n">{n === 0 ? '—' : `${followed(c)} of ${n}`}</span>
-            </div>
-          )
-        })}
+        {counts.length === 0 && <p className="hint">No step reached yet.</p>}
+        {counts.map((c) => (
+          <div key={c.name} className="rb-st">
+            <span>{c.name}</span>
+            <i className="rb-barline">
+              <b className="ok" style={{ width: `${(100 * c.met) / of(c)}%` }} title={`${c.met} met`} />
+              <b className="trouble" style={{ width: `${(100 * c.skipped) / of(c)}%` }} title={`${c.skipped} skipped`} />
+              <b className="bad" style={{ width: `${(100 * c.failed) / of(c)}%` }} title={`${c.failed} failed`} />
+            </i>
+            <span className="rb-n">{c.met} of {of(c)}</span>
+          </div>
+        ))}
       </div>
-      <div className="rb-key" aria-hidden="true"><span><i className="ok" />first time</span><span><i className="trouble" />after trouble</span><span><i className="bad" />not followed</span></div>
+      <div className="rb-key" aria-hidden="true"><span><i className="ok" />met</span><span><i className="trouble" />skipped</span><span><i className="bad" />failed</span></div>
     </div>
   )
-}
-
-/** What the checks column says for one run, and the tone it is said in. */
-function checksCell(r: LedgerRow, open: boolean): { text: string; tone: string } {
-  switch (r.checks.kind) {
-    case 'first': return { text: 'first try', tone: '' }
-    case 'retried': return { text: `passed on try ${r.checks.tries + 1}`, tone: 'warn' }
-    case 'failed': return { text: 'did not pass', tone: 'bad' }
-    case 'pending': return { text: 'waiting for you', tone: 'you' }
-    default: return { text: open ? 'not reached' : '—', tone: 'dim' }
-  }
-}
-
-function reviewCell(r: LedgerRow, anyway: boolean): { text: string; tone: string } {
-  switch (r.review.kind) {
-    case 'clean': return { text: 'clean', tone: '' }
-    case 'seen': return { text: `${plural(r.review.n, 'finding')} seen`, tone: 'warn' }
-    case 'unseen': return { text: `${plural(r.review.n, 'finding')} not seen${anyway ? ' · landed anyway' : ''}`, tone: 'bad' }
-    default: return { text: '—', tone: 'dim' }
-  }
 }
 
 /** The Runs tab: two charts (how often each workflow ran, how well each stage was followed), then a ledger of the runs grouped by what there is to do about them, each opening in place to say how it went. */
@@ -108,7 +83,7 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
         <>
           <div className="rb-charts">
             <InvokedChart inv={invocations(shown, days, now)} days={days} now={now} />
-            <StagesChart counts={stageCounts([...tiles.values()])} />
+            <StepsChart counts={stepCounts(shown, ctxFor)} />
           </div>
           <table className="rb-tab" aria-label="Runs">
             <thead>
@@ -117,8 +92,7 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                 <th>Run</th>
                 <th className="r">Wall time<small>{totals.medianWallMs === null ? 'no finished run' : `median ${formatDuration(totals.medianWallMs)}`}</small></th>
                 <th className="r">You waited<small>{formatDuration(totals.youMs)} in all</small></th>
-                <th>Checks<small>{totals.checks.of === 0 ? 'none yet' : `${totals.checks.first} of ${totals.checks.of} first try`}</small></th>
-                <th>Review<small>{totals.review.of === 0 ? 'none yet' : `${totals.review.found} of ${totals.review.of} found something`}</small></th>
+                <th>Steps<small>met, skipped, failed</small></th>
                 <th className="r">Commits</th>
                 <th className="r">Cost<small>{formatCost(usd)}</small></th>
               </tr>
@@ -134,8 +108,8 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                     const commits = run.rounds.reduce((n, x) => n + x.commits.length, 0)
                     const flagged = run.rounds.reduce((n, x) => n + x.commits.filter((c) => c.flagged).length, 0)
                     const meta = [run.workflow ? run.workflow.name : 'from a commit', run.status === 'open' ? 'open' : day(run.startedAt), rounds > 1 ? `${rounds} rounds` : ''].filter(Boolean).join(' · ')
-                    const checks = checksCell(row, run.status === 'open')
-                    const review = reviewCell(row, run.landed?.how === 'anyway')
+                    const lines = stepLines(run, ctxFor(run))
+                    const steps = stepSummary(lines)
                     const share = row.wallMs ? row.youMs / row.wallMs : 0
                     return (
                       <Fragment key={run.id}>
@@ -155,8 +129,7 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                           </td>
                           <td className={`r num ${run.status === 'open' ? 'dim' : ''}`}>{row.wallMs === null ? '—' : formatDuration(row.wallMs)}</td>
                           <td className={`r num ${share >= 0.25 ? 'you' : ''}`}>{row.youMs === 0 ? '0' : formatDuration(row.youMs)}{share >= 0.25 && <span className="rb-share" aria-hidden="true"><i style={{ width: `${Math.round(100 * share)}%` }} /></span>}</td>
-                          <td className={checks.tone}>{checks.text}</td>
-                          <td className={review.tone}>{review.text}</td>
+                          <td className={steps.tone}>{steps.text}</td>
                           <td className="r num">{row.commits}</td>
                           <td className="r num">{spendText(spend[run.id])}</td>
                         </tr>
@@ -169,6 +142,23 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                                   <div className="rb-todos all" aria-label="Todos">
                                     {run.todos!.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={() => openTodo(id)}>todo#{id}</button>)}
                                   </div>
+                                )}
+                                {lines.length > 0 && (
+                                  <ol className="rb-steps" aria-label="Steps">
+                                    {lines.map((l) => (
+                                      <li key={l.id} className={l.state}>
+                                        <i className="dot" aria-hidden="true" />
+                                        <span>{l.name}</span>
+                                        <em>{STEP_WORD[l.state]}{l.note ? `: ${l.note}` : ''}</em>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                )}
+                                {(run.items?.length ?? 0) > 0 && (
+                                  <ol className="rb-items" aria-label="Items added to this run">
+                                    <li className="first"><span className="mono">1</span><span>{run.title}</span><em>the task as it began</em></li>
+                                    {run.items!.map((it, i) => <li key={it.t}><span className="mono">{i + 2}</span><span>{it.title}</span><em>added +{formatDuration(it.t - run.startedAt)}</em></li>)}
+                                  </ol>
                                 )}
                                 <ol className="rb-tl">
                                   {timelineOf(run, now).map((e, i) => (

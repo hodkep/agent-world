@@ -4022,3 +4022,13 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .mod-bar button { cursor: pointer; }
 .mod-grip { color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 4px; margin: -2px 0 -2px -4px; }
 .mod-grip:focus-visible { outline: 2px solid var(--accent); }
+
+/* The steps of a run and the items added to it, in the opened row of the Runs tab. */
+.rb-steps, .rb-items { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rb-steps li { display: grid; grid-template-columns: 10px minmax(120px, 220px) 1fr; gap: 8px; align-items: baseline; color: var(--text); }
+.rb-steps .dot { width: 9px; height: 9px; align-self: center; background: var(--dim); }
+.rb-steps .passed .dot { background: var(--ok); } .rb-steps .skipped .dot { background: var(--accent); } .rb-steps .failed .dot { background: var(--danger); } .rb-steps .waiting .dot, .rb-steps .running .dot { background: var(--violet); }
+.rb-steps em, .rb-items em { color: var(--muted); font-style: normal; font-size: 11px; }
+.rb-steps .failed em { color: var(--danger-text); } .rb-steps .skipped em { color: var(--accent); }
+.rb-items li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: baseline; color: var(--text); }
+.rb-items .mono { color: var(--dim); text-align: right; font-size: 11px; }
