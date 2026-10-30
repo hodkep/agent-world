@@ -12,6 +12,8 @@ export const isLanding = (k: StepKind) => k === 'pr' || k === 'merge'
 /** Which landing step a workflow ends in, if any: what the office holds (a push, or a merge) and how its cards word it. */
 export const landingKind = (wf: { steps: readonly { kind: StepKind }[] } | undefined): 'pr' | 'merge' | undefined => wf?.steps.find((s) => isLanding(s.kind))?.kind as 'pr' | 'merge' | undefined
 export type Gate = 'auto' | 'approve' | 'pass'
+/** The gate a step has: its own, else approve for a plan and a landing step (the person is asked unless the step says auto), else none. */
+export const gateOf = (s: { kind: StepKind; gate?: Gate }): Gate | undefined => s.gate ?? (s.kind === 'plan' || isLanding(s.kind) ? 'approve' : undefined)
 /** How a step starts: by itself, or when the person presses Run ("generate the plan", "build it", run the tests, audit, push). Only what the person does themselves cannot wait for their press. */
 export type Start = 'auto' | 'run'
 export const START_KINDS: StepKind[] = ['plan', 'work', 'check', 'audit', 'pr']
@@ -117,12 +119,16 @@ export function parseWorkflow(text: string): WorkflowResult {
   if (Array.isArray(f.steps)) {
     const seen = new Map<string, number>()
     f.steps.forEach((step, i) => problems.push(...stepProblems(step, i + 1, seen)))
+    // Only the first of each is read for the hold on edits and on landing, so a second would never count.
+    const kinds = f.steps.map((x) => (x as { kind?: unknown } | null)?.kind)
+    if (kinds.filter((k) => k === 'plan').length > 1) problems.push('A workflow can have only one plan step.')
+    if (kinds.filter((k) => k === 'pr' || k === 'merge').length > 1) problems.push('A workflow can have only one pull request or merge step.')
   }
   if (problems.length) return { ok: false, problems }
   return { ok: true, workflow: f as unknown as Workflow }
 }
 
-/** The built-in pipeline: plan, build, audit, then the pull request (the push of the agent's branch is what is held). Its plan and pull request follow the Settings switches. */
+/** The built-in pipeline: plan, build, audit, then the pull request (the push of the agent's branch is what is held). Its plan and pull request name no gate, so each asks for the person. */
 export const STANDARD: Workflow = {
   version: 1,
   id: 'standard',
@@ -159,13 +165,9 @@ export function pickEntry(entries: WorkflowEntry[], requested: string | undefine
   return defaultId === 'none' ? undefined : (usable.find((e) => e.id === defaultId) ?? usable.find((e) => e.id === 'standard'))
 }
 
-/** The steps as the list draws them. A plan or merge step that names no gate follows its Settings switch; an approve step always stops. */
-export function stepChips(wf: Workflow, switches: { planGate: boolean; mergeGate: boolean }): Chip[] {
-  return wf.steps.map((s) => {
-    const own = s.gate !== undefined ? s.gate === 'approve' : undefined
-    const inherited = s.kind === 'plan' ? switches.planGate : isLanding(s.kind) ? switches.mergeGate : false
-    return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || s.start === 'run' || (own ?? inherited) }
-  })
+/** The steps as the list draws them. A plan or landing step that names no gate asks for the person; an approve step always stops. */
+export function stepChips(wf: Workflow): Chip[] {
+  return wf.steps.map((s) => ({ id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || s.start === 'run' || gateOf(s) === 'approve' }))
 }
 
 export type Scope = 'built-in' | 'global' | 'project'

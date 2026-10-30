@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowEntry } from './workflow'
-import { STANDARD, checkCommands, commandDiff, isLanding, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, checkCommands, commandDiff, gateOf, isLanding, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -23,7 +23,8 @@ describe('reading a workflow file', () => {
 
   const problems = (o: unknown) => {
     const r = parseWorkflow(typeof o === 'string' ? o : JSON.stringify(o))
-    return r.ok ? [] : r.problems
+    // The one-plan, one-landing rule has its own test; the others here use any mix of steps.
+    return r.ok ? [] : r.problems.filter((x) => !x.startsWith('A workflow can have only one'))
   }
 
   it('says when the text is not JSON, or not an object', () => {
@@ -139,7 +140,7 @@ describe('the built-in Standard workflow', () => {
 
 describe('the chips a workflow is drawn with', () => {
   it('a step is called by its name, else by what its kind is called, and carries the colour of its kind', () => {
-    expect(stepChips(parseOk(BUG_FIX), { planGate: true, mergeGate: true })).toEqual([
+    expect(stepChips(parseOk(BUG_FIX))).toEqual([
       { id: 'plan', kind: 'plan', label: 'Plan', stops: true },
       { id: 'fix', kind: 'work', label: 'Fix, test first', stops: false },
       { id: 'tests', kind: 'check', label: 'Tests pass', stops: false },
@@ -148,14 +149,36 @@ describe('the chips a workflow is drawn with', () => {
     ])
   })
 
-  it('a step with no gate of its own follows the Settings switch for its kind, and one with a gate does not', () => {
+  it('a plan or landing step with no gate of its own asks for the person, and a step with a gate goes by it', () => {
     const wf = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan' }, { id: 'land', kind: 'merge' }, { id: 'tests', kind: 'check', run: 'x', gate: 'pass' }, { id: 'ok', kind: 'approve' }, { id: 'rev', kind: 'audit', gate: 'approve' }] })
-    expect(stepChips(wf, { planGate: true, mergeGate: true }).map((c) => c.stops)).toEqual([true, true, false, true, true])
+    expect(stepChips(wf).map((c) => c.stops)).toEqual([true, true, false, true, true])
     // A step that starts when the person presses Run is a place they stop, whatever its gate says.
-    expect(stepChips({ version: 1, id: 'x', name: 'X', steps: [{ id: 'a', kind: 'check', run: 'x', start: 'run' }, { id: 'b', kind: 'audit', start: 'run' }, { id: 'c', kind: 'pr', gate: 'auto', start: 'run' }] }, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([true, true, true])
-    expect(stepChips(wf, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([false, false, false, true, true])
-    const set = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'land', kind: 'merge', gate: 'auto' }] })
-    expect(stepChips(set, { planGate: false, mergeGate: true }).map((c) => c.stops)).toEqual([true, false])
+    expect(stepChips({ version: 1, id: 'x', name: 'X', steps: [{ id: 'a', kind: 'check', run: 'x', start: 'run' }, { id: 'b', kind: 'audit', start: 'run' }, { id: 'c', kind: 'pr', gate: 'auto', start: 'run' }] }).map((c) => c.stops)).toEqual([true, true, true])
+    const set = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'land', kind: 'merge', gate: 'auto' }] })
+    expect(stepChips(set).map((c) => c.stops)).toEqual([false, false])
+  })
+})
+
+describe('the gate a step has', () => {
+  it('is its own, else approve for a plan and a landing step, else none', () => {
+    expect(gateOf({ kind: 'plan' })).toBe('approve')
+    expect(gateOf({ kind: 'pr' })).toBe('approve')
+    expect(gateOf({ kind: 'merge' })).toBe('approve')
+    expect(gateOf({ kind: 'plan', gate: 'auto' })).toBe('auto')
+    expect(gateOf({ kind: 'pr', gate: 'auto' })).toBe('auto')
+    expect(gateOf({ kind: 'work' })).toBeUndefined()
+    expect(gateOf({ kind: 'audit' })).toBeUndefined()
+    expect(gateOf({ kind: 'check', gate: 'pass' })).toBe('pass')
+  })
+})
+
+describe('a workflow has one plan and one landing', () => {
+  const two = (a: object, b: object) => parseWorkflow(JSON.stringify({ version: 1, id: 'x', name: 'X', steps: [a, b] }))
+  it('two plan steps, or a pull request and a merge, or two pull requests, are refused, since only the first would count', () => {
+    expect(two({ id: 'a', kind: 'plan' }, { id: 'b', kind: 'plan' })).toMatchObject({ ok: false, problems: [expect.stringContaining('one plan step')] })
+    expect(two({ id: 'a', kind: 'pr' }, { id: 'b', kind: 'merge' })).toMatchObject({ ok: false, problems: [expect.stringContaining('one pull request or merge step')] })
+    expect(two({ id: 'a', kind: 'pr' }, { id: 'b', kind: 'pr' })).toMatchObject({ ok: false })
+    expect(two({ id: 'a', kind: 'plan' }, { id: 'b', kind: 'pr' })).toMatchObject({ ok: true })
   })
 })
 

@@ -7,8 +7,7 @@ A pipeline an agent follows for each task: plan, build, checks, review, pull req
 Off by default: **Settings**, then **Features**.
 
 - **Workflows** adds a **Workflow** tab to each agent and a top bar button.
-- **Plan gate** (on by default): an agent waits for your approval of its plan before it edits.
-- **Merge gate** (on by default): the pull request waits for an approved plan and seen findings, and then for your own approval: a **Pull request** step with no gate of its own follows this switch.
+- Approval is set on each step, in the builder (**Needs my approval**): a **Plan** or **Pull request** step asks for you unless its gate is **auto**, and any other step can ask too. There are no switches for it in Settings.
 - The dial sets how much care each task takes: [The three dials](#the-three-dials).
 
 An agent gets the workflow tools only when it starts, so one that was already running when Workflows was switched on, or when its project's workflow file last changed, does not have them: no task is recorded for it. A warning card at the top of the Workflows window and of the agent's Workflow tab names those agents and has a button that restarts them. It is gone once none is left.
@@ -39,7 +38,7 @@ Announcing a task, handing in a plan, reporting steps and saying done are only a
 - Commits until the plan is approved, and, while the gate holds it, a push of its branch (a **Pull request** step) or a merge into the base branch (a **Land** step): by git, for every program.
 - Checks and the review: the app runs them.
 - **The pull request**: git holds the push unless the gate is met or you **Set aside** what holds it. A push that goes through ends the run.
-- **Approval**: a step whose gate is **approve** (an audit or a pull request; a pull request with no gate while the merge gate is on) shows the same card as any step you approve, with **Approve** and **Send back**. Nothing is pushed and the agent is not told to push until you approve; a commit made after your approval asks again. With gate **auto** the app acts at once and the bar says what it is doing. A merge needs no second approval: your click on Land is it.
+- **Approval**: a step whose gate is **approve** (an audit, or a pull request, which asks unless its gate is **auto**) shows the same card as any step you approve, with **Approve** and **Send back**. Nothing is pushed and the agent is not told to push until you approve; a commit made after your approval asks again. With gate **auto** the app acts at once and the bar says what it is doing. A merge needs no second approval: your click on Land is it.
 - A push the app did not see (git run with its settings off) is noticed when the audited commit shows up on a remote branch: the run is recorded as pushed without the hold, and the bar moves on.
 
 <img src="../images/workflow-audit-card.png" alt="The audit card at the end of the conversation, with the findings to look at" width="720">
@@ -51,7 +50,7 @@ Findings to look at show as a card at the end of the agent's chat. The reviewer 
 Limits:
 
 - An agent that unsets git's environment variables, sets its own `core.hooksPath` or pushes with `--no-verify` gets past the git holds; a skipped push is still recorded as pushed anyway.
-- Only a task's first round is held for its plan, and not with **Plan gate** off.
+- Only a task's first round is held for its plan, and not when the plan step's gate is **auto**. The hold starts with the task, wherever the plan step sits in the list, and only the first plan step counts (a workflow can have one plan step and one pull request or merge step).
 - The **Merge into main** button in the Code tab applies no gate. To land through the gate, ask the agent to merge.
 
 ## Follow a run: the track
@@ -75,7 +74,7 @@ Ask the agent to push the branch. If the gate holds it, git refuses, the agent t
 
 <img src="../images/merge-held.png" alt="The push held card" width="720">
 
-A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even with **Merge gate** off.
+A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even when the pull request step's gate is **auto**.
 
 ## The Workflows window
 

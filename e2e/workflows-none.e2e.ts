@@ -17,7 +17,7 @@ async function project(name: string, defaults: Record<string, string> = {}, env:
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
   const prefsFile = join(home, 'preferences.json')
-  writeFileSync(prefsFile, JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k === '$repo' ? repo : k, v])) } }))
+  writeFileSync(prefsFile, JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k === '$repo' ? repo : k, v])) } }))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', ...env }, tmp)
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1400, height: 1000 })

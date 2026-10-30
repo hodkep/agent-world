@@ -38,7 +38,7 @@ async function start() {
     mkdirSync(join(home, 'library', 'skills', id), { recursive: true })
     writeFileSync(join(home, 'library', 'skills', id, 'SKILL.md'), `---\nname: ${id}\ndescription: ${what}\n---\nBody of ${id}.`)
   }
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: { [repo]: 'skilled' } } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: { [repo]: 'skilled' } } }))
   const argsLog = join(tmp, 'args.log')
   const app = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
   const page = await app.app.firstWindow()

@@ -306,7 +306,7 @@ Steps run in the order listed (D19: linear first; no `needs`, no branches). At m
 | `approve` | the person, in a panel like the plan gate | a generic hold with a note | new |
 | `merge` | the person lands it from Finish | the merge gate | yes (D26) |
 
-`gate`: `auto` (default), `approve` (stops for the person) or `pass` (a `check` must pass). Where a step does not say, the global Settings switches (plan gate, merge gate) apply, so D16 stays true: gates are settings, a workflow overrides them. `model` on a step overrides the dial for that step (D17).
+`gate`: `auto` (default), `approve` (stops for the person) or `pass` (a `check` must pass). Where a step does not say, a plan and a landing step (`pr`, `merge`) ask for the person, as `approve`. (Until the Settings switches for the plan gate and the merge gate were removed they decided this; the gate now lives on the step only.) `model` on a step overrides the dial for that step (D17).
 
 ### Safety: commands in a repo file
 

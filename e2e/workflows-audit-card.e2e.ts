@@ -20,7 +20,7 @@ async function office(name: string, findings = FINDINGS) {
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const envFile = join(tmp, 'env.log')
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_ENV_FILE: envFile, FAKE_AUDIT: findings, FAKE_AUDIT_DELAY_MS: '4000' }, tmp)
   const page = await app.firstWindow()

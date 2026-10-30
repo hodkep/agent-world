@@ -31,7 +31,7 @@ async function start(env: Record<string, string> = {}) {
   mkdirSync(agyHome)
   const folder = join(home, 'project')
   mkdirSync(folder)
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const argsLog = join(home, 'args.log')
   const envLog = join(home, 'env.log')
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), AW_AGY_BIN: resolve(__dirname, 'fake-agy.mjs'), AW_AGY_HOME: agyHome, FAKE_DELAY_MS: '100', FAKE_ARGS: argsLog, FAKE_ENV_FILE: envLog, ...env }, home)

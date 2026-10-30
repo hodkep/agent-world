@@ -8,10 +8,6 @@ export interface WorkflowPrefs {
   dial: Dial
   /** When workflows were last switched on (ms): work committed before this is history, never recorded as a run. */
   since: number
-  /** The plan gate: the person approves a task's plan before the agent edits. On with workflows unless switched off. */
-  planGate: boolean
-  /** The merge gate: Land waits until the plan was approved and the audit's findings were seen. On with workflows unless switched off. */
-  mergeGate: boolean
   /** The workflow a project uses unless the agent picks another, by project folder. A project with no entry uses Standard. */
   defaults: Record<string, string>
 }

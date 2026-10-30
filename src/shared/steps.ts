@@ -1,5 +1,5 @@
 import type { Round, Run, RunStep, RunWorkflow } from './runs'
-import { type StepKind, isLanding } from './workflow'
+import { type Gate, type StepKind, gateOf, isLanding } from './workflow'
 
 export type StepStatus = 'passed' | 'running' | 'waiting' | 'pending' | 'skipped' | 'failed'
 export interface StepState {
@@ -28,23 +28,19 @@ type Own = 'passed' | 'waiting' | 'open' | 'later' | 'skipped' | 'failed' | 'tor
 export interface StepContext {
   /** Whether an audit is run at this dial and for this program. */
   auditOn: boolean
-  /** The Settings switch for the plan gate; a plan step with no gate of its own follows it. On when not given. */
-  planGate?: boolean
   /** Whether the commands of the run's workflow file are approved (a project's file needs it; anything else does). Approved when not given. */
   approved?: boolean
   /** The branch as it is now: a check that passed for another head is due again. */
   head?: string
-  /** The Settings switch for the merge gate: a pull request or merge step with no gate of its own asks for the person's approval when it is on. Off when not given. */
-  mergeGate?: boolean
 }
 
-/** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
-export function needsApproval(step: { kind: StepKind; gate?: string; start?: string }, ctx: StepContext): boolean {
+/** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate (it asks unless it says auto). */
+export function needsApproval(step: { kind: StepKind; gate?: string; start?: string }): boolean {
   if (step.kind === 'audit' || step.kind === 'check') return step.gate === 'approve'
-  // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
+  // A merge is the person's own click on Land: that click is the approval, so it has no second one.
   if (step.kind !== 'pr') return false
   // A pull request that starts on Run is the person's press: nothing is pushed before it, as with gate approve.
-  return step.gate === 'approve' || step.start === 'run' || (step.gate === undefined && ctx.mergeGate === true)
+  return gateOf({ kind: 'pr', gate: step.gate as Gate | undefined }) === 'approve' || step.start === 'run'
 }
 
 /** Whether the person approved this step for the branch as it is now: their last answer was an approval, given after the round's last commit (and after `since`). */
@@ -106,7 +102,7 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
     if (p === 'changes') return 'open'
     // No plan: not needed when the run went on without one, in a follow-up round, or after the round ended.
     const workedAhead = run.workflow!.steps.some((s) => s.kind === 'work' && round.steps.some((l) => l.step === s.id && l.state === 'done'))
-    const asked = step.gate === 'approve' ? true : step.gate === 'auto' ? false : ctx.planGate ?? true
+    const asked = gateOf(step) === 'approve'
     return !asked || round.n > 1 || round.endedAt !== undefined || workedAhead ? 'skipped' : 'open'
   }
   if (kind === 'audit') {
@@ -117,7 +113,7 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
     if (!a || a.t < round.startedAt) return 'later'
     if (a.state === 'failed') return 'skipped'
     if (!a.findings.every((f) => f.seen)) return 'waiting'
-    return needsApproval(step, ctx) && !approvedFor(round, id, a.t) ? 'waiting' : 'passed'
+    return needsApproval(step) && !approvedFor(round, id, a.t) ? 'waiting' : 'passed'
   }
   if (isLanding(kind)) return run.landed && run.landed.t >= round.startedAt ? 'passed' : 'later'
   if (kind === 'approve') {
@@ -153,9 +149,9 @@ export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepSta
     else if (o === 'waiting') (state = 'waiting', (held = true))
     else (state = 'running', (held = true))
     const audited = run.audit?.state === 'done' && run.audit.findings.every((f) => f.seen)
-    const asks = c ? state === 'waiting' && !!c.asks : state === 'waiting' && needsApproval(s, ctx) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
+    const asks = c ? state === 'waiting' && !!c.asks : state === 'waiting' && needsApproval(s) && (isLanding(s.kind) || (s.kind === 'audit' && audited))
     const settled = asks && isLanding(s.kind) && approvedFor(round, s.id)
-    const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s, ctx) && !approvedFor(round, s.id)
+    const unapproved = isLanding(s.kind) && state !== 'passed' && needsApproval(s) && !approvedFor(round, s.id)
     return { id: s.id, kind: s.kind, name: s.name, state, ...(c?.tries && { tries: c.tries }), ...((auditToRun || (c?.toRun && state === 'waiting') || (o === 'torun' && state === 'waiting')) && { toRun: true as const }), ...(asks && !settled && { awaiting: true as const }), ...(settled && { approved: true as const }), ...(unapproved && { gated: true as const }) }
   })
 }

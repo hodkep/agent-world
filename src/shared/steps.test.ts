@@ -134,13 +134,12 @@ describe('the steps waiting for the person across runs', () => {
 
 describe('a plan the workflow does not ask for', () => {
   const flow = (gate?: 'auto' | 'approve'): RunWorkflow => ({ id: 'f', name: 'F', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', ...(gate && { gate }) }, { id: 'build', kind: 'work', name: 'Build' }] })
-  const first = (w: RunWorkflow, planGate: boolean) => stepStates(reduceRuns([begin(w)])[0]!, { auditOn: true, planGate }).map((s) => `${s.id}:${s.state}`)
+  const first = (w: RunWorkflow) => stepStates(reduceRuns([begin(w)])[0]!, { auditOn: true }).map((s) => `${s.id}:${s.state}`)
 
-  it('is not needed from the start when the step says auto, or says nothing and the Settings switch is off; one the step asks for is in progress whatever the switch says', () => {
-    expect(first(flow('auto'), true)).toEqual(['plan:skipped', 'build:running'])
-    expect(first(flow(), false)).toEqual(['plan:skipped', 'build:running'])
-    expect(first(flow(), true)).toEqual(['plan:running', 'build:pending'])
-    expect(first(flow('approve'), false)).toEqual(['plan:running', 'build:pending'])
+  it('is not needed from the start when the step says auto; one that says approve, or says nothing, is in progress', () => {
+    expect(first(flow('auto'))).toEqual(['plan:skipped', 'build:running'])
+    expect(first(flow())).toEqual(['plan:running', 'build:pending'])
+    expect(first(flow('approve'))).toEqual(['plan:running', 'build:pending'])
   })
 })
 
@@ -148,7 +147,7 @@ describe('a check step', () => {
   const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 }, { id: 'land', kind: 'merge', name: 'Land' }] }
   const built: RunEvent[] = [begin(CHECKED), step('build', 'done', 300)]
   const ran = (attempt: number, ok: boolean, t = 400 + attempt, head = 'h1'): RunEvent => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head, attempt, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail: 'x' })
-  const chk = (events: RunEvent[], ctx: { auditOn: boolean; planGate?: boolean; approved?: boolean; head?: string } = { auditOn: false }) => stepStates(reduceRuns(events)[0]!, ctx).find((s) => s.id === 'tests')!
+  const chk = (events: RunEvent[], ctx: { auditOn: boolean; approved?: boolean; head?: string } = { auditOn: false }) => stepStates(reduceRuns(events)[0]!, ctx).find((s) => s.id === 'tests')!
   const at = (events: RunEvent[], ctx?: { auditOn: boolean; approved?: boolean; head?: string }) => {
     const s = chk(events, ctx)
     return `${s.state}${s.tries ? ` after ${s.tries}` : ''}`
@@ -272,12 +271,9 @@ describe('a step that needs the person\'s own approval: the audit, the pull requ
     expect(last(flow(gated('auto'))).awaiting).toBeUndefined()
   })
 
-  it('with no gate of its own it follows the Settings merge gate: on asks, off or unknown does not', () => {
-    expect(last(flow(gated()), { auditOn: true, mergeGate: true }).awaiting).toBe(true)
-    expect(last(flow(gated()), { auditOn: true, mergeGate: false }).awaiting).toBeUndefined()
-    expect(last(flow(gated())).awaiting).toBeUndefined()
-    // An own gate beats the switch.
-    expect(last(flow(gated('auto')), { auditOn: true, mergeGate: true }).awaiting).toBeUndefined()
+  it('with no gate of its own it asks, as with gate approve; gate auto does not', () => {
+    expect(last(flow(gated())).awaiting).toBe(true)
+    expect(last(flow(gated('auto'))).awaiting).toBeUndefined()
   })
 
   it('once approved it no longer waits, and says so; a commit made after the approval takes the approval away', () => {
@@ -299,8 +295,8 @@ describe('a step that needs the person\'s own approval: the audit, the pull requ
   it('met when it landed; a merge never asks for a second approval, since the person\'s click on Land is the approval', () => {
     expect(last(flow(gated('approve'), [step('pr', 'approved', 700), landed()])).state).toBe('passed')
     const merge: RunWorkflow = { ...STANDARD, steps: STANDARD.steps.map((s) => (s.kind === 'merge' ? { ...s, gate: 'approve' as const } : s)) }
-    expect(last(flow(merge), { auditOn: true, mergeGate: true })).toMatchObject({ id: 'land', state: 'waiting' })
-    expect(last(flow(merge), { auditOn: true, mergeGate: true }).awaiting).toBeUndefined()
+    expect(last(flow(merge), { auditOn: true })).toMatchObject({ id: 'land', state: 'waiting' })
+    expect(last(flow(merge), { auditOn: true }).awaiting).toBeUndefined()
   })
 
   it('an audit with gate approve waits for approval after its findings are looked at, and is met after it; with gate auto it is met at once', () => {
@@ -313,7 +309,7 @@ describe('a step that needs the person\'s own approval: the audit, the pull requ
   })
 
   it('every step that waits for the person by approval is listed with the steps waiting for the person', () => {
-    const waiting = (events: RunEvent[], ctx = { auditOn: true, mergeGate: true }) => waitingSteps(reduceRuns(events), ctx).map((w) => w.step.id)
+    const waiting = (events: RunEvent[], ctx = { auditOn: true }) => waitingSteps(reduceRuns(events), ctx).map((w) => w.step.id)
     expect(waiting(flow(gated('approve')))).toEqual(['pr'])
     expect(waiting(flow(gated('approve'), [step('pr', 'approved', 700)]))).toEqual([])
     expect(waiting(flow(gated('auto')))).toEqual([])
@@ -329,8 +325,8 @@ describe('a step that starts when the person presses Run', () => {
   const built: RunEvent[] = [begin(RUNNING), step('build', 'done', 300)]
   const ran = (ok: boolean, t = 400): RunEvent => ({ k: 'check', t, run: 'r1', round: 1, step: 'tests', head: 'h1', attempt: 1, ok, exit: ok ? 0 : 1, timedOut: false, ms: 900, tail: '' })
   const audit: RunEvent = { k: 'audit', t: 500, run: 'r1', head: 'h1', state: 'done', findings: [], files: 1, lines: 4, truncated: false }
-  const all = (events: RunEvent[], ctx: { auditOn: boolean; approved?: boolean; mergeGate?: boolean } = { auditOn: true, mergeGate: false }) => stepStates(reduceRuns(events)[0]!, ctx)
-  const of = (events: RunEvent[], id: string, ctx?: { auditOn: boolean; approved?: boolean; mergeGate?: boolean }) => all(events, ctx).find((x) => x.id === id)!
+  const all = (events: RunEvent[], ctx: { auditOn: boolean; approved?: boolean } = { auditOn: true }) => stepStates(reduceRuns(events)[0]!, ctx)
+  const of = (events: RunEvent[], id: string, ctx?: { auditOn: boolean; approved?: boolean }) => all(events, ctx).find((x) => x.id === id)!
 
   it('a check waits for Run once the work before it is done, and not before', () => {
     expect(of([begin(RUNNING)], 'tests')).toMatchObject({ state: 'pending' })
@@ -369,11 +365,12 @@ describe('a step that starts when the person presses Run', () => {
     expect(of([...built, ran(true)], 'review', { auditOn: false }).state).toBe('skipped')
   })
 
-  it('a pull request that starts on Run waits for the person like one with gate approve, whatever the Settings switch says', () => {
-    expect(needsApproval({ kind: 'pr', start: 'run' }, { auditOn: true, mergeGate: false })).toBe(true)
-    expect(needsApproval({ kind: 'pr', gate: 'auto', start: 'run' }, { auditOn: true, mergeGate: false })).toBe(true)
-    expect(needsApproval({ kind: 'pr', start: 'auto' }, { auditOn: true, mergeGate: false })).toBe(false)
-    expect(needsApproval({ kind: 'work', start: 'run' } as never, { auditOn: true })).toBe(false)
+  it('a pull request that starts on Run waits for the person like one with gate approve, and one with no gate asks too, unless it says auto', () => {
+    expect(needsApproval({ kind: 'pr', start: 'run' })).toBe(true)
+    expect(needsApproval({ kind: 'pr', gate: 'auto', start: 'run' })).toBe(true)
+    expect(needsApproval({ kind: 'pr', start: 'auto' })).toBe(true)
+    expect(needsApproval({ kind: 'pr', gate: 'auto', start: 'auto' })).toBe(false)
+    expect(needsApproval({ kind: 'work', start: 'run' } as never)).toBe(false)
   })
 
   it('a check waiting for Run is not one of the checks that need the person\'s approval of commands', () => {
@@ -404,8 +401,8 @@ describe('the same settings on every kind of step', () => {
   const of = (events: RunEvent[], id: string) => stepStates(reduceRuns(events)[0]!, { auditOn: false }).find((s) => s.id === id)!
 
   it('a check with gate approve waits for the person once it has passed, and passes when they approve', () => {
-    expect(needsApproval({ kind: 'check', gate: 'approve' }, { auditOn: false })).toBe(true)
-    expect(needsApproval({ kind: 'check', gate: 'pass' }, { auditOn: false })).toBe(false)
+    expect(needsApproval({ kind: 'check', gate: 'approve' })).toBe(true)
+    expect(needsApproval({ kind: 'check', gate: 'pass' })).toBe(false)
     expect(of(built, 'tests').state).toBe('running')
     expect(of([...built, ran(true)], 'tests')).toMatchObject({ state: 'waiting', awaiting: true })
     expect(of([...built, ran(true), step('tests', 'approved', 500)], 'tests').state).toBe('passed')

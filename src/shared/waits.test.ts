@@ -6,6 +6,7 @@ import { waitWord, waitsForPerson } from './waits'
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const CHECKED: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'pnpm test' }, { id: 'ok', kind: 'approve', name: 'Your review' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const PULL: RunWorkflow = { id: 'pull', name: 'Pull', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
+const PULL_AUTO: RunWorkflow = { ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: 'auto' as const } : s)) }
 const begin = (workflow: RunWorkflow, agent = 'a1', run = 'r1'): RunEvent => ({ k: 'begin', t: 100, run, agent, name: 'ada', project: '/p', title: 'Task', workflow })
 const readback = { goal: 'g', assumptions: [], outOfScope: [], questions: [] }
 const submitted: RunEvent = { k: 'plan', t: 200, run: 'r1', round: 1, state: 'submitted', path: 'p.md', readback }
@@ -30,9 +31,10 @@ describe('what waits for the person, per agent', () => {
   })
   it('a pull request step waits as a push, once the findings are seen, and a held push is that too', () => {
     expect(kinds([begin(PULL), released, built, ...audit()])).toEqual(['a1:audit'])
-    expect(kinds([begin(PULL), released, built, ...audit(true)])).toEqual(['a1:push'])
+    expect(kinds([begin(PULL), released, built, ...audit(true)])).toEqual(['a1:approve'])
+    expect(kinds([begin(PULL_AUTO), released, built, ...audit(true)])).toEqual(['a1:push'])
     expect(kinds([begin(PULL), released], [{ agentId: 'a1', declined: false }])).toEqual(['a1:push'])
-    expect(kinds([begin(PULL), released, built, ...audit(true)], [{ agentId: 'a1', declined: false }])).toEqual(['a1:push'])
+    expect(kinds([begin(PULL_AUTO), released, built, ...audit(true)], [{ agentId: 'a1', declined: false }])).toEqual(['a1:push'])
   })
   it('Land is also what waits when the audit is off, or failed, once the build is done', () => {
     expect(kinds([begin(STANDARD), released, built], [], { auditOn: false })).toEqual(['a1:land'])

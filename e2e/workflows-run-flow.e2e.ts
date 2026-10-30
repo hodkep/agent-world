@@ -30,7 +30,7 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_AUDIT: FINDINGS }, tmp)
   try {
     const page = await app.firstWindow()
@@ -114,7 +114,7 @@ test('an optional step is skipped from its card and the run goes on; a check tha
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const flow = {
     id: 'opt',
     name: 'Optional',
@@ -180,7 +180,7 @@ test('a plan that starts when you press Run waits for it, in the chat and on its
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const flow = { id: 'gen', name: 'Generate', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', gate: 'approve', start: 'run' }, { id: 'build', kind: 'work', name: 'Build' }] }
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100' }, tmp)
   try {

@@ -18,7 +18,7 @@ test('more work asked for while a run is open is an item of that run, not anothe
   git('add', '.')
   git('commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50' }, tmp)
   try {

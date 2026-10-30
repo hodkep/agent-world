@@ -10,13 +10,11 @@ import { Workflows } from './service'
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], none: false, pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], none: false, pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
-      planGate: () => state.planGate,
-      mergeGate: () => state.mergeGate,
       noWorkflow: () => state.none,
       pick: (_agent, id) => (state.picked.push(id), state.pick(id)),
       run: async (command, cwd) => {
@@ -36,6 +34,10 @@ function make(opts: { enabled?: boolean } = {}) {
     })
   return { state, open, wf: open() }
 }
+
+// Workflows whose steps say auto: the plan alone, or the plan and the landing (nothing is held).
+const PLAN_AUTO: RunWorkflow = { id: 'pa', name: 'PA', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+const AUTO: RunWorkflow = { id: 'au', name: 'AU', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land', gate: 'auto' }] }
 
 describe('recording a task', () => {
   it('task_begin opens a run for the agent and task_done closes it, and both survive a restart', () => {
@@ -428,7 +430,7 @@ describe('what the gate holds back', () => {
 
   it('does nothing with the gate off, for a task the app started, for a follow-up round with no new plan, or after the task is done', () => {
     const off = make()
-    off.state.planGate = false
+    off.state.pick = () => AUTO
     off.wf.begin('a1', 'x')
     expect(edit(off.wf)).toBeNull()
     const auto = make()
@@ -451,9 +453,10 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h1')).toBeNull()
     wf.begin('a1', 'Add a toggle')
     expect(wf.mergeCheck('a1', 'h1')).not.toBeNull()
-    state.mergeGate = false
-    expect(wf.mergeCheck('a1', 'h1')).toBeNull()
-    state.mergeGate = true
+    const auto = make()
+    auto.state.pick = () => AUTO
+    auto.wf.begin('a1', 'Add a toggle')
+    expect(auto.wf.mergeCheck('a1', 'h1')).toBeNull()
     state.enabled = false
     expect(wf.mergeCheck('a1', 'h1')).toBeNull()
   })
@@ -476,8 +479,8 @@ describe('the merge gate', () => {
     wf.begin('a1', 'Add a toggle')
     wf.decide(wf.runs()[0]!.id, 'released')
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'released', blocking: [] })
+    state.pick = () => PLAN_AUTO
     wf.begin('a2', 'Other task')
-    state.planGate = false
     expect(wf.mergeCheck('a2', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [] })
     const auto = make()
     auto.wf.commit('a1', 'c9', 'fix: login', 2000)
@@ -737,9 +740,11 @@ describe('the merge gate', () => {
     wf.decide(wf.runs()[0]!.id, 'released')
     wf.landing('a1', 'h2')
     expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h2', how: 'checked', held: [] })
-    state.mergeGate = false
-    expect(() => wf.landing('a1', 'h3')).not.toThrow()
-    expect(wf.runs()[0]!.landed!.head).toBe('h2')
+    const free = make()
+    free.state.pick = () => AUTO
+    free.wf.begin('a1', 'Add a toggle')
+    expect(() => free.wf.landing('a1', 'h3')).not.toThrow()
+    expect(free.wf.runs()[0]!.landed).toBeUndefined()
   })
 
   it('holds the base branch for git itself, for the reasons that hold Land, until the person allows that head and no other', () => {
@@ -750,8 +755,10 @@ describe('the merge gate', () => {
     wf.allowLanding('a1', 'h1')
     expect(wf.landingHold('a1', 'h1')).toBeNull()
     expect(wf.landingHold('a1', 'h2')).toEqual(['No plan was approved for this task.'])
-    state.mergeGate = false
-    expect(wf.landingHold('a1', 'h2')).toBeNull()
+    const free = make()
+    free.state.pick = () => AUTO
+    free.wf.begin('a1', 'Add a toggle')
+    expect(free.wf.landingHold('a1', 'h2')).toBeNull()
   })
 
   it('lets the base branch move once the plan was approved, with nothing for the person to allow', () => {
@@ -764,10 +771,9 @@ describe('the merge gate', () => {
   describe('a pull request step, which holds the push of the branch', () => {
     const pull = (gate?: 'auto' | 'approve'): RunWorkflow => ({ id: 'p', name: 'P', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', ...(gate && { gate }) }] })
 
-    it('holds for the same reasons Land does, says which landing the run ends in, and its own gate decides over the switch', () => {
-      const run = (w: RunWorkflow, mergeGate = true) => {
+    it('holds for the same reasons Land does, says which landing the run ends in, and one with no gate asks like gate approve', () => {
+      const run = (w: RunWorkflow) => {
         const { wf, state } = make()
-        state.mergeGate = mergeGate
         state.pick = () => w
         wf.begin('a1', 'Add a toggle')
         return wf
@@ -776,15 +782,13 @@ describe('the merge gate', () => {
       expect(wf.landKind('a1')).toBe('pr')
       expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ land: 'pr', blocking: ['No plan was approved for this task.', '"Pull request" has not been approved.'] })
       expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
-      expect(run(pull(), false).landingHold('a1', 'h1')).toBeNull()
-      expect(run(pull('approve'), false).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
-      expect(run(pull('auto'), true).landingHold('a1', 'h1')).toBeNull()
+      expect(run(pull('approve')).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
+      expect(run(pull('auto')).landingHold('a1', 'h1')).toBeNull()
     })
 
     it('ends the run when the push went through, recorded like a landing', () => {
       const { wf, state } = make()
-      state.mergeGate = false
-      state.pick = () => pull()
+      state.pick = () => pull('auto')
       wf.begin('a1', 'Add a toggle')
       wf.decide(wf.runs()[0]!.id, 'released')
       wf.landing('a1', 'h1', { anyway: true })
@@ -1161,22 +1165,20 @@ describe('approving a step, and finishing the task', () => {
 
 describe('the plan hold follows the workflow', () => {
   const flow = (plan?: { gate?: 'auto' | 'approve' }): RunWorkflow => ({ id: 'f', name: 'F', steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] })
-  const held = (w: RunWorkflow | undefined, planGate: boolean) => {
+  const held = (w: RunWorkflow | undefined) => {
     const { wf, state } = make()
-    state.planGate = planGate
     state.pick = () => w
     wf.begin('a1', 'Task')
     return wf.editBlock('a1', '/w/src/a.ts', '/w') !== null
   }
 
-  it('a plan step that names its gate decides, whatever the Settings switch says', () => {
-    expect([held(flow({ gate: 'auto' }), true), held(flow({ gate: 'approve' }), false)]).toEqual([false, true])
+  it('a plan step holds unless it says auto', () => {
+    expect([held(flow({ gate: 'auto' })), held(flow({ gate: 'approve' })), held(flow({}))]).toEqual([false, true, true])
   })
 
-  it('a plan step with no gate follows the switch, a workflow with no plan step holds nothing, and a run with no workflow follows the switch as before', () => {
-    expect([held(flow({}), true), held(flow({}), false)]).toEqual([true, false])
-    expect(held(flow(), true)).toBe(false)
-    expect([held(undefined, true), held(undefined, false)]).toEqual([true, false])
+  it('a workflow with no plan step holds nothing, and a run with no workflow is held', () => {
+    expect(held(flow())).toBe(false)
+    expect(held(undefined)).toBe(true)
   })
 })
 
@@ -1192,19 +1194,18 @@ describe('the merge gate follows the workflow', () => {
       ...(o.merge === false ? [] : [{ id: 'land', kind: 'merge' as const, name: 'Land', ...o.merge }])
     ]
   })
-  const started = (w: RunWorkflow, switches: { mergeGate?: boolean; planGate?: boolean } = {}) => {
+  const started = (w: RunWorkflow) => {
     const t = make()
-    Object.assign(t.state, switches)
     t.state.pick = () => w
     t.wf.begin('a1', 'Task')
     return t
   }
 
-  it('a merge step that names its gate decides, whatever the Settings switch says, and one with no gate follows the switch', () => {
+  it('a merge step holds unless it says auto, and a workflow with no landing step holds nothing', () => {
     expect(started(flow({ merge: { gate: 'auto' } })).wf.mergeCheck('a1', 'h1')).toBeNull()
-    expect(started(flow({ merge: { gate: 'approve' } }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
-    expect(started(flow({ merge: {} }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).toBeNull()
-    expect(started(flow({ merge: false }), { mergeGate: true }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: { gate: 'approve' } })).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: {} })).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: false })).wf.mergeCheck('a1', 'h1')).toBeNull()
   })
 
   it('a workflow with no plan step needs no plan to land, and one with no audit step has no audit and asks no model', async () => {
@@ -1224,13 +1225,13 @@ describe('the merge gate follows the workflow', () => {
   })
 
   it('says whether the plan comes first for the task that is open, by the same rule', () => {
-    const wanted = (plan: { gate?: 'auto' | 'approve' } | undefined, planGate: boolean) => {
-      const t = started(flow({ merge: {} }), { planGate })
+    const wanted = (plan: { gate?: 'auto' | 'approve' } | undefined) => {
+      const t = started(flow({ merge: {} }))
       t.state.pick = () => ({ ...flow(), steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), ...flow({ plan: false }).steps] })
       t.wf.begin('a2', 'Task')
       return t.wf.planWanted('a2')
     }
-    expect([wanted({ gate: 'auto' }, true), wanted({ gate: 'approve' }, false), wanted({}, true), wanted({}, false), wanted(undefined, true)]).toEqual([false, true, true, false, false])
+    expect([wanted({ gate: 'auto' }), wanted({ gate: 'approve' }), wanted({}), wanted(undefined)]).toEqual([false, true, true, false])
     expect(make().wf.planWanted('a1')).toBe(false)
   })
 })
@@ -1570,9 +1571,8 @@ describe('when the app starts the audit by itself', () => {
 
 describe('a pull request step waits for the person\'s approval before the push', () => {
   const PR: RunWorkflow = { id: 'pr', name: 'PR', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
-  const audited = async (o: { mergeGate?: boolean; gate?: 'approve' | 'auto' } = {}) => {
+  const audited = async (o: { gate?: 'approve' | 'auto' } = {}) => {
     const { wf, state } = make()
-    state.mergeGate = o.mergeGate ?? true
     state.pick = () => ({ ...PR, steps: PR.steps.map((s) => (s.kind === 'pr' && o.gate ? { ...s, gate: o.gate } : s)) })
     wf.begin('a1', 'Add a toggle')
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
@@ -1598,13 +1598,10 @@ describe('a pull request step waits for the person\'s approval before the push',
     expect(wf.landingHold('a1', 'h2')).toContain('"Pull request" has not been approved.')
   })
 
-  it('asks for nothing when the gate is auto, or has no gate of its own while the Settings switch is off', async () => {
+  it('asks for nothing when the gate is auto, and asks when it says approve or says nothing', async () => {
     expect((await audited({ gate: 'auto' })).wf.landingHold('a1', 'h1')).toBeNull()
-    expect((await audited({ mergeGate: false })).wf.landingHold('a1', 'h1')).toBeNull()
-  })
-
-  it('its own gate approve asks even with the Settings switch off', async () => {
-    expect((await audited({ mergeGate: false, gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+    expect((await audited({ gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+    expect((await audited()).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
   })
 })
 

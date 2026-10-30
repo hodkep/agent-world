@@ -17,7 +17,7 @@ async function office(name: string, o: { dial: string; env?: Record<string, stri
   git(repo, 'add', '.')
   git(repo, 'commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: o.dial, since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: o.dial, since: 1 } }))
   const auditLog = join(tmp, 'audit.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_AUDIT_LOG: auditLog, ...o.env }, tmp)
   const page = await app.firstWindow()
@@ -138,26 +138,15 @@ test('an audit that fails says why on its card, never holds landing, and can be 
   }
 })
 
-test('the merge gate has its own switch in Settings; off, nothing of the plan or the audit is shown and no model is asked', async () => {
+test('Settings has no switch for the plan gate or the merge gate: approval is set on the steps', async () => {
   const o = await office('wfmerge4', { dial: 'balanced', env: { FAKE_AUDIT: FINDINGS } })
   try {
-    o.begin()
-    o.plan()
     await o.page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = o.page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: 'Features' }).click()
-    const gate = settings.getByRole('switch', { name: /^Merge gate/ })
-    await expect(gate).toBeChecked()
-    await gate.click()
-    await expect(gate).not.toBeChecked()
-    await expect.poll(() => JSON.parse(readFileSync(join(o.tmp, 'home', 'preferences.json'), 'utf8')).workflows.mergeGate).toBe(false)
-    await settings.getByRole('button', { name: 'Close' }).click()
-    await chatTab(o.page)
-    const st = await status(o.page, o.ada.id)
-    expect(st.ahead).toBe(1)
-    expect(st.merge).toBeNull()
-    await expect(o.page.getByRole('region', { name: "ada's audit" })).toHaveCount(0)
-    expect(() => readFileSync(o.auditLog, 'utf8')).toThrow()
+    await expect(settings.getByRole('switch', { name: /^Workflows/ })).toBeChecked()
+    await expect(settings.getByRole('switch', { name: /^Plan gate/ })).toHaveCount(0)
+    await expect(settings.getByRole('switch', { name: /^Merge gate/ })).toHaveCount(0)
   } finally {
     await o.shutdown()
   }

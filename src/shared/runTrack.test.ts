@@ -102,9 +102,10 @@ describe('where a run is on its track', () => {
     const gated: RunWorkflow = { ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: 'approve' as const } : s)) }
     const approved: RunEvent = { k: 'step', t: 800, run: 'r1', round: 1, step: 'pr', state: 'approved' }
     expect(trackOf(run(gated), ctx)!.waiting).toBe('needs your approval')
-    expect(trackOf(run(PULL), { ...ctx, mergeGate: true })!.waiting).toBe('needs your approval')
+    expect(trackOf(run(PULL), ctx)!.waiting).toBe('needs your approval')
     expect(trackOf(run(gated, [approved]), ctx)!.waiting).toBe('approved: the agent pushes it')
-    expect(trackOf(run(PULL), { ...ctx, mergeGate: false })!.waiting).toBe('audit passed: the agent is told to push')
+    const auto: RunWorkflow = { ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: 'auto' as const } : s)) }
+    expect(trackOf(run(auto), ctx)!.waiting).toBe('audit passed: the agent is told to push')
     // A merge is the person's own click on Land: the bar only says it is ready.
     const merge: RunWorkflow = { ...JOURNEY, steps: JOURNEY.steps.filter((x) => x.kind !== 'check') }
     expect(trackOf(run(merge), ctx)!.waiting).toBe('ready to land: ask the agent')

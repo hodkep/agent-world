@@ -37,7 +37,7 @@ test('a long plan gate in a small window shrinks and scrolls inside itself: the 
   const git = (cwd: string, ...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd, encoding: 'utf8' }).trim()
   git(repo, 'init', '-q', '-b', 'main'); writeFileSync(join(repo, 'README.md'), '# shop\n'); git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1' }, tmp)
   try {

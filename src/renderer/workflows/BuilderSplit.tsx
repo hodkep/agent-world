@@ -6,7 +6,7 @@ import { History } from './History'
 import { Proposal } from './Proposal'
 
 /** The builder's conversation on the left and its draft on the right. The chat is the ordinary chat of its agent, passed in. */
-export function BuilderSplit({ agentId, folder, editing, editingId, chat, cost, switches, onBack, onSaved }: { agentId: string; folder: string | null; editing?: string; /** The id of the saved workflow being edited. */ editingId?: string; chat: ReactNode; cost: number; switches: { planGate: boolean; mergeGate: boolean }; onBack: () => void; onSaved: (e: WorkflowEntry) => void }) {
+export function BuilderSplit({ agentId, folder, editing, editingId, chat, cost, onBack, onSaved }: { agentId: string; folder: string | null; editing?: string; /** The id of the saved workflow being edited. */ editingId?: string; chat: ReactNode; cost: number; onBack: () => void; onSaved: (e: WorkflowEntry) => void }) {
   const [view, setView] = useState<ProposalView | null | undefined>(undefined)
   const load = useCallback(() => void window.aw.workflows.proposal(agentId, folder).then(setView, () => setView(null)), [agentId, folder])
   useEffect(() => {
@@ -26,7 +26,7 @@ export function BuilderSplit({ agentId, folder, editing, editingId, chat, cost, 
         <div className="bs-chat">{chat}</div>
         <div className="bs-side">
           {view ? (
-            <Proposal key={view.workflow.id} agentId={agentId} folder={folder} view={view} switches={switches} onSaved={onSaved} onGone={load} onChanged={load} />
+            <Proposal key={view.workflow.id} agentId={agentId} folder={folder} view={view} onSaved={onSaved} onGone={load} onChanged={load} />
           ) : (
             <div className="bs-empty">
               <b>Nothing proposed yet</b>
