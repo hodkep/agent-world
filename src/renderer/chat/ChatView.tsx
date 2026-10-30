@@ -7,8 +7,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo, RemoteState } from '../../shared/types'
-import { askRemote } from './remoteCommands'
-import { RemoteRows } from './RemoteControl'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
 import { type Row, type Sent, highlight, markdownSpans, norm, rowText, spanLabel, toMarkdown, toRows } from './format'
@@ -47,7 +45,8 @@ import { hint, jumpsToLatest, keysOf, matches } from '../shortcuts'
 import { placeInline, refreshFor, slipsFor, startsBefore, type Slip } from './slips'
 import { HelpCard } from './HelpCard'
 import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
-import { LookRows, PackView, WidgetSlot, useChatLayout, useChatMod } from './layoutUi'
+import { PackView, WidgetSlot, useChatLayout, useChatMod } from './layoutUi'
+import { ChatMenu } from './ChatMenu'
 import { noteKey, noteSent } from './ticks'
 import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
@@ -870,66 +869,6 @@ function describeRow(r: Row): Desc {
 }
 
 /** Commands and servers running under the agent, with a way to stop them. */
-/** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export. */
-function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /** Absent for a program that cannot be continued from a phone. */ remote?: RemoteState; markdown: () => string; onSearch: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [note, setNote] = useState('')
-  const wrap = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const away = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false)
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setOpen(false))
-    window.addEventListener('mousedown', away)
-    window.addEventListener('keydown', esc, true)
-    return () => {
-      window.removeEventListener('mousedown', away)
-      window.removeEventListener('keydown', esc, true)
-    }
-  }, [open])
-  const flash = (text: string) => (setNote(text), setTimeout(() => setNote(''), 2500))
-  return (
-    <span className="chat-menu menu-wrap" ref={wrap}>
-      {note && <span className="chat-note" role="status">{note}</span>}
-      <button className="icon-btn" aria-haspopup="menu" aria-expanded={open} aria-label="Conversation tools" title="Search, save notes, copy" onClick={() => setOpen((o) => !o)}>
-        ⋯
-      </button>
-      {open && (
-        <div className="pop-menu right" role="menu" aria-label="Conversation tools">
-          <button role="menuitem" title={hint('chat-find')} onClick={() => (setOpen(false), onSearch())}>
-            <span className="l">
-              <OutlineIcon name="search" size={14} />
-              Search
-            </span>
-          </button>
-          <button
-            role="menuitem"
-            title="Save a short record of this conversation to the notes folder"
-            onClick={() =>
-              void window.aw.saveNotes(agentId).then(
-                () => (setOpen(false), flash('Notes saved')),
-                () => (setOpen(false), flash('Nothing to save yet'))
-              )
-            }
-          >
-            <span className="l">
-              <OutlineIcon name="notes" size={14} />
-              Save notes
-            </span>
-          </button>
-          <button role="menuitem" onClick={() => void navigator.clipboard.writeText(markdown()).then(() => (setOpen(false), flash('Copied')))}>
-            <span className="l">
-              <OutlineIcon name="copy" size={14} />
-              Copy as Markdown
-            </span>
-          </button>
-          <LookRows close={() => setOpen(false)} />
-          {remote && <RemoteRows state={remote} onToggle={() => askRemote(agentId, remote.state === 'off' ? 'on' : 'off')} onCopy={() => askRemote(agentId, 'link')} onQr={() => askRemote(agentId, 'qr')} close={() => setOpen(false)} />}
-        </div>
-      )}
-    </span>
-  )
-}
-
 const WINDOW = 150
 
 /** A command the agent left running, with when it started (worked out when it was listed, and kept steady between lists). */

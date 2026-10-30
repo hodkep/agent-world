@@ -86,7 +86,6 @@ export function RemoteRows({ state, onToggle, onCopy, onQr, close }: { state: Re
   const run = (f: () => void) => () => (close(), f())
   return (
     <>
-      <div className="menu-sep" />
       <button role="menuitem" className="remote-row" onClick={run(onToggle)} title={state.state === 'unavailable' ? state.reason : state.state === 'off' ? 'Continue this agent from your phone' : 'Turn remote control off'}>
         <span className="l"><OutlineIcon name="phone" size={14} />Remote control</span>
         {state.state === 'off' ? <span className="rtag off">Off</span> : <RemoteTag state={state} />}
@@ -99,7 +98,6 @@ export function RemoteRows({ state, onToggle, onCopy, onQr, close }: { state: Re
           <button role="menuitem" onClick={run(onToggle)}><span className="l"><OutlineIcon name="power" size={14} />Turn off remote control</span></button>
         </>
       )}
-      <div className="menu-sep" />
     </>
   )
 }
