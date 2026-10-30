@@ -177,6 +177,7 @@ Short, task-shaped pages, one for each area, each with a picture.
 | [Getting started](docs/guide/getting-started.md) | Install, setup and your first agent |
 | [The office](docs/guide/the-office.md) | Reading the office, hiring, waking, answering requests |
 | [Chat and dialogs](docs/guide/chat-and-dialogs.md) | Talking to an agent and answering what it asks |
+| [Customize the look](docs/guide/customize-the-look.md) | Asking an agent to restyle the app, keeping or undoing it, and widgets |
 | [Code and preview](docs/guide/code-and-preview.md) | Changes, files, the terminal, tools, preview, finishing a branch |
 | [Workflows](docs/guide/workflows.md) | Plans, checks, review, landing, Runs, Insights, the builder, and runs on the todo board |
 | [Library and playbook](docs/guide/library-and-playbook.md) | Skills, instructions, prompts and when agents use them |
