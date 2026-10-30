@@ -200,13 +200,19 @@ export function LookRows({ close }: { close: () => void }) {
       <button role="menuitem" disabled={!custom} title="Remove every change an agent made to the look of the app" onClick={() => (close(), void window.aw.chatModReset())}>
         <span className="l">
           <OutlineIcon name="undo" size={14} />
-          Restore system look
+          <span className="mi-text">
+            Restore system look
+            <small>{custom ? 'Remove every change an agent made' : 'Nothing changed by an agent yet'}</small>
+          </span>
         </span>
       </button>
       <button role="menuitem" disabled={s.history === 0} title="Bring back the look before the last one you kept" onClick={() => (close(), void window.aw.chatModBack())}>
         <span className="l">
           <OutlineIcon name="history" size={14} />
-          Previous look
+          <span className="mi-text">
+            Previous look
+            <small>{s.history === 0 ? 'No earlier look kept' : 'The look before the last one you kept'}</small>
+          </span>
         </span>
       </button>
     </>
