@@ -437,10 +437,10 @@ export class Workflows {
   }
 
   /** The step of the agent's latest run that waits for the person (to approve it or send the work back), or null. */
-  waitingStep(agentId: string): { run: string; step: string; name: string } | null {
+  waitingStep(agentId: string): { run: string; step: string; name: string; /** It waits for the person's Run (it starts on Run), not for their answer to work that was done. */ toRun: boolean } | null {
     const run = this.mine(agentId)[0]
     const waiting = run && this.states(run).find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
-    return run && waiting ? { run: run.id, step: waiting.id, name: waiting.name } : null
+    return run && waiting ? { run: run.id, step: waiting.id, name: waiting.name, toRun: !!waiting.toRun } : null
   }
 
   /** The person's answer to a step that waits for them: approve it, or send the work back with a note. */
