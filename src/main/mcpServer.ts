@@ -1,4 +1,5 @@
 import pkg from '../../package.json'
+import { nextStepLine } from '../shared/steps'
 import { createServer, type IncomingMessage } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -87,7 +88,7 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
-    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string }
+    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } }
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
@@ -560,8 +561,8 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     async ({ step, skipped, why }) => {
       try {
         const r = wf.stepDone(callerId, step, { skipped, why })
-        if (r.skipped) return { content: [{ type: 'text' as const, text: `Step "${r.done}" skipped${why ? `: ${why}` : ''}.` }] }
-        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}${r.waiting ? (r.hint ?? '') : ''}` }] }
+        if (r.skipped) return { content: [{ type: 'text' as const, text: `Step "${r.done}" skipped${why ? `: ${why}` : ''}.${nextStepLine(r.next)}` }] }
+        return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}${nextStepLine(r.next)}${r.waiting ? (r.hint ?? '') : ''}` }] }
       } catch (err) {
         return fail(err)
       }

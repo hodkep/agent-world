@@ -1076,8 +1076,8 @@ describe('reporting a step done', () => {
 
   it('marks the first work step still open, or the one named, and says what now waits for the person', () => {
     const { wf } = started()
-    expect(wf.stepDone('a1')).toEqual({ done: 'a' })
-    expect(wf.stepDone('a1', 'b')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'a' })
+    expect(wf.stepDone('a1', 'b')).toMatchObject({ done: 'b', waiting: 'Your review' })
     expect(logged(wf)).toEqual(['a:done', 'b:done'])
   })
 
@@ -1101,7 +1101,7 @@ describe('reporting a step done', () => {
     wf.stepDone('a1')
     wf.approveStep(wf.runs()[0]!.id, 'ok', 'changes', { note: 'smaller' })
     state.t += 100
-    expect(wf.stepDone('a1')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'b', waiting: 'Your review' })
     expect(logged(wf)).toEqual(['a:done', 'b:done', 'ok:changes', 'b:done'])
   })
 })
@@ -1294,6 +1294,26 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(log()).toEqual(['designs:skipped', 'build:done'])
   })
 
+  it('a required step the person refuses fails and holds the steps after it, and the agent may then close the task; an optional one is skipped instead', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    expect(() => wf.declineStep(id, 'designs')).toThrow('optional')
+    expect(wf.declineStep(id, 'commit')).toBe('Commit')
+    expect(wf.runs()[0]!.rounds.at(-1)!.steps.at(-1)).toMatchObject({ step: 'commit', state: 'declined' })
+    expect(stepStates(wf.runs()[0]!, { auditOn: false }).map((s) => s.state)).toEqual(['skipped', 'passed', 'failed', 'pending'])
+    wf.done('a1', 'Stopped at the commit.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    expect(log()).toContain('commit:declined')
+  })
+
+  it('says which step comes next when one is reported or skipped', () => {
+    const { wf } = started()
+    expect(wf.stepDone('a1', 'designs', { skipped: true, why: 'x' }).next).toMatchObject({ name: 'Build', optional: false })
+    expect(wf.stepDone('a1', 'build').next).toMatchObject({ name: 'Commit', start: true })
+  })
+
   it('refuses to finish while a step the agent has to do was never reported, and names it', () => {
     const { wf } = started({ ...FLOW, steps: [FLOW.steps[1]!, { id: 'tests', kind: 'work', name: 'Tests' }] })
     wf.stepDone('a1', 'build')
@@ -1303,7 +1323,7 @@ describe('steps are reported in order, and finishing a task never claims a step 
 
   it('refuses to report a step while an earlier one is neither done nor skipped, and says which', () => {
     const { wf } = started()
-    expect(() => wf.stepDone('a1', 'build')).toThrow('"UI design options" comes before "Build": report it, or skip it with step_done("designs", skipped).')
+    expect(() => wf.stepDone('a1', 'build')).toThrow('"UI design options" comes before "Build": report it, or skip it with step_done("designs", skipped, "<why>"): a step is never passed over without saying so.')
   })
 
   it('a skip needs a reason, which is kept on the step', () => {
@@ -1610,18 +1630,18 @@ describe('running a workflow\'s checks', () => {
   })
 
   it('says, when the agent reports its work, that the app is now running the checks that follow', () => {
-    expect(started(false).wf.stepDone('a1', 'build')).toEqual({ done: 'build', checking: true })
+    expect(started(false).wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
     const none = make()
     none.state.pick = () => ({ id: 'n', name: 'N', steps: [{ id: 'build', kind: 'work', name: 'Build' }] })
     none.wf.begin('a1', 'Task')
-    expect(none.wf.stepDone('a1')).toEqual({ done: 'build' })
+    expect(none.wf.stepDone('a1')).toMatchObject({ done: 'build' })
   })
 
   it('after a check failed and the agent fixed it, reporting again is accepted and has the checks run once more, rather than refused as already done', async () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'FAIL' }]
     await wf.runChecks('a1', 'h1')
-    expect(wf.stepDone('a1')).toEqual({ done: 'build', checking: true })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'build', checking: true })
     expect((await wf.runChecks('a1', 'h2')).ran).toBe(2)
     expect(() => wf.stepDone('a1')).toThrow('Every step you do is already reported done.')
   })

@@ -2271,14 +2271,18 @@ async function main() {
   // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
   ipcMain.handle('workflows:decline-step', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
-    const name = run?.workflow?.steps.find((s) => s.id === step)?.name
-    if (run && name) mailbox.fromOffice(run.agent, stepDeclined(name))
+    const found = run?.workflow?.steps.find((s) => s.id === step)
+    if (!run || !found) throw new Error('No such step.')
+    // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
+    if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
+    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step))))
+    send('workflows')
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.skipStep(runId, String(step))
-    if (run) mailbox.fromOffice(run.agent, stepSkipped(name))
+    if (run) mailbox.fromOffice(run.agent, stepSkipped(name, workflows.nextAfter(run, String(step))?.name))
     send('workflows')
   })
   // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.

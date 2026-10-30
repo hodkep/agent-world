@@ -36,11 +36,10 @@ describe('the card that asks the person before a step starts', () => {
     expect(aw.workflows.startStep).toHaveBeenCalledWith('r1', 'push')
   })
 
-  it('Not now tells the agent to wait and starts nothing, and the card says it was told', async () => {
+  it('Not now declines the step and starts nothing', async () => {
     const host = await mount()
     await act(async () => named(host, 'Not now').click())
     expect(aw.workflows.declineStep).toHaveBeenCalledWith('r1', 'push')
     expect(aw.workflows.startStep).not.toHaveBeenCalled()
-    expect(host.textContent).toContain('ada was told to wait')
   })
 })

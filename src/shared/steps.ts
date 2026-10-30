@@ -93,6 +93,8 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
   const { kind, id } = step
   const mine = round.steps.filter((s) => s.step === id)
   const last = mine[mine.length - 1]
+  // The person refused a step that is not optional: it failed, and nothing after it runs.
+  if (last?.state === 'declined' && kind !== 'check' && kind !== 'audit') return 'failed'
   // The person skipped an optional step: it is not followed, and the run goes on. (A check and an audit have their own way of being skipped.)
   if (step.optional && kind !== 'check' && kind !== 'audit' && last?.state === 'skipped') return 'skipped'
   if (kind === 'plan') {
@@ -241,10 +243,14 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
 }
 
 /** What the agent is told when the person skips an optional step of its workflow. */
-export const stepSkipped = (name: string) => `Your step "${name}" was skipped by the person: it is optional. Go on with the next step.`
+export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person: it is optional. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
 
-/** What the agent is told when the person does not approve one of its steps: it does not start it, and waits. */
-export const stepDeclined = (name: string) => `The person did not approve your step "${name}" yet: do not start it. Stop and wait for their instructions.`
+/** What the agent is told when the person refuses a step that is not optional: the workflow stops there. */
+export const stepDeclined = (name: string) => `The person refused your step "${name}", so the workflow stops here: do not do it or any step after it. Say so in one line and wait for their instructions.`
+
+/** The line that tells an agent what comes after the step it just reported, so it can decide how to go on. */
+export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
+  n ? ` Next step: "${n.name}"${n.optional ? ' (optional: do it unless it clearly does not apply; to leave it out, call step_done("${n.id}", skipped, "<why>") first, never just move on)' : ''}${n.start ? '; it starts when the person presses Run, so change nothing until you are told' : ''}.${n.brief ? ` It is for: ${n.brief}` : ''}` : ' That was the last step.'
 
 /** What the agent is told when the person presses Run on one of its steps. */
 export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`
