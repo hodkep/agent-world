@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -154,5 +154,16 @@ describe('saving a workflow the builder proposed', () => {
     expect(readdirSync(s.projectDir)).toEqual([])
     s.store.save(s.project, wf('good', 'Good'), 'project')
     expect(readdirSync(s.projectDir)).toEqual(['good.json'])
+  })
+})
+
+describe('when a workflow last changed', () => {
+  it('is the time of the file the project uses for that id, and nothing for the built-in Standard or an id with no file', () => {
+    const s = setup()
+    s.put(s.projectDir, 'bug-fix.json', wf('bug-fix', 'Bug fix'))
+    utimesSync(join(s.projectDir, 'bug-fix.json'), new Date(2_000_000_000_000), new Date(2_000_000_000_000))
+    expect(s.store.changedAt(s.project, 'bug-fix')).toBe(2_000_000_000_000)
+    expect(s.store.changedAt(s.project, 'standard')).toBe(0)
+    expect(s.store.changedAt(s.project, 'nothing-here')).toBe(0)
   })
 })

@@ -1921,7 +1921,7 @@ export function App() {
               <PreviewView folder={a.repoPath} servers={servers[a.id] ?? []} agentName={a.name} agentId={a.id} target={previewTarget[a.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />
             </div>
           ))}
-          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} onOpenRun={(id) => (setRunFocus(id ?? null), setReport('workflows'))} />}
+          {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} folder={folder} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} onOpenRun={(id) => (setRunFocus(id ?? null), setReport('workflows'))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
           {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}

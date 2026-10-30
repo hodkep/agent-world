@@ -1,3 +1,4 @@
+import { RestartBanner } from './RestartBanner'
 import { type TileKind, headline, weekDays } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
@@ -15,7 +16,7 @@ const VERDICT: Record<TileKind, string> = { ok: 'met every gate', trouble: 'met 
  * One agent's Workflow tab: where its latest run stands now (the track, with the agent on its station), then its week as a tile for each run, by the day it began.
  * A tile opens that run in the Workflows window, and so does the link under them; the window is where a run's history is told.
  */
-export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun }: { agentName: string; agentId: string; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; /** Open the window on this run, or on its Runs when none is given. */ onOpenRun: (runId?: string) => void }) {
+export function WorkflowTab({ agentName, agentId, folder, runs, spend, ctxFor, onOpenRun }: { agentName: string; agentId: string; folder: string | null; runs: Run[]; spend: Record<string, RunSpend>; ctxFor: (r: Run) => StepContext; /** Open the window on this run, or on its Runs when none is given. */ onOpenRun: (runId?: string) => void }) {
   const now = Date.now()
   // The run is shown as a flow of cards by default (with the buttons on them); the rail is the older, thinner picture of the same steps.
   const [view, setView] = useState<'flow' | 'rail'>('flow')
@@ -24,6 +25,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   if (mine.length === 0)
     return (
       <div className="wf-tab">
+        <div className="wf-notices"><RestartBanner folder={folder} /></div>
         <div className="wf-empty">
           <b>No runs for {agentName} yet</b>
           <p>A run appears when {agentName} starts a task, or commits work it did not announce.</p>
@@ -38,6 +40,7 @@ export function WorkflowTab({ agentName, agentId, runs, spend, ctxFor, onOpenRun
   const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
   return (
     <div className="wf-tab">
+      <div className="wf-notices"><RestartBanner folder={folder} /></div>
       {latest.workflow && (
         <div className="wf-views" role="group" aria-label="How the run is shown">
           <span className="se-seg">

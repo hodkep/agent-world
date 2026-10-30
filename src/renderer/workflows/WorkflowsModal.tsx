@@ -1,3 +1,4 @@
+import { RestartBanner } from './RestartBanner'
 import type { Run } from '../../shared/runs'
 import type { StepContext } from '../../shared/steps'
 import type { RunSpend } from '../../shared/runStats'
@@ -31,6 +32,7 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, switche
           <b>Winding down.</b> Workflows are off. {open} run{open === 1 ? ' is' : 's are'} still open; no new ones start, and this button goes when they finish.
         </div>
       )}
+      <div className="wf-notices"><RestartBanner folder={folder} /></div>
       <div className="lib-tabs" role="tablist" aria-label="Workflows sections">
         <button role="tab" aria-selected={tab === 'runs'} className={tab === 'runs' ? 'on' : ''} onClick={() => setTab('runs')}>Runs</button>
         <button role="tab" aria-selected={tab === 'insights'} className={tab === 'insights' ? 'on' : ''} onClick={() => setTab('insights')}>Insights</button>

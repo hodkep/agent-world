@@ -484,6 +484,8 @@ export interface AwApi {
     saveProposal(agentId: string, project: string | null, how: import('./builder').SaveHow): Promise<import('./workflow').WorkflowEntry>
     /** The person's edit of the draft: the whole workflow as they have it. Checked like a file; a bad edit is refused with every problem named. */
     editProposal(agentId: string, project: string | null, workflow: import('./workflow').Workflow): Promise<import('./builder').ProposalView>
+    /** The running agents of a project that started before its workflow was set: they do not have the workflow tools until they restart. */
+    stale(project: string | null): Promise<{ id: string; name: string }[]>
     /** Back to what the builder proposed. */
     undoProposalEdits(agentId: string, project: string | null): Promise<import('./builder').ProposalView>
     /** Throws the draft away. */
