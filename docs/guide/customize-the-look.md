@@ -32,7 +32,7 @@ The chat's **⋯** menu has two rows:
 
 ## What a look can change
 
-- **Themes:** colours, type and spacing, across the window.
+- Themes: colours, type and spacing, across the window.
 - **Layouts:** rows of the chat can be folded into one chip, moved to the foot of the conversation, or hidden. A chip shows an icon, a count and a label, and opens to the rows it holds.
 - **Icons:** each kind of row can have an icon of your choice.
 
@@ -43,7 +43,7 @@ CSS in a look may not load an address, so a look cannot pull in an image or a fo
 An agent can add a small widget to the chat: a gauge, a figure, a bar.
 
 - A widget runs in a sandbox. It draws the numbers it is given and cannot reach the app or the network.
-- It can show **data from a public https address**, such as a price or the weather. The app loads it, the widget gets text only, and nothing loads until you allow it: the bar says which site it will load from and has a **Load data** button.
+- It can show data from a public https address, such as a price or the weather. The app loads it, the widget gets text only, and nothing loads until you allow it: the bar says which site it will load from and has a **Load data** button.
 - It can fill the chat panel behind the text, and be told how many keys were pressed and messages sent, never what was typed.
 - It can show figures made from the agent's own telemetry, such as cache hit rate, time to first word or failed tool calls.
 - If an agent wants a picture of the window, which shows your chats and todos, nothing is taken unless you press **Allow once**.
