@@ -1,0 +1,36 @@
+name: mirror
+# Copies a published release's installers to the download mirror (Cloudflare R2) and drops the older ones of the same kind. It runs on a Linux runner:
+# the Mac builds are made earlier, this only moves the finished files. Needs the R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_ENDPOINT secrets of the
+# `mirror` environment (a token for the one bucket); without them the job says so and passes, and the app falls back to GitHub as it always does.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to mirror, for example v0.8.0
+        required: true
+permissions:
+  contents: read
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    environment: mirror
+    steps:
+      - uses: actions/checkout@v7
+      - name: Copy the release to the mirror
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          if [ -z "$RCLONE_CONFIG_R2_ACCESS_KEY_ID" ]; then
+            echo "The R2 secrets are not set: nothing was copied, and the app downloads from GitHub."
+            exit 0
+          fi
+          sudo apt-get install -y rclone >/dev/null
+          scripts/mirror-release.sh "$TAG"

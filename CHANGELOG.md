@@ -18,9 +18,22 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 - Chat: the agent's calls that change the look are a group of their own, Appearance, and the agent is told when you press Undo, Keep or restore.
 - Workflows: a step's skill is added with the Playbook's picker, with search, groups by where the skill came from and descriptions, in place of the plain dropdown.
 - Workflows: a warning in the Workflows window and the agent's Workflow tab names the running agents that started before Workflows was switched on or before the project's workflow file changed, with a **Restart** button.
+- Workflows: a step that asks you asks once, before it starts, with **Run** and **Not now**. The agent runs its own tests and reviews in a step and reports each one in order; an optional step it leaves out shows as skipped, with the reason, and is never passed over without saying so.
+- Workflows: **Not now** skips an optional step, and stops the workflow at a required one: that step shows red, the steps after it stay held, and the agent is told to wait.
+- Workflows: the Runs tab opens each run in a panel beside the ledger, with the same flow chart as the Workflow tab, the steps with their skip or refusal reasons and the items added to the run, and shows steps followed as a grid of one square per step per run.
+- Workflows: **Import…** in the Workflows window lists the other workspaces with the workflows each keeps, and copies one into this project or for everything. An import never replaces a file or the built-in Standard.
+- Workflows: with remote control on, `approve <code>` on a step that asks before it starts is your Run, and `changes <code>: reason` is Not now.
+- Chat: what you press on a workflow card shows as a one-line receipt on your side, with the sentence the agent got folded under it.
+- Chat: Cmd+↓ (Ctrl+↓) jumps to the latest message wherever you clicked outside a text box.
+- Agents: an agent that has been idle for 30 minutes with nothing running is put to sleep to free its memory, and its **Wake** button starts it again. One in an open workflow run is not put to sleep.
+
+### Changed
+
+- Workflows: the **Plan gate** and **Merge gate** switches are gone from Settings. Whether a step waits for you is set on the step itself (**Needs my approval** in the workflow builder); a plan or pull request step with no gate set still waits for you. If you had turned a switch off, set that step's gate to auto.
 
 ### Fixed
 
+- Workflows: a push counts only once the remote has it, so the next step does not start while it runs; an approved push is told to the agent even when its commits were not read yet, and again from a **Tell the agent to push** button on the step.
 - Look: CSS in a look may not use `image-set()`, `image()`, `cross-fade()`, `element()` or `src()`, which can load an address given as plain text, and comment marks inside strings no longer hide a `url()` from the checks.
 
 ## [0.7.5] - 2026-10-30
