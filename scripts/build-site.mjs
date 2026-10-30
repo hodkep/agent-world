@@ -13,7 +13,7 @@ const IMAGE = /\.(png|gif|svg|jpe?g|webp)$/i
 // One Docs section, one menu: the user guide first, then how it works and the project's own documents. A guide file that is not listed still gets a page, under "More".
 const MENU = [
   ['Start', [['getting-started'], ['install', 'Install', 'INSTALL.md']]],
-  ['Use', [['the-office'], ['chat-and-dialogs'], ['code-and-preview'], ['workflows'], ['todos'], ['library-and-playbook']]],
+  ['Use', [['the-office'], ['chat-and-dialogs'], ['customize-the-look'], ['code-and-preview'], ['workflows'], ['todos'], ['library-and-playbook']]],
   ['Help', [['settings-and-updates'], ['troubleshooting']]],
   ['How it works', [['providers', 'Providers', 'docs/providers-design.md'], ['remote-control', 'Remote control', 'docs/remote-control-design.md'], ['workflows-design', 'Workflows design', 'docs/workflows-design.md'], ['product', 'Product', 'PRODUCT.md'], ['design-system', 'Design system', 'DESIGN.md']]],
   ['Project', [['contributing', 'Contributing', 'CONTRIBUTING.md'], ['releasing', 'Releasing', 'RELEASING.md'], ['changelog', 'Changelog', 'CHANGELOG.md'], ['trademark', 'Name and logo', 'TRADEMARK.md']]]
