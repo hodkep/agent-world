@@ -101,16 +101,14 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     const land = () => page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }).then(() => 'landed', (e: Error) => e.message), ada!.id)
     expect(await land()).toContain('"Your review" has not been approved.')
 
-    // The person is asked in the chat before the step starts: Not now tells the agent to wait, and Run starts it.
+    // The person is asked in the chat before the step starts: Run starts it.
     await page.getByRole('tab', { name: 'Chat' }).click()
     const panel = page.getByRole('region', { name: 'Run Your review for ada' })
     await expect(panel).toContainText('Look at the diff.')
     // The brief is read as in the chat: an address in it is a link.
     await expect(panel.locator('a[href="https://example.com/spec"]')).toHaveCount(1)
     const log = page.getByRole('log', { name: 'Conversation with ada' })
-    await panel.getByRole('button', { name: 'Not now' }).click()
-    await expect(log).toContainText('The person did not approve your step "Your review" yet: do not start it.', { timeout: 15_000 })
-    await expect(panel).toContainText('ada was told to wait')
+    // Until the person presses Run the agent may not report the step (Not now on a step that is not optional fails it for good: the unit tests and the live run cover that).
     expect((await call('step_done', {})).error).toBe(true)
     await panel.getByRole('button', { name: 'Run', exact: true }).click()
     await expect(log).toContainText('The person pressed Run: start your step "Your review" now.', { timeout: 15_000 })

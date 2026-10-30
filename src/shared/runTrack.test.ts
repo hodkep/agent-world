@@ -38,6 +38,12 @@ describe('where a run is on its track', () => {
     expect(states([submitted(), planned('approved')])).toEqual(['plan:done', 'build:now', 'tests:next', 'review:next', 'land:next'])
   })
 
+  it('marks a step the person refused as failed, holds the ones after it, and says the workflow stopped', () => {
+    const t = track([submitted(), planned('approved'), { k: 'step', t: 450, run: 'r1', round: 1, step: 'build', state: 'declined' }])!
+    expect(t.stations.slice(0, 3).map((s) => s.state)).toEqual(['done', 'failed', 'next'])
+    expect(t.waiting).toBe('not approved: the workflow stopped here')
+  })
+
   it('marks a plan that was sent back before it was approved as done with trouble', () => {
     expect(states([submitted(), planned('changes'), submitted(400), planned('approved', 500)])![0]).toBe('plan:trouble')
   })

@@ -152,7 +152,7 @@ test('an optional step is skipped from its card and the run goes on; a check tha
     await expect(card(3)).toContainText('optional')
     await expect(card(3)).toContainText('working')
     await press(3, 'Skip')
-    await expect(card(3)).toContainText('not asked')
+    await expect(card(3)).toContainText('skipped')
     await expect(card(4)).toContainText('working')
 
     // The check runs; it passed, so it waits for the person, and the approval is in the chat.
