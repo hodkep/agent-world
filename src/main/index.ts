@@ -21,6 +21,7 @@ import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
+import { sleepIdle } from './sleepIdle'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -3158,6 +3159,22 @@ async function main() {
     if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
   const heartbeat = setInterval(noteRunning, 2000)
+  // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
+  const sleeper = setInterval(
+    () =>
+      void sleepIdle({
+        ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
+        activity: (id) => lastActivity.get(id),
+        quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
+        hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
+        pending: (id) => mailbox.pending(id),
+        procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
+        sleep: (id) => sessions.get(id)?.kill(),
+        now: Date.now(),
+        after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
+      }).catch(() => {}),
+    (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000
+  )
 
   // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
   let wrapped = false
@@ -3183,6 +3200,7 @@ async function main() {
     }
     quitting = true
     clearInterval(heartbeat)
+    clearInterval(sleeper)
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
     clearTimeout(idleCheck)

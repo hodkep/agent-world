@@ -301,6 +301,8 @@ export interface Prefs {
   libraryEnabled: boolean
   /** Download an update from the project's mirror first when the build names one, and from GitHub when the mirror does not do. Off: GitHub only. No screen for it; it is read from preferences.json. */
   updateMirror: boolean
+  /** Minutes an agent may sit idle before its program is stopped to free memory; its Wake button starts it again. 0: never. No screen for it; it is read from preferences.json. */
+  sleepIdleMinutes: number
   /** An office boy and a supervisor walk the office, and the cooler's water goes down and is refilled. */
   officeLife: boolean
   /** When the app quits: stop the commands the agents started and commit their unfinished work. */
