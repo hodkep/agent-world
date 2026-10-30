@@ -92,7 +92,8 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
     await pr.getByRole('button', { name: 'Run', exact: true }).click()
     await page.getByRole('tab', { name: 'Workflow' }).click()
     await expect(card(5)).toContainText('ready to push', { timeout: 15_000 })
-    await expect(card(5).getByRole('button')).toHaveCount(0)
+    // The go-ahead to push is sent once and can be lost, so the card keeps one button to tell the agent again.
+    await expect(card(5).getByRole('button')).toHaveText(['Tell the agent to push'])
 
     // The rail is still there, as the other way to look at the same steps.
     await page.getByRole('button', { name: 'Rail' }).click()

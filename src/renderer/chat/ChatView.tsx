@@ -1,6 +1,8 @@
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
+import { parseWorkflowMessage } from '../../shared/workflowMessage'
+import { WorkflowReceipt } from './WorkflowReceipt'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import type { PaletteCommand } from '../../shared/api'
 import type { ChatItem, HookInfo } from '../../shared/chat'
@@ -273,7 +275,7 @@ export function ChatView({
   // What the library did for this agent, shown beside the message it answered: pointed at, read, and the text it started with.
   const lib = useLibraryUses(agentId)
   const slipsByRow = useMemo(() => {
-    const users = allRows.filter((r) => r.kind === 'user' && !r.pending && !parseAgentMail(r.text))
+    const users = allRows.filter((r) => r.kind === 'user' && !r.pending && !parseAgentMail(r.text) && !parseWorkflowMessage(r.text))
     const ats = users.map((r) => (r.kind === 'user' ? (r.at ?? 0) : 0))
     const starts = startsBefore(lib.uses, ats)
     const told = (launch?: number) => lib.uses.filter((x) => x.how === 'delivered' && x.launch === launch).length
@@ -644,7 +646,7 @@ export function ChatView({
           setStopping(true)
           // With nothing after your last message yet, Claude takes it back: it leaves the conversation and returns to the box with what went with it.
           const last = allRows.at(-1)
-          const unsent = last?.kind === 'user' && !parseAgentMail(last.text) ? last.text : undefined
+          const unsent = last?.kind === 'user' && !parseAgentMail(last.text) && !parseWorkflowMessage(last.text) ? last.text : undefined
           if (unsent !== undefined) (takenBack.current = Date.now(), window.dispatchEvent(new CustomEvent('aw:unsend', { detail: { agentId } })))
           void window.aw.chatInterrupt(agentId, unsent)
         }
@@ -1057,6 +1059,9 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
     case 'user': {
       const mail = parseAgentMail(r.text)
       if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
+      // What the person pressed on a workflow card is a receipt on their side, with the sentence the agent got folded under it.
+      const receipt = parseWorkflowMessage(r.text)
+      if (receipt) return <WorkflowReceipt msg={receipt} rowId={r.id} {...(r.at !== undefined && { at: r.at })} {...(r.pending && { pending: true })} />
       // The answer to a form is drawn as a card in the form's words; the text the agent got is folded under it.
       const answer = parseFormAnswer(r.text)
       if (answer) {
