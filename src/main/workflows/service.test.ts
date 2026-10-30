@@ -1260,12 +1260,25 @@ describe('steps are reported in order, and finishing a task never claims a step 
     return { ...t, log: () => t.wf.runs()[0]!.rounds.at(-1)!.steps.map((s) => `${s.step}:${s.state}${s.implicit ? '*' : ''}`) }
   }
 
-  it('an optional step the agent skips is marked skipped, not done, and a step that starts on Run is left for the person', () => {
+  it('an optional step the agent skips is marked skipped, not done, and a step that starts on Run is never marked for the person', () => {
     const { wf, log } = started()
     wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
     wf.stepDone('a1', 'build')
-    wf.done('a1', 'Built.')
+    expect(() => wf.done('a1', 'Built.')).toThrow()
     expect(log()).toEqual(['designs:skipped', 'build:done'])
+  })
+
+  it('refuses to finish while a step that starts on Run still waits for the person, and tells the agent to stop and wait, so the run stays one run', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.done('a1', 'Built.')).toThrow('The person has not pressed Run on "Commit" yet: nothing is finished until they do. Stop here and wait; their Run arrives as your next message.')
+    expect(wf.runs()[0]!.status).toBe('open')
+    wf.startStep(wf.runs()[0]!.id, 'commit')
+    wf.stepDone('a1', 'commit')
+    wf.startStep(wf.runs()[0]!.id, 'push')
+    wf.stepDone('a1', 'push')
+    wf.done('a1', 'Shipped.')
     expect(wf.runs()[0]!.status).toBe('done')
   })
 

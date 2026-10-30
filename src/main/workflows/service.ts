@@ -192,6 +192,9 @@ export class Workflows {
     const owed = unreported.find((s) => !s.optional && !(s.start === 'run' && round.starts?.[s.id] === undefined))
     // The app closing the run itself (the push went through) has nothing to ask of the agent: what is left is marked as the app's doing.
     if (owed && !o.byApp) throw new Error(`Report "${owed.name}" first: it was never done.`)
+    // A step that starts on Run waits for the person's word: finishing now would close the task, and their Run would then open a new round that starts over.
+    const waiting = unreported.find((s) => !s.optional && s.start === 'run' && round.starts?.[s.id] === undefined)
+    if (waiting && !o.byApp) throw new Error(`The person has not pressed Run on "${waiting.name}" yet: nothing is finished until they do. Stop here and wait; their Run arrives as your next message.`)
     for (const s of unreported) if (o.byApp || s.optional) this.append({ k: 'step', t: this.deps.now(), run: open.id, round: round.n, step: s.id, state: s.optional ? 'skipped' : 'done', implicit: true })
     this.append({ k: 'done', t: this.deps.now(), run: open.id, ...(summary && { summary }) })
   }
