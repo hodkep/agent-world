@@ -6,7 +6,7 @@ import { type Step, type StepKind, stepName } from '../../../shared/workflow'
 import { AddStepMenu, KindMenu } from './AddStepMenu'
 import { StepNode, type StepFlowNode } from './StepNode'
 import { chainEdges, loopEdges } from './flowEdges'
-import { PITCH, dropIndex, positionOf } from './stepFlow'
+import { PITCH, dropIndex, flowHeight, positionOf } from './stepFlow'
 
 /** What the person can do on the canvas itself: move a step, add one between two, draw an arrow from one step to another, take one out. Without these it is only looked at. */
 export interface FlowEdits {
@@ -107,10 +107,10 @@ function Flow({ steps, selected, problems, skillStates, edits, onSelect }: { ste
 }
 
 /** The flow, with the height the steps need (a long workflow scrolls by panning, and the height stops growing). */
-export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
-  const height = Math.min(props.edits ? 880 : 600, Math.max(320, props.steps.length * PITCH + 60))
+export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; /** The flow takes the height of the pane around it, instead of the height its steps need. */ fill?: boolean; onSelect: (i: number | null) => void }) {
+  const height = flowHeight(props.steps.length, { edits: !!props.edits, fill: !!props.fill })
   return (
-    <div className="fl-wrap" style={{ height }}>
+    <div className={`fl-wrap ${props.fill ? 'fill' : ''}`} style={height === undefined ? undefined : { height }}>
       <ReactFlowProvider>
         <Flow {...props} />
       </ReactFlowProvider>
