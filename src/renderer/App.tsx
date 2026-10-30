@@ -74,7 +74,6 @@ import { UsageModal } from './stats/UsageModal'
 import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
-import { PlanGate } from './workflows/PlanGate'
 import { RemoteHead } from './chat/RemoteControl'
 import { StepCard } from './workflows/StepCard'
 import { RunTrack } from './workflows/RunTrack'
@@ -86,9 +85,7 @@ import { pendingPlans } from '../shared/runs'
 import { checkPanels, toRunSteps, waitingSteps } from '../shared/steps'
 import { IdentityChip } from './panel/IdentityChip'
 import { billboardLine, profileFor, type IdentityState } from '../shared/identity'
-import { CheckGate } from './workflows/CheckGate'
-import { RunGate } from './workflows/RunGate'
-import { StepGate } from './workflows/StepGate'
+import { WorkflowGates } from './workflows/WorkflowGates'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -876,12 +873,15 @@ export function App() {
     const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
     const r = toRunSteps(wf.runs.filter((x) => x.agent === a.id), ctxFor).at(0)
     return (
-      <>
-        {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
-        {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
-        {r && <RunGate key={`${r.run.id}-${r.step.id}`} agentName={a.name} run={r.run} step={r.step} />}
-        {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
-      </>
+      <WorkflowGates
+        agentName={a.name}
+        plan={p}
+        check={c}
+        runStep={r}
+        step={w}
+        onDecidePlan={(runId, state, o) => void window.aw.workflows.decide(runId, state, o)}
+        onDecideStep={(runId, stepId, decision, note) => void window.aw.workflows.approveStep(runId, stepId, decision, note)}
+      />
     )
   }
   // Where the agent's latest run stands, above its conversation, while it is not finished.

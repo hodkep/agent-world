@@ -184,12 +184,12 @@ export function stepReply(name: string, decision: 'approved' | 'changes', note?:
   return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change, then call step_done again.`
 }
 
-/** The steps of runs that wait for the person to approve them (a step they approve, an audit, a pull request or a merge with gate approve; not a plan), a stopped run's never. */
+/** The steps of runs that wait for the person to approve them (a step they approve, an audit, a pull request or a merge with gate approve; not a plan, and not a step that only waits for their Run), a stopped run's never. */
 export function waitingSteps(runs: Run[], ctx: StepContext): { run: Run; step: RunStep }[] {
   return runs.flatMap((run) => {
     if (run.status === 'stopped' || !run.workflow) return []
     return stepStates(run, ctx)
-      .filter((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
+      .filter((s) => s.state === 'waiting' && !s.toRun && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
       .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id).map((step) => ({ run, step })))
   })
 }

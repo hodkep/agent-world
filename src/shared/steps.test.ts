@@ -132,6 +132,23 @@ describe('the steps waiting for the person across runs', () => {
   })
 })
 
+describe('a step that starts when the person presses Run', () => {
+  const COMMIT: RunWorkflow = { id: 'c', name: 'C', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
+  const waits = [begin(COMMIT), decided('released'), step('build', 'done')]
+
+  it('waits for Run only: it has a Run card and no approval card for the same step', () => {
+    expect(toRunSteps(reduceRuns(waits), () => ({ auditOn: true })).map((x) => x.step.id)).toEqual(['commit'])
+    expect(waitingSteps(reduceRuns(waits), { auditOn: true })).toEqual([])
+  })
+
+  it('once the agent has done it, it waits for approval if its gate asks, and has no Run card', () => {
+    const asks: RunWorkflow = { ...COMMIT, steps: COMMIT.steps.map((x) => (x.id === 'commit' ? { ...x, gate: 'approve' as const } : x)) }
+    const done = [begin(asks), decided('released'), step('build', 'done'), { k: 'start', t: 450, run: 'r1', round: 1, step: 'commit' } as RunEvent, step('commit', 'done', 500)]
+    expect(toRunSteps(reduceRuns(done), () => ({ auditOn: true }))).toEqual([])
+    expect(waitingSteps(reduceRuns(done), { auditOn: true }).map((w) => w.step.id)).toEqual(['commit'])
+  })
+})
+
 describe('a plan the workflow does not ask for', () => {
   const flow = (gate?: 'auto' | 'approve'): RunWorkflow => ({ id: 'f', name: 'F', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', ...(gate && { gate }) }, { id: 'build', kind: 'work', name: 'Build' }] })
   const first = (w: RunWorkflow, planGate: boolean) => stepStates(reduceRuns([begin(w)])[0]!, { auditOn: true, planGate }).map((s) => `${s.id}:${s.state}`)
