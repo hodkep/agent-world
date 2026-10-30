@@ -113,7 +113,8 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
           </>
         ) : (
           wf && (
-            <>
+            <div className="wfl-cols">
+              <div className="wfl-main">
               <div className="wfl-head">
                 <b>{wf.name}</b>
                 <span className="wf-tag">{SCOPE_LABEL[shown.scope]}</span>
@@ -131,7 +132,6 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
                   </p>
                 ) : null
               })()}
-              <FlowCanvas steps={wf.steps} selected={null} skillStates={shown.skills} onSelect={() => {}} />
               {shown.file && <span className="mono muted" data-reveal={shown.file} title="Right-click to reveal this file">{shown.file}</span>}
               {removing ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>
@@ -157,7 +157,9 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
                 </div>
               )}
               {shown.scope !== 'built-in' && <History folder={folder} id={shown.id} />}
-            </>
+              </div>
+              <div className="wfl-flow"><FlowCanvas fill steps={wf.steps} selected={null} skillStates={shown.skills} onSelect={() => {}} /></div>
+            </div>
           )
         )}
       </div>
