@@ -186,8 +186,6 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
                   onCancel={() => setAsking(null)}
                 />
               )}
-              <Switch role="switch" checked={prefs.workflows.planGate} onChange={(planGate) => set({ workflows: { ...prefs.workflows, planGate } })} title="Plan gate" hint="With Workflows on, an agent that starts a task writes its plan first, says what it understood, and waits for you to approve it before it edits files. Claude and agy agents are held back by the app (agy needs its plugin up to date); other programs are only asked to wait." />
-              <Switch role="switch" checked={prefs.workflows.mergeGate} onChange={(mergeGate) => set({ workflows: { ...prefs.workflows, mergeGate } })} title="Merge gate" hint="Holds back the push of the branch (or a merge, in a workflow that lands one) until the plan was approved. At the balanced and max dials a model also reads the branch against the plan and lists what it did not expect, which you tick off. Landing anyway is always possible and is recorded." />
               <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}

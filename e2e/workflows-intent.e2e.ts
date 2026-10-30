@@ -34,7 +34,7 @@ async function session(o: { dial: string; env: Record<string, string> }) {
   git(repo, 'add', '.')
   git(repo, 'commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: o.dial, since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: o.dial, since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const auditLog = join(tmp, 'ask.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_AUDIT_LOG: auditLog, ...o.env }, tmp)

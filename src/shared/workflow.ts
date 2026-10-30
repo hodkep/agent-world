@@ -191,11 +191,11 @@ export function pickEntry(entries: WorkflowEntry[], requested: string | undefine
 }
 
 /** The steps as the list draws them. A plan or merge step that names no gate follows its Settings switch; an approve step always stops. */
-export function stepChips(wf: Workflow, switches: { planGate: boolean; mergeGate: boolean }): Chip[] {
+export function stepChips(wf: Workflow): Chip[] {
   return wf.steps.map((s) => {
-    const own = s.gate !== undefined ? s.gate === 'approve' : undefined
-    const inherited = s.kind === 'plan' ? switches.planGate : isLanding(s.kind) ? switches.mergeGate : false
-    return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || s.start === 'run' || (own ?? inherited) }
+    // A plan asks unless its gate says auto; a merge is the person's own click; any other step asks when it starts on Run (or, in an older file, gates on approve).
+    const asks = s.kind === 'plan' ? s.gate !== 'auto' : s.kind === 'merge' || s.gate === 'approve'
+    return { id: s.id, kind: s.kind, label: s.name ?? KIND_NAME[s.kind], stops: s.kind === 'approve' || s.start === 'run' || asks }
   })
 }
 

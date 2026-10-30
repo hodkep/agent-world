@@ -38,7 +38,7 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
   git(repo, 'commit', '-qm', 'workflows')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: { [repo]: 'reviewed' } } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: { [repo]: 'reviewed' } } }))
   const argsLog = join(tmp, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
   try {

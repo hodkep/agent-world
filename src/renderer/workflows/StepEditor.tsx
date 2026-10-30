@@ -18,7 +18,7 @@ const SIDE_MIN = 700
  * The builder's draft as a flow of steps the person can change in place: click a card to change its name, brief, command, gate and skills, drag it to move it, add or remove steps.
  * In a narrow panel the same steps are a plain list. Every change goes to the office, which checks it like a file; what it says is wrong shows under the steps, and saving waits until nothing is.
  */
-export function StepEditor({ agentId, folder, workflow, skillStates, switches, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** The Settings switches a step with no gate of its own follows. */ switches?: { planGate: boolean; mergeGate: boolean }; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
+export function StepEditor({ agentId, folder, workflow, skillStates, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
   const [wf, setWf] = useState(workflow)
   const [problem, setProblem] = useState('')
   const [skills, setSkills] = useState<AddableItem[]>([])
@@ -88,7 +88,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
             steps={wf.steps}
             selected={cur}
             skillStates={skillStates}
-            switches={switches}
+           
             onSelect={setPicked}
             edits={{
               onMove: drop,
@@ -117,7 +117,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
             <p className="se-hint muted">Click a step to change it. Drag it to move it, or draw an arrow from the dot under one step to the dot over another to put it right after. + on an arrow adds a step there. Delete takes the picked step out.</p>
           ) : (
             <div className="se-pick" ref={fields}>
-              <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} switches={switches} change={change} />
+              <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} change={change} />
               <div className="se-acts">
                 <button aria-label={`Move step ${cur + 1} up`} disabled={cur === 0} onClick={() => (change(moveStep(wf, cur, -1)), setPicked(cur - 1))}>Move up</button>
                 <button aria-label={`Move step ${cur + 1} down`} disabled={cur === wf.steps.length - 1} onClick={() => (change(moveStep(wf, cur, 1)), setPicked(cur + 1))}>Move down</button>
@@ -131,7 +131,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
         <ol className="se-steps" aria-label="Steps">
           {wf.steps.map((s, i) => (
             <li key={`${s.id}-${i}`} className={`se-step k-${s.kind}`}>
-              <StepInspector wf={wf} at={i} skills={skills} skillStates={skillStates} switches={switches} change={change} />
+              <StepInspector wf={wf} at={i} skills={skills} skillStates={skillStates} change={change} />
               <div className="se-acts">
                 <button className="se-ico up" aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => change(moveStep(wf, i, -1))}><PixelIcon name="chevron" scale={2} /></button>
                 <button className="se-ico" aria-label={`Move step ${i + 1} down`} disabled={i === wf.steps.length - 1} onClick={() => change(moveStep(wf, i, 1))}><PixelIcon name="chevron" scale={2} /></button>

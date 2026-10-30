@@ -29,9 +29,9 @@ describe('preferences', () => {
     expect(cleanPrefs({ seenVersion: 'x'.repeat(100) }).seenVersion).toBe('')
   })
   it('workflows start off at the balanced dial, and a bad value falls back', () => {
-    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} })
-    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234, planGate: false, mergeGate: false, defaults: { '/p/shop': 'bug-fix' } })
-    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo', since: -3, planGate: 'no', mergeGate: 'no', defaults: { '/p/a': 'Not An Id', '/p/b': 7, '/p/c': 'ok-one' } } }).workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: { '/p/c': 'ok-one' } })
+    expect(DEFAULT_PREFS.workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, defaults: {} })
+    expect(cleanPrefs({ workflows: { enabled: true, dial: 'max', since: 1234, defaults: { '/p/shop': 'bug-fix' } } }).workflows).toEqual({ enabled: true, dial: 'max', since: 1234, defaults: { '/p/shop': 'bug-fix' } })
+    expect(cleanPrefs({ workflows: { enabled: 'yes', dial: 'turbo', since: -3, defaults: { '/p/a': 'Not An Id', '/p/b': 7, '/p/c': 'ok-one' } } }).workflows).toEqual({ enabled: false, dial: 'balanced', since: 0, defaults: { '/p/c': 'ok-one' } })
     expect(cleanPrefs({ workflows: { defaults: 'nope' } }).workflows.defaults).toEqual({})
   })
   it('keeps a name for the own login of each known program, trimmed, and nothing else', () => {

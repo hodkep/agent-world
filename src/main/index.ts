@@ -557,8 +557,6 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   enabled: () => prefs.workflows.enabled,
   noWorkflow: noWorkflowFor,
   since: () => prefs.workflows.since,
-  planGate: () => prefs.workflows.planGate,
-  mergeGate: () => prefs.workflows.mergeGate,
   dial: () => prefs.workflows.dial,
   // The audit and the intent check run on the agent's own program and account when it can answer, so what they cost lands where its work does; else on the first program that is ready.
   ask: async (id, prompt, model) => {

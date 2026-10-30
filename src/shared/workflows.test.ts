@@ -59,11 +59,11 @@ describe('when the Workflows button and window are shown', () => {
 
 describe('switching workflows on or off', () => {
   it('records when it was switched on, and keeps that when only the dial changes or it goes off', () => {
-    const off = { enabled: false, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: {} }
+    const off = { enabled: false, dial: 'balanced' as const, since: 0, defaults: {} }
     const on = switchWorkflows(off, true, 5000)
-    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, planGate: true, mergeGate: true, defaults: {} })
+    expect(on).toEqual({ enabled: true, dial: 'balanced', since: 5000, defaults: {} })
     expect(switchWorkflows(on, true, 9000)).toEqual(on)
-    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, planGate: true, mergeGate: true, defaults: {} })
+    expect(switchWorkflows(on, false, 9000)).toEqual({ enabled: false, dial: 'balanced', since: 5000, defaults: {} })
   })
 })
 
@@ -74,7 +74,7 @@ describe('which model the app asks for its own checks', () => {
 })
 
 describe('which workflow a project uses by default', () => {
-  const w = { enabled: true, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: { '/p/shop': 'bug-fix' } }
+  const w = { enabled: true, dial: 'balanced' as const, since: 0, defaults: { '/p/shop': 'bug-fix' } }
   it('is the one chosen for that project, else Standard', () => {
     expect(defaultWorkflow(w, '/p/shop')).toBe('bug-fix')
     expect(defaultWorkflow(w, '/p/other')).toBe('standard')
@@ -88,7 +88,7 @@ describe('which workflow a project uses by default', () => {
 })
 
 describe('a project that uses no workflow', () => {
-  const w = { enabled: true, dial: 'balanced' as const, since: 0, planGate: true, mergeGate: true, defaults: { '/p/shop': 'bug-fix' } }
+  const w = { enabled: true, dial: 'balanced' as const, since: 0, defaults: { '/p/shop': 'bug-fix' } }
   it('is a choice kept per project like any other default, and choosing Standard again brings it back', () => {
     const none = withDefault(w, '/p/shop', NO_WORKFLOW)
     expect(defaultWorkflow(none, '/p/shop')).toBe('none')

@@ -31,7 +31,7 @@ export function SkillChips({ ids, states }: { ids: string[]; states?: Record<str
 }
 
 /** The workflows a project can use, with the chosen one's steps beside the list; copying, deleting and choosing the default are here. */
-export function WorkflowList({ folder, runs, switches, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; switches: { planGate: boolean; mergeGate: boolean }; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: { id: string; name: string }) => Promise<void> }) {
+export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: { id: string; name: string }) => Promise<void> }) {
   const [entries, setEntries] = useState<WorkflowEntry[] | null>(null)
   const [picked, setPicked] = useState(initial)
   const [describe, setDescribe] = useState('')
@@ -131,7 +131,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
                   </p>
                 ) : null
               })()}
-              <FlowCanvas steps={wf.steps} selected={null} skillStates={shown.skills} switches={switches} onSelect={() => {}} />
+              <FlowCanvas steps={wf.steps} selected={null} skillStates={shown.skills} onSelect={() => {}} />
               {shown.file && <span className="mono muted" data-reveal={shown.file} title="Right-click to reveal this file">{shown.file}</span>}
               {removing ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>

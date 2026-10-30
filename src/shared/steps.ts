@@ -28,14 +28,10 @@ type Own = 'passed' | 'waiting' | 'open' | 'later' | 'skipped' | 'failed' | 'tor
 export interface StepContext {
   /** Whether an audit is run at this dial and for this program. */
   auditOn: boolean
-  /** The Settings switch for the plan gate; a plan step with no gate of its own follows it. On when not given. */
-  planGate?: boolean
   /** Whether the commands of the run's workflow file are approved (a project's file needs it; anything else does). Approved when not given. */
   approved?: boolean
   /** The branch as it is now: a check that passed for another head is due again. */
   head?: string
-  /** The Settings switch for the merge gate: a pull request or merge step with no gate of its own asks for the person's approval when it is on. Off when not given. */
-  mergeGate?: boolean
 }
 
 /** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
@@ -44,7 +40,7 @@ export function needsApproval(step: { kind: StepKind; gate?: string; start?: str
   // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
   if (step.kind !== 'pr') return false
   // A pull request that starts on Run is the person's press: nothing is pushed before it, as with gate approve.
-  return step.gate === 'approve' || step.start === 'run' || (step.gate === undefined && ctx.mergeGate === true)
+  return step.gate === 'approve' || step.start === 'run'
 }
 
 /** Whether the person approved this step for the branch as it is now: their last answer was an approval, given after the round's last commit (and after `since`). */
@@ -106,7 +102,7 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
     if (p === 'changes') return 'open'
     // No plan: not needed when the run went on without one, in a follow-up round, or after the round ended.
     const workedAhead = run.workflow!.steps.some((s) => s.kind === 'work' && round.steps.some((l) => l.step === s.id && l.state === 'done'))
-    const asked = step.gate === 'approve' ? true : step.gate === 'auto' ? false : ctx.planGate ?? true
+    const asked = step.gate !== 'auto'
     return !asked || round.n > 1 || round.endedAt !== undefined || workedAhead ? 'skipped' : 'open'
   }
   if (kind === 'audit') {

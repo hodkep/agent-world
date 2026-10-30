@@ -24,7 +24,7 @@ function Detail({ step }: { step: Step | undefined }) {
  * The builder's draft, as the person reviews it: what it is, what it changes in the saved one, the commands it would run, and the
  * buttons that save it. Nothing here is saved until one of them is pressed.
  */
-export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onChanged }: { agentId: string; folder: string | null; view: ProposalView; switches: { planGate: boolean; mergeGate: boolean }; onSaved: (e: WorkflowEntry) => void; onGone: () => void; /** The draft was edited: read it again. */ onChanged: () => void }) {
+export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: { agentId: string; folder: string | null; view: ProposalView; onSaved: (e: WorkflowEntry) => void; onGone: () => void; /** The draft was edited: read it again. */ onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [problem, setProblem] = useState(false)
@@ -44,7 +44,7 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onC
   const discard = () => void window.aw.workflows.discardProposal(agentId).then(onGone, () => undefined)
   const newCommands = view.commands.filter((c) => !c.known).length
   const granted = Object.keys(view.skills).filter((id) => view.skills[id] === 'granted')
-  const rows = previewOf(wf, switches)
+  const rows = previewOf(wf)
   const grantingSteps = wf.steps.filter((s) => s.skills?.some((id) => granted.includes(id))).map((s) => s.name ?? s.id)
   return (
     <section className="bs-draft" aria-label="Workflow proposal">
@@ -59,7 +59,7 @@ export function Proposal({ agentId, folder, view, switches, onSaved, onGone, onC
           The saved workflow changed after this was proposed. Ask the builder to look at it again; saving is off until it does.
         </p>
       )}
-      <StepEditor agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} switches={switches} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
+      <StepEditor agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} at={view.at} edited={view.edited} onProblem={setProblem} onChanged={onChanged} />
       <details className="bs-preview" open aria-label="Preview of the workflow">
         <summary>
           <b>Preview</b>

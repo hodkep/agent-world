@@ -16,9 +16,7 @@ interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
   enabled: () => boolean
   /** The plan gate: a task's plan is approved by the person before the agent edits. */
-  planGate: () => boolean
   /** The merge gate: Land is held until the plan was approved and the audit's findings were seen. */
-  mergeGate: () => boolean
   /** The agent's project uses no workflow: no task is recorded and nothing is held, as with workflows off. */
   noWorkflow?: (agentId: string) => boolean
   dial: () => Dial
@@ -200,7 +198,7 @@ export class Workflows {
   }
 
   private states(run: Run, head?: string) {
-    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), mergeGate: this.deps.mergeGate(), approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
+    return stepStates(run, { auditOn: this.deps.dial() !== 'economy', approved: run.workflow ? this.deps.approved(run.workflow) : true, ...(head && { head }) })
   }
 
   /**
@@ -212,7 +210,7 @@ export class Workflows {
     // An audit that starts when the person presses Run is never started by the app.
     if (run?.workflow?.steps.some((x) => x.kind === 'audit' && x.start === 'run')) return false
     const tried = !!run?.audit && run.audit.t >= run.rounds[run.rounds.length - 1]!.startedAt
-    return !!run && !tried && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', planGate: this.deps.planGate(), approved: this.deps.approved(run.workflow), head })
+    return !!run && !tried && run.status !== 'stopped' && !!run.workflow && readyForAudit(run, { auditOn: this.deps.dial() !== 'economy', approved: this.deps.approved(run.workflow), head })
   }
 
   private running = new Set<string>()
@@ -337,8 +335,10 @@ export class Workflows {
 
   /** Whether landing is held for the plan, the audit and the person's approvals: the merge step's own gate decides, else the Settings switch. */
   private mergeRequired(run: Run): boolean {
-    const merge = run.workflow?.steps.find((s) => isLanding(s.kind))
-    return merge?.gate === 'approve' ? true : merge?.gate === 'auto' ? false : this.deps.mergeGate()
+    if (!run.workflow) return true
+    const merge = run.workflow.steps.find((s) => isLanding(s.kind))
+    // A merge is the person's own click on Land; a pull request holds the push when it asks (a start on Run, or an older file's gate of approve); no landing step holds nothing.
+    return !!merge && (merge.kind === 'merge' || merge.gate === 'approve' || merge.start === 'run')
   }
 
   /** What the agent's latest run ends in, if its workflow has a landing step: a pull request (git holds the push) or a merge (git holds the base branch). */
@@ -348,9 +348,9 @@ export class Workflows {
 
   /** Whether the run's plan must be approved before edits: the plan step's own gate decides, else the Settings switch; a workflow with no plan step needs none. */
   private planRequired(run: Run): boolean {
-    if (!run.workflow) return this.deps.planGate()
+    if (!run.workflow) return true
     const plan = run.workflow.steps.find((s) => s.kind === 'plan')
-    return !plan ? false : plan.gate === 'approve' ? true : plan.gate === 'auto' ? false : this.deps.planGate()
+    return !!plan && plan.gate !== 'auto'
   }
 
   /**
@@ -478,7 +478,8 @@ export class Workflows {
    * with no open task, or for a plan the read-back check will refuse. A model that fails is reported, never fatal: the plan goes ahead without it.
    */
   async intentCheck(agentId: string, markdown: string, request: string): Promise<IntentResult | undefined> {
-    if (!this.deps.enabled() || !this.deps.planGate() || this.deps.dial() !== 'max' || !this.openRun(agentId)) return undefined
+    const run = this.openRun(agentId)
+    if (!this.deps.enabled() || this.deps.dial() !== 'max' || !run || !this.planRequired(run)) return undefined
     const parsed = parsePlan(markdown)
     if (!parsed.ok) return undefined
     try {

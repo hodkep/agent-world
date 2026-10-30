@@ -33,7 +33,7 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
   const projectDir = join(repo, '.agent-world', 'workflows')
   mkdirSync(join(home, 'workflows'), { recursive: true })
   mkdirSync(projectDir, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   writeFileSync(join(home, 'workflows', 'quick-change.json'), JSON.stringify(QUICK))
   writeFileSync(join(projectDir, 'bug-fix.json'), JSON.stringify(BUG_FIX))
   writeFileSync(join(projectDir, 'broken.json'), '{ "id": ')

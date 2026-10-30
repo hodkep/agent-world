@@ -51,7 +51,7 @@ async function start(extra: { saved?: object; approved?: Record<string, unknown>
   git('commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   if (extra.approved) writeFileSync(join(home, 'workflow-approvals.json'), JSON.stringify({ approved: extra.approved }))
   const argsLog = join(tmp, 'args.log')
   const app = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)

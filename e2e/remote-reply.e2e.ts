@@ -42,7 +42,7 @@ async function setup(remote: boolean, withWorkflow = false) {
   git(repo, 'add', '.')
   git(repo, 'commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const contextLog = join(tmp, 'context.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_PROMPT_HOOK: '1', FAKE_CONTEXT_LOG: contextLog }, tmp)

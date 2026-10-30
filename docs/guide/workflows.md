@@ -7,8 +7,7 @@ A pipeline an agent follows for each task: plan, build, checks, review, pull req
 Off by default: **Settings**, then **Features**.
 
 - **Workflows** adds a **Workflow** tab to each agent and a top bar button.
-- **Plan gate** (on by default): an agent waits for your approval of its plan before it edits.
-- **Merge gate** (on by default): the pull request waits for an approved plan and seen findings, and then for your own approval: a **Pull request** step with no gate of its own follows this switch.
+- Whether a step asks you is set on the step, in the builder. A plan waits for your approval before the agent edits unless its gate is **auto**; any other step can ask you first. There are no switches for it in Settings.
 - The dial sets how much care each task takes: [The three dials](#the-three-dials).
 
 An agent gets the workflow tools only when it starts, so one that was already running when Workflows was switched on, or when its project's workflow file last changed, does not have them: no task is recorded for it. A warning card at the top of the Workflows window and of the agent's Workflow tab names those agents and has a button that restarts them. It is gone once none is left.
@@ -53,7 +52,7 @@ Findings to look at show as a card at the end of the agent's chat. The reviewer 
 Limits:
 
 - An agent that unsets git's environment variables, sets its own `core.hooksPath` or pushes with `--no-verify` gets past the git holds; a skipped push is still recorded as pushed anyway.
-- Only a task's first round is held for its plan, and not with **Plan gate** off.
+- Only a task's first round is held for its plan, and not when the plan step's gate is **auto**.
 - The **Merge into main** button in the Code tab applies no gate. To land through the gate, ask the agent to merge.
 
 ## Follow a run: the track
@@ -77,7 +76,7 @@ Ask the agent to push the branch. If the gate holds it, git refuses, the agent t
 
 <img src="../images/merge-held.png" alt="The push held card" width="720">
 
-A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it even with **Merge gate** off.
+A branch that shares no history with its base (the base was rewritten) cannot be landed: a red line at the end of the chat says to reset it onto the base. A failed review never holds it. Checks and steps that need you hold it whatever the pull request step says.
 
 ## The Workflows window
 

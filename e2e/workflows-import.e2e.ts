@@ -17,7 +17,7 @@ test('Import lists the other workspaces with their workflows and copies one into
   writeFileSync(source, JSON.stringify(REVIEW))
   const home = join(tmp, 'home')
   mkdirSync(home)
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: {} } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: {} } }))
   writeFileSync(join(home, 'workspaces.json'), JSON.stringify({ active: shop, recent: [shop, billing, scratch] }))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_CHAT: '1' }, tmp)
   try {

@@ -43,14 +43,14 @@ function Switch({ on, onChange, label, hint, disabled }: { on: boolean; onChange
  * The settings of one step. Every step has the same ones: who does it, what it is told, the part it plays, and the switches (starts when you press Run,
  * needs your approval, must pass, optional); a setting that does not fit the one who does it is not shown. The same fields sit beside the flow and in each row of the plain list.
  */
-export function StepInspector({ wf, at, skills, skillStates, switches, change }: { wf: Workflow; at: number; /** Every skill that can be added. */ skills: AddableItem[]; skillStates: Record<string, SkillState>; /** What a step with no gate of its own follows. */ switches?: { planGate: boolean; mergeGate: boolean }; change: (next: Workflow) => void }) {
+export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Workflow; at: number; /** Every skill that can be added. */ skills: AddableItem[]; skillStates: Record<string, SkillState>; change: (next: Workflow) => void }) {
   const s: Step = wf.steps[at]!
   const n = at + 1
   const who = whoOf(s.kind)
   const role = roleOf(s.kind)
   const patch = (p: StepPatch) => change(setStep(wf, at, p))
-  // Whether the person approves it: its own gate, else what the Settings switch comes to for a plan or a landing step.
-  const approves = s.kind === 'approve' || (s.gate !== undefined ? s.gate === 'approve' : s.kind === 'plan' ? !!switches?.planGate : s.kind === 'pr' || s.kind === 'merge' ? !!switches?.mergeGate : false)
+  // Whether the person approves it: a plan unless its gate says auto, else its own gate.
+  const approves = s.kind === 'approve' || (s.kind === 'plan' ? s.gate !== 'auto' : s.gate === 'approve')
   const mustPass = s.kind === 'check' && (s.gate === 'pass' || s.gate === 'approve')
   const setApproval = (on: boolean) => {
     if (s.kind === 'check') return patch({ gate: on ? 'approve' : mustPass ? 'pass' : undefined })
