@@ -4,6 +4,25 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-30
+
+![Agent World 0.8.0: make the app yours with themes, layouts, icons and live widgets](https://raw.githubusercontent.com/hodkep/agent-world/v0.8.0/docs/images/releases/0.8.0/poster.png)
+
+### Added
+
+- Look: an agent can change how the app looks, its colours, type, spacing and the layout of its chat, with layout rules and CSS, which you keep or undo, compare against the system look, or go back to.
+- Look: layout rules can fold, move or hide the rows of the chat and give them an icon of your choice; the Keep and Undo bar can be dragged anywhere in the window, remembered, and moved with the arrow keys.
+- Widgets: an agent can add small sandboxed widgets to the chat that draw numbers they are given, and cannot reach the app or the network.
+- Widgets: a widget can show data loaded from any public https address, such as a price or the weather, as text only and after you allow it, or fill the chat panel behind the text.
+- Widgets: figures made from the agent's own telemetry, such as cache hit rate, time to first word or failed tool calls.
+- Chat: the agent's calls that change the look are a group of their own, Appearance, and the agent is told when you press Undo, Keep or restore.
+- Workflows: a step's skill is added with the Playbook's picker, with search, groups by where the skill came from and descriptions, in place of the plain dropdown.
+- Workflows: a warning in the Workflows window and the agent's Workflow tab names the running agents that started before Workflows was switched on or before the project's workflow file changed, with a **Restart** button.
+
+### Fixed
+
+- Look: CSS in a look may not use `image-set()`, `image()`, `cross-fade()`, `element()` or `src()`, which can load an address given as plain text, and comment marks inside strings no longer hide a `url()` from the checks.
+
 ## [0.7.5] - 2026-10-30
 
 ![Agent World 0.7.5: updates download from a mirror first, and Homebrew installs need tap, trust, install](https://raw.githubusercontent.com/hodkep/agent-world/v0.7.5/docs/images/releases/0.7.5/poster.png)
