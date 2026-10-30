@@ -83,7 +83,7 @@ function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend 
   const why = lines.filter((l) => l.note)
   const meta = [run.workflow ? run.workflow.name : 'from a commit', run.status === 'open' ? 'open' : day(run.startedAt), rounds > 1 ? `${rounds} rounds` : ''].filter(Boolean).join(' · ')
   return (
-    <aside className="rb-side" role="region" aria-label={`How ${run.title} went`}>
+    <div className="rb-side" role="region" aria-label={`How ${run.title} went`}>
       <header>
         <span><b>{run.name} · {run.title}</b><small>{meta}</small></span>
         <button onClick={onClose} aria-label="Hide this run">Hide</button>
@@ -126,7 +126,7 @@ function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend 
           ))}
         </ul>
       )}
-    </aside>
+    </div>
   )
 }
 
