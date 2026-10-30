@@ -406,9 +406,9 @@ describe('workflow tools', () => {
   it('step_done reports a step and says what now waits for the person; a refusal comes back in words', async () => {
     calls.length = 0
     const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
-    expect(text(await c.callTool({ name: 'step_done', arguments: {} }))).toBe('Step "build" reported done.')
-    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'fix' } }))).toBe('Step "fix" reported done. "Your review" now waits for the person to approve it; their answer arrives as your next message.')
-    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'lint' } }))).toBe('Step "lint" reported done. The app is running the checks that follow; if one fails you get its output as your next message.')
+    expect(text(await c.callTool({ name: 'step_done', arguments: {} }))).toBe('Step "build" reported done. That was the last step.')
+    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'fix' } }))).toBe('Step "fix" reported done. "Your review" now waits for the person to approve it; their answer arrives as your next message. That was the last step.')
+    expect(text(await c.callTool({ name: 'step_done', arguments: { step: 'lint' } }))).toBe('Step "lint" reported done. The app is running the checks that follow; if one fails you get its output as your next message. That was the last step.')
     const refused = await c.callTool({ name: 'step_done', arguments: { step: 'nope' } })
     expect((refused as { isError?: boolean }).isError).toBe(true)
     expect(text(refused)).toContain('no step "nope"')

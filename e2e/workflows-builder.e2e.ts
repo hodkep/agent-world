@@ -17,9 +17,9 @@ const BILLING = {
   steps: [
     { id: 'plan', kind: 'plan', gate: 'approve', brief: 'Say which billing code changes.' },
     { id: 'build', kind: 'work', name: 'Build' },
-    { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass' },
-    { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint', gate: 'pass' },
-    { id: 'review', kind: 'audit', name: 'Security audit' },
+    { id: 'tests', kind: 'work', name: 'Tests pass' },
+    { id: 'lint', kind: 'work', name: 'Lint' },
+    { id: 'review', kind: 'work', name: 'Security audit' },
     { id: 'land', kind: 'merge' }
   ]
 }
@@ -31,7 +31,7 @@ const BUG_FIX = {
   steps: [
     { id: 'plan', kind: 'plan', gate: 'approve' },
     { id: 'fix', kind: 'work', name: 'Fix, test first' },
-    { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 },
+    { id: 'tests', kind: 'work', name: 'Tests pass' },
     { id: 'land', kind: 'merge' }
   ]
 }
@@ -51,7 +51,7 @@ async function start(extra: { saved?: object; approved?: Record<string, unknown>
   git('commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   if (extra.approved) writeFileSync(join(home, 'workflow-approvals.json'), JSON.stringify({ approved: extra.approved }))
   const argsLog = join(tmp, 'args.log')
   const app = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
@@ -113,7 +113,7 @@ const openWorkflows = async (page: Page) => {
 }
 const hashOf = (file: string) => createHash('sha256').update(readFileSync(file, 'utf8')).digest('hex').slice(0, 16)
 
-test('the person describes a workflow, the builder (a read-only agent in the project) proposes one through its own tools, nothing is written until a button is pressed, and saving approves its commands', async () => {
+test('the person describes a workflow, the builder (a read-only agent in the project) proposes one through its own tools, nothing is written until a button is pressed, and saving writes the file', async () => {
   const s = await start()
   try {
     const { page, repo, home, argsLog } = s
@@ -143,10 +143,10 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     expect((await call('workflow_list', {})).text).toContain('- standard (built in): Standard')
 
     // A file with problems comes back to the builder with every problem; the person sees nothing.
-    const bad = await call('workflow_propose', { file: JSON.stringify({ ...BILLING, name: '', steps: [{ id: 'tests', kind: 'check' }] }) })
+    const bad = await call('workflow_propose', { file: JSON.stringify({ ...BILLING, name: '', steps: [{ id: 'tests', kind: 'nope' }] }) })
     expect(bad.error).toBe(true)
     expect(bad.text).toContain('"name" is required')
-    expect(bad.text).toContain('needs "run"')
+    expect(bad.text).toContain('"kind" must be one of')
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
 
     // A good one shows up beside the chat, with its commands and what saving does; nothing is written yet.
@@ -155,9 +155,8 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     await expect(draft).toContainText('Billing change')
     await expect(draft).toContainText('new · not saved')
     await expect(draft.getByLabel('Step 5: Security audit')).toBeVisible()
-    await expect(draft.getByLabel('Commands')).toContainText('2 commands would run on your computer')
-    await expect(draft.getByLabel('Commands')).toContainText('npm run lint')
-    await expect(draft.getByLabel('Commands')).toContainText('Saving approves exactly these commands')
+    // No command is kept or run any more, so there is nothing to approve.
+    await expect(draft.getByLabel('Commands')).toHaveCount(0)
     expect(existsSync(join(repo, '.agent-world', 'workflows'))).toBe(false)
 
     // The person saves it to the project: the file is there, its commands are approved for exactly that file, and the list shows it.
@@ -165,10 +164,8 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
     const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
     await expect.poll(() => existsSync(file)).toBe(true)
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(BILLING)
-    const approved = JSON.parse(readFileSync(join(home, 'workflow-approvals.json'), 'utf8')).approved as Record<string, { id: string; commands: string[] }>
-    expect(approved[hashOf(file)]).toMatchObject({ id: 'billing-change', commands: ['npm test', 'npm run lint'] })
     await expect(win.getByRole('option', { name: /Billing change/ })).toHaveAttribute('aria-selected', 'true')
-    await expect(win.locator('.react-flow__node').filter({ hasText: 'npm run lint' })).toHaveCount(1)
+    await expect(win.locator('.react-flow__node').filter({ hasText: 'Lint' })).toHaveCount(1)
 
     // Another agent never gets the builder's tools.
     await win.getByRole('button', { name: 'Close' }).click()
@@ -186,7 +183,7 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
   }
 })
 
-test('editing a saved workflow: the builder starts from it, the draft says what changes and which commands are new, replacing keeps one file, and a file changed by hand since blocks the save', async () => {
+test('editing a saved workflow: the builder starts from it, the draft says what changes, replacing keeps one file, and a file changed by hand since blocks the save', async () => {
   const bugFixHash = createHash('sha256').update(JSON.stringify(BUG_FIX, null, 2) + '\n').digest('hex').slice(0, 16)
   const s = await start({ saved: BUG_FIX, approved: { [bugFixHash]: { id: 'bug-fix', commands: ['npm test'], at: 1 } } })
   try {
@@ -208,33 +205,27 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     expect((await call('workflow_propose', { file: JSON.stringify(BUG_FIX) })).text).toContain('unchanged')
 
     const next = structuredClone(BUG_FIX)
-    next.steps[2] = { ...next.steps[2]!, retries: 3 } as (typeof next.steps)[number]
-    next.steps.splice(3, 0, { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint', gate: 'pass' } as (typeof next.steps)[number])
+    next.steps[2] = { ...next.steps[2]!, brief: 'Run all the tests.' } as unknown as (typeof next.steps)[number]
+    next.steps.splice(3, 0, { id: 'lint', kind: 'work', name: 'Lint' } as (typeof next.steps)[number])
     await call('workflow_propose', { file: JSON.stringify(next) })
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft).toContainText('replaces the one in this project')
     const diff = draft.getByRole('list', { name: 'What changes' })
     await expect(diff).toContainText('+ Lint')
-    await expect(diff).toContainText('runs: npm run lint')
-    await expect(diff).toContainText('~ Tests pass · retries 2 → 3')
+    await expect(diff).toContainText('~ Tests pass')
     await expect(diff).toContainText('3 steps unchanged')
-    // npm test was approved for an earlier version; npm run lint is the news.
-    await expect(draft.getByLabel('Commands')).toContainText('2 commands would run on your computer')
-    await expect(draft.getByLabel('Commands')).toContainText('1 new')
-    await expect(draft.getByLabel('Commands').locator('li', { hasText: 'npm test' })).toContainText('approved before')
-    await expect(draft.getByLabel('Commands').locator('li', { hasText: 'npm run lint' })).not.toContainText('approved before')
+    // No command is kept or run any more, so there is nothing to approve.
+    await expect(draft.getByLabel('Commands')).toHaveCount(0)
 
-    // Replacing writes over the same file; there is still one, and the new version's commands are approved.
+    // Replacing writes over the same file; there is still one.
     await draft.getByRole('button', { name: 'Replace Bug fix in shop' }).click()
     const dir = join(repo, '.agent-world', 'workflows')
     await expect.poll(() => (JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as typeof BUG_FIX).steps.length).toBe(5)
     expect(readdirSync(dir)).toEqual(['bug-fix.json'])
-    const approved = JSON.parse(readFileSync(join(home, 'workflow-approvals.json'), 'utf8')).approved as Record<string, { commands: string[] }>
-    expect(approved[hashOf(join(dir, 'bug-fix.json'))]!.commands).toEqual(['npm test', 'npm run lint'])
     // The save is written down, and the builder can read it back.
     await win.getByRole('option', { name: /Bug fix/ }).click()
-    await expect(win.getByRole('region', { name: 'History of bug-fix' })).toContainText('replaced the saved one: added Lint; changed Tests pass (retries 2 → 3)')
-    expect((await call('workflow_history', { id: 'bug-fix' })).text).toContain('replaced the saved one · added Lint; changed Tests pass (retries 2 → 3)')
+    await expect(win.getByRole('region', { name: 'History of bug-fix' })).toContainText('replaced the saved one: added Lint; changed Tests pass')
+    expect((await call('workflow_history', { id: 'bug-fix' })).text).toContain('replaced the saved one · added Lint; changed Tests pass')
 
     // A later proposal against a file the person then edited by hand cannot be saved over it.
     await win.getByRole('option', { name: /Bug fix/ }).click()
@@ -258,7 +249,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
   }
 })
 
-test('the person edits the builder\'s draft in place: a rename, a step added with its command, one removed; a problem blocks saving, undo goes back to the proposal, and what is saved is what they edited', async () => {
+test('the person edits the builder\'s draft in place: a rename, a step added, one removed; undo goes back to the proposal, and what is saved is what they edited', async () => {
   const s = await start()
   try {
     const { page, repo, argsLog } = s
@@ -281,20 +272,16 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
     await expect(draft).not.toContainText('You edited')
 
-    // A step added before the landing step has no command yet: the checker says so, and saving waits until it has one.
+    // A step added before the landing step is an agent step: it has a name and what it is told, and there is nothing to run, so saving needs nothing more.
     await draft.getByLabel('Name of step 5').fill('Security review')
     await draft.getByRole('button', { name: 'Add a step', exact: true }).click()
-    await draft.getByRole('menuitem', { name: /check/ }).click()
-    await expect(draft.getByRole('alert')).toContainText('needs "run"')
-    await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeDisabled()
-    await draft.getByLabel('Command of step 6').fill('npm run typecheck')
+    await draft.getByRole('menuitem', { name: /^work/ }).click()
     await expect(draft.getByRole('alert')).toHaveCount(0)
     await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeEnabled()
-    await expect(draft.getByLabel('Commands')).toContainText('npm run typecheck')
+    await draft.getByLabel('Name of step 6').fill('Typecheck')
     // The preview under the draft follows the edit: what each step will ask of the person.
     const preview = draft.getByLabel('Preview of the workflow')
     await expect(preview).toContainText('you approve the plan before any edit')
-    await expect(preview).toContainText('the app runs `npm run typecheck`')
     await expect(preview).toContainText('You stop at')
 
     // Lint goes; what is saved is exactly this.
@@ -308,9 +295,9 @@ test('the person edits the builder\'s draft in place: a rename, a step added wit
     const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
     await expect.poll(() => existsSync(file)).toBe(true)
     const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
-    expect(saved.steps.map((x) => x.id)).toEqual(['plan', 'build', 'tests', 'review', 'check', 'land'])
-    expect(saved.steps[3]).toMatchObject({ kind: 'audit', name: 'Security review' })
-    expect(saved.steps[4]).toMatchObject({ kind: 'check', run: 'npm run typecheck' })
+    expect(saved.steps.map((x) => x.name ?? x.id)).toEqual(['plan', 'Build', 'Tests pass', 'Security review', 'Typecheck', 'land'])
+    expect(saved.steps[3]).toMatchObject({ kind: 'work', name: 'Security review' })
+    expect(saved.steps[4]).toMatchObject({ kind: 'work', name: 'Typecheck' })
     await client.close()
   } finally {
     await s.shutdown()
@@ -376,7 +363,7 @@ test('a step card is dragged to another place in the flow, and a narrow panel sh
   }
 })
 
-test('every step takes a brief, and a check, an audit or a pull request can start when the person presses Run: the card says so, and the saved file holds both', async () => {
+test('every step takes a brief, and a step can ask the person first: the card says so, and the saved file holds both', async () => {
   const s = await start()
   try {
     const { page, repo, argsLog } = s
@@ -391,25 +378,25 @@ test('every step takes a brief, and a check, an audit or a pull request can star
     // The audit step had no brief before; now it does, and the reviewer is told it.
     await draft.getByLabel('Step 5: Security audit').click()
     await draft.getByLabel('Brief of step 5').fill('Look hard at the billing code.')
-    await draft.getByRole('button', { name: 'When I press Run' }).click()
+    await draft.getByRole('button', { name: 'Asks me first' }).click()
     await expect(draft.getByLabel('Step 5: Security audit')).toContainText('starts when you press Run')
     await expect(draft.getByLabel('Step 5: Security audit')).toContainText('Look hard at the billing code.')
     // The preview says what the press starts, and that you stop there.
-    await expect(draft.getByLabel('Preview of the workflow')).toContainText('you press Run, then you look at the findings')
-    // The landing step takes a brief too, and a check can start on Run.
+    await expect(draft.getByLabel('Preview of the workflow')).toContainText('you press Run, then')
+    // The landing step takes a brief too, and so does any other step.
     await draft.getByLabel('Step 6: Land').click()
     await draft.getByLabel('Brief of step 6').fill('Squash it.')
     await draft.getByLabel('Step 3: Tests pass').click()
-    await draft.getByRole('button', { name: 'When I press Run' }).click()
+    await draft.getByRole('button', { name: 'Asks me first' }).click()
     await expect(draft.getByRole('alert')).toHaveCount(0)
 
     await draft.getByRole('button', { name: 'Save to shop' }).click()
     const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
     await expect.poll(() => existsSync(file)).toBe(true)
     const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
-    expect(saved.steps[4]).toMatchObject({ kind: 'audit', brief: 'Look hard at the billing code.', start: 'run' })
+    expect(saved.steps[4]).toMatchObject({ kind: 'work', brief: 'Look hard at the billing code.', start: 'run' })
     expect(saved.steps[5]).toMatchObject({ kind: 'merge', brief: 'Squash it.' })
-    expect(saved.steps[2]).toMatchObject({ kind: 'check', start: 'run' })
+    expect(saved.steps[2]).toMatchObject({ kind: 'work', start: 'run' })
     await client.close()
   } finally {
     await s.shutdown()
@@ -438,9 +425,9 @@ test('the flow is edited on the canvas: a + on an arrow adds a step there, an ar
 
     // A + on the arrow after step 1 adds a step there, and picks it so its fields are open.
     await draft.getByRole('button', { name: 'Add a step after step 1' }).click({ force: true })
-    await draft.getByRole('menuitem', { name: /review/ }).click({ force: true })
+    await draft.getByRole('menuitem', { name: /^work/ }).click({ force: true })
     await expect(draft.locator('.react-flow__node')).toHaveCount(7)
-    expect((await labels())[1]).toBe('Step 2: Audit')
+    expect((await labels())[1]).toBe('Step 2: Build')
     await expect(draft.getByLabel('Name of step 2')).toBeVisible()
 
     // Delete takes the picked step out.
@@ -460,7 +447,7 @@ test('the flow is edited on the canvas: a + on an arrow adds a step there, an ar
   }
 })
 
-test('every step has the same settings: who does it, its part in the run, whether you approve it, and whether it is optional', async () => {
+test('every step has the same settings: who does it, whether it asks you first, and whether it is optional; only the plan is answered after it is written', async () => {
   const s = await start()
   try {
     const { page, repo, argsLog } = s
@@ -472,35 +459,26 @@ test('every step has the same settings: who does it, its part in the run, whethe
     const draft = win.getByRole('region', { name: 'Workflow proposal' })
     await expect(draft.locator('.react-flow__node')).toHaveCount(6)
 
-    // A build step has the same settings as any other: who does it, a brief, approval, optional.
+    // A build step asks once, before it starts, or never: there is no second approval to turn on.
     await draft.getByLabel('Step 2: Build').click()
     await expect(draft.getByRole('group', { name: 'Who does step 2' })).toBeVisible()
-    await draft.getByRole('switch', { name: 'Needs my approval' }).check({ force: true })
+    await expect(draft.getByRole('switch', { name: 'Needs my approval' })).toHaveCount(0)
+    await draft.getByRole('button', { name: 'Asks me first' }).click()
     await draft.getByRole('switch', { name: 'Optional' }).check({ force: true })
-    await expect(draft.getByLabel('Step 2: Build')).toContainText('you approve')
+    await expect(draft.getByLabel('Step 2: Build')).toContainText('starts when you press Run')
     await expect(draft.getByLabel('Step 2: Build')).toContainText('optional')
 
-    // A check can be approved after it passes; that implies it must pass.
-    await draft.getByLabel('Step 4: Lint').click()
-    await draft.getByRole('switch', { name: 'Needs my approval' }).check({ force: true })
-    await expect(draft.getByRole('switch', { name: 'Must pass' })).toBeChecked()
-    await expect(draft.getByRole('switch', { name: 'Must pass' })).toBeDisabled()
-    await expect(draft.getByLabel('Step 4: Lint')).toContainText('you approve')
-
-    // Who does a step can be changed: the audit's brief and the name stay, the skills go.
-    await draft.getByLabel('Step 2: Build').click()
-    await draft.getByLabel('Brief of step 2').fill('Look at the billing code.')
-    await draft.getByRole('button', { name: /Reviewer/ }).click()
-    await expect(draft.getByLabel('Model of step 2')).toBeVisible()
-    await expect(draft.getByLabel('Step 2: Build')).toContainText('Look at the billing code.')
+    // The plan is the one step answered after it is written.
+    await draft.getByLabel('Step 1: Plan').click()
+    await expect(draft.getByRole('switch', { name: 'Needs my approval' })).toBeChecked()
     await expect(draft.getByRole('alert')).toHaveCount(0)
 
     await draft.getByRole('button', { name: 'Save to shop' }).click()
     const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
     await expect.poll(() => existsSync(file)).toBe(true)
     const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
-    expect(saved.steps[1]).toMatchObject({ kind: 'audit', name: 'Build', brief: 'Look at the billing code.', gate: 'approve', optional: true })
-    expect(saved.steps[3]).toMatchObject({ kind: 'check', name: 'Lint', gate: 'approve' })
+    expect(saved.steps[0]).toMatchObject({ kind: 'plan', gate: 'approve' })
+    expect(saved.steps[1]).toMatchObject({ kind: 'work', name: 'Build', start: 'run', optional: true })
     await client.close()
   } finally {
     await s.shutdown()

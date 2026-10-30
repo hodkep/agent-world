@@ -8,7 +8,7 @@ import { hire, launchApp } from './launch'
 async function run(workflows: boolean) {
   const home = mkdtempSync(join(tmpdir(), 'aw-wfrem-'))
   mkdirSync(join(home, 'aw'), { recursive: true })
-  writeFileSync(join(home, 'aw', 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: workflows, dial: 'balanced', since: 1, planGate: false, mergeGate: false } }))
+  writeFileSync(join(home, 'aw', 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: workflows, dial: 'balanced', since: 1 } }))
   const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_SHOW_REMINDER: '1' }, home)
   const page = await app.firstWindow()
   await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)

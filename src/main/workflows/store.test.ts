@@ -148,8 +148,8 @@ describe('saving a workflow the builder proposed', () => {
 
   it('refuses a workflow the file check refuses, a project scope without a project, and leaves no half-written file', () => {
     const s = setup()
-    const bad = { ...wf('bad', 'Bad'), steps: [{ id: 'tests', kind: 'check' }] } as Workflow
-    expect(() => s.store.save(s.project, bad, 'project')).toThrow('a check step needs "run"')
+    const bad = { ...wf('bad', 'Bad'), steps: [{ id: 'tests', kind: 'nope' }] } as unknown as Workflow
+    expect(() => s.store.save(s.project, bad, 'project')).toThrow('"kind" must be one of')
     expect(() => s.store.save(null, wf('x', 'X'), 'project')).toThrow('Open a project first.')
     expect(readdirSync(s.projectDir)).toEqual([])
     s.store.save(s.project, wf('good', 'Good'), 'project')
@@ -165,5 +165,63 @@ describe('when a workflow last changed', () => {
     expect(s.store.changedAt(s.project, 'bug-fix')).toBe(2_000_000_000_000)
     expect(s.store.changedAt(s.project, 'standard')).toBe(0)
     expect(s.store.changedAt(s.project, 'nothing-here')).toBe(0)
+  })
+})
+
+describe('importing from another project', () => {
+  function two() {
+    const s = setup()
+    const other = join(s.root, 'billing')
+    const otherDir = join(other, '.agent-world', 'workflows')
+    mkdirSync(otherDir, { recursive: true })
+    const empty = join(s.root, 'scratch')
+    mkdirSync(empty)
+    return { ...s, other, otherDir, empty }
+  }
+
+  it('lists each other project with the workflows it keeps itself, not the current one, the shared ones or broken files', () => {
+    const s = two()
+    s.put(s.projectDir, 'mine.json', wf('mine'))
+    s.put(s.globalDir, 'shared.json', wf('shared'))
+    s.put(s.otherDir, 'review.json', wf('review', 'Security review'))
+    s.put(s.otherDir, 'broken.json', '{')
+    const found = s.store.others([s.project, s.other, s.empty], s.project)
+    expect(found.map((p) => p.project)).toEqual([s.other, s.empty])
+    expect(found[0]!.workflows.map((e) => [e.id, e.workflow!.name])).toEqual([['review', 'Security review']])
+    expect(found[1]!.workflows).toEqual([])
+  })
+
+  it('copies one into this project or for everything, with its own id and name, and leaves the original alone', () => {
+    const s = two()
+    s.put(s.otherDir, 'review.json', wf('review', 'Security review'))
+    const before = readFileSync(join(s.otherDir, 'review.json'), 'utf8')
+    expect(s.store.importFrom(s.other, 'review', s.project, 'project')).toMatchObject({ id: 'review', scope: 'project', workflow: { name: 'Security review' } })
+    expect(s.store.importFrom(s.other, 'review', s.project, 'global')).toMatchObject({ id: 'review', scope: 'global' })
+    expect(readFileSync(join(s.otherDir, 'review.json'), 'utf8')).toBe(before)
+    expect(s.store.list(s.project).find((e) => e.id === 'review')!.scope).toBe('project')
+  })
+
+  it('takes the next free id and marks the name when one with that id is already there', () => {
+    const s = two()
+    s.put(s.otherDir, 'review.json', wf('review', 'Security review'))
+    s.put(s.projectDir, 'review.json', wf('review', 'My review'))
+    expect(s.store.importFrom(s.other, 'review', s.project, 'project')).toMatchObject({ id: 'review-copy', workflow: { id: 'review-copy', name: 'Security review (copy)' } })
+    expect(s.store.importFrom(s.other, 'review', s.project, 'project').id).toBe('review-copy-2')
+    expect(readFileSync(join(s.projectDir, 'review.json'), 'utf8')).toContain('My review')
+  })
+
+  it('never takes the id of the built-in Standard, which would replace it', () => {
+    const s = two()
+    s.put(s.otherDir, 'standard.json', wf('standard', 'Their standard'))
+    expect(s.store.importFrom(s.other, 'standard', s.project, 'project')).toMatchObject({ id: 'standard-copy', workflow: { name: 'Their standard (copy)' } })
+  })
+
+  it('refuses a workflow the other project does not have, one that does not read, and a bad id', () => {
+    const s = two()
+    s.put(s.otherDir, 'broken.json', '{')
+    expect(() => s.store.importFrom(s.other, 'nope', s.project, 'project')).toThrow('No such workflow.')
+    expect(() => s.store.importFrom(s.other, 'broken', s.project, 'project')).toThrow('That file has problems, so it cannot be imported.')
+    expect(() => s.store.importFrom(s.other, '../x', s.project, 'project')).toThrow('Not a valid workflow id.')
+    expect(() => s.store.importFrom(s.other, 'broken', null, 'project')).toThrow('Open a project first.')
   })
 })

@@ -1,14 +1,14 @@
 import { answersOf, planReply, unanswered } from '../shared/plan'
 import { codeOf, parseAnswers } from '../shared/remoteReply'
 import { pendingPlans } from '../shared/runs'
-import { auditSetAside, stepReply } from '../shared/steps'
+import { auditSetAside, stepDeclined, stepReply, stepSkipped, stepStarted } from '../shared/steps'
 import type { Workflows } from './workflows/service'
 import type { HeldMerges } from './workflows/heldMerges'
 import { type Gate, remoteHint, resolveReply, touches } from './remoteReply'
 
 /** What the gates need from the office; the module itself knows no provider and no window. */
 export interface RemoteGateDeps {
-  workflows: Pick<Workflows, 'runs' | 'decide' | 'waitingStep' | 'approveStep' | 'seen' | 'addToPlan' | 'asideAudit' | 'allowLanding'>
+  workflows: Pick<Workflows, 'runs' | 'decide' | 'waitingStep' | 'approveStep' | 'startStep' | 'skipStep' | 'declineStep' | 'nextAfter' | 'seen' | 'addToPlan' | 'asideAudit' | 'allowLanding'>
   held: Pick<HeldMerges, 'list' | 'decline' | 'take'>
   /** Tells the window a gate changed. */
   send: (channel: 'workflows' | 'landing') => void
@@ -76,6 +76,18 @@ export function createRemoteGates(d: RemoteGateDeps) {
       apply: (reply) => {
         const changes = reply.verb === 'changes'
         if (changes && !reply.rest) throw new Error('It needs what to change after the colon.')
+        // A step that starts on Run is asked about before it starts: approve is the person's Run, and changes is Not now, with their reason (an optional step is skipped, any other fails and stops the workflow).
+        if (step.toRun) {
+          const run = workflows.runs().find((r) => r.id === step.run)
+          const found = run?.workflow?.steps.find((s) => s.id === step.step)
+          const why = reply.rest.slice(0, 2000)
+          let told: string
+          if (!changes) told = stepStarted(workflows.startStep(step.run, step.step))
+          else if (found?.optional) told = stepSkipped(workflows.skipStep(step.run, step.step), run ? workflows.nextAfter(run, step.step)?.name : undefined)
+          else told = stepDeclined(workflows.declineStep(step.run, step.step))
+          d.send('workflows')
+          return changes && why ? `${told} They said: ${why}` : told
+        }
         workflows.approveStep(step.run, step.step, changes ? 'changes' : 'approved', { note: reply.rest.slice(0, 2000) })
         d.send('workflows')
         return stepReply(step.name, changes ? 'changes' : 'approved', reply.rest.slice(0, 2000))

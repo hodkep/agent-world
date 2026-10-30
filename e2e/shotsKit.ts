@@ -46,7 +46,7 @@ export async function shotApp(o: { env?: Record<string, string>; prefs?: object;
   const { repo, git } = makeProject(tmp)
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  if (!o.fresh) writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true }, ...o.prefs }))
+  if (!o.fresh) writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 }, ...o.prefs }))
   o.seed?.(home)
   // The programs the app finds are shims at plain paths, so no path of this computer's own is drawn in a picture (setup says where each program is).
   const bin = join(tmp, 'bin')

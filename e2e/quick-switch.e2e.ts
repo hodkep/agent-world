@@ -254,7 +254,7 @@ test('the agent number shows a red dot while another agent of this project waits
 
 
 // What a run waits for the person for (a plan, an approval, audit findings, a push) counts like a permission: in the project's tile, the dot on the project button, the agent's pill and the agent number.
-const WF_PREFS = { setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: {} } }
+const WF_PREFS = { setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: {} } }
 const PLAN = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }] }
 const waitingPlan = (home: string, agent: string, project: string) => {
   const t = Date.now()

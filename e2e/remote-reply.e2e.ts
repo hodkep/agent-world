@@ -42,7 +42,7 @@ async function setup(remote: boolean, withWorkflow = false) {
   git(repo, 'add', '.')
   git(repo, 'commit', '-qm', 'init')
   mkdirSync(join(tmp, 'home'), { recursive: true })
-  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true } }))
+  writeFileSync(join(tmp, 'home', 'preferences.json'), JSON.stringify({ workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const contextLog = join(tmp, 'context.log')
   const { app, shutdown } = await launchApp({ AW_HOME: join(tmp, 'home'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_PROMPT_HOOK: '1', FAKE_CONTEXT_LOG: contextLog }, tmp)
@@ -148,7 +148,7 @@ test('with remote control off nothing is said about codes and typed words decide
   }
 })
 
-test('with remote control on, a step that waits for the person is decided by typing: changes needs its note, approve moves on, and each answer is told to the agent as the card tells it', async () => {
+test('with remote control on, a step that asks before it starts is decided by typing: approve is the person\'s Run, changes is Not now with its reason, and each answer is told to the agent as the card tells it', async () => {
   const t = await setup(true, true)
   try {
     await t.call('task_begin', { title: 'Add a toggle', workflow: 'reviewed' })
@@ -157,16 +157,27 @@ test('with remote control on, a step that waits for the person is decided by typ
     expect(told).toContain('"Your review" now waits for the person')
     expect(wait).toBeTruthy()
     expect(told).toContain(`\`changes ${wait}: what to change\``)
+    // Not now needs its reason, and a step that is not optional then fails: the workflow stops there and the agent is told.
     expect(await t.reply(`changes ${wait}`)).toContain('needs what to change')
-    expect(await t.reply(`changes ${wait}: smaller commits`)).toContain('smaller commits')
-    // The work was sent back: reported again, it waits under a new code (the old one decides nothing), and approving that one moves on.
-    const again = await t.call('step_done', { step: 'build' })
-    const second = /`approve ([a-z0-9]{3})`/.exec(again)?.[1]
-    expect(second).toBeTruthy()
-    expect(second).not.toBe(wait)
+    const refused = await t.reply(`changes ${wait}: not this change`)
+    expect(refused).toContain('The person refused your step "Your review"')
+    expect(refused).toContain('not this change')
     expect(await t.reply(`approve ${wait}`)).toBe('')
-    expect(await t.reply(`approve ${second}`)).toContain('Your review')
-    expect(await t.reply(`approve ${second}`)).toBe('')
+  } finally {
+    await t.shutdown()
+  }
+})
+
+test('with remote control on, approve on a step that asks before it starts is the person\'s Run: the agent is told to start it, reports it, and the same words again do nothing', async () => {
+  const t = await setup(true, true)
+  try {
+    await t.call('task_begin', { title: 'Add a toggle', workflow: 'reviewed' })
+    const told = await t.call('step_done', { step: 'build' })
+    const wait = /`approve ([a-z0-9]{3})`/.exec(told)?.[1]
+    expect(wait).toBeTruthy()
+    expect(await t.reply(`approve ${wait}`)).toContain('The person pressed Run: start your step "Your review" now.')
+    expect(await t.reply(`approve ${wait}`)).toBe('')
+    expect((await t.call('step_done', { step: 'ok' }))).toContain('Step "ok" reported done.')
   } finally {
     await t.shutdown()
   }

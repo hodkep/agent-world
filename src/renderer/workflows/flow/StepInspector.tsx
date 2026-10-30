@@ -43,14 +43,14 @@ function Switch({ on, onChange, label, hint, disabled }: { on: boolean; onChange
  * The settings of one step. Every step has the same ones: who does it, what it is told, the part it plays, and the switches (starts when you press Run,
  * needs your approval, must pass, optional); a setting that does not fit the one who does it is not shown. The same fields sit beside the flow and in each row of the plain list.
  */
-export function StepInspector({ wf, at, skills, skillStates, switches, change }: { wf: Workflow; at: number; /** Every skill that can be added. */ skills: AddableItem[]; skillStates: Record<string, SkillState>; /** What a step with no gate of its own follows. */ switches?: { planGate: boolean; mergeGate: boolean }; change: (next: Workflow) => void }) {
+export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Workflow; at: number; /** Every skill that can be added. */ skills: AddableItem[]; skillStates: Record<string, SkillState>; change: (next: Workflow) => void }) {
   const s: Step = wf.steps[at]!
   const n = at + 1
   const who = whoOf(s.kind)
   const role = roleOf(s.kind)
   const patch = (p: StepPatch) => change(setStep(wf, at, p))
-  // Whether the person approves it: its own gate, else what the Settings switch comes to for a plan or a landing step.
-  const approves = s.kind === 'approve' || (s.gate !== undefined ? s.gate === 'approve' : s.kind === 'plan' ? !!switches?.planGate : s.kind === 'pr' || s.kind === 'merge' ? !!switches?.mergeGate : false)
+  // Whether the person approves it: a plan unless its gate says auto, else its own gate.
+  const approves = s.kind === 'approve' || (s.kind === 'plan' ? s.gate !== 'auto' : s.gate === 'approve')
   const mustPass = s.kind === 'check' && (s.gate === 'pass' || s.gate === 'approve')
   const setApproval = (on: boolean) => {
     if (s.kind === 'check') return patch({ gate: on ? 'approve' : mustPass ? 'pass' : undefined })
@@ -113,23 +113,24 @@ export function StepInspector({ wf, at, skills, skillStates, switches, change }:
         </div>
       )}
       <div className="si-switches" role="group" aria-label={`Settings of step ${n}`}>
-        {START_KINDS.includes(s.kind) && (
+        {START_KINDS.includes(s.kind) && s.kind !== 'plan' && (
           <div className="si-when">
             <div className="se-opts">
-              <span className="se-lbl">Before it starts</span>
+              <span className="se-lbl">Asks you</span>
               <span className="se-seg" role="group" aria-label={`Start of step ${n}`}>
-                <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>Starts by itself</button>
-                <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>When I press Run</button>
+                <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>Goes ahead by itself</button>
+                <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>Asks me first</button>
               </span>
             </div>
-            <small className="muted">{s.start === 'run' ? (who === 'agent' ? 'It does not start until you press Run: the agent edits nothing before.' : 'It does not start until you press Run.') : 'It starts as soon as its turn comes.'}</small>
+            <small className="muted">{s.start === 'run' ? 'It does not start until you say yes: the agent does nothing for it before. That is the one time it asks.' : 'It goes ahead as soon as its turn comes, and never asks.'}</small>
           </div>
         )}
-        <div className="si-when">
-          <span className="se-lbl">When it is done</span>
-          <Switch on={approves} disabled={s.kind === 'approve'} label="Needs my approval" hint={s.kind === 'approve' ? 'A step of yours always waits for you.' : 'When it is done, the run waits for you to approve it or send it back before the next step.'} onChange={setApproval} />
-          {s.kind === 'check' && <Switch on={mustPass} disabled={s.gate === 'approve'} label="Must pass" hint={s.gate === 'approve' ? 'A check you approve has to pass first.' : 'A check that fails every try holds the run until you decide.'} onChange={(on) => patch({ gate: on ? 'pass' : undefined })} />}
-        </div>
+        {s.kind === 'plan' && (
+          <div className="si-when">
+            <span className="se-lbl">When it is written</span>
+            <Switch on={approves} label="Needs my approval" hint="Once the plan is written, the run waits for you to approve it or send it back before anything is edited." onChange={setApproval} />
+          </div>
+        )}
         {OPTIONAL_KINDS.includes(s.kind) && <Switch on={!!s.optional} label="Optional" hint="You can skip it, and the run goes on." onChange={(on) => patch({ optional: on ? true : undefined })} />}
       </div>
     </div>

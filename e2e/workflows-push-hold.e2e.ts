@@ -20,7 +20,7 @@ async function office(name: string, findings = FINDINGS, remote = false) {
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const envFile = join(tmp, 'env.log')
   const argsLog = join(tmp, 'args.log')
   const contextLog = join(tmp, 'context.log')

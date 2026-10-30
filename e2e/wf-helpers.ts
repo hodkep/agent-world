@@ -38,7 +38,7 @@ export function world(name: string, o: { prefs?: object; env?: Record<string, st
   const home = join(tmp, 'home')
   mkdirSync(join(home, 'agy'), { recursive: true })
   const repo = makeRepo(tmp)
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: o.dial ?? 'balanced', since: 1, planGate: true, mergeGate: true, ...o.prefs } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: o.dial ?? 'balanced', since: 1, ...o.prefs } }))
   const env: Record<string, string> = { AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: join(home, 'agy'), AW_AGY_CONFIG: join(tmp, 'mcp_config.json'), AW_AGY_PLUGINS: join(tmp, 'plugins'), FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_ENV_FILE: join(tmp, 'env.log'), FAKE_ARGS: join(tmp, 'args.log'), FAKE_AUDIT_LOG: join(tmp, 'audit.log'), ...o.env }
   return { tmp, home, repo, env }
 }

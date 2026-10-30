@@ -45,11 +45,11 @@ const edgeTypes = { insert: InsertEdge }
  * The steps of a workflow as a flow, top to bottom: a card for each, the order drawn as arrows, and the loops back up (a check retried, work sent back) as dashed lines.
  * A card is picked with a click or the keyboard, dragged to a new place or put after another by drawing an arrow to it; a + on an arrow adds a step there. The fields are the inspector's.
  */
-function Flow({ steps, selected, problems, skillStates, switches, edits, onSelect }: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; switches?: { planGate: boolean; mergeGate: boolean }; /** Left out, the flow is only looked at. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
+function Flow({ steps, selected, problems, skillStates, edits, onSelect }: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
   const readOnly = !edits
   const base = useMemo<StepFlowNode[]>(
-    () => steps.map((step, i) => ({ id: step.id, type: 'step', position: positionOf(i), data: { step, index: i, problem: problems?.has(i), skillStates, switches }, selected: selected === i, ariaLabel: `Step ${i + 1}: ${stepName(step)}` })),
-    [steps, selected, problems, skillStates, switches]
+    () => steps.map((step, i) => ({ id: step.id, type: 'step', position: positionOf(i), data: { step, index: i, problem: problems?.has(i), skillStates }, selected: selected === i, ariaLabel: `Step ${i + 1}: ${stepName(step)}` })),
+    [steps, selected, problems, skillStates]
   )
   // The nodes are the steps' own; while one is dragged it follows the pointer, and when let go the list decides where it sits.
   const [nodes, setNodes] = useState(base)
@@ -107,7 +107,7 @@ function Flow({ steps, selected, problems, skillStates, switches, edits, onSelec
 }
 
 /** The flow, with the height the steps need (a long workflow scrolls by panning, and the height stops growing). */
-export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; switches?: { planGate: boolean; mergeGate: boolean }; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
+export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
   const height = Math.min(props.edits ? 880 : 600, Math.max(320, props.steps.length * PITCH + 60))
   return (
     <div className="fl-wrap" style={{ height }}>

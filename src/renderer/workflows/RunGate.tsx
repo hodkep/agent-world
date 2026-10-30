@@ -36,6 +36,7 @@ export function RunGate({ agentName, run, step }: { agentName: string; run: Run;
         {error && <p className="error" role="alert">{error}</p>}
         <div className="pg-acts">
           <button className="primary" disabled={busy} onClick={go}>{audit ? 'Run audit' : 'Run'}</button>
+          <button disabled={busy} title={step.optional ? 'It is optional: the run goes on without it.' : `Required: the workflow stops here and ${agentName} is told to wait.`} onClick={() => void window.aw.workflows.declineStep(run.id, step.id).then(() => undefined, (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))}>Not now</button>
           {!audit && !agents && <button disabled={busy} onClick={() => void window.aw.workflows.skipCheck(run.id, step.id)}>Skip this check</button>}
           {audit && step.optional && <button disabled={busy} title="It is optional: the run goes on without it." onClick={() => void window.aw.finishAside(run.agent)}>Skip</button>}
         </div>

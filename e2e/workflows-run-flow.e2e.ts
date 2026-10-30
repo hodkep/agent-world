@@ -30,7 +30,7 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100', FAKE_AUDIT: FINDINGS }, tmp)
   try {
     const page = await app.firstWindow()
@@ -92,7 +92,8 @@ test('a run is shown as a flow, with Run on a check and an audit that start that
     await pr.getByRole('button', { name: 'Run', exact: true }).click()
     await page.getByRole('tab', { name: 'Workflow' }).click()
     await expect(card(5)).toContainText('ready to push', { timeout: 15_000 })
-    await expect(card(5).getByRole('button')).toHaveCount(0)
+    // The go-ahead to push is sent once and can be lost, so the card keeps one button to tell the agent again.
+    await expect(card(5).getByRole('button')).toHaveText(['Tell the agent to push'])
 
     // The rail is still there, as the other way to look at the same steps.
     await page.getByRole('button', { name: 'Rail' }).click()
@@ -114,7 +115,7 @@ test('an optional step is skipped from its card and the run goes on; a check tha
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const flow = {
     id: 'opt',
     name: 'Optional',
@@ -152,7 +153,7 @@ test('an optional step is skipped from its card and the run goes on; a check tha
     await expect(card(3)).toContainText('optional')
     await expect(card(3)).toContainText('working')
     await press(3, 'Skip')
-    await expect(card(3)).toContainText('not asked')
+    await expect(card(3)).toContainText('skipped')
     await expect(card(4)).toContainText('working')
 
     // The check runs; it passed, so it waits for the person, and the approval is in the chat.
@@ -180,7 +181,7 @@ test('a plan that starts when you press Run waits for it, in the chat and on its
   git(repo, 'commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1 } }))
   const flow = { id: 'gen', name: 'Generate', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', gate: 'approve', start: 'run' }, { id: 'build', kind: 'work', name: 'Build' }] }
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '100' }, tmp)
   try {

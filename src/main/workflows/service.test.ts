@@ -10,13 +10,11 @@ import { Workflows } from './service'
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
 function make(opts: { enabled?: boolean } = {}) {
   const file = join(mkdtempSync(join(tmpdir(), 'aw-runs-')), 'runs.jsonl')
-  const state = { enabled: opts.enabled ?? true, planGate: true, mergeGate: true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], none: false, pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
+  const state = { enabled: opts.enabled ?? true, dial: 'balanced' as Dial, since: 0, t: 1000, n: 0, asked: [] as string[], askedFor: [] as string[], models: [] as string[], ran: [] as string[], approved: true, results: [] as { exit: number | null; timedOut?: boolean; tail?: string }[], gate: null as null | Promise<void>, picked: [] as (string | undefined)[], none: false, pick: ((): RunWorkflow | undefined => undefined) as (id?: string) => RunWorkflow | undefined, todoOf: ((): string | undefined => undefined) as (id: string) => string | undefined, reply: (async () => ({ text: '{"findings":[]}' })) as (prompt: string) => Promise<Reply> }
   const open = () =>
     new Workflows(file, {
       enabled: () => state.enabled,
       since: () => state.since,
-      planGate: () => state.planGate,
-      mergeGate: () => state.mergeGate,
       noWorkflow: () => state.none,
       pick: (_agent, id) => (state.picked.push(id), state.pick(id)),
       run: async (command, cwd) => {
@@ -37,6 +35,23 @@ function make(opts: { enabled?: boolean } = {}) {
   return { state, open, wf: open() }
 }
 
+// Workflows that ask for nothing: a plan that says auto and a pull request that goes ahead by itself (AUTO), or the same with a merge, which is the person's own click (PLAN_AUTO).
+const PLAN_AUTO: RunWorkflow = { id: 'pa', name: 'PA', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] }
+const AUTO: RunWorkflow = { id: 'au', name: 'AU', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'auto' }] }
+
+/** What an agent that did everything says: reports every step it has left, in order, then the task done. */
+function finish(wf: Workflows, agent: string, summary?: string) {
+  // At most as many reports as there are steps: a step sent back is reported again by the same call, which would never end.
+  for (let i = 0; i < 12; i++) {
+    try {
+      wf.stepDone(agent)
+    } catch {
+      break
+    }
+  }
+  wf.done(agent, summary)
+}
+
 describe('recording a task', () => {
   it('task_begin opens a run for the agent and task_done closes it, and both survive a restart', () => {
     const { wf, open } = make()
@@ -44,7 +59,7 @@ describe('recording a task', () => {
     expect(wf.runs()).toHaveLength(1)
     expect(wf.runs()[0]).toMatchObject({ agent: 'a1', name: 'ada', project: '/p', title: 'Fix the login redirect', status: 'open' })
     expect(wf.openCount()).toBe(1)
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(open().runs()[0]).toMatchObject({ status: 'done', summary: 'Done.' })
     expect(open().openCount()).toBe(0)
   })
@@ -58,7 +73,7 @@ describe('recording a task', () => {
 
   it('task_done with nothing open says so, and an unknown agent cannot begin', () => {
     const { wf } = make()
-    expect(() => wf.done('a1')).toThrow('No task is open')
+    expect(() => finish(wf, 'a1')).toThrow('No task is open')
     expect(() => wf.begin('nobody', 'x')).toThrow('Unknown agent')
   })
 })
@@ -69,7 +84,7 @@ describe('turning workflows off', () => {
     wf.begin('a1', 'Fix it')
     state.enabled = false
     expect(() => wf.begin('a2', 'New work')).toThrow('Workflows are off')
-    wf.done('a1', 'Fixed.')
+    finish(wf, 'a1', 'Fixed.')
     expect(wf.runs()[0]!.status).toBe('done')
   })
 
@@ -87,7 +102,7 @@ describe('follow-ups', () => {
   it('a follow-up after the task finished reopens the same run as round 2', () => {
     const { wf } = make()
     const id = wf.begin('a1', 'Add a dark-mode toggle')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(wf.begin('a1', 'Missed the settings page', { followUp: true })).toBe(id)
     const [r] = wf.runs()
     expect(wf.runs()).toHaveLength(1)
@@ -101,7 +116,7 @@ describe('follow-ups', () => {
     const v2: RunWorkflow = { ...v1, hash: 'bbbb2222', steps: [...v1.steps, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test' }] }
     state.pick = () => v1
     wf.begin('a1', 'Add a dark-mode toggle')
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = (id) => (id === 'journey' ? v2 : undefined)
     wf.begin('a1', 'Missed the settings page', { followUp: true })
     expect(state.picked.at(-1)).toBe('journey')
@@ -114,12 +129,12 @@ describe('follow-ups', () => {
     state.pick = () => v1
     wf.begin('a1', 'Add a dark-mode toggle')
     wf.begin('a1', 'More', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.begin('a1', 'Same file', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = () => undefined
     wf.begin('a1', 'File gone', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = () => ({ ...v1, id: 'standard', name: 'Standard', hash: 'cccc3333' })
     wf.begin('a1', 'Another workflow answers', { followUp: true })
     expect(wf.runs()[0]!.workflow).toEqual(v1)
@@ -141,7 +156,7 @@ describe('the todo a run belongs to', () => {
     state.todoOf = () => '14'
     wf.begin('a1', 'Add a dark-mode toggle')
     expect(wf.runs()[0]!.todos).toEqual(['14'])
-    wf.done('a1')
+    finish(wf, 'a1')
     state.todoOf = () => '15'
     wf.begin('a1', 'Missed the settings page', { followUp: true })
     expect(wf.runs()[0]!.todos).toEqual(['14', '15'])
@@ -171,7 +186,7 @@ describe('commits', () => {
   it('a commit with no task open goes to the agent\'s nearest run and is flagged, never refused', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'def456', 'chore: tidy')
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'def456', flagged: true })
   })
@@ -207,7 +222,7 @@ describe('commits', () => {
       expect(wf.addition('a1', 'x', true)).toBeUndefined()
       wf.landing('a1', 'h1', { anyway: true })
       expect(wf.addition('a1', 'x')).toBeUndefined()
-      wf.done('a1')
+      finish(wf, 'a1')
       expect(wf.addition('a1', 'x')).toBeUndefined()
       const b = make()
       b.wf.begin('a1', 'One')
@@ -223,7 +238,7 @@ describe('commits', () => {
   it('with workflows off only an open run takes a commit', () => {
     const { wf, state } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     state.enabled = false
     wf.commit('a1', 'bbb222', 'after off')
     expect(wf.runs()[0]!.rounds[0]!.commits).toEqual([])
@@ -240,7 +255,7 @@ describe('commits', () => {
   it('a commit is placed by the time it was made, not by when it was noticed: made while the task was open, it is not flagged even when read after task_done', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it') // 1010
-    wf.done('a1') // 1020
+    finish(wf, 'a1') // 1020
     wf.commit('a1', 'in111', 'made during', 1015)
     wf.commit('a1', 'out22', 'made after', 1500)
     const [r] = wf.runs()
@@ -250,7 +265,7 @@ describe('commits', () => {
   it('in a run with two rounds a commit goes to the round it was made in', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it') // 1010
-    wf.done('a1') // 1020
+    finish(wf, 'a1') // 1020
     wf.begin('a1', 'Missed case', { followUp: true }) // round 2 at 1030
     wf.commit('a1', 'r1c', 'first round', 1015)
     wf.commit('a1', 'r2c', 'second round', 1035)
@@ -310,7 +325,7 @@ describe('work the agent never announced', () => {
     expect(off.wf.runs()).toEqual([])
     const { wf } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'stray', 'chore: tidy', 5000)
     expect(wf.runs()).toHaveLength(1)
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'stray', flagged: true })
@@ -428,7 +443,7 @@ describe('what the gate holds back', () => {
 
   it('does nothing with the gate off, for a task the app started, for a follow-up round with no new plan, or after the task is done', () => {
     const off = make()
-    off.state.planGate = false
+    off.state.pick = () => AUTO
     off.wf.begin('a1', 'x')
     expect(edit(off.wf)).toBeNull()
     const auto = make()
@@ -438,7 +453,7 @@ describe('what the gate holds back', () => {
     const run = wf.begin('a1', 'x')
     wf.submitPlan('a1', 'p.md', PLAN)
     wf.decide(run, 'approved')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(edit(wf)).toBeNull()
     wf.begin('a1', 'more', { followUp: true })
     expect(edit(wf)).toBeNull()
@@ -451,9 +466,10 @@ describe('the merge gate', () => {
     expect(wf.mergeCheck('a1', 'h1')).toBeNull()
     wf.begin('a1', 'Add a toggle')
     expect(wf.mergeCheck('a1', 'h1')).not.toBeNull()
-    state.mergeGate = false
-    expect(wf.mergeCheck('a1', 'h1')).toBeNull()
-    state.mergeGate = true
+    const auto = make()
+    auto.state.pick = () => AUTO
+    auto.wf.begin('a1', 'Add a toggle')
+    expect(auto.wf.mergeCheck('a1', 'h1')).toBeNull()
     state.enabled = false
     expect(wf.mergeCheck('a1', 'h1')).toBeNull()
   })
@@ -476,8 +492,8 @@ describe('the merge gate', () => {
     wf.begin('a1', 'Add a toggle')
     wf.decide(wf.runs()[0]!.id, 'released')
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ plan: 'released', blocking: [] })
+    state.pick = () => PLAN_AUTO
     wf.begin('a2', 'Other task')
-    state.planGate = false
     expect(wf.mergeCheck('a2', 'h1')).toMatchObject({ plan: 'not-needed', blocking: [] })
     const auto = make()
     auto.wf.commit('a1', 'c9', 'fix: login', 2000)
@@ -489,7 +505,7 @@ describe('the merge gate', () => {
     wf.begin('a1', 'Add a toggle')
     wf.decide(wf.runs()[0]!.id, 'released')
     expect(wf.mergeCheck('a1', 'h1')!.notes).toEqual(['The task is still open: the agent has not said it is done.'])
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 's1', 'chore: a', 9000)
     wf.commit('a1', 's2', 'chore: b', 9100)
     wf.commit('a1', 's3', 'chore: c', 9200)
@@ -497,7 +513,7 @@ describe('the merge gate', () => {
     const one = make()
     one.wf.begin('a1', 'x')
     one.wf.decide(one.wf.runs()[0]!.id, 'released')
-    one.wf.done('a1')
+    finish(one.wf, 'a1')
     one.wf.commit('a1', 's1', 'chore: a', 9000)
     expect(one.wf.mergeCheck('a1', 'h1')!.notes).toEqual(['1 commit was made outside the task.'])
   })
@@ -523,7 +539,7 @@ describe('the merge gate', () => {
     wf.commit('a1', 'h1', 'first work')
     state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","file":"a.ts","text":"Adds a project key."}]}' })
     await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
-    wf.done('a1')
+    finish(wf, 'a1')
     // Another task begins before the first one's branch is pushed, and has no plan yet.
     wf.begin('a1', 'Second task')
     wf.commit('a1', 'h2', 'second work')
@@ -548,7 +564,7 @@ describe('the merge gate', () => {
     const first = wf.runs()[0]!
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     wf.decide(first.id, 'approved')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.begin('a1', 'Second task')
     // A commit dated inside the first task's time, seen by the app only now (a date git was told to use).
     wf.commit('a1', 'h3', 'backdated', first.rounds[0]!.startedAt + 1)
@@ -621,7 +637,7 @@ describe('the merge gate', () => {
 
   it('Add to plan records an out-of-scope finding as in scope and as seen, refuses any other kind, and the next audit is told what was added', async () => {
     const { wf, state } = make()
-    state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] })
+    state.pick = () => ({ id: 'f', name: 'F', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] })
     wf.begin('a1', 'Add a toggle')
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     wf.decide(wf.runs()[0]!.id, 'approved')
@@ -737,9 +753,11 @@ describe('the merge gate', () => {
     wf.decide(wf.runs()[0]!.id, 'released')
     wf.landing('a1', 'h2')
     expect(wf.runs()[0]!.landed).toMatchObject({ head: 'h2', how: 'checked', held: [] })
-    state.mergeGate = false
-    expect(() => wf.landing('a1', 'h3')).not.toThrow()
-    expect(wf.runs()[0]!.landed!.head).toBe('h2')
+    const free = make()
+    free.state.pick = () => AUTO
+    free.wf.begin('a1', 'Add a toggle')
+    expect(() => free.wf.landing('a1', 'h3')).not.toThrow()
+    expect(free.wf.runs()[0]!.landed).toMatchObject({ head: 'h3', how: 'checked', held: [] })
   })
 
   it('holds the base branch for git itself, for the reasons that hold Land, until the person allows that head and no other', () => {
@@ -750,8 +768,10 @@ describe('the merge gate', () => {
     wf.allowLanding('a1', 'h1')
     expect(wf.landingHold('a1', 'h1')).toBeNull()
     expect(wf.landingHold('a1', 'h2')).toEqual(['No plan was approved for this task.'])
-    state.mergeGate = false
-    expect(wf.landingHold('a1', 'h2')).toBeNull()
+    const free = make()
+    free.state.pick = () => AUTO
+    free.wf.begin('a1', 'Add a toggle')
+    expect(free.wf.landingHold('a1', 'h2')).toBeNull()
   })
 
   it('lets the base branch move once the plan was approved, with nothing for the person to allow', () => {
@@ -762,12 +782,11 @@ describe('the merge gate', () => {
   })
 
   describe('a pull request step, which holds the push of the branch', () => {
-    const pull = (gate?: 'auto' | 'approve'): RunWorkflow => ({ id: 'p', name: 'P', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', ...(gate && { gate }) }] })
+    const pull = (gate: 'auto' | 'approve' = 'approve'): RunWorkflow => ({ id: 'p', name: 'P', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate }] })
 
-    it('holds for the same reasons Land does, says which landing the run ends in, and its own gate decides over the switch', () => {
-      const run = (w: RunWorkflow, mergeGate = true) => {
+    it('holds for the same reasons Land does, says which landing the run ends in, and a pull request that does not ask holds nothing', () => {
+      const run = (w: RunWorkflow) => {
         const { wf, state } = make()
-        state.mergeGate = mergeGate
         state.pick = () => w
         wf.begin('a1', 'Add a toggle')
         return wf
@@ -776,15 +795,13 @@ describe('the merge gate', () => {
       expect(wf.landKind('a1')).toBe('pr')
       expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ land: 'pr', blocking: ['No plan was approved for this task.', '"Pull request" has not been approved.'] })
       expect(wf.landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
-      expect(run(pull(), false).landingHold('a1', 'h1')).toBeNull()
-      expect(run(pull('approve'), false).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
-      expect(run(pull('auto'), true).landingHold('a1', 'h1')).toBeNull()
+      expect(run(pull('approve')).landingHold('a1', 'h1')).toEqual(['No plan was approved for this task.', '"Pull request" has not been approved.'])
+      expect(run(pull('auto')).landingHold('a1', 'h1')).toBeNull()
     })
 
     it('ends the run when the push went through, recorded like a landing', () => {
       const { wf, state } = make()
-      state.mergeGate = false
-      state.pick = () => pull()
+      state.pick = () => pull('auto')
       wf.begin('a1', 'Add a toggle')
       wf.decide(wf.runs()[0]!.id, 'released')
       wf.landing('a1', 'h1', { anyway: true })
@@ -797,10 +814,10 @@ describe('the merge gate', () => {
       wf.begin('a1', 'Add a toggle')
       wf.landing('a1', 'h1', { anyway: true })
       expect(wf.runs()[0]).toMatchObject({ status: 'done', landed: { head: 'h1' } })
-      expect(() => wf.done('a1', 'Pushed.')).not.toThrow()
+      expect(() => finish(wf, 'a1', 'Pushed.')).not.toThrow()
       wf.begin('a1', 'Next')
       expect(wf.runs()).toHaveLength(2)
-      expect(() => wf.done('a2')).toThrow('No task is open.')
+      expect(() => finish(wf, 'a2')).toThrow('No task is open.')
     })
 
     it('does not end a run that lands by merging: that one goes on until the agent says it is done', () => {
@@ -820,7 +837,7 @@ describe('the merge gate', () => {
       state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","text":"Adds a project key."}]}' })
       await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
       wf.asideAudit('a1')
-      wf.done('a1')
+      finish(wf, 'a1')
       wf.approveStep(wf.runs()[0]!.id, 'pr', 'approved')
       wf.landing('a1', 'h1')
       expect(wf.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['The review was set aside.'] })
@@ -897,7 +914,7 @@ describe('the merge gate', () => {
     wf.decide(wf.runs()[0]!.id, 'approved')
     wf.commit('a1', 'c1', 'feat: toggle', 1030)
     wf.commit('a1', 'c2', 'feat: save', 1040)
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'c3', 'chore: late', 9000)
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ planned: { goal: 'Add a dark-mode toggle.', outOfScope: ['A theme per project.', 'Animations.'] }, commits: 3, flagged: 1 })
     const none = make()
@@ -1014,7 +1031,8 @@ describe('a task that follows a workflow', () => {
     expect(wf.runs()[0]!.workflow).toBeUndefined()
     state.pick = () => BUG_FIX
     wf.begin('a2', 'Task')
-    wf.done('a2')
+    wf.decide(wf.runs()[1]!.id, 'released')
+    finish(wf, 'a2')
     state.picked.length = 0
     wf.begin('a2', 'More', { followUp: true })
     expect(state.picked).toEqual(['bug-fix'])
@@ -1041,7 +1059,7 @@ describe('the skills a task\'s workflow names', () => {
     expect(wf.skillsOf('a2')).toEqual([])
     state.pick = () => WITH_SKILLS
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(wf.skillsOf('a1')).toEqual([])
   })
 })
@@ -1058,8 +1076,8 @@ describe('reporting a step done', () => {
 
   it('marks the first work step still open, or the one named, and says what now waits for the person', () => {
     const { wf } = started()
-    expect(wf.stepDone('a1')).toEqual({ done: 'a' })
-    expect(wf.stepDone('a1', 'b')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'a' })
+    expect(wf.stepDone('a1', 'b')).toMatchObject({ done: 'b', waiting: 'Your review' })
     expect(logged(wf)).toEqual(['a:done', 'b:done'])
   })
 
@@ -1083,7 +1101,7 @@ describe('reporting a step done', () => {
     wf.stepDone('a1')
     wf.approveStep(wf.runs()[0]!.id, 'ok', 'changes', { note: 'smaller' })
     state.t += 100
-    expect(wf.stepDone('a1')).toEqual({ done: 'b', waiting: 'Your review' })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'b', waiting: 'Your review' })
     expect(logged(wf)).toEqual(['a:done', 'b:done', 'ok:changes', 'b:done'])
   })
 })
@@ -1115,10 +1133,10 @@ describe('approving a step, and finishing the task', () => {
     expect(wf.waitingStep('a1')).toBeNull()
     wf.stepDone('a1')
     wf.stepDone('a1')
-    expect(wf.waitingStep('a1')).toEqual({ run, step: 'b', name: 'Second' })
+    expect(wf.waitingStep('a1')).toEqual({ run, step: 'b', name: 'Second', toRun: false })
     expect(wf.waitingStep('a2')).toBeNull()
     wf.approveStep(run, 'b', 'approved')
-    expect(wf.waitingStep('a1')).toEqual({ run, step: 'ok', name: 'Your review' })
+    expect(wf.waitingStep('a1')).toEqual({ run, step: 'ok', name: 'Your review', toRun: false })
   })
 
   it('work the person sends back after the task was finished opens the task again; an approval does not', () => {
@@ -1126,7 +1144,7 @@ describe('approving a step, and finishing the task', () => {
     wf.stepDone('a1')
     wf.stepDone('a1')
     wf.approveStep(run, 'b', 'approved')
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     wf.approveStep(run, 'ok', 'approved')
     expect(wf.runs()[0]!.status).toBe('done')
@@ -1134,7 +1152,7 @@ describe('approving a step, and finishing the task', () => {
     again.wf.stepDone('a1')
     again.wf.stepDone('a1')
     again.wf.approveStep(again.run, 'b', 'approved')
-    again.wf.done('a1', 'Done.')
+    finish(again.wf, 'a1', 'Done.')
     again.wf.approveStep(again.run, 'ok', 'changes', { note: 'add a test' })
     expect(again.wf.runs()[0]!.status).toBe('open')
     expect(again.wf.stepDone('a1').done).toBe('b')
@@ -1150,33 +1168,24 @@ describe('approving a step, and finishing the task', () => {
     expect(wf.stepDone('a1', 'b').done).toBe('b')
   })
 
-  it('finishing the task marks the work steps the agent never reported as done by the app, and leaves the ones it did', () => {
-    const { wf, log } = started()
-    wf.stepDone('a1', 'a')
-    wf.done('a1', 'All done.')
-    expect(log()).toEqual(['a:done', 'b:done*'])
-    expect(wf.runs()[0]!.status).toBe('done')
-  })
 })
 
 describe('the plan hold follows the workflow', () => {
   const flow = (plan?: { gate?: 'auto' | 'approve' }): RunWorkflow => ({ id: 'f', name: 'F', steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), { id: 'build', kind: 'work', name: 'Build' }, { id: 'land', kind: 'merge', name: 'Land' }] })
-  const held = (w: RunWorkflow | undefined, planGate: boolean) => {
+  const held = (w: RunWorkflow | undefined) => {
     const { wf, state } = make()
-    state.planGate = planGate
     state.pick = () => w
     wf.begin('a1', 'Task')
     return wf.editBlock('a1', '/w/src/a.ts', '/w') !== null
   }
 
-  it('a plan step that names its gate decides, whatever the Settings switch says', () => {
-    expect([held(flow({ gate: 'auto' }), true), held(flow({ gate: 'approve' }), false)]).toEqual([false, true])
+  it('a plan step holds unless it says auto', () => {
+    expect([held(flow({ gate: 'auto' })), held(flow({ gate: 'approve' })), held(flow({}))]).toEqual([false, true, true])
   })
 
-  it('a plan step with no gate follows the switch, a workflow with no plan step holds nothing, and a run with no workflow follows the switch as before', () => {
-    expect([held(flow({}), true), held(flow({}), false)]).toEqual([true, false])
-    expect(held(flow(), true)).toBe(false)
-    expect([held(undefined, true), held(undefined, false)]).toEqual([true, false])
+  it('a workflow with no plan step holds nothing, and a run with no workflow is held', () => {
+    expect(held(flow())).toBe(false)
+    expect(held(undefined)).toBe(true)
   })
 })
 
@@ -1192,19 +1201,17 @@ describe('the merge gate follows the workflow', () => {
       ...(o.merge === false ? [] : [{ id: 'land', kind: 'merge' as const, name: 'Land', ...o.merge }])
     ]
   })
-  const started = (w: RunWorkflow, switches: { mergeGate?: boolean; planGate?: boolean } = {}) => {
+  const started = (w: RunWorkflow) => {
     const t = make()
-    Object.assign(t.state, switches)
     t.state.pick = () => w
     t.wf.begin('a1', 'Task')
     return t
   }
 
-  it('a merge step that names its gate decides, whatever the Settings switch says, and one with no gate follows the switch', () => {
-    expect(started(flow({ merge: { gate: 'auto' } })).wf.mergeCheck('a1', 'h1')).toBeNull()
-    expect(started(flow({ merge: { gate: 'approve' } }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
-    expect(started(flow({ merge: {} }), { mergeGate: false }).wf.mergeCheck('a1', 'h1')).toBeNull()
-    expect(started(flow({ merge: false }), { mergeGate: true }).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+  it('a merge step always holds Land, whatever its file said, and a workflow with no landing step holds nothing', () => {
+    expect(started(flow({ merge: { gate: 'auto' } })).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: {} })).wf.mergeCheck('a1', 'h1')).not.toBeNull()
+    expect(started(flow({ merge: false })).wf.mergeCheck('a1', 'h1')).toBeNull()
   })
 
   it('a workflow with no plan step needs no plan to land, and one with no audit step has no audit and asks no model', async () => {
@@ -1224,14 +1231,147 @@ describe('the merge gate follows the workflow', () => {
   })
 
   it('says whether the plan comes first for the task that is open, by the same rule', () => {
-    const wanted = (plan: { gate?: 'auto' | 'approve' } | undefined, planGate: boolean) => {
-      const t = started(flow({ merge: {} }), { planGate })
+    const wanted = (plan: { gate?: 'auto' | 'approve' } | undefined) => {
+      const t = started(flow({ merge: {} }))
       t.state.pick = () => ({ ...flow(), steps: [...(plan ? [{ id: 'plan', kind: 'plan' as const, name: 'Plan', ...plan }] : []), ...flow({ plan: false }).steps] })
       t.wf.begin('a2', 'Task')
       return t.wf.planWanted('a2')
     }
-    expect([wanted({ gate: 'auto' }, true), wanted({ gate: 'approve' }, false), wanted({}, true), wanted({}, false), wanted(undefined, true)]).toEqual([false, true, true, false, false])
+    expect([wanted({ gate: 'auto' }), wanted({ gate: 'approve' }), wanted({}), wanted(undefined)]).toEqual([false, true, true, false])
     expect(make().wf.planWanted('a1')).toBe(false)
+  })
+})
+
+describe('steps are reported in order, and finishing a task never claims a step nobody did', () => {
+  const FLOW: RunWorkflow = {
+    id: 'h',
+    name: 'H',
+    steps: [
+      { id: 'designs', kind: 'work', name: 'UI design options', optional: true },
+      { id: 'build', kind: 'work', name: 'Build' },
+      { id: 'commit', kind: 'work', name: 'Commit', start: 'run' },
+      { id: 'push', kind: 'work', name: 'Push', start: 'run' }
+    ]
+  }
+  const started = (flow = FLOW) => {
+    const t = make()
+    t.state.pick = () => flow
+    t.wf.begin('a1', 'Task')
+    return { ...t, log: () => t.wf.runs()[0]!.rounds.at(-1)!.steps.map((s) => `${s.step}:${s.state}${s.implicit ? '*' : ''}`) }
+  }
+
+  it('an optional step the agent skips is marked skipped, not done, and a step that starts on Run is never marked for the person', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.done('a1', 'Built.')).toThrow()
+    expect(log()).toEqual(['designs:skipped', 'build:done'])
+  })
+
+  it('refuses to finish while a step that starts on Run still waits for the person, and tells the agent to stop and wait, so the run stays one run', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.done('a1', 'Built.')).toThrow('The person has not pressed Run on "Commit" yet: nothing is finished until they do. Stop here and wait; their Run arrives as your next message.')
+    expect(wf.runs()[0]!.status).toBe('open')
+    wf.startStep(wf.runs()[0]!.id, 'commit')
+    wf.stepDone('a1', 'commit')
+    wf.startStep(wf.runs()[0]!.id, 'push')
+    wf.stepDone('a1', 'push')
+    wf.done('a1', 'Shipped.')
+    expect(wf.runs()[0]!.status).toBe('done')
+  })
+
+  it('finishing with an optional step never reported marks it skipped by the app', () => {
+    const { wf, log } = started({ ...FLOW, steps: FLOW.steps.slice(0, 2) })
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    wf.done('a1')
+    const lateSkip = started({ ...FLOW, steps: [FLOW.steps[1]!, FLOW.steps[0]!] })
+    lateSkip.wf.stepDone('a1', 'build')
+    lateSkip.wf.done('a1')
+    expect(lateSkip.log()).toEqual(['build:done', 'designs:skipped*'])
+    expect(log()).toEqual(['designs:skipped', 'build:done'])
+  })
+
+  it('a required step the person refuses fails and holds the steps after it, and the agent may then close the task; an optional one is skipped instead', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    expect(() => wf.declineStep(id, 'designs')).toThrow('optional')
+    expect(wf.declineStep(id, 'commit')).toBe('Commit')
+    expect(wf.runs()[0]!.rounds.at(-1)!.steps.at(-1)).toMatchObject({ step: 'commit', state: 'declined' })
+    expect(stepStates(wf.runs()[0]!, { auditOn: false }).map((s) => s.state)).toEqual(['skipped', 'passed', 'failed', 'pending'])
+    wf.done('a1', 'Stopped at the commit.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    expect(log()).toContain('commit:declined')
+  })
+
+  it('says which step comes next when one is reported or skipped', () => {
+    const { wf } = started()
+    expect(wf.stepDone('a1', 'designs', { skipped: true, why: 'x' }).next).toMatchObject({ name: 'Build', optional: false })
+    expect(wf.stepDone('a1', 'build').next).toMatchObject({ name: 'Commit', start: true })
+  })
+
+  it('refuses to finish while a step the agent has to do was never reported, and names it', () => {
+    const { wf } = started({ ...FLOW, steps: [FLOW.steps[1]!, { id: 'tests', kind: 'work', name: 'Tests' }] })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.done('a1')).toThrow('Report "Tests" first: it was never done.')
+    expect(wf.runs()[0]!.status).toBe('open')
+  })
+
+  it('refuses to report a step while an earlier one is neither done nor skipped, and says which', () => {
+    const { wf } = started()
+    expect(() => wf.stepDone('a1', 'build')).toThrow('"UI design options" comes before "Build": report it, or skip it with step_done("designs", skipped, "<why>"): a step is never passed over without saying so.')
+  })
+
+  it('a skip needs a reason, which is kept on the step', () => {
+    const { wf } = started()
+    expect(() => wf.stepDone('a1', 'designs', { skipped: true })).toThrow('Say why in a few words: a skipped step needs a reason.')
+    wf.stepDone('a1', 'designs', { skipped: true, why: '  No UI change.  ' })
+    expect(wf.runs()[0]!.rounds[0]!.steps.at(-1)).toMatchObject({ step: 'designs', state: 'skipped', note: 'No UI change.' })
+  })
+
+  it('only an optional step can be skipped by the agent', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI change.' })
+    expect(() => wf.stepDone('a1', 'build', { skipped: true, why: 'No UI change.' })).toThrow('"Build" is not optional: do it, or ask the person.')
+  })
+})
+
+describe('the run ends at the push only when nothing is left after it', () => {
+  const FLOW: RunWorkflow = {
+    id: 'p',
+    name: 'P',
+    steps: [
+      { id: 'build', kind: 'work', name: 'Build' },
+      { id: 'push', kind: 'pr', name: 'Push', start: 'run' },
+      { id: 'pr', kind: 'work', name: 'Pull request', start: 'run' }
+    ]
+  }
+  const pushed = (flow = FLOW) => {
+    const t = make()
+    t.state.pick = () => flow
+    t.wf.begin('a1', 'Task')
+    t.wf.stepDone('a1', 'build')
+    t.wf.approveStep(t.wf.runs()[0]!.id, 'push', 'approved')
+    t.wf.landing('a1', 'h1')
+    return t
+  }
+
+  it('a step of the agent after the pushing step keeps the run open: the agent opens the pull request and reports it', () => {
+    const { wf } = pushed()
+    expect(wf.runs()[0]!.status).toBe('open')
+    wf.startStep(wf.runs()[0]!.id, 'pr')
+    wf.stepDone('a1', 'pr')
+    wf.done('a1', 'Pushed and opened.')
+    expect(wf.runs()[0]!.status).toBe('done')
+  })
+
+  it('with nothing after the pushing step the run ends at the push, as before', () => {
+    const { wf } = pushed({ ...FLOW, steps: FLOW.steps.slice(0, 2) })
+    expect(wf.runs()[0]!.status).toBe('done')
   })
 })
 
@@ -1262,11 +1402,11 @@ describe('running a workflow\'s checks', () => {
 
   it('a task the agent already finished is opened again when its check sends work back, so the fix can be reported, and stays finished when the check passes', async () => {
     const passing = started()
-    passing.wf.done('a1', 'Done.')
+    finish(passing.wf, 'a1', 'Done.')
     await passing.wf.runChecks('a1', 'h1')
     expect(passing.wf.runs()[0]!.status).toBe('done')
     const { wf, state } = started()
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     const first = await wf.runChecks('a1', 'h1')
@@ -1284,7 +1424,7 @@ describe('running a workflow\'s checks', () => {
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     const running = wf.runChecks('a1', 'h1')
     await new Promise((r) => setTimeout(r, 0))
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     release()
     expect((await running).sendBack).toContain('failed (try 1 of 3)')
@@ -1295,7 +1435,7 @@ describe('running a workflow\'s checks', () => {
   it('a finished task opened again by a failing check stays open while the check keeps failing, and the person is asked when it runs out of tries', async () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'a' }, { exit: 1, tail: 'b' }, { exit: 1, tail: 'c' }]
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     await wf.runChecks('a1', 'h1')
     await wf.runChecks('a1', 'h2')
     const last = await wf.runChecks('a1', 'h3')
@@ -1319,13 +1459,13 @@ describe('running a workflow\'s checks', () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     await wf.runChecks('a1', 'h1')
-    wf.done('a1', 'all done')
+    finish(wf, 'a1', 'all done')
     expect(wf.runs()[0]!.status).toBe('done')
     expect(wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
     expect(wf.runs()[0]!.status).toBe('open')
     // With nothing sent back, a closed task stays closed.
     await wf.runChecks('a1', 'h2')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(() => wf.stepDone('a1', 'build')).toThrow('No task is open.')
   })
 
@@ -1490,25 +1630,25 @@ describe('running a workflow\'s checks', () => {
   })
 
   it('says, when the agent reports its work, that the app is now running the checks that follow', () => {
-    expect(started(false).wf.stepDone('a1', 'build')).toEqual({ done: 'build', checking: true })
+    expect(started(false).wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
     const none = make()
     none.state.pick = () => ({ id: 'n', name: 'N', steps: [{ id: 'build', kind: 'work', name: 'Build' }] })
     none.wf.begin('a1', 'Task')
-    expect(none.wf.stepDone('a1')).toEqual({ done: 'build' })
+    expect(none.wf.stepDone('a1')).toMatchObject({ done: 'build' })
   })
 
   it('after a check failed and the agent fixed it, reporting again is accepted and has the checks run once more, rather than refused as already done', async () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'FAIL' }]
     await wf.runChecks('a1', 'h1')
-    expect(wf.stepDone('a1')).toEqual({ done: 'build', checking: true })
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'build', checking: true })
     expect((await wf.runChecks('a1', 'h2')).ran).toBe(2)
     expect(() => wf.stepDone('a1')).toThrow('Every step you do is already reported done.')
   })
 
-  it('a merge step with gate auto turns off the plan and audit rules but not a check that must pass or a step the person must approve', async () => {
+  it('a pull request that does not ask turns off the plan and audit rules but not a check that must pass or a step the person must approve', async () => {
     const t = started()
-    t.state.pick = () => ({ ...FLOW, steps: FLOW.steps.filter((s) => s.id !== 'lint').map((s) => (s.kind === 'merge' ? { ...s, gate: 'auto' as const } : s)) })
+    t.state.pick = () => ({ ...FLOW, steps: FLOW.steps.filter((s) => s.id !== 'lint').map((s) => (s.kind === 'merge' ? { ...s, kind: 'pr' as const, gate: 'auto' as const } : s)) })
     t.wf.begin('a2', 'Other')
     t.wf.stepDone('a2', 'build')
     const check = t.wf.mergeCheck('a2', 'h1')!
@@ -1570,15 +1710,14 @@ describe('when the app starts the audit by itself', () => {
 
 describe('a pull request step waits for the person\'s approval before the push', () => {
   const PR: RunWorkflow = { id: 'pr', name: 'PR', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'pr', kind: 'pr', name: 'Pull request' }] }
-  const audited = async (o: { mergeGate?: boolean; gate?: 'approve' | 'auto' } = {}) => {
+  const audited = async (o: { gate?: 'approve' | 'auto' } = {}) => {
     const { wf, state } = make()
-    state.mergeGate = o.mergeGate ?? true
-    state.pick = () => ({ ...PR, steps: PR.steps.map((s) => (s.kind === 'pr' && o.gate ? { ...s, gate: o.gate } : s)) })
+    state.pick = () => ({ ...PR, steps: PR.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: o.gate ?? 'approve' } : s)) })
     wf.begin('a1', 'Add a toggle')
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     wf.decide(wf.runs()[0]!.id, 'approved')
     wf.commit('a1', 'h1', 'work')
-    wf.done('a1')
+    finish(wf, 'a1')
     await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
     return { wf, id: wf.runs()[0]!.id }
   }
@@ -1598,13 +1737,9 @@ describe('a pull request step waits for the person\'s approval before the push',
     expect(wf.landingHold('a1', 'h2')).toContain('"Pull request" has not been approved.')
   })
 
-  it('asks for nothing when the gate is auto, or has no gate of its own while the Settings switch is off', async () => {
+  it('asks for nothing when the gate is auto, and asks when it says approve', async () => {
     expect((await audited({ gate: 'auto' })).wf.landingHold('a1', 'h1')).toBeNull()
-    expect((await audited({ mergeGate: false })).wf.landingHold('a1', 'h1')).toBeNull()
-  })
-
-  it('its own gate approve asks even with the Settings switch off', async () => {
-    expect((await audited({ mergeGate: false, gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+    expect((await audited({ gate: 'approve' })).wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
   })
 })
 

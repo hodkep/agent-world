@@ -74,7 +74,6 @@ import { UsageModal } from './stats/UsageModal'
 import { WorkflowsModal } from './workflows/WorkflowsModal'
 import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
-import { PlanGate } from './workflows/PlanGate'
 import { RemoteHead } from './chat/RemoteControl'
 import { StepCard } from './workflows/StepCard'
 import { RunTrack } from './workflows/RunTrack'
@@ -86,9 +85,7 @@ import { pendingPlans } from '../shared/runs'
 import { checkPanels, toRunSteps, waitingSteps } from '../shared/steps'
 import { IdentityChip } from './panel/IdentityChip'
 import { billboardLine, profileFor, type IdentityState } from '../shared/identity'
-import { CheckGate } from './workflows/CheckGate'
-import { RunGate } from './workflows/RunGate'
-import { StepGate } from './workflows/StepGate'
+import { WorkflowGates } from './workflows/WorkflowGates'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
 import { OfficeWorld } from './world/World'
@@ -361,7 +358,7 @@ export function App() {
   const prefsNow = useRef<Prefs | null>(null)
   useEffect(() => void window.aw.getPrefs().then((p) => ((prefsNow.current = p), setPrefs(p))), [])
   // The audit runs at every dial but economy; steps and plans waiting for the person are what the Workflows button counts.
-  const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy', planGate: prefs?.workflows.planGate ?? true, mergeGate: prefs?.workflows.mergeGate ?? true }
+  const stepCtx = { auditOn: prefs?.workflows.dial !== 'economy' }
   // A project's workflow file whose check commands are not approved: its checks wait for the person.
   const ctxFor = (r: { id: string }) => ({ ...stepCtx, approved: !wf.unapproved.includes(r.id) })
   // The Workflows window and its count are about the project that is open, as the agent list is.
@@ -876,12 +873,15 @@ export function App() {
     const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
     const r = toRunSteps(wf.runs.filter((x) => x.agent === a.id), ctxFor).at(0)
     return (
-      <>
-        {p && <PlanGate agentName={a.name} run={p.run} round={p.round} onDecide={(state, o) => void window.aw.workflows.decide(p.run.id, state, o)} />}
-        {c && <CheckGate key={`${c.run.id}-${c.step.id}-${c.kind}`} agentName={a.name} panel={c} />}
-        {r && <RunGate key={`${r.run.id}-${r.step.id}`} agentName={a.name} run={r.run} step={r.step} />}
-        {w && <StepGate key={`${w.run.id}-${w.step.id}`} agentName={a.name} run={w.run} step={w.step} onDecide={(decision, note) => void window.aw.workflows.approveStep(w.run.id, w.step.id, decision, note)} />}
-      </>
+      <WorkflowGates
+        agentName={a.name}
+        plan={p}
+        check={c}
+        runStep={r}
+        step={w}
+        onDecidePlan={(runId, state, o) => void window.aw.workflows.decide(runId, state, o)}
+        onDecideStep={(runId, stepId, decision, note) => void window.aw.workflows.approveStep(runId, stepId, decision, note)}
+      />
     )
   }
   // Where the agent's latest run stands, above its conversation, while it is not finished.
@@ -1418,7 +1418,7 @@ export function App() {
         />
       )}
       {report === 'usage' && <UsageModal providers={providers ?? []} limits={pool} limitsAt={poolAt} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} office={{ agents: agents.length, projects: new Set(agents.map((a) => a.repoPath)).size }} onRefreshLimits={() => lookLimits(true)} onClose={() => setReport(null)} />}
-      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} switches={prefs.workflows} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
+      {report === 'workflows' && prefs && workflowsShown(prefs.workflows.enabled, wf.open) && <WorkflowsModal runs={projectRuns} spend={wf.spend} open={wf.open} windingDown={windingDown(prefs.workflows.enabled, wf.open)} folder={folder} defaultId={defaultWorkflow(prefs.workflows, folder)} onDefault={(id) => folder && patchPrefs({ workflows: withDefault(prefs.workflows, folder, id) })} ctx={stepCtx} ctxFor={ctxFor} chatOf={(a) => chatFor(a, true, `builder-${a.id}`)} costOf={(id) => stats[id]?.costUsd ?? 0} onBuilder={(a) => (setWorld((w) => (w[a.id] ? w : applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))))} focusRun={runFocus ?? undefined} onClose={() => (setReport(null), setRunFocus(null))} />}
       {report === 'rewind' && <RewindModal providers={providers ?? []} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} onClose={() => setReport(null)} />}
       {!setupOpen && starting && (
         <div className="su-overlay" role="status" aria-label="Starting">

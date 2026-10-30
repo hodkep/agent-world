@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -440,5 +440,41 @@ describe('todoChips', () => {
 
   it('shows the first five and counts the rest', () => {
     expect(todoChips(Array.from({ length: 22 }, (_, i) => i + 1))).toEqual({ shown: [1, 2, 3, 4, 5], more: 17 })
+  })
+})
+
+describe('the steps of a run, as the Runs tab lists them', () => {
+  const FLOW: RunWorkflow = { id: 'f', name: 'F', steps: [{ id: 'designs', kind: 'work', name: 'Designs', optional: true }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
+  const skip = (t: number, run = 'r1'): RunEvent => ({ k: 'step', t, run, round: 1, step: 'designs', state: 'skipped', note: 'No UI.' })
+  const refuse = (t: number, run = 'r1'): RunEvent => ({ k: 'step', t, run, round: 1, step: 'commit', state: 'declined' })
+  const c = { auditOn: false }
+
+  it('lists each step with how it ended and the reason a step was skipped', () => {
+    const lines = stepLines(run([begin(0, FLOW), skip(1), stepDone(2, 'build')]), c)
+    expect(lines.map((l) => `${l.id}:${l.state}`)).toEqual(['designs:skipped', 'build:passed', 'commit:waiting'])
+    expect(lines[0]!.note).toBe('No UI.')
+  })
+
+  it('sums them up, naming a refused step first, then one that waits for the person', () => {
+    expect(stepSummary(stepLines(run([begin(0, FLOW), skip(1), stepDone(2, 'build')]), c))).toEqual({ text: '1 of 3 met, 1 skipped · Commit waits for you', tone: 'you' })
+    expect(stepSummary(stepLines(run([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3)]), c))).toEqual({ text: '1 of 3 met, 1 skipped · Commit failed', tone: 'bad' })
+    expect(stepSummary([])).toEqual({ text: '—', tone: 'dim' })
+  })
+
+  it('counts, per step name, the runs that met, skipped or failed it, leaving out the runs that have not got there', () => {
+    const runs = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2')])
+    expect(stepCounts(runs, () => c)).toEqual([{ name: 'Designs', met: 1, skipped: 1, failed: 0 }, { name: 'Build', met: 1, skipped: 0, failed: 0 }, { name: 'Commit', met: 0, skipped: 0, failed: 1 }])
+  })
+
+  it('lays the runs out against the steps, oldest first, so each cell says how that step ended in that run', () => {
+    const runs = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2')])
+    const m = stepMatrix(runs, () => c)
+    expect(m.steps).toEqual(['Designs', 'Build', 'Commit'])
+    expect(stepMatrix(reduceRuns([begin(0, QUICK), begin(10, FLOW, {}, 'r2')]), () => c).steps).toEqual(['Designs', 'Build', 'Commit', 'Land'])
+    expect(m.runs.map((r) => r.id)).toEqual(['r1', 'r2'])
+    expect(m.runs[0]!.cells.map((x) => x.state)).toEqual(['skipped', 'passed', 'failed'])
+    expect(m.runs[0]!.cells[0]!.note).toBe('No UI.')
+    expect(m.runs[1]!.cells.map((x) => x.state)).toEqual(['passed', 'open', undefined])
+    expect(stepMatrix(runs, () => c, 1)).toMatchObject({ more: 1, runs: [{ id: 'r2' }] })
   })
 })

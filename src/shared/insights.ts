@@ -1,7 +1,7 @@
 import { weekStartOf } from './ledger'
 import type { Run, RunWorkflow } from './runs'
 import { formatDuration } from './runStats'
-import { type StepContext, auditSetAside, stepStates } from './steps'
+import { type StepContext, type StepState, auditSetAside, stepStates } from './steps'
 import { landingKind } from './workflow'
 
 /** One stretch of a run's time: the agent working, the person being waited on, a check that ran, or one that failed. */
@@ -462,3 +462,95 @@ export function weekDays(runs: Run[], ctxFor: (run: Run) => StepContext, now: nu
 /** The todos a ledger row shows as chips: the first few, and how many more the opened run lists. */
 export const TODO_CHIPS = 5
 export const todoChips = <T,>(ids: T[] = []): { shown: T[]; more: number } => ({ shown: ids.slice(0, TODO_CHIPS), more: Math.max(0, ids.length - TODO_CHIPS) })
+
+/** One step of a run's workflow as the Runs tab lists it: where it stands, and why when the agent skipped it. */
+export interface StepLine {
+  id: string
+  name: string
+  state: StepState['state']
+  /** The agent's reason for skipping it. */
+  note?: string
+}
+
+/** The steps of a run's workflow in the latest round, each with how it ended. A run that follows no workflow has none. */
+export function stepLines(run: Run, ctx: StepContext): StepLine[] {
+  const round = run.rounds[run.rounds.length - 1]
+  return stepStates(run, ctx).map((s) => {
+    const note = round?.steps.filter((x) => x.step === s.id && x.note).at(-1)?.note
+    return { id: s.id, name: s.name, state: s.state, ...(note && (s.state === 'skipped' || s.state === 'failed') && { note }) }
+  })
+}
+
+/** What the steps column says for a run: how many are met, and the first thing worth a look (refused, waiting for the person, skipped). */
+export function stepSummary(lines: StepLine[]): { text: string; tone: 'bad' | 'you' | 'warn' | '' | 'dim' } {
+  if (lines.length === 0) return { text: '—', tone: 'dim' }
+  const met = lines.filter((l) => l.state === 'passed').length
+  const skipped = lines.filter((l) => l.state === 'skipped').length
+  const base = `${met} of ${lines.length} met${skipped ? `, ${skipped} skipped` : ''}`
+  const failed = lines.find((l) => l.state === 'failed')
+  if (failed) return { text: `${base} · ${failed.name} failed`, tone: 'bad' }
+  const waiting = lines.find((l) => l.state === 'waiting')
+  if (waiting) return { text: `${base} · ${waiting.name} waits for you`, tone: 'you' }
+  return { text: base, tone: skipped ? 'warn' : '' }
+}
+
+export interface StepCount {
+  name: string
+  met: number
+  skipped: number
+  failed: number
+}
+
+/** For each step name across the runs, how often it was met, skipped or failed, counting only the runs that got that far. In the order the steps were first seen. */
+export function stepCounts(runs: Run[], ctxFor: (run: Run) => StepContext): StepCount[] {
+  const by = new Map<string, StepCount>()
+  for (const run of runs) {
+    for (const l of stepLines(run, ctxFor(run))) {
+      if (l.state !== 'passed' && l.state !== 'skipped' && l.state !== 'failed') continue
+      const c = by.get(l.name) ?? { name: l.name, met: 0, skipped: 0, failed: 0 }
+      if (l.state === 'passed') c.met++
+      else if (l.state === 'skipped') c.skipped++
+      else c.failed++
+      by.set(l.name, c)
+    }
+  }
+  return [...by.values()]
+}
+
+export interface MatrixCell {
+  run: string
+  title: string
+  /** How the step stood in that run; none when the run's workflow has no such step or had not got to it. */
+  state?: 'passed' | 'skipped' | 'failed' | 'open'
+  note?: string
+}
+export interface StepMatrix {
+  /** The step names: the newest run's order first, then any step only older runs had. */
+  steps: string[]
+  /** One column for each run, oldest first, at most `max` of the newest. */
+  runs: { id: string; title: string; cells: MatrixCell[] }[]
+  /** How many older runs did not fit. */
+  more: number
+}
+
+/** The runs side by side and the steps down the side: each cell is how one step ended in one run, so a skipped or failed step shows in the run it happened in. */
+export function stepMatrix(runs: Run[], ctxFor: (run: Run) => StepContext, max = 16): StepMatrix {
+  const sorted = [...runs].sort((a, b) => a.startedAt - b.startedAt)
+  const lines = new Map(sorted.map((r) => [r.id, stepLines(r, ctxFor(r))]))
+  // The newest run's steps set the order (its workflow is the one in use); a step only older runs had comes after them.
+  const steps = [...new Set([...sorted].reverse().flatMap((r) => lines.get(r.id)!.map((l) => l.name)))]
+  const shown = sorted.slice(-max)
+  return {
+    steps,
+    more: sorted.length - shown.length,
+    runs: shown.map((r) => ({
+      id: r.id,
+      title: r.title,
+      cells: steps.map((name): MatrixCell => {
+        const l = lines.get(r.id)!.find((x) => x.name === name)
+        const state = !l ? undefined : l.state === 'passed' || l.state === 'skipped' || l.state === 'failed' ? l.state : l.state === 'pending' ? undefined : 'open'
+        return { run: r.id, title: r.title, ...(state && { state }), ...(l?.note && { note: l.note }) }
+      })
+    }))
+  }
+}

@@ -177,7 +177,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
-              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow the steps of a workflow in order, each step says whether you are asked first, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
               {asking && (
                 <WorkflowOffConfirm
                   open={asking}
@@ -186,8 +186,6 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
                   onCancel={() => setAsking(null)}
                 />
               )}
-              <Switch role="switch" checked={prefs.workflows.planGate} onChange={(planGate) => set({ workflows: { ...prefs.workflows, planGate } })} title="Plan gate" hint="With Workflows on, an agent that starts a task writes its plan first, says what it understood, and waits for you to approve it before it edits files. Claude and agy agents are held back by the app (agy needs its plugin up to date); other programs are only asked to wait." />
-              <Switch role="switch" checked={prefs.workflows.mergeGate} onChange={(mergeGate) => set({ workflows: { ...prefs.workflows, mergeGate } })} title="Merge gate" hint="Holds back the push of the branch (or a merge, in a workflow that lands one) until the plan was approved. At the balanced and max dials a model also reads the branch against the plan and lists what it did not expect, which you tick off. Landing anyway is always possible and is recorded." />
               <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}

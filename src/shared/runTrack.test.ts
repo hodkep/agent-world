@@ -38,6 +38,12 @@ describe('where a run is on its track', () => {
     expect(states([submitted(), planned('approved')])).toEqual(['plan:done', 'build:now', 'tests:next', 'review:next', 'land:next'])
   })
 
+  it('marks a step the person refused as failed, holds the ones after it, and says the workflow stopped', () => {
+    const t = track([submitted(), planned('approved'), { k: 'step', t: 450, run: 'r1', round: 1, step: 'build', state: 'declined' }])!
+    expect(t.stations.slice(0, 3).map((s) => s.state)).toEqual(['done', 'failed', 'next'])
+    expect(t.waiting).toBe('not approved: the workflow stopped here')
+  })
+
   it('marks a plan that was sent back before it was approved as done with trouble', () => {
     expect(states([submitted(), planned('changes'), submitted(400), planned('approved', 500)])![0]).toBe('plan:trouble')
   })
@@ -102,9 +108,9 @@ describe('where a run is on its track', () => {
     const gated: RunWorkflow = { ...PULL, steps: PULL.steps.map((s) => (s.kind === 'pr' ? { ...s, gate: 'approve' as const } : s)) }
     const approved: RunEvent = { k: 'step', t: 800, run: 'r1', round: 1, step: 'pr', state: 'approved' }
     expect(trackOf(run(gated), ctx)!.waiting).toBe('needs your approval')
-    expect(trackOf(run(PULL), { ...ctx, mergeGate: true })!.waiting).toBe('needs your approval')
     expect(trackOf(run(gated, [approved]), ctx)!.waiting).toBe('approved: the agent pushes it')
-    expect(trackOf(run(PULL), { ...ctx, mergeGate: false })!.waiting).toBe('audit passed: the agent is told to push')
+    // A pull request that names no gate and does not start on Run asks for nothing: the agent is told to push.
+    expect(trackOf(run(PULL), ctx)!.waiting).toBe('audit passed: the agent is told to push')
     // A merge is the person's own click on Land: the bar only says it is ready.
     const merge: RunWorkflow = { ...JOURNEY, steps: JOURNEY.steps.filter((x) => x.kind !== 'check') }
     expect(trackOf(run(merge), ctx)!.waiting).toBe('ready to land: ask the agent')

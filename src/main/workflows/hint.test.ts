@@ -32,6 +32,14 @@ const BUG_FIX: RunWorkflow = {
 }
 
 describe('what task_begin tells the agent about its workflow', () => {
+  it('for a workflow with no audit step: no audit is promised, the agent reviews in a step, and a pull request waits for the person\'s word', () => {
+    const modern: RunWorkflow = { id: 'm', name: 'M', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'work', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }] }
+    const text = workflowBrief(modern)
+    expect(text).not.toMatch(/audit/i)
+    expect(text).toContain('Do not push or open a pull request until the person has told you to start that step.')
+    expect(text).toContain('The person lands it.')
+  })
+
   it('names the workflow, lists the steps the agent does or waits on with their briefs, and says how to report them', () => {
     expect(workflowBrief(BUG_FIX, { planFirst: true })).toBe(
       'Workflow: Bug fix. Its steps, in order:\n' +
@@ -39,7 +47,7 @@ describe('what task_begin tells the agent about its workflow', () => {
         '- fix "Fix, test first" (skill: tdd): Write a failing test, then make it pass.\n' +
         '- ok "Your review": the person approves this before it can land. Look at the diff.\n' +
         'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.\n' +
-        'Report each step you do with step_done and its id, for example step_done("fix"); with no id it reports the next one. The app audits the branch and the person lands it.'
+        'Report each step you do, in order, with step_done and its id, for example step_done("fix"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("fix", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. The app audits the branch and the person lands it.'
     )
   })
 
@@ -130,6 +138,9 @@ describe('the rules for work that ends in a pull request, in what the agent is t
     expect(WORKFLOW_HINT).toContain('own branch')
     expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('git push origin aw/ada:<name>')
     expect(PR_GO('aw/ada', 'abcdef1234567890')).toContain('abcdef1')
+    // With no audit step the go-ahead is the person's approval, not an audit that passed.
+    expect(PR_GO('aw/ada', 'abcdef1234567890', false)).toContain('The person approved the push of aw/ada (abcdef1).')
+    expect(PR_GO('aw/ada', 'abcdef1234567890', false)).not.toMatch(/audit/i)
   })
 })
 

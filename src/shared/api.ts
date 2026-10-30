@@ -473,6 +473,10 @@ export interface AwApi {
     skipStep(runId: string, step: string): Promise<void>
     /** Press Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin. */
     startStep(runId: string, step: string): Promise<void>
+    /** The person does not approve a step of the agent's that waits for Run: the agent is told to wait for their instructions. */
+    declineStep(runId: string, step: string): Promise<void>
+    /** Tell the agent again to push a branch the person approved (the go-ahead is sent once, and can be lost): reads its commits first. */
+    nudgePush(runId: string): Promise<void>
     /** What the person is shown before approving a project file's check commands. */
     checkApproval(runId: string): Promise<{ workflow: string; file: string; hash: string; commands: string[]; before?: { hash: string; at: number; diff: { change: 'added' | 'removed' | 'same'; text: string }[] } }>
     /** Approve the commands of the run's workflow file (this exact version); the checks run at once. */
@@ -489,6 +493,10 @@ export interface AwApi {
     definitions(project: string | null): Promise<import('./workflow').WorkflowEntry[]>
     /** Copies a workflow into the project or for everything; says the new one. */
     duplicate(project: string | null, id: string, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
+    /** The other workspaces, each with the workflows it keeps itself, for importing one. */
+    others(project: string | null): Promise<{ project: string; name: string; workflows: import('./workflow').WorkflowEntry[] }[]>
+    /** A copy of a workflow another workspace keeps, in this project or for everything. */
+    import(source: string, id: string, project: string | null, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
     /** Deletes a workflow's file from the project or the global folder. */
     remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
     /** The project's workflow builder, made on first use and woken if asleep. What the person typed is sent to it once it can take it. */

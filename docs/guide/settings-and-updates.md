@@ -25,7 +25,6 @@ Features change what agents are told and add text to messages, so each switch sh
 - **Library and playbook:** on at first. See [Library and playbook](library-and-playbook.md).
 - **Track every request as a todo:** off at first. See [Todos](todos.md).
 - **Workflows:** off at first. It adds the Workflow tab and the **Workflows** button in the top bar. Turning it off while runs are open asks you to choose **Let them finish, then hide**, **Stop them now** or **Cancel**. See [Workflows](workflows.md).
-- **Plan gate** and **Merge gate:** both on at first, and they apply only while Workflows is on.
 - **Economy**, **Balanced** (the starting level) and **Max:** how much care a workflow takes. The line under the choice says what each does.
 
 The library and todo switches take effect for agents started from now on and for each new message.

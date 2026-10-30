@@ -21,7 +21,7 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
   git('commit', '-qm', 'init')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'economy', since: 1, planGate: false, mergeGate: false } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'economy', since: 1 } }))
   const argsLog = join(tmp, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_USER_HOME: join(tmp, 'user'), AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
   try {
@@ -41,6 +41,8 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     expect(await call('todo_add', { title: 'Add a dark-mode toggle', list: 'Workflows' })).toContain('todo#1')
     await call('todo_claim', { id: '1' })
     await call('task_begin', { title: 'Add a dark-mode toggle' })
+    // Standard asks for the plan to be approved; this test is about the todo link, so the person lifts the hold.
+    await page.evaluate(async () => { const { runs } = await window.aw.workflows.summary(); await window.aw.workflows.decide(runs[0]!.id, 'released') })
 
     // The ledger says which task the run belongs to, and the chip opens it.
     await page.locator('header').getByRole('button', { name: 'Workflows' }).click()
@@ -59,6 +61,7 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('region', { name: /How Add a dark-mode toggle went/ })).toBeVisible()
 
     // Finishing the run finishes the task the agent never closed itself.
+    for (let i = 0; i < 3; i++) await call('step_done', {})
     await call('task_done', { summary: 'Toggle added.' })
     await expect.poll(() => call('todo_get', { id: '1' })).toContain('done')
     expect(await call('todo_get', { id: '1' })).toContain('Finished with its run: Toggle added.')

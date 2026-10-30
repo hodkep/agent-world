@@ -3050,6 +3050,12 @@ aside:not(.drawer) { flex: none; }
 /* The describe box and the builder: its chat beside its draft. `.mono` and `.muted` are scoped, as above. */
 .wfl-describe { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 2px solid var(--ink); align-items: center; }
 .wfl-describe input { flex: 1; min-width: 0; }
+.imp-wrap { position: relative; }
+.imp-note { padding: 10px 12px; margin: 0; }
+.imp-ft { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-top: 2px solid var(--ink); }
+.imp-ft .muted { margin-right: auto; font-size: 11.5px; }
+.imp-ft button[aria-pressed='true'] { background: var(--selected); box-shadow: 0 0 0 2px var(--accent); }
+.imp-wrap .am-it small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bs-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .bs-bar { display: flex; gap: 10px; align-items: center; padding: 8px 20px; border-bottom: 1px solid var(--ink); }
 .bs-bar .muted, .bs .muted, .bs-draft .muted { color: var(--muted); }
@@ -3106,6 +3112,8 @@ svg.pxg { display: block; flex: none; }
 .track .st.done .sq { background: var(--ok); }
 .track .st.trouble .sq, .track .st.now .sq { background: var(--accent); }
 .track .st.failed .sq { background: var(--danger); }
+/* Skipped: a hollow yellow square, so it reads as set aside, not as met (green) and not as the step the agent is on (solid yellow). */
+.track .st.skipped .sq { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--accent); }
 .track .st.now .sq { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent-dim); }
 .track .nm { font-size: 11px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track .st.now .nm { color: var(--text); font-weight: 700; }
@@ -3167,8 +3175,6 @@ svg.pxg { display: block; flex: none; }
 .rb-t small { color: var(--muted); font-size: 11px; }
 .rb-share { display: inline-block; position: relative; width: 34px; height: 3px; margin-left: 8px; vertical-align: middle; background: var(--well); }
 .rb-share i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--violet); }
-.rb-sheetrow td { padding: 0 0 8px; border-bottom: 0; white-space: normal; }
-.rb-sheet { background: var(--well); box-shadow: 0 0 0 2px var(--ink); margin: 2px 8px 4px 30px; padding: 8px 14px; font-size: 12px; color: var(--muted); }
 .rb-facts { margin: 0 0 6px; font-size: 11px; color: var(--muted); max-width: none; }
 .rb-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rb-tl li { display: grid; grid-template-columns: 54px 10px 1fr; gap: 8px; align-items: baseline; color: var(--text); }
@@ -3232,6 +3238,7 @@ svg.pxg { display: block; flex: none; }
 .bar-st .st.done .sq, .bar-st .st.trouble .sq, .bar-st .st.failed .sq, .bar-st .st.now .sq { color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 .bar-st .st.done .sq { background: var(--ok); } .bar-st .st.trouble .sq, .bar-st .st.now .sq { background: var(--accent); } .bar-st .st.failed .sq { background: var(--danger); }
 .bar-st .st.now .sq { box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px var(--accent-dim); }
+.bar-st .st.skipped .sq { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 0 1px var(--ink), 0 0 0 2px var(--accent); }
 .bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
 .bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
@@ -3372,11 +3379,11 @@ svg.pxg { display: block; flex: none; }
 .rn-state.running { color: var(--think); }
 .rn-state.waiting { color: var(--accent); }
 .rn-state.pending { color: var(--dim); }
-.rn-state.skipped { color: var(--muted); }
+.rn-state.skipped { color: var(--accent); }
 .rn-state.failed { color: var(--danger-text); }
 .fl-node.rn.passed { box-shadow: 0 0 0 2px var(--ok), 0 0 0 4px var(--ink); }
 .fl-node.rn.pending { box-shadow: 0 0 0 2px var(--line), 0 0 0 4px var(--ink); opacity: 0.6; }
-.fl-node.rn.skipped { box-shadow: 0 0 0 2px var(--dim), 0 0 0 4px var(--ink); opacity: 0.7; }
+.fl-node.rn.skipped { box-shadow: 0 0 0 2px var(--accent-dim), 0 0 0 4px var(--ink); }
 .fl-node.rn.running { box-shadow: 0 0 0 2px var(--think), 0 0 0 4px var(--ink); }
 .fl-node.rn.waiting { background: var(--selected); box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--ink); }
 .fl-node.rn.failed { box-shadow: 0 0 0 2px var(--danger), 0 0 0 4px var(--ink); }
@@ -3384,7 +3391,7 @@ svg.pxg { display: block; flex: none; }
 .rn-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; box-shadow: 0 0 0 1px var(--ink); }
 .rn-mark.passed { background: var(--ok); color: var(--ink); }
 .rn-mark.failed { background: var(--danger); color: #fff; }
-.rn-mark.skipped { background: var(--panel-3); color: var(--muted); }
+.rn-mark.skipped { background: var(--accent-dim); color: var(--accent); }
 .rn-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; margin-top: 2px; }
 .rn-acts textarea { width: 100%; resize: none; font: inherit; font-size: 12px; }
 .rn-acts button { font-size: 11px; padding: 2px 10px; }
@@ -4013,3 +4020,66 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .mod-bar button { cursor: pointer; }
 .mod-grip { color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 4px; margin: -2px 0 -2px -4px; }
 .mod-grip:focus-visible { outline: 2px solid var(--accent); }
+
+/* The steps of a run and the items added to it, in the opened row of the Runs tab. */
+.rb-items { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rb-items li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: baseline; color: var(--text); }
+.rb-items .mono { color: var(--dim); text-align: right; font-size: 11px; }
+
+/* The Runs tab with a run open: the ledger keeps its width beside a panel for that run. */
+.rb.with-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 520px); gap: 20px; align-items: start; }
+.rb-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rb-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--well); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line); max-height: calc(100vh - 150px); overflow: auto; font-size: 12px; color: var(--muted); min-width: 0; }
+.rb-side header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.rb-side header b { display: block; color: var(--text); font-size: 13px; }
+.rb-side header small { color: var(--dim); }
+.rb-side .rb-facts { margin: 0; }
+.rb-side .rb-items, .rb-side .rb-tl, .rb-side .rb-commits { margin: 0; }
+.rb-why { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.rb-why li { color: var(--muted); }
+.rb-why b { color: var(--text); font-weight: 600; }
+.rb-why .skipped { color: var(--accent); } .rb-why .failed { color: var(--danger-text); }
+@media (max-width: 1100px) { .rb.with-side { grid-template-columns: minmax(0, 1fr); } .rb-side { position: static; max-height: none; } }
+.rb-tab .rb-run.is-open > td { background: color-mix(in srgb, var(--accent) 8%, var(--well)); }
+
+/* Steps followed: steps down the side, runs across, one square for each. */
+.rb-grid { display: flex; flex-direction: column; gap: 5px; }
+.rb-gr { display: grid; grid-template-columns: minmax(110px, 190px) 1fr auto; gap: 12px; align-items: center; }
+.rb-gn { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-gc { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; padding: 3px; }
+.rb-cell { width: 14px; min-width: 14px; height: 14px; min-height: 14px; padding: 0; margin: 0; font-size: 0; line-height: 0; flex: none; border: 0; border-radius: 0; background: var(--well); box-shadow: 0 0 0 1px var(--ink); cursor: pointer; }
+.rb-cell.passed { background: color-mix(in srgb, var(--ok) 85%, var(--panel)); }
+.rb-cell.skipped { background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.rb-cell.failed { background: var(--danger); }
+.rb-cell.open { background: var(--panel-3); box-shadow: 0 0 0 1px var(--muted); }
+.rb-cell.none { background: transparent; box-shadow: 0 0 0 1px var(--line); cursor: default; opacity: 0.5; }
+.rb-cell.on { box-shadow: 0 0 0 1px var(--text), 0 0 0 3px var(--ink); }
+.rb-cell:not(:disabled):hover { filter: brightness(1.25); }
+.rb-gt { min-width: 7ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.rb-gt.warn { color: var(--accent); } .rb-gt.bad { color: var(--danger-text); }
+.rb-key i.open { background: var(--panel-3); box-shadow: 0 0 0 1px var(--muted); }
+
+/* With a run open the ledger is narrow: Commits and Cost are in the panel, so the columns go. */
+.rb.with-side .rb-tab thead th:nth-child(n+6), .rb.with-side .rb-tab tbody td:nth-child(n+6) { display: none; }
+
+.rb.with-side .rb-charts { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.rb.with-side .rb-tab td { white-space: normal; }
+.rb-gr { grid-template-columns: minmax(100px, 170px) minmax(0, 1fr) auto; }
+
+/* A workflow card's answer, on the person's side of the chat: one slim line, the sentence typed to the agent folded under it. */
+.msg.wf-rcpt { align-self: flex-end; max-width: 94%; gap: 0; }
+.wf-rcpt-d { display: flex; flex-direction: column; align-items: flex-end; }
+.wf-rcpt-d > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; padding: 5px 10px 5px 5px; background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 1px var(--line); }
+.wf-rcpt-d > summary::-webkit-details-marker { display: none; }
+.wf-rcpt-d > summary:hover { background: var(--panel-2); }
+.wf-rcpt-d > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wf-rcpt-t b { font-weight: 600; color: var(--text); }
+.wf-rcpt-s { color: var(--muted); }
+.wf-tile { width: 20px; height: 20px; display: grid; place-items: center; flex: none; color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.wf-tile.ok { background: var(--ok); }
+.wf-tile.go { background: var(--accent); }
+.wf-tile.back { background: var(--panel-hover); color: var(--text); }
+.wf-tile.skip { background: var(--accent-dim); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.wf-tile.no { background: var(--danger); color: #fff; }
+.wf-told { align-self: stretch; margin: 6px 0 0; padding: 7px 9px; font: 11px/1.5 Menlo, Consolas, monospace; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--line); overflow-wrap: anywhere; white-space: pre-wrap; text-align: left; }
+.wf-told b { display: block; margin-bottom: 2px; font-weight: 400; color: var(--hint); letter-spacing: 0.04em; }

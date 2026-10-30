@@ -56,19 +56,12 @@ describe('the chips on a step', () => {
     expect(words(step('work'))).toEqual([])
     expect(words(step('audit'))).toEqual([])
   })
-  it('use the Settings switches, when they are known, for a plan or a landing step that names no gate', () => {
-    const on = { planGate: true, mergeGate: true }
-    const off = { planGate: false, mergeGate: false }
-    expect(chipsOf(step('plan'), {}, on).map((c) => c.text)).toEqual(['you approve'])
-    expect(chipsOf(step('plan'), {}, off).map((c) => c.text)).toEqual([])
-    expect(chipsOf(step('plan', { gate: 'auto' }), {}, on).map((c) => c.text)).toEqual([])
-    expect(chipsOf(step('pr'), {}, on).map((c) => c.text)).toEqual(['you confirm'])
-    expect(chipsOf(step('merge'), {}, off).map((c) => c.text)).toEqual([])
-    expect(chipsOf(step('pr', { gate: 'auto' }), {}, on).map((c) => c.text)).toEqual([])
-  })
-  it('say a landing step with no gate of its own follows the Settings switch', () => {
-    expect(words(step('pr'))).toEqual(['follows the switch'])
-    expect(words(step('merge'))).toEqual(['follows the switch'])
+  it('say a plan asks unless it says auto, a landing step asks when it says so, and a merge is always the person\'s own click', () => {
+    expect(chipsOf(step('plan')).map((c) => c.text)).toEqual(['you approve'])
+    expect(chipsOf(step('plan', { gate: 'auto' })).map((c) => c.text)).toEqual([])
+    expect(chipsOf(step('pr')).map((c) => c.text)).toEqual([])
+    expect(chipsOf(step('pr', { gate: 'approve' })).map((c) => c.text)).toEqual(['you confirm'])
+    expect(chipsOf(step('merge')).map((c) => c.text)).toEqual(['you confirm'])
   })
   it('flag a skill that is not simply ready, so the card shows it before the step is opened', () => {
     const chips = chipsOf(step('work', { skills: ['tdd', 'review', 'old'] }), { tdd: 'ready', review: 'granted', old: 'gone' })
@@ -77,7 +70,7 @@ describe('the chips on a step', () => {
   it('say a check, an audit or a pull request starts when the person presses Run', () => {
     expect(words(step('audit', { start: 'run' }))).toEqual(['starts when you press Run'])
     expect(words(step('check', { run: 'x', gate: 'pass', start: 'run' }))).toEqual(['must pass', '2 retries', 'starts when you press Run'])
-    expect(words(step('pr', { start: 'run' }))).toEqual(['follows the switch', 'starts when you press Run'])
+    expect(words(step('pr', { start: 'run' }))).toEqual(['starts when you press Run'])
     expect(chipsOf(step('audit', { start: 'run' }))[0]!.tone).toBe('run')
     expect(words(step('audit', { start: 'auto' }))).toEqual([])
   })

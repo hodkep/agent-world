@@ -5,12 +5,12 @@ import { PixelIcon } from '../../chat/PixelIcon'
 import { SKILL_WORDS } from '../WorkflowList'
 import { ACTOR, ACTOR_WORD, KIND_LABEL, chipsOf } from './stepFlow'
 
-export type StepNodeData = { step: Step; index: number; /** The checker has something to say about this step. */ problem?: boolean; skillStates?: Record<string, SkillState>; switches?: { planGate: boolean; mergeGate: boolean } }
+export type StepNodeData = { step: Step; index: number; /** The checker has something to say about this step. */ problem?: boolean; skillStates?: Record<string, SkillState>; }
 export type StepFlowNode = Node<StepNodeData, 'step'>
 
 /** One step as a card in the flow: who does it, its name and what it is told, and the chips that say where it stops. */
 export function StepNode({ data, selected }: NodeProps<StepFlowNode>) {
-  const { step, index, problem, skillStates, switches } = data
+  const { step, index, problem, skillStates } = data
   const actor = ACTOR[step.kind]
   const text = step.kind === 'check' ? step.run : step.brief
   return (
@@ -28,7 +28,7 @@ export function StepNode({ data, selected }: NodeProps<StepFlowNode>) {
       </div>
       <p className={`fl-text ${step.kind === 'check' ? 'mono' : ''}`}>{text || <span className="fl-none">{KIND_LABEL[step.kind]} · {ACTOR_WORD[actor]}</span>}</p>
       <div className="fl-chips">
-        {chipsOf(step, skillStates, switches).map((c) => <span key={c.text} className={`fl-chip ${c.tone} ${c.skill ?? ''}`} title={c.skill ? SKILL_WORDS[c.skill] : undefined}>{c.text}</span>)}
+        {chipsOf(step, skillStates).map((c) => <span key={c.text} className={`fl-chip ${c.tone} ${c.skill ?? ''}`} title={c.skill ? SKILL_WORDS[c.skill] : undefined}>{c.text}</span>)}
       </div>
     </div>
   )

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { STEP_KINDS, type StepKind } from '../../../shared/workflow'
+import type { StepKind } from '../../../shared/workflow'
 import { PixelIcon } from '../../chat/PixelIcon'
 import { ACTOR, KIND_LABEL } from './stepFlow'
 
 const DOES: Record<StepKind, string> = {
   plan: 'The agent plans first, and you can approve the plan',
-  work: 'The agent does the work, with skills',
+  work: 'The agent does the work, with skills: building, testing, reviewing, committing',
   check: 'A command the app runs; it can be made to pass',
   audit: 'A reviewer model reads the branch',
   approve: 'Stops until you decide',
@@ -13,11 +13,14 @@ const DOES: Record<StepKind, string> = {
   merge: 'You land it into the base branch'
 }
 
+/** The kinds a new step is picked from: a workflow only says what to do and where it asks you, so there is no check or audit for the app to run (the agent tests and reviews in a step of its own) and no step of an approval of its own (any step can ask you first). */
+const OFFERED: StepKind[] = ['plan', 'work', 'pr', 'merge']
+
 /** The kinds of step, each with what it does: the list a new step is picked from. */
 export function KindMenu({ onPick, label = 'Add a step' }: { onPick: (kind: StepKind) => void; label?: string }) {
   return (
     <div className="fl-add-menu" role="menu" aria-label={label}>
-      {STEP_KINDS.map((k) => (
+      {OFFERED.map((k) => (
         <button key={k} role="menuitem" onClick={() => onPick(k)}>
           <span className={`fl-who a-${ACTOR[k]}`}><PixelIcon name={ACTOR[k] === 'reviewer' ? 'review' : (ACTOR[k] as 'agent' | 'command' | 'you')} /></span>
           <span><b>{KIND_LABEL[k]}</b><small>{DOES[k]}</small></span>

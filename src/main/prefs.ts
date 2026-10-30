@@ -4,7 +4,7 @@ import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, updateMirror: true, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, planGate: true, mergeGate: true, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, updateMirror: true, sleepIdleMinutes: 30, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, defaults: {} } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -21,6 +21,7 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     libraryEnabled: typeof r.libraryEnabled === 'boolean' ? r.libraryEnabled : base.libraryEnabled,
     officeLife: typeof r.officeLife === 'boolean' ? r.officeLife : base.officeLife,
     updateMirror: typeof r.updateMirror === 'boolean' ? r.updateMirror : base.updateMirror,
+    sleepIdleMinutes: typeof r.sleepIdleMinutes === 'number' && Number.isInteger(r.sleepIdleMinutes) && r.sleepIdleMinutes >= 0 && r.sleepIdleMinutes <= 1440 ? r.sleepIdleMinutes : base.sleepIdleMinutes,
     todoTracking: r.todoTracking === 'full' || r.todoTracking === 'deferred' ? r.todoTracking : base.todoTracking,
     subagents: cleanSubagents(r.subagents, base.subagents),
     setup: cleanSetup(r.setup, base.setup),
@@ -56,7 +57,7 @@ function cleanDefaults(raw: unknown): Record<string, string> {
 
 function cleanWorkflows(raw: unknown, base: Prefs['workflows']): Prefs['workflows'] {
   const w = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since, planGate: typeof w.planGate === 'boolean' ? w.planGate : base.planGate, mergeGate: typeof w.mergeGate === 'boolean' ? w.mergeGate : base.mergeGate, defaults: cleanDefaults(w.defaults) }
+  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since, defaults: cleanDefaults(w.defaults) }
 }
 
 function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {

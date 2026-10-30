@@ -7,8 +7,8 @@ import type { Dial } from '../../shared/workflows'
 export const WORKFLOW_HINT =
   'This office records tasks. When you start a task that changes code or takes several steps, call the agent-world task_begin tool with a few words; when it is finished, call task_done with one line. Skip both for a question, a typo or a tiny edit. Pass follow_up to task_begin only when the request is more work on the task you just finished (a fix, a missed case, a change to it); a different piece of work is a new task. Work and commit only on your own branch in your worktree: a commit on any other branch there is refused, and a push or pull request waits for the audit (task_begin says how).'
 /** What the app says to the agent once the audit of its branch has passed and the run ends in a pull request: the gate is open, nobody has to ask. */
-export const PR_GO = (branch: string, head: string) =>
-  `The audit of ${branch} (${head.slice(0, 7)}) has passed. Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin ${branch}:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.`
+export const PR_GO = (branch: string, head: string, audited = true) =>
+  `${audited ? `The audit of ${branch} (${head.slice(0, 7)}) has passed.` : `The person approved the push of ${branch} (${head.slice(0, 7)}).`} Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin ${branch}:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.`
 export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_done'].map((t) => `mcp__agent-world__${t}`)
 /** Said at the start of a turn (by the program's prompt hook) while no task is open: the opening text alone was not followed reliably. */
 export const WORKFLOW_REMINDER =
@@ -60,11 +60,18 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
     return []
   })
   const landing = w.steps.find((s) => s.kind === 'pr' || s.kind === 'merge')?.kind
+  // An older run may still have an audit the app does; the workflows made now have none: the agent reviews its own work in a step, and the person is asked once, before the step.
+  const audited = w.steps.some((s) => s.kind === 'audit')
   const rules = !landing ? [] : [
-    'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.',
-    ...(landing === 'pr' ? ['Do not push or open a pull request until the app tells you the audit passed. Then push a branch whose head is exactly that audited commit (your own branch, or another name for the same commit: git push origin <your branch>:<name>) and open the pull request; a push of anything else is held.'] : [])
+    `Work and commit only on your own branch in this worktree: a commit on any other branch here is refused${audited ? ', and the app audits your branch, not another' : ''}.`,
+    ...(landing === 'pr'
+      ? [audited
+          ? 'Do not push or open a pull request until the app tells you the audit passed. Then push a branch whose head is exactly that audited commit (your own branch, or another name for the same commit: git push origin <your branch>:<name>) and open the pull request; a push of anything else is held.'
+          : 'Do not push or open a pull request until the person has told you to start that step. Then push your branch (git push origin <your branch>) and open the pull request.']
+      : [])
   ]
-  return [head, ...lines, ...rules, 'Report each step you do with step_done and its id, for example step_done("' + (w.steps.find((s) => s.kind === 'work')?.id ?? 'build') + '"); with no id it reports the next one. The app audits the branch and the person lands it.'].join('\n')
+  const first = w.steps.find((s) => s.kind === 'work')?.id ?? 'build'
+  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("${first}", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
 }
 
 const OFFERED_MAX = 5

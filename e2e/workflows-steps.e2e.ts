@@ -16,8 +16,7 @@ const REVIEWED = {
   steps: [
     { id: 'plan', kind: 'plan', gate: 'auto' },
     { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' },
-    { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff. See https://example.com/spec.' },
-    { id: 'review', kind: 'audit' },
+    { id: 'ok', kind: 'work', name: 'Your review', start: 'run', brief: 'Look at the diff. See https://example.com/spec.' },
     { id: 'land', kind: 'merge' }
   ]
 }
@@ -39,7 +38,7 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
   git(repo, 'commit', '-qm', 'workflows')
   const home = join(tmp, 'home')
   mkdirSync(home, { recursive: true })
-  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, planGate: true, mergeGate: true, defaults: { [repo]: 'reviewed' } } }))
+  writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' }, workflows: { enabled: true, dial: 'balanced', since: 1, defaults: { [repo]: 'reviewed' } } }))
   const argsLog = join(tmp, 'args.log')
   const { app, shutdown } = await launchApp({ AW_HOME: home, AW_CLAUDE_PROJECTS: join(tmp, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: argsLog, FAKE_DELAY_MS: '50', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' }, tmp)
   try {
@@ -71,7 +70,7 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     expect(begun.text).toContain('there is no workflow "nope", so the project\'s default was used')
     expect(begun.text).toContain('Workflow: Reviewed')
     expect(begun.text).toContain('build "Build": Make the change.')
-    expect(begun.text).toContain('ok "Your review": the person approves this before it can land. Look at the diff. See https://example.com/spec.')
+    expect(begun.text).toContain('ok "Your review" (starts when the person presses Run: wait until you are told, and change nothing before): Look at the diff. See https://example.com/spec.')
     expect(begun.text).not.toContain('plan_submit')
     expect(await edit()).toBe('')
 
@@ -85,13 +84,14 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     await expect(station('Your review')).toContainText('not yet')
     await expect(track).toContainText('Reviewed')
 
-    // A step that is not the agent's to report is refused; its own is accepted and then waits for the person.
+    // A step that is not the agent's to report is refused; its own is accepted, and the next one waits for the person's Run.
     expect((await call('step_done', { step: 'land' })).error).toBe(true)
+    expect((await call('step_done', { step: 'ok' })).error).toBe(true)
     const reported = await call('step_done', { step: 'build' })
-    expect(reported.text).toContain('"Your review" now waits for the person')
+    expect(reported.text).toContain('Step "build" reported done.')
     await post({ hook_event_name: 'Stop' })
     await expect(station('Your review')).toContainText('here now')
-    await expect(track.getByRole('status')).toHaveText('needs your approval')
+    await expect(track.getByRole('status')).toHaveText(/press Run/)
     await expect(page.locator('header').getByRole('button', { name: /Workflows/ })).toHaveAttribute('data-badge', '1').catch(() => undefined)
 
     // Landing is refused, in words, while the step is not approved.
@@ -101,24 +101,19 @@ test('an agent follows its project\'s workflow: the brief comes back from task_b
     const land = () => page.evaluate((id) => window.aw.finishRun(id, { squash: false, message: '', cleanup: false }).then(() => 'landed', (e: Error) => e.message), ada!.id)
     expect(await land()).toContain('"Your review" has not been approved.')
 
-    // The person sees it in the chat: sending it back types why into the agent.
+    // The person is asked in the chat before the step starts: Run starts it.
     await page.getByRole('tab', { name: 'Chat' }).click()
-    const panel = page.getByRole('region', { name: 'Step from ada' })
+    const panel = page.getByRole('region', { name: 'Run Your review for ada' })
     await expect(panel).toContainText('Look at the diff.')
     // The brief is read as in the chat: an address in it is a link.
     await expect(panel.locator('a[href="https://example.com/spec"]')).toHaveCount(1)
-    await panel.getByRole('button', { name: 'Send back' }).click()
-    await panel.getByRole('textbox').fill('Please add a test.')
-    await panel.getByRole('button', { name: 'Send back' }).click()
     const log = page.getByRole('log', { name: 'Conversation with ada' })
-    await expect(log).toContainText('Your step "Your review" was sent back: Please add a test. Make the change, then call step_done again.', { timeout: 15_000 })
+    // Until the person presses Run the agent may not report the step (Not now on a step that is not optional fails it for good: the unit tests and the live run cover that).
+    expect((await call('step_done', {})).error).toBe(true)
+    await panel.getByRole('button', { name: 'Run', exact: true }).click()
+    await expect(log).toContainText('The person pressed Run: start your step "Your review" now.', { timeout: 15_000 })
+    expect((await call('step_done', {})).text).toContain('Step "ok" reported done.')
     await expect(panel).toBeHidden()
-
-    // The agent reports again; the person approves; now it can land.
-    expect((await call('step_done', {})).text).toContain('"Your review" now waits')
-    await expect(panel).toBeVisible()
-    await panel.getByRole('button', { name: 'Approve' }).click()
-    await expect(log).toContainText('Your step "Your review" was approved.', { timeout: 15_000 })
     await page.getByRole('tab', { name: 'Workflow' }).click()
     // These look at the rail; the tab shows the flow first.
     await page.getByRole('button', { name: 'Rail' }).click()

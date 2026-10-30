@@ -28,14 +28,10 @@ type Own = 'passed' | 'waiting' | 'open' | 'later' | 'skipped' | 'failed' | 'tor
 export interface StepContext {
   /** Whether an audit is run at this dial and for this program. */
   auditOn: boolean
-  /** The Settings switch for the plan gate; a plan step with no gate of its own follows it. On when not given. */
-  planGate?: boolean
   /** Whether the commands of the run's workflow file are approved (a project's file needs it; anything else does). Approved when not given. */
   approved?: boolean
   /** The branch as it is now: a check that passed for another head is due again. */
   head?: string
-  /** The Settings switch for the merge gate: a pull request or merge step with no gate of its own asks for the person's approval when it is on. Off when not given. */
-  mergeGate?: boolean
 }
 
 /** Whether a step waits for the person's own approval: an audit or a pull request with gate approve, or a pull request with no gate while the Settings merge gate is on. */
@@ -44,7 +40,7 @@ export function needsApproval(step: { kind: StepKind; gate?: string; start?: str
   // A merge is the person's own click on Land: that click is the approval, so it has no second one. A pull request follows its gate, else the Settings switch.
   if (step.kind !== 'pr') return false
   // A pull request that starts on Run is the person's press: nothing is pushed before it, as with gate approve.
-  return step.gate === 'approve' || step.start === 'run' || (step.gate === undefined && ctx.mergeGate === true)
+  return step.gate === 'approve' || step.start === 'run'
 }
 
 /** Whether the person approved this step for the branch as it is now: their last answer was an approval, given after the round's last commit (and after `since`). */
@@ -97,6 +93,8 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
   const { kind, id } = step
   const mine = round.steps.filter((s) => s.step === id)
   const last = mine[mine.length - 1]
+  // The person refused a step that is not optional: it failed, and nothing after it runs.
+  if (last?.state === 'declined' && kind !== 'check' && kind !== 'audit') return 'failed'
   // The person skipped an optional step: it is not followed, and the run goes on. (A check and an audit have their own way of being skipped.)
   if (step.optional && kind !== 'check' && kind !== 'audit' && last?.state === 'skipped') return 'skipped'
   if (kind === 'plan') {
@@ -106,7 +104,7 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
     if (p === 'changes') return 'open'
     // No plan: not needed when the run went on without one, in a follow-up round, or after the round ended.
     const workedAhead = run.workflow!.steps.some((s) => s.kind === 'work' && round.steps.some((l) => l.step === s.id && l.state === 'done'))
-    const asked = step.gate === 'approve' ? true : step.gate === 'auto' ? false : ctx.planGate ?? true
+    const asked = step.gate !== 'auto'
     return !asked || round.n > 1 || round.endedAt !== undefined || workedAhead ? 'skipped' : 'open'
   }
   if (kind === 'audit') {
@@ -184,12 +182,12 @@ export function stepReply(name: string, decision: 'approved' | 'changes', note?:
   return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change, then call step_done again.`
 }
 
-/** The steps of runs that wait for the person to approve them (a step they approve, an audit, a pull request or a merge with gate approve; not a plan), a stopped run's never. */
+/** The steps of runs that wait for the person to approve them (a step they approve, an audit, a pull request or a merge with gate approve; not a plan, and not a step that only waits for their Run), a stopped run's never. */
 export function waitingSteps(runs: Run[], ctx: StepContext): { run: Run; step: RunStep }[] {
   return runs.flatMap((run) => {
     if (run.status === 'stopped' || !run.workflow) return []
     return stepStates(run, ctx)
-      .filter((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
+      .filter((s) => s.state === 'waiting' && !s.toRun && (s.kind === 'approve' || s.kind === 'work' || s.awaiting))
       .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id).map((step) => ({ run, step })))
   })
 }
@@ -245,7 +243,14 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
 }
 
 /** What the agent is told when the person skips an optional step of its workflow. */
-export const stepSkipped = (name: string) => `Your step "${name}" was skipped by the person: it is optional. Go on with the next step.`
+export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person: it is optional. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
+
+/** What the agent is told when the person refuses a step that is not optional: the workflow stops there. */
+export const stepDeclined = (name: string) => `The person refused your step "${name}", so the workflow stops here: do not do it or any step after it. Say so in one line and wait for their instructions.`
+
+/** The line that tells an agent what comes after the step it just reported, so it can decide how to go on. */
+export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
+  n ? ` Next step: "${n.name}"${n.optional ? ' (optional: do it unless it clearly does not apply; to leave it out, call step_done("${n.id}", skipped, "<why>") first, never just move on)' : ''}${n.start ? '; it starts when the person presses Run, so change nothing until you are told' : ''}.${n.brief ? ` It is for: ${n.brief}` : ''}` : ' That was the last step.'
 
 /** What the agent is told when the person presses Run on one of its steps. */
 export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`

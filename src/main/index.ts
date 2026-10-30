@@ -21,6 +21,7 @@ import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
+import { sleepIdle } from './sleepIdle'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -101,7 +102,8 @@ import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
-import { checkPassed, stepReply, stepSkipped, stepStarted } from '../shared/steps'
+import { auditSettled } from '../shared/mergeCheck'
+import { checkPassed, stepReply, stepSkipped, stepDeclined, stepStarted } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -555,8 +557,6 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   enabled: () => prefs.workflows.enabled,
   noWorkflow: noWorkflowFor,
   since: () => prefs.workflows.since,
-  planGate: () => prefs.workflows.planGate,
-  mergeGate: () => prefs.workflows.mergeGate,
   dial: () => prefs.workflows.dial,
   // The audit and the intent check run on the agent's own program and account when it can answer, so what they cost lands where its work does; else on the first program that is ready.
   ask: async (id, prompt, model) => {
@@ -1384,6 +1384,8 @@ async function main() {
   writeGitHooks(GIT_HOOKS_DIR)
   // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
   const landingHeld = new HeldMerges()
+  // The head the office let a push through for (git's pre-push hook runs before anything is sent): the push counts as made, and the next step may start, only once the remote has it.
+  const letThrough = new Map<string, string>()
   // What is added to a message before the agent reads it, for any provider's prompt hook: the answer to a typed reply that decides a gate, then the library's reminder.
   // `proven`: a message that is, or looks like, a decision on a gate was shown to come from the person (see remoteReply); without it the gate is left alone.
   // What the app itself reads in the provider's saved conversation (written by the program, not sent by the caller): does its latest user message say this?
@@ -1469,13 +1471,9 @@ async function main() {
           send('landing')
           return { block: blockText(`Not yet: ${held.join(' ')} The person decides whether it is pushed anyway; tell them what holds it and ask.${remote.hint(id)}`) }
         }
-        try {
-          workflows.landing(id, head, { anyway: true })
-        } catch {
-          // Only an unknown agent throws here; there is nothing to log for it.
-        }
+        // Nothing is recorded yet: the push has not happened, and may still fail. git-landed (or the look at the remotes) records it once the remote has the head.
+        letThrough.set(id, head)
         landingHeld.clear(id)
-        send('workflows')
         send('landing')
         return {}
       }
@@ -1485,11 +1483,13 @@ async function main() {
         const refs = Array.isArray(payload.refs) ? payload.refs.filter((r): r is string => typeof r === 'string') : []
         // The agent's branch reached a remote (git moved its remote-tracking branch to the head it has) with no push the office let through: it skipped the hold.
         const branch = a.branch ?? currentBranch(a.cwd)
-        const tracked = refs.find((r) => branch && /^refs\/remotes\/[^/]+\//.test(r) && r.replace(/^refs\/remotes\/[^/]+\//, '') === branch)
+        const sent = branch ? branchHead(a.cwd, branch) : undefined
+        // A remote branch that now holds exactly the agent's head, under its own name or another: the push went through.
+        const tracked = refs.find((r) => /^refs\/remotes\/[^/]+\//.test(r) && !!sent && refHead(a.cwd, r) === sent)
         if (tracked && branch && where && isInside(a.cwd, where) && workflows.landKind(id) === 'pr') {
-          const head = branchHead(a.cwd, branch)
-          if (head && refHead(a.cwd, tracked) === head && !workflows.landedHead(id, head)) {
-            workflows.landing(id, head, { anyway: true, unchecked: true })
+          if (sent && !workflows.landedHead(id, sent)) {
+            workflows.landing(id, sent, { anyway: true, ...(letThrough.get(id) !== sent && { unchecked: true }) })
+            letThrough.delete(id)
             landingHeld.clear(id)
             send('workflows')
             send('landing')
@@ -1585,8 +1585,8 @@ async function main() {
         send('workflows')
         void kickChecks(caller)
       },
-      stepDone: (caller, step) => {
-        const r = workflows.stepDone(caller, step)
+      stepDone: (caller, step, o) => {
+        const r = workflows.stepDone(caller, step, o)
         send('workflows')
         if (r.checking) void kickChecks(caller)
         else void autoAudit(caller)
@@ -2181,6 +2181,13 @@ async function main() {
   const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
   ipcMain.handle('workflows:definitions', (_, project: unknown) => builder.entries(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
+  // Other workspaces' own workflows, for importing: only the folders the app knows, so a path from the page cannot reach anywhere else.
+  const knownProjects = (windowId: number) => workspacePaths(workspaces, windowWorkspaces.get(windowId), agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir)
+  ipcMain.handle('workflows:others', (e, project: unknown) => workflowStore.others(knownProjects(e.sender.id), projectOf(project)).map((o) => ({ ...o, name: basename(o.project) })))
+  ipcMain.handle('workflows:import', (e, source: string, id: string, project: unknown, to: 'global' | 'project') => {
+    if (!knownProjects(e.sender.id).includes(source)) throw new Error('That workspace is not one this app knows.')
+    return workflowStore.importFrom(source, String(id), projectOf(project), to === 'project' ? 'project' : 'global')
+  })
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
   ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string, editing?: unknown) => {
@@ -2252,7 +2259,8 @@ async function main() {
     // An approved pull request is answered by the go-ahead to push, which is sent below; every other answer is typed into the agent.
     if (run && !(target?.kind === 'pr' && answer === 'approved')) mailbox.fromOffice(run.agent, stepReply(name, answer, text, target?.kind))
     send('workflows')
-    if (run && answer === 'approved') void askForPr(run.agent)
+    // The agent's commits are read when its turn ends, which can be after this click: read them first, or the go-ahead to push finds no commit and is never sent.
+    if (run && answer === 'approved') void (async () => { const a = byId(run.agent); if (a) await syncRunCommits(a); await askForPr(run.agent) })()
   })
   // The person pressed Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin.
   ipcMain.handle('workflows:start-step', (_, runId: string, step: string) => {
@@ -2261,11 +2269,31 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, stepStarted(name))
     send('workflows')
   })
+  // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
+  ipcMain.handle('workflows:decline-step', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const found = run?.workflow?.steps.find((s) => s.id === step)
+    if (!run || !found) throw new Error('No such step.')
+    // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
+    if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
+    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step))))
+    send('workflows')
+  })
+  // The go-ahead to push is sent once for each head, and a lost one left the agent waiting for good: the person can send it again.
+  ipcMain.handle('workflows:nudge-push', async (_, runId: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const a = run && byId(run.agent)
+    if (!run || !a) throw new Error('No such run.')
+    for (const k of [...prAsked]) if (k.startsWith(`${a.id}:`)) prAsked.delete(k)
+    await syncRunCommits(a)
+    await askForPr(a.id)
+    send('workflows')
+  })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.skipStep(runId, String(step))
-    if (run) mailbox.fromOffice(run.agent, stepSkipped(name))
+    if (run) mailbox.fromOffice(run.agent, stepSkipped(name, workflows.nextAfter(run, String(step))?.name))
     send('workflows')
   })
   // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.
@@ -2636,9 +2664,9 @@ async function main() {
     try {
       const head = await git(a.cwd, 'rev-parse', a.branch)
       const check = workflows.mergeCheck(id, head, { auditable: (await readyAskers()).length > 0 })
-      if (!check || check.commits === 0 || check.audit.state !== 'done' || workflows.landedHead(id, head) || workflows.landingHold(id, head) || prAsked.has(`${id}:${head}`)) return
+      if (!check || check.commits === 0 || !auditSettled(check.audit) || workflows.landedHead(id, head) || workflows.landingHold(id, head) || prAsked.has(`${id}:${head}`)) return
       prAsked.add(`${id}:${head}`)
-      mailbox.fromPerson(id, PR_GO(a.branch, head))
+      mailbox.fromPerson(id, PR_GO(a.branch, head, check.audit.state === 'done'))
     } catch {
       // Not ready to be asked about (git failed): the next change to the audit asks again.
     }
@@ -2648,6 +2676,9 @@ async function main() {
   const noticePushes = async () => {
     for (const a of agents) {
       if (!a.branch || workflows.landKind(a.id) !== 'pr') continue
+      // A push the person approved while the agent's commits were not read yet is told to the agent now, so it is never left waiting for a go-ahead that was dropped.
+      await syncRunCommits(a)
+      void askForPr(a.id)
       try {
         const head = await git(a.cwd, 'rev-parse', a.branch)
         if (workflows.landedHead(a.id, head)) continue
@@ -2655,7 +2686,8 @@ async function main() {
         if (Number(await git(a.cwd, 'rev-list', '--count', `${base}..${head}`)) === 0) continue
         const remotes = (await git(a.cwd, 'for-each-ref', '--points-at', head, '--format=%(refname:short)', 'refs/remotes')).split('\n').filter((r) => r && !r.endsWith('/HEAD') && !r.endsWith(`/${base}`))
         if (!remotes.length) continue
-        workflows.landing(a.id, head, { anyway: true, unchecked: true })
+        workflows.landing(a.id, head, { anyway: true, ...(letThrough.get(a.id) !== head && { unchecked: true }) })
+        letThrough.delete(a.id)
         landingHeld.clear(a.id)
         send('workflows')
         send('landing')
@@ -3158,6 +3190,26 @@ async function main() {
     if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
   const heartbeat = setInterval(noteRunning, 2000)
+  // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
+  let sleeping = false
+  const sleeper = setInterval(() => {
+    if (sleeping) return
+    sleeping = true
+    void sleepIdle({
+      ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
+      activity: (id) => lastActivity.get(id),
+      quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
+      hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
+      pending: (id) => mailbox.pending(id),
+      inRun: (id) => workflows.runs().some((r) => r.agent === id && r.status === 'open'),
+      procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
+      sleep: (id) => sessions.get(id)?.kill(),
+      now: Date.now(),
+      after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
+    })
+      .catch(() => {})
+      .finally(() => (sleeping = false))
+  }, (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)
 
   // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
   let wrapped = false
@@ -3183,6 +3235,7 @@ async function main() {
     }
     quitting = true
     clearInterval(heartbeat)
+    clearInterval(sleeper)
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
     clearTimeout(idleCheck)

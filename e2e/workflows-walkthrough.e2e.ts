@@ -83,7 +83,7 @@ test('damaged files are put up with: a half-written log line, a broken drafts fi
     await expect(runs.getByRole('region', { name: 'Workflow proposal' })).toContainText('Billing change')
     await runs.getByRole('region', { name: 'Workflow proposal' }).getByRole('button', { name: 'Save to shop' }).click()
     await expect(runs.getByRole('option', { name: /Billing change/ })).toHaveAttribute('aria-selected', 'true')
-    expect(JSON.parse(readFileSync(join(w.home, 'workflow-approvals.json'), 'utf8')).approved).toBeTruthy()
+    // No command is kept in a workflow now, so saving one approves nothing.
     await builder.client.close()
     await s.shutdown()
   } finally {
