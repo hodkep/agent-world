@@ -84,6 +84,29 @@ export class WorkflowStore {
     return this.entryOf(dir, `${copy}.json`, to)
   }
 
+  /** Every project but the current one, with the workflows it keeps itself (its own folder, not the app's, and not files that do not read), for picking one to import. */
+  others(projects: string[], current: string | null): { project: string; workflows: Entry[] }[] {
+    return projects.filter((p) => p !== current).map((project) => ({ project, workflows: this.read(projectDir(project), 'project').filter((e) => e.workflow) }))
+  }
+
+  /** A workflow kept by another project, copied into the chosen place with its own id and name; under `<id>-copy`, `<id>-copy-2` and so on only when that id is taken. */
+  importFrom(source: string, id: string, project: string | null, to: 'global' | 'project'): Entry {
+    if (!isWorkflowId(id)) throw new Error('Not a valid workflow id.')
+    const dir = this.dirFor(project, to)
+    const from = this.read(projectDir(source), 'project').find((e) => e.id === id)
+    if (!from) throw new Error('No such workflow.')
+    if (!from.workflow) throw new Error('That file has problems, so it cannot be imported.')
+    let made = from.workflow
+    if (existsSync(join(dir, `${id}.json`))) {
+      let copy = `${id.slice(0, 33)}-copy`
+      for (let n = 2; existsSync(join(dir, `${copy}.json`)); n++) copy = `${id.slice(0, 33)}-copy-${n}`
+      made = { ...made, id: copy, name: `${made.name.slice(0, 60 - ' (copy)'.length)} (copy)` }
+    }
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${made.id}.json`), JSON.stringify(made, null, 2) + '\n')
+    return this.entryOf(dir, `${made.id}.json`, to)
+  }
+
   /** Writes a workflow as a file in the chosen place. It refuses to replace a file that is there unless told to, and a workflow the file check refuses. */
   save(project: string | null, workflow: Workflow, to: 'global' | 'project', o: { replace?: boolean } = {}): Entry {
     const text = JSON.stringify(workflow, null, 2) + '\n'

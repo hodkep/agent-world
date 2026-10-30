@@ -2182,6 +2182,13 @@ async function main() {
   const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
   ipcMain.handle('workflows:definitions', (_, project: unknown) => builder.entries(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
+  // Other workspaces' own workflows, for importing: only the folders the app knows, so a path from the page cannot reach anywhere else.
+  const knownProjects = (windowId: number) => workspacePaths(workspaces, windowWorkspaces.get(windowId), agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir)
+  ipcMain.handle('workflows:others', (e, project: unknown) => workflowStore.others(knownProjects(e.sender.id), projectOf(project)).map((o) => ({ ...o, name: basename(o.project) })))
+  ipcMain.handle('workflows:import', (e, source: string, id: string, project: unknown, to: 'global' | 'project') => {
+    if (!knownProjects(e.sender.id).includes(source)) throw new Error('That workspace is not one this app knows.')
+    return workflowStore.importFrom(source, String(id), projectOf(project), to === 'project' ? 'project' : 'global')
+  })
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
   ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string, editing?: unknown) => {

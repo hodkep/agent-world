@@ -6,6 +6,7 @@ import type { WorkflowEntry } from '../../shared/workflow'
 import { FlowCanvas } from './flow/FlowCanvas'
 import { NO_WORKFLOW } from '../../shared/workflows'
 import { History } from './History'
+import { ImportMenu } from './ImportMenu'
 
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
@@ -37,6 +38,7 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
   const [starting, setStarting] = useState(false)
   const [asking, setAsking] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(() => window.aw.workflows.definitions(folder).then((e) => (setEntries(e), setError('')), (e: Error) => setError(e.message)), [folder])
   useEffect(() => void load(), [load])
@@ -74,6 +76,10 @@ export function WorkflowList({ folder, runs, switches, defaultId, onDefault, ini
       <input value={describe} onChange={(e) => setDescribe(e.target.value)} disabled={!folder || starting} placeholder={folder ? 'Describe a workflow to the builder, e.g. every change to billing needs a security review and a second approval' : 'Open a project to build a workflow'} aria-label="Describe a workflow" />
       <button className="primary" type="submit" disabled={!folder || starting || !describe.trim()}>{starting ? 'Starting…' : 'Start with the builder'}</button>
       <button type="button" disabled={!folder || starting} onClick={() => start(undefined)}>Open the builder</button>
+      <span className="imp-wrap">
+        <button type="button" aria-expanded={importing} onClick={() => setImporting(!importing)}>Import…</button>
+        {importing && <ImportMenu folder={folder} onClose={() => setImporting(false)} onImported={(e) => (setImporting(false), setPicked(`${e.scope}:${e.id}`), load())} />}
+      </span>
     </form>
     <div className="wfl" aria-label="Workflows">
       <ul className="wfl-side" role="listbox" aria-label="Workflow list" tabIndex={0} aria-activedescendant={shown ? `wfl-${shown.scope}-${shown.id}` : undefined} onKeyDown={walk}>

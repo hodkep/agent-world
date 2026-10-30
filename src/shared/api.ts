@@ -489,6 +489,10 @@ export interface AwApi {
     definitions(project: string | null): Promise<import('./workflow').WorkflowEntry[]>
     /** Copies a workflow into the project or for everything; says the new one. */
     duplicate(project: string | null, id: string, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
+    /** The other workspaces, each with the workflows it keeps itself, for importing one. */
+    others(project: string | null): Promise<{ project: string; name: string; workflows: import('./workflow').WorkflowEntry[] }[]>
+    /** A copy of a workflow another workspace keeps, in this project or for everything. */
+    import(source: string, id: string, project: string | null, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
     /** Deletes a workflow's file from the project or the global folder. */
     remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
     /** The project's workflow builder, made on first use and woken if asleep. What the person typed is sent to it once it can take it. */
