@@ -118,6 +118,17 @@ aside.wide { width: min(72vw, 1200px); }
 .tabs { display: flex; gap: 4px; padding: 6px 8px 0; border-bottom: 2px solid var(--ink); }
 .tabs [role='tab'] { border-bottom: none; }
 .tabs [role='tab'][aria-selected='true'] { background: var(--well); color: var(--accent); }
+.tabs .vt { position: relative; display: flex; align-items: center; padding: 8px 12px 10px; color: var(--muted); }
+.tabs .vt:hover:not([aria-selected='true']) { color: var(--text); }
+.tabs .vt[aria-selected='true'] { box-shadow: inset 0 -3px 0 var(--accent); }
+.vt-badge { position: absolute; top: 2px; right: 2px; min-width: 13px; height: 13px; padding: 0 2px; background: var(--accent); color: var(--ink); font: 700 9px/13px Menlo, Consolas, monospace; text-align: center; }
+.vt-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; background: var(--ok); }
+.vt-dot.live { background: var(--think); }
+.vt-tip { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 1px; width: max-content; max-width: 250px; padding: 7px 10px; background: var(--ink); color: var(--text); border: 2px solid var(--line); box-shadow: 0 8px 18px rgb(0 0 0 / 0.55); font-size: 12px; line-height: 1.4; text-align: left; font-weight: 400; pointer-events: none; }
+.vt-tip b { font-weight: 600; }
+.vt-tip span { color: var(--muted); overflow-wrap: anywhere; }
+.vt-keys { display: flex; gap: 4px; margin-top: 5px; }
+.vt-tip kbd { font: 600 10.5px Menlo, Consolas, monospace; color: var(--muted); background: var(--well); box-shadow: 0 0 0 1px var(--line); padding: 1px 5px; white-space: nowrap; }
 .chat:focus { outline: none; }
 .code { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .code > .tabs { padding-top: 6px; }

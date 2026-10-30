@@ -68,7 +68,11 @@ const ICONS = {
   // Remote control: copy the link, show it as a code, turn it off.
   copy: <path d="M9 9h11v11H9zM5 15V4h11" />,
   qr: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1" /></>,
-  power: <path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0" />
+  power: <path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0" />,
+  // The side panel's view tabs.
+  chat: <path d="M4 4h16v12H10l-5 4v-4H4z" />,
+  code: <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" />,
+  traces: <path d="M3 8h14M13 4l4 4-4 4M21 16H7M11 12l-4 4 4 4" />
 } satisfies Record<string, ReactNode>
 
 export type HeaderIconName = keyof typeof ICONS

@@ -4,7 +4,7 @@ Review what an agent changed, commit and land its branch, and look at its work r
 
 ## Reach the tabs
 
-Select an agent in the office. The tabs above its panel are **Chat**, **Terminal**, **Code**, **Tools**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
+Select an agent in the office. The tabs above its panel are icons: point at one (or tab to it) to see its name, what it is for and the keys that go to it. In order they are **Chat**, **Terminal**, **Code**, **Tools**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Workflow** means a run is open, **Traces** shows how many messages there are, and a dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
 
 ## Review a branch
 
