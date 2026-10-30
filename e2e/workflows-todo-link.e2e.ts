@@ -59,6 +59,7 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     await expect(page.getByRole('dialog', { name: 'Workflows' }).getByRole('region', { name: /How Add a dark-mode toggle went/ })).toBeVisible()
 
     // Finishing the run finishes the task the agent never closed itself.
+    for (let i = 0; i < 3; i++) await call('step_done', {})
     await call('task_done', { summary: 'Toggle added.' })
     await expect.poll(() => call('todo_get', { id: '1' })).toContain('done')
     expect(await call('todo_get', { id: '1' })).toContain('Finished with its run: Toggle added.')

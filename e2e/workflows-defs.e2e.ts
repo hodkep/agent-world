@@ -61,9 +61,9 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
     const skill = win.getByLabel('Step 2: Fix, test first').locator('.fl-chip', { hasText: 'tdd' })
     await expect(skill).toHaveClass(/gone/)
     await expect(skill).toHaveAttribute('title', 'not in the library')
-    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('npm test')
-    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('3 retries')
-    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('must pass')
+    // A check is an agent step now: no command, no tries, nothing the app runs.
+    await expect(win.getByLabel('Step 3: Tests pass')).toContainText('agent')
+    await expect(win.getByLabel('Step 3: Tests pass')).not.toContainText('npm test')
     await expect(steps.first()).toContainText('you approve')
     await expect(win).toContainText('Write a failing test, then make it pass.')
     await expect(win).toContainText(join(projectDir, 'bug-fix.json'))

@@ -153,6 +153,7 @@ test('an agent whose task names a skill is told to read it with library_get, can
     expect((await call('library_index', {})).text).toContain('use for the step of your workflow that names it')
     expect((await call('library_get', { id: 'deploy-notes' })).error).toBe(true)
 
+    for (let i = 0; i < 3; i++) await call('step_done', {})
     await call('task_done', { summary: 'done' })
     expect((await call('library_get', { id: 'code-review' })).error).toBe(true)
     await client.close()
