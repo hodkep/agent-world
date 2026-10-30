@@ -1133,10 +1133,10 @@ describe('approving a step, and finishing the task', () => {
     expect(wf.waitingStep('a1')).toBeNull()
     wf.stepDone('a1')
     wf.stepDone('a1')
-    expect(wf.waitingStep('a1')).toEqual({ run, step: 'b', name: 'Second' })
+    expect(wf.waitingStep('a1')).toEqual({ run, step: 'b', name: 'Second', toRun: false })
     expect(wf.waitingStep('a2')).toBeNull()
     wf.approveStep(run, 'b', 'approved')
-    expect(wf.waitingStep('a1')).toEqual({ run, step: 'ok', name: 'Your review' })
+    expect(wf.waitingStep('a1')).toEqual({ run, step: 'ok', name: 'Your review', toRun: false })
   })
 
   it('work the person sends back after the task was finished opens the task again; an approval does not', () => {
