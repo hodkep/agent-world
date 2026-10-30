@@ -2663,6 +2663,7 @@ aside:not(.drawer) { flex: none; }
 /* Add an item: a popover of groups with a search box */
 .am { position: relative; }
 .am-pop { position: absolute; z-index: 30; left: 0; top: calc(100% + 4px); width: min(440px, calc(100vw - 32px)); max-height: 420px; display: flex; flex-direction: column; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 10px 30px #000a; }
+.am-pop.right { left: auto; right: 0; }
 .am-s { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 2px solid var(--ink); }
 .am-s input { flex: 1; min-width: 0; background: var(--well); border: 2px solid var(--ink); padding: 5px 8px; }
 .am-body { overflow: auto; flex: 1; min-height: 0; }
