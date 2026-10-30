@@ -3034,7 +3034,19 @@ aside:not(.drawer) { flex: none; }
 /* Scoped: `.mono` and `.muted` are not global classes. */
 .wfl .muted { color: var(--muted); }
 .wfl .mono { font: 11px Menlo, Consolas, monospace; }
-.wfl-detail > .mono { overflow-wrap: anywhere; }
+.wfl-detail .mono { overflow-wrap: anywhere; }
+/* A workflow's detail: everything about it on the left, its flow in a tall pane on the right; one stacked column when the window is narrow. */
+.wfl-detail:has(.wfl-cols) { overflow: hidden; }
+.wfl-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 46%); gap: 24px; height: 100%; min-height: 0; }
+.wfl-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow: auto; }
+.wfl-flow { min-height: 420px; min-width: 0; display: flex; }
+.wfl-flow > .fl-wrap.fill { height: auto; flex: 1; }
+@media (max-width: 900px) {
+  .wfl-detail:has(.wfl-cols) { overflow: auto; }
+  .wfl-cols { display: flex; flex-direction: column; height: auto; flex: none; min-height: auto; }
+  .wfl-main { overflow: visible; min-height: auto; flex: none; }
+  .wfl-flow { height: 420px; flex: none; }
+}
 @media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
 
 /* A work step's skills: ready (green), granted by the step (amber), not in the library (red). */

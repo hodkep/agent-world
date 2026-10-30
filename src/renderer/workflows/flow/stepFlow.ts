@@ -12,6 +12,8 @@ export const NODE_H = 96
 export const GAP = 60
 export const PITCH = NODE_H + GAP
 export const positionOf = (i: number) => ({ x: 0, y: i * PITCH })
+/** The height the steps need (a long workflow scrolls by panning, and the height stops growing); none when the flow fills a pane that has a height of its own. */
+export const flowHeight = (steps: number, o: { edits?: boolean; fill?: boolean } = {}): number | undefined => (o.fill ? undefined : Math.min(o.edits ? 880 : 600, Math.max(320, steps * PITCH + 60)))
 
 /** The place in the list a step dropped at height `y` belongs: the nearest one, never outside the list. */
 export const dropIndex = (y: number, count: number) => Math.min(count - 1, Math.max(0, Math.round(y / PITCH)))

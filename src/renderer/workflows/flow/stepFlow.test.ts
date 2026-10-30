@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Step } from '../../../shared/workflow'
-import { ACTOR, PITCH, chipsOf, dropIndex, loopsOf, positionOf } from './stepFlow'
+import { ACTOR, PITCH, chipsOf, dropIndex, flowHeight, loopsOf, positionOf } from './stepFlow'
 
 const step = (kind: Step['kind'], over: Partial<Step> = {}): Step => ({ id: kind, kind, ...over })
 
@@ -88,5 +88,17 @@ describe('the chips on a step', () => {
     expect(words(step('work', { skills: ['tdd', 'ponytail'] }))).toEqual(['skill: tdd', 'skill: ponytail'])
     expect(words(step('check', { run: 'x', retries: 4 }))).toEqual(['4 retries'])
     expect(words(step('check', { run: 'x', retries: 1 }))).toEqual(['1 retry'])
+  })
+})
+
+describe('how tall the flow is drawn', () => {
+  it('grows with the steps between 320 and 600, or 880 while editing', () => {
+    expect(flowHeight(2)).toBe(2 * PITCH + 60)
+    expect(flowHeight(1)).toBe(320)
+    expect(flowHeight(50)).toBe(600)
+    expect(flowHeight(50, { edits: true })).toBe(880)
+  })
+  it('is left to the pane around it when the flow fills one', () => {
+    expect(flowHeight(9, { fill: true })).toBeUndefined()
   })
 })
