@@ -148,8 +148,8 @@ describe('saving a workflow the builder proposed', () => {
 
   it('refuses a workflow the file check refuses, a project scope without a project, and leaves no half-written file', () => {
     const s = setup()
-    const bad = { ...wf('bad', 'Bad'), steps: [{ id: 'tests', kind: 'check' }] } as Workflow
-    expect(() => s.store.save(s.project, bad, 'project')).toThrow('a check step needs "run"')
+    const bad = { ...wf('bad', 'Bad'), steps: [{ id: 'tests', kind: 'nope' }] } as unknown as Workflow
+    expect(() => s.store.save(s.project, bad, 'project')).toThrow('"kind" must be one of')
     expect(() => s.store.save(null, wf('x', 'X'), 'project')).toThrow('Open a project first.')
     expect(readdirSync(s.projectDir)).toEqual([])
     s.store.save(s.project, wf('good', 'Good'), 'project')

@@ -11,8 +11,8 @@ import { WorkflowStore } from './store'
 const wf = (id: string, name = id, steps: Workflow['steps'] = [{ id: 'build', kind: 'work' }]): Workflow => ({ version: 1, id, name, steps })
 const billing = wf('billing-change', 'Billing change', [
   { id: 'plan', kind: 'plan', gate: 'approve' },
-  { id: 'tests', kind: 'check', run: 'npm test', gate: 'pass' },
-  { id: 'lint', kind: 'check', run: 'npm run lint', gate: 'pass' },
+  { id: 'tests', kind: 'work', name: 'Tests' },
+  { id: 'lint', kind: 'work', name: 'Lint' },
   { id: 'land', kind: 'merge' }
 ])
 
@@ -77,8 +77,8 @@ describe('a proposal', () => {
   it('that has problems comes back with every one of them and leaves an earlier draft as it was', () => {
     const s = setup()
     s.builder.propose('a1', s.project, json(billing))
-    const bad = { ...wf('Bad Id', ''), steps: [{ id: 'tests', kind: 'check' }, { id: 'x', kind: 'nope' }] }
-    expect(() => s.builder.propose('a1', s.project, json(bad as Workflow))).toThrow(/Nothing was proposed[\s\S]*"id" must be lowercase[\s\S]*"name" is required[\s\S]*needs "run"[\s\S]*"kind" must be one of/)
+    const bad = { ...wf('Bad Id', ''), steps: [{ id: 'x', kind: 'nope' }] }
+    expect(() => s.builder.propose('a1', s.project, json(bad as Workflow))).toThrow(/Nothing was proposed[\s\S]*"id" must be lowercase[\s\S]*"name" is required[\s\S]*"kind" must be one of/)
     expect(() => s.builder.propose('a1', s.project, 'not json')).toThrow('Not valid JSON')
     expect(() => s.builder.propose('a1', s.project, 'x'.repeat(40_000))).toThrow('too long')
     expect(s.builder.view('a1', s.project)!.workflow).toEqual(billing)
@@ -95,11 +95,11 @@ describe('a proposal', () => {
     const s = setup()
     s.store.save(s.project, billing, 'project')
     const next = structuredClone(billing)
-    next.steps[1] = { ...next.steps[1]!, retries: 3 }
+    next.steps[1] = { ...next.steps[1]!, brief: 'Run the unit tests.' }
     s.builder.propose('a1', s.project, json(next))
     const v = s.builder.view('a1', s.project)!
     expect(v.saved).toMatchObject({ scope: 'project' })
-    expect(v.diff.changed).toEqual([{ id: 'tests', name: 'Check', fields: ['retries none → 3'] }])
+    expect(v.diff.changed.map((c) => c.id)).toEqual(['tests'])
     expect(v.stale).toBe(false)
   })
 
@@ -125,13 +125,6 @@ describe('a proposal', () => {
     expect(s.builder.view('b1', s.project)!.stale).toBe(true)
   })
 
-  it('marks the commands the person approved before for that workflow, so only new ones are news', () => {
-    const s = setup()
-    s.approvals.approve('billing-change', 'old', ['npm test'], 500)
-    s.builder.propose('a1', s.project, json(billing))
-    expect(s.builder.view('a1', s.project)!.commands).toEqual([{ text: 'npm test', known: true }, { text: 'npm run lint', known: false }])
-  })
-
   it('survives a restart, one per agent, and a damaged file means no proposal', () => {
     const s = setup()
     s.builder.propose('a1', s.project, json(billing))
@@ -153,20 +146,20 @@ describe('the person editing a proposal', () => {
     const s = setup()
     s.builder.propose('a1', s.project, json(billing))
     expect(s.builder.view('a1', s.project)!.edited).toBeUndefined()
-    const next = edited(billing, (st) => [...st.slice(0, 3), { id: 'security', kind: 'approve', name: 'Security review' }, st[3]!])
+    const next = edited(billing, (st) => [...st.slice(0, 3), { id: 'security', kind: 'work', name: 'Security review', start: 'run' }, st[3]!])
     const v = s.builder.edit('a1', s.project, next)
     expect(v.workflow).toEqual(next)
     expect(v.edited).toBe(1)
     expect(s.builder.view('a1', s.project)!.workflow).toEqual(next)
-    next.steps[1]!.run = 'npm run test:unit'
+    next.steps[1]!.brief = 'Run the unit tests.'
     expect(s.builder.edit('a1', s.project, next).edited).toBe(2)
   })
 
   it('is refused with every problem named, and the draft stays as it was', () => {
     const s = setup()
     s.builder.propose('a1', s.project, json(billing))
-    const bad = edited(billing, (st) => st.map((x) => (x.id === 'tests' ? { id: 'tests', kind: 'check' as const } : x.id === 'lint' ? { ...x, retries: 9 } : x)))
-    expect(() => s.builder.edit('a1', s.project, bad)).toThrow(/a check step needs "run"[\s\S]*"retries" must be a whole number/)
+    const bad = edited(billing, (st) => st.map((x) => (x.id === 'tests' ? { ...x, gate: 'nope' as never } : x.id === 'lint' ? { ...x, retries: 9 } : x)))
+    expect(() => s.builder.edit('a1', s.project, bad)).toThrow(/"gate" for a work step must be[\s\S]*"retries" only belongs/)
     expect(s.builder.view('a1', s.project)!.workflow).toEqual(billing)
   })
 
@@ -205,14 +198,12 @@ describe('the person editing a proposal', () => {
 })
 
 describe('saving a proposal', () => {
-  it('to the project writes the file, approves its commands for that exact version, and clears the draft', () => {
+  it('to the project writes the file and clears the draft', () => {
     const s = setup()
     s.builder.propose('a1', s.project, json(billing))
     const e = s.builder.save('a1', s.project, 'project')
     expect(e).toMatchObject({ id: 'billing-change', scope: 'project' })
     expect(JSON.parse(readFileSync(e.file!, 'utf8'))).toEqual(billing)
-    expect(s.approvals.has(e.hash!)).toBe(true)
-    expect(s.approvals.previous('billing-change', 'x')).toMatchObject({ commands: ['npm test', 'npm run lint'] })
     expect(s.builder.view('a1', s.project)).toBeNull()
   })
 
@@ -224,7 +215,7 @@ describe('saving a proposal', () => {
     expect(s.approvals.has(e.hash!)).toBe(false)
   })
 
-  it('as a replacement overwrites the saved file in its own place and approves the new version', () => {
+  it('as a replacement overwrites the saved file in its own place', () => {
     const s = setup()
     const first = s.store.save(s.project, billing, 'project')
     const next = { ...billing, name: 'Billing' }
@@ -232,7 +223,6 @@ describe('saving a proposal', () => {
     const e = s.builder.save('a1', s.project, 'replace')
     expect(e.file).toBe(first.file)
     expect(e.workflow!.name).toBe('Billing')
-    expect(s.approvals.has(e.hash!)).toBe(true)
     expect(s.store.list(s.project).filter((x) => x.id === 'billing-change')).toHaveLength(1)
   })
 

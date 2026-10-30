@@ -17,8 +17,20 @@ const BUG_FIX = {
 }
 
 describe('reading a workflow file', () => {
-  it('a valid file comes back as it was written', () => {
-    expect(parseWorkflow(JSON.stringify(BUG_FIX))).toEqual({ ok: true, workflow: BUG_FIX })
+  it('a valid file comes back as the app follows it: a check and an audit are agent steps, and only the plan keeps a gate', () => {
+    expect(parseWorkflow(JSON.stringify(BUG_FIX))).toEqual({
+      ok: true,
+      workflow: {
+        ...BUG_FIX,
+        steps: [
+          { id: 'plan', kind: 'plan', gate: 'approve', brief: 'Name the symptom and the likely cause.' },
+          { id: 'fix', kind: 'work', name: 'Fix, test first', skills: ['tdd'], brief: 'Write a failing test, then make it pass.' },
+          { id: 'tests', kind: 'work', name: 'Tests pass' },
+          { id: 'review', kind: 'work' },
+          { id: 'land', kind: 'merge' }
+        ]
+      }
+    })
   })
 
   const problems = (o: unknown) => {
@@ -54,7 +66,7 @@ describe('reading a workflow file', () => {
     ])
   })
 
-  it('holds each kind to its own fields: a check needs a command, a gate must fit the kind, and a field a kind has no use for is refused', () => {
+  it('holds each kind to its own fields: a gate must fit the kind, and a field a kind has no use for is refused', () => {
     expect(
       withSteps([
         { id: 'a', kind: 'check' },
@@ -66,7 +78,6 @@ describe('reading a workflow file', () => {
         { id: 'g', kind: 'work', name: '', skills: ['tdd', 7], brief: 'x'.repeat(601) }
       ])
     ).toEqual([
-      'Step 1 ("a"): a check step needs "run", the command to run.',
       'Step 2 ("b"): "gate" for a check step must be auto, pass or approve.',
       'Step 2 ("b"): "retries" must be a whole number from 0 to 5.',
       'Step 3 ("c"): "gate" for a work step must be auto or approve.',
@@ -123,13 +134,13 @@ describe('reading a workflow file', () => {
 })
 
 describe('the built-in Standard workflow', () => {
-  it('is itself a valid workflow, and is the pipeline of a pull request: plan, build, audit, pull request', () => {
+  it('is itself a valid workflow, and is the pipeline of a pull request: plan, build, review, pull request', () => {
     expect(parseWorkflow(JSON.stringify(STANDARD))).toEqual({ ok: true, workflow: STANDARD })
     expect(STANDARD.id).toBe('standard')
     // An agent that reads "when" must not prefer it to a workflow the project made for its work.
     expect(STANDARD.when).toMatch(/fallback/i)
     expect(STANDARD.when).not.toMatch(/anything/i)
-    expect(STANDARD.steps.map((s) => s.kind)).toEqual(['plan', 'work', 'audit', 'pr'])
+    expect(STANDARD.steps.map((s) => s.kind)).toEqual(['plan', 'work', 'work', 'pr'])
     expect(STANDARD.steps.at(-1)!.name).toBe('Pull request')
     expect(isLanding('pr')).toBe(true)
     expect(isLanding('merge')).toBe(true)
@@ -142,8 +153,8 @@ describe('the chips a workflow is drawn with', () => {
     expect(stepChips(parseOk(BUG_FIX), { planGate: true, mergeGate: true })).toEqual([
       { id: 'plan', kind: 'plan', label: 'Plan', stops: true },
       { id: 'fix', kind: 'work', label: 'Fix, test first', stops: false },
-      { id: 'tests', kind: 'check', label: 'Tests pass', stops: false },
-      { id: 'review', kind: 'audit', label: 'Audit', stops: false },
+      { id: 'tests', kind: 'work', label: 'Tests pass', stops: false },
+      { id: 'review', kind: 'work', label: 'Build', stops: false },
       { id: 'land', kind: 'merge', label: 'Land', stops: true }
     ])
   })
@@ -155,7 +166,7 @@ describe('the chips a workflow is drawn with', () => {
     expect(stepChips({ version: 1, id: 'x', name: 'X', steps: [{ id: 'a', kind: 'check', run: 'x', start: 'run' }, { id: 'b', kind: 'audit', start: 'run' }, { id: 'c', kind: 'pr', gate: 'auto', start: 'run' }] }, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([true, true, true])
     expect(stepChips(wf, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([false, false, false, true, true])
     const set = parseOk({ ...BUG_FIX, steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'land', kind: 'merge', gate: 'auto' }] })
-    expect(stepChips(set, { planGate: false, mergeGate: true }).map((c) => c.stops)).toEqual([true, false])
+    expect(stepChips(set, { planGate: false, mergeGate: false }).map((c) => c.stops)).toEqual([true, false])
   })
 })
 
@@ -175,9 +186,9 @@ describe('the copy of a workflow a run keeps', () => {
       steps: [
         { id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve', brief: 'Name the symptom and the likely cause.' },
         { id: 'fix', kind: 'work', name: 'Fix, test first', skills: ['tdd'], brief: 'Write a failing test, then make it pass.' },
-        { id: 'tests', kind: 'check', name: 'Tests pass', gate: 'pass', run: 'npm test', retries: 3 },
-        { id: 'review', kind: 'audit', name: 'Audit' },
-        { id: 'land', kind: 'merge', name: 'Land', gate: 'approve' }
+        { id: 'tests', kind: 'work', name: 'Tests pass' },
+        { id: 'review', kind: 'work', name: 'Build' },
+        { id: 'land', kind: 'merge', name: 'Land' }
       ]
     })
     expect(toRunWorkflow(STANDARD).hash).toBeUndefined()
@@ -185,9 +196,9 @@ describe('the copy of a workflow a run keeps', () => {
 })
 
 describe('the commands a workflow runs', () => {
-  it('are the run of each check step, in order, once each, and none for a workflow without checks', () => {
+  it('are none now: a check step is an agent step, and no command of a file is kept or run', () => {
     const rw = toRunWorkflow(parseOk({ ...BUG_FIX, steps: [{ id: 'a', kind: 'check', run: 'npm test' }, { id: 'b', kind: 'work' }, { id: 'c', kind: 'check', run: 'npm run lint' }, { id: 'd', kind: 'check', run: 'npm test' }] }), 'h', 'project')
-    expect(checkCommands(rw)).toEqual(['npm test', 'npm run lint'])
+    expect(checkCommands(rw)).toEqual([])
     expect(checkCommands(toRunWorkflow(STANDARD))).toEqual([])
   })
 
@@ -219,5 +230,44 @@ describe('which workflow a new task follows', () => {
     expect(pickEntry(list, undefined, 'none')).toBeUndefined()
     expect(pickEntry(list, 'nope', 'none')).toBeUndefined()
     expect(pickEntry(list, 'bug-fix', 'none')?.id).toBe('bug-fix')
+  })
+})
+
+describe('a workflow file says what to do, and where the person is asked: nothing runs by itself and nothing asks twice', () => {
+  const read = (steps: unknown[]) => {
+    const r = parseWorkflow(JSON.stringify({ version: 1, id: 'x', name: 'X', steps }))
+    if (!r.ok) throw new Error(r.problems.join('; '))
+    return r.workflow.steps
+  }
+
+  it('a check or an audit step is an agent step now: the agent runs the tests and does the review itself, and no command or model is kept', () => {
+    expect(read([{ id: 't', kind: 'check', name: 'Tests pass', run: 'pnpm test', gate: 'pass', retries: 2, brief: 'Run the tests.' }, { id: 'r', kind: 'audit', model: 'sonnet', brief: 'Review the branch.' }])).toEqual([
+      { id: 't', kind: 'work', name: 'Tests pass', brief: 'Run the tests.' },
+      { id: 'r', kind: 'work', brief: 'Review the branch.' }
+    ])
+  })
+
+  it('a check needs no command any more', () => {
+    expect(read([{ id: 't', kind: 'check' }])).toEqual([{ id: 't', kind: 'work' }])
+  })
+
+  it('asking the person is one thing: a step that gates on approval, or starts on Run, asks once, before it starts', () => {
+    expect(read([{ id: 'a', kind: 'work', gate: 'approve' }, { id: 'b', kind: 'pr', gate: 'approve' }, { id: 'c', kind: 'merge', gate: 'approve' }, { id: 'd', kind: 'work', start: 'run', gate: 'auto' }])).toEqual([
+      { id: 'a', kind: 'work', start: 'run' },
+      { id: 'b', kind: 'pr', start: 'run' },
+      { id: 'c', kind: 'merge' },
+      { id: 'd', kind: 'work', start: 'run' }
+    ])
+  })
+
+  it('a step that never asks keeps no gate, and an approve step is a step that asks', () => {
+    expect(read([{ id: 'a', kind: 'work', gate: 'auto' }, { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Read it.' }])).toEqual([
+      { id: 'a', kind: 'work' },
+      { id: 'ok', kind: 'work', name: 'Your review', brief: 'Read it.', start: 'run' }
+    ])
+  })
+
+  it('a plan keeps its gate: it is the one step the person answers after it is written', () => {
+    expect(read([{ id: 'p', kind: 'plan', gate: 'approve' }, { id: 'q', kind: 'plan', gate: 'auto' }].slice(0, 1))).toEqual([{ id: 'p', kind: 'plan', gate: 'approve' }])
   })
 })

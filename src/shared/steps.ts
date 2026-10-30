@@ -247,6 +247,9 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
 /** What the agent is told when the person skips an optional step of its workflow. */
 export const stepSkipped = (name: string) => `Your step "${name}" was skipped by the person: it is optional. Go on with the next step.`
 
+/** What the agent is told when the person does not approve one of its steps: it does not start it, and waits. */
+export const stepDeclined = (name: string) => `The person did not approve your step "${name}" yet: do not start it. Stop and wait for their instructions.`
+
 /** What the agent is told when the person presses Run on one of its steps. */
 export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`
 

@@ -8,15 +8,15 @@ const off = { planGate: false, mergeGate: false }
 const wf = (steps: Workflow['steps']): Workflow => ({ version: 1, id: 'x', name: 'X', steps })
 
 describe('what a workflow will ask of the person, step by step', () => {
-  it('says for the built-in Standard: the plan is approved before any edit, the audit is looked at, and the push is held until both are met', () => {
+  it('says for the built-in Standard: the plan is approved before any edit, the agent reviews its own work, and the person is asked once, before the pull request', () => {
     const rows = previewOf(STANDARD, on)
     expect(rows.map((r) => `${r.label}: ${r.says}`)).toEqual([
       'Plan: you approve the plan before any edit',
       'Build: no stop',
-      'Audit: you look at the findings',
-      'Pull request: the push is held until the plan is approved and the findings are seen'
+      'Review: no stop',
+      'Pull request: you press Run, then the agent pushes the branch and opens the pull request'
     ])
-    expect(rows.map((r) => r.stops)).toEqual([true, false, true, true])
+    expect(rows.map((r) => r.stops)).toEqual([true, false, false, true])
   })
 
   it('follows the Settings switches for a step that names no gate, and a step\'s own gate wins over them', () => {
@@ -44,7 +44,7 @@ describe('what a workflow will ask of the person, step by step', () => {
   })
 
   it('counts where the person stops, in one line', () => {
-    expect(stopsLine(previewOf(STANDARD, on))).toBe('You stop at 3 of 4 steps.')
+    expect(stopsLine(previewOf(STANDARD, on))).toBe('You stop at 2 of 4 steps.')
     expect(stopsLine(previewOf(wf([{ id: 'a', kind: 'work' }]), on))).toBe('Nothing waits for you.')
     expect(stopsLine(previewOf(wf([{ id: 'ok', kind: 'approve' }]), on))).toBe('You stop at 1 step.')
     expect(previewOf(wf([]), on)).toEqual([])

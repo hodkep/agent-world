@@ -72,7 +72,7 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
     if (s.name !== undefined && !isText(s.name, 40)) out.push(`${at}: "name" must be text of up to 40 characters.`)
     if (s.gate !== undefined && !GATES[kind].includes(s.gate as Gate)) out.push(`${at}: "gate" for ${kind === 'approve' ? 'an' : 'a'} ${kind} step must be ${orList(GATES[kind])}.`)
     if (kind === 'check') {
-      if (!isText(s.run, 300)) out.push(`${at}: a check step needs "run", the command to run.`)
+      if (s.run !== undefined && !isText(s.run, 300)) out.push(`${at}: "run" must be text of up to 300 characters.`)
       if (s.retries !== undefined && !(Number.isInteger(s.retries) && (s.retries as number) >= 0 && (s.retries as number) <= 5)) out.push(`${at}: "retries" must be a whole number from 0 to 5.`)
     } else {
       if (s.run !== undefined) out.push(`${at}: "run" only belongs on a check step.`)
@@ -98,6 +98,20 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
   return out
 }
 
+/**
+ * A step as the app follows it. A workflow file says what to do and where the person is asked, nothing more: the agent runs the tests and does the review itself, in the
+ * chat, so a check or an audit is an agent step (its command and model are not kept); and the person is asked once for a step, before it starts, whichever way the file said so
+ * (a gate of approve, a start on Run, or a step that is an approval). Only the plan keeps a gate: it is the one thing the person answers after it is written.
+ */
+export function modernStep(s: Step): Step {
+  const { run: _run, retries: _retries, model: _model, gate, start, ...rest } = s
+  const kind: StepKind = s.kind === 'check' || s.kind === 'audit' || s.kind === 'approve' ? 'work' : s.kind
+  if (kind === 'plan') return { ...rest, kind, ...(gate && { gate }), ...(start && { start }) }
+  // A merge is the person's own click on Land: nothing more to ask.
+  const asks = kind !== 'merge' && (s.kind === 'approve' || gate === 'approve' || start === 'run')
+  return { ...rest, kind, ...(asks && { start: 'run' as const }) }
+}
+
 export function parseWorkflow(text: string): WorkflowResult {
   let raw: unknown
   try {
@@ -119,10 +133,11 @@ export function parseWorkflow(text: string): WorkflowResult {
     f.steps.forEach((step, i) => problems.push(...stepProblems(step, i + 1, seen)))
   }
   if (problems.length) return { ok: false, problems }
-  return { ok: true, workflow: f as unknown as Workflow }
+  const workflow = f as unknown as Workflow
+  return { ok: true, workflow: { ...workflow, steps: workflow.steps.map(modernStep) } }
 }
 
-/** The built-in pipeline: plan, build, audit, then the pull request (the push of the agent's branch is what is held). Its plan and pull request follow the Settings switches. */
+/** The built-in pipeline: plan, build, the agent's own review, then the pull request (the push of the agent's branch is what is held, and the person is asked before it). */
 export const STANDARD: Workflow = {
   version: 1,
   id: 'standard',
@@ -131,8 +146,8 @@ export const STANDARD: Workflow = {
   steps: [
     { id: 'plan', kind: 'plan' },
     { id: 'build', kind: 'work', name: 'Build' },
-    { id: 'review', kind: 'audit', name: 'Audit' },
-    { id: 'pr', kind: 'pr', name: 'Pull request' }
+    { id: 'review', kind: 'work', name: 'Review', brief: 'Read your own branch against the plan and report what you found. Fix what is wrong before the next step.' },
+    { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }
   ]
 }
 

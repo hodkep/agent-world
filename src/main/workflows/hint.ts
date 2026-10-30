@@ -60,11 +60,18 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
     return []
   })
   const landing = w.steps.find((s) => s.kind === 'pr' || s.kind === 'merge')?.kind
+  // An older run may still have an audit the app does; the workflows made now have none: the agent reviews its own work in a step, and the person is asked once, before the step.
+  const audited = w.steps.some((s) => s.kind === 'audit')
   const rules = !landing ? [] : [
-    'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.',
-    ...(landing === 'pr' ? ['Do not push or open a pull request until the app tells you the audit passed. Then push a branch whose head is exactly that audited commit (your own branch, or another name for the same commit: git push origin <your branch>:<name>) and open the pull request; a push of anything else is held.'] : [])
+    `Work and commit only on your own branch in this worktree: a commit on any other branch here is refused${audited ? ', and the app audits your branch, not another' : ''}.`,
+    ...(landing === 'pr'
+      ? [audited
+          ? 'Do not push or open a pull request until the app tells you the audit passed. Then push a branch whose head is exactly that audited commit (your own branch, or another name for the same commit: git push origin <your branch>:<name>) and open the pull request; a push of anything else is held.'
+          : 'Do not push or open a pull request until the person has told you to start that step. Then push your branch (git push origin <your branch>) and open the pull request.']
+      : [])
   ]
-  return [head, ...lines, ...rules, 'Report each step you do with step_done and its id, for example step_done("' + (w.steps.find((s) => s.kind === 'work')?.id ?? 'build') + '"); with no id it reports the next one. The app audits the branch and the person lands it.'].join('\n')
+  const first = w.steps.find((s) => s.kind === 'work')?.id ?? 'build'
+  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. A step that is optional and does not apply to this task is skipped with step_done("${first}", skipped), using its own id. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
 }
 
 const OFFERED_MAX = 5

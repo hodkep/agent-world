@@ -177,7 +177,7 @@ export class Workflows {
     if (todo && !have.includes(todo)) this.append({ k: 'todo', t: this.deps.now(), run, todo })
   }
 
-  done(agentId: string, summary?: string) {
+  done(agentId: string, summary?: string, o: { byApp?: boolean } = {}) {
     const open = this.runs().find((r) => r.agent === agentId && r.status === 'open')
     if (!open) {
       // The push that ended a pull request run already said it: the agent's own task_done after it is not an error.
@@ -185,11 +185,14 @@ export class Workflows {
       if (last?.landed && landingKind(last.workflow) === 'pr') return
       throw new Error('No task is open.')
     }
-    // Agents often forget to report a step: finishing the task reports the ones left, marked as the app's doing.
+    // Finishing never claims a step nobody did: one the agent has to do and never reported is refused by name; an optional one it never reported was not needed, so it is skipped
+    // (marked as the app's doing); one that starts on Run waits for the person's press, and is left alone.
     const round = open.rounds[open.rounds.length - 1]!
-    for (const s of open.workflow?.steps ?? []) {
-      if (s.kind === 'work' && !round.steps.some((x) => x.step === s.id && x.state !== 'changes')) this.append({ k: 'step', t: this.deps.now(), run: open.id, round: round.n, step: s.id, state: 'done', implicit: true })
-    }
+    const unreported = (open.workflow?.steps ?? []).filter((s) => s.kind === 'work' && !round.steps.some((x) => x.step === s.id && x.state !== 'changes'))
+    const owed = unreported.find((s) => !s.optional && !(s.start === 'run' && round.starts?.[s.id] === undefined))
+    // The app closing the run itself (the push went through) has nothing to ask of the agent: what is left is marked as the app's doing.
+    if (owed && !o.byApp) throw new Error(`Report "${owed.name}" first: it was never done.`)
+    for (const s of unreported) if (o.byApp || s.optional) this.append({ k: 'step', t: this.deps.now(), run: open.id, round: round.n, step: s.id, state: s.optional ? 'skipped' : 'done', implicit: true })
     this.append({ k: 'done', t: this.deps.now(), run: open.id, ...(summary && { summary }) })
   }
 
@@ -351,7 +354,7 @@ export class Workflows {
    * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
-  stepDone(agentId: string, step?: string): { done: string; waiting?: string; checking?: boolean } {
+  stepDone(agentId: string, step?: string, o: { skipped?: boolean } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean } {
     // An agent may close the task in the same turn that its check fails, before it is told: reporting the fix then opens the task again.
     const closed = this.mine(agentId)[0]
     if (!this.openRun(agentId) && closed?.status === 'done' && this.states(closed).some((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)) this.append({ k: 'reopen', t: this.deps.now(), run: closed.id })
@@ -386,6 +389,16 @@ export class Workflows {
     }
     // A step that starts on Run is not the agent's to report before the person has pressed it.
     if (target.start === 'run' && round.starts?.[target.id] === undefined) throw new Error(`The person has not pressed Run on "${target.name}" yet.`)
+    // One step at a time, in order: every step before this one is done or skipped first.
+    const states = this.states(run)
+    const at = flow.steps.findIndex((s) => s.id === target!.id)
+    const unmet = flow.steps.slice(0, at).find((s, i) => states[i]?.state !== 'passed' && states[i]?.state !== 'skipped')
+    if (unmet) throw new Error(`"${unmet.name}" comes before "${target.name}": ${unmet.kind === 'work' ? `report it, or skip it with step_done("${unmet.id}", skipped).` : 'it is not met yet.'}`)
+    if (o.skipped) {
+      if (!target.optional) throw new Error(`"${target.name}" is not optional: do it, or ask the person.`)
+      this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'skipped' })
+      return { done: target.id, skipped: true }
+    }
     this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done' })
     const after = this.states(this.runs().find((r) => r.id === run.id)!)
     const waiting = after.find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
@@ -714,7 +727,7 @@ export class Workflows {
 
   /** A run that ends in a pull request ends when its branch is pushed: the same as the agent saying it is done, which it need not do. */
   private endAtPush(agentId: string) {
-    if (this.openRun(agentId)) this.done(agentId)
+    if (this.openRun(agentId)) this.done(agentId, undefined, { byApp: true })
   }
 
   /** Whether this head of the agent's latest run is already recorded as landed or pushed. */

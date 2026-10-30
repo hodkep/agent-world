@@ -101,7 +101,7 @@ import { type SkillSource, skillStates } from '../shared/skills'
 import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
-import { checkPassed, stepReply, stepSkipped, stepStarted } from '../shared/steps'
+import { checkPassed, stepReply, stepSkipped, stepDeclined, stepStarted } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -1585,8 +1585,8 @@ async function main() {
         send('workflows')
         void kickChecks(caller)
       },
-      stepDone: (caller, step) => {
-        const r = workflows.stepDone(caller, step)
+      stepDone: (caller, step, o) => {
+        const r = workflows.stepDone(caller, step, o)
         send('workflows')
         if (r.checking) void kickChecks(caller)
         else void autoAudit(caller)
@@ -2260,6 +2260,12 @@ async function main() {
     const name = workflows.startStep(runId, String(step))
     if (run) mailbox.fromOffice(run.agent, stepStarted(name))
     send('workflows')
+  })
+  // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
+  ipcMain.handle('workflows:decline-step', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const name = run?.workflow?.steps.find((s) => s.id === step)?.name
+    if (run && name) mailbox.fromOffice(run.agent, stepDeclined(name))
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {

@@ -37,6 +37,19 @@ function make(opts: { enabled?: boolean } = {}) {
   return { state, open, wf: open() }
 }
 
+/** What an agent that did everything says: reports every step it has left, in order, then the task done. */
+function finish(wf: Workflows, agent: string, summary?: string) {
+  // At most as many reports as there are steps: a step sent back is reported again by the same call, which would never end.
+  for (let i = 0; i < 12; i++) {
+    try {
+      wf.stepDone(agent)
+    } catch {
+      break
+    }
+  }
+  wf.done(agent, summary)
+}
+
 describe('recording a task', () => {
   it('task_begin opens a run for the agent and task_done closes it, and both survive a restart', () => {
     const { wf, open } = make()
@@ -44,7 +57,7 @@ describe('recording a task', () => {
     expect(wf.runs()).toHaveLength(1)
     expect(wf.runs()[0]).toMatchObject({ agent: 'a1', name: 'ada', project: '/p', title: 'Fix the login redirect', status: 'open' })
     expect(wf.openCount()).toBe(1)
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(open().runs()[0]).toMatchObject({ status: 'done', summary: 'Done.' })
     expect(open().openCount()).toBe(0)
   })
@@ -58,7 +71,7 @@ describe('recording a task', () => {
 
   it('task_done with nothing open says so, and an unknown agent cannot begin', () => {
     const { wf } = make()
-    expect(() => wf.done('a1')).toThrow('No task is open')
+    expect(() => finish(wf, 'a1')).toThrow('No task is open')
     expect(() => wf.begin('nobody', 'x')).toThrow('Unknown agent')
   })
 })
@@ -69,7 +82,7 @@ describe('turning workflows off', () => {
     wf.begin('a1', 'Fix it')
     state.enabled = false
     expect(() => wf.begin('a2', 'New work')).toThrow('Workflows are off')
-    wf.done('a1', 'Fixed.')
+    finish(wf, 'a1', 'Fixed.')
     expect(wf.runs()[0]!.status).toBe('done')
   })
 
@@ -87,7 +100,7 @@ describe('follow-ups', () => {
   it('a follow-up after the task finished reopens the same run as round 2', () => {
     const { wf } = make()
     const id = wf.begin('a1', 'Add a dark-mode toggle')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(wf.begin('a1', 'Missed the settings page', { followUp: true })).toBe(id)
     const [r] = wf.runs()
     expect(wf.runs()).toHaveLength(1)
@@ -101,7 +114,7 @@ describe('follow-ups', () => {
     const v2: RunWorkflow = { ...v1, hash: 'bbbb2222', steps: [...v1.steps, { id: 'tests', kind: 'check', name: 'Tests', run: 'npm test' }] }
     state.pick = () => v1
     wf.begin('a1', 'Add a dark-mode toggle')
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = (id) => (id === 'journey' ? v2 : undefined)
     wf.begin('a1', 'Missed the settings page', { followUp: true })
     expect(state.picked.at(-1)).toBe('journey')
@@ -114,12 +127,12 @@ describe('follow-ups', () => {
     state.pick = () => v1
     wf.begin('a1', 'Add a dark-mode toggle')
     wf.begin('a1', 'More', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.begin('a1', 'Same file', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = () => undefined
     wf.begin('a1', 'File gone', { followUp: true })
-    wf.done('a1')
+    finish(wf, 'a1')
     state.pick = () => ({ ...v1, id: 'standard', name: 'Standard', hash: 'cccc3333' })
     wf.begin('a1', 'Another workflow answers', { followUp: true })
     expect(wf.runs()[0]!.workflow).toEqual(v1)
@@ -141,7 +154,7 @@ describe('the todo a run belongs to', () => {
     state.todoOf = () => '14'
     wf.begin('a1', 'Add a dark-mode toggle')
     expect(wf.runs()[0]!.todos).toEqual(['14'])
-    wf.done('a1')
+    finish(wf, 'a1')
     state.todoOf = () => '15'
     wf.begin('a1', 'Missed the settings page', { followUp: true })
     expect(wf.runs()[0]!.todos).toEqual(['14', '15'])
@@ -171,7 +184,7 @@ describe('commits', () => {
   it('a commit with no task open goes to the agent\'s nearest run and is flagged, never refused', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'def456', 'chore: tidy')
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'def456', flagged: true })
   })
@@ -207,7 +220,7 @@ describe('commits', () => {
       expect(wf.addition('a1', 'x', true)).toBeUndefined()
       wf.landing('a1', 'h1', { anyway: true })
       expect(wf.addition('a1', 'x')).toBeUndefined()
-      wf.done('a1')
+      finish(wf, 'a1')
       expect(wf.addition('a1', 'x')).toBeUndefined()
       const b = make()
       b.wf.begin('a1', 'One')
@@ -223,7 +236,7 @@ describe('commits', () => {
   it('with workflows off only an open run takes a commit', () => {
     const { wf, state } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     state.enabled = false
     wf.commit('a1', 'bbb222', 'after off')
     expect(wf.runs()[0]!.rounds[0]!.commits).toEqual([])
@@ -240,7 +253,7 @@ describe('commits', () => {
   it('a commit is placed by the time it was made, not by when it was noticed: made while the task was open, it is not flagged even when read after task_done', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it') // 1010
-    wf.done('a1') // 1020
+    finish(wf, 'a1') // 1020
     wf.commit('a1', 'in111', 'made during', 1015)
     wf.commit('a1', 'out22', 'made after', 1500)
     const [r] = wf.runs()
@@ -250,7 +263,7 @@ describe('commits', () => {
   it('in a run with two rounds a commit goes to the round it was made in', () => {
     const { wf } = make()
     wf.begin('a1', 'Fix it') // 1010
-    wf.done('a1') // 1020
+    finish(wf, 'a1') // 1020
     wf.begin('a1', 'Missed case', { followUp: true }) // round 2 at 1030
     wf.commit('a1', 'r1c', 'first round', 1015)
     wf.commit('a1', 'r2c', 'second round', 1035)
@@ -310,7 +323,7 @@ describe('work the agent never announced', () => {
     expect(off.wf.runs()).toEqual([])
     const { wf } = make()
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'stray', 'chore: tidy', 5000)
     expect(wf.runs()).toHaveLength(1)
     expect(wf.runs()[0]!.rounds[0]!.commits[0]).toMatchObject({ sha: 'stray', flagged: true })
@@ -438,7 +451,7 @@ describe('what the gate holds back', () => {
     const run = wf.begin('a1', 'x')
     wf.submitPlan('a1', 'p.md', PLAN)
     wf.decide(run, 'approved')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(edit(wf)).toBeNull()
     wf.begin('a1', 'more', { followUp: true })
     expect(edit(wf)).toBeNull()
@@ -489,7 +502,7 @@ describe('the merge gate', () => {
     wf.begin('a1', 'Add a toggle')
     wf.decide(wf.runs()[0]!.id, 'released')
     expect(wf.mergeCheck('a1', 'h1')!.notes).toEqual(['The task is still open: the agent has not said it is done.'])
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 's1', 'chore: a', 9000)
     wf.commit('a1', 's2', 'chore: b', 9100)
     wf.commit('a1', 's3', 'chore: c', 9200)
@@ -497,7 +510,7 @@ describe('the merge gate', () => {
     const one = make()
     one.wf.begin('a1', 'x')
     one.wf.decide(one.wf.runs()[0]!.id, 'released')
-    one.wf.done('a1')
+    finish(one.wf, 'a1')
     one.wf.commit('a1', 's1', 'chore: a', 9000)
     expect(one.wf.mergeCheck('a1', 'h1')!.notes).toEqual(['1 commit was made outside the task.'])
   })
@@ -523,7 +536,7 @@ describe('the merge gate', () => {
     wf.commit('a1', 'h1', 'first work')
     state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","file":"a.ts","text":"Adds a project key."}]}' })
     await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
-    wf.done('a1')
+    finish(wf, 'a1')
     // Another task begins before the first one's branch is pushed, and has no plan yet.
     wf.begin('a1', 'Second task')
     wf.commit('a1', 'h2', 'second work')
@@ -548,7 +561,7 @@ describe('the merge gate', () => {
     const first = wf.runs()[0]!
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     wf.decide(first.id, 'approved')
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.begin('a1', 'Second task')
     // A commit dated inside the first task's time, seen by the app only now (a date git was told to use).
     wf.commit('a1', 'h3', 'backdated', first.rounds[0]!.startedAt + 1)
@@ -797,10 +810,10 @@ describe('the merge gate', () => {
       wf.begin('a1', 'Add a toggle')
       wf.landing('a1', 'h1', { anyway: true })
       expect(wf.runs()[0]).toMatchObject({ status: 'done', landed: { head: 'h1' } })
-      expect(() => wf.done('a1', 'Pushed.')).not.toThrow()
+      expect(() => finish(wf, 'a1', 'Pushed.')).not.toThrow()
       wf.begin('a1', 'Next')
       expect(wf.runs()).toHaveLength(2)
-      expect(() => wf.done('a2')).toThrow('No task is open.')
+      expect(() => finish(wf, 'a2')).toThrow('No task is open.')
     })
 
     it('does not end a run that lands by merging: that one goes on until the agent says it is done', () => {
@@ -820,7 +833,7 @@ describe('the merge gate', () => {
       state.reply = async () => ({ text: '{"findings":[{"kind":"out-of-scope","text":"Adds a project key."}]}' })
       await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
       wf.asideAudit('a1')
-      wf.done('a1')
+      finish(wf, 'a1')
       wf.approveStep(wf.runs()[0]!.id, 'pr', 'approved')
       wf.landing('a1', 'h1')
       expect(wf.runs()[0]!.landed).toMatchObject({ how: 'anyway', held: ['The review was set aside.'] })
@@ -897,7 +910,7 @@ describe('the merge gate', () => {
     wf.decide(wf.runs()[0]!.id, 'approved')
     wf.commit('a1', 'c1', 'feat: toggle', 1030)
     wf.commit('a1', 'c2', 'feat: save', 1040)
-    wf.done('a1')
+    finish(wf, 'a1')
     wf.commit('a1', 'c3', 'chore: late', 9000)
     expect(wf.mergeCheck('a1', 'h1')).toMatchObject({ planned: { goal: 'Add a dark-mode toggle.', outOfScope: ['A theme per project.', 'Animations.'] }, commits: 3, flagged: 1 })
     const none = make()
@@ -1014,7 +1027,8 @@ describe('a task that follows a workflow', () => {
     expect(wf.runs()[0]!.workflow).toBeUndefined()
     state.pick = () => BUG_FIX
     wf.begin('a2', 'Task')
-    wf.done('a2')
+    wf.decide(wf.runs()[1]!.id, 'released')
+    finish(wf, 'a2')
     state.picked.length = 0
     wf.begin('a2', 'More', { followUp: true })
     expect(state.picked).toEqual(['bug-fix'])
@@ -1041,7 +1055,7 @@ describe('the skills a task\'s workflow names', () => {
     expect(wf.skillsOf('a2')).toEqual([])
     state.pick = () => WITH_SKILLS
     wf.begin('a1', 'Fix it')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(wf.skillsOf('a1')).toEqual([])
   })
 })
@@ -1126,7 +1140,7 @@ describe('approving a step, and finishing the task', () => {
     wf.stepDone('a1')
     wf.stepDone('a1')
     wf.approveStep(run, 'b', 'approved')
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     wf.approveStep(run, 'ok', 'approved')
     expect(wf.runs()[0]!.status).toBe('done')
@@ -1134,7 +1148,7 @@ describe('approving a step, and finishing the task', () => {
     again.wf.stepDone('a1')
     again.wf.stepDone('a1')
     again.wf.approveStep(again.run, 'b', 'approved')
-    again.wf.done('a1', 'Done.')
+    finish(again.wf, 'a1', 'Done.')
     again.wf.approveStep(again.run, 'ok', 'changes', { note: 'add a test' })
     expect(again.wf.runs()[0]!.status).toBe('open')
     expect(again.wf.stepDone('a1').done).toBe('b')
@@ -1150,13 +1164,6 @@ describe('approving a step, and finishing the task', () => {
     expect(wf.stepDone('a1', 'b').done).toBe('b')
   })
 
-  it('finishing the task marks the work steps the agent never reported as done by the app, and leaves the ones it did', () => {
-    const { wf, log } = started()
-    wf.stepDone('a1', 'a')
-    wf.done('a1', 'All done.')
-    expect(log()).toEqual(['a:done', 'b:done*'])
-    expect(wf.runs()[0]!.status).toBe('done')
-  })
 })
 
 describe('the plan hold follows the workflow', () => {
@@ -1235,6 +1242,64 @@ describe('the merge gate follows the workflow', () => {
   })
 })
 
+describe('steps are reported in order, and finishing a task never claims a step nobody did', () => {
+  const FLOW: RunWorkflow = {
+    id: 'h',
+    name: 'H',
+    steps: [
+      { id: 'designs', kind: 'work', name: 'UI design options', optional: true },
+      { id: 'build', kind: 'work', name: 'Build' },
+      { id: 'commit', kind: 'work', name: 'Commit', start: 'run' },
+      { id: 'push', kind: 'work', name: 'Push', start: 'run' }
+    ]
+  }
+  const started = (flow = FLOW) => {
+    const t = make()
+    t.state.pick = () => flow
+    t.wf.begin('a1', 'Task')
+    return { ...t, log: () => t.wf.runs()[0]!.rounds.at(-1)!.steps.map((s) => `${s.step}:${s.state}${s.implicit ? '*' : ''}`) }
+  }
+
+  it('an optional step the agent skips is marked skipped, not done, and a step that starts on Run is left for the person', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'designs', { skipped: true })
+    wf.stepDone('a1', 'build')
+    wf.done('a1', 'Built.')
+    expect(log()).toEqual(['designs:skipped', 'build:done'])
+    expect(wf.runs()[0]!.status).toBe('done')
+  })
+
+  it('finishing with an optional step never reported marks it skipped by the app', () => {
+    const { wf, log } = started({ ...FLOW, steps: FLOW.steps.slice(0, 2) })
+    wf.stepDone('a1', 'designs', { skipped: true })
+    wf.stepDone('a1', 'build')
+    wf.done('a1')
+    const lateSkip = started({ ...FLOW, steps: [FLOW.steps[1]!, FLOW.steps[0]!] })
+    lateSkip.wf.stepDone('a1', 'build')
+    lateSkip.wf.done('a1')
+    expect(lateSkip.log()).toEqual(['build:done', 'designs:skipped*'])
+    expect(log()).toEqual(['designs:skipped', 'build:done'])
+  })
+
+  it('refuses to finish while a step the agent has to do was never reported, and names it', () => {
+    const { wf } = started({ ...FLOW, steps: [FLOW.steps[1]!, { id: 'tests', kind: 'work', name: 'Tests' }] })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.done('a1')).toThrow('Report "Tests" first: it was never done.')
+    expect(wf.runs()[0]!.status).toBe('open')
+  })
+
+  it('refuses to report a step while an earlier one is neither done nor skipped, and says which', () => {
+    const { wf } = started()
+    expect(() => wf.stepDone('a1', 'build')).toThrow('"UI design options" comes before "Build": report it, or skip it with step_done("designs", skipped).')
+  })
+
+  it('only an optional step can be skipped by the agent', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true })
+    expect(() => wf.stepDone('a1', 'build', { skipped: true })).toThrow('"Build" is not optional: do it, or ask the person.')
+  })
+})
+
 describe('running a workflow\'s checks', () => {
   const FLOW: RunWorkflow = { id: 'c', name: 'C', hash: 'h1', scope: 'project', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 }, { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint' }, { id: 'land', kind: 'merge', name: 'Land' }] }
   const started = (built = true) => {
@@ -1262,11 +1327,11 @@ describe('running a workflow\'s checks', () => {
 
   it('a task the agent already finished is opened again when its check sends work back, so the fix can be reported, and stays finished when the check passes', async () => {
     const passing = started()
-    passing.wf.done('a1', 'Done.')
+    finish(passing.wf, 'a1', 'Done.')
     await passing.wf.runChecks('a1', 'h1')
     expect(passing.wf.runs()[0]!.status).toBe('done')
     const { wf, state } = started()
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     const first = await wf.runChecks('a1', 'h1')
@@ -1284,7 +1349,7 @@ describe('running a workflow\'s checks', () => {
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     const running = wf.runChecks('a1', 'h1')
     await new Promise((r) => setTimeout(r, 0))
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     expect(wf.runs()[0]!.status).toBe('done')
     release()
     expect((await running).sendBack).toContain('failed (try 1 of 3)')
@@ -1295,7 +1360,7 @@ describe('running a workflow\'s checks', () => {
   it('a finished task opened again by a failing check stays open while the check keeps failing, and the person is asked when it runs out of tries', async () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'a' }, { exit: 1, tail: 'b' }, { exit: 1, tail: 'c' }]
-    wf.done('a1', 'Done.')
+    finish(wf, 'a1', 'Done.')
     await wf.runChecks('a1', 'h1')
     await wf.runChecks('a1', 'h2')
     const last = await wf.runChecks('a1', 'h3')
@@ -1319,13 +1384,13 @@ describe('running a workflow\'s checks', () => {
     const { wf, state } = started()
     state.results = [{ exit: 1, tail: 'FAIL a' }]
     await wf.runChecks('a1', 'h1')
-    wf.done('a1', 'all done')
+    finish(wf, 'a1', 'all done')
     expect(wf.runs()[0]!.status).toBe('done')
     expect(wf.stepDone('a1', 'build')).toMatchObject({ done: 'build', checking: true })
     expect(wf.runs()[0]!.status).toBe('open')
     // With nothing sent back, a closed task stays closed.
     await wf.runChecks('a1', 'h2')
-    wf.done('a1')
+    finish(wf, 'a1')
     expect(() => wf.stepDone('a1', 'build')).toThrow('No task is open.')
   })
 
@@ -1578,7 +1643,7 @@ describe('a pull request step waits for the person\'s approval before the push',
     wf.submitPlan('a1', '.agent-world/plan.md', PLAN)
     wf.decide(wf.runs()[0]!.id, 'approved')
     wf.commit('a1', 'h1', 'work')
-    wf.done('a1')
+    finish(wf, 'a1')
     await wf.runAudit('a1', 'h1', 'diff --git a/a.ts b/a.ts\n+x\n')
     return { wf, id: wf.runs()[0]!.id }
   }
