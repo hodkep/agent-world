@@ -13,6 +13,7 @@ function world(over: Partial<SleepDeps> = {}) {
     quietSince: () => NOW - 40 * MIN,
     hasChildren: () => false,
     pending: () => 0,
+    inRun: () => false,
     procs: async () => 0,
     sleep: (id) => void slept.push(id),
     now: NOW,
@@ -55,6 +56,19 @@ describe('putting idle agents to sleep', () => {
       await sleepIdle(deps)
       expect(slept).toEqual([])
     }
+  })
+
+  it('leaves one that is in the middle of a workflow run, whose approvals and gates are sent to it', async () => {
+    const { deps, slept } = world({ inRun: () => true })
+    await sleepIdle(deps)
+    expect(slept).toEqual([])
+  })
+
+  it('looks again after finding its commands, and leaves one that became busy meanwhile', async () => {
+    let busy = false
+    const { deps, slept } = world({ activity: () => (busy ? 'thinking' : 'idle'), procs: async () => ((busy = true), 0) })
+    await sleepIdle(deps)
+    expect(slept).toEqual([])
   })
 
   it('leaves one that has a command still running, such as a dev server, since sleeping would stop it', async () => {

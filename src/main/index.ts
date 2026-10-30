@@ -3167,21 +3167,25 @@ async function main() {
   }
   const heartbeat = setInterval(noteRunning, 2000)
   // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
-  const sleeper = setInterval(
-    () =>
-      void sleepIdle({
-        ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
-        activity: (id) => lastActivity.get(id),
-        quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
-        hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
-        pending: (id) => mailbox.pending(id),
-        procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
-        sleep: (id) => sessions.get(id)?.kill(),
-        now: Date.now(),
-        after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
-      }).catch(() => {}),
-    (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000
-  )
+  let sleeping = false
+  const sleeper = setInterval(() => {
+    if (sleeping) return
+    sleeping = true
+    void sleepIdle({
+      ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
+      activity: (id) => lastActivity.get(id),
+      quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
+      hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
+      pending: (id) => mailbox.pending(id),
+      inRun: (id) => workflows.runs().some((r) => r.agent === id && r.status === 'open'),
+      procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
+      sleep: (id) => sessions.get(id)?.kill(),
+      now: Date.now(),
+      after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
+    })
+      .catch(() => {})
+      .finally(() => (sleeping = false))
+  }, (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)
 
   // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
   let wrapped = false
