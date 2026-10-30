@@ -574,7 +574,17 @@ export class Workflows {
     }
     // Steps the person must approve before landing: named, so they know which.
     const states = this.states(run, head)
-    for (const w of states) if ((w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work' || w.awaiting)) || w.gated) blocking.push(`"${w.name}" has not been approved.`)
+    // A pull request step is the one that asks before the push, unless a step of the agent's that asks comes right before it (a Push step) and the person has said yes to that one:
+    // that yes is the permission to push, and the pull request step is asked later, for opening it.
+    const latestRound = run.rounds[run.rounds.length - 1]!
+    const pushAllowed = (id: string) => {
+      const at = run.workflow?.steps.findIndex((x) => x.id === id) ?? -1
+      const before = at > 0 ? run.workflow!.steps[at - 1] : undefined
+      return !!before && before.kind === 'work' && before.start === 'run' && latestRound.starts?.[before.id] !== undefined
+    }
+    states.forEach((w) => {
+      if (((w.state === 'waiting' && (w.kind === 'approve' || w.kind === 'work' || w.awaiting)) || w.gated) && !(w.kind === 'pr' && pushAllowed(w.id))) blocking.push(`"${w.name}" has not been approved.`)
+    })
     // Checks: a row each, and landing held by name for one that has not passed or been skipped (unless its gate is auto, which only reports).
     const latest = run.rounds[run.rounds.length - 1]!
     const checks = states.flatMap((c) => {

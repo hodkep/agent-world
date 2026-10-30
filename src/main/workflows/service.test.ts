@@ -1300,6 +1300,40 @@ describe('steps are reported in order, and finishing a task never claims a step 
   })
 })
 
+describe('a Push step you said yes to lets the push through, before the pull request step', () => {
+  const FLOW: RunWorkflow = {
+    id: 'p',
+    name: 'P',
+    steps: [
+      { id: 'build', kind: 'work', name: 'Build' },
+      { id: 'push', kind: 'work', name: 'Push', start: 'run' },
+      { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }
+    ]
+  }
+  const started = () => {
+    const t = make()
+    t.state.pick = () => FLOW
+    t.wf.begin('a1', 'Task')
+    t.wf.stepDone('a1', 'build')
+    return t
+  }
+
+  it('is held until the person presses Run on Push, and goes through after, though the pull request step is not approved yet', () => {
+    const { wf } = started()
+    expect(wf.landingHold('a1', 'h1')).not.toBeNull()
+    wf.startStep(wf.runs()[0]!.id, 'push')
+    expect(wf.landingHold('a1', 'h1')).toBeNull()
+  })
+
+  it('a pull request step with no Push step before it still holds the push until it is approved', () => {
+    const t = make()
+    t.state.pick = () => ({ ...FLOW, steps: [FLOW.steps[0]!, FLOW.steps[2]!] })
+    t.wf.begin('a1', 'Task')
+    t.wf.stepDone('a1', 'build')
+    expect(t.wf.landingHold('a1', 'h1')).toEqual(['"Pull request" has not been approved.'])
+  })
+})
+
 describe('running a workflow\'s checks', () => {
   const FLOW: RunWorkflow = { id: 'c', name: 'C', hash: 'h1', scope: 'project', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests pass', run: 'npm test', gate: 'pass', retries: 2 }, { id: 'lint', kind: 'check', name: 'Lint', run: 'npm run lint' }, { id: 'land', kind: 'merge', name: 'Land' }] }
   const started = (built = true) => {
