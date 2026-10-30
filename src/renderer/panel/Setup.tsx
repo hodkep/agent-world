@@ -266,7 +266,7 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                 <TrackingCost full={prefs.todoTracking === 'full'} />
                 <button className="su-toggle" role="switch" aria-checked={prefs.workflows.enabled} aria-label="Workflows" onClick={() => onPrefs({ workflows: switchWorkflows(prefs.workflows, !prefs.workflows.enabled, Date.now()) })}>
                   <i />
-                  <span><b>Workflows</b><small>Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve. Adds the Workflow tab and a Workflows button in the top bar. Turn it off to hide both.</small></span>
+                  <span><b>Workflows</b><small>Agents follow the steps of a workflow in order, and each step says whether you are asked first. Adds the Workflow tab and a Workflows button in the top bar. Turn it off to hide both.</small></span>
                 </button>
                 <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => onPrefs({ workflows: { ...prefs.workflows, dial } })} />
               </div>

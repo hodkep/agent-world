@@ -177,7 +177,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
-              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow a pipeline of plan, implement, test, review and merge, with gates you approve, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
+              <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow the steps of a workflow in order, each step says whether you are asked first, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
               {asking && (
                 <WorkflowOffConfirm
                   open={asking}
