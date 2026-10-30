@@ -210,6 +210,12 @@ describe('importing from another project', () => {
     expect(readFileSync(join(s.projectDir, 'review.json'), 'utf8')).toContain('My review')
   })
 
+  it('never takes the id of the built-in Standard, which would replace it', () => {
+    const s = two()
+    s.put(s.otherDir, 'standard.json', wf('standard', 'Their standard'))
+    expect(s.store.importFrom(s.other, 'standard', s.project, 'project')).toMatchObject({ id: 'standard-copy', workflow: { name: 'Their standard (copy)' } })
+  })
+
   it('refuses a workflow the other project does not have, one that does not read, and a bad id', () => {
     const s = two()
     s.put(s.otherDir, 'broken.json', '{')

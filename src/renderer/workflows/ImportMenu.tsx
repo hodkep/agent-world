@@ -6,11 +6,16 @@ type Others = Awaited<ReturnType<typeof window.aw.workflows.others>>
 /** The other workspaces with the workflows each keeps; clicking one copies it into this project, or for everything. */
 export function ImportMenu({ folder, onImported, onClose }: { folder: string | null; onImported: (e: WorkflowEntry) => void; onClose: () => void }) {
   const [others, setOthers] = useState<Others | null>(null)
-  const [to, setTo] = useState<'project' | 'global'>('project')
+  const [to, setTo] = useState<'project' | 'global'>(folder ? 'project' : 'global')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   useEffect(() => void window.aw.workflows.others(folder).then(setOthers, (e: Error) => setError(e.message)), [folder])
-  const take = (source: string, id: string) =>
-    window.aw.workflows.import(source, id, folder, to).then(onImported, (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
+  const take = (source: string, id: string) => {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    return window.aw.workflows.import(source, id, folder, to).then(onImported, (e: Error) => (setBusy(false), setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))))
+  }
   return (
     <div className="am-pop right" role="dialog" aria-label="Import a workflow" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="am-s"><b>Import a workflow from another workspace</b></div>

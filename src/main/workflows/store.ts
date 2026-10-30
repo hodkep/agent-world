@@ -97,13 +97,15 @@ export class WorkflowStore {
     if (!from) throw new Error('No such workflow.')
     if (!from.workflow) throw new Error('That file has problems, so it cannot be imported.')
     let made = from.workflow
-    if (existsSync(join(dir, `${id}.json`))) {
+    // Standard is always there, built in, so a file of that id would replace it.
+    if (id === 'standard' || existsSync(join(dir, `${id}.json`))) {
       let copy = `${id.slice(0, 33)}-copy`
       for (let n = 2; existsSync(join(dir, `${copy}.json`)); n++) copy = `${id.slice(0, 33)}-copy-${n}`
       made = { ...made, id: copy, name: `${made.name.slice(0, 60 - ' (copy)'.length)} (copy)` }
     }
     mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, `${made.id}.json`), JSON.stringify(made, null, 2) + '\n')
+    // `wx` refuses a file that appeared since the look above (a second click, another window), rather than replacing it.
+    writeFileSync(join(dir, `${made.id}.json`), JSON.stringify(made, null, 2) + '\n', { flag: 'wx' })
     return this.entryOf(dir, `${made.id}.json`, to)
   }
 
