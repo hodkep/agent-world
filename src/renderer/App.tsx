@@ -54,7 +54,8 @@ import { type Node, add, addAll, even, isTerm, mapTiles, place, tilesOf } from '
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
-import { IconButton, OutlineIcon } from './panel/IconButton'
+import { type HeaderIconName, IconButton, OutlineIcon } from './panel/IconButton'
+import { ViewTab } from './panel/ViewTab'
 import { UpdateChip } from './panel/UpdateChip'
 import { WhatsNew } from './panel/ReleaseNotes'
 import { justUpdated, learnsVersion } from '../shared/updatedNote'
@@ -1873,39 +1874,21 @@ export function App() {
           )}
           {current && (
             <div className="tabs" role="tablist" aria-label="Agent view">
-              <button role="tab" aria-selected={view === 'chat'} onClick={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))}>
-                Chat
-              </button>
-              <button role="tab" aria-selected={view === 'terminal'} data-reveal={current?.cwd} onClick={() => (chooseTalk('terminal'), setFocusTick((n) => n + 1))}>
-                Terminal
-              </button>
-              <button role="tab" aria-selected={view === 'code'} data-reveal={current?.cwd} onClick={() => setView('code')}>
-                Code
-              </button>
-              <button role="tab" aria-selected={view === 'tools'} onClick={() => setView('tools')}>
-                Tools
-              </button>
-              {(hasLibrary || view === 'library') && (
-                <button role="tab" aria-selected={view === 'library'} onClick={() => setView('library')} title="What the library told this agent and what it did about it">
-                  Library
-                </button>
-              )}
-              {prefs && workflowsShown(prefs.workflows.enabled, wf.open) && (
-                <button role="tab" aria-selected={view === 'workflow'} onClick={() => setView('workflow')} title="This agent's tasks, round by round">
-                  Workflow{wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? ' ●' : ''}
-                </button>
-              )}
-              <button role="tab" aria-selected={view === 'traces'} onClick={() => setView('traces')} title="Messages between agents">
-                Traces{messages.length ? ` ${messages.length}` : ''}
-              </button>
-              {fileTab[current.id] && (
-                <button role="tab" aria-selected={view === 'file'} onClick={() => setView('file')} title={fileTab[current.id]}>
-                  {fileTab[current.id]!.split('/').pop()}
-                </button>
-              )}
-              <button role="tab" aria-selected={view === 'preview'} onClick={() => setView('preview')}>
-                Preview{(servers[current.id] ?? []).some((s) => s.alive) ? ' ●' : ''}
-              </button>
+              {[
+                { id: 'chat', icon: 'chat', label: 'Chat', about: 'Talk with the agent', go: () => (chooseTalk('chat'), setFocusTick((n) => n + 1)) },
+                { id: 'terminal', icon: 'terminal', label: 'Terminal', about: "The agent's own terminal", keys: ['Ctrl+`'], reveal: current.cwd, go: () => (chooseTalk('terminal'), setFocusTick((n) => n + 1)) },
+                { id: 'code', icon: 'code', label: 'Code', about: 'Changes and files in this branch', reveal: current.cwd, go: () => setView('code') },
+                { id: 'tools', icon: 'plug', label: 'Tools', about: 'MCP servers and plugins', go: () => setView('tools') },
+                ...(hasLibrary || view === 'library' ? [{ id: 'library', icon: 'library', label: 'Library', about: 'What the library told this agent and what it did about it', go: () => setView('library') }] : []),
+                ...(prefs && workflowsShown(prefs.workflows.enabled, wf.open)
+                  ? [{ id: 'workflow', icon: 'workflow', label: 'Workflow', about: "This agent's tasks, round by round", dot: wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? 'run' : undefined, go: () => setView('workflow') }]
+                  : []),
+                { id: 'traces', icon: 'traces', label: 'Traces', about: 'Messages between agents', badge: messages.length, go: () => setView('traces') },
+                ...(fileTab[current.id] ? [{ id: 'file', icon: 'file', label: fileTab[current.id]!.split('/').pop()!, about: fileTab[current.id]!, go: () => setView('file') }] : []),
+                { id: 'preview', icon: 'desktop', label: 'Preview', about: 'The page this agent is serving', dot: (servers[current.id] ?? []).some((s) => s.alive) ? 'live' : undefined, go: () => setView('preview') }
+              ].map((t, i) => (
+                <ViewTab key={t.id} icon={t.icon as HeaderIconName} label={t.label} name={`${t.label}${t.badge ? ` ${t.badge}` : ''}${t.dot ? ' ●' : ''}`} about={t.about} number={i + 1} selected={view === t.id} onClick={t.go} badge={t.badge} dot={t.dot as 'run' | 'live' | undefined} keys={t.keys} reveal={t.reveal} />
+              ))}
               <button className="push icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
                 {wide ? '⤡' : '⤢'}
               </button>
