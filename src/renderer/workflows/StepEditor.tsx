@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { addStep, duplicateStep, insertStepAt, moveAfter, moveStep, moveStepTo, removeStep } from '../../shared/stepEdit'
 import type { SkillState } from '../../shared/skills'
 import { PixelIcon } from '../chat/PixelIcon'
+import type { AddableItem } from '../panel/addItemGroups'
 import { AddStepMenu } from './flow/AddStepMenu'
 import { FlowCanvas } from './flow/FlowCanvas'
 import { StepInspector } from './flow/StepInspector'
@@ -20,7 +21,7 @@ const SIDE_MIN = 700
 export function StepEditor({ agentId, folder, workflow, skillStates, switches, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** The Settings switches a step with no gate of its own follows. */ switches?: { planGate: boolean; mergeGate: boolean }; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
   const [wf, setWf] = useState(workflow)
   const [problem, setProblem] = useState('')
-  const [skills, setSkills] = useState<string[]>([])
+  const [skills, setSkills] = useState<AddableItem[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const dirty = useRef(false)
   useEffect(() => {
@@ -28,7 +29,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, switches, a
     if (!dirty.current) setWf(workflow)
   }, [workflow, at])
   useEffect(() => {
-    void window.aw.library.list().then((l) => setSkills(l.items.filter((i) => i.kind === 'skill').map((i) => i.id).sort()), () => undefined)
+    void window.aw.library.list().then((l) => setSkills(l.items.filter((i) => i.kind === 'skill').sort((a, b) => a.id.localeCompare(b.id))), () => undefined)
   }, [])
   useEffect(() => () => clearTimeout(timer.current), [])
   const change = (next: Workflow) => {
