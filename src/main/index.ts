@@ -2259,7 +2259,8 @@ async function main() {
     // An approved pull request is answered by the go-ahead to push, which is sent below; every other answer is typed into the agent.
     if (run && !(target?.kind === 'pr' && answer === 'approved')) mailbox.fromOffice(run.agent, stepReply(name, answer, text, target?.kind))
     send('workflows')
-    if (run && answer === 'approved') void askForPr(run.agent)
+    // The agent's commits are read when its turn ends, which can be after this click: read them first, or the go-ahead to push finds no commit and is never sent.
+    if (run && answer === 'approved') void (async () => { const a = byId(run.agent); if (a) await syncRunCommits(a); await askForPr(run.agent) })()
   })
   // The person pressed Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin.
   ipcMain.handle('workflows:start-step', (_, runId: string, step: string) => {
@@ -2276,6 +2277,16 @@ async function main() {
     // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
     if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
     else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step))))
+    send('workflows')
+  })
+  // The go-ahead to push is sent once for each head, and a lost one left the agent waiting for good: the person can send it again.
+  ipcMain.handle('workflows:nudge-push', async (_, runId: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const a = run && byId(run.agent)
+    if (!run || !a) throw new Error('No such run.')
+    for (const k of [...prAsked]) if (k.startsWith(`${a.id}:`)) prAsked.delete(k)
+    await syncRunCommits(a)
+    await askForPr(a.id)
     send('workflows')
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
@@ -2665,6 +2676,9 @@ async function main() {
   const noticePushes = async () => {
     for (const a of agents) {
       if (!a.branch || workflows.landKind(a.id) !== 'pr') continue
+      // A push the person approved while the agent's commits were not read yet is told to the agent now, so it is never left waiting for a go-ahead that was dropped.
+      await syncRunCommits(a)
+      void askForPr(a.id)
       try {
         const head = await git(a.cwd, 'rev-parse', a.branch)
         if (workflows.landedHead(a.id, head)) continue

@@ -80,7 +80,7 @@ A branch that shares no history with its base (the base was rewritten) cannot be
 
 ## The Workflows window
 
-- **Runs**: for **7 days** or **30 days**, two charts (**Workflows invoked**, **Stages followed**) over a ledger grouped as **Needs you**, **Still open**, **Landed with trouble**, **Landed clean**, **Stopped** and **Not announced**.
+- **Runs**: for **7 days** or **30 days**, two charts (**Workflows invoked**, **Steps followed**, a square for each step in each run) over a ledger grouped as **Needs you**, **Still open**, **Landed with trouble**, **Landed clean**, **Stopped** and **Not announced**. Click a run to open it in a panel beside the ledger, with the same flow chart as the chat's Workflow tab.
 - **Insights**: a tile for each gate of each run.
 - **Workflows**: the project's workflows, the chosen one's steps drawn as a flow (read-only) and its **History**: what was saved to it through the builder.
 

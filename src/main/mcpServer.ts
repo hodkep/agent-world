@@ -555,7 +555,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
   server.registerTool(
     'step_done',
     {
-      description: 'Say that a step of your task\'s workflow that you do is finished, in order. With no step it reports the next one you have not reported. Pass skipped, with why, for an optional step that clearly does not apply to this task: never skip a design step for work the person will see.',
+      description: 'Say that a step of your task\'s workflow that you do is finished, in order. Call it only after the work of the step has finished and you have seen its result, never in the same batch as the commands that do that work: the person is asked about the next step as soon as you report. With no step it reports the next one you have not reported. Pass skipped, with why, for an optional step that clearly does not apply to this task: never skip a design step for work the person will see.',
       inputSchema: { step: z.string().max(40).optional().describe('The step id from the workflow you were given'), skipped: z.boolean().optional().describe('true to skip an optional step that does not apply'), why: z.string().max(200).optional().describe('Why it does not apply, in a few words; required to skip') }
     },
     async ({ step, skipped, why }) => {

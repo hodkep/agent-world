@@ -11,6 +11,10 @@ describe('what the person can press on a step of a run', () => {
     expect(actionOf(st('check', 'waiting', { toRun: true }), step('check'))).toEqual({ kind: 'run', label: 'Run', call: 'check' })
     expect(actionOf(st('audit', 'waiting', { toRun: true }), step('audit'))).toEqual({ kind: 'run', label: 'Run audit', call: 'audit' })
   })
+  it('a push the person approved and the agent has not made can be told to the agent again', () => {
+    expect(actionOf(st('pr', 'waiting', { approved: true }), step('pr', { start: 'run' }))).toEqual({ kind: 'run', label: 'Tell the agent to push', call: 'push' })
+    expect(actionOf(st('pr', 'waiting', { awaiting: true }), step('pr', { start: 'run' }))).toMatchObject({ kind: 'approve' })
+  })
   it('Run, for the agent\'s own plan or build that starts that way', () => {
     expect(actionOf(st('plan', 'waiting', { toRun: true }), step('plan'))).toEqual({ kind: 'run', label: 'Run', call: 'start' })
     expect(actionOf(st('work', 'waiting', { toRun: true }), step('work'))).toEqual({ kind: 'run', label: 'Run', call: 'start' })

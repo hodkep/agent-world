@@ -71,7 +71,7 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
       : [])
   ]
   const first = w.steps.find((s) => s.kind === 'work')?.id ?? 'build'
-  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. A step that is optional and clearly does not apply to this task is skipped with step_done("${first}", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
+  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("${first}", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
 }
 
 const OFFERED_MAX = 5
