@@ -95,6 +95,8 @@ A branch that shares no history with its base (the base was rewritten) cannot be
 
 <img src="../images/workflow-builder.png" alt="The builder&#x27;s draft" width="720">
 
+To reuse a workflow from another workspace, click *Import…* beside *Open the builder*. It lists the other workspaces, each with the workflows it keeps itself (the ones shared for everything are already here). Choose where to keep it, *This project* or *Everything*, then click the workflow: it is copied as a new file, under a new id if that one is taken, and the original is not changed.
+
 ## A run and its todo
 
 A run begun while its agent is on a [todo](todos.md) belongs to that task:

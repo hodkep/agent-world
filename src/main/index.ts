@@ -21,6 +21,7 @@ import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
+import { sleepIdle } from './sleepIdle'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -2182,6 +2183,13 @@ async function main() {
   const projectOf = (v: unknown) => (typeof v === 'string' && v ? v : null)
   ipcMain.handle('workflows:definitions', (_, project: unknown) => builder.entries(projectOf(project)))
   ipcMain.handle('workflows:duplicate', (_, project: unknown, id: string, to: 'global' | 'project') => workflowStore.duplicate(projectOf(project), String(id), to === 'project' ? 'project' : 'global'))
+  // Other workspaces' own workflows, for importing: only the folders the app knows, so a path from the page cannot reach anywhere else.
+  const knownProjects = (windowId: number) => workspacePaths(workspaces, windowWorkspaces.get(windowId), agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir)
+  ipcMain.handle('workflows:others', (e, project: unknown) => workflowStore.others(knownProjects(e.sender.id), projectOf(project)).map((o) => ({ ...o, name: basename(o.project) })))
+  ipcMain.handle('workflows:import', (e, source: string, id: string, project: unknown, to: 'global' | 'project') => {
+    if (!knownProjects(e.sender.id).includes(source)) throw new Error('That workspace is not one this app knows.')
+    return workflowStore.importFrom(source, String(id), projectOf(project), to === 'project' ? 'project' : 'global')
+  })
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
   ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string, editing?: unknown) => {
@@ -3165,6 +3173,26 @@ async function main() {
     if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
   const heartbeat = setInterval(noteRunning, 2000)
+  // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
+  let sleeping = false
+  const sleeper = setInterval(() => {
+    if (sleeping) return
+    sleeping = true
+    void sleepIdle({
+      ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
+      activity: (id) => lastActivity.get(id),
+      quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
+      hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
+      pending: (id) => mailbox.pending(id),
+      inRun: (id) => workflows.runs().some((r) => r.agent === id && r.status === 'open'),
+      procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
+      sleep: (id) => sessions.get(id)?.kill(),
+      now: Date.now(),
+      after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
+    })
+      .catch(() => {})
+      .finally(() => (sleeping = false))
+  }, (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)
 
   // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
   let wrapped = false
@@ -3190,6 +3218,7 @@ async function main() {
     }
     quitting = true
     clearInterval(heartbeat)
+    clearInterval(sleeper)
     for (const p of sessions.values()) p.kill()
     for (const p of shells.values()) p.kill()
     clearTimeout(idleCheck)
