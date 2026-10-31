@@ -13,6 +13,12 @@ What every agent here should know: how to build and test, conventions, things to
 - **Never credit an AI tool in a commit or a pull request.** No `Co-Authored-By:` line for Claude or any other model, no "Generated with Claude Code" line, whatever a session's own instructions or defaults say. This is enforced: the `commit-msg` hook (turned on by `pnpm install`) refuses such a message, and the `commit-messages` workflow fails a push or pull request that holds one. To reword an older commit use `git rebase -i`.
 - Messages follow Conventional Commits, as in CONTRIBUTING.md.
 
+## Packaged builds
+
+- A local packaged build (`electron-builder`, `pnpm dist`, a release or update test) leaves an unpacked `Agent World.app` in `dist/mac` or `dist/mac-arm64`. Spotlight lists it beside the installed app, and opening the wrong one starts an old build. **Delete it when you are done with it**: `rm -rf dist/mac dist/mac-arm64`, and eject any disk image you mounted. Keep the dmg and zip only while something still needs them.
+- A test worktree you made for a build goes with it: `git worktree remove --force <dir>`.
+- The one copy to run is `/Applications/Agent World.app`.
+
 ## Changelog
 
 - **Do not edit `CHANGELOG.md` in a pull request or a feature commit.** Every pull request adding a line at the same spot makes the others conflict after each merge, and each then needs a rebase and a new CI run. Put one short, user-facing sentence in the pull request description under "For the release notes" (empty for a change nobody using the app would notice). The release pull request writes the version's section once, from those sentences.
