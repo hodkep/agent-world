@@ -156,6 +156,7 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(true)
   // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
   const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
+  const [railSlim, setRailSlim] = useState(() => store('aw.railSlim') === '1')
   // Below this width the panel would squeeze the office, so it becomes a drawer over it, closed until needed.
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
@@ -423,7 +424,7 @@ export function App() {
   useEffect(() => {
     if (!cardOpen) return
     const away = (e: MouseEvent) => {
-      if (!(e.target as Element | null)?.closest('.pc, .hc-name, .pc-menu')) setCardOpen(false)
+      if (!(e.target as Element | null)?.closest('.pc, .hc-name, .pc-menu, .rail-agent[aria-pressed="true"]')) setCardOpen(false)
     }
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && setCardOpen(false)
     document.addEventListener('mousedown', away)
@@ -948,6 +949,17 @@ export function App() {
   // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
   const overW = narrow && showPanel && !panes && !noOffice ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
   const setOffice = (off: boolean) => (setOfficeOff(off), keep('aw.officeHidden', off ? '1' : ''))
+  // Mod+Alt+O shows or hides the office, from anywhere (even with a box focused: the key is not typed anywhere).
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!matches(e, 'office')) return
+      e.preventDefault()
+      e.stopPropagation()
+      setOffice(!officeOff)
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  }, [officeOff])
   // An agent's card over the office has nothing to show over while it is hidden, and its timers would go on.
   useEffect(() => void (noOffice && setCardOpen(false)), [noOffice])
   // Hidden, the office draws nothing at all.
@@ -1000,7 +1012,7 @@ export function App() {
     : null
   // The terminal drawer covers the bottom of the stage, so the card has less room.
   const drawerH = termOpen && folder ? termH : 0
-  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h - drawerH, agentX, prefer: cardSize ?? undefined }) : null
+  const cardLay = cardData ? cardLayout({ w: stageBox.w, h: stageBox.h - drawerH, agentX, panel: noOffice, prefer: cardSize ?? undefined }) : null
   const cardAt = cardOpen ? cardLay : null
   const renameTo = (id: string, value: string) =>
     window.aw.renameAgent(id, value).then((name) => {
@@ -1668,7 +1680,7 @@ export function App() {
               </div>
               {agents.length > 0 && (
                 <div className="zoom-ctl" role="group" aria-label="Office">
-                  <button className="hide-office" onClick={() => setOffice(true)} title="Stops the picture and gives the chat the whole window; a button on the left brings it back">
+                  <button className="hide-office" onClick={() => setOffice(true)} title={`Stops the picture and gives the chat the whole window; a button on the left brings it back (${keysOf('office')})`}>
                     <OutlineIcon name="hide" size={14} />
                     Hide office
                   </button>
@@ -1697,8 +1709,12 @@ export function App() {
             agents={agents.map((a) => ({ id: a.id, name: a.name, working: ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? '') }))}
             selected={selected}
             marks={tileMarks}
+            slim={railSlim}
+            onSlim={() => (setRailSlim(!railSlim), keep('aw.railSlim', railSlim ? '' : '1'))}
+            officeKeys={keysOf('office')}
             onShow={() => setOffice(false)}
-            onSelect={(id) => select(id)}
+            // The agent that is open: pressing it again shows or hides its profile card, which has no name above the chat to click now.
+            onSelect={(id) => (id === selected ? (cardOpen ? setCardOpen(false) : showCard()) : select(id))}
           />
         )}
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow && !noOffice ? 'drawer' : ''} ${noOffice ? 'solo' : ''}`} style={!wide && !noOffice && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
@@ -1758,7 +1774,7 @@ export function App() {
               </button>
             </section>
           )}
-          {current && (
+          {current && !noOffice && (
             <section className="head-compact" aria-label="Selected agent">
               <button onClick={() => step(-1)} aria-label="Previous agent" title="Previous agent in this project" className="hc-step hc-prev" />
               <button onClick={() => step(1)} aria-label="Next agent" title="Next agent in this project" className="hc-step hc-next" />

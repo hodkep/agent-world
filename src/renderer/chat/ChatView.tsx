@@ -1638,7 +1638,6 @@ function Composer({
     <div
       ref={root}
       className={`composer ${over ? 'over' : ''} ${shell ? 'is-shell' : ''}`}
-      style={{ borderTopColor: mode && mode !== 'default' ? cssColor(modeInfo(mode).color) : undefined }}
       onDragOver={(e) => (e.preventDefault(), setOver(true))}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {

@@ -17,6 +17,7 @@ export interface Shortcut {
 /** The one list the shortcuts sheet and the hover hints read, so they cannot say different things. Keep it in step with the key handlers. */
 export const SHORTCUTS: Shortcut[] = [
   { id: 'palette', place: 'Anywhere', text: 'Command palette for the selected agent', keys: ['Mod+K'] },
+  { id: 'office', place: 'Anywhere', text: 'Show or hide the office', keys: ['Mod+Alt+O'] },
   { id: 'terminals', place: 'Anywhere', text: 'Show or hide the terminals', keys: ['Ctrl+`'] },
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },
@@ -72,7 +73,7 @@ export function showKey(combo: string, mac: boolean): string {
 type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'> & Partial<Pick<KeyboardEvent, 'code'>>
 
 // A bracket is read from the key itself where the press says which one it was: with Shift the character is { or } on a US keyboard.
-const CODE: Record<string, string> = { '[': 'BracketLeft', ']': 'BracketRight' }
+const CODE: Record<string, string> = { '[': 'BracketLeft', ']': 'BracketRight', O: 'KeyO' }
 
 /** Whether a key press is one of the keys of this shortcut, so a handler reads the same table the sheet shows. Mod is Cmd or Ctrl (Ctrl alone is the Ctrl key); Shift and Alt must match exactly. */
 export function matches(e: KeyPress, id: string): boolean {
