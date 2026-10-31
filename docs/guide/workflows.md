@@ -61,6 +61,10 @@ While a run is open, a track sits above the agent's chat: its steps as stations,
 
 The same button is in the agent's chat, so no tab has to be opened for one click: a **Your turn to run** card holds **Run** (and **Skip this check**) for a check, or **Run audit** for the audit, and a pull request that starts on Run shows **Run** on its approval card. In the **Workflow** tab the run is a **Flow** (the default): the same cards the builder draws, read-only, with where each step stands (**done**, **working**, **needs you**, **press Run**, **later**, **not asked**, **failed**) and the button to press on the card that waits for you. **Rail** is the thin track above. A step that starts when you press Run says **press Run**: **Run** starts a plan, a build or a check (the agent is told to begin, and edits nothing before), **Run audit** asks the reviewer, and a pull request that starts that way shows **Run** (nothing is pushed before you press it). A step that waits for your approval shows **Approve** and **Send back**, with a note for what should change; an optional step also shows **Skip**. Nothing starts by itself on a step you set to **Asks me first**.
 
+A step you press **Not now** on is skipped if it is optional, and refused if it is not: it shows red, the steps after it wait, and the agent is told. A refused step is not final. The agent can ask again when more work arrives, and the strip and the flow card have **Ask again**.
+
+When a task needs no commit, push or pull request, the agent asks once: a **Skip these steps?** card lists the steps and its reason, and **Skip all three** skips them together, or **Keep them** leaves them. Nothing is skipped until you press it. If a run cannot go on, open it in the Runs tab and press **End this run**: what is left is set aside and the agent is told to stop.
+
 ## Approve a plan, checks and steps
 
 - A **Plan gate** panel opens in the chat. Answer the open questions (a plan with none says the agent asked no questions), click **＋ Add a note for name** for a note that goes with the approval, then **Approve plan**, or **Request changes** and **Send back**. **Let name edit without approval** lifts the hold.

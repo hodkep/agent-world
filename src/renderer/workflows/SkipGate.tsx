@@ -26,7 +26,7 @@ export function SkipGate({ agentName, run }: { agentName: string; run: Run }) {
   return (
     <section className="inline-need dialog plan-gate" aria-label={`Skip steps for ${agentName}`}>
       <header className="dialog-bar">
-        <span className="pg-tag">Skip {names.length === 1 ? 'this step' : 'these steps'}?</span>
+        <span className="pg-tag">{names.length === 1 ? 'Skip this step?' : 'Skip these steps?'}</span>
         <b>{names.join(', ')}</b>
       </header>
       <div className="pg-body">
