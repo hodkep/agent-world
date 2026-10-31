@@ -1,76 +1,65 @@
-import { Fragment, useEffect, useState } from 'react'
-import { type Invocations, type MatrixCell, type StepCount, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stepCounts, stepLines, stepMatrix, stepSummary, timelineOf, todoChips } from '../../shared/insights'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { type DayOutcome, type Invocations, type StepLine, dayOutcomes, gateTiles, groupRuns, invocations, ledgerRow, ledgerTotals, runBar, runsWithin, stepLines, stepSummary, timelineOf, todoChips } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, formatDuration, spendText } from '../../shared/runStats'
 import type { StepContext } from '../../shared/steps'
 import { openTodo } from '../todos/todoStore'
 import { RunFlow } from './flow/RunFlow'
 
-const STEP_WORD: Record<string, string> = { passed: 'met', skipped: 'skipped', failed: 'failed', waiting: 'waits for you', running: 'in progress', pending: 'not yet' }
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' })
 const COLUMNS = 7
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-/** How often each workflow ran: a bar for each, and a small column for each day. */
-function InvokedChart({ inv, days, now }: { inv: Invocations; days: number; now: number }) {
+/** How often each workflow ran: a bar for each, and a column for each day stacked by how its runs stand (clean, needs you, failed, skipped something). */
+function InvokedChart({ inv, outcomes, days, now }: { inv: Invocations; outcomes: DayOutcome[]; days: number; now: number }) {
   const label = inv.byWorkflow.length === 0 ? 'Workflows invoked: none' : `Workflows invoked: ${inv.byWorkflow.map((w) => `${w.name} ${w.runs}`).join(', ')}`
   const top = Math.max(1, ...inv.byWorkflow.map((w) => w.runs))
-  const peak = Math.max(1, ...inv.perDay)
+  const peak = Math.max(1, ...outcomes.map((o) => o.ok + o.needs + o.failed + o.skipped))
   const dayName = (ago: number) => new Date(now - ago * 86_400_000).toLocaleDateString([], { weekday: 'short' })
+  const seg = (n: number, cls: string) => n > 0 && <i className={cls} style={{ flex: n }} />
   return (
-    <div className="rb-chart">
-      <p className="rb-cap"><span>Workflows invoked</span><em>{plural(inv.total, 'run')}{inv.fromCommit > 0 ? ` · ${inv.fromCommit} from a commit` : ''}</em></p>
-      <div role="img" aria-label={label}>
-        {inv.byWorkflow.map((w) => (
-          <div key={w.name} className="rb-inv"><span>{w.name}</span><i className="rb-barline"><b style={{ width: `${(100 * w.runs) / top}%` }} /></i><span className="rb-n">{w.runs}</span></div>
-        ))}
-        <div className="rb-days" style={{ gridTemplateColumns: `repeat(${days}, 1fr)` }}>
-          {inv.perDay.map((n, i) => <span key={i} title={`${plural(n, 'run')}, ${dayName(days - 1 - i)}`}><i style={{ height: `${(100 * n) / peak}%` }} /></span>)}
+    <div className="rb-charts">
+      <div className="rb-chart">
+        <p className="rb-cap"><span>Workflows invoked</span><em>{plural(inv.total, 'run')}{inv.fromCommit > 0 ? ` · ${inv.fromCommit} from a commit` : ''}</em></p>
+        <div role="img" aria-label={label}>
+          {inv.byWorkflow.map((w) => (
+            <div key={w.name} className="rb-inv" data-tip={`${w.name}: ${plural(w.runs, 'run')}`}><span>{w.name}</span><i className="rb-barline"><b style={{ width: `${(100 * w.runs) / top}%` }} /></i><span className="rb-n">{w.runs}</span></div>
+          ))}
         </div>
-        <div className="rb-dl">{days <= 7 ? inv.perDay.map((_, i) => <span key={i}>{dayName(days - 1 - i)}</span>) : <><span>{days} days ago</span><span>today</span></>}</div>
+      </div>
+      <div className="rb-chart">
+        <p className="rb-cap"><span>Runs per day</span><em>clean · needs you · failed · skipped something</em></p>
+        <div className="rb-days" style={{ gridTemplateColumns: `repeat(${days}, 1fr)` }} role="img" aria-label="Runs per day">
+          {outcomes.map((o, i) => {
+            const n = o.ok + o.needs + o.failed + o.skipped
+            return (
+              <span key={i} className="rb-day" data-tip={`${dayName(days - 1 - i)}: ${plural(n, 'run')}${n ? `\n${o.ok} clean · ${o.needs} need you · ${o.failed} failed · ${o.skipped} skipped` : ''}`}>
+                <i className="rb-col" style={{ height: `${(100 * n) / peak}%` }}>{seg(o.ok, 'ok')}{seg(o.needs, 'you')}{seg(o.failed, 'bad')}{seg(o.skipped, 'warn')}</i>
+              </span>
+            )
+          })}
+        </div>
+        <div className="rb-dl">{days <= 7 ? outcomes.map((_, i) => <span key={i}>{dayName(days - 1 - i)}</span>) : <><span>{days} days ago</span><span>today</span></>}</div>
       </div>
     </div>
   )
 }
 
-const CELL_WORD: Record<string, string> = { passed: 'met', skipped: 'skipped', failed: 'failed', open: 'not finished' }
-
-/**
- * The steps down the side and the runs across, oldest to newest: each square is how one step ended in one run, so a skipped or failed step shows in the run it
- * happened in, and a step that is skipped over and over shows as a column of yellow. A square opens its run.
- */
-function StepGrid({ shown, counts, ctxFor, open, onOpen }: { shown: Run[]; counts: StepCount[]; ctxFor: (r: Run) => StepContext; open: string | null; onOpen: (id: string) => void }) {
-  const m = stepMatrix(shown, ctxFor)
-  const by = new Map(counts.map((c) => [c.name, c]))
-  const label = `Steps followed: ${m.steps.length === 0 ? 'none yet' : m.steps.map((n) => { const c = by.get(n); return c ? `${n} ${c.met} met, ${c.skipped} skipped, ${c.failed} failed` : n }).join('; ')}`
-  const tip = (c: MatrixCell, step: string) => `${c.title}: ${step} ${c.state ? CELL_WORD[c.state] : 'not in this run'}${c.note ? ` (${c.note})` : ''}`
+/** One segment for each step of a run, coloured by how it stands; with `pick`, a segment filters the story to its step. */
+function StepStrip({ lines, pick, onPick }: { lines: StepLine[]; pick?: string | null; onPick?: (name: string | null) => void }) {
+  const WORD: Record<string, string> = { passed: 'met', skipped: 'skipped', failed: 'failed', waiting: 'waits for you', running: 'in progress', pending: 'not yet' }
+  const cls = (st: string) => (st === 'running' ? 'waiting' : st)
   return (
-    <div className="rb-chart">
-      <p className="rb-cap"><span>Steps followed</span><em>{m.runs.length === 1 ? '1 run' : `${m.runs.length} runs, oldest to newest`}{m.more > 0 ? ` · ${m.more} older not shown` : ''}</em></p>
-      {m.steps.length === 0 ? (
-        <p className="hint">No step reached yet.</p>
-      ) : (
-        <div className="rb-grid" role="group" aria-label={label}>
-          {m.steps.map((name, row) => {
-            const c = by.get(name)
-            const trouble = (c?.skipped ?? 0) + (c?.failed ?? 0)
-            return (
-              <div key={name} className="rb-gr">
-                <span className="rb-gn" title={name}>{name}</span>
-                <span className="rb-gc">
-                  {m.runs.map((r) => {
-                    const cell = r.cells[row]!
-                    return <button key={r.id} className={`rb-cell ${cell.state ?? 'none'} ${open === r.id ? 'on' : ''}`} title={tip(cell, name)} aria-label={tip(cell, name)} disabled={!cell.state} onClick={() => onOpen(r.id)} />
-                  })}
-                </span>
-                <span className={`rb-gt ${c?.failed ? 'bad' : c?.skipped ? 'warn' : ''}`}>{c ? `${c.met}/${c.met + trouble}` : ''}{c?.failed ? ` · ${c.failed} failed` : c?.skipped ? ` · ${c.skipped} skipped` : ''}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <div className="rb-key" aria-hidden="true"><span><i className="ok" />met</span><span><i className="trouble" />skipped</span><span><i className="bad" />failed</span><span><i className="open" />not finished</span></div>
-    </div>
+    <span className="rb-pipe" role="group" aria-label="Steps of this run">
+      {lines.map((l) => {
+        const tip = `${l.name}: ${WORD[l.state]}${l.note ? ` (${l.note})` : ''}`
+        return onPick ? (
+          <button key={l.id} className={`${cls(l.state)} ${pick === l.name ? 'sel' : ''}`} data-tip={tip} aria-label={tip} aria-pressed={pick === l.name} onClick={() => onPick(pick === l.name ? null : l.name)} />
+        ) : (
+          <i key={l.id} className={cls(l.state)} data-tip={tip} />
+        )
+      })}
+    </span>
   )
 }
 
@@ -100,15 +89,23 @@ function EndRun({ run }: { run: Run }) {
 }
 
 /** The story of a run, in the order it happened: each step, the work added to it, the commits, and the commands that failed, a failure opening to what the command said. */
-function RunStory({ run, now, only }: { run: Run; now: number; only: boolean }) {
+function RunStory({ run, now, only, step }: { run: Run; now: number; only: boolean; step: string | null }) {
   const all = timelineOf(run, now)
   const trouble = (e: { kind: string }) => e.kind === 'bad' || e.kind === 'trouble'
-  const shown = only ? all.filter(trouble) : all
+  const shown = all.filter((e) => (!only || trouble(e)) && (!step || e.step === step))
   return (
     <div className="rb-story">
-      <p className="rb-count muted">{only ? `${shown.length} of ${all.length}` : all.length} events</p>
       <ol className="rb-tl">
-        {shown.map((e, i) => (
+        {grouped(shown).map((e, i) => 'group' in e ? (
+          <li key={i} className="grp">
+            <span className="at mono">+{formatDuration(e.group[0]!.at)}</span>
+            <i className="dot" aria-hidden="true" />
+            <details className="rb-line rb-grpd">
+              <summary><b>{e.group.length} commits</b><span className="muted"> · {e.group.filter((c) => c.sub).length > 0 ? 'some with no open task' : 'each tied to a task'}</span></summary>
+              {e.group.map((c, j) => <div key={j} className="rb-gl">{c.text.replace(/^Commit /, '')}</div>)}
+            </details>
+          </li>
+        ) : (
           <li key={i} className={e.kind}>
             <span className="at mono">{e.at === 0 ? 'start' : `+${formatDuration(e.at)}`}</span>
             <i className="dot" aria-hidden="true" />
@@ -131,78 +128,85 @@ function RunStory({ run, now, only }: { run: Run; now: number; only: boolean }) 
   )
 }
 
-const TABS = [{ id: 'story', label: 'Story' }, { id: 'steps', label: 'Steps' }, { id: 'added', label: 'Added' }, { id: 'trouble', label: 'Trouble' }] as const
+type TL = ReturnType<typeof timelineOf>[number]
+/** Three or more commits in a row become one row that opens, so a run with a dozen commits is not a dozen lines. */
+function grouped(events: TL[]): Array<TL | { group: TL[] }> {
+  const out: Array<TL | { group: TL[] }> = []
+  let run: TL[] = []
+  const flush = () => { if (run.length >= 3) out.push({ group: run }); else out.push(...run); run = [] }
+  for (const e of events) { if (/^Commit [0-9a-f]{7}/.test(e.text)) run.push(e); else (flush(), out.push(e)) }
+  flush()
+  return out
+}
 
-/** One run in a panel beside the ledger: the same flow chart as the chat's Workflow tab, why steps were skipped or refused, the items added to it, how it went and its commits. */
+/** One run in a panel beside the ledger: its numbers, the steps as a strip that picks what the story shows, the story with its commits folded, and the flow chart (always beside it when there is room, on a button when not). */
 function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend | undefined; ctx: StepContext; now: number; onClose: () => void }) {
-  const [tab, setTab] = useState<'story' | 'steps' | 'added' | 'trouble'>('story')
+  const [only, setOnly] = useState(false)
+  const [pick, setPick] = useState<string | null>(null)
+  const [flow, setFlow] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  // Opening the flow brings it into view: it opens below the story, out of sight on a narrow panel.
+  useEffect(() => {
+    if (!flow) return
+    const t = setTimeout(() => box.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60)
+    return () => clearTimeout(t)
+  }, [flow])
   const lines = stepLines(run, ctx)
   const rounds = run.rounds.length
   const commits = run.rounds.flatMap((x) => x.commits)
-  const flagged = commits.filter((c) => c.flagged).length
   const timeline = timelineOf(run, now)
-  const added = run.items?.length ?? 0
   const trouble = timeline.filter((e) => e.kind === 'bad' || e.kind === 'trouble').length
+  const waiting = lines.find((l) => l.state === 'waiting')
   const meta = [run.workflow ? run.workflow.name : 'from a commit', run.status === 'open' ? 'open' : day(run.startedAt), rounds > 1 ? `${rounds} rounds` : ''].filter(Boolean).join(' · ')
   return (
     <div className="rb-side" role="region" aria-label={`How ${run.title} went`}>
       <header>
-        <span><b>{run.name} · {run.title}</b><small>{meta}</small></span>
+        <span><b>{run.name} · {run.title}</b><small>{meta}{waiting ? ` · ` : ''}{waiting && <span className="rb-you">{waiting.name} waits for you</span>}</small></span>
         <button onClick={onClose} aria-label="Hide this run">Hide</button>
       </header>
-      <p className="rb-facts">{plural(rounds, 'round')} · {plural(commits.length, 'commit')}{flagged > 0 ? ` (${flagged} with no open task)` : ''} · {spendText(spend)}</p>
+      <div className="rb-stats">
+        <span><b>{rounds}</b><small>{rounds === 1 ? 'round' : 'rounds'}</small></span>
+        <span><b>{commits.length}</b><small>{commits.length === 1 ? 'commit' : 'commits'}</small></span>
+        <span><b>{formatDuration((run.endedAt ?? now) - run.startedAt)}</b><small>wall</small></span>
+        <span><b>{spendText(spend)}</b><small>cost</small></span>
+      </div>
       {todoChips(run.todos).more > 0 && (
         <div className="rb-todos all" aria-label="Todos">
           {run.todos!.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={() => openTodo(id)}>todo#{id}</button>)}
         </div>
       )}
       <EndRun run={run} />
+      {run.workflow && (
+        <div className="rb-strip">
+          <StepStrip lines={lines} pick={pick} onPick={setPick} />
+          <span className="rb-strip-lb"><span>{lines[0]?.name}</span><span>{pick ? `Showing ${pick}` : 'Click a step to see only its events'}</span><span>{lines.at(-1)?.name}</span></span>
+        </div>
+      )}
+      <div className="rb-flt">
+        <button className={!only ? 'on' : ''} onClick={() => setOnly(false)}>All events</button>
+        <button className={only ? 'on' : ''} disabled={trouble === 0} onClick={() => setOnly(true)}>Only trouble{trouble > 0 ? ` · ${trouble}` : ''}</button>
+        {run.workflow && <button className="rb-flowbtn" aria-expanded={flow} onClick={() => setFlow(!flow)}>{flow ? 'Hide the flow' : 'Show the flow'}</button>}
+      </div>
       <div className="rb-sbody">
-        <div className="rb-sl">
-          <div className="rb-tabs" role="tablist" aria-label="About this run">
-            {TABS.map((t) => {
-              const count = t.id === 'story' ? timeline.length : t.id === 'steps' ? lines.length : t.id === 'added' ? added : trouble
-              if ((t.id === 'added' || t.id === 'trouble') && count === 0) return null
-              return (
-                <button key={t.id} role="tab" id={`rt-${run.id}-${t.id}`} aria-selected={tab === t.id} aria-controls={`rp-${run.id}-${t.id}`} className={`${tab === t.id ? 'on' : ''} ${t.id === 'trouble' ? 'bad' : ''}`} onClick={() => setTab(t.id)}>
-                  {t.label}<i>{count}</i>
-                </button>
-              )
-            })}
-          </div>
-          {(tab === 'story' || tab === 'trouble') && (
-            <div role="tabpanel" id={`rp-${run.id}-${tab}`} aria-labelledby={`rt-${run.id}-${tab}`}>
-              <RunStory run={run} now={now} only={tab === 'trouble'} />
-            </div>
-          )}
-          <div role="tabpanel" id={`rp-${run.id}-steps`} aria-labelledby={`rt-${run.id}-steps`} hidden={tab !== 'steps'}>
-            <ul className="rb-why" aria-label="Steps">
-              {lines.map((l) => <li key={l.id} className={l.state}><b>{l.name}</b> {STEP_WORD[l.state]}{l.note ? `: ${l.note}` : ''}</li>)}
-            </ul>
-          </div>
-          <div role="tabpanel" id={`rp-${run.id}-added`} aria-labelledby={`rt-${run.id}-added`} hidden={tab !== 'added'}>
-            {added > 0 && (
-              <ol className="rb-items" aria-label="Items added to this run">
-                <li><span className="mono">1</span><span>{run.title}</span><em>the task as it began</em></li>
-                {run.items!.map((it, i) => <li key={it.t}><span className="mono">{i + 2}</span><span>{it.title}</span><em>added +{formatDuration(it.t - run.startedAt)}</em></li>)}
-              </ol>
-            )}
-          </div>
-        </div>
-        <div className="rb-sr">
-          {run.workflow ? <RunFlow run={run} ctx={ctx} /> : <p className="hint">This run followed no workflow: it was started from a commit.</p>}
-        </div>
+        <div className="rb-sl"><RunStory run={run} now={now} only={only} step={pick} /></div>
+        <div ref={box} className={`rb-sr ${flow ? 'open' : ''}`}>{run.workflow ? <RunFlow key={flow ? 'open' : 'shut'} run={run} ctx={ctx} /> : <p className="hint">This run followed no workflow: it was started from a commit.</p>}</div>
       </div>
       {commits.length > 0 && (
-        <ul className="rb-commits" aria-label="Commits">
-          {commits.map((c) => (
-            <li key={c.sha}>
-              <span className="mono">{c.sha.slice(0, 7)}</span>
-              <span>{c.subject}</span>
-              {c.flagged && <span className="chipw">no open task</span>}
-            </li>
-          ))}
-        </ul>
+        <details className="rb-cmts">
+          <summary>{plural(commits.length, 'commit')}{commits.some((c) => c.flagged) ? ` · ${commits.filter((c) => c.flagged).length} with no open task` : ''}</summary>
+          <ul className="rb-commits" aria-label="Commits">
+            {commits.map((c) => {
+              const m = /^(\w+)(?:\(([^)]*)\))?!?:\s*(.*)$/s.exec(c.subject)
+              return (
+                <li key={c.sha}>
+                  <span className="mono">{c.sha.slice(0, 7)}</span>
+                  <span className="rb-cs">{m ? <><i className={`rb-ty k-${m[1]}`}>{m[1]}</i>{m[3]}</> : c.subject}{m?.[2] && <small>{m[2]}</small>}</span>
+                  <span className={`rb-ck ${c.flagged ? '' : 'has'}`} title={c.flagged ? 'Made with no open task' : 'Made under an open task'}>{c.flagged ? '–' : '✓'}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </details>
       )}
     </div>
   )
@@ -222,6 +226,7 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
   const totals = ledgerTotals([...rows.values()])
   const usd = shown.reduce((n, r) => n + (spend[r.id]?.usd ?? 0), 0)
   const groups = groupRuns(shown, ctxFor)
+  const needsYou = groups.find((g) => g.key === 'needs')?.runs.length ?? 0
   const side = openId ? runs.find((r) => r.id === openId) : undefined
   return (
     <div className={`rb ${side ? 'with-side' : ''}`}>
@@ -233,10 +238,13 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
         <p className="hint">No runs in the last {days} days.</p>
       ) : (
         <>
-          <div className="rb-charts">
-            <InvokedChart inv={invocations(shown, days, now)} days={days} now={now} />
-            <StepGrid shown={shown} counts={stepCounts(shown, ctxFor)} ctxFor={ctxFor} open={openId} onOpen={(id) => setOpenId(id)} />
+          <div className="rb-tiles">
+            <span className="rb-tile"><b>{shown.length}</b><small>{plural(shown.length, 'run').replace(/^\d+ /, '')} in {days} days</small></span>
+            <span className={`rb-tile ${needsYou > 0 ? 'hot' : ''}`}><b>{shown.filter((r) => r.status === 'open').length}</b><small>still open</small>{needsYou > 0 && <em>{needsYou} wait for you</em>}</span>
+            <span className="rb-tile ok"><b>{formatDuration(totals.youMs)}</b><small>you waited{totals.medianWallMs === null ? '' : `, median run ${formatDuration(totals.medianWallMs)}`}</small></span>
+            <span className="rb-tile cost"><b>{formatCost(usd)}</b><small>{shown.length > 0 ? `${formatCost(usd / shown.length)} per run` : 'spent'}</small></span>
           </div>
+          <InvokedChart inv={invocations(shown, days, now)} outcomes={dayOutcomes(shown, days, now, ctxFor)} days={days} now={now} />
           <table className="rb-tab" aria-label="Runs">
             <thead>
               <tr>
@@ -278,7 +286,12 @@ export function RunsLedger({ runs, spend, ctxFor, now, initial }: { runs: Run[];
                           </td>
                           <td className={`r num ${run.status === 'open' ? 'dim' : ''}`}>{row.wallMs === null ? '—' : formatDuration(row.wallMs)}</td>
                           <td className={`r num ${share >= 0.25 ? 'you' : ''}`}>{row.youMs === 0 ? '0' : formatDuration(row.youMs)}{share >= 0.25 && <span className="rb-share" aria-hidden="true"><i style={{ width: `${Math.round(100 * share)}%` }} /></span>}</td>
-                          <td className={steps.tone}>{steps.text}</td>
+                          <td className={steps.tone}>
+                            <div className="rb-st">
+                              {run.workflow && <StepStrip lines={stepLines(run, ctxFor(run))} />}
+                              <span>{steps.text}</span>
+                            </div>
+                          </td>
                           <td className="r num">{row.commits}</td>
                           <td className="r num">{spendText(spend[run.id])}</td>
                         </tr>

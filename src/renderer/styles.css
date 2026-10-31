@@ -4344,3 +4344,155 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .gate-line .pg-acts { margin: 0; flex: none; }
 .gate-line .pg-fold { margin-left: 0; flex: none; }
 .gate-line .gl-error { flex-basis: 100%; margin: 0; font-size: 12px; }
+
+/* ---- Runs: chart that matches its labels, tips, narrow table, short story, commit chips ---- */
+.rb-grid { gap: 0; }
+.rb-gr { height: 24px; grid-template-columns: minmax(100px, 190px) minmax(0, 1fr) minmax(86px, auto); align-items: center; }
+.rb-gc { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(8px, 1fr); gap: 2px; padding: 0; overflow: visible; max-width: 560px; }
+.rb-cell { width: auto; min-width: 0; height: 14px; min-height: 14px; position: relative; }
+.rb-cell.on { z-index: 1; }
+/* Chart squares and week bars get a boxed tip of their own, scoped so no other [data-tip] is touched. */
+.rb-cell, .rb-days span { position: relative; }
+.rb-cell[data-tip]:hover::after, .rb-days span[data-tip]:hover::after { content: attr(data-tip); display: block; opacity: 1; position: absolute; top: auto; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 300px; z-index: 50; background: var(--ink); color: var(--text); padding: 5px 9px; font: 11px/1.4 ui-sans-serif, system-ui, sans-serif; text-align: left; white-space: normal; box-shadow: 0 0 0 1px var(--accent-dim); pointer-events: none; }
+.rb-days span:hover i { background: var(--accent); opacity: 1; }
+.rb-fold { all: unset; box-sizing: border-box; display: flex; gap: 10px; align-items: center; width: 100%; margin-top: 6px; padding: 6px 0; border-top: 1px dashed var(--line); color: var(--dim); font-size: 12px; cursor: pointer; }
+.rb-fold b { font-weight: 400; color: var(--muted); white-space: nowrap; } .rb-fold span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-fold u { margin-left: auto; color: var(--think); text-decoration: none; } .rb-fold:focus-visible { outline: 2px solid var(--accent); }
+/* with the run panel open the table keeps three columns and never scrolls sideways */
+.rb-main { overflow-x: visible; }
+.rb.with-side .rb-tab { table-layout: fixed; }
+.rb.with-side .rb-tab :is(th, td):nth-child(4) { display: none; }
+.rb.with-side .rb-tab :is(th, td):nth-child(1) { width: 18px; padding-right: 0; }
+.rb.with-side .rb-tab :is(th, td):nth-child(3) { width: 72px; }
+.rb.with-side .rb-tab :is(th, td):nth-child(5) { width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rb.with-side .rb-t { max-width: none; overflow: hidden; }
+.rb.with-side .rb-tab th { white-space: normal; }
+.rb-story .rb-tl li { grid-template-columns: 54px 12px minmax(0, 1fr); }
+.rb-story .rb-tl .at { white-space: nowrap; }
+.rb-story .rb-line > b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rb-story .rb-line > .muted { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.rb-tl li.grp .dot { background: var(--think); }
+.rb-grpd { background: var(--panel-3); box-shadow: 0 0 0 1px var(--line); padding: 4px 8px; }
+.rb-grpd > summary { cursor: pointer; list-style: none; } .rb-grpd > summary::-webkit-details-marker { display: none; }
+.rb-grpd > summary::after { content: 'Show'; float: right; color: var(--think); font-size: 11px; } .rb-grpd[open] > summary::after { content: 'Hide'; }
+.rb-gl { margin-top: 3px; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-commits { gap: 0; }
+.rb-commits li { display: grid; grid-template-columns: 56px minmax(0, 1fr) 16px; gap: 10px; align-items: start; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.rb-commits li:last-child { border: 0; }
+.rb-commits .mono { color: var(--think); padding-top: 1px; }
+.rb-cs { min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; font-weight: 600; }
+.rb-cs small { font-weight: 400; color: var(--dim); margin-left: 8px; font-size: 11px; }
+.rb-ty { font: 700 9px Menlo, Consolas, monospace; font-style: normal; letter-spacing: 0.04em; padding: 1px 5px; margin-right: 6px; color: var(--ink); background: var(--muted); vertical-align: 1px; }
+.rb-ty.k-feat { background: var(--ok-text); } .rb-ty.k-fix { background: var(--danger-text); }
+.rb-ck { text-align: right; color: var(--dim); } .rb-ck.has { color: var(--ok-text); }
+
+/* ---- Builder: the settings pane is a column of its own, so the flow makes room for it ---- */
+.se-body.has-pick { flex-direction: row; align-items: stretch; gap: 0; }
+.se-body.has-pick > .fl-wrap { flex: 1 1 0; min-width: 0; }
+.se-body.has-pick > .se-hint { display: none; }
+.se .se-pick.dock { position: static; flex: none; width: 400px; max-width: 46%; max-height: 100%; overflow: auto; box-shadow: none; border-left: 2px solid var(--accent-dim); }
+.se .se-pick.dock::before { display: none; }
+.bs-actions button { font-size: 12px; padding: 4px 11px; }
+/* ---- Workflow list: facts column and flow share the width they are given ---- */
+.wfl-cols { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 0; }
+.wfl-main { padding-right: 20px; border-right: 1px solid var(--line); }
+.wfl-flow { padding-left: 20px; }
+
+/* The agent's Workflow tab: the flow gets nearly half the width. */
+.wt-cols { grid-template-columns: minmax(0, 1fr) minmax(290px, 46%); }
+/* Ledger with the run panel open: the chart's squares shrink to the room there is; the panel is narrower. */
+.rb-gc { grid-auto-columns: minmax(0, 1fr); }
+.rb.with-side { grid-template-columns: minmax(0, 1fr) minmax(440px, 520px); }
+.rb.with-side .rb-gr { grid-template-columns: minmax(90px, 130px) minmax(0, 1fr) auto; gap: 8px; }
+.rb.with-side .rb-gt { font-size: 11px; }
+.rb.with-side .rb-tab :is(th, td):nth-child(5) { width: 120px; }
+.rb.with-side .rb-tab { table-layout: auto; }
+.rb.with-side .rb-tab :is(th, td):nth-child(2) { width: 100%; max-width: 1px; }
+.rb.with-side .rb-tab td.rb-t { overflow: hidden; }
+.rb.with-side .rb-tab td:nth-child(5), .rb.with-side .rb-tab th:nth-child(5) { width: auto; max-width: 130px; }
+.rb.with-side .rb-tab th { white-space: nowrap; } .rb.with-side .rb-tab th small { display: none; }
+.se.fills > .se-body.has-pick { flex-direction: row; gap: 0; align-items: stretch; }
+.se.fills > .se-body.has-pick > .fl-wrap.fill { flex: 1 1 0; min-width: 0; }
+.se.fills > .se-body.has-pick > .se-pick.dock { overflow: auto; align-self: stretch; }
+
+/* The folded card is one line again: a row that out-weighs the dialog's column, text cut with an ellipsis, buttons whole. */
+.inline-need.dialog.plan-gate.gate-line { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px 10px; }
+.inline-need.dialog.plan-gate.gate-line > .pg-tag { flex: none; }
+.inline-need.dialog.plan-gate.gate-line > .gl-title { flex: 0 1 auto; min-width: 0; max-width: 34%; }
+.inline-need.dialog.plan-gate.gate-line > .gl-gist { flex: 1 1 0; min-width: 0; }
+.inline-need.dialog.plan-gate.gate-line > .pg-acts { flex: none; display: flex; gap: 6px; }
+.inline-need.dialog.plan-gate.gate-line > .pg-fold { flex: none; }
+.inline-need.dialog.plan-gate.gate-line > .gl-error { flex: 1 0 100%; }
+.inline-need.dialog.plan-gate.gate-line:has(> .gl-error) { flex-wrap: wrap; }
+
+/* ---- Insights tab: trouble first, per workflow ---- */
+.ib-wf { display: flex; flex-direction: column; gap: 8px; }
+.ib-wf + .ib-wf { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.ib-hd { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; } .ib-hd > b { font-size: 16px; } .ib-hd span { color: var(--muted); } .ib-met { margin-left: auto; } .ib-met b { color: var(--text); font-size: 13px; }
+.ib-meter { display: flex; gap: 2px; height: 8px; } .ib-meter i { display: block; height: 100%; }
+.ib-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.ib-card { all: unset; box-sizing: border-box; display: grid; gap: 7px; padding: 10px 12px; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); border-left: 3px solid var(--accent); cursor: pointer; min-width: 0; }
+.ib-card.bad { border-left-color: var(--danger); } .ib-card:hover { background: color-mix(in srgb, var(--panel-2) 85%, var(--accent) 8%); } .ib-card:focus-visible { outline: 2px solid var(--accent); }
+.ib-ch { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; } .ib-ch b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ib-ch em { font-style: normal; font-weight: 700; color: var(--accent); font-size: 12px; white-space: nowrap; } .ib-card.bad .ib-ch em { color: var(--danger-text); }
+.ib-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; height: 10px; } .ib-ticks i { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); }
+.ib-ticks i.passed { background: color-mix(in srgb, var(--ok) 70%, transparent); box-shadow: none; } .ib-ticks i.skipped { background: var(--accent); box-shadow: none; } .ib-ticks i.failed { background: var(--danger); box-shadow: none; }
+.ib-card small { color: var(--muted); font-size: 11.5px; line-height: 1.4; } .ib-go { color: var(--think); font-size: 11px; }
+.ib-fold { display: flex; gap: 10px; align-items: center; color: var(--dim); font-size: 12px; } .ib-fold span { color: var(--muted); } .ib-fold button { margin-left: auto; font-size: 12px; color: var(--think); background: none; box-shadow: none; }
+
+/* ---- Runs tab: number tiles, two plain charts; the table's strip; the run panel without repeated tabs ---- */
+.rb-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rb-tile { display: grid; gap: 2px; padding: 10px 12px; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); border-top: 3px solid var(--line); min-width: 0; }
+.rb-tile b { font-size: 22px; line-height: 1.1; } .rb-tile small { color: var(--muted); font-size: 11.5px; } .rb-tile em { font-style: normal; color: var(--violet); font-size: 11.5px; }
+.rb-tile.hot { border-top-color: var(--violet); } .rb-tile.ok { border-top-color: var(--ok); } .rb-tile.cost { border-top-color: var(--accent-dim); }
+.rb-charts { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
+.rb-days { height: 110px; margin-top: 10px; gap: 6px; align-items: end; }
+.rb-day { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
+.rb-col { display: flex; flex-direction: column-reverse; gap: 2px; min-height: 3px; opacity: 1; background: none; }
+.rb-col i { display: block; min-height: 3px; } .rb-col .ok { background: var(--ok); } .rb-col .you { background: var(--violet); } .rb-col .bad { background: var(--danger); } .rb-col .warn { background: var(--warn); }
+.rb-day:hover .rb-col { outline: 1px solid var(--accent); }
+.rb-day[data-tip]:hover::after, .rb-pipe i[data-tip]:hover::after, .rb-pipe button[data-tip]:hover::after, .rb-inv[data-tip]:hover::after { content: attr(data-tip); display: block; opacity: 1; position: absolute; top: auto; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 300px; z-index: 50; background: var(--ink); color: var(--text); padding: 5px 9px; font: 11px/1.4 ui-sans-serif, system-ui, sans-serif; text-align: left; white-space: pre-line; box-shadow: 0 0 0 1px var(--accent-dim); pointer-events: none; }
+.rb-inv { position: relative; }
+.rb-pipe { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 8px; }
+.rb-pipe > * { all: unset; display: block; position: relative; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.rb-pipe .passed { background: var(--ok); box-shadow: none; } .rb-pipe .skipped { background: var(--accent); box-shadow: none; } .rb-pipe .failed { background: var(--danger); box-shadow: none; } .rb-pipe .waiting { background: var(--violet); box-shadow: none; }
+.rb-pipe button { cursor: pointer; } .rb-pipe button.sel { outline: 2px solid var(--accent); z-index: 1; } .rb-pipe button:focus-visible { outline: 2px solid var(--accent); }
+.rb-st { display: flex; flex-direction: column; gap: 4px; min-width: 150px; } .rb-st > span:last-child { font-size: 11px; }
+.rb-st .rb-pipe { height: 8px; }
+.rb-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); }
+.rb-stats span { display: grid; padding: 6px 8px; background: var(--panel-3); } .rb-stats b { font-size: 14px; } .rb-stats small { font: 10px Menlo, Consolas, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.rb-you { color: var(--violet); }
+.rb-strip { display: grid; gap: 3px; } .rb-strip .rb-pipe { height: 14px; }
+.rb-strip-lb { display: flex; justify-content: space-between; gap: 10px; color: var(--dim); font-size: 10.5px; } .rb-strip-lb span:nth-child(2) { color: var(--muted); text-align: center; flex: 1; }
+.rb-flt { display: flex; gap: 6px; align-items: center; } .rb-flt button { font-size: 11px; padding: 2px 9px; } .rb-flt button.on { background: var(--selected); color: var(--accent); } .rb-flowbtn { margin-left: auto; display: none; }
+.rb-side { container-type: inline-size; }
+.rb.with-side { grid-template-columns: minmax(0, 1fr) minmax(440px, 46%); }
+.rb-sr:not(.open) { display: none; }
+@container (min-width: 640px) { .rb-sr:not(.open) { display: block; } .rb-flowbtn { display: none; } }
+@container (max-width: 639px) { .rb-sbody { grid-template-columns: minmax(0, 1fr); } .rb-flowbtn { display: inline-block; } .rb-sr.open { position: static; } }
+.rb-cmts > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0; } .rb-cmts[open] > summary { color: var(--text); }
+.rb-tl li.grp .dot { background: var(--think); }
+.rb-days .rb-col { background: none; opacity: 1; }
+.rb-days .rb-col i { opacity: 1; }
+.rb-st { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
+.rb-st > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-tab td:nth-child(5) { min-width: 0; }
+.rb-days .rb-col { display: flex; flex-direction: column-reverse; gap: 2px; }
+.rb-days .rb-col i { display: block; min-height: 3px; }
+.rb-st .rb-pipe { min-width: 110px; }
+.rb-tab td:nth-child(5) { text-align: left; }
+.rb-st { align-items: stretch; max-width: 220px; }
+.rb-st .rb-pipe { width: 100%; }
+
+/* Run panel: a roomier story, and the flow drawn in a box of its own height so it fits when opened. */
+.rb-story .rb-tl { gap: 9px; }
+.rb-story .rb-tl li { padding: 1px 0; }
+@container (max-width: 639px) { .rb-sr.open { height: 380px; display: flex; } .rb-sr.open > * { flex: 1; min-width: 0; } }
+
+/* Story lines: text, step tag and reason on one line, cut with an ellipsis; a failed command keeps its details below. */
+.rb-story .rb-line { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 8px; min-width: 0; overflow-wrap: normal; }
+.rb-story .rb-line > b { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; -webkit-line-clamp: unset; }
+.rb-story .rb-line > .rb-stag { flex: none; margin: 0; }
+.rb-story .rb-line > .muted { display: block; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-story .rb-line:has(> .rb-fail) { flex-wrap: wrap; }
+.rb-story .rb-line > .rb-fail { flex: 1 0 100%; }
+.rb-story .rb-tl li { align-items: center; }
