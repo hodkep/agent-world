@@ -38,4 +38,8 @@ for d in $(rclone lsf "$BUCKET" --dirs-only | sed 's#/$##'); do
   [ "$(printf '%s\n%s\n' "${v%%-*}" "${VER%%-*}" | sort -V | head -1)" = "${v%%-*}" ] || continue
   echo "removing old mirror folder $d"; rclone purge "$BUCKET/$d" "${FLAGS[@]}"
 done
+# The newest stable's dmgs also sit at fixed addresses (latest/Agent-World-arm64.dmg, latest/Agent-World-x64.dmg) that the README, the install page and the site link to.
+if [ "$(kind "$VER")" = stable ]; then
+  for a in arm64 x64; do rclone copyto "$BUCKET/v$VER/Agent-World-$VER-$a.dmg" "$BUCKET/latest/Agent-World-$a.dmg" "${FLAGS[@]}"; done
+fi
 echo "MIRROR-DONE $BASE/v$VER/Agent-World-$VER-arm64.dmg"
