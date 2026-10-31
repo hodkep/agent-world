@@ -5,6 +5,9 @@ describe('which failed commands are worth recording, and what they are called', 
   it('a git commit that has no identity', () => {
     expect(troubleOf('git commit -m "feat: x"', 'Author identity unknown\n\n*** Please tell me who you are.')).toMatchObject({ label: 'identity', command: 'git commit -m "feat: x"' })
   })
+  it('a git commit with no name or email given', () => {
+    expect(troubleOf('git commit --allow-empty -m probe', 'fatal: no email was given and auto-detection is disabled')?.label).toBe('identity')
+  })
   it('a git push that cannot reach the remote', () => {
     expect(troubleOf('git push origin aw/os', "fatal: unable to access 'https://github.com/x/y.git/': Could not resolve host: github.com")?.label).toBe('network')
   })
