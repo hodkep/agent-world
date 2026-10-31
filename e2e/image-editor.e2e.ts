@@ -44,7 +44,7 @@ test('an attached picture can be marked up full size, and the marked-up one is w
     // Full size, with an Edit button.
     await chip.click()
     await expect(page.getByRole('dialog', { name: 'Picture' })).toBeVisible()
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Draw', exact: true }).click()
     const editor = page.getByRole('dialog', { name: 'Edit shot.png' })
     await expect(editor).toBeVisible()
     const bar = editor.getByRole('toolbar', { name: 'Picture tools' })
@@ -125,7 +125,7 @@ test('an attached picture can be marked up full size, and the marked-up one is w
 
     // Edit again, draw one mark, Save: the chip now shows the edited picture, and that is the file attached.
     await chip.click()
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Draw', exact: true }).click()
     await bar.getByRole('radio', { name: 'Hide (black out an area)', exact: true }).click()
     await drag([0.1, 0.1], [0.3, 0.3])
     await bar.getByRole('button', { name: 'Save' }).click()
@@ -158,7 +158,7 @@ test('Escape leaves the editor without keeping anything', async () => {
     await page.getByRole('tab', { name: 'Chat' }).click()
     await page.locator('.composer input[type=file]').setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: Buffer.from(await grey(page), 'base64') })
     await page.getByRole('button', { name: 'Preview a.png' }).click()
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Draw', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Edit a.png' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Edit a.png' })).toHaveCount(0)
