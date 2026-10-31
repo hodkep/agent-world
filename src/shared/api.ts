@@ -475,6 +475,12 @@ export interface AwApi {
     startStep(runId: string, step: string): Promise<void>
     /** The person does not approve a step of the agent's that waits for Run: the agent is told to wait for their instructions. */
     declineStep(runId: string, step: string): Promise<void>
+    /** The person's one answer to the agent's question to skip steps: yes skips them all with its reason, no keeps them. */
+    answerSkip(runId: string, approve: boolean): Promise<void>
+    /** The person ends a run that cannot go on: what is left is set aside with the reason, and the agent is told to stop. */
+    endRun(runId: string, why?: string): Promise<void>
+    /** The person asks for a step they refused once more. */
+    askAgain(runId: string, step: string): Promise<void>
     /** Tell the agent again to push a branch the person approved (the go-ahead is sent once, and can be lost): reads its commits first. */
     nudgePush(runId: string): Promise<void>
     /** What the person is shown before approving a project file's check commands. */

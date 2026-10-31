@@ -47,7 +47,7 @@ describe('what task_begin tells the agent about its workflow', () => {
         '- fix "Fix, test first" (skill: tdd): Write a failing test, then make it pass.\n' +
         '- ok "Your review": the person approves this before it can land. Look at the diff.\n' +
         'Work and commit only on your own branch in this worktree: a commit on any other branch here is refused, and the app audits your branch, not another.\n' +
-        'Report each step you do, in order, with step_done and its id, for example step_done("fix"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("fix", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. The app audits the branch and the person lands it.'
+        'Report each step you do, in order, with step_done and its id, for example step_done("fix"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("fix", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. When new work arrives after you reported steps, put back the ones it touches with step_reopen(id, why), and only those. When your work changed nothing to commit or ship, do not make the person press Run on each step: ask once with skip_steps([the ids of those steps], why) and they approve with one button. A step the person refused stays stopped until you judge it is the right time to ask again: call step_reopen then. The app audits the branch and the person lands it.'
     )
   })
 
@@ -103,7 +103,7 @@ describe('the workflows the opening text offers', () => {
 
 describe('the tools an agent may use without being asked each time', () => {
   it('are the office\'s four workflow tools, so reporting a step never stops to ask the person for permission', () => {
-    expect(WORKFLOW_TOOLS).toEqual(['mcp__agent-world__task_begin', 'mcp__agent-world__task_done', 'mcp__agent-world__plan_submit', 'mcp__agent-world__step_done'])
+    expect(WORKFLOW_TOOLS).toEqual(['mcp__agent-world__task_begin', 'mcp__agent-world__task_done', 'mcp__agent-world__plan_submit', 'mcp__agent-world__step_done', 'mcp__agent-world__step_reopen', 'mcp__agent-world__skip_steps'])
   })
 })
 

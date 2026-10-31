@@ -11,6 +11,10 @@ describe('what the person can press on a step of a run', () => {
     expect(actionOf(st('check', 'waiting', { toRun: true }), step('check'))).toEqual({ kind: 'run', label: 'Run', call: 'check' })
     expect(actionOf(st('audit', 'waiting', { toRun: true }), step('audit'))).toEqual({ kind: 'run', label: 'Run audit', call: 'audit' })
   })
+  it('a step the person refused can be asked again, and a check that failed cannot', () => {
+    expect(actionOf(st('work', 'failed'), step('work'))).toEqual({ kind: 'run', label: 'Ask again', call: 'again' })
+    expect(actionOf(st('check', 'failed'), step('check'))).toBeNull()
+  })
   it('a push the person approved and the agent has not made can be told to the agent again', () => {
     expect(actionOf(st('pr', 'waiting', { approved: true }), step('pr', { start: 'run' }))).toEqual({ kind: 'run', label: 'Tell the agent to push', call: 'push' })
     expect(actionOf(st('pr', 'waiting', { awaiting: true }), step('pr', { start: 'run' }))).toMatchObject({ kind: 'approve' })
@@ -29,8 +33,8 @@ describe('what the person can press on a step of a run', () => {
   it('says Run, not Approve, on a pull request that starts when the person presses Run', () => {
     expect(actionOf(st('pr', 'waiting', { awaiting: true }), step('pr', { start: 'run' }))).toEqual({ kind: 'approve', label: 'Run' })
   })
-  it('nothing, for a step that is working, done, later, failed, or waits on something that is not a press', () => {
-    for (const state of ['running', 'passed', 'pending', 'skipped', 'failed'] as const) expect(actionOf(st('work', state), step('work'))).toBeNull()
+  it('nothing, for a step that is working, done, later, skipped, or waits on something that is not a press', () => {
+    for (const state of ['running', 'passed', 'pending', 'skipped'] as const) expect(actionOf(st('work', state), step('work'))).toBeNull()
     expect(actionOf(st('check', 'waiting'), step('check'))).toBeNull()
     expect(actionOf(st('merge', 'waiting'), step('merge'))).toBeNull()
     expect(actionOf(st('audit', 'waiting'), step('audit'))).toBeNull()

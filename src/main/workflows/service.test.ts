@@ -1314,6 +1314,134 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(wf.stepDone('a1', 'build').next).toMatchObject({ name: 'Commit', start: true })
   })
 
+  const stateOf = (wf: Workflows) => stepStates(wf.runs()[0]!, { auditOn: false }).map((x) => `${x.id}:${x.state}`)
+
+  it('a step the person refused is asked again when it is reopened, and then waits for their Run like any other', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    wf.declineStep(id, 'commit')
+    expect(stateOf(wf)).toEqual(['designs:skipped', 'build:passed', 'commit:failed', 'push:pending'])
+    expect(wf.refusedSteps('a1')).toEqual(['Commit'])
+    wf.askAgain(id, 'commit')
+    expect(stateOf(wf)).toEqual(['designs:skipped', 'build:passed', 'commit:waiting', 'push:pending'])
+    expect(wf.refusedSteps('a1')).toEqual([])
+    // The agent reopens it too: the same thing, from its side.
+    wf.declineStep(id, 'commit')
+    expect(wf.reopenStep('a1', 'commit', 'The new work is ready.')).toBe('Commit')
+    expect(stateOf(wf)[2]).toBe('commit:waiting')
+  })
+
+  it('the agent reopens a step it already reported, and must report it again before it can finish', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    expect(wf.reopenStep('a1', 'build', 'More code was added.')).toBe('Build')
+    expect(stateOf(wf)[1]).toBe('build:running')
+    expect(() => wf.done('a1')).toThrow('Report "Build" first')
+    wf.stepDone('a1', 'build')
+    expect(stateOf(wf)[1]).toBe('build:passed')
+  })
+
+  it('refuses to reopen what does not exist or what is not there to reopen', () => {
+    const { wf } = started()
+    expect(() => wf.reopenStep('a1', 'nope', 'x')).toThrow('no step "nope"')
+    expect(() => wf.reopenStep('a1', 'build', 'x')).toThrow('has not been reported')
+  })
+
+  it('the agent asks once to skip steps that are not optional, and nothing is skipped until the person says yes', () => {
+    const { wf, log } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    expect(wf.askSkip('a1', ['commit', 'push'], 'Nothing changed, so nothing to ship.')).toEqual(['Commit', 'Push'])
+    expect(wf.runs()[0]!.skipAsk).toMatchObject({ steps: ['commit', 'push'], why: 'Nothing changed, so nothing to ship.' })
+    expect(stateOf(wf).slice(2)).toEqual(['commit:waiting', 'push:pending'])
+    expect(() => wf.askSkip('a1', ['push'], 'again')).toThrow('already waiting')
+    expect(wf.answerSkip(id, true)).toMatchObject({ names: ['Commit', 'Push'], why: 'Nothing changed, so nothing to ship.', approved: true })
+    expect(wf.runs()[0]!.skipAsk).toBeUndefined()
+    expect(stateOf(wf).slice(2)).toEqual(['commit:skipped', 'push:skipped'])
+    expect(log()).toContain('commit:skipped')
+    wf.done('a1', 'Nothing to ship.')
+    expect(wf.runs()[0]!.status).toBe('done')
+  })
+
+  it('keeping the steps leaves them as they were', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    wf.askSkip('a1', ['commit', 'push'], 'Nothing to ship.')
+    expect(wf.answerSkip(id, false)).toMatchObject({ approved: false })
+    expect(stateOf(wf).slice(2)).toEqual(['commit:waiting', 'push:pending'])
+    expect(wf.runs()[0]!.skipAsk).toBeUndefined()
+  })
+
+  it('a skip is asked with a reason, for real steps that are not the plan, and not for what is already met', () => {
+    const { wf } = started({ ...FLOW, steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, ...FLOW.steps] })
+    expect(() => wf.askSkip('a1', ['commit'], '')).toThrow('reason')
+    expect(() => wf.askSkip('a1', [], 'x')).toThrow('Name the steps')
+    expect(() => wf.askSkip('a1', ['nope'], 'x')).toThrow('no step "nope"')
+    expect(() => wf.askSkip('a1', ['plan'], 'x')).toThrow('plan')
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'x' })
+    wf.stepDone('a1', 'build')
+    expect(() => wf.askSkip('a1', ['build'], 'x')).toThrow('already done')
+  })
+
+  const SHIP: RunWorkflow = { id: 's', name: 'S', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'push', kind: 'pr', name: 'Push', start: 'run' }] }
+
+  it('a commit dated before the run began is not attached to it, so an old snapshot cannot join a new run', () => {
+    const t = make()
+    t.state.pick = () => SHIP
+    t.wf.begin('a1', 'First task')
+    t.wf.done('a1', 'Done.', { byApp: true })
+    t.state.t += 1_000_000
+    t.wf.begin('a1', 'New task')
+    const second = t.wf.runs()[0]!
+    // Dated after the first run ended and before the second began: no run's window holds it.
+    t.wf.commit('a1', 'old1', 'chore(ada): work in progress', second.startedAt - 500_000)
+    expect(t.wf.runs().flatMap((r) => r.rounds.flatMap((x) => x.commits))).toEqual([])
+    t.wf.commit('a1', 'new1', 'feat: real', second.startedAt + 5)
+    expect(t.wf.runs()[0]!.rounds[0]!.commits.map((c) => c.sha)).toEqual(['new1'])
+  })
+
+  it('snapshot commits made when the app quit are not something to push', () => {
+    const { wf } = started(SHIP)
+    const began = wf.runs()[0]!.startedAt
+    wf.commit('a1', 'snap', 'chore(ada): work in progress', began + 5)
+    expect(wf.mergeCheck('a1', 'snap')?.commits).toBe(0)
+    wf.commit('a1', 'real', 'feat: real', began + 6)
+    expect(wf.mergeCheck('a1', 'real')?.commits).toBe(1)
+  })
+
+  it('a run whose push was skipped or refused, or that was ended, is never asked to push', () => {
+    const { wf } = started(SHIP)
+    const id = wf.runs()[0]!.id
+    expect(wf.mayAskPush('a1')).toBe(true)
+    wf.stepDone('a1', 'build')
+    wf.declineStep(id, 'push')
+    expect(wf.mayAskPush('a1')).toBe(false)
+    wf.askAgain(id, 'push')
+    expect(wf.mayAskPush('a1')).toBe(true)
+    wf.askSkip('a1', ['push'], 'Nothing to push.')
+    wf.answerSkip(id, true)
+    expect(wf.mayAskPush('a1')).toBe(false)
+  })
+
+  it('ending a run sets aside what is left with a reason and stops it, so nothing about it is asked again', () => {
+    const { wf } = started()
+    const id = wf.runs()[0]!.id
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    wf.endRun(id, 'The task needed no commit or push.')
+    const run = wf.runs()[0]!
+    expect(run.status).toBe('stopped')
+    expect(stepStates(run, { auditOn: false }).map((x) => `${x.id}:${x.state}`)).toEqual(['designs:skipped', 'build:passed', 'commit:skipped', 'push:skipped'])
+    expect(run.rounds[0]!.steps.find((x) => x.step === 'commit')).toMatchObject({ state: 'skipped', note: 'The task needed no commit or push.' })
+    expect(wf.mayAskPush('a1')).toBe(false)
+  })
+
   it('refuses to finish while a step the agent has to do was never reported, and names it', () => {
     const { wf } = started({ ...FLOW, steps: [FLOW.steps[1]!, { id: 'tests', kind: 'work', name: 'Tests' }] })
     wf.stepDone('a1', 'build')

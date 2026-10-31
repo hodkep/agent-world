@@ -306,6 +306,15 @@ describe('workflow tools', () => {
       calls.push(`${caller} step ${step ?? ''}`)
       return step === 'fix' ? { done: 'fix', waiting: 'Your review' } : step === 'lint' ? { done: 'lint', checking: true } : { done: step ?? 'build' }
     },
+    reopenStep: (caller: string, step: string, why: string) => {
+      if (step === 'nope') throw new Error('This workflow has no step "nope".')
+      calls.push(`${caller} reopen ${step}: ${why}`)
+      return step === 'commit' ? 'Commit' : 'Build'
+    },
+    askSkip: (caller: string, steps: string[], why: string) => {
+      calls.push(`${caller} skip ${steps.join(',')}: ${why}`)
+      return steps.map((x) => x.toUpperCase())
+    },
     planInstruction: () => planInstruction(dial),
     submitPlan: async (caller: string, path: string) => {
       if (path === 'bad.md') throw new Error("The plan's read-back block needs fixing:\n- Missing \"## Goal\"")
@@ -414,6 +423,28 @@ describe('workflow tools', () => {
     expect(text(refused)).toContain('no step "nope"')
     expect(calls).toEqual(['a1 step ', 'a1 step fix', 'a1 step lint'])
     expect((await (await connect((await setup(undefined, undefined, undefined, wf)).url, 'a2')).listTools()).tools.map((t) => t.name)).not.toContain('step_done')
+  })
+})
+
+describe('the tools for work added mid-run', () => {
+  it('step_reopen puts a step back and says its name; a missing step comes back in words', async () => {
+    const calls: string[] = []
+    const wf = { offered: () => true, begin: () => ({ planFirst: false }), done: () => undefined, stepDone: () => ({ done: 'x' }), reopenStep: (c: string, step: string, why: string) => { if (step === 'nope') throw new Error('This workflow has no step "nope".'); calls.push(`${c} ${step}: ${why}`); return 'Commit' }, askSkip: () => [], planInstruction: () => '', submitPlan: async () => ({ text: '' }) } as never
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    expect(text(await c.callTool({ name: 'step_reopen', arguments: { step: 'commit', why: 'The new work is ready.' } }))).toBe('Step "Commit" is open again.')
+    const bad = await c.callTool({ name: 'step_reopen', arguments: { step: 'nope', why: 'x' } })
+    expect((bad as { isError?: boolean }).isError).toBe(true)
+    expect(calls).toEqual(['a1 commit: The new work is ready.'])
+  })
+
+  it('skip_steps asks once for all the steps and says that nothing is skipped until the person answers', async () => {
+    const calls: string[] = []
+    const wf = { offered: () => true, begin: () => ({ planFirst: false }), done: () => undefined, stepDone: () => ({ done: 'x' }), reopenStep: () => 'x', askSkip: (c: string, steps: string[], why: string) => { calls.push(`${c} ${steps.join(',')}: ${why}`); return ['Commit', 'Push', 'Pull request'] }, planInstruction: () => '', submitPlan: async () => ({ text: '' }) } as never
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    const reply = text(await c.callTool({ name: 'skip_steps', arguments: { steps: ['commit', 'push', 'pr'], why: 'Nothing changed.' } }))
+    expect(reply).toContain('Asked the person to skip Commit, Push, Pull request.')
+    expect(reply).toContain('Their answer arrives as your next message')
+    expect(calls).toEqual(['a1 commit,push,pr: Nothing changed.'])
   })
 })
 

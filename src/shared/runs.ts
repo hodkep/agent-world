@@ -22,7 +22,10 @@ export type RunEvent =
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
-  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun'; note?: string; implicit?: boolean }
+  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'; note?: string; implicit?: boolean }
+  /** The agent asks to skip steps that are not optional, with its reason: one question for the person, who answers it once. */
+  | { k: 'skipask'; t: number; run: string; round: number; steps: string[]; why: string }
+  | { k: 'skipans'; t: number; run: string; round: number; state: 'approved' | 'declined' }
   /** The person pressed Run on a step that starts that way, in this round: it may begin. */
   | { k: 'start'; t: number; run: string; round: number; step: string }
   | { k: 'check'; t: number; run: string; round: number; step: string; head: string; attempt: number; ok: boolean; exit: number | null; timedOut: boolean; ms: number; tail: string }
@@ -65,7 +68,7 @@ export interface RunStep {
 /** What happened to one step in a round: the agent said it is done, or the person approved it or sent it back. */
 export interface StepLog {
   step: string
-  state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun'
+  state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'
   t: number
   note?: string
   /** The app marked it done when the agent finished the task, because the agent never said so. */
@@ -154,6 +157,8 @@ export interface Run {
   items?: { title: string; t: number }[]
   /** What the person added to the plan afterwards, in the order added. */
   additions?: { text: string; t: number }[]
+  /** The agent's question to skip steps, until the person answers it. */
+  skipAsk?: { steps: string[]; why: string; t: number }
   landed?: Landed
 }
 
@@ -203,6 +208,10 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })
     } else if (e.k === 'audit') {
       r.audit = e.state === 'failed' ? { head: e.head, t: e.t, state: 'failed', reason: e.reason } : { head: e.head, t: e.t, state: 'done', findings: e.findings.map((f) => ({ ...f, seen: false })), files: e.files, lines: e.lines, truncated: e.truncated, ...(e.cost !== undefined && { cost: e.cost }), ...(e.tokens !== undefined && { tokens: e.tokens }), ...(e.model && { model: e.model }) }
+    } else if (e.k === 'skipask') {
+      r.skipAsk = { steps: e.steps, why: e.why, t: e.t }
+    } else if (e.k === 'skipans') {
+      delete r.skipAsk
     } else if (e.k === 'item') {
       r.items = [...(r.items ?? []), { title: e.title, t: e.t }]
     } else if (e.k === 'scope') {

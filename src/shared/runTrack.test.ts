@@ -42,6 +42,7 @@ describe('where a run is on its track', () => {
     const t = track([submitted(), planned('approved'), { k: 'step', t: 450, run: 'r1', round: 1, step: 'build', state: 'declined' }])!
     expect(t.stations.slice(0, 3).map((s) => s.state)).toEqual(['done', 'failed', 'next'])
     expect(t.waiting).toBe('not approved: the workflow stopped here')
+    expect(t).toMatchObject({ run: 'r1', again: 'build' })
   })
 
   it('marks a plan that was sent back before it was approved as done with trouble', () => {

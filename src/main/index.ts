@@ -103,7 +103,7 @@ import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, b
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
-import { checkPassed, stepReply, stepSkipped, stepDeclined, stepStarted } from '../shared/steps'
+import { checkPassed, runEnded, stepAskedAgain, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -1562,10 +1562,11 @@ async function main() {
           send('workflows')
           const planFirst = workflows.planWanted(caller)
           const n = (added.items?.length ?? 0) + 1
+          const refused = workflows.refusedSteps(caller)
           return {
             planFirst,
             added: true,
-            brief: `This is item ${n} of "${added.title}", the task in progress: one run, one audit of the whole branch, one pull request.${planFirst ? ' Your plan on file covers the earlier items: rewrite it so its goal, out of scope and questions cover this one too, then call plan_submit. Edits wait until the person approves it.' : ''}`
+            brief: `This is item ${n} of "${added.title}", the task in progress: one run, one audit of the whole branch, one pull request.${planFirst ? ' Your plan on file covers the earlier items: rewrite it so its goal, out of scope and questions cover this one too, then call plan_submit. Edits wait until the person approves it.' : ''}${refused.length ? ` The person refused ${refused.join(', ')} earlier and they stay stopped: once this work is ready, ask again with step_reopen. Steps you already reported that this work touches are reopened the same way.` : ' Steps you already reported that this work touches can be reopened with step_reopen.'}`
           }
         }
         const id = workflows.begin(caller, title, { followUp, workflow })
@@ -1584,6 +1585,16 @@ async function main() {
         todoService.finishLinked(caller, workflows.runs().findLast((r) => r.agent === caller)?.todos ?? [], summary ?? '')
         send('workflows')
         void kickChecks(caller)
+      },
+      reopenStep: (caller, step, why) => {
+        const name = workflows.reopenStep(caller, step, why)
+        send('workflows')
+        return name
+      },
+      askSkip: (caller, steps, why) => {
+        const names = workflows.askSkip(caller, steps, why)
+        send('workflows')
+        return names
       },
       stepDone: (caller, step, o) => {
         const r = workflows.stepDone(caller, step, o)
@@ -2298,6 +2309,27 @@ async function main() {
     await askForPr(a.id)
     send('workflows')
   })
+  // The person's answer to the agent's question to skip steps: one answer for all of them. The agent is told which.
+  ipcMain.handle('workflows:skip-answer', (_, runId: string, approve: boolean) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const r = workflows.answerSkip(runId, !!approve)
+    if (run) mailbox.fromOffice(run.agent, r.approved ? stepsSkipped(r.names, r.why) : stepsKept(r.names))
+    send('workflows')
+  })
+  // The person ends a run that cannot go on: what is left is set aside, and the agent is told to stop.
+  ipcMain.handle('workflows:end-run', (_, runId: string, why?: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    workflows.endRun(runId, typeof why === 'string' ? why : '')
+    if (run) mailbox.fromOffice(run.agent, runEnded(run.title))
+    send('workflows')
+  })
+  // The person asks for a step they refused once more: it asks for their Run again, and the agent is told.
+  ipcMain.handle('workflows:ask-again', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const name = workflows.askAgain(runId, String(step))
+    if (run) mailbox.fromOffice(run.agent, stepAskedAgain(name))
+    send('workflows')
+  })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
@@ -2669,7 +2701,8 @@ async function main() {
   const prAsked = new Set<string>()
   const askForPr = async (id: string) => {
     const a = byId(id)
-    if (!a?.branch || workflows.landKind(id) !== 'pr') return
+    // A run that was ended, or whose push was skipped or refused, is never told to push (after a restart nothing remembers having asked).
+    if (!a?.branch || workflows.landKind(id) !== 'pr' || !workflows.mayAskPush(id)) return
     try {
       const head = await git(a.cwd, 'rev-parse', a.branch)
       const check = workflows.mergeCheck(id, head, { auditable: (await readyAskers()).length > 0 })

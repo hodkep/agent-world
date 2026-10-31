@@ -4158,3 +4158,15 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .bs-asks .bp-w { flex: 1; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
 .bs-save { flex: none; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
 .bs-sum { margin-right: auto; font-size: 12px; } .bs-sum b { color: var(--text); }
+
+/* The agent's question to skip steps: the steps as chips, and its reason. */
+.sg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sg-chip { font: 11px Menlo, Consolas, monospace; background: var(--well); box-shadow: 0 0 0 1px var(--line); padding: 2px 8px; display: inline-flex; gap: 6px; align-items: center; }
+.sg-chip::before { content: ''; width: 7px; height: 7px; background: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent); }
+.sg-why { margin: 0; padding: 7px 10px; background: var(--well); box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.sg-why b { color: var(--text); font-weight: 600; }
+
+/* Ending a run from its panel: a quiet button, then one confirmation line. */
+.rb-end-btn { align-self: flex-start; font-size: 12px; padding: 2px 10px; color: var(--muted); }
+.rb-end { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--danger-well); box-shadow: 0 0 0 1px var(--danger); color: var(--text); font-size: 12px; }
+.rb-end-acts { display: flex; gap: 6px; }

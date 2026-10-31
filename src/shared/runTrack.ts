@@ -14,6 +14,10 @@ export interface Station {
 }
 
 export interface Track {
+  /** The run this is the track of. */
+  run: string
+  /** A step the person refused, which the strip offers to ask again. */
+  again?: string
   title: string
   workflow: string
   round: number
@@ -70,7 +74,8 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   const here = steps[at]!
   const waiting = waitingFor(here, run.status === 'done', landingKind(run.workflow))
   const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
-  return { title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
+  const again = here.state === 'failed' && here.kind !== 'check' && here.kind !== 'audit' ? here.id : undefined
+  return { run: run.id, ...(again && { again }), title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }
 
 export type LandingPill = { kind: 'held' | 'notyet'; text: string }
