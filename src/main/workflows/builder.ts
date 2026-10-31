@@ -168,7 +168,7 @@ export class Builder {
     if (!r) throw new Error('Nothing is proposed.')
     const parsed = parseWorkflow(JSON.stringify(input))
     if (!parsed.ok) throw new Error(`The edit has problems:\n${parsed.problems.map((p) => `- ${p}`).join('\n')}`)
-    if (parsed.workflow.id !== r.workflow.id) throw new Error('The id cannot change: it names the file. Use Save as a new workflow for another id.')
+    if (parsed.workflow.id !== r.workflow.id) throw new Error('The id cannot change: it names the file. Use Save as new for another id.')
     const unknown = this.unknownSkills(parsed.workflow, project)
     if (unknown.length) throw new Error(`The edit has problems:\n${unknown.join('\n')}`)
     this.deps.proposals.set(agent, { ...r, workflow: parsed.workflow, origin: r.origin ?? r.workflow, at: this.deps.now() })

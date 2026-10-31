@@ -96,7 +96,8 @@ test('the builder sees the skills there are, is refused a skill that does not ex
       await w.getByRole('tab', { name: 'Workflows' }).click()
       return w
     })()
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => launches(s.argsLog).length, { timeout: 20_000 }).toBe(1)
     const { client, call } = await asAgent(launches(s.argsLog)[0]!)

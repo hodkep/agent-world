@@ -18,7 +18,7 @@ const SIDE_MIN = 700
  * The builder's draft as a flow of steps the person can change in place: click a card to change its name, brief, command, gate and skills, drag it to move it, add or remove steps.
  * In a narrow panel the same steps are a plain list. Every change goes to the office, which checks it like a file; what it says is wrong shows under the steps, and saving waits until nothing is.
  */
-export function StepEditor({ agentId, folder, workflow, skillStates, at, edited, onProblem, onChanged }: { agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
+export function StepEditor({ agentId, folder, workflow, skillStates, at, edited, marks, fill, onProblem, onChanged }: { /** The steps the draft added or changed, by id, to be drawn so. */ marks?: Record<string, 'new' | 'changed'>; /** The flow takes the height of the room it is given. */ fill?: boolean; agentId: string; folder: string | null; workflow: Workflow; /** How each skill a step names stands in this project. */ skillStates: Record<string, SkillState>; /** When the draft last changed, as the office has it: a newer one from the builder replaces what is shown. */ at: number; edited?: number; onProblem: (problem: boolean) => void; onChanged: () => void }) {
   const [wf, setWf] = useState(workflow)
   const [problem, setProblem] = useState('')
   const [skills, setSkills] = useState<AddableItem[]>([])
@@ -75,7 +75,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
     setPicked(to)
   }
   return (
-    <div className="se" aria-label="Edit the steps" ref={root}>
+    <div className={`se ${fill ? 'fills' : ''}`} aria-label="Edit the steps" ref={root}>
       {edited ? (
         <div className="se-head">
           <span className="muted">You edited {edited === 1 ? '1 thing' : `${edited} things`}.</span>
@@ -83,8 +83,10 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
         </div>
       ) : null}
       {wide ? (
-        <div className={side ? 'se-split' : undefined}>
+        <div className={side ? 'se-split se-body' : 'se-body'}>
           <FlowCanvas
+            {...(fill && { fill: true })}
+            {...(marks && { marks })}
             steps={wf.steps}
             selected={cur}
             skillStates={skillStates}
@@ -114,7 +116,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
             }}
           />
           {cur === null ? (
-            <p className="se-hint muted">Click a step to change it. Drag it to move it, or draw an arrow from the dot under one step to the dot over another to put it right after. + on an arrow adds a step there. Delete takes the picked step out.</p>
+            <p className="se-hint muted">Click a step to change it. Drag to move it. + on an arrow adds a step there. Delete takes the picked step out.</p>
           ) : (
             <div className="se-pick" ref={fields}>
               <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} change={change} />

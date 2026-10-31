@@ -118,8 +118,10 @@ test('the person describes a workflow, the builder (a read-only agent in the pro
   try {
     const { page, repo, home, argsLog } = s
     const win = await openWorkflows(page)
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Describe it to the builder…' }).click()
     await win.getByRole('textbox', { name: 'Describe a workflow' }).fill('Every change to billing gets a security review and two approvals.')
-    await win.getByRole('button', { name: 'Start with the builder' }).click()
+    await win.getByRole('button', { name: 'Start', exact: true }).click()
 
     // The split opens with the builder's own chat, which holds what the person typed, as their words.
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
@@ -241,7 +243,16 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await expect(win.getByRole('alert').filter({ hasText: 'changed since' })).toBeVisible()
     expect((JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as { name: string }).name).toBe('Edited by hand')
     await win.getByRole('button', { name: 'Discard' }).click()
-    await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
+    // Editing a saved workflow, the right side falls back to the saved flow, not an empty box.
+    await expect(win.getByText('as it is saved')).toBeVisible({ timeout: 15_000 })
+
+    // A new workflow after an edit starts clean: the title says new, the right side is empty, and the edit's conversation is gone.
+    await win.getByRole('button', { name: '← All workflows' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
+    await expect(win.getByText('New workflow', { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(win.getByText('Nothing proposed yet')).toBeVisible()
+    await expect(win.getByRole('log', { name: 'Conversation with builder' })).not.toContainText('I want to change the workflow "bug-fix"')
     await again.client.close()
     await client.close()
   } finally {
@@ -254,7 +265,8 @@ test('the person edits the builder\'s draft in place: a rename, a step added, on
   try {
     const { page, repo, argsLog } = s
     const win = await openWorkflows(page)
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
@@ -282,7 +294,7 @@ test('the person edits the builder\'s draft in place: a rename, a step added, on
     // The preview under the draft follows the edit: what each step will ask of the person.
     const preview = draft.getByLabel('Preview of the workflow')
     await expect(preview).toContainText('you approve the plan before any edit')
-    await expect(preview).toContainText('You stop at')
+    await expect(draft).toContainText('You stop at')
 
     // Lint goes; what is saved is exactly this.
     await draft.getByLabel('Step 4: Lint').click()
@@ -310,8 +322,10 @@ test('the builder\'s agent stays inside the builder: it is not in the agents lis
     const { page, argsLog } = s
     await hire(page, { name: 'ada' })
     const win = await openWorkflows(page)
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Describe it to the builder…' }).click()
     await win.getByRole('textbox', { name: 'Describe a workflow' }).fill('Every change to billing gets a security review.')
-    await win.getByRole('button', { name: 'Start with the builder' }).click()
+    await win.getByRole('button', { name: 'Start', exact: true }).click()
     await expect(win.getByRole('log', { name: 'Conversation with builder' })).toContainText('Every change to billing', { timeout: 20_000 })
     // The builder's chat is there, and its agent is a real one the office knows ...
     expect((await page.evaluate(() => window.aw.listAgents())).some((a) => a.builder)).toBe(true)
@@ -337,7 +351,8 @@ test('a step card is dragged to another place in the flow, and a narrow panel sh
   try {
     const { page, argsLog } = s
     const win = await openWorkflows(page)
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
@@ -368,7 +383,8 @@ test('every step takes a brief, and a step can ask the person first: the card sa
   try {
     const { page, repo, argsLog } = s
     const win = await openWorkflows(page)
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
@@ -408,7 +424,8 @@ test('the flow is edited on the canvas: a + on an arrow adds a step there, an ar
   try {
     const { page, argsLog } = s
     const win = await openWorkflows(page)
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })
@@ -452,7 +469,8 @@ test('every step has the same settings: who does it, whether it asks you first, 
   try {
     const { page, repo, argsLog } = s
     const win = await openWorkflows(page)
-    await win.getByRole('button', { name: 'Open the builder' }).click()
+    await win.getByRole('button', { name: '+ New workflow' }).click()
+    await win.getByRole('menuitem', { name: 'Blank workflow' }).click()
     await expect(win.getByText('Nothing proposed yet')).toBeVisible({ timeout: 15_000 })
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     await call('workflow_propose', { file: JSON.stringify(BILLING) })

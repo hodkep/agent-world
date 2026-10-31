@@ -7,6 +7,7 @@ import { FlowCanvas } from './flow/FlowCanvas'
 import { NO_WORKFLOW } from '../../shared/workflows'
 import { History } from './History'
 import { ImportMenu } from './ImportMenu'
+import { listButtons } from './listButtons'
 
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
@@ -39,13 +40,26 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
   const [asking, setAsking] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [importing, setImporting] = useState(false)
+  // Which small menu is open (the New workflow one above the list, or the More one under the workflow), and whether the top bar is taking a description for the builder.
+  const [menu, setMenu] = useState<'new' | 'more' | null>(null)
+  const [describing, setDescribing] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(() => window.aw.workflows.definitions(folder).then((e) => (setEntries(e), setError('')), (e: Error) => setError(e.message)), [folder])
   useEffect(() => void load(), [load])
+  useEffect(() => {
+    if (!menu) return
+    const away = (e: MouseEvent) => !(e.target as HTMLElement).closest('.wfl-menu-wrap') && setMenu(null)
+    // The window is a dialog: Escape would close all of it, so the menu takes the key.
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.preventDefault(), e.stopPropagation(), setMenu(null))
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc, true)
+    return () => (document.removeEventListener('mousedown', away), document.removeEventListener('keydown', esc, true))
+  }, [menu])
   const list = entries ?? []
   const shown = list.find((e) => `${e.scope}:${e.id}` === picked) ?? list.find((e) => e.id === defaultId) ?? list[0]
   const run = (go: () => Promise<unknown>) => go().then(() => (setAsking(false), load()), (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
   const wf = shown?.workflow
+  const lb = shown ? listButtons({ scope: shown.scope, isDefault: shown.id === defaultId, removedHere: defaultId === NO_WORKFLOW, hasFolder: !!folder }) : null
   const here = folder ? base(folder) : ''
   // The list is walked with the arrow keys, Home and End, and the one it rests on is the one shown.
   const walk = (e: React.KeyboardEvent) => {
@@ -72,15 +86,29 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
   }
   return (
     <>
-    <form className="wfl-describe" onSubmit={submit}>
-      <input value={describe} onChange={(e) => setDescribe(e.target.value)} disabled={!folder || starting} placeholder={folder ? 'Describe a workflow to the builder, e.g. every change to billing needs a security review and a second approval' : 'Open a project to build a workflow'} aria-label="Describe a workflow" />
-      <button className="primary" type="submit" disabled={!folder || starting || !describe.trim()}>{starting ? 'Starting…' : 'Start with the builder'}</button>
-      <button type="button" disabled={!folder || starting} onClick={() => start(undefined)}>Open the builder</button>
+    <div className="wfl-describe">
+      {describing ? (
+        <form className="wfl-desc-form" onSubmit={submit}>
+          <input autoFocus value={describe} onChange={(e) => setDescribe(e.target.value)} disabled={!folder || starting} placeholder="Describe a workflow to the builder, e.g. every change to billing needs a security review and a second approval" aria-label="Describe a workflow" onKeyDown={(e) => e.key === 'Escape' && (e.preventDefault(), e.stopPropagation(), setDescribing(false))} />
+          <button className="primary" type="submit" disabled={!folder || starting || !describe.trim()}>{starting ? 'Starting…' : 'Start'}</button>
+          <button type="button" disabled={starting} onClick={() => (setDescribing(false), setDescribe(''))}>Cancel</button>
+        </form>
+      ) : (
+        <span className="wfl-menu-wrap">
+          <button className="primary" type="button" disabled={!folder || starting} title={folder ? '' : 'Open a project to build a workflow'} aria-haspopup="menu" aria-expanded={menu === 'new'} onClick={() => setMenu(menu === 'new' ? null : 'new')}>+ New workflow ▾</button>
+          {menu === 'new' && (
+            <div className="fl-add-menu wfl-menu" role="menu" aria-label="New workflow">
+              <button role="menuitem" onClick={() => (setMenu(null), setDescribing(true))}><span><b>Describe it to the builder…</b><small>Say what you want; the builder drafts it</small></span></button>
+              <button role="menuitem" onClick={() => (setMenu(null), start(undefined))}><span><b>Blank workflow</b><small>Open the builder with nothing in it</small></span></button>
+            </div>
+          )}
+        </span>
+      )}
       <span className="imp-wrap">
         <button type="button" aria-expanded={importing} onClick={() => setImporting(!importing)}>Import…</button>
         {importing && <ImportMenu folder={folder} onClose={() => setImporting(false)} onImported={(e) => (setImporting(false), setPicked(`${e.scope}:${e.id}`), load())} />}
       </span>
-    </form>
+    </div>
     <div className="wfl" aria-label="Workflows">
       <ul className="wfl-side" role="listbox" aria-label="Workflow list" tabIndex={0} aria-activedescendant={shown ? `wfl-${shown.scope}-${shown.id}` : undefined} onKeyDown={walk}>
         {list.map((e) => {
@@ -147,13 +175,20 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
                 </div>
               ) : (
                 <div className="wfl-acts">
-                  {folder && shown.scope === 'built-in' && defaultId === NO_WORKFLOW && <button className="primary" onClick={() => onDefault(shown.id)}>Restore {wf.name}</button>}
-                  {folder && shown.id !== defaultId && !(shown.scope === 'built-in' && defaultId === NO_WORKFLOW) && <button className="primary" onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
-                  <button disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project'))}>Copy to {folder ? here : 'a project'}</button>
-                  <button onClick={() => void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global'))}>Copy for everything</button>
-                  <button disabled={!folder || starting} title={folder ? '' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, { id: shown.id, name: wf.name })}>Edit with the builder</button>
-                  {shown.scope !== 'built-in' && <button onClick={() => setAsking(true)}>Delete</button>}
-                  {folder && shown.scope === 'built-in' && defaultId !== NO_WORKFLOW && <button onClick={() => setRemoving(true)}>Remove</button>}
+                  {lb!.restore && <button className="primary" onClick={() => onDefault(shown.id)}>Restore {wf.name}</button>}
+                  <button className={lb!.restore ? '' : 'primary'} disabled={!folder || starting} title={folder ? 'Open the builder on this workflow' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, { id: shown.id, name: wf.name })}>Edit with the builder</button>
+                  {lb!.makeDefault && <button onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
+                  <span className="wfl-menu-wrap">
+                    <button aria-haspopup="menu" aria-expanded={menu === 'more'} onClick={() => setMenu(menu === 'more' ? null : 'more')}>More ▾</button>
+                    {menu === 'more' && (
+                      <div className="fl-add-menu wfl-menu" role="menu" aria-label="More">
+                        {lb!.more.includes('copyProject') && <button role="menuitem" disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => (setMenu(null), void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project')))}>Copy to {folder ? here : 'a project'}</button>}
+                        {lb!.more.includes('copyGlobal') && <button role="menuitem" onClick={() => (setMenu(null), void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global')))}>Copy for everything</button>}
+                        {lb!.more.includes('delete') && <button role="menuitem" className="danger-text" onClick={() => (setMenu(null), setAsking(true))}>Delete</button>}
+                        {lb!.more.includes('remove') && <button role="menuitem" className="danger-text" onClick={() => (setMenu(null), setRemoving(true))}>Remove</button>}
+                      </div>
+                    )}
+                  </span>
                 </div>
               )}
               {shown.scope !== 'built-in' && <History folder={folder} id={shown.id} />}
