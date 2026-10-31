@@ -70,6 +70,8 @@ const ICONS = {
   qr: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20h1" /></>,
   power: <path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0" />,
   // The side panel's view tabs.
+  // The office, and hiding it.
+  office: <path d="M3 21V5h12v16M15 9h6v12M7 9h4M7 13h4M7 17h4M18 13h.01M18 17h.01" />,
   chat: <path d="M4 4h16v12H10l-5 4v-4H4z" />,
   code: <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" />,
   traces: <path d="M3 8h14M13 4l4 4-4 4M21 16H7M11 12l-4 4 4 4" />

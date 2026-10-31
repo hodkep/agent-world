@@ -26,6 +26,12 @@ describe('how often the office is redrawn', () => {
     expect(frameCap({ ...base, focused: false, lastActive: 99_900 })).toBe(FPS.away)
   })
 
+  it('stops drawing when the person hid the office, however much is moving', () => {
+    expect(frameCap({ ...base, shown: false })).toBe(0)
+    expect(frameCap({ ...base, shown: false, lastActive: 99_900 })).toBe(0)
+    expect(frameCap({ ...base, shown: true })).toBe(FPS.calm)
+  })
+
   it('stops drawing when the window is hidden or covered', () => {
     expect(frameCap({ ...base, hidden: true })).toBe(0)
     expect(frameCap({ ...base, hidden: true, focused: false })).toBe(0)
