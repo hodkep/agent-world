@@ -32,7 +32,7 @@ import { PreviewView } from './panel/PreviewView'
 import { keepPreviews } from './panel/previewKeep'
 import { FileView } from './panel/FileView'
 import { pageLabels } from './files/context'
-import { ToolsView } from './panel/ToolsView'
+import { MemoryView } from './panel/MemoryView'
 import { CrewView } from './chat/CrewView'
 import { staleInterns } from './chat/crewRows'
 import { reactTo, resumedUnseen } from './chat/subagentMessage'
@@ -1938,7 +1938,7 @@ export function App() {
                 { id: 'chat', icon: 'chat', label: 'Chat', about: 'Talk with the agent', go: () => (chooseTalk('chat'), setFocusTick((n) => n + 1)) },
                 { id: 'terminal', icon: 'terminal', label: 'Terminal', about: "The agent's own terminal", keys: ['Ctrl+`'], reveal: current.cwd, go: () => (chooseTalk('terminal'), setFocusTick((n) => n + 1)) },
                 { id: 'code', icon: 'code', label: 'Code', about: 'Changes and files in this branch', reveal: current.cwd, go: () => setView('code') },
-                { id: 'tools', icon: 'plug', label: 'Tools', about: 'MCP servers and plugins', go: () => setView('tools') },
+                { id: 'tools', icon: 'memory', label: 'Agent Memory', about: 'Notes every agent in this project shares', go: () => setView('tools') },
                 ...(hasLibrary || view === 'library' ? [{ id: 'library', icon: 'library', label: 'Library', about: 'What the library told this agent and what it did about it', go: () => setView('library') }] : []),
                 ...(prefs && workflowsShown(prefs.workflows.enabled, wf.open)
                   ? [{ id: 'workflow', icon: 'workflow', label: 'Workflow', about: "This agent's tasks, round by round", dot: wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? 'run' : undefined, go: () => setView('workflow') }]
@@ -1979,7 +1979,7 @@ export function App() {
           {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} folder={folder} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} onOpenRun={(id) => (setRunFocus(id ?? null), setReport('workflows'))} />}
           {current && view === 'traces' && <TracesView messages={messages} agents={agents} currentId={current.id} />}
           {current && view === 'library' && <AgentLibrary key={current.id} agentId={current.id} agentName={current.name} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setSettingsPane('features'), setSettings(true))} />}
-          {current && view === 'tools' && <ToolsView key={current.id} agentId={current.id} />}
+          {current && view === 'tools' && <MemoryView key={current.id} agentId={current.id} />}
           {current && view === 'code' && <CodePanel key={current.id} agentId={current.id} agentName={current.name} workDone={state?.files ?? 0} inPlace={current.branch ? undefined : { path: current.cwd }} openFile={openFile} onOpenChat={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />}
         </aside>
         {/* Dialogs sit outside the side panel: inside it they would be open (blocking the page) but not drawn while the panel is hidden. */}
