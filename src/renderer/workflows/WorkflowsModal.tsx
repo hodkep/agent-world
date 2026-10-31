@@ -15,6 +15,8 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, default
   const [tab, setTab] = useState<'runs' | 'insights' | 'workflows'>('runs')
   const [builder, setBuilder] = useState<{ agent: AgentRecord; editing?: string; editingId?: string } | null>(null)
   const [focus, setFocus] = useState('')
+  // A card on the Insights tab points at a run: the Runs tab opens on it.
+  const [pointed, setPointed] = useState<string | undefined>()
   // Pointed at a run (from a task's link, or the agent's tab): the Runs tab is where it opens.
   useEffect(() => {
     if (focusRun) setTab('runs')
@@ -66,14 +68,14 @@ export function WorkflowsModal({ runs, spend, open, windingDown, folder, default
           }}
         />
       ) : tab === 'insights' ? (
-        <div className="wf-body"><Insights runs={runs} ctxFor={ctxFor} now={now} /></div>
+        <div className="wf-body"><Insights runs={runs} ctxFor={ctxFor} now={now} onOpenRun={(id) => (setPointed(id), setTab('runs'))} /></div>
       ) : runs.length === 0 ? (
         <div className="wf-empty">
           <b>No runs yet</b>
           <p>A run appears here when an agent starts a task, or commits work it never announced. You can switch Workflows off in Settings, under Features.</p>
         </div>
       ) : (
-        <div className="wf-body"><RunsLedger runs={runs} spend={spend} ctxFor={ctxFor} now={now} initial={focusRun} /></div>
+        <div className="wf-body"><RunsLedger runs={runs} spend={spend} ctxFor={ctxFor} now={now} initial={pointed ?? focusRun} /></div>
       )}
     </Modal>
   )

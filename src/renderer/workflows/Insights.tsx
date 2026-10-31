@@ -1,59 +1,54 @@
 import { useState } from 'react'
-import { type GateName, type Tile, type TileKind, columnRates, gateTiles, runsWithin, says } from '../../shared/insights'
+import { runsWithin, troubleByWorkflow } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import type { StepContext } from '../../shared/steps'
-import { OutlineIcon } from '../panel/IconButton'
 
-const GATES: { gate: GateName; label: string }[] = [{ gate: 'plan', label: 'Plan' }, { gate: 'check', label: 'Check' }, { gate: 'review', label: 'Review' }, { gate: 'land', label: 'Land' }, { gate: 'told', label: 'Told' }]
-const WORD: Record<TileKind, string> = { ok: 'met first time', trouble: 'met after trouble', bad: 'missed or overridden', na: 'not asked', wait: 'waiting' }
-const MAX_ROWS = 12
+const SHOWN = 3
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
-function TileView({ tile }: { tile: Tile }) {
-  const label = `${GATES.find((g) => g.gate === tile.gate)!.label}: ${WORD[tile.kind]}${tile.kind === 'trouble' && tile.n ? ` (${tile.n})` : ''}`
-  return (
-    <span role="cell" className="mo-c" aria-label={label} title={label}>
-      <i className={`mo-t ${tile.kind}`}>{tile.kind === 'trouble' && tile.n ? tile.n : tile.kind === 'bad' ? <OutlineIcon name="cross" size={12} /> : null}</i>
-    </span>
-  )
-}
-
-const rate = (good: number, of: number, what: string) => (of === 0 ? { big: '—', what } : { big: `${good} of ${of}`, what })
-
-/** The Insights tab: a tile for every gate of every run, so what keeps slipping shows down a column and the bad run shows along a row; the footer is the numbers. */
-export function Insights({ runs, ctxFor, now }: { runs: Run[]; ctxFor: (r: Run) => StepContext; now: number }) {
+/**
+ * The Insights tab: what keeps going wrong, workflow by workflow. A card for each step that was skipped or failed (worst first, three to start with and the rest on "Show all"),
+ * with when it happened over the runs and the reason given most often; a step met every time is one quiet line. A card opens the newest run behind it.
+ */
+export function Insights({ runs, ctxFor, now, onOpenRun }: { runs: Run[]; ctxFor: (r: Run) => StepContext; now: number; onOpenRun: (id: string) => void }) {
   const [days, setDays] = useState<7 | 30>(7)
-  const shown = [...runsWithin(runs, days, now)].reverse()
-  const rows = shown.map((r) => ({ run: r, title: r.title, tiles: gateTiles(r, ctxFor(r)) }))
-  const rates = columnRates(rows.map((r) => r.tiles))
-  const notes = says(rows)
-  const foot = [rate(rates.plan.good, rates.plan.of, 'plans approved as sent'), rate(rates.check.good, rates.check.of, 'checks first try'), rate(rates.review.good, rates.review.of, 'findings seen'), rates.land.of === 0 ? { big: '—', what: 'landings' } : { big: rates.land.of === rates.land.good ? 'none' : `${rates.land.of - rates.land.good} anyway`, what: 'landings' }, rate(rates.told.good, rates.told.of, 'announced')]
+  const [all, setAll] = useState<Record<string, boolean>>({})
+  const trouble = troubleByWorkflow(runsWithin(runs, days, now), ctxFor)
   return (
     <div className="mo">
       <div className="mo-span" role="radiogroup" aria-label="How far back">
         {([7, 30] as const).map((d) => <button key={d} role="radio" aria-checked={days === d} className={days === d ? 'on' : ''} onClick={() => setDays(d)}>{d} days</button>)}
       </div>
-      {rows.length === 0 ? (
-        <p className="hint">No runs in the last {days} days.</p>
+      {trouble.length === 0 ? (
+        <p className="hint">No runs of a workflow in the last {days} days.</p>
       ) : (
-        <div className="mo-grid" role="table" aria-label="Gates met by each run">
-          <div role="row" className="mo-row mo-head">
-            <span role="columnheader" />
-            {GATES.map((g) => <span key={g.gate} role="columnheader" className="mo-h">{g.label}</span>)}
-          </div>
-          {rows.slice(0, MAX_ROWS).map(({ run, title, tiles }) => (
-            <div key={run.id} role="row" className="mo-row">
-              <span role="rowheader" className="mo-nm">{title}<small>{run.name}</small></span>
-              {tiles.map((t) => <TileView key={t.gate} tile={t} />)}
-            </div>
-          ))}
-          {rows.length > MAX_ROWS && <p className="hint" role="row">…and {rows.length - MAX_ROWS} earlier runs.</p>}
-          <div role="row" className="mo-row mo-foot">
-            <span role="rowheader" className="mo-nm"><span className="sr-only">Over these runs</span></span>
-            {foot.map((f) => <span key={f.what} role="cell" className="mo-rate"><b>{f.big}</b>{f.what}</span>)}
-          </div>
-        </div>
+        trouble.map((w) => {
+          const cards = all[w.name] ? w.cards : w.cards.slice(0, SHOWN)
+          return (
+            <section key={w.name} className="ib-wf" aria-label={`${w.name} workflow`}>
+              <div className="ib-hd"><b>{w.name}</b><span>{plural(w.runs, 'run')}</span><span className="ib-met"><b>{w.met} of {w.of}</b> steps met</span></div>
+              <div className="ib-meter" aria-hidden="true"><i style={{ flex: w.met, background: 'var(--ok)' }} /><i style={{ flex: w.of - w.met, background: 'var(--warn)' }} /></div>
+              {cards.length > 0 && (
+                <div className="ib-cards">
+                  {cards.map((c) => (
+                    <button key={c.step} className={`ib-card ${c.failed > 0 ? 'bad' : ''}`} onClick={() => onOpenRun(c.runId)} aria-label={`${c.step}: ${c.failed > 0 ? `failed ${c.failed}` : `skipped ${c.skipped}`} times. Open the newest run`}>
+                      <span className="ib-ch"><b>{c.step}</b><em>{c.failed > 0 ? `failed ${c.failed}×` : `skipped ${c.skipped}×`}{c.failed > 0 && c.skipped > 0 ? ` · skipped ${c.skipped}×` : ''}</em></span>
+                      <span className="ib-ticks" aria-hidden="true">{c.ticks.map((t, i) => <i key={i} className={t ?? 'none'} />)}</span>
+                      {c.reason && <small>{c.reason}</small>}
+                      <span className="ib-go">Open the newest run →</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="ib-fold">
+                <span>{w.clean.length > 0 ? `${plural(w.clean.length, 'step')} met every time: ${w.clean.slice(0, 3).join(', ')}${w.clean.length > 3 ? `, and ${w.clean.length - 3} more` : ''}` : 'No step was met every time'}</span>
+                {w.cards.length > SHOWN && <button onClick={() => setAll({ ...all, [w.name]: !all[w.name] })}>{all[w.name] ? 'Show fewer' : `Show all ${w.cards.length}`}</button>}
+              </div>
+              {w.cards.length === 0 && <p className="hint">Nothing was skipped or failed.</p>}
+            </section>
+          )
+        })
       )}
-      {notes.length > 0 && <div className="mo-says">{notes.map((n) => <p key={n}>{n}</p>)}</div>}
     </div>
   )
 }
