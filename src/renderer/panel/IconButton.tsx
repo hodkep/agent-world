@@ -49,6 +49,8 @@ const ICONS = {
   // The kinds of tool on the profile card.
   terminal: <path d="M4 5h16v14H4zM7 10l3 2-3 2M12 15h5" />,
   run: <path d={RUN_PATH} />,
+  // Agent Memory: a note pinned to a board.
+  memory: <path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3" />,
   plug: <path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3" />,
   search: <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>,
   file: <path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6" />,
