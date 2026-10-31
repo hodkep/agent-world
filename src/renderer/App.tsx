@@ -154,6 +154,8 @@ export function App() {
   // Below this width the panel would squeeze the office, so it becomes a drawer over it, closed until needed.
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
+  // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
+  const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
   const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'workflow' | 'file'>(readTalk)
@@ -934,9 +936,16 @@ export function App() {
   )
   const panes = grid && !!paneLayout && agents.length > 0
   useEffect(() => setPeek(false), [panes])
-  const showPanel = panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen
+  const noOffice = officeHidden(officeOff, agents.length, grid)
+  // With the office hidden the panel is the window: it is always showing.
+  const showPanel = noOffice || (panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen)
   // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
-  const overW = narrow && showPanel && !panes ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
+  const overW = narrow && showPanel && !panes && !noOffice ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
+  const setOffice = (off: boolean) => (setOfficeOff(off), keep('aw.officeHidden', off ? '1' : ''))
+  // An agent's card over the office has nothing to show over while it is hidden, and its timers would go on.
+  useEffect(() => void (noOffice && setCardOpen(false)), [noOffice])
+  // Hidden, the office draws nothing at all.
+  useEffect(() => office.current?.setShown(!noOffice), [noOffice, officeReady])
   // The agent the side panel is showing is left out of the grid while it does, so it is not on screen twice.
   const inPanel = grid && showPanel && agents.some((a) => a.id === selected) ? selected : null
   const folderName = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
@@ -1553,7 +1562,7 @@ export function App() {
         <UpdateChip agents={updateAgents} />
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
-        <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
+        <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} disabled={noOffice} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
       {updatedBanner && (
         <div className="upd-banner" role="status">
@@ -1566,7 +1575,7 @@ export function App() {
       {confirmNode}
       {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
       <main style={{ '--over': overW } as React.CSSProperties}>
-        <div className="stage-wrap" onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
+        <div className={`stage-wrap ${noOffice ? 'off' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
             <div key={flash} className={`profile-overlay ${flash ? 'flash' : ''}`} data-side={cardAt.side} data-mode={cardAt.mode} style={{ [cardAt.side]: 10, top: 10, width: cardAt.size!.w, maxHeight: cardMaxHeight({ stageH: stageBox.h, side: cardAt.side, drawerH }) }}>
@@ -1657,6 +1666,14 @@ export function App() {
                     <span className="term-gl" aria-hidden="true">&gt;_</span>
                     Terminal
                     {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
+              {agents.length > 0 && (
+                <div className="zoom-ctl" role="group" aria-label="Office">
+                  <button className="hide-office" onClick={() => setOffice(true)} title="Stops the picture and gives the chat the whole window; a button on the left brings it back">
+                    <OutlineIcon name="hide" size={14} />
+                    Hide office
+                  </button>
+                </div>
+              )}
                   </button>
                 </div>
               )}
@@ -1669,7 +1686,16 @@ export function App() {
             </FloatingTip>
           )}
         </div>
-        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow ? 'drawer' : ''}`} style={!wide && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
+        {noOffice && (
+          <OfficeRail
+            agents={agents.map((a) => ({ id: a.id, name: a.name, working: ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? '') }))}
+            selected={selected}
+            marks={tileMarks}
+            onShow={() => setOffice(false)}
+            onSelect={(id) => select(id)}
+          />
+        )}
+        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow && !noOffice ? 'drawer' : ''} ${noOffice ? 'solo' : ''}`} style={!wide && !noOffice && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
           <div
             className="resizer"
             role="separator"
@@ -1678,6 +1704,7 @@ export function App() {
             tabIndex={0}
             title="Drag to resize · double-click to reset"
             onDoubleClick={() => (setPanelW(null), keep('aw.panelw', ''))}
+            hidden={noOffice}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
               e.preventDefault()

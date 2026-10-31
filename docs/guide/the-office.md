@@ -24,6 +24,7 @@ Click an agent's character, or open the agents panel and click its tile.
 
 - The character also opens its profile card: status, context used, cost, model, thinking level and mode. Close it with **×** or Esc; click the agent's name in the panel bar to bring it back.
 - The panel on the right shows the agent's tabs. See [Chat and dialogs](chat-and-dialogs.md) and [Code and preview](code-and-preview.md).
+- *Hide office*, at the office's bottom-left beside *Fit office*, stops the picture and gives the chat the whole window, centred. A slim strip stays at the left with a button to bring the office back and one for each agent, marked when it needs you or has finished. The choice is remembered, and a hidden office draws nothing, which saves power (the project terminals under the office are hidden with it, and the grid shows the office again).
 - With an agent selected, a bar above the chat shows it, with **Previous agent** and **Next agent** arrows and a button with the number of agents. Rest the pointer on the number (or click it) and the **agents panel** opens: a tile for each agent with its number, its picture, its name, what it is doing and a mark, then **+ Agent** and "Ctrl+Tab to step". One click on a tile selects the agent. **others waiting** appears when another agent needs you. Before you select anyone, the agents are listed as rows instead.
 
 <img src="../images/office-agents-panel.png" alt="The agents panel open under the number: a tile for each agent with its number, picture, name and state, and + Agent" width="720">

@@ -8,8 +8,8 @@ export const FPS = { calm: 20, moving: 60, away: 5 } as const
 export const MOVING_MS = 800
 
 /** The frame rate to draw at: 0 means stop altogether (nobody can see the window). */
-export function frameCap({ hidden, focused, lastActive, now }: { hidden: boolean; focused: boolean; lastActive: number; now: number }): number {
-  if (hidden) return 0
+export function frameCap({ hidden, focused, lastActive, now, shown = true }: { hidden: boolean; focused: boolean; lastActive: number; now: number; /** False while the person has the office hidden: nothing is drawn. */ shown?: boolean }): number {
+  if (hidden || !shown) return 0
   if (!focused) return FPS.away
   return now - lastActive < MOVING_MS ? FPS.moving : FPS.calm
 }

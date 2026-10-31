@@ -321,6 +321,8 @@ export class OfficeWorld {
   }
 
   private cap = -1
+  /** False while the person has the office hidden: no frames are drawn at all. */
+  private shown = true
   private raf = 0
   private frameTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -356,7 +358,7 @@ export class OfficeWorld {
   }
 
   private pace() {
-    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastActive: this.lastActive, now: performance.now() })
+    const cap = frameCap({ hidden: document.hidden, focused: document.hasFocus(), lastActive: this.lastActive, now: performance.now(), shown: this.shown })
     if (cap !== this.cap) {
       this.cap = cap
       this.drive(cap)
@@ -819,6 +821,15 @@ export class OfficeWorld {
       a.view.visible = false
       this.layer.addChild(a.view)
     }
+  }
+
+  /** The person hid the office or brought it back: while hidden nothing is drawn, and the scene stays as it was, so showing it again is at once. */
+  setShown(on: boolean) {
+    if (on === this.shown) return
+    this.shown = on
+    // The canvas kept the size it had; the window may have changed meanwhile.
+    if (on) this.app.resize()
+    this.pace()
   }
 
   setOfficeLife(on: boolean) {
