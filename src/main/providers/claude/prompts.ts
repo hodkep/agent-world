@@ -90,5 +90,5 @@ export function answerTrust(io: TerminalIO, trust: boolean) {
  */
 export function looksWorking(screen: string): boolean {
   const text = stripVTControlCharacters(screen)
-  return /\S…\s*\(\d+s?\b/.test(text) || /\(running [^)\n]*hooks/i.test(text) || /esc to interrupt/i.test(text)
+  return /\S…\s*\(\d+[hms]\b/.test(text) || /\(running [^)\n]*hooks/i.test(text) || /esc to interrupt/i.test(text)
 }
