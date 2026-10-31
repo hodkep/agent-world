@@ -3,9 +3,11 @@ import { App } from './App'
 import { NotesApp } from './notes/NotesApp'
 import { Boundary } from './Boundary'
 import { installCleanCopy } from './cleanCopy'
+import { watchLongTasks } from './perf'
 import './styles.css'
 
 installCleanCopy()
+if (window.aw) watchLongTasks()
 
 // The app talks to its main process through window.aw (the preload script). In an ordinary browser tab, which is
 // what opening the dev server's address gives you, there is none: say so instead of crashing on the first call.

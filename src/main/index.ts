@@ -22,6 +22,7 @@ import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { sleepIdle } from './sleepIdle'
+import { startPerf } from './perf'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -30,7 +31,7 @@ import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell } from 'electron'
 import { isWebUrl } from './webUrl'
-import { packagedPath, parseLoginPath } from './appPath'
+import { cachedLoginPath, packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
 import { installCommand, installLaunch } from './installRun'
 import { createMenuTracker } from './menuTracker'
@@ -129,6 +130,10 @@ const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(joi
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 process.env.AW_APP_HOME = HOME
+// Off unless asked for: records what stalls this process, and what the page reports, in perf.log (see perf.ts). Started before any handler is registered so each call is timed.
+const PERF = process.env.AW_PERF === '1'
+if (PERF) startPerf(HOME)
+ipcMain.handle('perf:enabled', () => PERF)
 const AGENTS_FILE = join(HOME, 'agents.json')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
 // The environment wins (tests and packaging), then Settings, then whatever `claude` the PATH finds.
@@ -150,15 +155,23 @@ const ROWS = 30
 const NAMES = ['ada', 'linus', 'grace', 'alan', 'margaret', 'ken', 'barbara', 'dennis', 'radia', 'guido', 'hedy', 'bjarne']
 
 // Apps launched from Finder/desktop get a bare PATH; claude usually lives in a path set by the login shell.
-function loginShellPath() {
-  if (process.platform === 'win32') return process.env.PATH
-  try {
-    const out = execFileSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', 'printf "__AW__%s__AW__" "$PATH"'], { encoding: 'utf8', timeout: 5000 })
-    return parseLoginPath(out) ?? process.env.PATH
-  } catch {
-    return process.env.PATH
+const LOGIN_PATH_CMD = ['-ilc', 'printf "__AW__%s__AW__" "$PATH"']
+// Read once, then from memory and refreshed in the background: each read starts an interactive login shell, which blocks this process for seconds (see cachedLoginPath).
+const loginShellPath = cachedLoginPath({
+  readSync: () => {
+    if (process.platform === 'win32') return process.env.PATH
+    try {
+      return parseLoginPath(execFileSync(process.env.SHELL ?? '/bin/zsh', LOGIN_PATH_CMD, { encoding: 'utf8', timeout: 5000 })) ?? process.env.PATH
+    } catch {
+      return process.env.PATH
+    }
+  },
+  readAsync: async () => {
+    if (process.platform === 'win32') return process.env.PATH
+    const { stdout } = await promisify(execFile)(process.env.SHELL ?? '/bin/zsh', LOGIN_PATH_CMD, { encoding: 'utf8', timeout: 5000 })
+    return parseLoginPath(stdout)
   }
-}
+})
 
 // A packaged app has to find claude and agy itself: its own PATH is bare, so it uses the login shell's plus the usual install folders.
 if (app.isPackaged && process.platform !== 'win32') {
