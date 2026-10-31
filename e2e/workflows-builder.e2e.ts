@@ -221,7 +221,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await expect(draft.getByLabel('Commands')).toHaveCount(0)
 
     // Replacing writes over the same file; there is still one.
-    await draft.getByRole('button', { name: 'Replace Bug fix in shop' }).click()
+    await draft.getByRole('button', { name: 'Replace in project' }).click()
     const dir = join(repo, '.agent-world', 'workflows')
     await expect.poll(() => (JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as typeof BUG_FIX).steps.length).toBe(5)
     expect(readdirSync(dir)).toEqual(['bug-fix.json'])
@@ -240,7 +240,7 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await again.call('workflow_propose', { file: JSON.stringify({ ...next, name: 'Fix a bug' }) })
     await expect(win.getByRole('region', { name: 'Workflow proposal' })).toContainText('Fix a bug')
     writeFileSync(join(dir, 'bug-fix.json'), JSON.stringify({ ...next, name: 'Edited by hand' }, null, 2) + '\n')
-    await win.getByRole('button', { name: 'Replace Fix a bug in shop' }).click()
+    await win.getByRole('button', { name: 'Replace in project' }).click()
     await expect(win.getByRole('alert').filter({ hasText: 'changed since' })).toBeVisible()
     expect((JSON.parse(readFileSync(join(dir, 'bug-fix.json'), 'utf8')) as { name: string }).name).toBe('Edited by hand')
     await win.getByRole('button', { name: 'Discard' }).click()
