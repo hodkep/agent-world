@@ -597,3 +597,71 @@ export function needsLook(days: WeekDay[], max = 3): { shown: { id: string; titl
   const all = days.flatMap((d) => d.runs.filter((r) => r.kind === 'bad' || r.kind === 'wait').map((r) => ({ ...r, day: d.label }))).reverse()
   return { shown: all.slice(0, max), more: Math.max(0, all.length - max) }
 }
+
+export interface TroubleCard {
+  step: string
+  skipped: number
+  failed: number
+  /** How the step ended in each of the workflow's runs, oldest first; none where it had not got there. */
+  ticks: (MatrixCell['state'] | undefined)[]
+  /** The reason given most often for skipping or failing it. */
+  reason: string
+  /** The newest run it was skipped or failed in. */
+  runId: string
+}
+export interface WorkflowTrouble {
+  name: string
+  runs: number
+  /** Steps met of the steps that reached an end, across its runs. */
+  met: number
+  of: number
+  cards: TroubleCard[]
+  /** Steps met every time they were reached. */
+  clean: string[]
+}
+
+/** For each workflow the runs followed: the steps that were skipped or failed (worst first), and the steps that never were. A run that followed no workflow is left out. */
+export function troubleByWorkflow(runs: Run[], ctxFor: (run: Run) => StepContext, max = 16): WorkflowTrouble[] {
+  const by = new Map<string, Run[]>()
+  for (const r of runs) if (r.workflow) by.set(r.workflow.name, [...(by.get(r.workflow.name) ?? []), r])
+  return [...by].map(([name, rs]) => {
+    const counts = stepCounts(rs, ctxFor)
+    const m = stepMatrix(rs, ctxFor, max)
+    const cards = counts
+      .filter((c) => c.skipped + c.failed > 0)
+      .map((c): TroubleCard => {
+        const i = m.steps.indexOf(c.name)
+        const cells = m.runs.map((r) => r.cells[i]!)
+        const notes = new Map<string, number>()
+        for (const x of cells) if (x.note) notes.set(x.note, (notes.get(x.note) ?? 0) + 1)
+        const reason = [...notes].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
+        const hit = [...cells].reverse().find((x) => x.state === 'skipped' || x.state === 'failed')
+        return { step: c.name, skipped: c.skipped, failed: c.failed, ticks: cells.map((x) => x.state), reason, runId: hit?.run ?? rs[0]!.id }
+      })
+      .sort((a, b) => (b.failed > 0 ? 1 : 0) - (a.failed > 0 ? 1 : 0) || b.failed + b.skipped - (a.failed + a.skipped))
+    const met = counts.reduce((n, c) => n + c.met, 0)
+    const of = counts.reduce((n, c) => n + c.met + c.skipped + c.failed, 0)
+    return { name, runs: rs.length, met, of, cards, clean: counts.filter((c) => c.skipped + c.failed === 0 && c.met > 0).map((c) => c.name) }
+  })
+}
+
+export interface DayOutcome {
+  ok: number
+  needs: number
+  failed: number
+  skipped: number
+}
+
+/** The runs begun on each of the last `days` days (oldest first, today last) by how they stand: a step failed, a step waits for the person, a step was skipped, or none of those. */
+export function dayOutcomes(runs: Run[], days: number, now: number, ctxFor: (run: Run) => StepContext): DayOutcome[] {
+  const out: DayOutcome[] = Array.from({ length: days }, () => ({ ok: 0, needs: 0, failed: 0, skipped: 0 }))
+  const today = startOfDay(now)
+  for (const r of runs) {
+    if (!r.workflow) continue
+    const ago = Math.round((today - startOfDay(r.startedAt)) / DAY)
+    const lines = stepLines(r, ctxFor(r))
+    const kind: keyof DayOutcome = lines.some((l) => l.state === 'failed') ? 'failed' : lines.some((l) => l.state === 'waiting') ? 'needs' : lines.some((l) => l.state === 'skipped') ? 'skipped' : 'ok'
+    out[Math.min(days - 1, Math.max(0, days - 1 - ago))]![kind]++
+  }
+  return out
+}
