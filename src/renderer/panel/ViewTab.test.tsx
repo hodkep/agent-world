@@ -18,10 +18,12 @@ const hover = (tab: Element, type: 'mouseover' | 'mouseout') => act(async () => 
 describe('a view tab shown as an icon', () => {
   afterEach(() => void (document.body.innerHTML = ''))
 
-  it('is an icon with no label of its own, named for assistive tools, and tells whether it is selected', async () => {
+  it('is an icon with a label that only the selected one shows, named for assistive tools, and tells whether it is selected', async () => {
     const { tab } = await mount({ selected: true })
     expect(tab.querySelector('svg')).not.toBeNull()
-    expect(tab.textContent).toBe('')
+    // The words are drawn for the eye (the styles show them on the selected tab, or all of them when there is room); the name for assistive tools is the button's own.
+    expect(tab.querySelector('.vt-label')!.textContent).toBe('Terminal')
+    expect(tab.querySelector('.vt-label')!.getAttribute('aria-hidden')).toBe('true')
     expect(tab.getAttribute('aria-label')).toBe('Terminal')
     expect(tab.getAttribute('aria-selected')).toBe('true')
   })

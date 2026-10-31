@@ -4499,3 +4499,69 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 
 /* A message waiting in Claude's own queue: a quiet button to take the queue back. */
 .msg-takeback { margin-left: 10px; font-size: 11px; padding: 1px 8px; color: var(--muted); }
+
+/* =====================================================================================================================
+   The agent rail and the tab strip, in the office's own language: each agent is its own character with a speech bubble
+   for what it is doing, the allowance sits on a board like the one on the lawn, and the tabs are bevelled stickers.
+   ===================================================================================================================== */
+.office-rail { gap: 5px; }
+.office-rail .rail-show { color: var(--muted); background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25); margin-bottom: 2px; }
+.office-rail .rail-show:hover { color: var(--text); }
+.office-rail .rail-cap { height: 22px; margin: 6px 0 0; display: flex; align-items: center; }
+.office-rail .rail-agent { display: grid; grid-template-columns: 32px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-content: center; height: 58px; padding: 0 8px; background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink); color: var(--text); text-align: left; }
+.office-rail .rail-agent:hover { background: var(--panel-hover); }
+.office-rail .rail-agent .rail-tile { grid-row: 1 / span 2; width: 32px; height: 48px; background: transparent; box-shadow: none; align-self: center; }
+.office-rail .rail-face { display: block; width: 32px; height: 48px; image-rendering: pixelated; }
+.office-rail .rail-agent .rail-name { font: 700 13px ui-sans-serif, system-ui, sans-serif; align-self: end; color: var(--text); }
+.office-rail .rail-agent small { margin: 0; grid-column: 2; align-self: start; font: 11px Menlo, Consolas, monospace; color: var(--hint); }
+.office-rail .rail-agent.is-working small { color: var(--think); } .office-rail .rail-agent.is-waiting small { color: var(--danger-text); }
+.office-rail .rail-agent[aria-pressed='true'] { background: var(--selected); box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3px var(--accent-dim); color: var(--text); }
+.office-rail .rail-agent[aria-pressed='true'] .rail-tile { box-shadow: none; color: var(--text); }
+.office-rail .rail-agent[aria-pressed='true'] .rail-name { color: var(--accent); }
+.rail-bubble { position: absolute; right: 8px; top: 9px; background: var(--paper); color: var(--ink); font: 700 10px Menlo, Consolas, monospace; padding: 2px 6px; line-height: 1.2; }
+.rail-bubble::after { content: ''; position: absolute; left: 6px; bottom: -5px; border: 5px solid transparent; border-top-color: var(--paper); border-bottom: 0; }
+.office-rail .rail-usage { margin: auto 6px 8px; background: #0e1a24; box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--wood), inset 0 0 0 2px var(--trim); padding: 8px 10px 10px; display: grid; gap: 6px; }
+.rail-usage .ru-acct { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--think); margin: 0; }
+.rail-usage .ru-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) 34px; gap: 2px 6px; align-items: center; }
+.rail-usage .ru-lb { font: 700 10px Menlo, Consolas, monospace; color: var(--muted); }
+.rail-usage .ru-left { font: 700 11px Menlo, Consolas, monospace; color: var(--text); text-align: right; }
+.rail-usage .ru-bar { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; height: 10px; background: none; }
+.rail-usage .ru-seg { background: #12202c; } .rail-usage .ru-seg.on { background: var(--ok); }
+.rail-usage .ru-row.warn .ru-seg.on { background: var(--accent); } .rail-usage .ru-row.hot .ru-seg.on { background: var(--danger); } .rail-usage .ru-row.hot .ru-left { color: var(--danger-text); }
+.rail-usage .ru-reset { grid-column: 1 / -1; font: 10px Menlo, Consolas, monospace; color: var(--hint); }
+.office-rail .rail-fold { margin-top: 0; }
+/* Folded: the same rows in the same places, as faces. The caption row keeps its height and says how many agents there are; the board is two thin bars. */
+.office-rail.slim { width: 60px; }
+.office-rail.slim:not(.peek) .rail-cap { display: flex; justify-content: center; gap: 4px; width: 40px; padding: 0; margin: 6px 0 0; font-size: 10px; }
+.office-rail.slim:not(.peek) .rail-cap::before, .office-rail.slim:not(.peek) .rail-cap::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.office-rail.slim:not(.peek) .rail-agent { display: flex; width: 44px; height: 58px; padding: 0; justify-content: center; }
+.office-rail.slim:not(.peek) .rail-bubble { right: -2px; top: 2px; padding: 0 3px; font-size: 9px; }
+.office-rail.slim:not(.peek) .rail-bubble::after { display: none; }
+.office-rail.slim:not(.peek) .rail-usage { width: 44px; margin: auto 0 8px; padding: 6px 4px; gap: 5px; box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--wood), inset 0 0 0 1px var(--trim); }
+.office-rail.slim:not(.peek) .rail-usage .ru-lb, .office-rail.slim:not(.peek) .rail-usage .ru-left, .office-rail.slim:not(.peek) .rail-usage .ru-reset, .office-rail.slim:not(.peek) .rail-usage .ru-acct { display: none; }
+.office-rail.slim:not(.peek) .rail-usage .ru-row { grid-template-columns: 1fr; }
+.office-rail.slim:not(.peek) .rail-usage .ru-bar { gap: 0; height: 6px; }
+.office-rail.slim.peek { width: 176px; margin-right: -116px; }
+/* The tab strip: bevelled stickers. The names show as far as there is room: all of them on a wide bar, the selected one's on a middling one, none on a narrow one. */
+.tabbar { container-type: inline-size; container-name: tabbar; flex: none; min-width: 0; }
+.tabbar .tabs { gap: 4px; padding: 8px 10px; background: var(--panel-3); border-bottom: 2px solid var(--ink); align-items: center; }
+.tabbar .tabs .vt { height: 32px; padding: 0 11px; gap: 7px; background: var(--panel-2); color: var(--muted); box-shadow: inset 0 0 0 2px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.06), inset 0 -2px 0 rgb(0 0 0 / 0.25); font: 600 12px ui-sans-serif, system-ui, sans-serif; }
+.tabbar .tabs .vt:hover:not([aria-selected='true']) { background: var(--panel-hover); color: var(--text); }
+.tabbar .tabs .vt[aria-selected='true'], .tabbar .tabs [role='tab'][aria-selected='true'] { background: var(--selected); color: var(--accent); box-shadow: inset 0 0 0 2px var(--ink), inset 0 -3px 0 var(--accent); }
+.tabbar .tabs .icon-btn { height: 32px; }
+.tabbar.with-who { display: flex; align-items: center; gap: 16px; padding: 0 12px 0 24px; background: var(--panel-3); border-bottom: 2px solid var(--ink); }
+.tabbar.with-who .tabs { flex: 0 1 auto; margin-left: auto; border-bottom: 0; padding-inline: 0; }
+.tab-who { display: flex; align-items: baseline; gap: 10px; flex: none; min-width: 0; }
+.tab-who b { font-size: 16px; } .tab-who small { color: var(--hint); font: 12px Menlo, Consolas, monospace; white-space: nowrap; }
+.vt .vt-label { display: none; }
+@container tabbar (min-width: 520px) { .vt[aria-selected='true'] .vt-label { display: inline; } }
+@container tabbar (min-width: 880px) { .tabbar:not(.with-who) .vt .vt-label { display: inline; } }
+@container tabbar (min-width: 1180px) { .tabbar.with-who .vt .vt-label { display: inline; } }
+.tabbar .tabs > .push { background: var(--panel-3); }
+/* The open rail can be dragged wider or narrower by its right edge. */
+.office-rail { position: relative; }
+.office-rail.slim .rail-resizer { display: none; }
+.rail-resizer { position: absolute; right: -4px; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 15; touch-action: none; }
+.rail-resizer::after { content: ''; position: absolute; left: 3px; top: 0; bottom: 0; width: 3px; background: transparent; }
+.rail-resizer:hover::after, .rail-resizer:focus-visible::after, .rail-resizer:active::after { background: var(--accent); }
+.rail-resizer:focus-visible { outline: none; }

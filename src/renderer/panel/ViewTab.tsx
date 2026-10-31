@@ -27,6 +27,7 @@ export function ViewTab({ icon, label, name = label, about, number, selected, on
       onBlur={() => setAt(null)}
     >
       <OutlineIcon name={icon} size={16} />
+      <span className="vt-label" aria-hidden="true">{label}</span>
       {badge ? <span className="vt-badge" aria-hidden="true">{badge}</span> : null}
       {dot && <span className={`vt-dot ${dot}`} aria-hidden="true" />}
       {at && (
