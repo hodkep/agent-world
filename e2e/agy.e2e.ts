@@ -343,7 +343,8 @@ test('what agy does not have is not offered: no role change, Compact, budget or 
     const menu = page.getByRole('menu', { name: 'More actions' })
     await expect(menu.getByRole('menuitem', { name: /Clone/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /Change role/ })).toHaveCount(0)
-    await expect(menu.getByRole('menuitem', { name: /Handbook/ })).toContainText('AGENTS.md')
+    // The tile is one of four in a row, so the file it opens is in its tooltip.
+    await expect(menu.getByRole('menuitem', { name: /Handbook/ })).toHaveAttribute('title', 'AGENTS.md')
     await expect(menu.getByRole('menuitem', { name: /Tools/ })).toBeVisible()
     await page.keyboard.press('Escape')
 
