@@ -132,6 +132,12 @@ export async function startHookServer(o: EventSourceOptions): Promise<EventHandl
     if (event) o.onEvent({ ...event, agentId })
     // The text Claude adds to what it was just asked, so a rule the agent might drift from is in front of it again this turn.
     if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && p.tool_input && typeof p.tool_input === 'object') o.onToolUse?.(agentId, p.tool_name, p.tool_input as Record<string, unknown>)
+    // A command that failed is told to the office, which keeps it in the story of the run when it is a git, test, build or lint command.
+    if (hookEvent === 'PostToolUseFailure' && typeof p.tool_name === 'string' && p.tool_input && typeof p.tool_input === 'object') {
+      const res2 = p.tool_response
+      const error = typeof p.error === 'string' ? p.error : typeof res2 === 'string' ? res2 : res2 && typeof res2 === 'object' ? String((res2 as Record<string, unknown>).stderr ?? (res2 as Record<string, unknown>).error ?? '') : ''
+      o.onToolFailed?.(agentId, p.tool_name, p.tool_input as Record<string, unknown>, error)
+    }
     // The office can hold an edit back (a plan not yet approved); the program is refused with the reason, and nothing else is affected.
     if (hookEvent === 'PreToolUse' && typeof p.tool_name === 'string' && EDIT_TOOLS.includes(p.tool_name) && o.blockEdit) {
       const input = (p.tool_input && typeof p.tool_input === 'object' ? p.tool_input : {}) as Record<string, unknown>

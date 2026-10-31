@@ -65,6 +65,8 @@ A step you press **Not now** on is skipped if it is optional, and refused if it 
 
 When a task needs no commit, push or pull request, the agent asks once: a **Skip these steps?** card lists the steps and its reason, and **Skip all three** skips them together, or **Keep them** leaves them. Nothing is skipped until you press it. If a run cannot go on, open it in the Runs tab and press **End this run**: what is left is set aside and the agent is told to stop.
 
+Opening a run in the Runs tab shows its story in the order it happened: each step, the work added to it (and the step it was at), the commits, and the commands that failed. A failed git, test, build or lint command is a red line with a label (**identity**, **network**, **permission**, **hook**, **tests**, **build**, **lint**) that opens to the command and what it said; **Trouble only** hides the rest. Work added to a run is drawn in the flow as its own branch of steps (marked **item 2** and so on): it leaves the main chain at the step the run had reached and rejoins it at the first step all the work shares, and each card says what it is for. A command that failed shows on its step's card and in the strip above the chat.
+
 ## Approve a plan, checks and steps
 
 - A **Plan gate** panel opens in the chat. Answer the open questions (a plan with none says the agent asked no questions), click **＋ Add a note for name** for a note that goes with the approval, then **Approve plan**, or **Request changes** and **Send back**. **Let name edit without approval** lifts the hold.

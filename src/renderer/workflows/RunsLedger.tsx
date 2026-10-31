@@ -99,6 +99,43 @@ function EndRun({ run }: { run: Run }) {
   )
 }
 
+/** The story of a run, in the order it happened: each step, the work added to it, the commits, and the commands that failed, a failure opening to what the command said. */
+function RunStory({ run, now }: { run: Run; now: number }) {
+  const [only, setOnly] = useState(false)
+  const all = timelineOf(run, now)
+  const trouble = (e: { kind: string }) => e.kind === 'bad' || e.kind === 'trouble'
+  const shown = only ? all.filter(trouble) : all
+  return (
+    <div className="rb-story">
+      <div className="rb-filter" role="group" aria-label="What to show">
+        <button className={only ? '' : 'on'} aria-pressed={!only} onClick={() => setOnly(false)}>Everything</button>
+        <button className={only ? 'on' : ''} aria-pressed={only} onClick={() => setOnly(true)}>Trouble only</button>
+        <span className="muted">{only ? `${shown.length} of ${all.length}` : all.length} events</span>
+      </div>
+      <ol className="rb-tl">
+        {shown.map((e, i) => (
+          <li key={i} className={e.kind}>
+            <span className="at mono">{e.at === 0 ? 'start' : `+${formatDuration(e.at)}`}</span>
+            <i className="dot" aria-hidden="true" />
+            <span className="rb-line">
+              <b>{e.text}</b>
+              {e.step && !e.text.startsWith(e.step) && <span className="rb-stag">{e.step}</span>}
+              {e.sub && <span className="muted"> · {e.sub}</span>}
+              {e.fail && (
+                <details className="rb-fail">
+                  <summary><i className={`rb-chip ${e.fail.label}`}>{e.fail.label}</i><span>{e.fail.error.split('\n').find((l) => l.trim()) ?? 'it failed'}</span></summary>
+                  <code>{e.fail.command}</code>
+                  <pre>{e.fail.error}</pre>
+                </details>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 /** One run in a panel beside the ledger: the same flow chart as the chat's Workflow tab, why steps were skipped or refused, the items added to it, how it went and its commits. */
 function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend | undefined; ctx: StepContext; now: number; onClose: () => void }) {
   const lines = stepLines(run, ctx)
@@ -132,15 +169,7 @@ function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend 
           {run.items!.map((it, i) => <li key={it.t}><span className="mono">{i + 2}</span><span>{it.title}</span><em>added +{formatDuration(it.t - run.startedAt)}</em></li>)}
         </ol>
       )}
-      <ol className="rb-tl">
-        {timelineOf(run, now).map((e, i) => (
-          <li key={i} className={e.kind}>
-            <span className="at mono">{e.at === 0 ? 'start' : `+${formatDuration(e.at)}`}</span>
-            <i className="dot" aria-hidden="true" />
-            <span>{e.text}</span>
-          </li>
-        ))}
-      </ol>
+      <RunStory run={run} now={now} />
       {commits.length > 0 && (
         <ul className="rb-commits" aria-label="Commits">
           {commits.map((c) => (

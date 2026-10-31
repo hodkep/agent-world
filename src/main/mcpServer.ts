@@ -88,7 +88,7 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
-    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } }
+    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string; item?: number }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } }
     /** The agent puts a step back to open (one it reported, or one the person refused, once it is the right time to ask again); says its name. */
     reopenStep: (callerId: string, step: string, why: string) => string
     /** The agent asks the person to skip steps that are not optional, with its reason; says their names. */
@@ -560,11 +560,11 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     'step_done',
     {
       description: 'Say that a step of your task\'s workflow that you do is finished, in order. Call it only after the work of the step has finished and you have seen its result, never in the same batch as the commands that do that work: the person is asked about the next step as soon as you report. With no step it reports the next one you have not reported. Pass skipped, with why, for an optional step that clearly does not apply to this task: never skip a design step for work the person will see.',
-      inputSchema: { step: z.string().max(40).optional().describe('The step id from the workflow you were given'), skipped: z.boolean().optional().describe('true to skip an optional step that does not apply'), why: z.string().max(200).optional().describe('Why it does not apply, in a few words; required to skip') }
+      inputSchema: { step: z.string().max(40).optional().describe('The step id from the workflow you were given'), skipped: z.boolean().optional().describe('true to skip an optional step that does not apply'), why: z.string().max(200).optional().describe('Why it does not apply, in a few words; required to skip'), item: z.number().int().min(2).max(50).optional().describe('The number of the work added to the task that this step is for (item 2 is the first added); leave it out for the main task') }
     },
-    async ({ step, skipped, why }) => {
+    async ({ step, skipped, why, item }) => {
       try {
-        const r = wf.stepDone(callerId, step, { skipped, why })
+        const r = wf.stepDone(callerId, step, { skipped, why, ...(item !== undefined && { item }) })
         if (r.skipped) return { content: [{ type: 'text' as const, text: `Step "${r.done}" skipped${why ? `: ${why}` : ''}.${nextStepLine(r.next)}` }] }
         return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}${nextStepLine(r.next)}${r.waiting ? (r.hint ?? '') : ''}` }] }
       } catch (err) {

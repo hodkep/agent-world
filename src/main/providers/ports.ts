@@ -200,6 +200,8 @@ export interface EventSourceOptions {
   blockEdit?: (agentId: string, file: string, cwd: string) => string | null
   /** The agent is about to call a tool, with what it was given. */
   onToolUse?: (agentId: string, tool: string, input: Record<string, unknown>) => void
+  /** A tool call failed (a command, say): what it was and what it said. */
+  onToolFailed?: (agentId: string, tool: string, input: Record<string, unknown>, error: string) => void
   /**
    * Requests the agent made to the model, counted exactly by the program (shared/tokens.ts). `cursor` is the provider's own bookmark of how far it has
    * read (a program that is read from a file, not told), which the app keeps with the agent and gives back as `usageCursor`.

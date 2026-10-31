@@ -10,7 +10,7 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  * Shown above the agent's chat while a task is open (and again in its Workflow tab), so the calls that move the run need no lines in the conversation.
  */
 export function RunTrack({ track, seed, agentName, variant = 'full', landing, onReopen }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar'; /** Git held the agent's merge: the marker that says so, in place of what the run waits for. */ landing?: LandingPill | null; /** The person opens the band again from a marker they had said not yet to. */ onReopen?: () => void }) {
-  const said = landing?.text ?? track.waiting ?? track.note
+  const said = landing?.text ?? track.waiting ?? track.trouble ?? track.note
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
   const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : s.state === 'skipped' ? 'forward' : ICON[s.kind])
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)

@@ -136,8 +136,10 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
  */
 export function stepStates(run: Run, ctx: StepContext, roundN?: number): StepState[] {
   const wf = run.workflow
-  const round = run.rounds.find((r) => r.n === (roundN ?? run.rounds.length))
-  if (!wf || !round) return []
+  const found = run.rounds.find((r) => r.n === (roundN ?? run.rounds.length))
+  if (!wf || !found) return []
+  // What was reported for work added to the run belongs to its lane (see lanesOf), not to the main chain.
+  const round = found.steps.some((l) => l.item !== undefined) ? { ...found, steps: found.steps.filter((l) => l.item === undefined) } : found
   let held = false
   return wf.steps.map((s) => {
     const c = s.kind === 'check' ? checkOwn(s, round, ctx) : undefined
@@ -273,3 +275,43 @@ export const stepAskedAgain = (name: string) => `The person asks for your step "
 
 /** What the agent is told when the person ends its run: it stops work on it, and nothing more is asked of it. */
 export const runEnded = (title: string) => `The person ended your task "${title}": what was left is set aside. Stop work on it; nothing more is asked of you for it.`
+
+/** One piece of work added to a run, as its own branch: its steps and how they stand, and where it leaves the main chain and rejoins it. */
+export interface Lane {
+  /** Its number: the run's own task is 1, so the first added is 2. */
+  item: number
+  title: string
+  /** When it was added. */
+  at: number
+  /** The main step the run had reached when it was added; none when it was added before any step was reported. */
+  fork?: string
+  /** The first step after the lane, which is shared by all the work. */
+  join?: string
+  steps: StepState[]
+}
+
+/** The steps an added piece of work has of its own: those before the first step that asks the person (the plan counts, though it asks), so the review, the commit and the push stay shared. */
+export function laneStepIds(wf: RunWorkflow): string[] {
+  const at = wf.steps.findIndex((s) => s.kind !== 'plan' && (s.start === 'run' || s.gate === 'approve' || s.kind === 'approve' || isLanding(s.kind)))
+  return (at < 0 ? wf.steps : wf.steps.slice(0, at)).map((s) => s.id)
+}
+
+/** The work added to a run in its latest round, each as a lane: the steps before the first one that asks, with the states of what was reported for it. */
+export function lanesOf(run: Run, ctx: StepContext): Lane[] {
+  const wf = run.workflow
+  const round = run.rounds[run.rounds.length - 1]
+  if (!wf || !round || !run.items?.length) return []
+  const ids = laneStepIds(wf)
+  if (ids.length === 0) return []
+  const laneSteps = wf.steps.filter((s) => ids.includes(s.id))
+  const join = wf.steps.find((s) => !ids.includes(s.id))?.id
+  return run.items.map((it, i) => {
+    const n = i + 2
+    // The plan resubmitted for the added work is the first one submitted after it was added.
+    const plan = round.plan && round.plan.submittedAt >= it.t ? round.plan : undefined
+    const mine = { ...round, plan, starts: undefined, steps: round.steps.filter((l) => l.item === n).map(({ item: _item, ...l }) => l) } as Round
+    const virtual: Run = { ...run, workflow: { ...wf, steps: laneSteps }, rounds: run.rounds.map((r) => (r.n === round.n ? mine : r)) }
+    const reached = wf.steps.filter((s) => round.steps.some((l) => l.item === undefined && l.step === s.id && l.t <= it.t)).at(-1)
+    return { item: n, title: it.title, at: it.t, ...(reached && { fork: reached.id }), ...(join && { join }), steps: stepStates(virtual, ctx) }
+  })
+}
