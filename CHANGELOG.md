@@ -4,6 +4,28 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-01
+
+![Agent World 0.9.2: a livelier agent list, Agent Memory in place of Tools, and a terminal pane beside the chat](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.2/docs/images/releases/0.9.2/poster.png)
+
+### Added
+
+- Agents: the agent list shows each agent's own character with a speech bubble for what it is doing, the allowance left on its account on a board, and a width you can drag.
+- Panel: the tab strip is bevelled stickers that name the open tab, and every tab when there is room.
+- Panel: the Tools tab becomes Agent Memory with notes only, grouped by day and filtered by who wrote them, and the More menu's Tools tile is now Memory; the Library's list of what it did scrolls in its own box; Traces groups by day with an agent picker and a dropped-only filter.
+- Office: with the office hidden, the question, permission, plan and step cards, the find bar, the status row and the suggestions keep to the centred column.
+- Terminal: with the office hidden the terminal opens in a pane beside the chat, from Run or from a Terminal button in the agent list, and its edge can be dragged.
+- Chat: messages waiting in Claude's queue show in the chat, with a button that takes the queue back.
+
+### Changed
+
+- Tools: MCP servers and plugins no longer have a screen of their own; they are in the terminal's `/mcp` and in Settings.
+
+### Fixed
+
+- Chat: an agent in a command that runs past a minute is still shown working.
+- Performance: the login shell's path is read once and refreshed in the background, since starting a shell on every sign-in check froze the app for seconds; `AW_PERF=1` records stalls and long tasks in `perf.log`.
+
 ## [0.9.1] - 2026-10-31
 
 ![Agent World 0.9.1: a hidden-office layout with a foldable agent list, a Draw button on pictures, and Runs and Insights in plain numbers](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.1/docs/images/releases/0.9.1/poster.png)
