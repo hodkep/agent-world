@@ -14,7 +14,7 @@ const TESTS = /\b(vitest|jest|pytest|mocha|playwright test|node --test)\b|\b(npm
 const BUILD = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?build\b|\btsc\b|\bcargo build\b|\bgo build\b|\bmake build\b|\b(electron-)?vite build\b|\bwebpack\b/
 const LINT = /\beslint\b|\bprettier\b|\b(npm|pnpm|yarn|bun)\s+(run\s+)?lint\b|\bruff\b|\bgolangci/
 
-const IDENTITY = /author identity unknown|please tell me who you are|unable to auto-detect (an )?email|empty ident name/i
+const IDENTITY = /author identity unknown|please tell me who you are|unable to auto-detect (an )?email|empty ident name|no (email|name) was given/i
 const NETWORK = /could not resolve host|connection (timed out|refused|reset)|network is unreachable|unable to access|early eof|operation timed out|temporary failure in name resolution/i
 const PERMISSION = /permission (to .+ )?denied|authentication failed|could not read (username|password)|access denied|publickey|repository not found|403/i
 const HOOK = /agent world: |hook (declined|failed|rejected)|pre-(commit|push)|commit-msg|husky/i
