@@ -4413,7 +4413,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb.with-side .rb-tab th { white-space: nowrap; } .rb.with-side .rb-tab th small { display: none; }
 .se.fills > .se-body.has-pick { flex-direction: row; gap: 0; align-items: stretch; }
 .se.fills > .se-body.has-pick > .fl-wrap.fill { flex: 1 1 0; min-width: 0; }
-.se.fills > .se-body.has-pick > .se-pick.dock { overflow: auto; align-self: stretch; }
+.se.fills > .se-body.has-pick > .se-pick.dock { overflow: visible; align-self: stretch; }
 
 /* The folded card is one line again: a row that out-weighs the dialog's column, text cut with an ellipsis, buttons whole. */
 .inline-need.dialog.plan-gate.gate-line { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px 10px; }
