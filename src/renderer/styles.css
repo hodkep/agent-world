@@ -102,6 +102,11 @@ main aside.solo:not(.drawer) { width: auto; flex: 1 1 0; min-width: 0; border-le
 aside.solo .chat-log { padding-inline: var(--col); }
 aside.solo .chat-banner, aside.solo .composer { padding-inline: var(--col); }
 aside.solo .profile-dock { margin-inline: var(--col); }
+/* Everything that sits over or beside the message box keeps to the same centred column: the suggestions, the status row, a side answer, the question, permission, plan and step cards, the find bar and the jump button. */
+aside.solo .statusrow, aside.solo .btw, aside.solo .inline-need.dialog { margin-inline: var(--col); }
+aside.solo .chat-tools { padding-inline: var(--col); }
+aside.solo .suggest { left: var(--col); right: var(--col); }
+aside.solo .jump { right: calc(var(--col) + 14px); }
 aside.solo .composer { background: transparent; border-top: 0; }
 .stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
 .stage:active { cursor: grabbing; }
@@ -294,17 +299,6 @@ aside:not(.wide) .change-list { width: 190px; }
 .history .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .history .when { color: var(--muted); font-size: 12px; flex: none; }
 
-.tools { padding: 10px 12px; overflow: auto; flex: 1; min-height: 0; }
-.tools-head { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 4px; }
-.tools ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.tools li { flex: none; display: grid; grid-template-columns: 1.2em 1fr; column-gap: 8px; row-gap: 2px; padding: 6px 8px; background: var(--panel-2); }
-.tools .grow { min-width: 0; overflow-wrap: anywhere; }
-.tools .grow .detail { display: block; }
-.tools .status { grid-column: 2; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.tools .health-ok .mark { color: var(--ok-text); }
-.tools .health-attention .mark { color: var(--accent); }
-.tools .health-failed .mark { color: var(--danger-text); }
-.tools .health-off .mark { color: var(--muted); }
 
 /* ---- "Needs you" strip and the 8-bit input box ------------------------------------------------ */
 .blip { width: 10px; height: 10px; flex: none; background: var(--danger); box-shadow: 0 0 0 2px var(--ink); animation: blip 1s steps(1) infinite; }
@@ -444,11 +438,6 @@ button.choice.on:hover { background: color-mix(in srgb, var(--selected), var(--a
 
 /* Empty state for the world before any agent exists. */
 .hint { line-height: 1.5; }
-.tools .px { box-shadow: none; background: currentColor; margin-top: 4px; }
-.tools .health-off .px { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); }
-.tools .health-ok .px { color: var(--ok); }
-.tools .health-attention .px { color: var(--accent); }
-.tools .health-failed .px { color: var(--danger); }
 .hire-row:last-child { align-items: center; }
 .diff { position: relative; }
 .diff[data-hint]::before { content: attr(data-hint); position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; pointer-events: none; color: var(--muted); }
@@ -823,10 +812,6 @@ nav.roster[hidden], section.agent-head[hidden] { display: none; }
 .group-head { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; padding: 6px 8px 2px; }
 .group-tag { font-size: 11px; padding: 0 6px; opacity: .7; cursor: pointer; background: none; border: 1px dashed currentColor; }
 
-.add-server { display: flex; gap: 6px; align-items: center; margin: 4px 0 8px; flex-wrap: wrap; }
-.add-server input { flex: 1; min-width: 110px; }
-.tools li button { font-size: 11px; padding: 1px 8px; cursor: pointer; margin-left: 6px; }
-.tools .hint.bad { color: var(--danger-text); }
 
 .btw { margin: 0 12px 6px; padding: 8px 10px; border: 2px solid var(--think); font-size: 13px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
 .btw-q { grid-column: 1; opacity: .75; }
@@ -956,16 +941,14 @@ svg.pxi { display: block; flex: none; }
 .hc-switch { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; font: 12px Menlo, Consolas, monospace; }
 .traces { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--well); }
 .traces-head { display: flex; align-items: baseline; gap: 10px; }
-.traces ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.traces ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.traces .day-group + .day-group { margin-top: 6px; }
+.trace-row[aria-expanded='true'] { box-shadow: 0 0 0 2px var(--accent); }
 .trace-row { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto auto; column-gap: 10px; row-gap: 2px; padding: 8px 10px; background: var(--panel); border: 2px solid var(--ink); color: var(--text); cursor: pointer; }
 .trace-row .status { float: none; }
 .trace-row .trace-time { font-size: 11px; color: var(--muted); }
 .trace-row .detail { grid-column: 1 / -1; color: var(--muted); font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .trace-row .detail.full { -webkit-line-clamp: unset; white-space: pre-wrap; }
-.tools li { display: flex; align-items: center; gap: 8px; }
-.tools li .mark { flex: none; }
-.tools li .grow { flex: 1; min-width: 0; }
-.tools li .status { flex: none; }
 
 .grid-area { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; background: var(--well); overflow: hidden; }
 .grid-area .grid-view { position: static; flex: 1; min-height: 0; }
@@ -2326,11 +2309,11 @@ button.ev-chip:hover:not(:disabled), .ev-chip.open { border-color: var(--accent)
 .paper-f { margin: 0; font-size: 11px; color: var(--panel-2); }
 
 /* The agent's Library tab: what it was told beside what it did. */
-.al { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.al { flex: 1; min-height: 0; overflow: hidden; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .al-sum { margin: 0; font-size: 14px; line-height: 1.5; }
-.al-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.al-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 20px; }
 .al-cols h4 { margin: 0; font-size: 13px; font-weight: 600; }
-.al-cols section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.al-cols section { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
 .al-tok { color: var(--muted); font-size: 11px; }
 .al-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .al-items li { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -4496,3 +4479,32 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb-story .rb-line:has(> .rb-fail) { flex-wrap: wrap; }
 .rb-story .rb-line > .rb-fail { flex: 1 0 100%; }
 .rb-story .rb-tl li { align-items: center; }
+
+/* Library: each column is as tall as the tab and scrolls on its own, so a long history does not stretch the page. */
+.al-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.al-did > header { display: flex; align-items: center; gap: 8px; }
+.seg { display: inline-flex; box-shadow: 0 0 0 2px var(--ink); }
+.seg button { border: 0; padding: 1px 8px; font-size: 11px; color: var(--muted); }
+.seg button[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+
+/* Agent Memory and Traces: filter chips and day headings. */
+.memory { padding: 12px; overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.memory-head { display: flex; align-items: baseline; gap: 10px; }
+.memory-head b { font-size: 15px; }
+.memory-add { display: flex; gap: 6px; align-items: center; padding: 8px; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); }
+.memory-add input { flex: 1; min-width: 0; }
+.memory-filters, .traces-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font-size: 11px; padding: 1px 8px; cursor: pointer; }
+button.chip[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
+.memory ul { list-style: none; margin: 0; padding: 0; }
+.memory li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.memory .grow { overflow-wrap: anywhere; line-height: 1.45; }
+.memory .detail { display: block; color: var(--muted); font-size: 11px; }
+.memory li button { font-size: 11px; padding: 1px 8px; opacity: 0.6; }
+.memory li:hover button, .memory li button:focus-visible { opacity: 1; }
+.memory .hint.bad { color: var(--danger-text); }
+.who { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; color: var(--ink); background: var(--accent); }
+h5.day { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+h5.day::after { content: ''; flex: 1; border-top: 1px dashed var(--dim); }
+.memory label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.al-scroll > * { flex: none; }

@@ -331,6 +331,9 @@ export interface AwApi {
   /** Merge (or squash) the branch into the base branch; with `cleanup` the agent, its worktree and branch go too. */
   finishRun(agentId: string, o: { squash: boolean; message: string; cleanup: boolean; /** Land although the merge gate holds it back; the choice is recorded. */ anyway?: boolean }): Promise<{ base: string; removed: boolean }>
   /** Notes saved for this agent's project, newest first (shared by every agent in it). */
+  /** True when the app was started with AW_PERF=1: the page then reports its long tasks. */
+  perfEnabled(): Promise<boolean>
+  perfLog(entry: object): void
   memoryList(agentId: string): Promise<{ id: string; text: string; by: string; at: number }[]>
   memoryAdd(agentId: string, text: string): Promise<{ id: string; text: string; by: string; at: number }>
   memoryForget(agentId: string, entryId: string): Promise<void>
