@@ -4,6 +4,17 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-31
+
+![Agent World 0.9.1: a hidden-office layout with a foldable agent list, a Draw button on pictures, and Runs and Insights in plain numbers](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.1/docs/images/releases/0.9.1/poster.png)
+
+### Added
+
+- Office: with the office hidden, the panel keeps each tab's surfaces with the chat centred, the agent list folds and opens on hover, the profile card docks above the chat, and Mod+Alt+O shows or hides the office.
+- Chat: a picture opened large has a Draw button, and E opens the drawing tools on a picture or a diagram.
+- Workflows: Runs shows numbers and two plain charts, Insights shows what keeps going wrong in each workflow, and the run panel is the story with its steps as a strip.
+- Workflows: step settings dock beside the builder flow, a tall flow keeps a readable size, the save buttons say what they do, and cards that fold, the workflow list and the Workflow tab use the width they have.
+
 ## [0.9.0] - 2026-10-31
 
 ![Agent World 0.9.0: icon tabs, grouped menus, a Hide office button, and workflows that can skip what does not apply](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.0/docs/images/releases/0.9.0/poster.png)
