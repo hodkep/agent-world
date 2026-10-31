@@ -34,6 +34,7 @@ fi
 # Older folders of the same kind go (a beta has a dash in its version). A newer one, or one of the other kind, stays, so mirroring an old release changes nothing else.
 kind() { case "$1" in *-*) echo beta;; *) echo stable;; esac; }
 for d in $(rclone lsf "$BUCKET" --dirs-only | sed 's#/$##'); do
+  [[ "$d" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]] || continue # only version folders: latest/ and anything else is left alone
   v="${d#v}"; [ "$v" = "$VER" ] && continue; [ "$(kind "$v")" = "$(kind "$VER")" ] || continue
   [ "$(printf '%s\n%s\n' "${v%%-*}" "${VER%%-*}" | sort -V | head -1)" = "${v%%-*}" ] || continue
   echo "removing old mirror folder $d"; rclone purge "$BUCKET/$d" "${FLAGS[@]}"
