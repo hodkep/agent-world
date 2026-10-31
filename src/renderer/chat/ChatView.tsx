@@ -47,6 +47,7 @@ import { HelpCard } from './HelpCard'
 import { arrange, type Desc, type Pack } from '../../shared/chatLayout'
 import { PackView, WidgetSlot, useChatLayout, useChatMod } from './layoutUi'
 import { ChatMenu } from './ChatMenu'
+import { useClock } from './useClock'
 import { noteKey, noteSent } from './ticks'
 import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
@@ -206,14 +207,13 @@ export function ChatView({
   const closeNeed = () => setClosedNeed(needKey)
   // How long this turn has been going, counted live: from your last message, or from when this view saw the agent start
   // if it started by itself (a subagent report, a queued message).
-  const [now, setNow] = useState(() => Date.now())
+  // Counts up only while this chat is showing: every agent's chat is mounted, and one that is behind the others is not redrawn each second for a time nobody reads.
+  const now = useClock(busy && visible)
   const busySince = useRef(0)
   const idleAt = useRef(0)
   useEffect(() => {
     if (!busy) return void (idleAt.current = Date.now(), (busySince.current = 0))
     busySince.current ||= Date.now()
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
   }, [busy])
   const lastUserAt = items.findLast((i) => i.kind === 'user')?.at ?? 0
   const turnStart = lastUserAt >= idleAt.current ? lastUserAt : busySince.current
