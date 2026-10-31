@@ -1,0 +1,11 @@
+{
+  "version": "0.9.2",
+  "tagline": "See who is doing what.",
+  "subtitle": "A livelier agent list, Agent Memory in place of Tools, and a terminal pane beside the chat.",
+  "cards": [
+    { "kicker": "Agents", "title": "An agent list that shows the work", "text": "Each agent has its own character with a speech bubble for what it is doing, the allowance left on its account, and a width you can drag.", "chips": ["Allowance", "Resizable"] },
+    { "kicker": "Memory", "title": "Agent Memory replaces Tools", "text": "The notes every agent shares, grouped by day and filtered by who wrote them. Traces groups by day too.", "chips": ["Notes", "Traces by day"] },
+    { "kicker": "Terminal", "title": "A terminal beside the chat", "text": "With the office hidden, the terminal opens in a pane beside the chat, and its edge can be dragged.", "chips": ["Hide office", "Draggable"] }
+  ],
+  "also": ["Queued messages show in the chat", "Long commands still show working", "No more freezes from the login shell", "The tab strip names the open tab"]
+}
