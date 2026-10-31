@@ -139,6 +139,9 @@ describe('is Claude visibly working?', () => {
     expect(looksWorking(`· Doing… (1s · thinking)\n${idle}`)).toBe(true)
     expect(looksWorking(`✻ Churning… (running PreToolUse hooks… 0/4 · 4s · ↓ 113 tokens)\n${idle}`)).toBe(true)
     expect(looksWorking(`Working (esc to interrupt)\n${idle}`)).toBe(true)
+    // Past a minute the spinner counts in minutes and seconds: still working, or the chat shows an agent in a long command as idle.
+    expect(looksWorking(`* Envisioning… (8m 6s · ↓ 1.2k tokens)\n${idle}`)).toBe(true)
+    expect(looksWorking(`· Doing… (1h 2m 3s · thinking)\n${idle}`)).toBe(true)
   })
 
   it('is false for an idle screen, even one that has just finished a turn', () => {
