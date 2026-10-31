@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Agent World {{version}}</title>
+<style>
+/* The look of the earlier posters: the app's palette (DESIGN.md), a faint grid, flat cards with a hard shadow. Drawn at 1280x720 and zoomed 2x. */
+:root{--bg:#12101a;--panel:#1a1726;--panel2:#221e32;--well:#0c0b12;--line:#2c3350;--text:#e4e4ee;--muted:#a4a2b8;--accent:#f2c230;--think:#6ad0e0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,system-ui,sans-serif}
+#poster{width:1280px;height:720px;position:relative;overflow:hidden;background:var(--bg);zoom:2}
+.grid{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:32px 32px;opacity:.18}
+.head{position:absolute;left:48px;top:34px}.ver{font:700 14px Menlo,monospace;letter-spacing:.2em;color:var(--accent);text-transform:uppercase}
+.title{font:800 60px/1.05 -apple-system,system-ui,sans-serif;letter-spacing:-.02em}.title em{font-style:normal;color:var(--accent)}
+.tag{position:absolute;right:48px;top:50px;width:620px;text-align:right}.tag b{display:block;font-size:30px;line-height:1.15;letter-spacing:-.01em}.tag span{display:block;margin-top:6px;font-size:16px;color:var(--muted)}
+.pcards{position:absolute;left:48px;right:48px;top:150px;height:410px;display:grid;grid-template-columns:repeat(var(--n),1fr);gap:24px}
+.pcard{background:var(--panel);box-shadow:0 5px 0 #000,inset 0 0 0 2px var(--line);padding:24px;display:flex;flex-direction:column;min-width:0}
+.psub{font:12px Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.pcard h3{margin:6px 0 8px;font-size:26px;line-height:1.15;letter-spacing:-.01em}.pcard p{margin:0;color:var(--muted);font-size:16px}
+.pbig{margin-top:22px;font:800 56px/1 Menlo,monospace;color:var(--accent);letter-spacing:-.02em}.pbiglabel{margin-top:6px;font:12px Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}.pcard .pchips{margin-top:auto;padding-top:18px}
+.pchip{font:600 12px Menlo,monospace;padding:4px 10px;background:var(--well);box-shadow:inset 0 0 0 2px var(--line);color:var(--think)}
+.palso{position:absolute;left:48px;right:48px;top:592px}.palso .psub{color:var(--muted);margin-bottom:6px}
+.foot{position:absolute;left:48px;bottom:10px;font:11px Menlo,monospace;color:var(--muted)}
+</style></head><body>
+<div id="poster"><div class="grid"></div>
+ <div class="head"><div class="ver">Release</div><div class="title">Agent World <em>{{version}}</em></div></div>
+ <div class="tag"><b>{{tagline}}</b><span>{{subtitle}}</span></div>
+ {{cards}}
+ {{also}}
+ <div class="foot">{{footer}}</div>
+</div></body></html>

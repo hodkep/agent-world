@@ -26,6 +26,14 @@ One sentence, the one under Added in the changelog.
 ![The Notes window with a checklist whose lines became tasks](https://raw.githubusercontent.com/hodkep/agent-world/v0.6.0/docs/images/releases/0.6.0/notes.png)
 ```
 
+## The release poster
+
+A release with features worth a picture has a poster at the top of its notes: `docs/images/releases/<version>/poster.png`, 2560x1440. It is optional; a release of fixes needs none.
+
+1. Write `docs/images/releases/<version>/poster.json` from the changelog section: `version`, `tagline` (at most 80 characters), an optional `subtitle`, `cards` (2 to 4, each with `kicker`, `title`, `text`, and optionally `big`, a figure of at most 10 characters, with its `bigLabel`, and up to 4 `chips`), an optional `also` (up to 6 short items for the smaller changes) and an optional `footer`. Numbers on a poster are either measured or marked as sample data.
+2. `pnpm release:poster docs/images/releases/<version>/poster.json docs/images/releases/<version>/poster.png`. It draws the template `scripts/poster-template.html` with Electron, which the repo already has, and refuses content that would not fit, saying which field.
+3. Look at the picture, then commit the `.json` and the `.png` in the release pull request and point the changelog and the notes at the tag URL, as above.
+
 ## Check a build before you tag it
 
 `pnpm run pack` builds the app folder for this computer (it downloads the git that is bundled with the app first, see below). Start it the way Finder does, with a bare path and a home folder of its own, and the bundled git forced on:
