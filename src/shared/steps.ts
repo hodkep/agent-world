@@ -324,7 +324,7 @@ export function lanesOf(run: Run, ctx: StepContext): Lane[] {
 
 /** The step the person refused and has not yet said what to do about, with the names of the steps still to come after it: what the card that asks "what next?" shows. */
 export function refusedAsk(run: Run, ctx: StepContext): { id: string; name: string; rest: string[]; skippable: boolean } | undefined {
-  if (run.status === 'stopped' || !run.workflow) return undefined
+  if (run.status !== 'open' || !run.workflow) return undefined
   const states = stepStates(run, ctx)
   const at = states.findIndex((s) => s.state === 'failed' && s.kind !== 'check' && s.kind !== 'audit')
   const found = states[at]

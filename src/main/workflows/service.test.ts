@@ -1333,6 +1333,18 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(stateOf(wf)[2]).toBe('commit:waiting')
   })
 
+  it('a refused step asks nothing once its run is over: an old finished run never raises the card again', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    wf.declineStep(id, 'commit')
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })?.id).toBe('commit')
+    wf.done('a1', 'Stopped at the commit.')
+    expect(wf.runs()[0]!.status).toBe('done')
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })).toBeUndefined()
+  })
+
   it('a run that did nothing is dropped when no workflow was needed; one with work recorded is not', () => {
     const { wf } = started()
     const id = wf.runs()[0]!.id
