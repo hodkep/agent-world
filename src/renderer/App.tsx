@@ -1372,7 +1372,7 @@ export function App() {
     clone: (model) => clone(a, model),
     compact: () => void run(() => window.aw.chatSend(a.id, '/compact')),
     handbook: () => openHandbook(a),
-    tools: () => setView('tools'),
+    memory: () => setView('tools'),
     rename: () => setRenaming(a.id),
     group: () => setGrouping(true),
     restart: () =>

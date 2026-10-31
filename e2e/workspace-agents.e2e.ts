@@ -108,7 +108,7 @@ test('the message box holds the controls: icons, model, usage ring and the more 
     await expect(box.getByRole('button', { name: /^(Send|Stop)$/ })).toBeVisible()
     await box.getByRole('button', { name: 'More actions' }).click()
     const menu = page.getByRole('menu', { name: 'More actions' })
-    for (const n of ['Review', 'Clone', 'Handbook', 'Tools', 'Rename', 'Remove agent']) await expect(menu.getByRole('menuitem', { name: new RegExp(n) })).toBeVisible()
+    for (const n of ['Review', 'Clone', 'Handbook', 'Memory', 'Rename', 'Remove agent']) await expect(menu.getByRole('menuitem', { name: new RegExp(n) })).toBeVisible()
     if (SHOTS) await page.screenshot({ path: join(SHOTS, 'more.png') })
     await menu.getByRole('menuitem', { name: /Clone/ }).click()
     await expect(menu.getByRole('menuitem', { name: 'Same model' })).toBeVisible()

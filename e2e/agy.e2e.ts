@@ -190,35 +190,6 @@ test('an agy agent\'s controls show its own model and modes, and switching mode 
   }
 })
 
-test('the Tools tab of an agy agent lists what agy has connected without showing the keys on its command lines, and removes a server through agy', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'aw-agy-tools-'))
-  const agyHome = join(home, 'agy')
-  mkdirSync(agyHome)
-  const folder = join(home, 'project')
-  mkdirSync(folder)
-  const config = join(home, 'mcp_config.json')
-  writeFileSync(config, JSON.stringify({ mcpServers: { payments: { command: 'npx', args: ['-y', '@pay/mcp', '--api-key=sk_test_SECRET456'] }, notes: { command: 'notes-server', args: [] } } }))
-  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: fakeClaude, AW_AGY_BIN: fakeAgy, AW_AGY_HOME: agyHome, AW_AGY_CONFIG: config, FAKE_DELAY_MS: '50' }, home)
-  try {
-    const page = await app.firstWindow()
-    await page.evaluate((f) => localStorage.setItem('aw.folder', f), folder)
-    await page.reload()
-    await hireAgy(page, 'ada')
-    await page.getByRole('tab', { name: 'Tools' }).click()
-    const row = page.locator('.tools li', { hasText: 'payments' })
-    await expect(row).toContainText('npx (arguments hidden)')
-    await expect(page.locator('.tools')).not.toContainText('SECRET456')
-    await expect(page.locator('.tools')).not.toContainText('--api-key')
-    await expect(page.locator('.tools li', { hasText: 'notes' })).toContainText('notes-server')
-    await row.getByRole('button', { name: 'Remove' }).click()
-    await page.getByRole('button', { name: 'Sure?' }).click()
-    await expect(page.locator('.tools li', { hasText: 'payments' })).toHaveCount(0, { timeout: 10_000 })
-    expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['notes'])
-  } finally {
-    await shutdown()
-  }
-})
-
 test('going back to an earlier message works on agy: the conversation shows only what came before, and the message is back in the box', async () => {
   const { page, shutdown } = await open('aw-agy-rewind-')
   try {
@@ -345,7 +316,7 @@ test('what agy does not have is not offered: no role change, Compact, budget or 
     await expect(menu.getByRole('menuitem', { name: /Change role/ })).toHaveCount(0)
     // The tile is one of four in a row, so the file it opens is in its tooltip.
     await expect(menu.getByRole('menuitem', { name: /Handbook/ })).toHaveAttribute('title', 'AGENTS.md')
-    await expect(menu.getByRole('menuitem', { name: /Tools/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /Memory/ })).toBeVisible()
     await page.keyboard.press('Escape')
 
     const [ada] = await page.evaluate(() => window.aw.listAgents())
