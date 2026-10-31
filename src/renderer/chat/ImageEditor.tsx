@@ -25,16 +25,24 @@ const COLORS = [
   { value: '#ffffff', label: 'White' }
 ]
 
-/** A picture attached to a message, full size, with an Edit button that opens the annotation tools. */
+/** A picture attached to a message, full size, with a Draw button (or the E key) that opens the annotation tools. */
 export function AttachmentViewer({ src, name, onSave, onClose }: { src: string; name: string; onSave: (png: Blob) => Promise<void> | void; onClose: () => void }) {
   const [editing, setEditing] = useState(false)
+  useEffect(() => {
+    if (editing) return
+    const key = (e: KeyboardEvent) => {
+      if ((e.key === 'e' || e.key === 'E') && !e.metaKey && !e.ctrlKey && !e.altKey && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) setEditing(true)
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [editing])
   if (editing) return <ImageEditor src={src} name={name} onSave={onSave} onClose={onClose} />
   return (
     <>
       <Lightbox src={src} onClose={onClose} />
-      <button className="lightbox-edit primary" onClick={() => setEditing(true)}>
+      <button className="lightbox-edit primary" onClick={() => setEditing(true)} title="Draw on it with the pen, arrow and text tools (E)">
         <OutlineIcon name="pen" />
-        Edit
+        Draw
       </button>
     </>
   )

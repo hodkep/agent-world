@@ -31,7 +31,7 @@ An agent can draw a diagram in its reply (a flowchart or a sequence diagram) and
 <img src="../images/chat-diagram.png" alt="A reply with a flowchart of five boxes, one of them picked, and a sequence diagram under it" width="720">
 
 - **A diagram** is a picture in the chat. A click on a box picks it (another click picks another), and **Ask about them** adds the picked boxes, with the diagram, to your message. **Add to message** adds the whole diagram. **Clear** lets go of the picks.
-- **Expand**, or a click on the empty part of the diagram, opens it large. Zoom with the buttons or the scroll wheel (**Fit** goes back to 100%), pick boxes, notes or messages to ask about (an arrow cannot be picked), and draw on it. **Let go of** a name takes a pick away.
+- **Expand**, or a click on the empty part of the diagram, opens it large. Zoom with the buttons or the scroll wheel (**Fit** goes back to 100%), pick boxes, notes or messages to ask about (an arrow cannot be picked), and draw on it (**Draw**, or E). **Let go of** a name takes a pick away.
 - **A form** is a card of fields (choices, a slider, boxes to tick) with a button. The fields start as the agent set them. Press the button and the agent is told what the form held when you pressed it. Your answer shows as a sent card with the form's question and each field in words (the label of what you picked, yes or no, what you typed); **What the agent got** under it unfolds the text the agent was sent. A form answers once: its button is greyed afterwards.
 
 <img src="../images/chat-form.png" alt="A form the agent asked with: a choice of pipeline, a batch size slider, a Dry run only box and a Start button" width="720">
@@ -47,7 +47,7 @@ An agent can draw a diagram in its reply (a flowchart or a sequence diagram) and
 <img src="../images/chat-markdown-box.png" alt="The message box with a heading, two bullets, a quote and a line with bold and code, drawn as they were typed, a command and a file tinted" width="400">
 
 - **!** at the start of a message runs it as a shell command.
-- Pictures and files: click **Attach** (the **+**), paste a picture, or drop files on the box. Click a picture's thumbnail, then **Edit**, to mark it up, then **Save**.
+- Pictures and files: click **Attach** (the **+**), paste a picture, or drop files on the box. Click a picture's thumbnail, then **Draw** (or press E), to mark it up, then **Save**.
 - Up Arrow brings back your earlier messages; Ctrl+R searches them.
 - `/btw` is offered in the command list when you type `/`. Type `/btw` and a question: the answer shows in a **Side question** card with **Dismiss**, and the agent's own work is not interrupted.
 

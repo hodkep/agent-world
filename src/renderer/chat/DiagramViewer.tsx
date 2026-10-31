@@ -39,6 +39,7 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
       else if (e.key === '+' || e.key === '=') zoom((s) => s * 1.25)
       else if (e.key === '-') zoom((s) => s / 1.25)
       else if (e.key === '0') zoom(() => 1)
+      else if ((e.key === 'e' || e.key === 'E') && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) void draw()
     }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
@@ -86,7 +87,7 @@ export function DiagramViewer({ svg, picked: first, onClose, onAsk, onDrawn }: {
           <button onClick={() => zoom(() => 1)} title="Fit to the window (0)">Fit</button>
         </div>
         <span className="dv-hint">Click boxes to pick them, and notes and messages in a sequence diagram (not arrows in a flowchart). Scroll to zoom, drag to move.</span>
-        <button onClick={() => void draw()} title="Draw on it with the pen, arrow and text tools">Draw</button>
+        <button onClick={() => void draw()} title="Draw on it with the pen, arrow and text tools (E)">Draw</button>
         <button onClick={onClose} aria-label="Close" title="Close (Esc)">Close</button>
       </div>
       <div
