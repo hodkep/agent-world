@@ -198,4 +198,27 @@ describe('the rail that stays when the office is hidden', () => {
       expect(onWidth).toHaveBeenLastCalledWith(null)
     })
   })
+
+  describe('the Terminal button at the bottom', () => {
+    it('is there with a name, pressed while the terminal pane is open, and calls back when pressed', async () => {
+      const onTerminal = vi.fn()
+      const { host } = await mount({ terminalOpen: false, onTerminal })
+      const btn = host.querySelector<HTMLButtonElement>('button.rail-term')!
+      expect(btn.textContent).toContain('Terminal')
+      expect(btn.getAttribute('aria-pressed')).toBe('false')
+      await act(async () => btn.click())
+      expect(onTerminal).toHaveBeenCalledOnce()
+      document.body.innerHTML = ''
+      const open = await mount({ terminalOpen: true, onTerminal })
+      expect(open.host.querySelector('button.rail-term')!.getAttribute('aria-pressed')).toBe('true')
+    })
+    it('is only there when the rail is given a way to open the terminal, and sits above Fold', async () => {
+      const without = await mount()
+      expect(without.host.querySelector('button.rail-term')).toBeNull()
+      document.body.innerHTML = ''
+      const { host } = await mount({ terminalOpen: false, onTerminal: vi.fn() })
+      const order = [...host.querySelectorAll('button.rail-term, button.rail-fold')].map((b) => b.className.split(' ')[0])
+      expect(order).toEqual(['rail-term', 'rail-fold'])
+    })
+  })
 })

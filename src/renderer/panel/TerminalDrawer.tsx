@@ -3,6 +3,7 @@ import { isBusy } from '../../shared/shells'
 import { RUN_EVENT } from '../chat/runnable'
 import { TerminalView } from './TerminalView'
 import { keysOf } from '../shortcuts'
+import { dragWidth, keyWidth } from './sidePane'
 
 const keyFor = (folder: string) => `aw.terms.${folder}`
 const activeKey = (folder: string) => `aw.termactive.${folder}`
@@ -20,7 +21,7 @@ const readIds = (folder: string): string[] => {
  * user's own shell starting in the project folder. Hiding the drawer only hides it: the shells keep running, and the ones this
  * project had are found again after the window reloads.
  */
-export function TerminalDrawer({ folder, folderName, open, height, onHeight, onHide, onShow, onCount, ask }: { folder: string | null; folderName: string; open: boolean; height: number; onHeight: (h: number) => void; onHide: () => void; onShow: () => void; onCount: (n: number) => void; ask?: { agentId: string; onAttached: () => void } }) {
+export function TerminalDrawer({ folder, folderName, open, height, onHeight, onHide, onShow, onCount, ask, side, sideW, onSideW }: { folder: string | null; folderName: string; open: boolean; height: number; onHeight: (h: number) => void; onHide: () => void; onShow: () => void; onCount: (n: number) => void; ask?: { agentId: string; onAttached: () => void } , /** Drawn as a pane at the right of the window (the office is hidden): `sideW` px wide, its left edge draggable. */ side?: boolean; sideW?: number; onSideW?: (w: number) => void}) {
   const [ids, setIds] = useState<string[]>([])
   // The folder whose terminals `ids` holds: while it is not the open one the list is another project's and is neither shown nor saved.
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
@@ -144,10 +145,38 @@ export function TerminalDrawer({ folder, folderName, open, height, onHeight, onH
     grip.addEventListener('pointerup', up)
   }
 
+  const resizeSide = (e: React.PointerEvent) => {
+    const grip = e.currentTarget
+    grip.setPointerCapture(e.pointerId)
+    const move = (m: Event) => onSideW?.(dragWidth((m as PointerEvent).clientX, window.innerWidth))
+    const up = () => {
+      grip.removeEventListener('pointermove', move)
+      grip.removeEventListener('pointerup', up)
+    }
+    grip.addEventListener('pointermove', move)
+    grip.addEventListener('pointerup', up)
+  }
+
   const nameOf = (id: string) => procs[id]?.front || 'terminal'
   return (
-    <div className="tdrawer" id="terminal-drawer" role="region" aria-label="Terminals" hidden={!open} style={{ height }}>
-      <div className="tgrip" onPointerDown={resize} title="Drag to resize the terminals" />
+    <div className={`tdrawer ${side ? 'side' : ''}`} id="terminal-drawer" role="region" aria-label="Terminals" hidden={!open} style={side ? { width: sideW } : { height }}>
+      <div
+        className="tgrip"
+        onPointerDown={side ? resizeSide : resize}
+        title="Drag to resize the terminals"
+        {...(side && {
+          role: 'separator',
+          'aria-orientation': 'vertical' as const,
+          'aria-label': 'Resize the terminal',
+          tabIndex: 0,
+          onKeyDown: (e: React.KeyboardEvent) => {
+            const w = sideW === undefined ? null : keyWidth(sideW, e.key, window.innerWidth)
+            if (w === null) return
+            e.preventDefault()
+            onSideW?.(w)
+          }
+        })}
+      />
       <div className="ttop">
         <div className="ttabs" role="tablist" aria-label={`Terminals in ${folderName}`}>
           {ids.map((id) => (

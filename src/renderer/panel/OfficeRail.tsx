@@ -40,7 +40,7 @@ function Face({ id, role, state }: { id: string; role: Role; state: 'idle' | 'wo
 }
 
 /** The strip left of the chat while the office is hidden: the way back to it, and each agent with its name and whether it is at work, so one can be opened without it. */
-export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, onShow, onSelect, usage, width, onWidth }: { agents: RailAgent[]; selected: string | null; marks: Map<string, string>; /** Only the squares show, the names in tooltips. */ slim: boolean; onSlim: () => void; /** The keys that show the office, for its tooltip. */ officeKeys?: string; onShow: () => void; onSelect: (id: string) => void , /** What is left of the allowances of the account the open agent runs on; none when no agent is open. */ usage?: { five: LimitView; week: LimitView; account?: string } | null, /** How wide the open rail is, in px; none for the default. */ width?: number | null; /** Told the new width while it is dragged or keyed; none to go back to the default. */ onWidth?: (w: number | null) => void}) {
+export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, onShow, onSelect, usage, width, onWidth, terminalOpen, onTerminal }: { agents: RailAgent[]; selected: string | null; marks: Map<string, string>; /** Only the squares show, the names in tooltips. */ slim: boolean; onSlim: () => void; /** The keys that show the office, for its tooltip. */ officeKeys?: string; onShow: () => void; onSelect: (id: string) => void , /** What is left of the allowances of the account the open agent runs on; none when no agent is open. */ usage?: { five: LimitView; week: LimitView; account?: string } | null, /** How wide the open rail is, in px; none for the default. */ width?: number | null; /** Told the new width while it is dragged or keyed; none to go back to the default. */ onWidth?: (w: number | null) => void, /** Whether the terminal pane is open. */ terminalOpen?: boolean; /** Shows or hides the terminal pane; the button is only drawn when this is given. */ onTerminal?: () => void}) {
   // Folded, pointing at it (or a key on one of its buttons) opens the list over the page for as long as that lasts; a moment after it goes, it closes.
   const [peek, setPeek] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -100,6 +100,12 @@ export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, 
             )
           })}
         </div>
+      )}
+      {onTerminal && (
+        <button className="rail-term" aria-pressed={!!terminalOpen} aria-label="Terminal" title={terminalOpen ? 'Hide the terminal; its shells keep running' : 'Open the terminal beside the chat'} onClick={onTerminal}>
+          <span className="rail-tile" aria-hidden="true"><OutlineIcon name="terminal" size={16} /></span>
+          <span className="rail-name">Terminal</span>
+        </button>
       )}
       <button className="rail-fold" aria-label={slim ? 'Open the list' : 'Fold the list'} aria-expanded={!slim} title={slim ? 'Open the list' : 'Fold the list'} onClick={onSlim}>
         <span className="rail-tile" aria-hidden="true">{slim ? '›' : '‹'}</span>

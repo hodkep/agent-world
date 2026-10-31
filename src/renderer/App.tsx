@@ -57,6 +57,7 @@ import { useLibraryUses } from './chat/LibrarySlips'
 import { type HeaderIconName, IconButton, OutlineIcon } from './panel/IconButton'
 import { ViewTab } from './panel/ViewTab'
 import { OfficeRail } from './panel/OfficeRail'
+import { sideWidth } from './panel/sidePane'
 import { officeHidden } from './officeHidden'
 import { createBatcher } from './batch'
 import { UpdateChip } from './panel/UpdateChip'
@@ -180,6 +181,18 @@ export function App() {
   // Each workspace has its own: the drawer opened in one project is not open in the next.
   const [termMem, setTermMem] = useState(() => readOpen(store(OPEN_KEY)))
   const termOpen = openOf(termMem, folder ?? '')
+  const [termSideW, setTermSideW] = useState<number | null>(() => Number(store('aw.termSideW')) || null)
+  const [vw, setVw] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const on = () => setVw(window.innerWidth)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  // The pane at the right of the chat starts under the top bar, whatever its height is.
+  useEffect(() => {
+    const h = document.querySelector('.app > header')
+    if (h) document.documentElement.style.setProperty('--hdr', `${(h as HTMLElement).offsetHeight}px`)
+  }, [vw])
   const [termH, setTermH] = useState(() => Math.max(110, Number(store('aw.termH')) || 230))
   const [termCount, setTermCount] = useState(0)
   const setTermOpen = useCallback(
@@ -1593,7 +1606,7 @@ export function App() {
       )}
       {confirmNode}
       {notesOpen && <WhatsNew onClose={() => setNotesOpen(false)} />}
-      <main style={{ '--over': overW } as React.CSSProperties}>
+      <main className={noOffice && termOpen && folder ? 'term-side' : ''} style={{ '--over': overW, '--tside': `${sideWidth(termSideW, vw)}px` } as React.CSSProperties}>
         <div className={`stage-wrap ${noOffice ? 'off' : ''}`} onDragOver={(e) => e.preventDefault()} onDrop={dropOnStage}>
           <div className="stage" ref={stage} />
           {cardData && cardAt && cardAt.mode !== 'panel' && (
@@ -1698,7 +1711,7 @@ export function App() {
               )}
             </div>
           )}
-          <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
+          <TerminalDrawer folder={folder} folderName={folderName} open={termOpen && !!folder} height={termH} onHeight={(h) => (setTermH(h), keep('aw.termH', String(h)))} onHide={toggleTerm} onShow={showTerm} side={noOffice} sideW={sideWidth(termSideW, vw)} onSideW={(w) => (setTermSideW(w), keep('aw.termSideW', String(w)))} onCount={setTermCount} ask={current ? { agentId: current.id, onAttached: showChat } : undefined} />
           {tip && (
             <FloatingTip x={tip.x} y={tip.y}>
               <PlantTip five={tip.five} week={tip.week} pool={pool} accounts={prefs?.accounts ?? []} own={prefs?.ownNames} providers={providers ?? []} />
@@ -1712,6 +1725,8 @@ export function App() {
             marks={tileMarks}
             slim={railSlim}
             width={railW}
+            terminalOpen={termOpen && !!folder}
+            onTerminal={folder ? toggleTerm : undefined}
             onWidth={(w) => (setRailW(w), keep('aw.railw', w ? String(w) : ''))}
             onSlim={() => (setRailSlim(!railSlim), keep('aw.railSlim', railSlim ? '' : '1'))}
             usage={current ? { five: limitView(limitsOf(current).fiveHour, Date.now()), week: limitView(limitsOf(current).sevenDay, Date.now()), account: prefs?.accounts.find((x) => x.id === current.account && x.provider === (current.provider ?? DEFAULT_PROVIDER))?.name } : null}
