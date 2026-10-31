@@ -4,7 +4,7 @@ Review what an agent changed, commit and land its branch, and look at its work r
 
 ## Reach the tabs
 
-Select an agent in the office. The tabs above its panel are icons: point at one (or tab to it) to see its name, what it is for and the keys that go to it. In order they are **Chat**, **Terminal**, **Code**, **Tools**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Workflow** means a run is open, **Traces** shows how many messages there are, and a dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
+Select an agent in the office. The tabs above its panel are icons: point at one (or tab to it) to see its name, what it is for and the keys that go to it. In order they are **Chat**, **Terminal**, **Code**, **Agent Memory**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Workflow** means a run is open, **Traces** shows how many messages there are, and a dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
 
 ## Review a branch
 
@@ -69,11 +69,11 @@ The toolbar has **Back**, **Forward**, **Reload**, **Screen size** (**Desktop**,
 
 To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back, and the rest of the app keeps its size.
 
-## Terminal, Tools, Traces, History
+## Terminal, Agent Memory, Traces, History
 
 - **Terminal** is the agent's own terminal; keys go straight to it. A selection offers **Add selection to message**.
-- **Tools** lists MCP servers and plugins. Use **Add server**, **Remove**, **Enable**, **Disable** and **Uninstall** (click, then **Sure?**). It also holds **Project memory**, notes shared by every agent in the project.
-- **Traces** lists messages agents sent each other. **Only name** narrows it to one agent.
+- **Agent Memory** holds the notes every agent in the project shares: agents save them with `remember`, and you can add your own at the top. Notes sit under day headings; pick a name to see one writer's notes, or tick **Hide finished-task log** to leave out the lines the office saves when a task closes. **Forget** removes one. MCP servers and plugins are managed in the terminal (`/mcp`) and in Settings.
+- **Traces** lists messages agents sent each other, under day headings. Pick an agent to narrow it to that agent's messages, or **Dropped only** for the ones that did not arrive. Click a message to read all of it.
 - **History** in the top bar opens **Past conversations** for the open folder. Click one to continue it as a new agent.
 
 Next: [Workflows](workflows.md)
