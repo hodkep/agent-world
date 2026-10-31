@@ -12,8 +12,6 @@ const clean = (e: Error) => e.message.replace(/^Error invoking remote method '[^
 /** Under this width the flow gives way to a plain list of the same steps: dragging on a narrow panel fights scrolling. */
 const FLOW_MIN = 520
 /** The settings popup's width, and the room kept between it and the picked step. */
-const POPUP_W = 420
-const POPUP_GAP = 16
 
 /**
  * The builder's draft as a flow of steps the person can change in place: click a card to change its name, brief, command, gate and skills, drag it to move it, add or remove steps.
@@ -65,36 +63,10 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
   }, [])
   const [picked, setPicked] = useState<number | null>(null)
   const cur = picked !== null && picked < wf.steps.length ? picked : null
-  // A picked step's settings are a popup over the flow, beside the picked card: nothing is dimmed or blocked, so the flow can still be moved under it. A press anywhere else, or Escape,
+  // A picked step's settings are a column beside the flow: the flow makes room for it, and nothing is dimmed or blocked. A press anywhere else, or Escape,
   // puts it away; pressing another card opens that card's settings instead.
   const body = useRef<HTMLDivElement>(null)
   const pop = useRef<HTMLDivElement>(null)
-  const [at2, setAt2] = useState<{ left: number; top: number; max: number; side: 'right' | 'left' | 'over' } | null>(null)
-  useEffect(() => {
-    if (cur === null) return setAt2(null)
-    const place = () => {
-      const host = body.current?.closest<HTMLElement>('.bs-draft') ?? body.current
-      const card = host?.querySelector<HTMLElement>('.react-flow__node.selected')
-      if (!host || !card) return
-      const h = host.getBoundingClientRect()
-      // The popup may use the whole draft, not only the flow's area, so it can be as tall as it needs; it stays under the title.
-      const floor = (body.current?.getBoundingClientRect().top ?? h.top) - h.top
-      const c = card.getBoundingClientRect()
-      const room = h.width - 8
-      const right = c.right - h.left + POPUP_GAP
-      const leftOf = c.left - h.left - POPUP_GAP - POPUP_W
-      // Beside the card on the right if it fits, else on the left, else over the right edge (the flow is narrow here): the pointer only shows when it points at the card.
-      const side = right + POPUP_W <= room ? 'right' : leftOf >= 8 ? 'left' : 'over'
-      const left = side === 'right' ? right : side === 'left' ? leftOf : Math.max(8, room - POPUP_W)
-      const tall = pop.current?.offsetHeight ?? 480
-      const top = Math.min(Math.max(floor, c.top - h.top - 24), Math.max(floor, h.height - tall - 8))
-      const max = Math.max(200, Math.round(h.height - top - 8))
-      setAt2((p) => (p && p.left === Math.round(left) && p.top === Math.round(top) && p.max === max && p.side === side ? p : { left: Math.round(left), top: Math.round(top), max, side }))
-    }
-    place()
-    const timer = setInterval(place, 150)
-    return () => clearInterval(timer)
-  }, [cur])
   useEffect(() => {
     if (cur === null) return
     const away = (e: MouseEvent) => {
@@ -130,7 +102,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
         </div>
       ) : null}
       {wide ? (
-        <div className="se-body" ref={body}>
+        <div className={`se-body ${cur === null ? '' : 'has-pick'}`} ref={body}>
           <FlowCanvas
             {...(fill && { fill: true })}
             {...(marks && { marks })}
@@ -165,7 +137,7 @@ export function StepEditor({ agentId, folder, workflow, skillStates, at, edited,
           {cur === null ? (
             <p className="se-hint muted">Click a step to change it · drag to move it · + on an arrow adds a step there</p>
           ) : (
-            <div className={`se-pick ${at2?.side ?? 'over'}`} role="dialog" aria-label={`Settings of step ${cur + 1}`} ref={pop} style={at2 ? { left: at2.left, top: at2.top } : { right: 12, top: 12 }}>
+            <div className="se-pick dock" role="dialog" aria-label={`Settings of step ${cur + 1}`} ref={pop}>
               <StepInspector wf={wf} at={cur} skills={skills} skillStates={skillStates} change={change} />
               <div className="se-acts">
                 <button aria-label={`Move step ${cur + 1} up`} disabled={cur === 0} onClick={() => (change(moveStep(wf, cur, -1)), setPicked(cur - 1))}>Move up</button>

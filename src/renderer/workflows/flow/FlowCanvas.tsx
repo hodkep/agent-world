@@ -59,7 +59,11 @@ function Flow({ steps, selected, problems, skillStates, marks, fill, edits, onSe
   // A flow that fills a pane is fitted again when the pane changes size (a drawer opening under it, a settings card docking beside it), not only when its steps change.
   const paneHeight = useStore((st) => (fill ? Math.round(st.height / 40) * 1000 + Math.round(st.width / 40) : 0))
   useEffect(() => {
-    const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.12, maxZoom: 1, minZoom: fill ? 0.3 : 0.7 }))
+    // A tall flow in a wide pane is not shrunk to fit: it keeps a readable size, starts at its top, and is panned.
+    const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.12, maxZoom: 1, minZoom: 0.7 }).then(() => {
+      const v = flow.getViewport()
+      if (fill && v.zoom <= 0.71) flow.setViewport({ x: v.x, y: 16, zoom: 0.8 })
+    }))
     return () => cancelAnimationFrame(t)
   }, [steps.length, flow, fill, paneHeight])
   const insert = edits?.onInsert
@@ -91,7 +95,7 @@ function Flow({ steps, selected, problems, skillStates, marks, fill, edits, onSe
       onEdgesDelete={() => {}}
       zoomOnDoubleClick={false}
       fitView
-      fitViewOptions={{ padding: 0.12, maxZoom: 1, minZoom: fill ? 0.3 : 0.7 }}
+      fitViewOptions={{ padding: 0.12, maxZoom: 1, minZoom: 0.7 }}
       minZoom={0.3}
       maxZoom={1.5}
       colorMode="dark"
