@@ -2,7 +2,7 @@
 # Copies a published GitHub release's installers to the R2 mirror and drops the older folders of the same kind. It needs no Mac: it only moves files.
 #   scripts/mirror-release.sh v0.8.0            takes the files from the release on GitHub (checked against the digests GitHub shows)
 #   scripts/mirror-release.sh v0.8.0 <dir>      takes them from a folder that holds the build, for a release that is not published yet
-# The remote `r2` is the one in rclone.conf on a Mac; in CI it is made from RCLONE_CONFIG_R2_* variables. DRYRUN=1 shows what would move and changes nothing.
+# The remote `r2` is the one in rclone.conf on a Mac (on a runner it can be made from RCLONE_CONFIG_R2_* variables). DRYRUN=1 shows what would move and changes nothing.
 # Folder per version: v<version>/ holds the dmgs, the zips and latest-mac.yml. The newest stable and the newest beta are kept; the checksums that decide
 # whether a download is good still come from the GitHub release, so the mirror is only a faster copy.
 set -euo pipefail
