@@ -96,7 +96,7 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
   // The person refused a step that is not optional: it failed, and nothing after it runs.
   if (last?.state === 'declined' && kind !== 'check' && kind !== 'audit') return 'failed'
   // The person skipped an optional step: it is not followed, and the run goes on. (A check and an audit have their own way of being skipped.)
-  if (step.optional && kind !== 'check' && kind !== 'audit' && last?.state === 'skipped') return 'skipped'
+  if (kind !== 'check' && kind !== 'audit' && last?.state === 'skipped') return 'skipped'
   if (kind === 'plan') {
     const p = round.plan?.state
     if (p === 'approved' || p === 'released') return 'passed'
@@ -125,7 +125,9 @@ function ownBase(step: RunWorkflow['steps'][number], round: Round, run: Run, ctx
     return 'later'
   }
   if (step.gate === 'approve') return last?.state === 'approved' ? 'passed' : last?.state === 'done' ? 'waiting' : 'open'
-  return mine.some((s) => s.state === 'done') ? 'passed' : 'open'
+  // Reopened after it was reported: not met until it is reported again.
+  const reopened = mine.findLast((s) => s.state === 'reopen')?.t ?? -1
+  return mine.some((s) => s.state === 'done' && s.t > reopened) ? 'passed' : 'open'
 }
 
 /**
@@ -178,7 +180,9 @@ export function stepReply(name: string, decision: 'approved' | 'changes', note?:
   if (decision === 'approved') return `Your step "${name}" was approved.${note ? ` They said: ${note}` : ''}`
   // The steps the office does (the audit, a pull request, a merge) have no step_done: the agent changes the branch and the office asks again.
   if (kind === 'check') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the check runs again and the person is asked again.`
-  if (kind === 'audit' || kind === 'pr' || kind === 'merge') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.`
+  // A pull request or a merge sent back may mean "not needed" as well as "change this": the agent decides which, and asks to skip it when it is the first.
+  if (kind === 'pr' || kind === 'merge') return `Your step "${name}" was sent back${note ? `: ${note}${/[.!?]$/.test(note) ? '' : '.'}` : '.'} If that means the step is not needed, ask the person to skip it with skip_steps. If it means a change, make it and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.`
+  if (kind === 'audit') return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.`
   return `Your step "${name}" was sent back${note ? `: ${note}` : '.'} Make the change, then call step_done again.`
 }
 
@@ -246,7 +250,7 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
 export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person: it is optional. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
 
 /** What the agent is told when the person refuses a step that is not optional: the workflow stops there. */
-export const stepDeclined = (name: string) => `The person refused your step "${name}", so the workflow stops here: do not do it or any step after it. Say so in one line and wait for their instructions.`
+export const stepDeclined = (name: string) => `The person refused your step "${name}", so the workflow stops here: do not do it or any step after it. Say so in one line and wait for their instructions. If more work comes, you decide when to ask them again: call step_reopen("id", why) once that work is ready.`
 
 /** The line that tells an agent what comes after the step it just reported, so it can decide how to go on. */
 export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
@@ -255,3 +259,17 @@ export const nextStepLine = (n?: { id: string; name: string; optional: boolean; 
 /** What the agent is told when the person presses Run on one of its steps. */
 export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`
 
+
+const list = (names: string[]) => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
+
+/** What the agent is told when the person approves skipping steps it asked to skip. */
+export const stepsSkipped = (names: string[], why: string) => `The person approved skipping ${list(names)}${why ? `: ${why}` : ''}. They are done with. If nothing else is left, call task_done.`
+
+/** What the agent is told when the person wants the steps it asked to skip kept. */
+export const stepsKept = (names: string[]) => `The person wants ${list(names)} kept, so they stay in the workflow. Go on as the workflow says.`
+
+/** What the agent is told when the person asks for a step they refused once more. */
+export const stepAskedAgain = (name: string) => `The person asks for your step "${name}" again: it waits for their Run, as before. Change nothing until you are told.`
+
+/** What the agent is told when the person ends its run: it stops work on it, and nothing more is asked of it. */
+export const runEnded = (title: string) => `The person ended your task "${title}": what was left is set aside. Stop work on it; nothing more is asked of you for it.`

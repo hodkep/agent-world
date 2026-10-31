@@ -36,7 +36,11 @@ export function parseWorkflowMessage(text: string): WorkflowMessage | null {
   if ((m = new RegExp(`^Your step ${q} was skipped by the person`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
   if ((m = new RegExp(`^The person refused your step ${q}`).exec(body))) return { tone: 'no', icon: 'cross', title: `Refused ${m[1]}`, told: text }
   if ((m = new RegExp(`^Your step ${q} was approved\\.\\s*(They said:)?`).exec(body))) return { tone: 'ok', icon: 'tick', title: `${m[1]} approved`, ...sub(note(body, new RegExp(`^Your step ${q} was approved\\.\\s*(They said:)?`))), told: text }
-  if ((m = new RegExp(`^Your step ${q} was sent back`).exec(body))) return { tone: 'back', icon: 'back', title: `${m[1]} sent back`, ...sub(note(body.split(/\.?\s(?:Make the change|Do not push)/)[0]!, new RegExp(`^Your step ${q} was sent back:?\\.?\\s*`))), told: text }
+  if ((m = new RegExp(`^Your step ${q} was sent back`).exec(body))) return { tone: 'back', icon: 'back', title: `${m[1]} sent back`, ...sub(note(body.split(/\.?\s(?:Make the change|Do not push|If that means)/)[0]!, new RegExp(`^Your step ${q} was sent back:?\\.?\\s*`))), told: text }
+  if ((m = /^The person approved skipping (.+?)(?:: (.*?))?\. They are done with\./s.exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, ...sub(m[2]), told: text }
+  if ((m = /^The person ended your task "(.+?)":/.exec(body))) return { tone: 'no', icon: 'cross', title: 'Ended this run', sub: m[1]!, told: text }
+  if ((m = /^The person wants (.+?) kept, so they stay/.exec(body))) return { tone: 'back', icon: 'back', title: `Kept ${m[1]}`, told: text }
+  if ((m = new RegExp(`^The person asks for your step ${q} again`).exec(body))) return { tone: 'go', icon: 'run', title: 'Asked again', sub: m[1]!, told: text }
   if ((m = new RegExp(`^The person did not approve your step ${q} yet`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Not now: ${m[1]}`, told: text }
   if ((m = new RegExp(`^The person skipped the check ${q}`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
   return null

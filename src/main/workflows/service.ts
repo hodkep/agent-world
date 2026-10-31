@@ -50,7 +50,9 @@ const SAME_WORK_MS = 10 * 60_000
 const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
 /** What a landing records when the person set the review aside: it did not pass the review, it was excused from it. */
 const ASIDE_HELD = 'The review was set aside.'
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start']
+/** What the app commits for an agent's unfinished work when it quits. */
+const SNAPSHOT = /^chore\([^)]*\): work in progress$/
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start', 'skipask', 'skipans']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -186,11 +188,11 @@ export class Workflows {
     // Finishing never claims a step nobody did: one the agent has to do and never reported is refused by name; an optional one it never reported was not needed, so it is skipped
     // (marked as the app's doing); one that starts on Run waits for the person's press, and is left alone.
     const round = open.rounds[open.rounds.length - 1]!
-    const unreported = (open.workflow?.steps ?? []).filter((s) => s.kind === 'work' && !round.steps.some((x) => x.step === s.id && x.state !== 'changes'))
+    const unreported = (open.workflow?.steps ?? []).filter((s) => s.kind === 'work' && !this.reported(round, s.id))
     const owed = unreported.find((s) => !s.optional && !(s.start === 'run' && round.starts?.[s.id] === undefined))
     // The app closing the run itself (the push went through) has nothing to ask of the agent: what is left is marked as the app's doing.
     // A step the person refused stops the workflow: the agent may close the task, and the steps after it are left undone.
-    const refused = round.steps.some((x) => x.state === 'declined')
+    const refused = this.states(open).some((x) => x.state === 'failed' && x.kind !== 'check' && x.kind !== 'audit')
     if (owed && !o.byApp && !refused) throw new Error(`Report "${owed.name}" first: it was never done.`)
     // A step that starts on Run waits for the person's word: finishing now would close the task, and their Run would then open a new round that starts over.
     const waiting = unreported.find((s) => !s.optional && s.start === 'run' && round.starts?.[s.id] === undefined)
@@ -249,6 +251,129 @@ export class Workflows {
     if (!found.optional || (found.kind !== 'work' && found.kind !== 'approve' && found.kind !== 'pr')) throw new Error('That step cannot be skipped.')
     this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'skipped' })
     return found.name
+  }
+
+  /** Whether the agent has dealt with a step in this round: it reported it, or it was skipped or refused, and it was not sent back or reopened after. */
+  private reported(round: Run['rounds'][number], id: string): boolean {
+    const l = round.steps.filter((x) => x.step === id).at(-1)
+    return !!l && l.state !== 'changes' && l.state !== 'reopen'
+  }
+
+  /** The names of the steps the person refused and that are still refused, in order: what the agent may ask about again when it is the right time. */
+  refusedSteps(agentId: string): string[] {
+    const run = this.mine(agentId)[0]
+    return run ? this.states(run).filter((s) => s.state === 'failed' && s.kind !== 'check' && s.kind !== 'audit').map((s) => s.name) : []
+  }
+
+  private reopen(run: Run, step: RunWorkflow['steps'][number], note: string): string {
+    const round = run.rounds[run.rounds.length - 1]!
+    if (run.status === 'done') this.append({ k: 'reopen', t: this.deps.now(), run: run.id })
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: step.id, state: 'reopen', ...(note && { note }) })
+    return step.name
+  }
+
+  /**
+   * The agent puts a step back to open: one it reported (more work touches it), or one the person refused (it is the right time to ask again). A refused step then asks
+   * for the person's Run again; a reported one has to be reported again before the task can finish. Says its name.
+   */
+  reopenStep(agentId: string, step: string, why: string): string {
+    const run = this.mine(agentId)[0]
+    if (!run || run.status === 'stopped') throw new Error('No task is open.')
+    const flow = run.workflow
+    if (!flow) throw new Error('This task has no steps to reopen.')
+    const found = flow.steps.find((s) => s.id === step)
+    if (!found) throw new Error(`This workflow has no step "${step}". Its steps: ${flow.steps.map((s) => s.id).join(', ')}.`)
+    if (found.kind === 'plan') throw new Error('The plan is not reopened this way: submit it again with plan_submit.')
+    const note = why.trim().slice(0, 200)
+    if (!note) throw new Error('Say why in a few words: the person is told.')
+    const now = this.states(run).find((s) => s.id === step)?.state
+    if (now !== 'passed' && now !== 'failed' && now !== 'skipped') throw new Error(`"${found.name}" has not been reported yet, so there is nothing to reopen.`)
+    if (run.landed && (found.kind === 'pr' || found.kind === 'merge')) throw new Error(`"${found.name}" already happened: the branch was pushed.`)
+    return this.reopen(run, found, note)
+  }
+
+  /** The person asks for a step they refused once more: it is open again, and asks for their Run as before. Says its name. */
+  askAgain(runId: string, step: string): string {
+    const run = this.runs().find((r) => r.id === runId)
+    const found = run?.workflow?.steps.find((s) => s.id === step)
+    if (!run || !found) throw new Error('No such step.')
+    if (this.states(run).find((s) => s.id === step)?.state !== 'failed') throw new Error('That step was not refused.')
+    return this.reopen(run, found, '')
+  }
+
+  /**
+   * The agent asks to skip steps that are not optional (a task that changed nothing has nothing to commit, push or open): one question, with its reason, and nothing is
+   * skipped until the person says yes. Says the names, in the workflow's order.
+   */
+  askSkip(agentId: string, steps: string[], why: string): string[] {
+    const run = this.openRun(agentId)
+    if (!run) throw new Error('No task is open.')
+    const flow = run.workflow
+    if (!flow) throw new Error('This task has no steps to skip.')
+    const reason = why.trim().slice(0, 300)
+    if (!reason) throw new Error('Say the reason: the person is asked to approve skipping with it.')
+    if (steps.length === 0) throw new Error('Name the steps to skip, by their ids.')
+    if (run.skipAsk) throw new Error('A question to skip steps is already waiting for the person: wait for the answer.')
+    const states = this.states(run)
+    const picked = new Set<string>()
+    for (const id of steps) {
+      const at = flow.steps.findIndex((s) => s.id === id)
+      if (at < 0) throw new Error(`This workflow has no step "${id}". Its steps: ${flow.steps.map((s) => s.id).join(', ')}.`)
+      const s = flow.steps[at]!
+      if (s.kind === 'plan') throw new Error('The plan is not skipped this way.')
+      if (states[at]?.state === 'passed') throw new Error(`"${s.name}" is already done.`)
+      if (states[at]?.state === 'skipped') throw new Error(`"${s.name}" is already skipped.`)
+      picked.add(id)
+    }
+    const ordered = flow.steps.filter((s) => picked.has(s.id))
+    const round = run.rounds[run.rounds.length - 1]!
+    this.append({ k: 'skipask', t: this.deps.now(), run: run.id, round: round.n, steps: ordered.map((s) => s.id), why: reason })
+    return ordered.map((s) => s.name)
+  }
+
+  /** The person's answer to the question to skip: yes marks every step skipped with the reason, no leaves them as they were. */
+  answerSkip(runId: string, approve: boolean): { names: string[]; why: string; approved: boolean } {
+    const run = this.runs().find((r) => r.id === runId)
+    const ask = run?.skipAsk
+    if (!run || !ask) throw new Error('Nothing waits to be skipped.')
+    const round = run.rounds[run.rounds.length - 1]!
+    const names = ask.steps.map((id) => run.workflow?.steps.find((s) => s.id === id)?.name ?? id)
+    if (approve) {
+      const states = this.states(run)
+      for (const id of ask.steps) {
+        const now = states.find((x) => x.id === id)?.state
+        if (now !== 'passed' && now !== 'skipped') this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step: id, state: 'skipped', note: ask.why })
+      }
+    }
+    this.append({ k: 'skipans', t: this.deps.now(), run: runId, round: round.n, state: approve ? 'approved' : 'declined' })
+    return { names, why: ask.why, approved: approve }
+  }
+
+  /** Whether the agent may be told to push: its latest run was not ended, and the step that pushes was neither skipped nor refused (a run the agent finished may still wait for the push). */
+  mayAskPush(agentId: string): boolean {
+    const run = this.mine(agentId)[0]
+    if (!run || run.status === 'stopped') return false
+    const landing = run.workflow?.steps.find((s) => isLanding(s.kind))
+    if (!landing) return true
+    const now = this.states(run).find((s) => s.id === landing.id)?.state
+    return now !== 'skipped' && now !== 'failed'
+  }
+
+  /**
+   * The person ends a run that cannot go on (a stuck one): what is left is set aside with the reason, the run stops, and nothing about it is asked again.
+   * Says the names of the steps that were set aside.
+   */
+  endRun(runId: string, why: string): string[] {
+    const run = this.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    if (run.status === 'stopped') throw new Error('This run is already ended.')
+    const round = run.rounds[run.rounds.length - 1]!
+    const note = why.trim().slice(0, 200) || 'The person ended this run.'
+    const left = (run.workflow ? this.states(run) : []).filter((s) => s.state !== 'passed' && s.state !== 'skipped')
+    if (run.skipAsk) this.append({ k: 'skipans', t: this.deps.now(), run: runId, round: round.n, state: 'declined' })
+    for (const s of left) this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step: s.id, state: 'skipped', note })
+    this.append({ k: 'stop', t: this.deps.now(), run: runId })
+    return left.map((s) => s.name)
   }
 
   /** The person refuses a step that is not optional: it is marked failed, the steps after it do not run, and the agent is told to stop. Says its name. */
@@ -388,7 +513,7 @@ export class Workflows {
     if (!flow) throw new Error('This task has no steps to report.')
     const round = run.rounds[run.rounds.length - 1]!
     const last = (id: string) => round.steps.filter((x) => x.step === id).at(-1)
-    const reportable = (s: RunWorkflow['steps'][number]) => s.kind === 'work' && (last(s.id)?.state === undefined || last(s.id)?.state === 'changes')
+    const reportable = (s: RunWorkflow['steps'][number]) => s.kind === 'work' && (last(s.id)?.state === undefined || last(s.id)?.state === 'changes' || last(s.id)?.state === 'reopen')
     // The work that was sent back, for the agent to report again: by the person (an approve step came back), or by a check that failed and still has tries.
     const sentBack = (): { step: RunWorkflow['steps'][number]; by: 'person' | 'check' } | undefined => {
       const back = flow.steps.findIndex((s) => s.kind === 'approve' && last(s.id)?.state === 'changes')
@@ -476,7 +601,8 @@ export class Workflows {
     }
     // With workflows off, a commit outside every window is not recorded: the feature is winding down, not tracking new work. A project with no workflow tracks none either.
     if (!this.deps.enabled() || this.deps.noWorkflow?.(agentId)) return
-    if (last && !last.auto) return this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
+    // A commit older than the run that would take it (an app-made snapshot from days ago, say) is not this task's: it is not attached, so it can never be pushed for it.
+    if (last && !last.auto) return at < last.startedAt ? undefined : this.append({ k: 'commit', t: at, run: last.id, round: last.rounds.length, sha, subject, flagged: true })
     if (at < this.deps.since()) return
     // A run belongs to one task: commits close together join it unless the agent has moved to another task of the board.
     const todo = this.deps.todoOf?.(agentId)
@@ -595,7 +721,8 @@ export class Workflows {
     else if (state === 'waiting') blocking.push('The plan is still waiting for your approval.')
     else if (state === 'changes') blocking.push('You asked for changes to the plan and no new plan was approved.')
     if (run.status === 'open') notes.push('The task is still open: the agent has not said it is done.')
-    const commits = run.rounds.reduce((n, r) => n + r.commits.length, 0)
+    // The snapshots the app makes when it quits are not work to push.
+    const commits = run.rounds.reduce((n, r) => n + r.commits.filter((c) => !SNAPSHOT.test(c.subject)).length, 0)
     const flagged = run.rounds.reduce((n, r) => n + r.commits.filter((c) => c.flagged).length, 0)
     if (flagged) notes.push(`${flagged} commit${flagged === 1 ? ' was' : 's were'} made outside the task.`)
     const audit: MergeCheck['audit'] = gated ? this.auditState(run, head, o.auditable ?? true) : { state: 'off', reason: 'gate' }
@@ -765,7 +892,7 @@ export class Workflows {
     const flow = run.workflow?.steps ?? []
     const round = run.rounds[run.rounds.length - 1]!
     const at = flow.findIndex((x) => isLanding(x.kind))
-    if (at >= 0 && flow.slice(at + 1).some((x) => x.kind === 'work' && !round.steps.some((l) => l.step === x.id && l.state !== 'changes'))) return
+    if (at >= 0 && flow.slice(at + 1).some((x) => x.kind === 'work' && !this.reported(round, x.id))) return
     this.done(agentId, undefined, { byApp: true })
   }
 

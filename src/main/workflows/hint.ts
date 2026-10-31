@@ -9,7 +9,7 @@ export const WORKFLOW_HINT =
 /** What the app says to the agent once the audit of its branch has passed and the run ends in a pull request: the gate is open, nobody has to ask. */
 export const PR_GO = (branch: string, head: string, audited = true) =>
   `${audited ? `The audit of ${branch} (${head.slice(0, 7)}) has passed.` : `The person approved the push of ${branch} (${head.slice(0, 7)}).`} Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin ${branch}:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.`
-export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_done'].map((t) => `mcp__agent-world__${t}`)
+export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_done', 'step_reopen', 'skip_steps'].map((t) => `mcp__agent-world__${t}`)
 /** Said at the start of a turn (by the program's prompt hook) while no task is open: the opening text alone was not followed reliably. */
 export const WORKFLOW_REMINDER =
   'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo or a tiny edit.'
@@ -71,7 +71,7 @@ export function workflowBrief(w: RunWorkflow, o: { fellBackFrom?: string; planFi
       : [])
   ]
   const first = w.steps.find((s) => s.kind === 'work')?.id ?? 'build'
-  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("${first}", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
+  return [head, ...lines, ...rules, `Report each step you do, in order, with step_done and its id, for example step_done("${first}"); with no id it reports the next one. Report a step only after its work has finished and you have seen the result, in a message of its own, never in the same batch as the commands that do the work: the person is asked about the next step as soon as you report. A step that is optional and clearly does not apply to this task is skipped with step_done("${first}", skipped, why), using its own id and saying why; a design step is never skipped for work the person will see. When new work arrives after you reported steps, put back the ones it touches with step_reopen(id, why), and only those. When your work changed nothing to commit or ship, do not make the person press Run on each step: ask once with skip_steps([the ids of those steps], why) and they approve with one button. A step the person refused stays stopped until you judge it is the right time to ask again: call step_reopen then. ${audited ? 'The app audits the branch and the person lands it.' : 'The person lands it.'}`].join('\n')
 }
 
 const OFFERED_MAX = 5

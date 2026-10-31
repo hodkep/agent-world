@@ -872,11 +872,13 @@ export function App() {
     const w = waitingSteps(wf.runs.filter((r) => r.agent === a.id), stepCtx).at(0)
     const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
     const r = toRunSteps(wf.runs.filter((x) => x.agent === a.id), ctxFor).at(0)
+    const sk = wf.runs.find((x) => x.agent === a.id && x.status !== 'stopped' && x.skipAsk)
     return (
       <WorkflowGates
         agentName={a.name}
         plan={p}
         check={c}
+        {...(sk && { skip: sk })}
         runStep={r}
         step={w}
         onDecidePlan={(runId, state, o) => void window.aw.workflows.decide(runId, state, o)}

@@ -89,6 +89,10 @@ interface Options {
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
     stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } }
+    /** The agent puts a step back to open (one it reported, or one the person refused, once it is the right time to ask again); says its name. */
+    reopenStep: (callerId: string, step: string, why: string) => string
+    /** The agent asks the person to skip steps that are not optional, with its reason; says their names. */
+    askSkip: (callerId: string, steps: string[], why: string) => string[]
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
@@ -563,6 +567,36 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
         const r = wf.stepDone(callerId, step, { skipped, why })
         if (r.skipped) return { content: [{ type: 'text' as const, text: `Step "${r.done}" skipped${why ? `: ${why}` : ''}.${nextStepLine(r.next)}` }] }
         return { content: [{ type: 'text' as const, text: `Step "${r.done}" reported done.${r.waiting ? ` "${r.waiting}" now waits for the person to approve it; their answer arrives as your next message.` : ''}${r.checking ? ' The app is running the checks that follow; if one fails you get its output as your next message.' : ''}${nextStepLine(r.next)}${r.waiting ? (r.hint ?? '') : ''}` }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'step_reopen',
+    {
+      description: 'Put a step of your workflow back to open. Use it for a step you already reported when new work touches it (more code after Unit tests, say), and for a step the person refused once you judge it is the right time to ask them again. A refused step then asks for their Run again; a reported one must be reported again before you finish. Reopen only what the new work needs.',
+      inputSchema: { step: z.string().max(40).describe('The step id from the workflow you were given'), why: z.string().max(200).describe('Why, in a few words; the person is told') }
+    },
+    async ({ step, why }) => {
+      try {
+        const name = wf.reopenStep(callerId, step, why)
+        return { content: [{ type: 'text' as const, text: `Step "${name}" is open again.` }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'skip_steps',
+    {
+      description: 'Ask the person to skip steps that are not optional, in one question with your reason: for a task whose work changed nothing there is no commit, push or pull request to make, so ask to skip all three together, never one by one. Nothing is skipped until the person approves; their answer arrives as your next message. Not for the plan.',
+      inputSchema: { steps: z.array(z.string().max(40)).min(1).max(12).describe('The ids of the steps to skip, from the workflow you were given'), why: z.string().max(300).describe('Why they are not needed, in a sentence; the person reads it') }
+    },
+    async ({ steps, why }) => {
+      try {
+        const names = wf.askSkip(callerId, steps, why)
+        return { content: [{ type: 'text' as const, text: `Asked the person to skip ${names.join(', ')}. Their answer arrives as your next message; change nothing meanwhile.` }] }
       } catch (err) {
         return fail(err)
       }

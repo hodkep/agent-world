@@ -74,6 +74,31 @@ function StepGrid({ shown, counts, ctxFor, open, onOpen }: { shown: Run[]; count
   )
 }
 
+/** Ends a run that cannot go on: one confirmation, then what is left is set aside and the agent is told to stop. Only for a run that is still open. */
+function EndRun({ run }: { run: Run }) {
+  const [asking, setAsking] = useState(false)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (run.status !== 'open') return null
+  const end = () => {
+    setBusy(true)
+    setError('')
+    window.aw.workflows.endRun(run.id).then(
+      () => (setBusy(false), setAsking(false)),
+      (e: Error) => (setBusy(false), setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
+    )
+  }
+  return asking ? (
+    <div className="rb-end" role="alertdialog" aria-label="End this run">
+      <span>End this run? What is left is set aside and {run.name} is told to stop. This cannot be undone.</span>
+      {error && <span className="error" role="alert">{error}</span>}
+      <span className="rb-end-acts"><button className="danger" disabled={busy} onClick={end}>End run</button><button disabled={busy} onClick={() => setAsking(false)}>Keep it</button></span>
+    </div>
+  ) : (
+    <button className="rb-end-btn" onClick={() => setAsking(true)}>End this run</button>
+  )
+}
+
 /** One run in a panel beside the ledger: the same flow chart as the chat's Workflow tab, why steps were skipped or refused, the items added to it, how it went and its commits. */
 function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend | undefined; ctx: StepContext; now: number; onClose: () => void }) {
   const lines = stepLines(run, ctx)
@@ -94,6 +119,7 @@ function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend 
           {run.todos!.map((id) => <button key={id} className="rb-todo" title={`Open todo#${id}`} onClick={() => openTodo(id)}>todo#{id}</button>)}
         </div>
       )}
+      <EndRun run={run} />
       {run.workflow ? <RunFlow run={run} ctx={ctx} /> : <p className="hint">This run followed no workflow: it was started from a commit.</p>}
       {why.length > 0 && (
         <ul className="rb-why" aria-label="Why steps were skipped or refused">

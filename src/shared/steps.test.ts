@@ -111,10 +111,15 @@ describe('what the person\'s answer to a step says to the agent', () => {
     expect(stepReply('Your review', 'changes')).toBe('Your step "Your review" was sent back. Make the change, then call step_done again.')
   })
 
-  it('a pull request, merge or audit that is sent back has no step_done to call: commit the change, and the audit and the approval come again', () => {
-    expect(stepReply('Pull request', 'changes', 'Smaller, please.', 'pr')).toBe('Your step "Pull request" was sent back: Smaller, please. Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.')
+  it('a pull request or merge that is sent back may mean not needed or a change: the agent is told to ask to skip it, or to commit the change', () => {
+    const t = stepReply('Pull request', 'changes', 'not needed', 'pr')
+    expect(t).toContain('Your step "Pull request" was sent back: not needed.')
+    expect(t).toContain('If that means the step is not needed, ask the person to skip it with skip_steps.')
+    expect(t).toContain('If it means a change, make it and commit it on your own branch')
+    expect(stepReply('Land', 'changes', undefined, 'merge')).toContain('skip_steps')
+  })
+  it('an audit that is sent back is still a change to commit, and the audit and the approval come again', () => {
     expect(stepReply('Audit', 'changes', undefined, 'audit')).toBe('Your step "Audit" was sent back. Make the change and commit it on your own branch; the audit runs again and the person is asked again. Do not push until they approve.')
-    expect(stepReply('Land', 'approved', undefined, 'merge')).toBe('Your step "Land" was approved.')
   })
 })
 
@@ -444,8 +449,8 @@ describe('the same settings on every kind of step', () => {
     expect(opt([begin(OPTIONAL), step('build', 'done', 300), step('extra', 'skipped', 350)])).toEqual(['build:passed', 'extra:skipped', 'ok:waiting', 'land:pending'])
     expect(opt([begin(OPTIONAL), step('build', 'done', 300), step('extra', 'skipped', 350), step('ok', 'skipped', 360)])).toEqual(['build:passed', 'extra:skipped', 'ok:skipped', 'land:waiting'])
   })
-  it('a step that is not optional is not skipped by a skip that was logged', () => {
-    expect(opt([begin(OPTIONAL), step('build', 'skipped', 300)])[0]).toBe('build:running')
+  it('a step that is not optional is skipped when a skip was logged for it: only the person approving a question to skip writes one', () => {
+    expect(opt([begin(OPTIONAL), step('build', 'skipped', 300)])[0]).toBe('build:skipped')
   })
 
   it('what a check sent back says to the agent, and what a skipped step says', () => {
