@@ -80,15 +80,29 @@ main { flex: 1; display: flex; min-height: 0; }
 /* Hidden by the person: out of the layout but still window-sized, so the canvas is never resized to nothing, and not drawn (see World.setShown). */
 .stage-wrap.off { position: absolute; inset: 0; visibility: hidden; pointer-events: none; z-index: -1; }
 .zoom-ctl .hide-office { display: inline-flex; align-items: center; gap: 6px; }
-.office-rail { width: 46px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 0; background: var(--panel-3); border-right: 2px solid var(--ink); overflow-y: auto; scrollbar-width: none; }
-.office-rail button { position: relative; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); color: var(--muted); font: 700 11px Menlo, Consolas, monospace; }
+.office-rail { width: 176px; flex: none; display: flex; flex-direction: column; gap: 4px; padding: 10px 8px; background: var(--panel-3); border-right: 2px solid var(--ink); overflow-y: auto; scrollbar-width: none; }
+.office-rail h6 { margin: 6px 0 2px; padding: 0 8px; font: 600 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hint); }
+.office-rail button { position: relative; height: 34px; padding: 0 8px; display: flex; align-items: center; gap: 9px; text-align: left; background: transparent; box-shadow: none; color: var(--muted); font: 600 12px ui-sans-serif, system-ui, sans-serif; }
 .office-rail button:hover { background: var(--panel-hover); color: var(--text); }
-.office-rail .rail-show { color: var(--accent); margin-bottom: 4px; box-shadow: 0 0 0 2px var(--accent); }
-.office-rail .rail-agent[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--accent); color: var(--accent); }
-.office-rail .rail-agent.working { color: var(--think); }
-main aside.solo:not(.drawer) { width: auto; flex: 1 1 0; min-width: 0; align-items: center; border-left: 0; }
-aside.solo > :not(.resizer) { width: 100%; max-width: 760px; }
-aside.solo > .tabs, aside.solo > .tasks { box-shadow: -2px 0 0 var(--ink), 2px 0 0 var(--ink); }
+.office-rail .rail-tile { position: relative; flex: none; width: 22px; height: 22px; display: grid; place-items: center; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); font: 700 10px Menlo, Consolas, monospace; }
+.office-rail .rail-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.office-rail small { margin-left: auto; font: 10px Menlo, Consolas, monospace; color: var(--hint); }
+.office-rail .rail-show { color: var(--accent); background: var(--panel-2); margin-bottom: 4px; box-shadow: 0 0 0 2px var(--accent); }
+.office-rail .rail-agent[aria-pressed='true'] { background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); }
+.office-rail .rail-agent[aria-pressed='true'] .rail-tile { box-shadow: 0 0 0 2px var(--accent); }
+.office-rail .rail-agent.working small { color: var(--think); }
+.office-rail .rail-fold { margin-top: auto; }
+.office-rail.slim { width: 54px; padding: 10px 0; align-items: center; }
+.office-rail.slim:not(.peek) button { width: 34px; padding: 0; justify-content: center; }
+.office-rail.slim:not(.peek) .rail-name, .office-rail.slim:not(.peek) small, .office-rail.slim:not(.peek) h6 { display: none; }
+/* Pointed at while folded: the labelled list opens over the page, which keeps its place (the strip still takes 54px of the row). */
+.office-rail.slim.peek { width: 176px; margin-right: -122px; padding: 10px 8px; align-items: stretch; position: relative; z-index: 30; box-shadow: 2px 0 0 var(--ink), 10px 0 24px rgb(0 0 0 / 0.55); }
+/* With the office hidden the panel is the whole window and every tab keeps its own surfaces; the chat's black runs edge to edge, with what was said and the message box in a centred column. */
+main aside.solo:not(.drawer) { width: auto; flex: 1 1 0; min-width: 0; border-left: 0; --col: max(14px, calc((100% - 760px) / 2)); }
+aside.solo .chat-log { padding-inline: var(--col); }
+aside.solo .chat-banner, aside.solo .composer { padding-inline: var(--col); }
+aside.solo .profile-dock { margin-inline: var(--col); }
+aside.solo .composer { background: transparent; border-top: 0; }
 .stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
 .stage:active { cursor: grabbing; }
 .stage canvas { display: block; image-rendering: pixelated; }
@@ -776,7 +790,6 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .mode-dot { width: 8px; height: 8px; box-shadow: 0 0 0 1px var(--ink); }
 .mode-name { font-weight: 600; white-space: nowrap; }
 .mode-blurb { grid-column: 3; font-size: 11px; color: var(--muted); }
-.composer { border-top-width: 3px; }
 
 /* Panel edge you can drag */
 .resizer { position: absolute; left: -4px; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 15; touch-action: none; }

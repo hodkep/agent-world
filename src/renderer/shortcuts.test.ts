@@ -118,6 +118,24 @@ describe('a key press against the table', () => {
   })
 })
 
+describe('showing or hiding the office', () => {
+  const press = (key: string, code: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({ key, code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
+
+  it('is Mod+Alt+O, read from the key itself since Option+O types a different character on a Mac', () => {
+    expect(matches(press('ø', 'KeyO', { metaKey: true, altKey: true }), 'office')).toBe(true)
+    expect(matches(press('o', 'KeyO', { ctrlKey: true, altKey: true }), 'office')).toBe(true)
+    expect(matches(press('o', 'KeyO', { metaKey: true }), 'office')).toBe(false)
+    expect(matches(press('o', 'KeyO', { metaKey: true, altKey: true, shiftKey: true }), 'office')).toBe(false)
+    expect(matches(press('p', 'KeyP', { metaKey: true, altKey: true }), 'office')).toBe(false)
+  })
+
+  it('is in the sheet under Anywhere and has a hint', () => {
+    expect(SHORTCUTS.find((s) => s.id === 'office')?.place).toBe('Anywhere')
+    expect(hint('office', true)).toBe('Show or hide the office (⌘⌥O)')
+    expect(hint('office', false)).toBe('Show or hide the office (Ctrl+Alt+O)')
+  })
+})
+
 describe('jumping to a tab of the side panel', () => {
   const press = (code: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}, key = code.replace('Digit', '')) => ({ key, code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
 
