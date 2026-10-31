@@ -80,9 +80,10 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
   const toggle = (t: ReviewTab) => setTab(tab === t ? null : t)
   const grantingSteps = wf.steps.filter((s) => s.skills?.some((id) => granted.includes(id))).map((s) => s.name ?? s.id)
   const saveTo = replaces ? `${wf.name} ${view.saved!.scope === 'global' ? 'for everything' : `in ${here || 'the project'}`}` : ''
+  const replaceLabel = view.saved?.scope === 'global' ? 'Replace for everything' : 'Replace in project'
   const buttons = replaces ? (
     <>
-      <button className="primary" disabled={busy || view.stale || problem} onClick={() => go('replace')}>Replace {saveTo}</button>
+      <button className="primary" disabled={busy || view.stale || problem} onClick={() => go('replace')}>{replaceLabel}</button>
       <button disabled={busy || view.stale || problem} onClick={() => go('copy')}>Save as new</button>
     </>
   ) : (
@@ -106,7 +107,7 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
           <span className="muted">{!view.saved ? 'new · not saved' : replaces ? `replaces ${SCOPE_WORDS[view.saved.scope]}` : 'replaces the built-in Standard'}</span>
           <span className="bs-actions">
             {buttons}
-            <button disabled={busy} onClick={discard}>Discard</button>
+            <button disabled={busy} onClick={discard}>Discard draft</button>
           </span>
         </div>
         {wf.when && <p className="muted bs-when">When: {wf.when}</p>}
