@@ -4,6 +4,31 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-31
+
+![Agent World 0.9.0: icon tabs, grouped menus, a Hide office button, and workflows that can skip what does not apply](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.0/docs/images/releases/0.9.0/poster.png)
+
+### Added
+
+- Panel: the view tabs are icons, and a card over each says its name, what it is for and the key that goes to it.
+- Menus: the More actions menu has its tiles in one row and its rows in Hand over, Manage and Session, each with a line on what it does, and Remove agent apart; the conversation menu is in groups, with the key beside Search.
+- Office: a Hide office button stops the picture and gives the chat the whole window, with a strip to bring the office back and to open an agent.
+- Workflows: a refused step asks what next, steps can be skippable, an agent can ask once to skip steps and reopen steps, a refused step can be asked again, a stuck run can be ended, and a run that needs no workflow can be dropped.
+- Workflows: a run tells its story, with the work added to it and the git, test, build and lint commands that failed and why; added work is drawn as a branch of the flow, and run details sit in tabs beside the flow.
+- Workflows: a workflow's flow is a tall pane beside its details, New workflow is one menu, Edit is a button on the selected workflow, and the builder docks the chat and floats step settings.
+- Workflows: the week in an agent's Workflow tab is a strip of pips with the runs that need a look listed under it.
+- Workflows: cards that ask fold to one line, and approval cards take an optional comment for the agent.
+
+### Changed
+
+- Dependencies: Electron 45.1.0, electron-builder 26.18.0, electron-updater 6.8.11, marked 18.1.2 and the MCP SDK 1.32.2.
+- Performance: agent events and stats are applied together every 150 ms, so the app is redrawn once for the lot, and a chat that is not showing no longer redraws itself every second.
+
+### Fixed
+
+- Terminal: the saved output is replayed once the terminal is fitted to its box, so a terminal opened from hidden no longer shows jumbled text until the panel is resized.
+- Workflows: old snapshot commits no longer join a run or count as work to push, a refused step asks nothing once its run is over, and a git commit given no name or email is reported as an identity failure.
+
 ## [0.8.0] - 2026-10-30
 
 ![Agent World 0.8.0: make the app yours with themes, layouts, icons and live widgets](https://raw.githubusercontent.com/hodkep/agent-world/v0.8.0/docs/images/releases/0.8.0/poster.png)
