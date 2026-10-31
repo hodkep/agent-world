@@ -102,6 +102,11 @@ main aside.solo:not(.drawer) { width: auto; flex: 1 1 0; min-width: 0; border-le
 aside.solo .chat-log { padding-inline: var(--col); }
 aside.solo .chat-banner, aside.solo .composer { padding-inline: var(--col); }
 aside.solo .profile-dock { margin-inline: var(--col); }
+/* Everything that sits over or beside the message box keeps to the same centred column: the suggestions, the status row, a side answer, the question, permission, plan and step cards, the find bar and the jump button. */
+aside.solo .statusrow, aside.solo .btw, aside.solo .inline-need.dialog { margin-inline: var(--col); }
+aside.solo .chat-tools { padding-inline: var(--col); }
+aside.solo .suggest { left: var(--col); right: var(--col); }
+aside.solo .jump { right: calc(var(--col) + 14px); }
 aside.solo .composer { background: transparent; border-top: 0; }
 .stage { position: absolute; inset: 0; overflow: hidden; cursor: grab; }
 .stage:active { cursor: grabbing; }
