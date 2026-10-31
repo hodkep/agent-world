@@ -470,21 +470,21 @@ export interface AwApi {
     /** The person's answer to a step of a run that waits for them; it is typed into the agent. */
     approveStep(runId: string, step: string, decision: 'approved' | 'changes', note?: string): Promise<void>
     /** Skip an optional step (a build or an approval): the run goes on, and the agent is told. */
-    skipStep(runId: string, step: string): Promise<void>
+    skipStep(runId: string, step: string, note?: string): Promise<void>
     /** Press Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin. */
-    startStep(runId: string, step: string): Promise<void>
+    startStep(runId: string, step: string, note?: string): Promise<void>
     /** The person does not approve a step of the agent's that waits for Run: the agent is told to wait for their instructions. */
-    declineStep(runId: string, step: string): Promise<void>
+    declineStep(runId: string, step: string, note?: string): Promise<void>
     /** The person's one answer to the agent's question to skip steps: yes skips them all with its reason, no keeps them. */
-    answerSkip(runId: string, approve: boolean): Promise<void>
+    answerSkip(runId: string, approve: boolean, note?: string): Promise<void>
     /** The person ends a run that cannot go on: what is left is set aside with the reason, and the agent is told to stop. */
     endRun(runId: string, why?: string): Promise<void>
     /** The person asks for a step they refused once more. */
     askAgain(runId: string, step: string): Promise<void>
     /** The person's answer to a refused step: skip it and go on, ask again later, or stop the run. */
     /** The person drops a run that never needed a workflow (only one with no work recorded). */
-    dropRun(runId: string): Promise<void>
-    refusedAnswer(runId: string, step: string, choice: 'skip' | 'later' | 'stop'): Promise<void>
+    dropRun(runId: string, note?: string): Promise<void>
+    refusedAnswer(runId: string, step: string, choice: 'skip' | 'later' | 'stop', note?: string): Promise<void>
     /** Tell the agent again to push a branch the person approved (the go-ahead is sent once, and can be lost): reads its commits first. */
     nudgePush(runId: string): Promise<void>
     /** What the person is shown before approving a project file's check commands. */

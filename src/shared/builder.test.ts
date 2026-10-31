@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderOptions, builderProgram, diffSummary, workflowDiff } from './builder'
+import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderIntro, builderOptions, builderProgram, diffSummary, planBuilderStart, workflowDiff } from './builder'
 import type { AgentRecord } from './types'
 import { STEPS_MAX, STEP_KINDS, GATES, parseWorkflow, type Workflow } from './workflow'
 
@@ -184,5 +184,26 @@ describe('what the builder is told about the settings every step can have', () =
     expect(text).toContain('"optional": true (on a work, check, audit or approve step')
     expect(text).toContain('"skills" (on a plan, work or pr step)')
     expect(text).toContain('approve means it must pass and then the person approves it')
+  })
+})
+
+describe('what the builder does when Edit with the builder is pressed', () => {
+  it('keeps the chat and the draft when the last edit was this same workflow', () => {
+    expect(planBuilderStart({ edit: 'standard', on: 'standard', hasSaved: true })).toBe('keep')
+  })
+  it('starts clean for another workflow, a first edit after a new workflow, and a new workflow after a saved one', () => {
+    expect(planBuilderStart({ edit: 'bug-fix', on: 'standard', hasSaved: true })).toBe('clean')
+    expect(planBuilderStart({ edit: 'standard', on: undefined, hasSaved: true })).toBe('clean')
+    expect(planBuilderStart({ edit: '', on: 'standard', hasSaved: true })).toBe('clean')
+    expect(planBuilderStart({ edit: '', on: undefined, hasSaved: true })).toBe('clean')
+  })
+  it('leaves a fresh builder, and a draft of a new workflow, alone', () => {
+    expect(planBuilderStart({ edit: '', on: undefined, hasSaved: false })).toBe('leave')
+  })
+  it('tells the agent which workflow it is editing, once, in words it can act on', () => {
+    const t = builderIntro('standard')
+    expect(t).toContain('"standard"')
+    expect(t).toContain('workflow_get')
+    expect(builderIntro('')).toBe('')
   })
 })

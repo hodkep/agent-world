@@ -4291,3 +4291,11 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .bs-top .wfl-head, .bs-actions { min-width: 0; }
 .se-acts .se-ico { flex: none; min-width: 22px; }
 .se-acts .se-ico { padding: 0; width: 22px; height: 22px; }
+
+/* A card that asks, folded to one line: the tag, the title, the first words of what it says, the same buttons, and the chevron. Too narrow for the buttons, the row wraps and they drop under it. */
+.plan-gate.gate-line { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 6px 8px 6px 10px; }
+.gate-line .gl-title { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gate-line .gl-gist { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.gate-line .pg-acts { margin: 0; flex: none; }
+.gate-line .pg-fold { margin-left: 0; flex: none; }
+.gate-line .gl-error { flex-basis: 100%; margin: 0; font-size: 12px; }

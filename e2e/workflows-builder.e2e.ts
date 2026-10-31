@@ -194,7 +194,8 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     await win.getByRole('option', { name: /Bug fix/ }).click()
     await win.getByRole('button', { name: 'Edit with the builder' }).click()
     await expect(win.getByText('editing Bug fix')).toBeVisible()
-    await expect(win.getByRole('log', { name: 'Conversation with builder' })).toContainText('I want to change the workflow "bug-fix" (Bug fix).', { timeout: 20_000 })
+    // Nothing is typed for the person: the conversation waits for their first message, which carries what the builder needs to know about the workflow.
+    await expect(win.getByRole('log', { name: 'Conversation with builder' })).toContainText('Say something to builder', { timeout: 20_000 })
 
     const { client, call } = await asAgent(await launchAt(argsLog, 0))
     expect(JSON.parse((await call('workflow_get', { id: 'bug-fix' })).text)).toEqual(BUG_FIX)
@@ -232,10 +233,10 @@ test('editing a saved workflow: the builder starts from it, the draft says what 
     // A later proposal against a file the person then edited by hand cannot be saved over it.
     await win.getByRole('option', { name: /Bug fix/ }).click()
     await win.getByRole('button', { name: 'Edit with the builder' }).click()
-    // Each edit starts a fresh conversation: the builder is started again on a new session, and the person's earlier chat is not carried into it.
-    await expect.poll(() => launches(argsLog).length, { timeout: 20_000 }).toBe(2)
-    expect(flag(launches(argsLog)[1]!, '--session-id')).not.toBe(flag(launches(argsLog)[0]!, '--session-id'))
-    const again = await asAgent(await launchAt(argsLog, 1))
+    // The same workflow again keeps the conversation: no new session starts, and nothing is typed for the person.
+    await expect(win.getByText(/^editing /i)).toBeVisible({ timeout: 15_000 })
+    expect(launches(argsLog)).toHaveLength(1)
+    const again = await asAgent(await launchAt(argsLog, 0))
     await again.call('workflow_propose', { file: JSON.stringify({ ...next, name: 'Fix a bug' }) })
     await expect(win.getByRole('region', { name: 'Workflow proposal' })).toContainText('Fix a bug')
     writeFileSync(join(dir, 'bug-fix.json'), JSON.stringify({ ...next, name: 'Edited by hand' }, null, 2) + '\n')
@@ -504,6 +505,29 @@ test('every step has the same settings: who does it, whether it asks you first, 
     expect(saved.steps[0]).toMatchObject({ kind: 'plan', gate: 'approve' })
     expect(saved.steps[1]).toMatchObject({ kind: 'work', name: 'Build', start: 'run', optional: true })
     await client.close()
+  } finally {
+    await s.shutdown()
+  }
+})
+
+test('Edit with the builder again on the same workflow keeps the builder\'s conversation; another workflow starts a new one', async () => {
+  const other = { ...BUG_FIX, id: 'other-flow', name: 'Other flow' }
+  const s = await start({ saved: BUG_FIX })
+  try {
+    const { page } = s
+    const win = await openWorkflows(page)
+    const session = async () => (await page.evaluate(() => window.aw.listAgents())).find((a) => (a as { builder?: boolean }).builder)?.sessionId
+    await win.getByRole('option', { name: /Bug fix/ }).click()
+    await win.getByRole('button', { name: 'Edit with the builder' }).click()
+    await expect(win.getByText('editing Bug fix')).toBeVisible()
+    await expect.poll(session).toBeTruthy()
+    const first = await session()
+    await win.getByRole('button', { name: '← All workflows' }).click()
+    await win.getByRole('option', { name: /Bug fix/ }).click()
+    await win.getByRole('button', { name: 'Edit with the builder' }).click()
+    await expect(win.getByText('editing Bug fix')).toBeVisible()
+    expect(await session()).toBe(first)
+    void other
   } finally {
     await s.shutdown()
   }

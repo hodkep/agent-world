@@ -176,7 +176,7 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
               ) : (
                 <div className="wfl-acts">
                   {lb!.restore && <button className="primary" onClick={() => onDefault(shown.id)}>Restore {wf.name}</button>}
-                  <button className={lb!.restore ? '' : 'primary'} disabled={!folder || starting} title={folder ? 'Open the builder on this workflow' : 'Open a project first'} onClick={() => start(`I want to change the workflow "${shown.id}" (${wf.name}). Read it first, then ask me what to change.`, { id: shown.id, name: wf.name })}>Edit with the builder</button>
+                  <button className={lb!.restore ? '' : 'primary'} disabled={!folder || starting} title={folder ? 'Open the builder on this workflow' : 'Open a project first'} onClick={() => start(undefined, { id: shown.id, name: wf.name })}>Edit with the builder</button>
                   {lb!.makeDefault && <button onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
                   <span className="wfl-menu-wrap">
                     <button aria-haspopup="menu" aria-expanded={menu === 'more'} onClick={() => setMenu(menu === 'more' ? null : 'more')}>More ▾</button>

@@ -33,13 +33,13 @@ describe('the card that asks the person before a step starts', () => {
   it('Run starts the step', async () => {
     const host = await mount()
     await act(async () => named(host, 'Run').click())
-    expect(aw.workflows.startStep).toHaveBeenCalledWith('r1', 'push')
+    expect(aw.workflows.startStep).toHaveBeenCalledWith('r1', 'push', undefined)
   })
 
   it('Not now declines the step and starts nothing', async () => {
     const host = await mount()
     await act(async () => named(host, 'Not now').click())
-    expect(aw.workflows.declineStep).toHaveBeenCalledWith('r1', 'push')
+    expect(aw.workflows.declineStep).toHaveBeenCalledWith('r1', 'push', undefined)
     expect(aw.workflows.startStep).not.toHaveBeenCalled()
   })
 })

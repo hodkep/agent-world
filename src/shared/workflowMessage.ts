@@ -7,6 +7,8 @@ export interface WorkflowMessage {
   sub?: string
   /** The sentence as the agent got it, with its prefix when it had one. */
   told: string
+  /** What the person wrote with their answer, when they wrote something. */
+  note?: string
 }
 
 const OFFICE = '[Agent World] '
@@ -21,6 +23,14 @@ const note = (rest: string, lead: RegExp) => {
  * by their exact wording, which the app's own code makes (src/shared/steps.ts, plan.ts, src/main/workflows/hint.ts). Null for anything else.
  */
 export function parseWorkflowMessage(text: string): WorkflowMessage | null {
+  const m = parse(text)
+  if (!m) return null
+  // A comment sent with the answer ends the sentence the app typed: it is the receipt's subtitle when nothing else is.
+  const c = /\sThey said: ([\s\S]+)$/.exec(text)
+  return c ? { ...m, note: c[1]!.trim(), ...(!m.sub && { sub: c[1]!.trim() }) } : m
+}
+
+function parse(text: string): WorkflowMessage | null {
   // The go-ahead to push is typed as the person's own words, without the prefix.
   const push = /^The person approved the push of (\S+) \(([0-9a-f]{7})\)\./.exec(text)
   if (push) return { tone: 'ok', icon: 'push', title: 'Push approved', sub: `${push[1]} at ${push[2]}`, told: text }
