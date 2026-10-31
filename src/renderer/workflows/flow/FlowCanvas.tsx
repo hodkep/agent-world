@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Background, BaseEdge, Controls, EdgeLabelRenderer, type EdgeProps, Panel, ReactFlow, ReactFlowProvider, applyNodeChanges, getStraightPath, useReactFlow, type Edge, type NodeChange } from '@xyflow/react'
+import { Background, BaseEdge, Controls, EdgeLabelRenderer, type EdgeProps, Panel, ReactFlow, ReactFlowProvider, applyNodeChanges, getStraightPath, useReactFlow, type Edge, type NodeChange, useStore } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { SkillState } from '../../../shared/skills'
 import { type Step, type StepKind, stepName } from '../../../shared/workflow'
@@ -45,21 +45,23 @@ const edgeTypes = { insert: InsertEdge }
  * The steps of a workflow as a flow, top to bottom: a card for each, the order drawn as arrows, and the loops back up (a check retried, work sent back) as dashed lines.
  * A card is picked with a click or the keyboard, dragged to a new place or put after another by drawing an arrow to it; a + on an arrow adds a step there. The fields are the inspector's.
  */
-function Flow({ steps, selected, problems, skillStates, edits, onSelect }: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
+function Flow({ steps, selected, problems, skillStates, marks, fill, edits, onSelect }: { /** The flow fills a pane: it fits all of its steps in, however small. */ fill?: boolean; steps: Step[]; selected: number | null; problems?: Set<number>; /** Steps the draft added or changed, by id. */ marks?: Record<string, 'new' | 'changed'>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at. */ edits?: FlowEdits; onSelect: (i: number | null) => void }) {
   const readOnly = !edits
   const base = useMemo<StepFlowNode[]>(
-    () => steps.map((step, i) => ({ id: step.id, type: 'step', position: positionOf(i), data: { step, index: i, problem: problems?.has(i), skillStates }, selected: selected === i, ariaLabel: `Step ${i + 1}: ${stepName(step)}` })),
-    [steps, selected, problems, skillStates]
+    () => steps.map((step, i) => ({ id: step.id, type: 'step', position: positionOf(i), data: { step, index: i, problem: problems?.has(i), skillStates, ...(marks?.[step.id] && { mark: marks[step.id] }) }, selected: selected === i, ariaLabel: `Step ${i + 1}: ${stepName(step)}` })),
+    [steps, selected, problems, skillStates, marks]
   )
   // The nodes are the steps' own; while one is dragged it follows the pointer, and when let go the list decides where it sits.
   const [nodes, setNodes] = useState(base)
   useEffect(() => setNodes(base), [base])
   // A step added or taken out changes how much there is to see: the view fits it again.
   const flow = useReactFlow()
+  // A flow that fills a pane is fitted again when the pane changes height (a drawer opening under it), not only when its steps change.
+  const paneHeight = useStore((st) => (fill ? Math.round(st.height / 40) : 0))
   useEffect(() => {
-    const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.12, maxZoom: 1, minZoom: 0.7 }))
+    const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.12, maxZoom: 1, minZoom: fill ? 0.3 : 0.7 }))
     return () => cancelAnimationFrame(t)
-  }, [steps.length, flow])
+  }, [steps.length, flow, fill, paneHeight])
   const insert = edits?.onInsert
   const edges = useMemo<Edge[]>(() => [...chainEdges(steps.map((x) => x.id), insert), ...loopEdges(steps)], [steps, insert])
   return (
@@ -89,7 +91,7 @@ function Flow({ steps, selected, problems, skillStates, edits, onSelect }: { ste
       onEdgesDelete={() => {}}
       zoomOnDoubleClick={false}
       fitView
-      fitViewOptions={{ padding: 0.12, maxZoom: 1, minZoom: 0.7 }}
+      fitViewOptions={{ padding: 0.12, maxZoom: 1, minZoom: fill ? 0.3 : 0.7 }}
       minZoom={0.3}
       maxZoom={1.5}
       colorMode="dark"
@@ -107,7 +109,7 @@ function Flow({ steps, selected, problems, skillStates, edits, onSelect }: { ste
 }
 
 /** The flow, with the height the steps need (a long workflow scrolls by panning, and the height stops growing). */
-export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; /** The flow takes the height of the pane around it, instead of the height its steps need. */ fill?: boolean; onSelect: (i: number | null) => void }) {
+export function FlowCanvas(props: { steps: Step[]; selected: number | null; problems?: Set<number>; /** Steps the draft added or changed, by id: drawn on their cards. */ marks?: Record<string, 'new' | 'changed'>; skillStates?: Record<string, SkillState>; /** Left out, the flow is only looked at: no card is dragged or picked. */ edits?: FlowEdits; /** The flow takes the height of the pane around it, instead of the height its steps need. */ fill?: boolean; onSelect: (i: number | null) => void }) {
   const height = flowHeight(props.steps.length, { edits: !!props.edits, fill: !!props.fill })
   return (
     <div className={`fl-wrap ${props.fill ? 'fill' : ''}`} style={height === undefined ? undefined : { height }}>

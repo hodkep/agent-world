@@ -2190,6 +2190,8 @@ async function main() {
   })
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
+  // The saved workflow each builder's conversation is about, while it is about one: a new workflow is never started in that conversation.
+  const builderOn = new Map<string, string>()
   ipcMain.handle('workflows:builder', async (_, project: unknown, first?: string, editing?: unknown) => {
     const folder = projectOf(project)
     if (!folder) throw new Error('Open a project first.')
@@ -2205,8 +2207,12 @@ async function main() {
       agents.push(a)
       persist()
     }
+    const edit = typeof editing === 'string' && editing ? editing : ''
     // Each edit of a saved workflow starts clean: an earlier draft is dropped, the builder starts a new conversation, and the saved workflow is the draft to edit in place.
-    if (typeof editing === 'string' && editing) {
+    // A new workflow starts clean too when the builder was last on a saved one, so an earlier edit of Standard is never shown under "New workflow"; a draft of a new workflow
+    // that is not saved yet is kept, so going back and clicking New does not lose it.
+    if (edit || builderOn.has(a.id) || builder.view(a.id, folder)?.saved) {
+      builderOn.delete(a.id)
       builder.discard(a.id)
       a.sessionId = randomUUID()
       a.started = false
@@ -2217,10 +2223,13 @@ async function main() {
         mailbox.restarting(a.id)
         live.kill()
       }
-      try {
-        builder.startEdit(a.id, folder, editing)
-      } catch {
-        // A workflow that does not read cannot be the draft; the builder is told what is wrong when it reads it.
+      if (edit) {
+        builderOn.set(a.id, edit)
+        try {
+          builder.startEdit(a.id, folder, edit)
+        } catch {
+          // A workflow that does not read cannot be the draft; the builder is told what is wrong when it reads it.
+        }
       }
       send('workflows')
     }

@@ -74,7 +74,9 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
 
     // The built-in cannot be deleted, but can be chosen as the default again, and copied.
     await list.getByRole('option', { name: /Standard/ }).click()
-    await expect(win.getByRole('button', { name: 'Delete' })).toHaveCount(0)
+    await win.getByRole('button', { name: 'More' }).click()
+    await expect(win.getByRole('menuitem', { name: 'Delete' })).toHaveCount(0)
+    await win.getByRole('button', { name: 'More' }).click()
 
     // Make a workflow this project's default: it is remembered in the preferences, by project.
     await list.getByRole('option', { name: /Bug fix/ }).click()
@@ -85,16 +87,19 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
 
     // Copy a global workflow into the project, then delete the copy after being asked.
     await list.getByRole('option', { name: /Quick change/ }).click()
-    await win.getByRole('button', { name: 'Copy to shop' }).click()
+    await win.getByRole('button', { name: 'More' }).click()
+    await win.getByRole('menuitem', { name: 'Copy to shop' }).click()
     const copy = list.getByRole('option', { name: /Quick change \(copy\)/ })
     await expect(copy).toBeVisible()
     expect(existsSync(join(projectDir, 'quick-change-copy.json'))).toBe(true)
     await copy.click()
-    await win.getByRole('button', { name: 'Delete' }).click()
+    await win.getByRole('button', { name: 'More' }).click()
+    await win.getByRole('menuitem', { name: 'Delete' }).click()
     await expect(win.getByRole('alertdialog', { name: /Delete/ })).toContainText('This cannot be undone')
     await win.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click()
     expect(existsSync(join(projectDir, 'quick-change-copy.json'))).toBe(true)
-    await win.getByRole('button', { name: 'Delete' }).click()
+    await win.getByRole('button', { name: 'More' }).click()
+    await win.getByRole('menuitem', { name: 'Delete' }).click()
     await win.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
     await expect(copy).toHaveCount(0)
     expect(existsSync(join(projectDir, 'quick-change-copy.json'))).toBe(false)
