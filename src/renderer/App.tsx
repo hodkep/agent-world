@@ -56,6 +56,9 @@ import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
 import { type HeaderIconName, IconButton, OutlineIcon } from './panel/IconButton'
 import { ViewTab } from './panel/ViewTab'
+import { OfficeRail } from './panel/OfficeRail'
+import { officeHidden } from './officeHidden'
+import { createBatcher } from './batch'
 import { UpdateChip } from './panel/UpdateChip'
 import { WhatsNew } from './panel/ReleaseNotes'
 import { justUpdated, learnsVersion } from '../shared/updatedNote'
@@ -151,11 +154,11 @@ export function App() {
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
+  // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
+  const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
   // Below this width the panel would squeeze the office, so it becomes a drawer over it, closed until needed.
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
-  // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
-  const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
   const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'workflow' | 'file'>(readTalk)
@@ -611,9 +614,12 @@ export function App() {
       if (last && list.some((a) => a.id === last)) setSelected(last)
       setWorld((w) => list.reduce((acc, a) => applyEvent(acc, a.online ? { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: a.activity ?? 'idle' } : { type: 'session-end', agentId: a.id, sessionId: a.sessionId }), w))
     })
+    // Agent events and stats come in a stream; they are applied together every 150 ms, so the whole app is redrawn once for the lot, not once for each.
+    const later = createBatcher(150)
     const offs = [
+      later.stop,
       window.aw.onAgentEvent((e) => {
-        setWorld((w) => applyEvent(w, e))
+        later(() => setWorld((w) => applyEvent(w, e)))
         // A subagent another program was asked to do (through the office) opens in the panel as it starts: nobody else would tell you it is there.
         if (e.type === 'subagent-start') void window.aw.subagents(e.agentId).then((l) => l.some((i) => i.agentId === e.subagentId && i.toolUseId.startsWith('spawn:')) && openSub(e.agentId, e.subagentId), () => {})
         if (e.type === 'subagent-stop') sentAway.current.set(e.subagentId, Date.now())
@@ -633,7 +639,7 @@ export function App() {
           office.current?.sendMail(m.fromId, m.toId)
         }
       }),
-      window.aw.onAgentStats((id, s) => setStats((all) => ({ ...all, [id]: s }))),
+      window.aw.onAgentStats((id, s) => later(() => setStats((all) => ({ ...all, [id]: s })))),
       window.aw.onBudgetAlert((id, level) => setBudgetAlerts((all) => ({ ...all, [id]: level }))),
       // A notice clicked for an agent of another project opens that project first: its agent is not in the open project's list.
       window.aw.onSelectAgent(async (id) => {
@@ -1660,12 +1666,6 @@ export function App() {
                   Reset
                 </button>
               </div>
-              {folder && (
-                <div className="zoom-ctl" role="group" aria-label="Terminals">
-                  <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
-                    <span className="term-gl" aria-hidden="true">&gt;_</span>
-                    Terminal
-                    {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
               {agents.length > 0 && (
                 <div className="zoom-ctl" role="group" aria-label="Office">
                   <button className="hide-office" onClick={() => setOffice(true)} title="Stops the picture and gives the chat the whole window; a button on the left brings it back">
@@ -1674,6 +1674,12 @@ export function App() {
                   </button>
                 </div>
               )}
+              {folder && (
+                <div className="zoom-ctl" role="group" aria-label="Terminals">
+                  <button className="term-btn" onClick={toggleTerm} aria-pressed={termOpen} aria-controls="terminal-drawer" title={`Show or hide the terminals in this project (${keysOf('terminals')})`}>
+                    <span className="term-gl" aria-hidden="true">&gt;_</span>
+                    Terminal
+                    {termCount > 0 && <span className="term-count" aria-label={`${termCount} terminal${termCount === 1 ? '' : 's'}`}>{termCount}</span>}
                   </button>
                 </div>
               )}
@@ -1698,13 +1704,13 @@ export function App() {
         <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow && !noOffice ? 'drawer' : ''} ${noOffice ? 'solo' : ''}`} style={!wide && !noOffice && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
           <div
             className="resizer"
+            hidden={noOffice}
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize the panel"
             tabIndex={0}
             title="Drag to resize · double-click to reset"
             onDoubleClick={() => (setPanelW(null), keep('aw.panelw', ''))}
-            hidden={noOffice}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
               e.preventDefault()
