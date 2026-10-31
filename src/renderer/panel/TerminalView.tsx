@@ -20,6 +20,7 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
   askRef.current = ask
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
+  const replay = useRef<(() => void) | null>(null)
   // Fits the terminal to its box and tells the program the size it ended with, even when the size is the one the terminal already had: the program may have another
   // (it started at its own default, or restarted), and xterm only reports a change. Not measured yet (hidden, fonts loading): tries again on the next frames.
   const sync = (tries = 6) => {
@@ -29,6 +30,7 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     const size = fit.proposeDimensions()
     if (!size || !size.cols || !size.rows || Number.isNaN(size.cols)) return void (tries > 0 && requestAnimationFrame(() => sync(tries - 1)))
     fit.fit()
+    replay.current?.()
     window.aw.ptyResize(ptyIdRef.current, term.cols, term.rows)
     el.current.dataset.cols = String(term.cols)
   }
@@ -91,21 +93,28 @@ export function TerminalView({ ptyId, visible, focusTick, ask }: { ptyId: string
     term.loadAddon(fit)
     term.open(el.current!)
 
-    // Live chunks arrive before the replay; hold them and drop what the replay already covers.
+    // What the terminal already holds is replayed once it has been fitted to its box. Its cursor moves were made for that width: written at the default 80 columns
+    // of a box that was hidden, they land in the wrong cells, and a later fit only re-wraps them. Until then live chunks are dropped, since the replay covers them.
     let replayEnd: number | null = null
+    let started = false
     const early: { data: string; end: number }[] = []
     const write = (data: string, end: number) => {
+      if (!started) return
       if (replayEnd === null) return void early.push({ data, end })
       const start = end - data.length
       if (end <= replayEnd) return
       term.write(start < replayEnd ? data.slice(replayEnd - start) : data)
     }
     const offData = window.aw.onPtyData((id, data, end) => id === ptyId && write(data, end))
-    void window.aw.ptyBuffer(ptyId).then(({ text, end }) => {
-      term.write(text)
-      replayEnd = end
-      for (const c of early.splice(0)) write(c.data, c.end)
-    })
+    replay.current = () => {
+      if (started) return
+      started = true
+      void window.aw.ptyBuffer(ptyId).then(({ text, end }) => {
+        term.write(text)
+        replayEnd = end
+        for (const c of early.splice(0)) write(c.data, c.end)
+      })
+    }
     const input = term.onData((d) => window.aw.ptyWrite(ptyId, d))
     // Cmd and Option with the arrows move by line and by word, as in the system terminal.
     term.attachCustomKeyEventHandler((e) => {
