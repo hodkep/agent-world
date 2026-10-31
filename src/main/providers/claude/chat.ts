@@ -84,6 +84,14 @@ export function parseTranscriptLine(raw: string, opts: { subagent?: boolean } = 
   const queued = obj(o.attachment)
   if (type === 'attachment' && queued.type === 'queued_command') return obj(queued.origin).kind === 'human' ? userText(uuid, at, str(queued.prompt)) : []
 
+  // Claude's own queue of what was typed while it was busy: when a message joins it, and when it leaves.
+  if (type === 'queue-operation') {
+    const op = str(o.operation)
+    if (op !== 'enqueue' && op !== 'dequeue' && op !== 'remove') return []
+    const text = str(o.content)
+    return [{ kind: 'queue', id: `queue-${at}-${op}-${text.slice(0, 24)}`, at, op, text }]
+  }
+
   if (type === 'system') return o.subtype === 'compact_boundary' ? [{ kind: 'note', id: uuid, at, text: compactNote(str(o.content) || 'Conversation compacted', obj(o.compactMetadata)), event: 'compact' }] : []
 
   // The summary Claude writes after /compact is model context, not something the user said.

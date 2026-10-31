@@ -17,6 +17,8 @@ export type NoteEvent = 'monitor' | 'interrupted' | 'failed' | 'command' | 'comp
 
 export type ChatItem =
   | { kind: 'user'; id: string; at: number; text: string }
+  /** A message waiting in Claude's own queue (typed in the terminal, or sent while it was busy): queued, then taken up (a dequeue names no text) or absorbed into the turn (a remove). */
+  | { kind: 'queue'; id: string; at: number; op: 'enqueue' | 'dequeue' | 'remove'; text: string }
   | { kind: 'command'; id: string; at: number; name: string; args: string }
   | { kind: 'assistant'; id: string; at: number; text: string }
   | { kind: 'thinking'; id: string; at: number }

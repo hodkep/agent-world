@@ -172,6 +172,7 @@ const api: AwApi = {
   cancelNeed: (id) => ipcRenderer.invoke('need:cancel', id),
   rewindTo: (id, text) => ipcRenderer.invoke('rewind-to', id, text),
   chatInterrupt: (id, restore) => ipcRenderer.invoke('chat:interrupt', id, restore),
+  chatUnqueue: (id) => ipcRenderer.invoke('chat:unqueue', id),
   listRoles: (folder) => ipcRenderer.invoke('roles:list', folder),
   saveRole: (r) => ipcRenderer.invoke('roles:save', r),
   deleteRole: (id) => ipcRenderer.invoke('roles:delete', id),

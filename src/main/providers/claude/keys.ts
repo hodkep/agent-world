@@ -5,6 +5,8 @@ export const claudeKeys: Keys = {
   submit: '\r',
   submitDelayMs: 150,
   clearInput: '\x15',
+  // Up, with nothing typed, takes the queued messages back into the input box.
+  editQueued: '\x1b[A',
   cancel: '\x1b',
   nextMode: '\x1b[Z',
   // Esc is how Claude's terminal interrupts a turn; it can swallow a first one, so repeat, and end with Ctrl+C.

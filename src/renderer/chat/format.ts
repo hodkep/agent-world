@@ -5,7 +5,7 @@ import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
-  | { kind: 'user'; id: string; text: string; /** When it was sent (not set on one still sending). */ at?: number; pending?: boolean; queued?: boolean }
+  | { kind: 'user'; id: string; text: string; /** When it was sent (not set on one still sending). */ at?: number; pending?: boolean; queued?: boolean; /** Waiting in Claude's own queue, which the chat did not send: typed in the terminal. */ waiting?: boolean }
   | { kind: 'image'; id: string; src: string }
   | { kind: 'shell'; id: string; command: string; out?: { stdout: string; stderr: string } }
   | { kind: 'command'; id: string; name: string; args: string }
@@ -145,6 +145,8 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
         lastReply = row
         break
       }
+      case 'queue':
+        break
       default: {
         // /compact leaves a boundary and a summary; they read as one card, where the compaction happened.
         const isSummary = i.kind === 'note' && !!i.detail
@@ -202,6 +204,22 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     const done = n ? said.has(n) || folded() : items.some((i) => i.kind === 'image' && i.at >= (p.at ?? 0) - 2000)
     if (!done) rows.push({ kind: 'user', id: p.id, text: p.text, pending: true, queued: p.queued })
   }
+  // What waits in Claude's own queue (typed in the terminal): a dequeue takes the oldest, a remove the one it names. One the chat sent shows already.
+  const queue: string[] = []
+  for (const i of items) {
+    if (i.kind !== 'queue') continue
+    if (i.op === 'enqueue') queue.push(i.text)
+    else if (i.op === 'dequeue') queue.shift()
+    else {
+      const k = queue.findIndex((t) => norm(t) === norm(i.text))
+      if (k >= 0) queue.splice(k, 1)
+    }
+  }
+  const shown = new Set(rows.filter((r) => r.kind === 'user' && r.pending).map((r) => norm((r as { text: string }).text)))
+  queue.forEach((text, k) => {
+    if (!norm(text) || shown.has(norm(text))) return
+    rows.push({ kind: 'user', id: `waiting-${k}-${text.slice(0, 24)}`, text, pending: true, queued: true, waiting: true })
+  })
   return rows
 }
 
