@@ -74,7 +74,7 @@ a workflow and suggests a model and settings for each step.
 ## What exists today (so we build on it, not around it)
 
 - **Skills:** found and offered in the message box's `/` list: a project's own, your own, and those of enabled Claude plugins; agy's folders likewise. There is no screen to browse, read, create, enable or assign them.
-- **Plugins and MCP servers:** listed in the agent's Tools tab and enabled, disabled or removed through the program's own command. Nothing is tied to a role or a step.
+- **Plugins and MCP servers:** no longer have a screen in the app (the Tools tab became Agent Memory); they are managed with the program's own command, for example `/mcp` in the terminal. Nothing is tied to a role or a step.
 - **Roles:** a saved bundle of model, effort, permission mode and extra instructions, used when hiring. This is the natural carrier for "skills attached to the agent that does a step".
 - **Agents talking:** agents message each other and keep shared notes through the app's MCP server (`list_agents`, `send_message`, `recall`, `remember`); hand-off and review requests carry a branch and a worktree.
 - **Cost and activity:** the ledger records spend, turns and limits per agent and per account; the app knows when an agent is working, waiting or idle, and sees hook events.

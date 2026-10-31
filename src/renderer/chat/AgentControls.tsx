@@ -54,7 +54,7 @@ export interface AgentActions {
   /** Summarise the conversation to free up context (the /compact command). */
   compact: () => void
   handbook: () => void
-  tools: () => void
+  memory: () => void
   rename: () => void
   group: () => void
   /** Start the agent's program again on the same conversation (asks first). */
@@ -255,9 +255,9 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                     Handbook
                   </button>
                 )}
-                <button className="cb-tile" role="menuitem" title="MCP servers and plugins" onClick={run(actions.tools)}>
-                  <PixelIcon name="tools" />
-                  Tools
+                <button className="cb-tile" role="menuitem" title="Notes every agent in this project shares" onClick={run(actions.memory)}>
+                  <PixelIcon name="tag" />
+                  Memory
                 </button>
               </div>
               {info.branch && (

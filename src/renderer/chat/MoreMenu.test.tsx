@@ -7,7 +7,7 @@ import { type AgentActions, type AgentInfo, MoreMenu } from './AgentControls'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const info = (over: Partial<AgentInfo> = {}): AgentInfo => ({ model: null, effort: null, fast: false, contextPct: null, costUsd: 0, linesAdded: 0, linesRemoved: 0, branch: 'aw/ada', canSwitch: true, started: true, ...over })
-const actions = (): AgentActions => ({ switchTo: vi.fn(), roles: [], setRole: vi.fn(), reviewers: [], askReview: vi.fn(), handoff: vi.fn(), clone: vi.fn(), compact: vi.fn(), handbook: vi.fn(), tools: vi.fn(), rename: vi.fn(), group: vi.fn(), restart: vi.fn(), remove: vi.fn() })
+const actions = (): AgentActions => ({ switchTo: vi.fn(), roles: [], setRole: vi.fn(), reviewers: [], askReview: vi.fn(), handoff: vi.fn(), clone: vi.fn(), compact: vi.fn(), handbook: vi.fn(), memory: vi.fn(), rename: vi.fn(), group: vi.fn(), restart: vi.fn(), remove: vi.fn() })
 
 async function open(i: AgentInfo = info(), a: AgentActions = actions()) {
   const host = document.body.appendChild(document.createElement('div'))
@@ -25,8 +25,8 @@ describe('the More actions menu', () => {
   it('keeps the four tiles in one row, each with its label, and what each is for as its hover hint', async () => {
     const { menu } = await open()
     const tiles = [...menu.querySelectorAll<HTMLElement>('.cb-tile')]
-    expect(tiles.map((t) => t.textContent)).toEqual(['Review', 'Clone', 'Handbook', 'Tools'])
-    expect(tiles.map((t) => t.title)).toEqual(['Ask a peer to look at the branch', 'Fork this chat into a new branch', 'CLAUDE.md', 'MCP servers and plugins'])
+    expect(tiles.map((t) => t.textContent)).toEqual(['Review', 'Clone', 'Handbook', 'Memory'])
+    expect(tiles.map((t) => t.title)).toEqual(['Ask a peer to look at the branch', 'Fork this chat into a new branch', 'CLAUDE.md', 'Notes every agent in this project shares'])
   })
 
   it('groups the rows under Hand over, Manage and Session, each action on its own row', async () => {
@@ -55,7 +55,7 @@ describe('the More actions menu', () => {
   it('leaves out Hand over, Review and Handbook for an agent with no branch', async () => {
     const { menu } = await open(info({ branch: null }))
     expect([...menu.querySelectorAll('h6')].map((h) => h.textContent)).toEqual(['Manage', 'Session'])
-    expect([...menu.querySelectorAll('.cb-tile')].map((t) => t.textContent)).toEqual(['Clone', 'Tools'])
+    expect([...menu.querySelectorAll('.cb-tile')].map((t) => t.textContent)).toEqual(['Clone', 'Memory'])
   })
 
   it('runs the action of a row and closes the menu', async () => {
