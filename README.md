@@ -9,6 +9,8 @@
   <img alt="Node 22 or newer" src="https://img.shields.io/badge/node-22%2B-f2c230?style=flat-square&labelColor=12101a">
 </p>
 
+<p align="center"><a href="https://hodkep.github.io/agent-world/">Website</a> · <a href="https://hodkep.github.io/agent-world/docs/getting-started/">User guide</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="../../releases/latest">Latest release</a></p>
+
 <p align="center"><b>Run and steer your coding agents from one place, shown as characters working in a pixel-art IT office.</b></p>
 
 <img src="docs/images/hero.gif" alt="Hire an agent, watch it walk in and work, and approve its permission request from the office" width="800">
@@ -21,7 +23,7 @@ Each project is an office floor. Each agent is a character with its own git work
 
 ## <img src="docs/images/icons/hooks.svg" width="24" height="24" alt=""> Quick start
 
-1. **Download** the installer for your computer from the [releases page](../../releases): on a Mac, the `arm64` dmg for Apple silicon (M1 and later) or the `x64` dmg for Intel. Open it and drag **Agent World** into Applications.
+1. **Download** the installer for your computer from the [releases page](../../releases): on a Mac, the `arm64` dmg for Apple silicon (M1 and later) or the `x64` dmg for Intel. Open it and drag **Agent World** into Applications. If GitHub is slow for you, the same dmg is also on the project's mirror: [Apple silicon](https://pub-761b6780fbbc4b30b60a22f902c0e743.r2.dev/latest/Agent-World-arm64.dmg), [Intel](https://pub-761b6780fbbc4b30b60a22f902c0e743.r2.dev/latest/Agent-World-x64.dmg).
 2. **Open it once.** The Mac app is not signed with an Apple Developer ID yet, so macOS blocks the first launch. On macOS 15 and later, try to open it, then go to System Settings > Privacy & Security and press **Open Anyway**. Older macOS and the terminal route are in [INSTALL.md](INSTALL.md).
 3. **Follow the setup screens.** Nothing has to be installed first: the app carries its own `git`, and setup installs the Claude Code CLI for you and has you sign in once, in a terminal inside the app. Agent World runs your own `claude` and never handles your login. Antigravity (`agy`) is optional.
 4. **Hire.** Pick a project folder, click **+ Agent**, name it, and the character walks in.
