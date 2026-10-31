@@ -20,7 +20,7 @@ import { agentDot, agentMarks, createDoneTracker, projectDot } from '../shared/a
 import { WorkspacePicker } from './panel/WorkspacePicker'
 import { TerminalDrawer } from './panel/TerminalDrawer'
 import { useConfirm } from './panel/ConfirmDialog'
-import { type LimitView, type UsageLimits, noLimits, untilReset } from '../shared/usage'
+import { type LimitView, type UsageLimits, limitView, noLimits, untilReset } from '../shared/usage'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../shared/modes'
 import { effortsFor } from '../shared/efforts'
 import { InputDialog, needTitle, type Need, type NeedActions } from './panel/InputDialog'
@@ -157,6 +157,7 @@ export function App() {
   // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
   const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
   const [railSlim, setRailSlim] = useState(() => store('aw.railSlim') === '1')
+  const [railW, setRailW] = useState<number | null>(() => Number(store('aw.railw')) || null)
   // Below this width the panel would squeeze the office, so it becomes a drawer over it, closed until needed.
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
@@ -1706,11 +1707,14 @@ export function App() {
         </div>
         {noOffice && (
           <OfficeRail
-            agents={agents.map((a) => ({ id: a.id, name: a.name, working: ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(world[a.id]?.activity ?? '') }))}
+            agents={agents.map((a) => { const act = world[a.id]?.activity ?? ''; const working = ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(act); return { id: a.id, name: a.name, working, state: act === 'asleep' ? 'asleep' as const : act === 'waiting' || act === 'permission' ? 'waiting' as const : working ? 'working' as const : 'idle' as const, role: world[a.id] ? roleOf(world[a.id]!) : 'senior' } })}
             selected={selected}
             marks={tileMarks}
             slim={railSlim}
+            width={railW}
+            onWidth={(w) => (setRailW(w), keep('aw.railw', w ? String(w) : ''))}
             onSlim={() => (setRailSlim(!railSlim), keep('aw.railSlim', railSlim ? '' : '1'))}
+            usage={current ? { five: limitView(limitsOf(current).fiveHour, Date.now()), week: limitView(limitsOf(current).sevenDay, Date.now()), account: prefs?.accounts.find((x) => x.id === current.account && x.provider === (current.provider ?? DEFAULT_PROVIDER))?.name } : null}
             officeKeys={keysOf('office')}
             onShow={() => setOffice(false)}
             // The agent that is open: pressing it again shows or hides its profile card, which has no name above the chat to click now.
@@ -1922,6 +1926,13 @@ export function App() {
             </ul>
           )}
           {current && (
+            <div className={`tabbar ${noOffice ? 'with-who' : ''}`}>
+              {noOffice && (
+                <div className="tab-who">
+                  <b>{current.name}</b>
+                  <small>{[current.branch, state?.activity ?? 'asleep'].filter(Boolean).join(' · ')}</small>
+                </div>
+              )}
             <div className="tabs" role="tablist" aria-label="Agent view">
               {[
                 { id: 'chat', icon: 'chat', label: 'Chat', about: 'Talk with the agent', go: () => (chooseTalk('chat'), setFocusTick((n) => n + 1)) },
@@ -1941,6 +1952,7 @@ export function App() {
               <button className="push icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
                 {wide ? '⤡' : '⤢'}
               </button>
+            </div>
             </div>
           )}
           {agents.map((a) => chatFor(a, a.id === selected && view === 'chat'))}

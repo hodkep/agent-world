@@ -122,4 +122,80 @@ describe('the rail that stays when the office is hidden', () => {
       expect(nav(host).classList.contains('peek')).toBe(false)
     })
   })
+
+  describe('the agents, each with its own face and what it is doing', () => {
+    const three = [
+      { id: 'a1', name: 'nova', working: false, state: 'waiting' as const, role: 'senior' as const },
+      { id: 'a2', name: 'atlas', working: true, state: 'working' as const, role: 'boss' as const },
+      { id: 'a3', name: 'bo', working: false, state: 'asleep' as const, role: 'senior' as const },
+      { id: 'a4', name: 'cy', working: false, state: 'idle' as const, role: 'intern' as const }
+    ]
+    it('draws a face for each, and a speech bubble for the ones that wait for you, work or sleep, none for one that is idle', async () => {
+      const { host } = await mount({ agents: three })
+      const rows = [...host.querySelectorAll('.rail-agent')]
+      expect(rows.every((r) => r.querySelector('.rail-tile canvas'))).toBe(true)
+      expect(rows.map((r) => r.querySelector('.rail-bubble')?.textContent ?? '')).toEqual(['?', '...', 'zz', ''])
+      expect(rows.map((r) => r.querySelector('small')!.textContent)).toEqual(['waiting for you', 'working', 'asleep', 'idle'])
+    })
+    it('keeps the caption row when folded: the word Agents open, the number of agents folded, in the same place', async () => {
+      const open = await mount({ agents: three })
+      expect(open.host.querySelector('.rail-cap')!.textContent).toBe('Agents')
+      document.body.innerHTML = ''
+      const folded = await mount({ agents: three, slim: true })
+      expect(folded.host.querySelector('.rail-cap')!.textContent).toBe('4')
+      expect([...folded.host.querySelectorAll('.rail-agent')].length).toBe(4)
+    })
+  })
+
+  describe('the allowance of the selected agent\'s account, on a board at the bottom', () => {
+    const usage = { five: { pct: 36, level: 'ok' as const, reset: '2h 10m' }, week: { pct: 81, level: 'warn' as const, reset: '3d 4h' }, account: 'work' }
+    it('says how much is left of the 5-hour and the weekly allowance, and when each resets', async () => {
+      const { host } = await mount({ usage })
+      const block = host.querySelector('.rail-usage')!
+      expect(block.textContent).toContain('work')
+      const rows = [...block.querySelectorAll('.ru-row')]
+      expect(rows.map((r) => r.querySelector('.ru-lb')!.textContent)).toEqual(['5H', 'WK'])
+      expect(rows.map((r) => r.querySelector('.ru-left')!.textContent)).toEqual(['64%', '19%'])
+      expect(rows.map((r) => r.querySelector('.ru-reset')!.textContent)).toEqual(['resets in 2h 10m', 'resets in 3d 4h'])
+      expect(rows[1]!.className).toContain('warn')
+      expect(rows.map((r) => r.querySelectorAll('.ru-seg.on').length)).toEqual([8, 2])
+    })
+    it('shows a dash for an allowance with no reading, and nothing at all without usage', async () => {
+      const none = { pct: null, level: 'ok' as const, reset: '' }
+      const { host } = await mount({ usage: { five: none, week: none } })
+      expect([...host.querySelectorAll('.ru-left')].map((x) => x.textContent)).toEqual(['—', '—'])
+      document.body.innerHTML = ''
+      const again = await mount()
+      expect(again.host.querySelector('.rail-usage')).toBeNull()
+    })
+    it('is two thin bars when the list is folded', async () => {
+      const { host } = await mount({ usage, slim: true })
+      expect(host.querySelectorAll('.rail-usage .ru-bar').length).toBe(2)
+    })
+  })
+
+  describe('the separator that sets how wide the open rail is', () => {
+    it('is there while the list is open, and not while it is folded', async () => {
+      const open = await mount({ width: 224, onWidth: vi.fn() })
+      expect(open.host.querySelector('[role="separator"]')).not.toBeNull()
+      document.body.innerHTML = ''
+      const folded = await mount({ slim: true, width: 224, onWidth: vi.fn() })
+      expect(folded.host.querySelector('[role="separator"]')).toBeNull()
+    })
+    it('moves 20px with the arrow keys, within 176 and 360, and goes back to the default on a double-click', async () => {
+      const onWidth = vi.fn()
+      const { host } = await mount({ width: 224, onWidth })
+      const sep = host.querySelector<HTMLElement>('[role="separator"]')!
+      await act(async () => void sep.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+      expect(onWidth).toHaveBeenLastCalledWith(244)
+      await act(async () => void sep.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+      expect(onWidth).toHaveBeenLastCalledWith(204)
+      document.body.innerHTML = ''
+      const edge = await mount({ width: 356, onWidth })
+      await act(async () => void edge.host.querySelector<HTMLElement>('[role="separator"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+      expect(onWidth).toHaveBeenLastCalledWith(360)
+      await act(async () => void edge.host.querySelector<HTMLElement>('[role="separator"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+      expect(onWidth).toHaveBeenLastCalledWith(null)
+    })
+  })
 })
