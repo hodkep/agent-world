@@ -64,7 +64,7 @@
     "dompurify": "^3.4.16",
     "electron-updater": "^6.8.9",
     "katex": "^0.18.10",
-    "marked": "^18.0.14",
+    "marked": "^18.1.2",
     "marked-alert": "^2.1.2",
     "marked-footnote": "^1.4.0",
     "marked-gfm-heading-id": "^4.1.4",
