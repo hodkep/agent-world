@@ -1,0 +1,12 @@
+{
+  "version": "0.9.0",
+  "tagline": "Reach everything faster.",
+  "subtitle": "Icon tabs, grouped menus, a Hide office button, and workflows that can skip what does not apply.",
+  "cards": [
+    { "kicker": "Panel", "title": "Tabs are icons, with names on hover", "text": "A card over each tab says its name, what it is for and the key that goes to it.", "chips": ["Chat", "Terminal", "Code", "Tools"] },
+    { "kicker": "Menus", "title": "Agent and chat menus, in groups", "text": "Each action has a line on what it does, and the key sits beside Search." },
+    { "kicker": "Office", "title": "Hide office", "text": "Stops the picture and gives the chat the whole window; a strip brings the office back.", "chips": ["Focus", "Less redraw"] },
+    { "kicker": "Workflows", "title": "Skip what does not apply", "text": "Steps can be skipped with a reason, a refused step can be asked again, and a stuck run can be ended.", "chips": ["Skip", "Ask again", "End run"] }
+  ],
+  "also": ["A run tells its story", "A tall flow pane", "Cards that ask fold to a line", "Lighter redraws", "Terminal opens without jumbled text"]
+}
