@@ -1,3 +1,4 @@
+import { isSkippable } from '../../shared/workflow'
 import { useState } from 'react'
 import type { Run, RunStep } from '../../shared/runs'
 import { Markdown } from '../chat/markdown'
@@ -38,7 +39,8 @@ export function RunGate({ agentName, run, step }: { agentName: string; run: Run;
           <button className="primary" disabled={busy} onClick={go}>{audit ? 'Run audit' : 'Run'}</button>
           <button disabled={busy} title={step.optional ? 'It is optional: the run goes on without it.' : `Required: the workflow stops here and ${agentName} is told to wait.`} onClick={() => void window.aw.workflows.declineStep(run.id, step.id).then(() => undefined, (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))}>Not now</button>
           {!audit && !agents && <button disabled={busy} onClick={() => void window.aw.workflows.skipCheck(run.id, step.id)}>Skip this check</button>}
-          {audit && step.optional && <button disabled={busy} title="It is optional: the run goes on without it." onClick={() => void window.aw.finishAside(run.agent)}>Skip</button>}
+          {!audit && step.kind === 'work' && (step.optional || isSkippable(step)) && <button disabled={busy} title="You can skip it: the run goes on without it." onClick={() => void window.aw.workflows.skipStep(run.id, step.id).then(() => undefined, (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))}>Skip</button>}
+          {audit && (step.optional || isSkippable(step)) && <button disabled={busy} title="You can skip it: the run goes on without it." onClick={() => void window.aw.finishAside(run.agent)}>Skip</button>}
         </div>
       </div>
     </section>

@@ -104,7 +104,7 @@ import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
 import { troubleOf } from '../shared/trouble'
-import { checkPassed, laneStepIds, runEnded, stepAskedAgain, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -2338,6 +2338,25 @@ async function main() {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.askAgain(runId, String(step))
     if (run) mailbox.fromOffice(run.agent, stepAskedAgain(name))
+    send('workflows')
+  })
+  // The person drops a run that never needed a workflow (the agent asked to skip everything): it leaves the lists, and the agent is told.
+  ipcMain.handle('workflows:drop-run', (_, runId: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const title = workflows.dropRun(runId)
+    if (run) mailbox.fromOffice(run.agent, runDropped(title))
+    send('workflows')
+  })
+  // The person's answer to a refused step: skip it and go on, ask again later (it stays refused), or stop the run. The agent is told which.
+  ipcMain.handle('workflows:refused-answer', (_, runId: string, step: string, choice: 'skip' | 'later' | 'stop') => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    if (choice === 'skip') mailbox.fromOffice(run.agent, stepSkippedOnward(workflows.skipRefused(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
+    else if (choice === 'later') mailbox.fromOffice(run.agent, stepRefusedLater(workflows.deferRefused(runId, String(step))))
+    else if (choice === 'stop') {
+      workflows.endRun(runId, 'The person stopped the run after refusing a step.')
+      mailbox.fromOffice(run.agent, runEnded(run.title))
+    } else throw new Error('Choose skip, later or stop.')
     send('workflows')
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.

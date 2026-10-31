@@ -1,5 +1,6 @@
 import type { RunStep } from '../../../shared/runs'
 import type { StepState } from '../../../shared/steps'
+import { isSkippable } from '../../../shared/workflow'
 
 /** What the person can press on a step of a run: Run, for a check or an audit that starts that way, or Approve (with Send back) for a step that asks. */
 export type RunAction = { kind: 'run'; label: string; call: 'check' | 'audit' | 'start' | 'push' | 'again' } | { kind: 'approve'; label: string; plan?: true }
@@ -16,10 +17,10 @@ export function actionOf(s: StepState, step: RunStep): RunAction | null {
   return null
 }
 
-/** How the person skips a step of a run, when it is optional and not over: a build or an approval by a call of its own, a check and an audit the way they always were. */
+/** How the person skips a step of a run, when it is optional or skippable and not over: a build or an approval by a call of its own, a check and an audit the way they always were. */
 export function skipOf(s: StepState, step: RunStep): 'step' | 'check' | 'audit' | undefined {
-  if (!step.optional || (s.state !== 'running' && s.state !== 'waiting')) return undefined
-  return s.kind === 'check' ? 'check' : s.kind === 'audit' ? 'audit' : s.kind === 'work' || s.kind === 'approve' ? 'step' : undefined
+  if (!(step.optional || isSkippable(step)) || (s.state !== 'running' && s.state !== 'waiting')) return undefined
+  return s.kind === 'check' ? 'check' : s.kind === 'audit' ? 'audit' : s.kind === 'work' || s.kind === 'approve' || s.kind === 'pr' ? 'step' : undefined
 }
 
 const PLURAL = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`

@@ -18,6 +18,8 @@ export type RunEvent =
   /** A finished task's work was sent back (a check failed, or the person asked for changes): it is open again, in the same round. */
   | { k: 'reopen'; t: number; run: string }
   | { k: 'stop'; t: number; run: string }
+  /** The person drops a run that never needed a workflow: it leaves the lists as if it had not begun. */
+  | { k: 'drop'; t: number; run: string }
   /** `flagged`: the commit was made with no task open, so it was attached to the nearest run. */
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
@@ -62,6 +64,7 @@ export interface RunStep {
   brief?: string
   start?: Start
   optional?: boolean
+  skippable?: boolean
   skills?: string[]
   run?: string
   retries?: number
@@ -174,6 +177,10 @@ export function reduceRuns(events: RunEvent[]): Run[] {
   for (const e of events) {
     if (e.k === 'begin') {
       runs.set(e.run, { id: e.run, agent: e.agent, name: e.name, project: e.project, title: e.title, ...(e.auto && { auto: true }), ...(e.workflow && { workflow: e.workflow }), status: 'open', startedAt: e.t, rounds: [{ n: 1, startedAt: e.t, commits: [], steps: [], checks: [] }] })
+      continue
+    }
+    if (e.k === 'drop') {
+      runs.delete(e.run)
       continue
     }
     const r = runs.get(e.run)

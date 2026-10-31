@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { askRows, reviewSummary } from '../../shared/reviewSummary'
 import { History } from './History'
 import type { ProposalView, SaveHow } from '../../shared/builder'
@@ -8,6 +8,8 @@ import { StepEditor } from './StepEditor'
 import { SkillChips } from './WorkflowList'
 
 const SCOPE_WORDS = { 'built-in': 'the built-in one', global: 'the one kept for everything', project: 'the one in this project' } as const
+type ReviewTab = 'changes' | 'asks' | 'notes' | 'history'
+const PANEL_LABEL: Record<ReviewTab, string> = { changes: 'Changes', asks: 'What asks you', notes: 'Notes', history: 'History' }
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /** What a changed step says in the "what changes" list: its kind, and the command or gate that matters to the person. */
@@ -49,13 +51,52 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
   const rows = previewOf(wf)
   const sum = reviewSummary(view, rows)
   const asks = askRows(rows)
-  // The drawer opens by itself when there is something to review: changes, a stale draft, or notes that change what saving does.
-  const [open, setOpen] = useState(view.stale || sum.notes > 0 || sum.changes > 0)
+  // Review is a row of tabs under the flow: a click opens a panel over the flow, a second click shuts it. It opens by itself once, on what needs a look: changes, then notes.
+  const [tab, setTab] = useState<ReviewTab | null>(sum.changes > 0 ? 'changes' : sum.notes > 0 ? 'notes' : null)
+  const dock = useRef<HTMLDivElement>(null)
+  // When changes or notes appear, the tab for them opens by itself (a panel the person shut stays shut until something new needs a look).
   useEffect(() => {
-    if (view.stale || sum.notes > 0 || sum.changes > 0) setOpen(true)
-  }, [view.stale, sum.notes, sum.changes])
+    if (sum.changes > 0 || sum.notes > 0) setTab((t) => t ?? (sum.changes > 0 ? 'changes' : 'notes'))
+  }, [sum.changes, sum.notes])
+  useEffect(() => {
+    if (!tab) return
+    const away = (e: MouseEvent) => {
+      if (!dock.current?.contains(e.target as Node)) setTab(null)
+    }
+    const key = (e: KeyboardEvent) => {
+      // Escape puts this away and no more: the window around it stays open.
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setTab(null)
+      }
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', key)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', key)
+    }
+  }, [tab])
+  const toggle = (t: ReviewTab) => setTab(tab === t ? null : t)
   const grantingSteps = wf.steps.filter((s) => s.skills?.some((id) => granted.includes(id))).map((s) => s.name ?? s.id)
   const saveTo = replaces ? `${wf.name} ${view.saved!.scope === 'global' ? 'for everything' : `in ${here || 'the project'}`}` : ''
+  const buttons = replaces ? (
+    <>
+      <button className="primary" disabled={busy || view.stale || problem} onClick={() => go('replace')}>Replace {saveTo}</button>
+      <button disabled={busy || view.stale || problem} onClick={() => go('copy')}>Save as new</button>
+    </>
+  ) : (
+    <>
+      <button className="primary" disabled={busy || view.stale || problem || !folder} title={folder ? '' : 'Open a project first'} onClick={() => go('project')}>Save to {here || 'a project'}</button>
+      <button disabled={busy || view.stale || problem} onClick={() => go('global')}>Save for everything</button>
+    </>
+  )
+  const tabs: { id: ReviewTab; label: string; count: string; hot?: boolean }[] = [
+    { id: 'changes', label: 'Changes', count: String(sum.changes), hot: sum.changes > 0 },
+    { id: 'asks', label: 'Asks you', count: String(asks.length) },
+    { id: 'notes', label: 'Notes', count: String(sum.notes), hot: sum.notes > 0 },
+    ...(view.saved ? [{ id: 'history' as const, label: 'History', count: '' }] : [])
+  ]
   return (
     <section className="bs-draft fills" aria-label="Workflow proposal">
       <div className="bs-top">
@@ -63,6 +104,10 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
           <b>{wf.name}</b>
           <span className="wf-tag draft">Draft</span>
           <span className="muted">{!view.saved ? 'new · not saved' : replaces ? `replaces ${SCOPE_WORDS[view.saved.scope]}` : 'replaces the built-in Standard'}</span>
+          <span className="bs-actions">
+            {buttons}
+            <button disabled={busy} onClick={discard}>Discard</button>
+          </span>
         </div>
         {wf.when && <p className="muted bs-when">When: {wf.when}</p>}
         {view.stale && (
@@ -70,24 +115,19 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
             The saved workflow changed after this was proposed. Ask the builder to look at it again; saving is off until it does.
           </p>
         )}
+        {error && <p className="error" role="alert">{error}</p>}
       </div>
       <div className="bs-flowarea">
         <StepEditor fill agentId={agentId} folder={folder} workflow={wf} skillStates={view.skills} at={view.at} edited={view.edited} marks={sum.marks} onProblem={setProblem} onChanged={onChanged} />
       </div>
-      <div className="bs-drawer">
-        <details className="bs-review" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-          <summary aria-label="Review of the workflow">
-            <b>Review</b>
-            {sum.changes > 0 && <span className="bs-count hot">{plural(sum.changes, 'change')}</span>}
-            <span className="bs-count">{asks.length === 0 ? 'nothing asks you' : `asks you at ${asks.length}`}</span>
-            {sum.notes > 0 && <span className="bs-count hot">{plural(sum.notes, 'note')}</span>}
-            <span className="bs-toggle muted">{open ? 'Hide' : 'Show'}</span>
-          </summary>
-          <div className="bs-sections">
-            <details className="bs-sec" open={sum.changes > 0 || undefined}>
-              <summary><b>Changes</b><span className="muted">{view.saved ? (d.same ? 'none' : plural(sum.changes, 'change')) : 'a new workflow'}</span></summary>
+      <div className="bs-dock" ref={dock}>
+        {tab && (
+          <div className="bs-panel" role="region" aria-label={PANEL_LABEL[tab]}>
+            {tab === 'changes' && (
+              <>
+                <h5>Changes <span className="muted">{view.saved ? (d.same ? 'none' : plural(sum.changes, 'change')) : 'a new workflow'}</span></h5>
               {d.same ? (
-                <p className="muted">Nothing differs from the saved one.</p>
+                <p className="bs-none">Nothing differs from the saved one.</p>
               ) : d.isNew || !view.saved ? null : (
                 <>
                   <ul className="bs-diff" aria-label="What changes">
@@ -101,15 +141,19 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
                   </ul>
                 </>
               )}
-            </details>
-            <details className="bs-sec">
-              <summary><b>Asks you</b><span className="muted">{stopsLine(rows)}</span></summary>
-              <ul className="bs-asks" aria-label="Preview of the workflow">
-                {asks.length === 0 ? <li className="muted">Nothing waits for you.</li> : asks.map((r) => <li key={r.id}><span className="bp-k">{r.label}</span><span className="bp-w">{r.says}</span></li>)}
-              </ul>
-            </details>
-            <details className="bs-sec" open={sum.notes > 0 || undefined}>
-              <summary><b>Notes</b><span className="muted">{sum.notes === 0 ? 'none' : plural(sum.notes, 'note')}</span></summary>
+              </>
+            )}
+            {tab === 'asks' && (
+              <>
+                <h5>Asks you <span className="muted">{stopsLine(rows)}</span></h5>
+                <ul className="bs-asks" aria-label="Preview of the workflow">
+                  {asks.length === 0 ? <li className="bs-none">Nothing waits for you.</li> : asks.map((r) => <li key={r.id}><span className="bp-k">{r.label}</span><span className="bp-w">{r.says}</span></li>)}
+                </ul>
+              </>
+            )}
+            {tab === 'notes' && (
+              <>
+                <h5>Notes <span className="muted">{sum.notes === 0 ? 'none' : plural(sum.notes, 'note')}</span></h5>
               {granted.length > 0 && (
                 <div className="bs-note" aria-label="Skills not in the playbook">
                   {!d.isNew && view.saved && !d.same && <SkillChips ids={granted} states={view.skills} />}
@@ -134,28 +178,28 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
                   <span className="muted">Saving approves exactly these commands for this version of the file. Any later edit asks again.</span>
                 </div>
               )}
-              {sum.notes === 0 && <p className="muted">Nothing to look at before saving.</p>}
-            </details>
-            <History folder={folder} id={wf.id} />
+                {sum.notes === 0 && <p className="bs-none">Nothing to look at before saving.</p>}
+              </>
+            )}
+            {tab === 'history' && (
+              <>
+                <h5>History <span className="muted">saved through the builder</span></h5>
+                <History folder={folder} id={wf.id} empty="Nothing saved through the builder yet." />
+              </>
+            )}
           </div>
-        </details>
-        {error && <p className="error" role="alert">{error}</p>}
-        <div className="bs-save">
+        )}
+        <div className="bs-strip" role="group" aria-label="Review of the workflow">
+          <span className="bs-strip-lab">Review</span>
+          {tabs.map((t) => (
+            <button key={t.id} className={`bs-tab ${tab === t.id ? 'on' : ''}`} aria-pressed={tab === t.id} aria-expanded={tab === t.id} onClick={() => toggle(t.id)}>
+              {t.label}
+              {t.count !== '' && <i className={t.hot ? 'hot' : ''}>{t.count}</i>}
+            </button>
+          ))}
           <span className="bs-sum muted">
             {!view.saved ? 'New workflow, not saved.' : d.same ? 'Nothing differs from the saved one.' : <><b>{plural(sum.changes, 'change')}</b> to save{replaces ? ` over ${wf.name}` : ''}.</>}
           </span>
-          {replaces ? (
-            <>
-              <button className="primary" disabled={busy || view.stale || problem} onClick={() => go('replace')}>Replace {saveTo}</button>
-              <button disabled={busy || view.stale || problem} onClick={() => go('copy')}>Save as new</button>
-            </>
-          ) : (
-            <>
-              <button className="primary" disabled={busy || view.stale || problem || !folder} title={folder ? '' : 'Open a project first'} onClick={() => go('project')}>Save to {here || 'a project'}</button>
-              <button disabled={busy || view.stale || problem} onClick={() => go('global')}>Save for everything</button>
-            </>
-          )}
-          <button disabled={busy} onClick={discard}>Discard</button>
         </div>
       </div>
     </section>

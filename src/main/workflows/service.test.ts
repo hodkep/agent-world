@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Dial } from '../../shared/workflows'
 import type { RunWorkflow } from '../../shared/runs'
-import { lanesOf, stepStates } from '../../shared/steps'
+import { lanesOf, refusedAsk, stepStates } from '../../shared/steps'
 import { Workflows } from './service'
 
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
@@ -1333,6 +1333,40 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(stateOf(wf)[2]).toBe('commit:waiting')
   })
 
+  it('a run that did nothing is dropped when no workflow was needed; one with work recorded is not', () => {
+    const { wf } = started()
+    const id = wf.runs()[0]!.id
+    expect(wf.noWorkflowNeeded(id)).toBe(true)
+    wf.dropRun(id)
+    expect(wf.runs()).toEqual([])
+    const second = started()
+    second.wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    second.wf.stepDone('a1', 'build')
+    const id2 = second.wf.runs()[0]!.id
+    expect(second.wf.noWorkflowNeeded(id2)).toBe(false)
+    expect(() => second.wf.dropRun(id2)).toThrow('work')
+  })
+
+  it('a refused step asks what next: skipping it lets the steps after it go on, and later leaves it refused without asking again', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    wf.declineStep(id, 'commit')
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })).toEqual({ id: 'commit', name: 'Commit', rest: ['Push'], skippable: true })
+    expect(() => wf.skipRefused(id, 'build')).toThrow('not refused')
+    expect(wf.deferRefused(id, 'commit')).toBe('Commit')
+    expect(stateOf(wf)[2]).toBe('commit:failed')
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })).toBeUndefined()
+    // It can still be asked about again, and refused again.
+    wf.askAgain(id, 'commit')
+    wf.declineStep(id, 'commit')
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })?.id).toBe('commit')
+    expect(wf.skipRefused(id, 'commit')).toBe('Commit')
+    expect(stateOf(wf)).toEqual(['designs:skipped', 'build:passed', 'commit:skipped', 'push:waiting'])
+    expect(refusedAsk(wf.runs()[0]!, { auditOn: false })).toBeUndefined()
+  })
+
   it('the agent reopens a step it already reported, and must report it again before it can finish', () => {
     const { wf } = started()
     wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
@@ -1986,6 +2020,20 @@ describe('skipping an optional step', () => {
     wf.skipStep(wf.runs()[0]!.id, 'ok')
     expect(state(wf, 'ok')).toBe('skipped')
   })
+  it('skips a step marked skippable though it is not optional, and the agent may only ask for steps that are skippable or optional', () => {
+    const t = make()
+    t.state.pick = () => ({ id: 'k', name: 'K', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'mine', kind: 'work', name: 'Mine', skippable: true }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }, { id: 'held', kind: 'work', name: 'Held', start: 'run', skippable: false }] } as RunWorkflow)
+    t.wf.begin('a1', 'Task')
+    t.wf.stepDone('a1', 'build')
+    const id = t.wf.runs()[0]!.id
+    expect(() => t.wf.askSkip('a1', ['held'], 'x')).toThrow('required')
+    expect(() => t.wf.askSkip('a1', ['build'], 'x')).toThrow('already done')
+    expect(t.wf.askSkip('a1', ['mine', 'commit'], 'Nothing to do.')).toEqual(['Mine', 'Commit'])
+    t.wf.answerSkip(id, false)
+    expect(t.wf.skipStep(id, 'mine')).toBe('Mine')
+    expect(() => t.wf.skipStep(id, 'held')).toThrow('cannot be skipped')
+  })
+
   it('refuses a step that is not optional, one the check or audit way skips, and one that is not there', () => {
     const { wf } = open()
     const id = wf.runs()[0]!.id

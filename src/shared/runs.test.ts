@@ -11,6 +11,11 @@ describe('what a run is, read from its log', () => {
     expect(r!.rounds).toEqual([{ n: 1, startedAt: 100, commits: [], steps: [], checks: [] }])
   })
 
+  it('a dropped run is gone from the lists, and the runs beside it stay', () => {
+    const runs = reduceRuns([begin('r1', 100), begin('r2', 150, 'Other', 'a2'), { k: 'drop', t: 200, run: 'r1' }])
+    expect(runs.map((r) => r.id)).toEqual(['r2'])
+  })
+
   it('done closes the run and its round, with the summary', () => {
     const [r] = reduceRuns([begin('r1', 100), { k: 'done', t: 400, run: 'r1', summary: 'Redirect keeps the query string.' }])
     expect(r).toMatchObject({ status: 'done', endedAt: 400, summary: 'Redirect keeps the query string.' })

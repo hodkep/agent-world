@@ -5,17 +5,20 @@ import type { Dial } from '../../shared/workflows'
 
 /** What an agent is told about recording tasks, in the opening text while workflows are on. */
 export const WORKFLOW_HINT =
-  'This office records tasks. When you start a task that changes code or takes several steps, call the agent-world task_begin tool with a few words; when it is finished, call task_done with one line. Skip both for a question, a typo or a tiny edit. Pass follow_up to task_begin only when the request is more work on the task you just finished (a fix, a missed case, a change to it); a different piece of work is a new task. Work and commit only on your own branch in your worktree: a commit on any other branch there is refused, and a push or pull request waits for the audit (task_begin says how).'
+  'This office records tasks. When you start a task that changes code or takes several steps, call the agent-world task_begin tool with a few words; when it is finished, call task_done with one line. Skip both for a question, a typo, a tiny edit, or a read-only check or lookup that changes no files: a workflow is for work that changes files and ships. Pass follow_up to task_begin only when the request is more work on the task you just finished (a fix, a missed case, a change to it); a different piece of work is a new task. Work and commit only on your own branch in your worktree: a commit on any other branch there is refused, and a push or pull request waits for the audit (task_begin says how).'
 /** What the app says to the agent once the audit of its branch has passed and the run ends in a pull request: the gate is open, nobody has to ask. */
 export const PR_GO = (branch: string, head: string, audited = true) =>
   `${audited ? `The audit of ${branch} (${head.slice(0, 7)}) has passed.` : `The person approved the push of ${branch} (${head.slice(0, 7)}).`} Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin ${branch}:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.`
+/** Said at the start of a turn while a task is open: more work asked for mid-task is announced, so it is tracked as added work and not folded in or hidden in reopened steps. */
+export const WORKFLOW_OPEN_REMINDER =
+  'A task is open. If this message asks for more work on it, call task_begin with a short title for that work so it is tracked as added work; do not just reopen steps or fold it in without saying so. If it only answers a question or comments, ignore this.'
 export const WORKFLOW_TOOLS = ['task_begin', 'task_done', 'plan_submit', 'step_done', 'step_reopen', 'skip_steps'].map((t) => `mcp__agent-world__${t}`)
 /** Said at the start of a turn (by the program's prompt hook) while no task is open: the opening text alone was not followed reliably. */
 export const WORKFLOW_REMINDER =
-  'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo or a tiny edit.'
+  'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo, a tiny edit, or a read-only check or lookup that changes no files: a workflow is for work that changes files and ships.'
 
-/** The reminder for one turn: only while workflows are on and the agent (not the builder, not a subagent) has no task open, so it costs nothing once a task is announced. */
-export const workflowRemind = (o: { enabled: boolean; subagent: boolean; builder: boolean; open: boolean }): string => (o.enabled && !o.subagent && !o.builder && !o.open ? WORKFLOW_REMINDER : '')
+/** The reminder for one turn: only while workflows are on and the agent (not the builder, not a subagent) has no task open, and once a task is announced it says how added work is announced. */
+export const workflowRemind = (o: { enabled: boolean; subagent: boolean; builder: boolean; open: boolean }): string => (o.enabled && !o.subagent && !o.builder ? (o.open ? WORKFLOW_OPEN_REMINDER : WORKFLOW_REMINDER) : '')
 
 /** What task_begin answers while the plan gate is on: where the plan goes, the four sections the app checks, and that edits wait for approval. */
 export const PLAN_INSTRUCTION =

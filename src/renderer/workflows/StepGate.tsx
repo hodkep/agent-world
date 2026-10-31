@@ -1,3 +1,4 @@
+import { isSkippable } from '../../shared/workflow'
 import { useState } from 'react'
 import type { Run, RunStep } from '../../shared/runs'
 import { Markdown } from '../chat/markdown'
@@ -33,7 +34,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
               <button className="primary" onClick={() => onDecide('approved')}>{step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve'}</button>
               <button onClick={() => setAsking(true)}>Send back</button>
               {step.kind === 'pr' && <button title={step.optional ? 'It is optional: the run goes on without it.' : `Required: the workflow stops here and ${agentName} is told to wait.`} onClick={() => void window.aw.workflows.declineStep(run.id, step.id)}>Not now</button>}
-              {step.optional && (step.kind === 'work' || step.kind === 'approve') && <button title="It is optional: the run goes on without it." onClick={() => void window.aw.workflows.skipStep(run.id, step.id)}>Skip</button>}
+              {(step.optional || isSkippable(step)) && (step.kind === 'work' || step.kind === 'approve' || step.kind === 'pr') && <button title="You can skip it: the run goes on without it." onClick={() => void window.aw.workflows.skipStep(run.id, step.id)}>Skip</button>}
             </>
           ) : (
             <>

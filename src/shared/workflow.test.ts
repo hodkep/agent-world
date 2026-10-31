@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowEntry } from './workflow'
-import { STANDARD, checkCommands, commandDiff, isLanding, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, checkCommands, commandDiff, isLanding, isSkippable, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -62,7 +62,7 @@ describe('reading a workflow file', () => {
       'Step 2: "id" must be lowercase letters, digits and dashes, up to 30 characters.',
       'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, pr, merge.',
       'Step 4 ("a"): the id is already used by step 3.',
-      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, optional, skills, run, retries, model.'
+      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, optional, skippable, skills, run, retries, model.'
     ])
   })
 
@@ -116,6 +116,24 @@ describe('reading a workflow file', () => {
       ])
     ).toEqual([])
   })
+  it('a step is skippable when its workflow says so, and by default when it starts on Run; the plan and a merge never are', () => {
+    expect(isSkippable({ kind: 'work', start: 'run' })).toBe(true)
+    expect(isSkippable({ kind: 'work' })).toBe(false)
+    expect(isSkippable({ kind: 'work', start: 'run', skippable: false })).toBe(false)
+    expect(isSkippable({ kind: 'work', skippable: true })).toBe(true)
+    expect(isSkippable({ kind: 'pr', start: 'run' })).toBe(true)
+    expect(isSkippable({ kind: 'plan', skippable: true })).toBe(false)
+    expect(isSkippable({ kind: 'merge', skippable: true })).toBe(false)
+  })
+
+  it('keeps skippable to the steps that can be skipped, and says it must be true or false', () => {
+    expect(withSteps([{ id: 'a', kind: 'work', skippable: true }, { id: 'b', kind: 'pr', skippable: false }, { id: 'c', kind: 'plan', skippable: true }, { id: 'd', kind: 'merge', skippable: true }, { id: 'e', kind: 'work', skippable: 'yes' }])).toEqual([
+      'Step 3 ("c"): "skippable" only belongs on a work, check, audit, approve or pr step.',
+      'Step 4 ("d"): "skippable" only belongs on a work, check, audit, approve or pr step.',
+      'Step 5 ("e"): "skippable" must be true or false.'
+    ])
+  })
+
   it('keeps optional to the steps that can be passed over, and says it must be true or false', () => {
     expect(withSteps([{ id: 'a', kind: 'merge', optional: true }, { id: 'b', kind: 'pr', optional: true }, { id: 'c', kind: 'plan', optional: true }, { id: 'd', kind: 'work', optional: 'yes' }])).toEqual([
       'Step 1 ("a"): "optional" only belongs on a work, check, audit or approve step.',

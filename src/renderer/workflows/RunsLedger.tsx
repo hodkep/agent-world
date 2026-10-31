@@ -100,18 +100,13 @@ function EndRun({ run }: { run: Run }) {
 }
 
 /** The story of a run, in the order it happened: each step, the work added to it, the commits, and the commands that failed, a failure opening to what the command said. */
-function RunStory({ run, now }: { run: Run; now: number }) {
-  const [only, setOnly] = useState(false)
+function RunStory({ run, now, only }: { run: Run; now: number; only: boolean }) {
   const all = timelineOf(run, now)
   const trouble = (e: { kind: string }) => e.kind === 'bad' || e.kind === 'trouble'
   const shown = only ? all.filter(trouble) : all
   return (
     <div className="rb-story">
-      <div className="rb-filter" role="group" aria-label="What to show">
-        <button className={only ? '' : 'on'} aria-pressed={!only} onClick={() => setOnly(false)}>Everything</button>
-        <button className={only ? 'on' : ''} aria-pressed={only} onClick={() => setOnly(true)}>Trouble only</button>
-        <span className="muted">{only ? `${shown.length} of ${all.length}` : all.length} events</span>
-      </div>
+      <p className="rb-count muted">{only ? `${shown.length} of ${all.length}` : all.length} events</p>
       <ol className="rb-tl">
         {shown.map((e, i) => (
           <li key={i} className={e.kind}>
@@ -136,13 +131,18 @@ function RunStory({ run, now }: { run: Run; now: number }) {
   )
 }
 
+const TABS = [{ id: 'story', label: 'Story' }, { id: 'steps', label: 'Steps' }, { id: 'added', label: 'Added' }, { id: 'trouble', label: 'Trouble' }] as const
+
 /** One run in a panel beside the ledger: the same flow chart as the chat's Workflow tab, why steps were skipped or refused, the items added to it, how it went and its commits. */
 function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend | undefined; ctx: StepContext; now: number; onClose: () => void }) {
+  const [tab, setTab] = useState<'story' | 'steps' | 'added' | 'trouble'>('story')
   const lines = stepLines(run, ctx)
   const rounds = run.rounds.length
   const commits = run.rounds.flatMap((x) => x.commits)
   const flagged = commits.filter((c) => c.flagged).length
-  const why = lines.filter((l) => l.note)
+  const timeline = timelineOf(run, now)
+  const added = run.items?.length ?? 0
+  const trouble = timeline.filter((e) => e.kind === 'bad' || e.kind === 'trouble').length
   const meta = [run.workflow ? run.workflow.name : 'from a commit', run.status === 'open' ? 'open' : day(run.startedAt), rounds > 1 ? `${rounds} rounds` : ''].filter(Boolean).join(' · ')
   return (
     <div className="rb-side" role="region" aria-label={`How ${run.title} went`}>
@@ -157,19 +157,42 @@ function RunSide({ run, spend, ctx, now, onClose }: { run: Run; spend: RunSpend 
         </div>
       )}
       <EndRun run={run} />
-      {run.workflow ? <RunFlow run={run} ctx={ctx} /> : <p className="hint">This run followed no workflow: it was started from a commit.</p>}
-      {why.length > 0 && (
-        <ul className="rb-why" aria-label="Why steps were skipped or refused">
-          {why.map((l) => <li key={l.id} className={l.state}><b>{l.name}</b> {STEP_WORD[l.state]}: {l.note}</li>)}
-        </ul>
-      )}
-      {(run.items?.length ?? 0) > 0 && (
-        <ol className="rb-items" aria-label="Items added to this run">
-          <li><span className="mono">1</span><span>{run.title}</span><em>the task as it began</em></li>
-          {run.items!.map((it, i) => <li key={it.t}><span className="mono">{i + 2}</span><span>{it.title}</span><em>added +{formatDuration(it.t - run.startedAt)}</em></li>)}
-        </ol>
-      )}
-      <RunStory run={run} now={now} />
+      <div className="rb-sbody">
+        <div className="rb-sl">
+          <div className="rb-tabs" role="tablist" aria-label="About this run">
+            {TABS.map((t) => {
+              const count = t.id === 'story' ? timeline.length : t.id === 'steps' ? lines.length : t.id === 'added' ? added : trouble
+              if ((t.id === 'added' || t.id === 'trouble') && count === 0) return null
+              return (
+                <button key={t.id} role="tab" id={`rt-${run.id}-${t.id}`} aria-selected={tab === t.id} aria-controls={`rp-${run.id}-${t.id}`} className={`${tab === t.id ? 'on' : ''} ${t.id === 'trouble' ? 'bad' : ''}`} onClick={() => setTab(t.id)}>
+                  {t.label}<i>{count}</i>
+                </button>
+              )
+            })}
+          </div>
+          {(tab === 'story' || tab === 'trouble') && (
+            <div role="tabpanel" id={`rp-${run.id}-${tab}`} aria-labelledby={`rt-${run.id}-${tab}`}>
+              <RunStory run={run} now={now} only={tab === 'trouble'} />
+            </div>
+          )}
+          <div role="tabpanel" id={`rp-${run.id}-steps`} aria-labelledby={`rt-${run.id}-steps`} hidden={tab !== 'steps'}>
+            <ul className="rb-why" aria-label="Steps">
+              {lines.map((l) => <li key={l.id} className={l.state}><b>{l.name}</b> {STEP_WORD[l.state]}{l.note ? `: ${l.note}` : ''}</li>)}
+            </ul>
+          </div>
+          <div role="tabpanel" id={`rp-${run.id}-added`} aria-labelledby={`rt-${run.id}-added`} hidden={tab !== 'added'}>
+            {added > 0 && (
+              <ol className="rb-items" aria-label="Items added to this run">
+                <li><span className="mono">1</span><span>{run.title}</span><em>the task as it began</em></li>
+                {run.items!.map((it, i) => <li key={it.t}><span className="mono">{i + 2}</span><span>{it.title}</span><em>added +{formatDuration(it.t - run.startedAt)}</em></li>)}
+              </ol>
+            )}
+          </div>
+        </div>
+        <div className="rb-sr">
+          {run.workflow ? <RunFlow run={run} ctx={ctx} /> : <p className="hint">This run followed no workflow: it was started from a commit.</p>}
+        </div>
+      </div>
       {commits.length > 0 && (
         <ul className="rb-commits" aria-label="Commits">
           {commits.map((c) => (

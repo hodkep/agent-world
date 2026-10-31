@@ -85,7 +85,7 @@ test('what happened in a run is its story: work added to it is a branch with its
     await expect(panel.locator('.rb-chip.identity')).toBeVisible()
     await expect(panel.locator('.rb-chip.network')).toBeVisible()
     await expect(panel).not.toContainText('No such file')
-    await panel.getByRole('button', { name: 'Trouble only' }).click()
+    await panel.getByRole('tab', { name: /^Trouble/ }).click()
     await expect(panel.locator('.rb-tl li')).toHaveCount(2)
     // The flow draws the added work as a branch of its own, and says what it is for.
     await expect(panel.getByLabel(/^Item 2, Build/)).toBeVisible()
