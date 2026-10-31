@@ -44,13 +44,13 @@ describe('the workflow cards in an agent\'s chat', () => {
     await press('Skip it and continue')
     await press('Ask again later')
     await press('Stop here')
-    expect(refusedAnswer.mock.calls).toEqual([['r1', 'verify', 'skip'], ['r1', 'verify', 'later'], ['r1', 'verify', 'stop']])
+    expect(refusedAnswer.mock.calls).toEqual([['r1', 'verify', 'skip', undefined], ['r1', 'verify', 'later', undefined], ['r1', 'verify', 'stop', undefined]])
   })
 
   it('a refused step that is not skippable offers only Ask again later and Stop here', async () => {
     const host = document.body.appendChild(document.createElement('div'))
     await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" refused={{ run, ask: { id: 'build', name: 'Build', rest: ['Commit'], skippable: false } }} onDecideStep={vi.fn()} onDecidePlan={vi.fn()} />))
-    expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Ask again later', 'Stop here'])
+    expect([...host.querySelectorAll('.pg-acts button')].map((b) => b.textContent)).toEqual(['Ask again later', 'Stop here'])
   })
 
   it('a question to skip every step of a run that did nothing says no workflow was needed, and can drop the run', async () => {
@@ -64,11 +64,37 @@ describe('the workflow cards in an agent\'s chat', () => {
     const press = async (label: string) => act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === label)!.click())
     await press('Drop this run')
     await press('Keep it and skip the steps')
-    expect(dropRun).toHaveBeenCalledWith('r2')
-    expect(answerSkip).toHaveBeenCalledWith('r2', true)
+    expect(dropRun).toHaveBeenCalledWith('r2', undefined)
+    expect(answerSkip).toHaveBeenCalledWith('r2', true, undefined)
     // A run with work recorded keeps the plain question.
     const worked = { ...idle, rounds: [{ n: 1, commits: [], steps: [{ step: 'build', state: 'done' }], checks: [] }] } as unknown as Run
     await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" skip={worked} onDecideStep={vi.fn()} onDecidePlan={vi.fn()} />))
     expect(host.textContent).not.toContain('No workflow needed')
+  })
+
+  it('every card folds to one line with its buttons still pressable', async () => {
+    const refusedAnswer = vi.fn().mockResolvedValue(undefined)
+    ;(window as unknown as { aw: unknown }).aw = { workflows: { refusedAnswer } }
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" refused={{ run, ask: { id: 'verify', name: 'Fold me', rest: ['Commit'], skippable: true } }} runStep={{ run, step: commit }} step={{ run, step: commit }} onDecideStep={vi.fn()} onDecidePlan={vi.fn()} />))
+    for (const chevron of [...host.querySelectorAll<HTMLElement>('.pg-fold')]) await act(async () => void chevron.click())
+    expect(host.querySelectorAll('.gate-line')).toHaveLength(3)
+    await act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === 'Ask again later')!.click())
+    expect(refusedAnswer).toHaveBeenCalledWith('r1', 'verify', 'later', undefined)
+  })
+
+  it('a comment typed on a card goes with the button pressed', async () => {
+    const refusedAnswer = vi.fn().mockResolvedValue(undefined)
+    ;(window as unknown as { aw: unknown }).aw = { workflows: { refusedAnswer } }
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" refused={{ run, ask: { id: 'verify2', name: 'Verify', rest: [], skippable: true } }} onDecideStep={vi.fn()} onDecidePlan={vi.fn()} />))
+    await act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('Add a comment'))!.click())
+    await act(async () => {
+      const box = host.querySelector('textarea')!
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'Do it next week.')
+      box.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === 'Ask again later')!.click())
+    expect(refusedAnswer).toHaveBeenCalledWith('r1', 'verify2', 'later', 'Do it next week.')
   })
 })

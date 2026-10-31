@@ -195,3 +195,16 @@ export function builderName(taken: string[]): string {
   for (let n = 2; taken.includes(name); n++) name = `${BUILDER_NAME}-${n}`
   return name
 }
+
+/**
+ * What Edit with the builder does with the builder's conversation: `keep` when its last edit was this same workflow (the chat and the draft stay), `clean` when it was another or
+ * a new one (a new conversation, the earlier draft dropped), `leave` when there is nothing from an earlier edit to clear.
+ */
+export function planBuilderStart(o: { edit: string; on: string | undefined; hasSaved: boolean }): 'keep' | 'clean' | 'leave' {
+  if (o.edit && o.on === o.edit) return 'keep'
+  return o.edit || o.on !== undefined || o.hasSaved ? 'clean' : 'leave'
+}
+
+/** Said to the builder with the person's first message of an edit, so nothing has to be typed for them: which workflow they are changing, and to read it before answering. */
+export const builderIntro = (id: string): string =>
+  id ? `The person is changing the saved workflow "${id}". Before you answer, read it with workflow_get (and its history with workflow_history), then answer what they asked. Do not ask them to say which workflow it is.` : ''

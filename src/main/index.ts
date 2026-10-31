@@ -99,7 +99,7 @@ import { WorkflowHistory } from './workflows/history'
 import { WaitNotices } from './workflows/waitNotice'
 import { blockText, branchHead, currentBranch, foreignMove, gitEnv, holdsBranch, isInside, movesBase, originalHooks, pushGate, refHead, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
-import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderName, builderOptions, builderProgram } from '../shared/builder'
+import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderIntro, builderName, builderOptions, builderProgram, planBuilderStart } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
@@ -729,9 +729,13 @@ const workflowReminder = (id: string): string => {
   return a ? workflowRemind({ enabled: prefs.workflows.enabled && !noWorkflowFor(id), subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open') }) : ''
 }
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
+// What the builder is told with the person's first message of a fresh conversation about a saved workflow: which one, so nothing is typed for them. Said once.
+const builderIntros = new Map<string, string>()
 const libraryRemind = (id: string, prompt: string) => {
   try {
-    return [prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt), workflowReminder(id)].filter(Boolean).join('\n') || null
+    const intro = builderIntros.get(id) ?? ''
+    builderIntros.delete(id)
+    return [intro, prefs.libraryEnabled ? libraryService.remind(id, prompt) : '', todoRemind(id, prompt), workflowReminder(id)].filter(Boolean).join('\n') || null
   } catch {
     return null
   }
@@ -2229,11 +2233,23 @@ async function main() {
       persist()
     }
     const edit = typeof editing === 'string' && editing ? editing : ''
-    // Each edit of a saved workflow starts clean: an earlier draft is dropped, the builder starts a new conversation, and the saved workflow is the draft to edit in place.
-    // A new workflow starts clean too when the builder was last on a saved one, so an earlier edit of Standard is never shown under "New workflow"; a draft of a new workflow
-    // that is not saved yet is kept, so going back and clicking New does not lose it.
-    if (edit || builderOn.has(a.id) || builder.view(a.id, folder)?.saved) {
+    // Edit again on the workflow the builder was last on: its chat and its draft stay as they are, and nothing is sent for the person.
+    // Any other edit starts clean: an earlier draft is dropped, the builder starts a new conversation, and the saved workflow is the draft to edit in place; what the builder needs
+    // to know about it rides on the person's first message (builderIntros), not on a message typed for them. A new workflow starts clean too when the builder was last on a saved
+    // one, so an earlier edit of Standard is never shown under "New workflow"; a draft of a new workflow that is not saved yet is kept.
+    const how = planBuilderStart({ edit, on: builderOn.get(a.id), hasSaved: !!builder.view(a.id, folder)?.saved })
+    if (how === 'keep') {
+      if (!builder.view(a.id, folder)) {
+        try {
+          builder.startEdit(a.id, folder, edit)
+        } catch {
+          // A workflow that does not read cannot be the draft; the builder is told what is wrong when it reads it.
+        }
+      }
+      send('workflows')
+    } else if (how === 'clean') {
       builderOn.delete(a.id)
+      builderIntros.delete(a.id)
       builder.discard(a.id)
       a.sessionId = randomUUID()
       a.started = false
@@ -2246,6 +2262,7 @@ async function main() {
       }
       if (edit) {
         builderOn.set(a.id, edit)
+        builderIntros.set(a.id, builderIntro(edit))
         try {
           builder.startEdit(a.id, folder, edit)
         } catch {
@@ -2293,20 +2310,22 @@ async function main() {
     if (run && answer === 'approved') void (async () => { const a = byId(run.agent); if (a) await syncRunCommits(a); await askForPr(run.agent) })()
   })
   // The person pressed Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin.
-  ipcMain.handle('workflows:start-step', (_, runId: string, step: string) => {
+  // A comment sent with an answer comes from the page: only text counts, and the message builders cut it.
+  const noteOf = (n: unknown): string | undefined => (typeof n === 'string' && n.trim() ? n : undefined)
+  ipcMain.handle('workflows:start-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.startStep(runId, String(step))
-    if (run) mailbox.fromOffice(run.agent, stepStarted(name))
+    if (run) mailbox.fromOffice(run.agent, stepStarted(name, noteOf(note)))
     send('workflows')
   })
   // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
-  ipcMain.handle('workflows:decline-step', (_, runId: string, step: string) => {
+  ipcMain.handle('workflows:decline-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const found = run?.workflow?.steps.find((s) => s.id === step)
     if (!run || !found) throw new Error('No such step.')
     // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
-    if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
-    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step))))
+    if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name, noteOf(note)))
+    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step)), noteOf(note)))
     send('workflows')
   })
   // The go-ahead to push is sent once for each head, and a lost one left the agent waiting for good: the person can send it again.
@@ -2320,10 +2339,10 @@ async function main() {
     send('workflows')
   })
   // The person's answer to the agent's question to skip steps: one answer for all of them. The agent is told which.
-  ipcMain.handle('workflows:skip-answer', (_, runId: string, approve: boolean) => {
+  ipcMain.handle('workflows:skip-answer', (_, runId: string, approve: boolean, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const r = workflows.answerSkip(runId, !!approve)
-    if (run) mailbox.fromOffice(run.agent, r.approved ? stepsSkipped(r.names, r.why) : stepsKept(r.names))
+    if (run) mailbox.fromOffice(run.agent, r.approved ? stepsSkipped(r.names, r.why, noteOf(note)) : stepsKept(r.names, noteOf(note)))
     send('workflows')
   })
   // The person ends a run that cannot go on: what is left is set aside, and the agent is told to stop.
@@ -2341,29 +2360,29 @@ async function main() {
     send('workflows')
   })
   // The person drops a run that never needed a workflow (the agent asked to skip everything): it leaves the lists, and the agent is told.
-  ipcMain.handle('workflows:drop-run', (_, runId: string) => {
+  ipcMain.handle('workflows:drop-run', (_, runId: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const title = workflows.dropRun(runId)
-    if (run) mailbox.fromOffice(run.agent, runDropped(title))
+    if (run) mailbox.fromOffice(run.agent, runDropped(title, noteOf(note)))
     send('workflows')
   })
   // The person's answer to a refused step: skip it and go on, ask again later (it stays refused), or stop the run. The agent is told which.
-  ipcMain.handle('workflows:refused-answer', (_, runId: string, step: string, choice: 'skip' | 'later' | 'stop') => {
+  ipcMain.handle('workflows:refused-answer', (_, runId: string, step: string, choice: 'skip' | 'later' | 'stop', note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     if (!run) throw new Error('No such run.')
-    if (choice === 'skip') mailbox.fromOffice(run.agent, stepSkippedOnward(workflows.skipRefused(runId, String(step)), workflows.nextAfter(run, String(step))?.name))
-    else if (choice === 'later') mailbox.fromOffice(run.agent, stepRefusedLater(workflows.deferRefused(runId, String(step))))
+    if (choice === 'skip') mailbox.fromOffice(run.agent, stepSkippedOnward(workflows.skipRefused(runId, String(step)), workflows.nextAfter(run, String(step))?.name, noteOf(note)))
+    else if (choice === 'later') mailbox.fromOffice(run.agent, stepRefusedLater(workflows.deferRefused(runId, String(step)), noteOf(note)))
     else if (choice === 'stop') {
       workflows.endRun(runId, 'The person stopped the run after refusing a step.')
-      mailbox.fromOffice(run.agent, runEnded(run.title))
+      mailbox.fromOffice(run.agent, runEnded(run.title, noteOf(note)))
     } else throw new Error('Choose skip, later or stop.')
     send('workflows')
   })
   // The person skips an optional step (a build or an approval): the run goes on, and the agent is told.
-  ipcMain.handle('workflows:skip-step', (_, runId: string, step: string) => {
+  ipcMain.handle('workflows:skip-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.skipStep(runId, String(step))
-    if (run) mailbox.fromOffice(run.agent, stepSkipped(name, workflows.nextAfter(run, String(step))?.name))
+    if (run) mailbox.fromOffice(run.agent, stepSkipped(name, workflows.nextAfter(run, String(step))?.name, noteOf(note)))
     send('workflows')
   })
   // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planReply } from './plan'
-import { runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
+import { said, runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
 import { parseWorkflowMessage } from './workflowMessage'
 
 const office = (t: string) => `[Agent World] ${t}`
@@ -46,5 +46,16 @@ describe('what the app typed into the chat for the person, read back as a receip
     expect(parseWorkflowMessage('Please add a dark mode')).toBeNull()
     expect(parseWorkflowMessage('[Agent World] Message from ada: hi')).toBeNull()
     expect(parseWorkflowMessage('The person pressed Run: start your step "x" now.')).toBeNull()
+  })
+
+  it('reads a comment the person sent with their answer, as the subtitle of the receipt', () => {
+    expect(parseWorkflowMessage(office(said(stepStarted('Review'), 'Keep it quick.')))).toMatchObject({ title: 'Run', sub: 'Review', note: 'Keep it quick.' })
+    expect(parseWorkflowMessage(office(said(stepSkipped('Verify', 'Commit'), 'Not needed here.')))).toMatchObject({ title: 'Skipped Verify', sub: 'Not needed here.' })
+    expect(parseWorkflowMessage(office(said(stepDeclined('Commit'), 'Wait for the review.')))).toMatchObject({ title: 'Refused Commit', sub: 'Wait for the review.' })
+    expect(parseWorkflowMessage(office(said(stepsSkipped(['Push'], 'Nothing to push.'), 'Agreed.')))).toMatchObject({ title: 'Skipped Push', note: 'Agreed.' })
+    // No comment, no change: the same receipts as before.
+    expect(parseWorkflowMessage(office(stepStarted('Review')))).toMatchObject({ title: 'Run', sub: 'Review' })
+    expect(said('Go on.', '  ')).toBe('Go on.')
+    expect(said('Go on.', 'x'.repeat(900))).toBe(`Go on. They said: ${'x'.repeat(500)}`)
   })
 })

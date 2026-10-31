@@ -248,39 +248,45 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
   })
 }
 
+/** What the person wrote with their answer, said after the office's own sentence: left out when it is empty, and cut at 500 characters. */
+export const said = (text: string, note?: string): string => {
+  const n = (note ?? '').trim().slice(0, 500)
+  return n ? `${text} They said: ${n}` : text
+}
+
 /** What the agent is told when the person skips an optional or skippable step of its workflow. */
-export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
+export const stepSkipped = (name: string, next?: string, note?: string) => said(`Your step "${name}" was skipped by the person. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`, note)
 
 /** What the agent is told when the person refuses a step that is not optional: the person is asked what happens next, so it waits. */
-export const stepDeclined = (name: string) => `The person refused your step "${name}". The office is asking them what to do next: skip it and go on, ask for it again later, or stop. Wait for their answer, which comes as a message from the office; do not do the step or any step after it until then.`
+export const stepDeclined = (name: string, note?: string) => said(`The person refused your step "${name}". The office is asking them what to do next: skip it and go on, ask for it again later, or stop. Wait for their answer, which comes as a message from the office; do not do the step or any step after it until then.`, note)
 
 /** The person chose to ask for a refused step later: the agent asks again itself when the work is ready. */
-export const stepRefusedLater = (name: string) => `The person will ask for "${name}" again later. Wait for their instructions. If more work comes, you decide when to ask them again: call step_reopen("id", why) once that work is ready.`
+export const stepRefusedLater = (name: string, note?: string) => said(`The person will ask for "${name}" again later. Wait for their instructions. If more work comes, you decide when to ask them again: call step_reopen("id", why) once that work is ready.`, note)
 
 /** The person skipped a step they had refused, and the run goes on with the steps after it. */
-export const stepSkippedOnward = (name: string, next?: string) => `The person skipped your step "${name}" and wants the task to go on. ${next ? `Go on with the next step, "${next}".` : 'If nothing else is left, call task_done.'}`
+export const stepSkippedOnward = (name: string, next?: string, note?: string) => said(`The person skipped your step "${name}" and wants the task to go on. ${next ? `Go on with the next step, "${next}".` : 'If nothing else is left, call task_done.'}`, note)
 
 /** The line that tells an agent what comes after the step it just reported, so it can decide how to go on. */
 export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
   n ? ` Next step: "${n.name}"${n.optional ? ' (optional: do it unless it clearly does not apply; to leave it out, call step_done("${n.id}", skipped, "<why>") first, never just move on)' : ''}${n.start ? '; it starts when the person presses Run, so change nothing until you are told' : ''}.${n.brief ? ` It is for: ${n.brief}` : ''}` : ' That was the last step.'
 
 /** What the agent is told when the person presses Run on one of its steps. */
-export const stepStarted = (name: string) => `The person pressed Run: start your step "${name}" now.`
+export const stepStarted = (name: string, note?: string) => said(`The person pressed Run: start your step "${name}" now.`, note)
 
 
 const list = (names: string[]) => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
 
 /** What the agent is told when the person approves skipping steps it asked to skip. */
-export const stepsSkipped = (names: string[], why: string) => `The person approved skipping ${list(names)}${why ? `: ${why}` : ''}. They are done with. If nothing else is left, call task_done.`
+export const stepsSkipped = (names: string[], why: string, note?: string) => said(`The person approved skipping ${list(names)}${why ? `: ${why}` : ''}. They are done with. If nothing else is left, call task_done.`, note)
 
 /** What the agent is told when the person wants the steps it asked to skip kept. */
-export const stepsKept = (names: string[]) => `The person wants ${list(names)} kept, so they stay in the workflow. Go on as the workflow says.`
+export const stepsKept = (names: string[], note?: string) => said(`The person wants ${list(names)} kept, so they stay in the workflow. Go on as the workflow says.`, note)
 
 /** What the agent is told when the person asks for a step they refused once more. */
 export const stepAskedAgain = (name: string) => `The person asks for your step "${name}" again: it waits for their Run, as before. Change nothing until you are told.`
 
 /** What the agent is told when the person ends its run: it stops work on it, and nothing more is asked of it. */
-export const runEnded = (title: string) => `The person ended your task "${title}": what was left is set aside. Stop work on it; nothing more is asked of you for it.`
+export const runEnded = (title: string, note?: string) => said(`The person ended your task "${title}": what was left is set aside. Stop work on it; nothing more is asked of you for it.`, note)
 
 /** One piece of work added to a run, as its own branch: its steps and how they stand, and where it leaves the main chain and rejoins it. */
 export interface Lane {
@@ -352,4 +358,4 @@ export const skipsEverything = (run: Run): boolean => {
 }
 
 /** What the agent is told when the person drops its run because no workflow was needed. */
-export const runDropped = (title: string) => `The person dropped your task "${title}": no workflow was needed for it. Answer them in plain words; do not call task_done or step_done for it.`
+export const runDropped = (title: string, note?: string) => said(`The person dropped your task "${title}": no workflow was needed for it. Answer them in plain words; do not call task_done or step_done for it.`, note)
