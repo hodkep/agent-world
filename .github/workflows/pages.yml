@@ -22,7 +22,7 @@ jobs:
       # No scripts: the site needs only `marked`, not Electron's download.
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: node scripts/build-site.mjs site-dist
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with: { path: site-dist }
   deploy:
     needs: build
