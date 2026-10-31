@@ -481,6 +481,10 @@ export interface AwApi {
     endRun(runId: string, why?: string): Promise<void>
     /** The person asks for a step they refused once more. */
     askAgain(runId: string, step: string): Promise<void>
+    /** The person's answer to a refused step: skip it and go on, ask again later, or stop the run. */
+    /** The person drops a run that never needed a workflow (only one with no work recorded). */
+    dropRun(runId: string): Promise<void>
+    refusedAnswer(runId: string, step: string, choice: 'skip' | 'later' | 'stop'): Promise<void>
     /** Tell the agent again to push a branch the person approved (the go-ahead is sent once, and can be lost): reads its commits first. */
     nudgePush(runId: string): Promise<void>
     /** What the person is shown before approving a project file's check commands. */

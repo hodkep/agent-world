@@ -34,6 +34,9 @@ export function parseWorkflowMessage(text: string): WorkflowMessage | null {
   if (body.startsWith('The person lifted the hold on your edits')) return { tone: 'skip', icon: 'skip', title: 'Hold lifted', told: text }
   if ((m = new RegExp(`^The person pressed Run: start your step ${q} now\\.`).exec(body))) return { tone: 'go', icon: 'run', title: 'Run', sub: m[1]!, told: text }
   if ((m = new RegExp(`^Your step ${q} was skipped by the person`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
+  if ((m = new RegExp(`^The person skipped your step ${q} and wants the task to go on`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
+  if ((m = new RegExp(`^The person will ask for ${q} again later`).exec(body))) return { tone: 'skip', icon: 'skip', title: 'Ask again later', sub: m[1]!, told: text }
+  if ((m = /^The person dropped your task "(.+?)": no workflow was needed/.exec(body))) return { tone: 'no', icon: 'cross', title: 'Dropped this run', sub: m[1]!, told: text }
   if ((m = new RegExp(`^The person refused your step ${q}`).exec(body))) return { tone: 'no', icon: 'cross', title: `Refused ${m[1]}`, told: text }
   if ((m = new RegExp(`^Your step ${q} was approved\\.\\s*(They said:)?`).exec(body))) return { tone: 'ok', icon: 'tick', title: `${m[1]} approved`, ...sub(note(body, new RegExp(`^Your step ${q} was approved\\.\\s*(They said:)?`))), told: text }
   if ((m = new RegExp(`^Your step ${q} was sent back`).exec(body))) return { tone: 'back', icon: 'back', title: `${m[1]} sent back`, ...sub(note(body.split(/\.?\s(?:Make the change|Do not push|If that means)/)[0]!, new RegExp(`^Your step ${q} was sent back:?\\.?\\s*`))), told: text }

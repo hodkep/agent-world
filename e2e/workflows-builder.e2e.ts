@@ -281,6 +281,8 @@ test('the person edits the builder\'s draft in place: a rename, a step added, on
     await draft.getByLabel('Name of step 5').fill('Security review')
     await expect(draft).toContainText('You edited 1 thing.')
     await draft.getByRole('button', { name: 'Undo edits' }).click()
+    // A press outside the settings popup puts it away: pick the step again to read it.
+    await draft.getByLabel('Step 5: Security audit').click()
     await expect(draft.getByLabel('Name of step 5')).toHaveValue('Security audit')
     await expect(draft).not.toContainText('You edited')
 
@@ -292,6 +294,7 @@ test('the person edits the builder\'s draft in place: a rename, a step added, on
     await expect(draft.getByRole('button', { name: 'Save to shop' })).toBeEnabled()
     await draft.getByLabel('Name of step 6').fill('Typecheck')
     // The preview under the draft follows the edit: what each step will ask of the person.
+    await draft.getByRole('button', { name: /^Asks you/ }).click()
     const preview = draft.getByLabel('Preview of the workflow')
     await expect(preview).toContainText('you approve the plan before any edit')
     await expect(draft).toContainText('You stop at')
@@ -394,16 +397,19 @@ test('every step takes a brief, and a step can ask the person first: the card sa
     // The audit step had no brief before; now it does, and the reviewer is told it.
     await draft.getByLabel('Step 5: Security audit').click()
     await draft.getByLabel('Brief of step 5').fill('Look hard at the billing code.')
-    await draft.getByRole('button', { name: 'Asks me first' }).click()
+    await draft.getByRole('switch', { name: 'Asks me first' }).click()
     await expect(draft.getByLabel('Step 5: Security audit')).toContainText('starts when you press Run')
     await expect(draft.getByLabel('Step 5: Security audit')).toContainText('Look hard at the billing code.')
     // The preview says what the press starts, and that you stop there.
+    await draft.getByRole('button', { name: /^Asks you/ }).click()
     await expect(draft.getByLabel('Preview of the workflow')).toContainText('you press Run, then')
+    await draft.getByRole('button', { name: /^Asks you/ }).click()
+    await expect(draft.getByLabel('Preview of the workflow')).toHaveCount(0)
     // The landing step takes a brief too, and so does any other step.
     await draft.getByLabel('Step 6: Land').click()
     await draft.getByLabel('Brief of step 6').fill('Squash it.')
     await draft.getByLabel('Step 3: Tests pass').click()
-    await draft.getByRole('button', { name: 'Asks me first' }).click()
+    await draft.getByRole('switch', { name: 'Asks me first' }).click()
     await expect(draft.getByRole('alert')).toHaveCount(0)
 
     await draft.getByRole('button', { name: 'Save to shop' }).click()
@@ -481,7 +487,7 @@ test('every step has the same settings: who does it, whether it asks you first, 
     await draft.getByLabel('Step 2: Build').click()
     await expect(draft.getByRole('group', { name: 'Who does step 2' })).toBeVisible()
     await expect(draft.getByRole('switch', { name: 'Needs my approval' })).toHaveCount(0)
-    await draft.getByRole('button', { name: 'Asks me first' }).click()
+    await draft.getByRole('switch', { name: 'Asks me first' }).click()
     await draft.getByRole('switch', { name: 'Optional' }).check({ force: true })
     await expect(draft.getByLabel('Step 2: Build')).toContainText('starts when you press Run')
     await expect(draft.getByLabel('Step 2: Build')).toContainText('optional')

@@ -227,7 +227,7 @@ test('with remote control on, the held push names its codes, and the person lets
     expect(out).toContain('or `decline')
     // A word that the push does not take is told so, and nothing changes; neither does a code that waits for nothing.
     expect(await o.reply(`approve ${push}`)).toContain('does not take "approve"')
-    expect(await o.reply('allow abc')).toBe('')
+    expect(await o.reply('allow abc')).not.toMatch(/allow|let through|decline|held/i)
     expect((await o.push()).ok).toBe(false)
     // Seeing the findings by typing lets the push through, as the card's button does.
     expect(await o.reply(`seen ${audit}`)).toContain('seen')
@@ -265,7 +265,7 @@ test('with remote control off the push refusal says nothing of codes, and typed 
     const out = await expect.poll(async () => (await o.push()).out, { timeout: 20_000 }).toContain('2 audit findings have not been seen.').then(async () => (await o.push()).out)
     expect(out).not.toContain('remote control')
     expect(out).not.toMatch(/allow [a-z0-9]{3}/)
-    expect(await o.reply('allow abc')).toBe('')
+    expect(await o.reply('allow abc')).not.toMatch(/allow|let through|decline|held/i)
     expect((await o.push()).ok).toBe(false)
   } finally {
     await o.shutdown()

@@ -3401,8 +3401,6 @@ svg.pxg { display: block; flex: none; }
 .wf-views { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
 .se-hint { margin: 2px 0 0; font-size: 12px; }
 /* Wide enough, the fields sit beside the flow, so a picked step is changed without looking away from it. */
-.se-split { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 10px; align-items: start; }
-.se-split .se-pick, .se-split .se-hint { position: sticky; top: 0; }
 .se-lbl { font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
 .se-seg { display: inline-flex; box-shadow: 0 0 0 1px var(--ink); }
 .se-seg button { box-shadow: none; border: 0; background: var(--panel-3); color: var(--muted); padding: 3px 10px; font-size: 11px; }
@@ -4029,7 +4027,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb-items .mono { color: var(--dim); text-align: right; font-size: 11px; }
 
 /* The Runs tab with a run open: the ledger keeps its width beside a panel for that run. */
-.rb.with-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(420px, 520px); gap: 20px; align-items: start; }
+.rb.with-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(560px, 660px); gap: 20px; align-items: start; }
 .rb-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .rb-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--well); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line); max-height: calc(100vh - 150px); overflow: auto; font-size: 12px; color: var(--muted); min-width: 0; }
 .rb-side header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
@@ -4094,9 +4092,6 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .wfl-menu .danger-text { color: var(--danger-text); }
 .wfl-desc-form { display: flex; gap: 8px; flex: 1; min-width: 0; align-items: center; }
 .wfl-desc-form input { flex: 1; min-width: 0; }
-.bs-saved { margin: 14px; display: flex; flex-direction: column; gap: 8px; min-height: 360px; height: calc(100% - 28px); }
-.bs-saved p { margin: 0; font-size: 12px; }
-.bs-saved .wfl-flow { flex: 1; min-height: 300px; }
 
 /* A step the draft added or changed, on its card in the builder's flow. */
 .fl-node.mk-new { box-shadow: 0 0 0 2px var(--ok), 0 0 0 4px var(--ink); }
@@ -4133,30 +4128,11 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .bs-flowarea { flex: 1; min-height: 220px; padding: 0 16px 10px; display: flex; flex-direction: column; }
 .se.fills { flex: 1; min-height: 0; }
 .se.fills > .se-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
-.se.fills > .se-body > .fl-wrap.fill { flex: 1; height: auto; min-height: 180px; }
-.se.fills > .se-body.se-split { display: grid; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-.se.fills > .se-body.se-split > .fl-wrap.fill { height: 100%; min-height: 180px; }
-.se.fills .se-pick { max-height: 50%; overflow: auto; }
 .se.fills .se-hint { flex: none; }
-.bs-drawer { flex: none; max-height: 58%; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 12px; border-top: 2px solid var(--ink); background: var(--panel-3); }
-.bs-review { flex: 0 1 auto; min-height: 0; overflow: auto; }
-.bs-review > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; padding: 4px 0; }
-.bs-review > summary::-webkit-details-marker, .bs-sec > summary::-webkit-details-marker { display: none; }
-.bs-toggle { margin-left: auto; font-size: 12px; }
-.bs-count { font: 700 10px Menlo, Consolas, monospace; padding: 1px 6px; background: var(--panel-hover); color: var(--text); }
-.bs-count.hot { background: var(--accent); color: var(--ink); }
-.bs-sections { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
-.bs-sec { background: var(--well); box-shadow: 0 0 0 1px var(--line); }
-.bs-sec > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: baseline; padding: 6px 10px; font-size: 12px; }
-.bs-sec > summary::before { content: '▸'; color: var(--hint); }
-.bs-sec[open] > summary::before { content: '▾'; }
-.bs-sec > summary .muted { margin-left: auto; }
-.bs-sec > :not(summary) { margin: 0 10px 10px; }
 .bs-asks { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .bs-asks li { display: flex; gap: 10px; }
 .bs-asks .bp-k { flex: none; width: 110px; font-weight: 600; overflow-wrap: anywhere; }
 .bs-asks .bp-w { flex: 1; min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
-.bs-save { flex: none; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
 .bs-sum { margin-right: auto; font-size: 12px; } .bs-sum b { color: var(--text); }
 
 /* The agent's question to skip steps: the steps as chips, and its reason. */
@@ -4199,3 +4175,119 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb-chip.network { background: var(--think); } .rb-chip.tests, .rb-chip.build, .rb-chip.lint { background: var(--accent); } .rb-chip.other { background: var(--muted); }
 
 .rb-side > .fl-wrap { flex: none; }
+
+/* The run panel: the story, steps and added work on the left under tabs that count them, the flow beside them and in view. */
+.rb-sbody { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+.rb-sl { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rb-sr { position: sticky; top: 0; min-width: 0; }
+.rb-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.rb-tabs button { display: inline-flex; gap: 6px; align-items: baseline; padding: 3px 10px; color: var(--muted); background: none; border: 2px solid transparent; box-shadow: none; }
+.rb-tabs button.on { color: var(--accent); background: var(--selected); border-color: var(--ink); }
+.rb-tabs button i { font: normal 10px Menlo, Consolas, monospace; color: var(--dim); }
+.rb-tabs button.bad i { color: var(--danger-text); }
+.rb-count { margin: 0; font-size: 11px; }
+@media (max-width: 760px) { .rb-sbody { grid-template-columns: minmax(0, 1fr); } .rb-sr { position: static; order: -1; } }
+/* With a run open the table is narrow: the run's panel already says its commits and cost, so those columns step aside, and the steps text wraps inside its cell and never runs off the edge. */
+.rb.with-side .rb-tab :is(th, td):nth-child(n + 6) { display: none; }
+.rb-tab td:nth-child(5) { white-space: normal; min-width: 14ch; }
+.rb-main { overflow-x: auto; }
+
+/* The Workflow tab: the run's details on the left, the vertical flow on the right and in view, and the week at the foot of the left column as bars. */
+.wf-tab { container-type: inline-size; }
+.wt-cols { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+.wt-left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.wt-right { position: sticky; top: 0; min-width: 0; }
+.wt-left .wt-week { display: flex; flex-direction: column; gap: 6px; }
+.wt-pips { min-height: 84px; }
+.wt-pip { height: 14px; }
+@container (max-width: 620px) { .wt-cols { grid-template-columns: minmax(0, 1fr); } .wt-right { position: static; order: -1; } }
+
+/* The builder: a narrower chat, and a picked step's settings as a card docked beside the flow with a pointer to the step, all in one view (nothing scrolls). */
+
+/* A picked step's settings: a card docked beside the flow, drawn from the top of the pane to the Review bar, with a pointer to the step. Icons say who does it, the title and description are plain text, the rules are chips, and the dropdown is the app's own. */
+.si { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.si-whorow { display: flex; align-items: center; gap: 12px; }
+.si-icons { display: flex; gap: 8px; flex: none; }
+.si-icon { all: unset; box-sizing: border-box; width: 44px; height: 44px; display: grid; place-items: center; background: var(--panel-3); color: var(--muted); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.si-icon:hover { color: var(--text); background: var(--panel-2); }
+.si-icon.on { background: var(--selected); color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.si-icon:focus-visible, .si-chip:focus-visible, .ch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.si-whoname { min-width: 0; font-size: 12px; } .si-whoname b { display: block; color: var(--text); } .si-whoname small { color: var(--hint); font-size: 11px; }
+.si-text { display: flex; flex-direction: column; gap: 6px; }
+.si .si-title { flex: none; width: 100%; font-size: 19px; font-weight: 700; line-height: 1.25; color: var(--text); background: none; border: 0; box-shadow: none; border-bottom: 1px dashed var(--line); padding: 4px 0; outline: 0; }
+.si .si-title:focus { border-bottom-color: var(--accent); }
+.si .si-desc { width: 100%; height: 62px; resize: none; font-size: 13px; line-height: 1.55; color: var(--muted); background: none; border: 0; box-shadow: none; padding: 4px 0; outline: 0; }
+.si .si-desc:focus { color: var(--text); }
+.si-field { display: flex; flex-direction: column; gap: 8px; margin: 0; min-width: 0; }
+.si .si-plain { width: 100%; background: var(--panel-3); border: 0; box-shadow: 0 0 0 1px var(--line); padding: 9px 12px; }
+.si-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.si-chip { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; background: var(--panel-3); color: var(--muted); box-shadow: 0 0 0 1px var(--line); font-size: 12.5px; cursor: pointer; }
+.si-chip:hover { color: var(--text); }
+.si-chip.on { background: var(--selected); color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.si-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--hint); } .si-hint b { color: var(--muted); font-weight: 600; }
+.ch { position: relative; }
+.ch-btn { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--panel-3); box-shadow: 0 0 0 1px var(--line); color: var(--text); font-size: 13px; cursor: pointer; }
+.ch-btn.open { box-shadow: 0 0 0 2px var(--accent); }
+.ch-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5; margin: 0; padding: 4px; list-style: none; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line), 0 8px 0 rgb(0 0 0 / 0.35); }
+.ch-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.ch-list li:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text); }
+.ch-list li.on { background: var(--selected); color: var(--accent); }
+.si .se-skills { gap: 8px; }
+
+/* The builder: the chat docked on the left with a handle that folds it away, the draft taking everything else. */
+.bs { position: relative; grid-template-columns: clamp(300px, 30%, 380px) minmax(0, 1fr); }
+.bs.chat-off { grid-template-columns: minmax(0, 1fr); }
+.bs.chat-off .bs-chat { display: none; }
+.bs-handle { all: unset; box-sizing: border-box; position: absolute; left: clamp(300px, 30%, 380px); top: 50%; width: 16px; height: 64px; margin: -32px 0 0 -1px; z-index: 8; display: grid; place-items: center; background: var(--panel-2); color: var(--muted); box-shadow: 0 0 0 1px var(--ink); cursor: pointer; transform: translateX(-8px); }
+.bs-handle .pxi { transform: rotate(90deg); }
+.bs-handle:hover { color: var(--accent); }
+.bs-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bs.chat-off .bs-handle { left: 0; transform: none; }
+.bs.chat-off .bs-handle .pxi { transform: rotate(-90deg); }
+@media (max-width: 760px) { .bs-handle { display: none; } }
+
+/* The draft: its title with the buttons that end the review, the flow over everything, a strip of Review tabs along the bottom, and the tab's panel opening over the flow. */
+.bs-draft.fills { position: relative; }
+.bs-top .wfl-head { align-items: center; }
+.bs-actions { margin-left: auto; display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; }
+.bs-flowarea { flex: 1; min-height: 220px; padding: 0 12px 8px; display: flex; flex-direction: column; }
+.bs-dock { flex: none; position: relative; }
+.bs-strip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-top: 1px solid var(--ink); background: var(--panel-3); min-height: 40px; }
+.bs-strip-lab { font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.12em; text-transform: uppercase; color: var(--hint); margin-right: 4px; }
+.bs-tab { display: inline-flex; gap: 7px; align-items: center; padding: 4px 11px; font-size: 12.5px; color: var(--muted); background: var(--panel-2); box-shadow: 0 0 0 1px var(--ink); border: 0; }
+.bs-tab i { font: normal 10px Menlo, Consolas, monospace; color: var(--dim); }
+.bs-tab i.hot { color: var(--ink); background: var(--accent); padding: 0 5px; }
+.bs-tab.on { color: var(--accent); background: var(--selected); box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 1px var(--ink); }
+.bs-sum { margin-left: auto; font-size: 12px; } .bs-sum b { color: var(--text); }
+.bs-panel { position: absolute; left: 12px; right: 12px; bottom: calc(100% + 6px); z-index: 7; max-height: 330px; overflow: auto; padding: 14px 18px 16px; background: var(--panel); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--line), 0 10px 0 rgb(0 0 0 / 0.35); display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.bs-panel h5 { margin: 0; display: flex; gap: 10px; align-items: baseline; font-size: 14px; color: var(--text); } .bs-panel h5 .muted { font-weight: 400; font-size: 12px; }
+.bs-none { margin: 0; color: var(--muted); padding: 6px 0; }
+.bs-panel .bs-diff { gap: 6px; } .bs-panel .bs-diff li { padding: 6px 10px; }
+.bs-panel .bs-asks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.bs-panel .bs-asks li { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); }
+.bs-panel .bs-asks li:first-child { border-top: 0; }
+.bs-panel .bs-asks .bp-k { width: auto; color: var(--text); font-weight: 600; font-size: 13px; }
+.bs-panel .bs-asks .bp-w { font-size: 12.5px; }
+.bs-panel .bs-note { padding: 10px 12px; }
+.bs-panel .bs-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bs-panel .bs-history li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; }
+.bs-panel .bs-history .bs-sub { display: none; }
+@media (max-width: 760px) { .bs-panel .bs-asks li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* A picked step's settings, a popup over the flow beside its card: no scrim, so the flow stays in use under it. */
+.se .se-pick { position: absolute; z-index: 6; width: 420px; max-width: calc(100% - 16px); padding: 14px 16px; gap: 12px; background: var(--panel); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--accent-dim), 0 10px 0 rgb(0 0 0 / 0.35); }
+.se .se-pick::before { content: ''; position: absolute; left: -9px; top: 36px; width: 16px; height: 16px; background: var(--panel); transform: rotate(45deg); box-shadow: -2px 2px 0 var(--accent-dim); }
+.se .se-pick .se-acts { margin-top: 2px; }
+.se .se-hint { margin: 2px 2px 0; font-size: 12px; color: var(--hint); }
+.se.fills > .se-body > .fl-wrap.fill { flex: 1; height: auto; min-height: 180px; }
+.se .se-pick.left::before { left: auto; right: -9px; box-shadow: 2px -2px 0 var(--accent-dim); }
+.se .se-pick.over::before { display: none; }
+.se .se-pick .si { gap: 12px; }
+.se .se-pick .si .si-desc { height: 58px; }
+.se .se-pick .si-icon { width: 40px; height: 40px; }
+.se .se-pick { overflow: visible; }
+.bs-strip { flex-wrap: wrap; }
+.bs-sum { min-width: 0; overflow-wrap: anywhere; }
+.bs-top .wfl-head, .bs-actions { min-width: 0; }
+.se-acts .se-ico { flex: none; min-width: 22px; }
+.se-acts .se-ico { padding: 0; width: 22px; height: 22px; }

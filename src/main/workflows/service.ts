@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -10,7 +10,7 @@ import { parsePlan, type PlanQuestion } from '../../shared/plan'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import type { Dial } from '../../shared/workflows'
 import { namedSkills } from '../../shared/skills'
-import { isLanding, landingKind } from '../../shared/workflow'
+import { isLanding, isSkippable, landingKind } from '../../shared/workflow'
 
 interface Deps {
   /** Whether workflows are switched on: off starts no new task, but a task already open can still finish. */
@@ -52,7 +52,7 @@ const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
 const ASIDE_HELD = 'The review was set aside.'
 /** What the app commits for an agent's unfinished work when it quits. */
 const SNAPSHOT = /^chore\([^)]*\): work in progress$/
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start', 'skipask', 'skipans', 'trouble']
+const KINDS = ['drop', 'begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start', 'skipask', 'skipans', 'trouble']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -255,7 +255,7 @@ export class Workflows {
     const found = run.workflow?.steps.find((s) => s.id === step)
     if (!found) throw new Error('No such step.')
     // A check is skipped by skipCheck and an audit set aside, as before.
-    if (!found.optional || (found.kind !== 'work' && found.kind !== 'approve' && found.kind !== 'pr')) throw new Error('That step cannot be skipped.')
+    if (!(found.optional || isSkippable(found)) || (found.kind !== 'work' && found.kind !== 'approve' && found.kind !== 'pr')) throw new Error('That step cannot be skipped.')
     this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'skipped' })
     return found.name
   }
@@ -330,6 +330,7 @@ export class Workflows {
       if (s.kind === 'plan') throw new Error('The plan is not skipped this way.')
       if (states[at]?.state === 'passed') throw new Error(`"${s.name}" is already done.`)
       if (states[at]?.state === 'skipped') throw new Error(`"${s.name}" is already skipped.`)
+      if (!s.optional && !isSkippable(s)) throw new Error(`"${s.name}" is required: it cannot be skipped. Do it.`)
       picked.add(id)
     }
     const ordered = flow.steps.filter((s) => picked.has(s.id))
@@ -393,6 +394,45 @@ export class Workflows {
     if (found.optional) throw new Error('That step is optional: skip it instead.')
     this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'declined' })
     return found.name
+  }
+
+  /** Whether the run is open and has recorded no work at all, so dropping it loses nothing. */
+  noWorkflowNeeded(runId: string): boolean {
+    const run = this.runs().find((r) => r.id === runId)
+    return !!run && run.status === 'open' && noWorkRecorded(run)
+  }
+
+  /** The person drops a run that never needed a workflow: it is removed from the lists. A run with work recorded is ended instead. Says its title. */
+  dropRun(runId: string): string {
+    const run = this.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    if (!this.noWorkflowNeeded(runId)) throw new Error('This run has work recorded: end it instead.')
+    this.append({ k: 'drop', t: this.deps.now(), run: runId })
+    return run.title
+  }
+
+  /** The person skips a step they refused, so the steps after it go on. Says its name. */
+  skipRefused(runId: string, step: string): string {
+    const { run, round, found } = this.refused(runId, step)
+    if (!isSkippable(found)) throw new Error(`"${found.name}" cannot be skipped: ask again later, or stop here.`)
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step, state: 'skipped', note: 'Skipped by the person after refusing it.' })
+    return found.name
+  }
+
+  /** The person answers a refused step with "ask again later": it stays refused, and nothing asks them about it again until it is reopened. Says its name. */
+  deferRefused(runId: string, step: string): string {
+    const { run, round, found } = this.refused(runId, step)
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step, state: 'declined', note: LATER })
+    return found.name
+  }
+
+  private refused(runId: string, step: string) {
+    const run = this.runs().find((r) => r.id === runId)
+    const round = run?.rounds[run.rounds.length - 1]
+    const found = run?.workflow?.steps.find((s) => s.id === step)
+    if (!run || !round || !found) throw new Error('No such step.')
+    if (this.states(run).find((s) => s.id === step)?.state !== 'failed') throw new Error('That step was not refused.')
+    return { run, round, found }
   }
 
   /** The step after `id` in the run's workflow, for the agent to be told what comes next (its name, whether it may be skipped, and what it is for). */

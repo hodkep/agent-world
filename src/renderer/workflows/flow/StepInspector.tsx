@@ -1,12 +1,13 @@
 import { type Role, type Who, kindFor, roleOf, whoOf, withRole, withWho } from '../../../shared/stepEdit'
 import { setStep, type StepPatch } from '../../../shared/stepEdit'
 import type { SkillState } from '../../../shared/skills'
-import { OPTIONAL_KINDS, SKILL_KINDS, START_KINDS, type Step, type Workflow, stepName } from '../../../shared/workflow'
+import { OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, type Step, type Workflow, isSkippable, stepName } from '../../../shared/workflow'
 import { SKILL_WORDS } from '../WorkflowList'
 import { PixelIcon } from '../../chat/PixelIcon'
 import { AddItemMenu } from '../../panel/AddItemMenu'
 import type { AddableItem } from '../../panel/addItemGroups'
 import { BRIEF_HINT } from './stepFlow'
+import { Choice } from './Choice'
 
 const WHO: { who: Who; label: string }[] = [
   { who: 'agent', label: 'Agent' },
@@ -22,6 +23,7 @@ const ROLES: Record<Who, { role: Role; label: string }[]> = {
   command: [],
   reviewer: []
 }
+const WHO_SHORT: Record<Who, string> = { agent: 'Works on its own', command: 'Runs a command', reviewer: 'A second agent reads it', you: 'You decide' }
 const WHO_HINT: Record<Who, string> = {
   agent: 'The agent does it, and says when it is done.',
   command: 'The app runs a command in the agent\'s worktree.',
@@ -29,15 +31,16 @@ const WHO_HINT: Record<Who, string> = {
   you: 'It waits for you.'
 }
 
-/** A switch that is on or off, as a labelled button: the same control for every setting a step has. */
-function Switch({ on, onChange, label, hint, disabled }: { on: boolean; onChange: (on: boolean) => void; label: string; hint?: string; disabled?: boolean }) {
+/** One rule of a step, as a chip that is on or off: the same control for every setting a step has. */
+function Chip({ on, onChange, label, icon, hint }: { on: boolean; onChange: (on: boolean) => void; label: string; icon: 'play' | 'check' | 'optional' | 'skip'; hint: string }) {
   return (
-    <label className={`si-sw ${on ? 'on' : ''} ${disabled ? 'off' : ''}`} title={hint}>
-      <input type="checkbox" role="switch" checked={on} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+    <button type="button" role="switch" aria-checked={on} className={`si-chip ${on ? 'on' : ''}`} title={hint} onClick={() => onChange(!on)}>
+      <PixelIcon name={icon} scale={2} />
       <span>{label}</span>
-    </label>
+    </button>
   )
 }
+
 
 /**
  * The settings of one step. Every step has the same ones: who does it, what it is told, the part it plays, and the switches (starts when you press Run,
@@ -58,32 +61,35 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
     return patch({ gate: on ? 'approve' : s.kind === 'plan' || s.kind === 'pr' || s.kind === 'merge' ? 'auto' : undefined })
   }
   const roles = ROLES[who]
+  const canStart = START_KINDS.includes(s.kind) && s.kind !== 'plan'
+  const optionalKind = OPTIONAL_KINDS.includes(s.kind)
+  const skippableKind = SKIPPABLE_KINDS.includes(s.kind)
   return (
     <div className="si">
-      <div className="si-who-row" role="group" aria-label={`Who does step ${n}`}>
-        <span className="se-lbl">Who does it</span>
-        <span className="se-seg">
+      <div className="si-whorow" role="group" aria-label={`Who does step ${n}`}>
+        <span className="si-icons">
           {WHO.map((o) => (
-            <button key={o.who} className={who === o.who ? 'on' : ''} aria-pressed={who === o.who} title={WHO_HINT[o.who]} onClick={() => change(withWho(wf, at, o.who))}>
-              <PixelIcon name={ICON[o.who]} scale={1} /> {o.label}
+            <button key={o.who} type="button" className={`si-icon ${who === o.who ? 'on' : ''}`} aria-pressed={who === o.who} aria-label={o.label} title={`${o.label}: ${WHO_HINT[o.who]}`} onClick={() => change(withWho(wf, at, o.who))}>
+              <PixelIcon name={ICON[o.who]} scale={2} />
             </button>
           ))}
         </span>
+        <span className="si-whoname"><b>{WHO.find((o) => o.who === who)?.label}</b><small>{WHO_SHORT[who]}</small></span>
       </div>
-      <input aria-label={`Name of step ${n}`} className="se-name" maxLength={40} value={s.name ?? ''} placeholder={stepName(s)} onChange={(e) => patch({ name: e.target.value })} />
-      <textarea aria-label={`Brief of step ${n}`} className="se-brief" rows={3} maxLength={600} value={s.brief ?? ''} placeholder={BRIEF_HINT[s.kind]} onChange={(e) => patch({ brief: e.target.value })} />
+      <div className="si-text">
+        <input aria-label={`Name of step ${n}`} className="se-name si-title" maxLength={40} value={s.name ?? ''} placeholder={stepName(s)} onChange={(e) => patch({ name: e.target.value })} />
+        <textarea aria-label={`Brief of step ${n}`} className="se-brief si-desc" rows={3} maxLength={600} value={s.brief ?? ''} placeholder={BRIEF_HINT[s.kind]} onChange={(e) => patch({ brief: e.target.value })} />
+      </div>
       {roles.length > 1 && (
-        <label className="si-row">
-          <span className="se-lbl">Part in the run</span>
-          <select aria-label={`Part of step ${n}`} value={role} onChange={(e) => change(withRole(wf, at, e.target.value as Role))}>
-            {roles.filter((r) => kindFor(who, r.role)).map((r) => <option key={r.role} value={r.role}>{r.label}</option>)}
-          </select>
-        </label>
+        <div className="si-field">
+          <span className="se-lbl">Part it plays</span>
+          <Choice ariaLabel={`Part of step ${n}`} value={role} options={roles.filter((r) => kindFor(who, r.role)).map((r) => ({ value: r.role, label: r.label }))} onChange={(v) => change(withRole(wf, at, v as Role))} />
+        </div>
       )}
       {s.kind === 'check' && (
-        <div className="si-row">
+        <div className="si-field">
           <span className="se-lbl">Command</span>
-          <input aria-label={`Command of step ${n}`} className="se-run mono" maxLength={300} value={s.run ?? ''} placeholder="The command to run, such as npm test" onChange={(e) => patch({ run: e.target.value })} />
+          <input aria-label={`Command of step ${n}`} className="se-run mono si-plain" maxLength={300} value={s.run ?? ''} placeholder="The command to run, such as npm test" onChange={(e) => patch({ run: e.target.value })} />
           <label className="si-inline">
             Retries
             <input aria-label={`Retries of step ${n}`} type="number" min={0} max={5} value={s.retries ?? ''} placeholder="2" onChange={(e) => patch({ retries: e.target.value === '' ? undefined : Number(e.target.value) })} />
@@ -91,12 +97,14 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
         </div>
       )}
       {s.kind === 'audit' && (
-        <label className="si-row">
+        <label className="si-field">
           <span className="se-lbl">Reviewer model</span>
-          <input aria-label={`Model of step ${n}`} className="se-model" maxLength={40} value={s.model ?? ''} placeholder="by the dial" onChange={(e) => patch({ model: e.target.value })} />
+          <input aria-label={`Model of step ${n}`} className="se-model si-plain" maxLength={40} value={s.model ?? ''} placeholder="by the dial" onChange={(e) => patch({ model: e.target.value })} />
         </label>
       )}
       {SKILL_KINDS.includes(s.kind) && (
+        <div className="si-field">
+        <span className="se-lbl">Skills</span>
         <div className="se-skills" aria-label={`Skills of step ${n}`}>
           {(s.skills ?? []).map((id) => (
             <span key={id} className={`sk ${skillStates[id] ?? 'ready'}`}>
@@ -111,28 +119,20 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
             <AddItemMenu items={skills} added={new Set(s.skills ?? [])} onAdd={(id) => patch({ skills: [...(s.skills ?? []), id] })} words={{ label: 'Add skill…', title: 'Add a skill', placeholder: 'Search skills…', search: 'Search skills', here: 'already on this step', tag: 'on this step' }} />
           )}
         </div>
+        </div>
       )}
-      <div className="si-switches" role="group" aria-label={`Settings of step ${n}`}>
-        {START_KINDS.includes(s.kind) && s.kind !== 'plan' && (
-          <div className="si-when">
-            <div className="se-opts">
-              <span className="se-lbl">Asks you</span>
-              <span className="se-seg" role="group" aria-label={`Start of step ${n}`}>
-                <button aria-pressed={s.start !== 'run'} className={s.start !== 'run' ? 'on' : ''} onClick={() => patch({ start: undefined })}>Goes ahead by itself</button>
-                <button aria-pressed={s.start === 'run'} className={s.start === 'run' ? 'on' : ''} onClick={() => patch({ start: 'run' })}>Asks me first</button>
-              </span>
-            </div>
-            <small className="muted">{s.start === 'run' ? 'It does not start until you say yes: the agent does nothing for it before. That is the one time it asks.' : 'It goes ahead as soon as its turn comes, and never asks.'}</small>
+      {(canStart || s.kind === 'plan' || optionalKind || skippableKind) && (
+        <div className="si-field" role="group" aria-label={`Settings of step ${n}`}>
+          <span className="se-lbl">Rules</span>
+          <div className="si-chips">
+            {canStart && <Chip icon="play" label="Asks me first" on={s.start === 'run'} hint="It does not start until you say yes: the agent does nothing for it before. Off, it goes ahead as soon as its turn comes." onChange={(on) => patch({ start: on ? 'run' : undefined })} />}
+            {s.kind === 'plan' && <Chip icon="check" label="Needs my approval" on={approves} hint="Once the plan is written, the run waits for you to approve it or send it back before anything is edited." onChange={setApproval} />}
+            {optionalKind && <Chip icon="optional" label="Optional" on={!!s.optional} hint="The agent may skip it itself and say why. You can skip it too." onChange={(on) => patch({ optional: on ? true : undefined })} />}
+            {skippableKind && <Chip icon="skip" label="Skippable" on={isSkippable(s)} hint="Only you can skip it, and the agent has to ask. Off, the step is required: Not now refuses it." onChange={(on) => patch({ skippable: on })} />}
           </div>
-        )}
-        {s.kind === 'plan' && (
-          <div className="si-when">
-            <span className="se-lbl">When it is written</span>
-            <Switch on={approves} label="Needs my approval" hint="Once the plan is written, the run waits for you to approve it or send it back before anything is edited." onChange={setApproval} />
-          </div>
-        )}
-        {OPTIONAL_KINDS.includes(s.kind) && <Switch on={!!s.optional} label="Optional" hint="You can skip it, and the run goes on." onChange={(on) => patch({ optional: on ? true : undefined })} />}
-      </div>
+          {(optionalKind || skippableKind) && <p className="si-hint"><b>Skippable:</b> only you can skip it; the agent has to ask. <b>Optional:</b> the agent may skip it and say why.</p>}
+        </div>
+      )}
     </div>
   )
 }

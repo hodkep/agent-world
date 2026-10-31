@@ -24,8 +24,10 @@ export interface Step {
   /** What the agent is told at this step, what a reviewer looks for, or what the person reads on its card. */
   brief?: string
   start?: Start
-  /** The person can skip it: it does not hold the run when they do. */
+  /** The agent may skip it itself, saying why; the person can skip it too. */
   optional?: boolean
+  /** Only the person can skip it: the agent has to ask. Unset, a step that starts when the person presses Run counts as skippable. */
+  skippable?: boolean
   skills?: string[]
   run?: string
   retries?: number
@@ -49,8 +51,12 @@ export const GATES: Record<StepKind, Gate[]> = { plan: ['auto', 'approve'], work
 export const SKILL_KINDS: StepKind[] = ['plan', 'work', 'pr']
 /** The kinds that can be passed over by the person: what is not the way a run ends or is held. */
 export const OPTIONAL_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve']
+/** The kinds the person can skip when their workflow allows it: the optional ones, and a pull request. */
+export const SKIPPABLE_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve', 'pr']
+/** Whether the person can skip a step (and the agent may only ask them to): its workflow says so, and without a word a step that starts on their Run is. */
+export const isSkippable = (s: { kind: StepKind; start?: Start; skippable?: boolean }): boolean => SKIPPABLE_KINDS.includes(s.kind) && (s.skippable ?? s.start === 'run')
 const orList = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} or ${w.at(-1)}`)
-const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skills', 'run', 'retries', 'model']
+const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
 /** Whether `v` can be a workflow's id, and so the name of its file. */
 export const isWorkflowId = (v: unknown): v is string => typeof v === 'string' && ID.test(v) && v.length <= 40
@@ -84,6 +90,10 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
     if (s.optional !== undefined) {
       if (!OPTIONAL_KINDS.includes(kind)) out.push(`${at}: "optional" only belongs on a work, check, audit or approve step.`)
       else if (typeof s.optional !== 'boolean') out.push(`${at}: "optional" must be true or false.`)
+    }
+    if (s.skippable !== undefined) {
+      if (!SKIPPABLE_KINDS.includes(kind)) out.push(`${at}: "skippable" only belongs on a work, check, audit, approve or pr step.`)
+      else if (typeof s.skippable !== 'boolean') out.push(`${at}: "skippable" must be true or false.`)
     }
     if (s.start !== undefined) {
       if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a plan, work, check, audit or pr step.`)

@@ -1,7 +1,7 @@
-import { GATES, OPTIONAL_KINDS, SKILL_KINDS, START_KINDS, STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
+import { GATES, OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
 
 /** The fields of a step that the draft's editor changes; an empty text or list takes the field away. */
-export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'optional' | 'skills' | 'run' | 'retries' | 'model'>>
+export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'optional' | 'skippable' | 'skills' | 'run' | 'retries' | 'model'>>
 
 const withSteps = (w: Workflow, steps: Step[]): Workflow => ({ ...w, steps })
 
@@ -109,6 +109,7 @@ function asKind(s: Step, kind: StepKind): Step {
   if (s.gate !== undefined && GATES[kind].includes(s.gate)) next.gate = s.gate
   if (s.start !== undefined && START_KINDS.includes(kind)) next.start = s.start
   if (s.optional !== undefined && OPTIONAL_KINDS.includes(kind)) next.optional = s.optional
+  if (s.skippable !== undefined && SKIPPABLE_KINDS.includes(kind)) next.skippable = s.skippable
   if (s.skills !== undefined && SKILL_KINDS.includes(kind)) next.skills = s.skills
   if (kind === 'check') {
     next.run = s.run ?? ''

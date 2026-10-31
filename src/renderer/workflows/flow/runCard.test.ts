@@ -71,6 +71,12 @@ describe('whether the person can skip a step of a run', () => {
     expect(skipOf(st('check', 'waiting', { toRun: true }), step('check', { optional: true }))).toBe('check')
     expect(skipOf(st('audit', 'waiting', { toRun: true }), step('audit', { optional: true }))).toBe('audit')
   })
+  it('a step marked skippable, or one that starts on Run, is skipped the same way; pull requests too', () => {
+    expect(skipOf(st('work', 'waiting'), step('work', { skippable: true }))).toBe('step')
+    expect(skipOf(st('work', 'waiting'), step('work', { start: 'run' }))).toBe('step')
+    expect(skipOf(st('pr', 'waiting'), step('pr', { start: 'run' }))).toBe('step')
+    expect(skipOf(st('work', 'waiting'), step('work', { start: 'run', skippable: false }))).toBeUndefined()
+  })
   it('not a step that is required, done, later or already skipped', () => {
     expect(skipOf(st('work', 'running'), step('work'))).toBeUndefined()
     for (const state of ['passed', 'pending', 'skipped', 'failed'] as const) expect(skipOf(st('work', state), step('work', { optional: true }))).toBeUndefined()

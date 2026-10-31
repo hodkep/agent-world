@@ -82,7 +82,7 @@ import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
 import { landingPill, trackOf } from '../shared/runTrack'
 import { landingKind } from '../shared/workflow'
 import { pendingPlans } from '../shared/runs'
-import { checkPanels, toRunSteps, waitingSteps } from '../shared/steps'
+import { checkPanels, refusedAsk, toRunSteps, waitingSteps } from '../shared/steps'
 import { IdentityChip } from './panel/IdentityChip'
 import { billboardLine, profileFor, type IdentityState } from '../shared/identity'
 import { WorkflowGates } from './workflows/WorkflowGates'
@@ -873,12 +873,14 @@ export function App() {
     const c = checkPanels(wf.runs.filter((r) => r.agent === a.id), ctxFor).at(0)
     const r = toRunSteps(wf.runs.filter((x) => x.agent === a.id), ctxFor).at(0)
     const sk = wf.runs.find((x) => x.agent === a.id && x.status !== 'stopped' && x.skipAsk)
+    const rf = wf.runs.filter((x) => x.agent === a.id).flatMap((x) => { const ask = refusedAsk(x, ctxFor(x)); return ask ? [{ run: x, ask }] : [] }).at(0)
     return (
       <WorkflowGates
         agentName={a.name}
         plan={p}
         check={c}
         {...(sk && { skip: sk })}
+        {...(rf && { refused: rf })}
         runStep={r}
         step={w}
         onDecidePlan={(runId, state, o) => void window.aw.workflows.decide(runId, state, o)}

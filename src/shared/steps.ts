@@ -1,5 +1,5 @@
 import type { Round, Run, RunStep, RunWorkflow } from './runs'
-import { type StepKind, isLanding } from './workflow'
+import { type StepKind, isLanding, isSkippable } from './workflow'
 
 export type StepStatus = 'passed' | 'running' | 'waiting' | 'pending' | 'skipped' | 'failed'
 export interface StepState {
@@ -248,11 +248,17 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
   })
 }
 
-/** What the agent is told when the person skips an optional step of its workflow. */
-export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person: it is optional. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
+/** What the agent is told when the person skips an optional or skippable step of its workflow. */
+export const stepSkipped = (name: string, next?: string) => `Your step "${name}" was skipped by the person. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`
 
-/** What the agent is told when the person refuses a step that is not optional: the workflow stops there. */
-export const stepDeclined = (name: string) => `The person refused your step "${name}", so the workflow stops here: do not do it or any step after it. Say so in one line and wait for their instructions. If more work comes, you decide when to ask them again: call step_reopen("id", why) once that work is ready.`
+/** What the agent is told when the person refuses a step that is not optional: the person is asked what happens next, so it waits. */
+export const stepDeclined = (name: string) => `The person refused your step "${name}". The office is asking them what to do next: skip it and go on, ask for it again later, or stop. Wait for their answer, which comes as a message from the office; do not do the step or any step after it until then.`
+
+/** The person chose to ask for a refused step later: the agent asks again itself when the work is ready. */
+export const stepRefusedLater = (name: string) => `The person will ask for "${name}" again later. Wait for their instructions. If more work comes, you decide when to ask them again: call step_reopen("id", why) once that work is ready.`
+
+/** The person skipped a step they had refused, and the run goes on with the steps after it. */
+export const stepSkippedOnward = (name: string, next?: string) => `The person skipped your step "${name}" and wants the task to go on. ${next ? `Go on with the next step, "${next}".` : 'If nothing else is left, call task_done.'}`
 
 /** The line that tells an agent what comes after the step it just reported, so it can decide how to go on. */
 export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
@@ -315,3 +321,35 @@ export function lanesOf(run: Run, ctx: StepContext): Lane[] {
     return { item: n, title: it.title, at: it.t, ...(reached && { fork: reached.id }), ...(join && { join }), steps: stepStates(virtual, ctx) }
   })
 }
+
+/** The step the person refused and has not yet said what to do about, with the names of the steps still to come after it: what the card that asks "what next?" shows. */
+export function refusedAsk(run: Run, ctx: StepContext): { id: string; name: string; rest: string[]; skippable: boolean } | undefined {
+  if (run.status === 'stopped' || !run.workflow) return undefined
+  const states = stepStates(run, ctx)
+  const at = states.findIndex((s) => s.state === 'failed' && s.kind !== 'check' && s.kind !== 'audit')
+  const found = states[at]
+  if (!found) return undefined
+  const last = run.rounds.at(-1)?.steps.filter((l) => l.step === found.id && l.item === undefined).at(-1)
+  // "Ask again later" is a refusal with a note of its own: the question is answered, and the step stays refused.
+  if (last?.note === LATER) return undefined
+  const def = run.workflow?.steps.find((d) => d.id === found.id)
+  return { id: found.id, name: found.name, skippable: !!def && isSkippable(def), rest: states.slice(at + 1).filter((s) => s.state !== 'passed' && s.state !== 'skipped').map((s) => s.name) }
+}
+
+/** The note on the refusal that says the person will ask again later. */
+export const LATER = 'later'
+
+/** Whether a run has recorded no work: no step reported done or approved, no commit, no added item. A run like that only asked to skip, so it never needed a workflow. */
+export const noWorkRecorded = (run: Run): boolean =>
+  (run.items?.length ?? 0) === 0 && run.rounds.every((r) => r.commits.length === 0 && r.steps.every((l) => l.state !== 'done' && l.state !== 'approved'))
+
+/** Whether the agent's question to skip covers every step of the workflow that is neither the plan nor optional: then the run needs no workflow, and the card says so. */
+export const skipsEverything = (run: Run): boolean => {
+  const ask = run.skipAsk
+  // An optional step (the designs) is skipped by the agent itself, so the question does not name it.
+  const rest = run.workflow?.steps.filter((s) => s.kind !== 'plan' && !s.optional) ?? []
+  return !!ask && rest.length > 0 && noWorkRecorded(run) && rest.every((s) => ask.steps.includes(s.id))
+}
+
+/** What the agent is told when the person drops its run because no workflow was needed. */
+export const runDropped = (title: string) => `The person dropped your task "${title}": no workflow was needed for it. Answer them in plain words; do not call task_done or step_done for it.`

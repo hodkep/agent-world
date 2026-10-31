@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import type { ProposalView } from '../../shared/builder'
 import { formatCost } from '../../shared/runStats'
 import type { WorkflowEntry } from '../../shared/workflow'
+import { PixelIcon } from '../chat/PixelIcon'
 import { FlowCanvas } from './flow/FlowCanvas'
 import { History } from './History'
 import { builderHeading, savedEntry } from './listButtons'
@@ -12,6 +13,8 @@ const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'Th
 /** The builder's conversation on the left and its draft on the right. The chat is the ordinary chat of its agent, passed in. */
 export function BuilderSplit({ agentId, folder, editing, editingId, chat, cost, onBack, onSaved }: { agentId: string; folder: string | null; editing?: string; /** The id of the saved workflow being edited. */ editingId?: string; chat: ReactNode; cost: number; onBack: () => void; onSaved: (e: WorkflowEntry) => void }) {
   const [view, setView] = useState<ProposalView | null | undefined>(undefined)
+  // The chat folds away with a handle on its edge, so the draft can have the whole window; it stays mounted, so the conversation is where it was.
+  const [chatOpen, setChatOpen] = useState(true)
   const load = useCallback(() => void window.aw.workflows.proposal(agentId, folder).then(setView, () => setView(null)), [agentId, folder])
   useEffect(() => {
     load()
@@ -33,8 +36,11 @@ export function BuilderSplit({ agentId, folder, editing, editingId, chat, cost, 
         <span className="muted">{status}</span>
         <span className="mono muted bs-cost" title="What this conversation has cost so far">{formatCost(cost)} this chat</span>
       </div>
-      <div className="bs">
+      <div className={`bs ${chatOpen ? '' : 'chat-off'}`}>
         <div className="bs-chat">{chat}</div>
+        <button className="bs-handle" aria-label={chatOpen ? 'Hide the builder chat' : 'Show the builder chat'} aria-expanded={chatOpen} title={chatOpen ? 'Hide the chat' : 'Show the chat'} onClick={() => setChatOpen(!chatOpen)}>
+          <PixelIcon name="chevron" scale={2} />
+        </button>
         <div className="bs-side">
           {view ? (
             <Proposal key={view.workflow.id} agentId={agentId} folder={folder} view={view} onSaved={onSaved} onGone={load} onChanged={load} />

@@ -456,7 +456,7 @@ describe('the same settings on every kind of step', () => {
   it('what a check sent back says to the agent, and what a skipped step says', () => {
     expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('was sent back: cover the edge')
     expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('the check runs again')
-    expect(stepSkipped('Extra')).toBe('Your step "Extra" was skipped by the person: it is optional. Go on with the next step.')
+    expect(stepSkipped('Extra')).toBe('Your step "Extra" was skipped by the person. Go on with the next step.')
   })
 })
 

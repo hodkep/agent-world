@@ -528,7 +528,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     'task_begin',
     {
       description:
-        'Say that you are starting a task that changes code or takes several steps, so the office can record it. Do not call it for a question, a typo or a tiny edit. Pass follow_up only when the request is more work on the task you just finished (a missed case, a change to its review); a different piece of work is a new task.',
+        'Say that you are starting a task that changes code or takes several steps, so the office can record it. Do not call it for a question, a typo, a tiny edit, or a read-only check or lookup that changes no files. While a task is open, call it for more work added to it. Pass follow_up only when the request is more work on the task you just finished (a missed case, a change to its review); a different piece of work is a new task.',
       inputSchema: { title: z.string().min(1).max(120).describe('The task in a few words'), follow_up: z.boolean().optional().describe('true when this continues the task you last finished'), workflow: z.string().max(40).optional().describe('The id of a workflow listed in your instructions, if one fits this task better than the default') }
     },
     async ({ title, follow_up, workflow }) => {

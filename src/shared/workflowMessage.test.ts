@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planReply } from './plan'
-import { stepAskedAgain, stepDeclined, stepReply, stepSkipped, stepStarted, runEnded, stepsKept, stepsSkipped } from './steps'
+import { runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
 import { parseWorkflowMessage } from './workflowMessage'
 
 const office = (t: string) => `[Agent World] ${t}`
@@ -31,6 +31,12 @@ describe('what the app typed into the chat for the person, read back as a receip
     expect(parseWorkflowMessage(office(stepsSkipped(['Commit', 'Push', 'Pull request'], 'The branch is clean.')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Skipped Commit, Push and Pull request', sub: 'The branch is clean.' })
     expect(parseWorkflowMessage(office(stepsKept(['Commit', 'Push'])))).toMatchObject({ tone: 'back', title: 'Kept Commit and Push' })
     expect(parseWorkflowMessage(office(stepAskedAgain('Commit')))).toMatchObject({ tone: 'go', title: 'Asked again', sub: 'Commit' })
+  })
+  it('knows what the person chose after refusing a step: skip it and go on, ask again later, or drop a run that needed no workflow', () => {
+    expect(parseWorkflowMessage(office(stepSkippedOnward('Commit', 'Push')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Skipped Commit' })
+    expect(parseWorkflowMessage(office(stepSkippedOnward('Commit')))).toMatchObject({ title: 'Skipped Commit' })
+    expect(parseWorkflowMessage(office(stepRefusedLater('Verify the changes')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Ask again later', sub: 'Verify the changes' })
+    expect(parseWorkflowMessage(office(runDropped('Check the README')))).toMatchObject({ tone: 'no', icon: 'cross', title: 'Dropped this run', sub: 'Check the README' })
   })
   it('knows the push that was approved, which is typed without the prefix', () => {
     const text = 'The person approved the push of aw/tester (0a898d3). Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin aw/tester:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.'

@@ -82,7 +82,7 @@ function RunNode({ data }: NodeProps<RunFlowNode>) {
             <>
               {action && <button className="primary" disabled={busy} onClick={() => press('go')}>{action.label}</button>}
               {action?.kind === 'approve' && <button disabled={busy} onClick={() => setAsking(true)}>Send back</button>}
-              {via && <button disabled={busy} title="It is optional: the run goes on without it." onClick={leave}>Skip</button>}
+              {via && <button disabled={busy} title={step.optional ? 'It is optional: the run goes on without it.' : 'You can skip it: the run goes on without it.'} onClick={leave}>Skip</button>}
             </>
           )}
         </div>

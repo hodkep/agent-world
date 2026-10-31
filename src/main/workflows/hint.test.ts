@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RunWorkflow } from '../../shared/runs'
-import { PLAN_INSTRUCTION, PR_GO, WORKFLOW_HINT, WORKFLOW_REMINDER, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './hint'
+import { PLAN_INSTRUCTION, PR_GO, WORKFLOW_HINT, WORKFLOW_OPEN_REMINDER, WORKFLOW_REMINDER, WORKFLOW_TOOLS, planInstruction, workflowBrief, workflowList, workflowRemind } from './hint'
 
 describe('what task_begin tells the agent about the plan, per dial', () => {
   it('balanced and max ask for the plan every time', () => {
@@ -112,11 +112,18 @@ describe('the reminder to announce a task, said at the start of a turn', () => {
   it('is said while workflows are on and the agent has no task open', () => {
     expect(workflowRemind(ask)).toBe(WORKFLOW_REMINDER)
   })
-  it('is not said with workflows off, to the builder or a subagent, or while a task is open', () => {
+  it('is not said with workflows off or to the builder or a subagent, and changes to the open-task note while a task is open', () => {
     expect(workflowRemind({ ...ask, enabled: false })).toBe('')
     expect(workflowRemind({ ...ask, builder: true })).toBe('')
     expect(workflowRemind({ ...ask, subagent: true })).toBe('')
-    expect(workflowRemind({ ...ask, open: true })).toBe('')
+    // With a task open, the turn is told how more work is added to it.
+    expect(workflowRemind({ ...ask, open: true })).toBe(WORKFLOW_OPEN_REMINDER)
+    expect(WORKFLOW_OPEN_REMINDER).toMatch(/task_begin/)
+    expect(WORKFLOW_OPEN_REMINDER).toMatch(/do not .*reopen/i)
+  })
+
+  it('tells the agent a read-only check needs no task', () => {
+    for (const text of [WORKFLOW_HINT, WORKFLOW_REMINDER]) expect(text).toMatch(/read-only/)
   })
 })
 

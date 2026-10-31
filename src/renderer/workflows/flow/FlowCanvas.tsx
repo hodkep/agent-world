@@ -56,8 +56,8 @@ function Flow({ steps, selected, problems, skillStates, marks, fill, edits, onSe
   useEffect(() => setNodes(base), [base])
   // A step added or taken out changes how much there is to see: the view fits it again.
   const flow = useReactFlow()
-  // A flow that fills a pane is fitted again when the pane changes height (a drawer opening under it), not only when its steps change.
-  const paneHeight = useStore((st) => (fill ? Math.round(st.height / 40) : 0))
+  // A flow that fills a pane is fitted again when the pane changes size (a drawer opening under it, a settings card docking beside it), not only when its steps change.
+  const paneHeight = useStore((st) => (fill ? Math.round(st.height / 40) * 1000 + Math.round(st.width / 40) : 0))
   useEffect(() => {
     const t = requestAnimationFrame(() => void flow.fitView({ padding: 0.12, maxZoom: 1, minZoom: fill ? 0.3 : 0.7 }))
     return () => cancelAnimationFrame(t)

@@ -56,6 +56,8 @@ export function chipsOf(s: Step, states: Record<string, SkillState> = {}): Chip[
   }
   if (s.start === 'run') out.push({ text: 'starts when you press Run', tone: 'run' })
   if (s.optional) out.push({ text: 'optional', tone: 'plain' })
+  // Only a step the workflow marks skippable says so: every step that starts on Run is, by default, and a tag on each would be noise.
+  if (s.skippable === true) out.push({ text: 'skippable', tone: 'plain' })
   for (const id of s.skills ?? []) out.push({ text: `skill: ${id}`, tone: 'plain', ...(states[id] && states[id] !== 'ready' && { skill: states[id] }) })
   return out
 }
