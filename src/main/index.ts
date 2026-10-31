@@ -1916,6 +1916,22 @@ async function main() {
       }, 800)
   }
   ipcMain.handle('chat:interrupt', (_, id: string, restore?: string) => interruptAgent(id, restore))
+  // Takes back what waits in Claude's queue: its key moves the queued messages into the input box, which is then emptied a line at a time (Ctrl+U clears one line).
+  ipcMain.handle('chat:unqueue', (_, id: string) => {
+    const p = sessions.get(id)
+    const keys = keysOf(id)
+    if (!p || !keys.editQueued) return false
+    p.write(keys.editQueued)
+    let left = 8
+    const clear = () => {
+      if (sessions.get(id) !== p || left-- <= 0) return
+      if (!ui(id).typedText?.(screens.get(id)?.text() ?? '')) return
+      p.write(keys.clearInput)
+      setTimeout(clear, 150)
+    }
+    setTimeout(clear, 400)
+    return true
+  })
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.
   ipcMain.handle('open-external', (_, url: string) => {

@@ -270,7 +270,8 @@ export function ChatView({
     }
     return out
   }, [items, outgoing])
-  const allRows = useMemo(() => toRows(merged, sent), [merged, sent])
+  // What waits in Claude's own queue shows only while the agent works: a line left behind by a session that ended is not waiting for anything.
+  const allRows = useMemo(() => toRows(merged, sent).filter((r) => !(r.kind === 'user' && r.waiting && !realBusy)), [merged, sent, realBusy])
   // What the library did for this agent, shown beside the message it answered: pointed at, read, and the text it started with.
   const lib = useLibraryUses(agentId)
   const slipsByRow = useMemo(() => {
@@ -1044,6 +1045,11 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
             </div>
           )}
           {r.pending && <span className="msg-meta">{r.queued ? 'Queued: sends when the agent finishes its current step' : 'Sending…'}</span>}
+          {r.waiting && (
+            <button className="msg-takeback" title="Takes every queued message back and empties the input box: Claude has no way to take back just one" onClick={() => void window.aw.chatUnqueue(agentId)}>
+              Take back the queue
+            </button>
+          )}
         </div>
       )
     }

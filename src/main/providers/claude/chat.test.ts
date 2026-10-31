@@ -206,3 +206,15 @@ describe('messages the harness adds about subagents', () => {
     expect(parseTranscriptLine(line({ type: 'user', isMeta: true, message: { role: 'user', content: 'caveat: something' } }))).toEqual([])
   })
 })
+
+describe('messages waiting in Claude\'s queue', () => {
+  const q = (operation: string, extra: object = {}) => JSON.stringify({ type: 'queue-operation', operation, timestamp: '2026-10-02T10:01:01.472Z', sessionId: 's', ...extra })
+  it('are items of their own: one when a message is queued, one when Claude takes it up or absorbs it', () => {
+    expect(parseTranscriptLine(q('enqueue', { content: 'done yet' }))).toMatchObject([{ kind: 'queue', op: 'enqueue', text: 'done yet' }])
+    expect(parseTranscriptLine(q('dequeue'))).toMatchObject([{ kind: 'queue', op: 'dequeue', text: '' }])
+    expect(parseTranscriptLine(q('remove', { content: 'done yet', reason: 'absorbed_mid_turn' }))).toMatchObject([{ kind: 'queue', op: 'remove', text: 'done yet' }])
+  })
+  it('ignore an operation they do not know', () => {
+    expect(parseTranscriptLine(q('something-else', { content: 'x' }))).toEqual([])
+  })
+})

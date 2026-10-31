@@ -108,6 +108,8 @@ export interface Keys {
   submitDelayMs: number
   /** Empties what is typed in the input box. */
   clearInput: string
+  /** Pulls the messages waiting in the agent's queue back into its input box (empty when it has no such key). */
+  editQueued: string
   /** Closes an open menu or overlay. */
   cancel: string
   /** Moves to the next autonomy level. */

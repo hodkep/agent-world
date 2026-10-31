@@ -435,3 +435,20 @@ describe('a monitor, a schedule and what became of them', () => {
     expect(tools(loop)[0]!.run.cancelled).toBe(true)
   })
 })
+
+describe('messages waiting in Claude\'s queue, typed in the terminal', () => {
+  const queue = (id: string, op: 'enqueue' | 'dequeue' | 'remove', text = ''): ChatItem => ({ kind: 'queue', id, at: t0, op, text })
+  it('show as queued rows until Claude takes them: a dequeue takes the oldest, a remove takes the one it names', () => {
+    const waiting = (items: ChatItem[]) => toRows(items, []).filter((r) => r.kind === 'user' && r.waiting).map((r) => (r as { text: string }).text)
+    expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?')])).toEqual(['done yet', 'and now?'])
+    expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?'), queue('3', 'dequeue')])).toEqual(['and now?'])
+    expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?'), queue('3', 'remove', 'and now?')])).toEqual(['done yet'])
+  })
+  it('are marked pending and queued, like one queued from the chat', () => {
+    expect(toRows([queue('1', 'enqueue', 'done yet')], [])).toMatchObject([{ kind: 'user', text: 'done yet', pending: true, queued: true, waiting: true }])
+  })
+  it('are not shown twice when the chat queued the same message', () => {
+    const rows = toRows([queue('1', 'enqueue', 'done yet')], [{ id: 'p', text: 'done yet', at: t0, queued: true }])
+    expect(rows.filter((r) => r.kind === 'user')).toHaveLength(1)
+  })
+})

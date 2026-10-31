@@ -4496,3 +4496,6 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb-story .rb-line:has(> .rb-fail) { flex-wrap: wrap; }
 .rb-story .rb-line > .rb-fail { flex: 1 0 100%; }
 .rb-story .rb-tl li { align-items: center; }
+
+/* A message waiting in Claude's own queue: a quiet button to take the queue back. */
+.msg-takeback { margin-left: 10px; font-size: 11px; padding: 1px 8px; color: var(--muted); }

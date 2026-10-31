@@ -6,6 +6,7 @@ export const agyKeys: Keys = {
   submitDelayMs: 150,
   // Ctrl+U clears one line of the input; a pasted message of several lines needs it once per line.
   clearInput: '\x15',
+  editQueued: '',
   cancel: '\x1b',
   nextMode: '\x1b[Z',
   // Esc stops a turn ("Interrupted") and refuses an open question; Ctrl+C twice would leave agy altogether, so it is not used.

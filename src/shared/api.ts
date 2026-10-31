@@ -416,6 +416,8 @@ export interface AwApi {
   /** Esc: interrupt what the agent is doing. */
   /** `restore` is the last message sent when nothing came after it: if Claude took it back into its input box, it is moved back to the message box. */
   chatInterrupt(agentId: string, restore?: string): Promise<void>
+  /** Takes the messages waiting in the agent's queue back and empties its input box: all of them at once, as Claude has no way to take one. False when the agent cannot. */
+  chatUnqueue(agentId: string): Promise<boolean>
   /** Ready-made agents for a project: built in, from Claude subagent files, and saved by the user. */
   listRoles(folder: string): Promise<Role[]>
   saveRole(r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }): Promise<Role>
