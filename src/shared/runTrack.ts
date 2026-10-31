@@ -18,6 +18,8 @@ export interface Track {
   run: string
   /** A step the person refused, which the strip offers to ask again. */
   again?: string
+  /** The command that failed at the step the run is at, in a few words. */
+  trouble?: string
   title: string
   workflow: string
   round: number
@@ -74,8 +76,10 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   const here = steps[at]!
   const waiting = waitingFor(here, run.status === 'done', landingKind(run.workflow))
   const note = !waiting && here.kind === 'plan' && round.plan?.state === 'changes' ? 'plan sent back: being revised' : undefined
+  const last = run.troubles?.at(-1)
+  const failedHere = last && last.step === here.id && here.state !== 'passed' ? (/git\s+commit\b/.test(last.command) ? 'Commit' : /git\s+push\b/.test(last.command) ? 'Push' : last.label === 'tests' ? 'Tests' : last.label === 'build' ? 'Build' : last.label === 'lint' ? 'Lint' : 'A git command') + ` failed: ${last.label}` : undefined
   const again = here.state === 'failed' && here.kind !== 'check' && here.kind !== 'audit' ? here.id : undefined
-  return { run: run.id, ...(again && { again }), title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
+  return { run: run.id, ...(again && { again }), ...(failedHere && { trouble: failedHere }), title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }
 
 export type LandingPill = { kind: 'held' | 'notyet'; text: string }

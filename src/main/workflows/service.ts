@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -52,7 +52,7 @@ const SKIPPED_HOLD = 'Pushed without the hold: git push --no-verify.'
 const ASIDE_HELD = 'The review was set aside.'
 /** What the app commits for an agent's unfinished work when it quits. */
 const SNAPSHOT = /^chore\([^)]*\): work in progress$/
-const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start', 'skipask', 'skipans']
+const KINDS = ['begin', 'round', 'workflow', 'todo', 'done', 'reopen', 'stop', 'plan', 'commit', 'audit', 'seen', 'scope', 'item', 'merge', 'step', 'check', 'start', 'skipask', 'skipans', 'trouble']
 /** The folder in an agent's worktree where its plan lives: edits there are never held back. */
 export const PLAN_DIR = '.agent-world'
 
@@ -188,6 +188,13 @@ export class Workflows {
     // Finishing never claims a step nobody did: one the agent has to do and never reported is refused by name; an optional one it never reported was not needed, so it is skipped
     // (marked as the app's doing); one that starts on Run waits for the person's press, and is left alone.
     const round = open.rounds[open.rounds.length - 1]!
+    // Work added to the run is finished with it: each of its lane's required steps is reported first.
+    if (!o.byApp) {
+      for (const lane of this.lanes(open)) {
+        const owed = lane.steps.find((x) => x.kind === 'work' && x.state !== 'passed' && x.state !== 'skipped' && !open.workflow?.steps.find((w) => w.id === x.id)?.optional)
+        if (owed) throw new Error(`Report "${owed.name}" for item ${lane.item} first: it was never done.`)
+      }
+    }
     const unreported = (open.workflow?.steps ?? []).filter((s) => s.kind === 'work' && !this.reported(round, s.id))
     const owed = unreported.find((s) => !s.optional && !(s.start === 'run' && round.starts?.[s.id] === undefined))
     // The app closing the run itself (the push went through) has nothing to ask of the agent: what is left is marked as the app's doing.
@@ -255,7 +262,7 @@ export class Workflows {
 
   /** Whether the agent has dealt with a step in this round: it reported it, or it was skipped or refused, and it was not sent back or reopened after. */
   private reported(round: Run['rounds'][number], id: string): boolean {
-    const l = round.steps.filter((x) => x.step === id).at(-1)
+    const l = round.steps.filter((x) => x.step === id && x.item === undefined).at(-1)
     return !!l && l.state !== 'changes' && l.state !== 'reopen'
   }
 
@@ -503,7 +510,7 @@ export class Workflows {
    * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
-  stepDone(agentId: string, step?: string, o: { skipped?: boolean; why?: string } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } } {
+  stepDone(agentId: string, step?: string, o: { skipped?: boolean; why?: string; item?: number } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } } {
     // An agent may close the task in the same turn that its check fails, before it is told: reporting the fix then opens the task again.
     const closed = this.mine(agentId)[0]
     if (!this.openRun(agentId) && closed?.status === 'done' && this.states(closed).some((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)) this.append({ k: 'reopen', t: this.deps.now(), run: closed.id })
@@ -512,7 +519,14 @@ export class Workflows {
     const flow = run.workflow
     if (!flow) throw new Error('This task has no steps to report.')
     const round = run.rounds[run.rounds.length - 1]!
-    const last = (id: string) => round.steps.filter((x) => x.step === id).at(-1)
+    // Work added to the run has a lane of its own: a step reported for it (named by its number, or the main chain having it done already) goes there.
+    const lanes = this.lanes(run)
+    if (o.item !== undefined) {
+      const lane = lanes.find((l) => l.item === o.item)
+      if (!lane) throw new Error(`This task has no item ${o.item}.${lanes.length ? ` Added work: ${lanes.map((l) => `${l.item} "${l.title}"`).join(', ')}.` : ' Nothing was added to it.'}`)
+      return this.laneDone(run, round, lane, step, o)
+    }
+    const last = (id: string) => round.steps.filter((x) => x.step === id && x.item === undefined).at(-1)
     const reportable = (s: RunWorkflow['steps'][number]) => s.kind === 'work' && (last(s.id)?.state === undefined || last(s.id)?.state === 'changes' || last(s.id)?.state === 'reopen')
     // The work that was sent back, for the agent to report again: by the person (an approve step came back), or by a check that failed and still has tries.
     const sentBack = (): { step: RunWorkflow['steps'][number]; by: 'person' | 'check' } | undefined => {
@@ -530,11 +544,17 @@ export class Workflows {
       if (!reportable(target)) {
         // An agent told to "call step_done again" names the step it named before; when that step is the one sent back, that is the fix being reported.
         const back = sentBack()
+        const lane = back?.step.id === target.id ? undefined : lanes.find((l) => l.steps.some((x) => x.id === target!.id && x.state !== 'passed' && x.state !== 'skipped'))
+        if (lane) return this.laneDone(run, round, lane, target.id, o)
         if (back?.step.id !== target.id) throw new Error(`"${step}" is already done.${back ? ` ${back.by === 'check' ? 'A check was sent back' : 'Work was sent back'}: report the fix with step_done("${back.step.id}"), or with no id.` : ''}`)
       }
     } else {
       target = flow.steps.find(reportable) ?? sentBack()?.step
-      if (!target) throw new Error('Every step you do is already reported done.')
+      if (!target) {
+        const lane = lanes.find((l) => l.steps.some((x) => x.state === 'running'))
+        if (lane) return this.laneDone(run, round, lane, undefined, o)
+        throw new Error('Every step you do is already reported done.')
+      }
     }
     // A step that starts on Run is not the agent's to report before the person has pressed it.
     if (target.start === 'run' && round.starts?.[target.id] === undefined) throw new Error(`The person has not pressed Run on "${target.name}" yet.`)
@@ -554,6 +574,44 @@ export class Workflows {
     const after = this.states(this.runs().find((r) => r.id === run.id)!)
     const waiting = after.find((s) => s.state === 'waiting' && (s.kind === 'approve' || s.kind === 'work'))
     return { done: target.id, ...this.nextOf(run.id, target.id), ...(waiting && { waiting: waiting.name }), ...(after.some((s) => s.kind === 'check' && (s.state === 'running' || s.state === 'waiting')) && { checking: true }) }
+  }
+
+  /** The work added to a run, each as a lane with its own steps. */
+  private lanes(run: Run) {
+    return lanesOf(run, { auditOn: this.deps.dial() !== 'economy', approved: run.workflow ? this.deps.approved(run.workflow) : true })
+  }
+
+  /** The agent reports a step of the lane of work added to the run: in order within the lane, and skipped only when it is optional and says why. */
+  private laneDone(run: Run, round: Run['rounds'][number], lane: ReturnType<Workflows['lanes']>[number], step: string | undefined, o: { skipped?: boolean; why?: string }) {
+    const flow = run.workflow!
+    const target = step ? lane.steps.find((x) => x.id === step) : lane.steps.find((x) => x.state === 'running')
+    if (!target) throw new Error(step ? `"${step}" is not a step of item ${lane.item}: its steps are ${lane.steps.map((x) => x.id).join(', ')}.` : `Every step of item ${lane.item} is already reported.`)
+    const def = flow.steps.find((x) => x.id === target.id)!
+    if (def.kind !== 'work') throw new Error(`"${target.name}" for item ${lane.item} is not a step you report: the plan is submitted with plan_submit.`)
+    if (target.state === 'passed' || target.state === 'skipped') throw new Error(`"${target.name}" is already done for item ${lane.item}.`)
+    const at = lane.steps.findIndex((x) => x.id === target.id)
+    const unmet = lane.steps.slice(0, at).find((x) => x.state !== 'passed' && x.state !== 'skipped')
+    if (unmet) throw new Error(`"${unmet.name}" comes before "${target.name}" for item ${lane.item}: ${unmet.kind === 'work' ? `report it, or skip it with step_done("${unmet.id}", skipped, "<why>").` : 'it is not met yet.'}`)
+    if (o.skipped) {
+      if (!def.optional) throw new Error(`"${target.name}" is not optional: do it, or ask the person.`)
+      const why = o.why?.trim().slice(0, 200)
+      if (!why) throw new Error('Say why in a few words: a skipped step needs a reason.')
+      this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'skipped', note: why, item: lane.item })
+      return { done: target.id, skipped: true, ...this.nextOf(run.id, target.id) }
+    }
+    this.append({ k: 'step', t: this.deps.now(), run: run.id, round: round.n, step: target.id, state: 'done', item: lane.item })
+    return { done: target.id, ...this.nextOf(run.id, target.id) }
+  }
+
+  /** A command failed while the agent's run was open: kept in the run's story with the step it was at. The same failure twice in a row is one. */
+  trouble(agentId: string, t: { label: string; command: string; error: string }) {
+    const run = this.openRun(agentId)
+    if (!run) return
+    const prev = run.troubles?.at(-1)
+    const now = this.deps.now()
+    if (prev && prev.command === t.command && prev.error === t.error && now - prev.t < 5000) return
+    const step = this.states(run).find((x) => x.state === 'running' || x.state === 'waiting')?.id
+    this.append({ k: 'trouble', t: now, run: run.id, ...(step && { step }), label: t.label, command: t.command, error: t.error })
   }
 
   private nextOf(runId: string, id: string) {

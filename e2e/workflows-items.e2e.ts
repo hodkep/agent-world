@@ -51,10 +51,12 @@ test('more work asked for while a run is open is an item of that run, not anothe
     const items = page.getByRole('list', { name: 'Items of this run' })
     await expect(items.getByRole('listitem')).toHaveText([/Fix the old-side numbers/, /Fold unchanged code.*added/])
 
-    // Once the task is done, the next request is a run of its own.
-    // An agent reports its steps before it says it is finished.
+    // Added work has steps of its own, and a task is not finished while they are owed: task_done is refused by name.
     for (let i = 0; i < 3; i++) await client.callTool({ name: 'step_done', arguments: {} })
-    await client.callTool({ name: 'task_done', arguments: { summary: 'Done.' } })
+    const refused = (await client.callTool({ name: 'task_done', arguments: { summary: 'Done.' } })) as { isError?: boolean }
+    expect(refused.isError).toBe(true)
+    // Once the run is over (here the person ends it), the next request is a run of its own.
+    await page.evaluate((id) => window.aw.workflows.endRun(id), (await runs())[0]!.id)
     expect(text(await client.callTool({ name: 'task_begin', arguments: { title: 'A later task' } }))).toContain('Task begun')
     expect(await runs()).toHaveLength(2)
   } finally {

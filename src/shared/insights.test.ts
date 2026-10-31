@@ -132,7 +132,7 @@ describe('which gates a run met', () => {
 
   it('say a review set aside with findings unseen in the run\'s own words', () => {
     const aside: RunEvent = { k: 'step', t: 8 * MIN, run: 'r1', round: 1, step: 'review', state: 'skipped' }
-    const line = timelineOf(run([begin(), audit(7 * MIN, [finding, finding]), aside, done(9 * MIN)]), 99 * MIN).find((e) => /^You set the review aside/.test(e.text))
+    const line = legacyTimeline(run([begin(), audit(7 * MIN, [finding, finding]), aside, done(9 * MIN)]), 99 * MIN).find((e) => /^You set the review aside/.test(e.text))
     expect(line).toMatchObject({ kind: 'bad', text: 'You set the review aside with 2 things not looked at: “Renamed a token.”' })
   })
 
@@ -198,10 +198,13 @@ describe('what stands out in a grid of runs', () => {
   })
 })
 
+/** The lines a run's story has always had (the plan, the checks, the review, the landing), without the lines for steps, commits, work added and the end, which have their own tests. */
+const legacyTimeline = (r: ReturnType<typeof run>, now: number) => timelineOf(r, now).filter((e) => !e.step && !e.fail && !/^(Commit [0-9a-f]{7}|Finished|Ended|Added:|Run pressed|Asked to skip)/.test(e.text))
+
 describe('how one run went, line by line', () => {
   it('tells the plan, the check, the review and the landing, each as met, with trouble, or missed, with the time since the start', () => {
     const r = run([begin(), plan(5 * MIN, 'submitted'), plan(30 * MIN, 'released'), stepDone(60 * MIN, 'build'), check(62 * MIN, 1, false, 4000), check(80 * MIN, 2, true), audit(85 * MIN, [finding]), merge(90 * MIN, 'anyway'), done(90 * MIN)])
-    expect(timelineOf(r, 99 * MIN)).toEqual([
+    expect(legacyTimeline(r, 99 * MIN)).toEqual([
       { at: 0, kind: 'ok', text: 'Began by the agent · Journey' },
       { at: 30 * MIN, kind: 'bad', text: 'Plan sent, then you lifted the hold after 25m without approving it' },
       { at: 80 * MIN, kind: 'trouble', text: 'Check failed once, passed on try 2' },
@@ -211,7 +214,7 @@ describe('how one run went, line by line', () => {
   })
   it('tells a landing anyway as what was not met, one sentence, and a skipped hold as its own sentence; a run that ends in a pull request says pushed', () => {
     const PR: RunWorkflow = { id: 'pr', name: 'Standard', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] }
-    const landed = (wf: RunWorkflow, held: string[]) => timelineOf(run([begin(0, wf), { k: 'merge', t: MIN, run: 'r1', head: 'h1', how: 'anyway', held }, done(MIN)]), 9 * MIN).at(-1)
+    const landed = (wf: RunWorkflow, held: string[]) => legacyTimeline(run([begin(0, wf), { k: 'merge', t: MIN, run: 'r1', head: 'h1', how: 'anyway', held }, done(MIN)]), 9 * MIN).at(-1)
     expect(landed(PR, ['The review has not run for this branch yet.', 'Pushed without the hold: git push --no-verify.'])).toEqual({ at: MIN, kind: 'bad', text: 'Pushed anyway. Not met: the review has not run for this branch yet. The hold itself was skipped: git push --no-verify.' })
     expect(landed(PR, ['Pushed without the hold: git push --no-verify.'])!.text).toBe('Pushed anyway. The hold itself was skipped: git push --no-verify.')
     expect(landed(JOURNEY, ['No plan was approved for this task.', '2 audit findings have not been seen.'])!.text).toBe('Landed anyway. Not met: no plan was approved for this task; 2 audit findings have not been seen.')
@@ -220,28 +223,28 @@ describe('how one run went, line by line', () => {
 
   it('says what was added to the plan, when, in the story of the run', () => {
     const r = run([begin(), audit(2 * MIN, [finding]), { k: 'scope', t: 3 * MIN, run: 'r1', text: 'Renamed a token.' }])
-    expect(timelineOf(r, 9 * MIN).at(-1)).toEqual({ at: 3 * MIN, kind: 'trouble', text: 'Added to the plan: “Renamed a token.”' })
+    expect(legacyTimeline(r, 9 * MIN).at(-1)).toEqual({ at: 3 * MIN, kind: 'trouble', text: 'Added to the plan: “Renamed a token.”' })
   })
 
   it('says the landing was with the review set aside when it was, instead of after the checks', () => {
     const aside: RunEvent = { k: 'step', t: 3 * MIN, run: 'r1', round: 1, step: 'review', state: 'skipped' }
     const r = run([begin(), plan(MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(2.5 * MIN, 'build'), check(2.6 * MIN, 1, true), audit(2.8 * MIN, [finding]), aside, merge(4 * MIN, 'checked'), done(4 * MIN)].map((e) => (e.k === 'merge' ? { ...e, held: [] } : e)))
-    expect(timelineOf(r, 9 * MIN).at(-1)).toEqual({ at: 4 * MIN, kind: 'trouble', text: 'Landed with the review set aside' })
+    expect(legacyTimeline(r, 9 * MIN).at(-1)).toEqual({ at: 4 * MIN, kind: 'trouble', text: 'Landed with the review set aside' })
   })
 
   it('says a plan still waiting is waiting for the person, and a clean run as met', () => {
-    expect(timelineOf(run([begin(), plan(5 * MIN, 'submitted')]), 26 * MIN).at(-1)).toEqual({ at: 5 * MIN, kind: 'you', text: 'Plan sent 21m ago: waiting for you' })
+    expect(legacyTimeline(run([begin(), plan(5 * MIN, 'submitted')]), 26 * MIN).at(-1)).toEqual({ at: 5 * MIN, kind: 'you', text: 'Plan sent 21m ago: waiting for you' })
     const clean = run([begin(), plan(1 * MIN, 'submitted'), plan(2 * MIN, 'approved'), stepDone(5 * MIN, 'build'), check(6 * MIN, 1, true), audit(7 * MIN), merge(8 * MIN, 'checked'), done(8 * MIN)])
-    expect(timelineOf(clean, 99 * MIN).map((e) => `${e.kind}: ${e.text}`)).toEqual(['ok: Began by the agent · Journey', 'ok: Plan approved after 1m', 'ok: Check passed first time', 'ok: Review found nothing', 'ok: Landed after the checks'])
+    expect(legacyTimeline(clean, 99 * MIN).map((e) => `${e.kind}: ${e.text}`)).toEqual(['ok: Began by the agent · Journey', 'ok: Plan approved after 1m', 'ok: Check passed first time', 'ok: Review found nothing', 'ok: Landed after the checks'])
   })
   it('says when the review could not run, and why', () => {
     const failed: RunEvent = { k: 'audit', t: 7 * MIN, run: 'r1', head: 'h1', state: 'failed', reason: 'Credit balance is too low' }
-    expect(timelineOf(run([begin(), failed, done(8 * MIN)]), 99 * MIN)).toContainEqual({ at: 7 * MIN, kind: 'trouble', text: 'Review could not run: Credit balance is too low' })
+    expect(legacyTimeline(run([begin(), failed, done(8 * MIN)]), 99 * MIN)).toContainEqual({ at: 7 * MIN, kind: 'trouble', text: 'Review could not run: Credit balance is too low' })
   })
   it('marks a follow-up round, and a run begun from a commit', () => {
     const r = run([begin(), done(10 * MIN), { k: 'round', t: 20 * MIN, run: 'r1' }, done(30 * MIN)])
-    expect(timelineOf(r, 99 * MIN).map((e) => e.text)).toContain('Follow-up round 2 began')
-    expect(timelineOf(run([begin(0, null, { auto: true }), done(0)]), 99 * MIN)[0]).toEqual({ at: 0, kind: 'bad', text: 'Began from a commit: the agent never said it had started the task' })
+    expect(legacyTimeline(r, 99 * MIN).map((e) => e.text)).toContain('Follow-up round 2 began')
+    expect(legacyTimeline(run([begin(0, null, { auto: true }), done(0)]), 99 * MIN)[0]).toEqual({ at: 0, kind: 'bad', text: 'Began from a commit: the agent never said it had started the task' })
   })
 })
 
@@ -493,5 +496,37 @@ describe('the runs of the week that need a look', () => {
   })
   it('is empty when every run met its gates', () => {
     expect(needsLook(days([[['a', 'ok'], ['b', 'trouble']]]))).toEqual({ shown: [], more: 0 })
+  })
+})
+
+describe('the story of a run, with the work added to it and the commands that failed', () => {
+  const FLOW: RunWorkflow = { id: 's', name: 'S', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'work', name: 'Unit tests' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
+  const stepE = (t: number, step: string, state: 'done' | 'skipped' | 'declined' | 'reopen' | 'changes', extra: object = {}): RunEvent => ({ k: 'step', t, run: 'r1', round: 1, step, state, ...extra }) as RunEvent
+  const story = (events: RunEvent[]) => timelineOf(run([begin(0, FLOW), ...events]), 60 * MIN)
+
+  it('says when work was added and where the run was', () => {
+    const t = story([stepE(MIN, 'build', 'done'), { k: 'item', t: 2 * MIN, run: 'r1', title: 'Also add a CSV export' }])
+    expect(t.find((e) => e.kind === 'add')).toMatchObject({ at: 2 * MIN, text: 'Added: Also add a CSV export', sub: 'The run was at Unit tests.' })
+  })
+
+  it('tells each step: done, skipped with its reason, refused, reopened, sent back, with the step named on the line', () => {
+    const t = story([stepE(MIN, 'build', 'done'), stepE(2 * MIN, 'tests', 'skipped', { note: 'No tests here.' }), stepE(3 * MIN, 'commit', 'declined'), stepE(4 * MIN, 'build', 'reopen', { note: 'More code.' })])
+    const line = (text: string) => t.find((e) => e.text === text)
+    expect(line('Build done')).toMatchObject({ kind: 'ok', step: 'Build' })
+    expect(line('Unit tests skipped')).toMatchObject({ kind: 'skip', sub: 'No tests here.' })
+    expect(line('Commit refused')).toMatchObject({ kind: 'bad' })
+    expect(line('Build reopened')).toMatchObject({ kind: 'trouble', sub: 'More code.' })
+  })
+
+  it('tells a failed command as a problem, with what it was and what it said, and the step it was at', () => {
+    const t = story([{ k: 'trouble', t: 5 * MIN, run: 'r1', step: 'commit', label: 'identity', command: 'git commit -m x', error: 'Author identity unknown' }, { k: 'trouble', t: 6 * MIN, run: 'r1', step: 'build', label: 'tests', command: 'pnpm test', error: '3 failed' }])
+    expect(t.find((e) => e.text === 'Commit failed')).toMatchObject({ kind: 'bad', step: 'Commit', fail: { label: 'identity', command: 'git commit -m x', error: 'Author identity unknown' } })
+    expect(t.find((e) => e.text === 'Tests failed')).toMatchObject({ kind: 'bad', step: 'Build' })
+  })
+
+  it('puts it all in time order, with the commits and the run ending', () => {
+    const t = story([stepE(MIN, 'build', 'done'), { k: 'commit', t: 3 * MIN, run: 'r1', round: 1, sha: 'abcdef1234', subject: 'feat: x' }, { k: 'done', t: 4 * MIN, run: 'r1', summary: 'Shipped.' }] as RunEvent[])
+    expect(t.map((e) => e.text)).toEqual(['Began by the agent · S', 'Build done', 'Commit abcdef1: feat: x', 'Finished: Shipped.'])
+    expect(t.map((e) => e.at)).toEqual([0, MIN, 3 * MIN, 4 * MIN])
   })
 })

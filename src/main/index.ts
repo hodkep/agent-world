@@ -103,7 +103,8 @@ import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, b
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
-import { checkPassed, runEnded, stepAskedAgain, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { troubleOf } from '../shared/trouble'
+import { checkPassed, laneStepIds, runEnded, stepAskedAgain, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -1287,6 +1288,14 @@ async function main() {
     callerIsProgram: async (id, port) => fromAgentProgram((await peerPids(port)) ?? [], sessions.get(id)?.pid, process.pid),
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
     onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
+    // A git, test, build or lint command that failed while the agent's run is open is part of the run's story.
+    onToolFailed: (id, tool, input, error) => {
+      const command = tool === 'Bash' && typeof input.command === 'string' ? input.command : ''
+      const t = command ? troubleOf(command, error) : null
+      if (!t) return
+      workflows.trouble(id, t)
+      send('workflows')
+    },
     onCompact: (id) => libraryService.refresh(id),
     // For a provider that reports nothing itself: its agents, their screens, and the keys to press on them.
     onSession: (id, sessionId) => {
@@ -1563,10 +1572,11 @@ async function main() {
           const planFirst = workflows.planWanted(caller)
           const n = (added.items?.length ?? 0) + 1
           const refused = workflows.refusedSteps(caller)
+          const own = added.workflow ? laneStepIds(added.workflow).filter((x) => x !== 'plan') : []
           return {
             planFirst,
             added: true,
-            brief: `This is item ${n} of "${added.title}", the task in progress: one run, one audit of the whole branch, one pull request.${planFirst ? ' Your plan on file covers the earlier items: rewrite it so its goal, out of scope and questions cover this one too, then call plan_submit. Edits wait until the person approves it.' : ''}${refused.length ? ` The person refused ${refused.join(', ')} earlier and they stay stopped: once this work is ready, ask again with step_reopen. Steps you already reported that this work touches are reopened the same way.` : ' Steps you already reported that this work touches can be reopened with step_reopen.'}`
+            brief: `This is item ${n} of "${added.title}", the task in progress: one run, one audit of the whole branch, one pull request.${planFirst ? ' Your plan on file covers the earlier items: rewrite it so its goal, out of scope and questions cover this one too, then call plan_submit. Edits wait until the person approves it.' : ''}${own.length ? ` It has steps of its own: report each for it with step_done(id, item: ${n}) (${own.join(', ')}); the review, commit and push stay shared by all the work.` : ''}${refused.length ? ` The person refused ${refused.join(', ')} earlier and they stay stopped: once this work is ready, ask again with step_reopen. Steps you already reported that this work touches are reopened the same way.` : ' Steps you already reported that this work touches can be reopened with step_reopen.'}`
           }
         }
         const id = workflows.begin(caller, title, { followUp, workflow })

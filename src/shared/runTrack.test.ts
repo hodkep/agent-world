@@ -45,6 +45,16 @@ describe('where a run is on its track', () => {
     expect(t).toMatchObject({ run: 'r1', again: 'build' })
   })
 
+  it('says in the strip when a command failed at the step the run is at, and what kind of failure it was', () => {
+    const failed: RunEvent = { k: 'trouble', t: 450, run: 'r1', step: 'build', label: 'tests', command: 'pnpm test', error: '3 failed' }
+    const t = track([submitted(), planned('approved'), failed])!
+    expect(t.trouble).toBe('Tests failed: tests')
+    const push: RunEvent = { k: 'trouble', t: 460, run: 'r1', step: 'build', label: 'network', command: 'git push origin x', error: 'Could not resolve host' }
+    expect(track([submitted(), planned('approved'), push])!.trouble).toBe('Push failed: network')
+    // A failure at a step that is over is not what the strip says now.
+    expect(track([submitted(), planned('approved'), failed, done('build')])!.trouble).toBeUndefined()
+  })
+
   it('marks a plan that was sent back before it was approved as done with trouble', () => {
     expect(states([submitted(), planned('changes'), submitted(400), planned('approved', 500)])![0]).toBe('plan:trouble')
   })

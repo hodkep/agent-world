@@ -232,8 +232,15 @@ export function says(rows: { title: string; tiles: Tile[] }[]): string[] {
 export interface TimelineEntry {
   /** Milliseconds since the run began. */
   at: number
-  kind: 'ok' | 'trouble' | 'bad' | 'you'
+  /** `add`: work added to the run; `skip`: a step set aside; `wait`: the run waits for the person. */
+  kind: 'ok' | 'trouble' | 'bad' | 'you' | 'add' | 'skip' | 'wait'
   text: string
+  /** What goes with the line: a reason, or where the run was. */
+  sub?: string
+  /** The step the line is about, by name. */
+  step?: string
+  /** A command that failed: what kind of failure, the command, and what it said. */
+  fail?: { label: string; command: string; error: string }
 }
 const times = (n: number) => (n === 1 ? 'once' : `${n} times`)
 /** The landing as one line of the story: what was not met when it went through anyway (a skipped hold is its own sentence), or that the review was set aside. */
@@ -284,7 +291,37 @@ export function timelineOf(run: Run, now: number): TimelineEntry[] {
   }
   for (const add of run.additions ?? []) out.push({ at: add.t - start, kind: 'trouble', text: `Added to the plan: “${clip(add.text, 80)}”` })
   if (run.landed) out.push({ at: run.landed.t - start, ...landing(run, run.landed) })
-  return out.sort((x, y) => x.at - y.at)
+  // Everything else that happened, in the run's own words: the work added to it, each step, the person's Run, the commits, the commands that failed, and the end.
+  const name = (id: string | undefined) => (id ? (run.workflow?.steps.find((x) => x.id === id)?.name ?? id) : undefined)
+  const allLogs = run.rounds.flatMap((r) => r.steps)
+  for (const it of run.items ?? []) {
+    const reached = run.workflow?.steps.find((x) => !allLogs.some((l) => l.item === undefined && l.step === x.id && l.t <= it.t && (l.state === 'done' || l.state === 'skipped' || l.state === 'approved')))
+    out.push({ at: it.t - start, kind: 'add', text: `Added: ${clip(it.title, 80)}`, ...(reached && { sub: `The run was at ${reached.name}.` }) })
+  }
+  for (const round of run.rounds) {
+    for (const l of round.steps) {
+      const n = name(l.step) ?? l.step
+      const lane = l.item !== undefined ? ` for item ${l.item}` : ''
+      const at = l.t - start
+      const note = l.note ? { sub: l.note } : {}
+      if (l.state === 'done') out.push({ at, kind: l.implicit ? 'trouble' : 'ok', text: `${n} ${l.implicit ? 'marked done by the app' : 'done'}${lane}`, step: n })
+      else if (l.state === 'skipped') out.push({ at, kind: 'skip', text: `${n} skipped${lane}`, step: n, ...note })
+      else if (l.state === 'declined') out.push({ at, kind: 'bad', text: `${n} refused`, step: n })
+      else if (l.state === 'changes') out.push({ at, kind: 'trouble', text: `${n} sent back`, step: n, ...note })
+      else if (l.state === 'reopen') out.push({ at, kind: 'trouble', text: `${n} reopened`, step: n, ...note })
+      else if (l.state === 'approved') out.push({ at, kind: 'you', text: `${n} approved`, step: n, ...note })
+    }
+    for (const [id, t] of Object.entries(round.starts ?? {})) out.push({ at: t - start, kind: 'you', text: `Run pressed: ${name(id) ?? id}`, step: name(id) ?? id })
+    for (const c of round.commits) out.push({ at: c.t - start, kind: c.flagged ? 'trouble' : 'ok', text: `Commit ${c.sha.slice(0, 7)}: ${clip(c.subject, 70)}`, ...(c.flagged && { sub: 'Made with no open task.' }) })
+  }
+  for (const t of run.troubles ?? []) {
+    const what = /git\s+commit\b/.test(t.command) ? 'Commit' : /git\s+push\b/.test(t.command) ? 'Push' : t.label === 'tests' ? 'Tests' : t.label === 'build' ? 'Build' : t.label === 'lint' ? 'Lint' : 'Git command'
+    out.push({ at: t.t - start, kind: 'bad', text: `${what} failed`, ...(t.step && { step: name(t.step) ?? t.step }), fail: { label: t.label, command: t.command, error: t.error } })
+  }
+  if (run.skipAsk) out.push({ at: run.skipAsk.t - start, kind: 'wait', text: `Asked to skip ${run.skipAsk.steps.map((id) => name(id) ?? id).join(', ')}`, sub: run.skipAsk.why })
+  if (run.endedAt !== undefined && run.status !== 'open') out.push({ at: run.endedAt - start, kind: run.status === 'stopped' ? 'bad' : 'ok', text: run.status === 'stopped' ? 'Ended' : `Finished${run.summary ? `: ${clip(run.summary, 100)}` : ''}` })
+  // Stable by time: lines made at the same moment keep the order they were written in.
+  return out.map((e, i) => ({ e, i })).sort((x, y) => x.e.at - y.e.at || x.i - y.i).map((x) => x.e)
 }
 
 const DAY = 24 * 60 * 60_000

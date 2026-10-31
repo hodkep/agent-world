@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Dial } from '../../shared/workflows'
 import type { RunWorkflow } from '../../shared/runs'
-import { stepStates } from '../../shared/steps'
+import { lanesOf, stepStates } from '../../shared/steps'
 import { Workflows } from './service'
 
 type Reply = { text: string; cost?: number; tokens?: number; model?: string }
@@ -1440,6 +1440,44 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(stepStates(run, { auditOn: false }).map((x) => `${x.id}:${x.state}`)).toEqual(['designs:skipped', 'build:passed', 'commit:skipped', 'push:skipped'])
     expect(run.rounds[0]!.steps.find((x) => x.step === 'commit')).toMatchObject({ state: 'skipped', note: 'The task needed no commit or push.' })
     expect(wf.mayAskPush('a1')).toBe(false)
+  })
+
+  it('a failed command is recorded against the step the run was at, once, and only while a run is open', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.trouble('a1', { label: 'tests', command: 'pnpm test', error: '3 failed' })
+    wf.trouble('a1', { label: 'tests', command: 'pnpm test', error: '3 failed' })
+    expect(wf.runs()[0]!.troubles).toEqual([expect.objectContaining({ step: 'build', label: 'tests', command: 'pnpm test', error: '3 failed' })])
+    expect(() => wf.trouble('nobody', { label: 'other', command: 'git x', error: 'e' })).not.toThrow()
+  })
+
+  it('work added to a run gets its own lane of the steps before the first one that asks the person, and reporting a step goes to the main chain first, then the lane', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    wf.stepDone('a1', 'build')
+    wf.addition('a1', 'Also add a CSV export')
+    const run = () => wf.runs()[0]!
+    const lanes = () => lanesOf(run(), { auditOn: false })
+    expect(lanes()).toHaveLength(1)
+    expect(lanes()[0]).toMatchObject({ item: 2, title: 'Also add a CSV export', fork: 'build', join: 'commit' })
+    expect(lanes()[0]!.steps.map((x) => `${x.id}:${x.state}`)).toEqual(['designs:running', 'build:pending'])
+    // The main chain already has both, so these go to the lane; the main chain is not changed.
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI either.' })
+    expect(lanes()[0]!.steps.map((x) => `${x.id}:${x.state}`)).toEqual(['designs:skipped', 'build:running'])
+    expect(stateOf(wf).slice(0, 2)).toEqual(['designs:skipped', 'build:passed'])
+    expect(() => wf.done('a1')).toThrow('Report "Build" for item 2 first')
+    wf.stepDone('a1', 'build', { item: 2 })
+    expect(lanes()[0]!.steps.map((x) => x.state)).toEqual(['skipped', 'passed'])
+  })
+
+  it('a step is reported for an item when the agent says so, even if the main chain has not got there', () => {
+    const { wf } = started()
+    wf.addition('a1', 'Also add a CSV export')
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'x', item: 2 })
+    const lane = lanesOf(wf.runs()[0]!, { auditOn: false })[0]!
+    expect(lane.steps.map((x) => x.state)).toEqual(['skipped', 'running'])
+    expect(stateOf(wf)[0]).toBe('designs:running')
+    expect(() => wf.stepDone('a1', 'build', { item: 9 })).toThrow('no item 9')
   })
 
   it('refuses to finish while a step the agent has to do was never reported, and names it', () => {

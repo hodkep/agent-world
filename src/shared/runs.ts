@@ -22,7 +22,9 @@ export type RunEvent =
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
-  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'; note?: string; implicit?: boolean }
+  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'; note?: string; implicit?: boolean; /** For the work added to the run with this number (the run's own task is 1): the step belongs to its lane, not to the main chain. */ item?: number }
+  /** A command failed while the run was open: a git command, or a test, build or lint command. `step` is the step the run was at. */
+  | { k: 'trouble'; t: number; run: string; step?: string; label: string; command: string; error: string }
   /** The agent asks to skip steps that are not optional, with its reason: one question for the person, who answers it once. */
   | { k: 'skipask'; t: number; run: string; round: number; steps: string[]; why: string }
   | { k: 'skipans'; t: number; run: string; round: number; state: 'approved' | 'declined' }
@@ -73,6 +75,8 @@ export interface StepLog {
   note?: string
   /** The app marked it done when the agent finished the task, because the agent never said so. */
   implicit?: boolean
+  /** For the work added to the run with this number (the run's own task is 1): the step belongs to its lane, not to the main chain. */
+  item?: number
 }
 
 /** One run of a check command: for which branch head, which try it was, and how it ended. */
@@ -157,6 +161,8 @@ export interface Run {
   items?: { title: string; t: number }[]
   /** What the person added to the plan afterwards, in the order added. */
   additions?: { text: string; t: number }[]
+  /** The commands that failed while the run was open, in order. */
+  troubles?: { t: number; step?: string; label: string; command: string; error: string }[]
   /** The agent's question to skip steps, until the person answers it. */
   skipAsk?: { steps: string[]; why: string; t: number }
   landed?: Landed
@@ -197,7 +203,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
         into.plan = { ...into.plan, state: e.state, decidedAt: e.t, waitedMs: (into.plan.waitedMs ?? 0) + Math.max(0, e.t - into.plan.submittedAt), ...(e.state === 'changes' && { sentBack: (into.plan.sentBack ?? 0) + 1 }), ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
       }
     } else if (e.k === 'step') {
-      r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }) })
+      r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }), ...(e.item !== undefined && { item: e.item }) })
     } else if (e.k === 'start') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (into) into.starts = { ...into.starts, [e.step]: e.t }
@@ -208,6 +214,8 @@ export function reduceRuns(events: RunEvent[]): Run[] {
       into.commits.push({ sha: e.sha, subject: e.subject, t: e.t, ...(e.flagged && { flagged: true }) })
     } else if (e.k === 'audit') {
       r.audit = e.state === 'failed' ? { head: e.head, t: e.t, state: 'failed', reason: e.reason } : { head: e.head, t: e.t, state: 'done', findings: e.findings.map((f) => ({ ...f, seen: false })), files: e.files, lines: e.lines, truncated: e.truncated, ...(e.cost !== undefined && { cost: e.cost }), ...(e.tokens !== undefined && { tokens: e.tokens }), ...(e.model && { model: e.model }) }
+    } else if (e.k === 'trouble') {
+      r.troubles = [...(r.troubles ?? []), { t: e.t, ...(e.step && { step: e.step }), label: e.label, command: e.command, error: e.error }]
     } else if (e.k === 'skipask') {
       r.skipAsk = { steps: e.steps, why: e.why, t: e.t }
     } else if (e.k === 'skipans') {
