@@ -1961,10 +1961,10 @@ export function App() {
                   ? [{ id: 'workflow', icon: 'workflow', label: 'Workflow', about: "This agent's tasks, round by round", dot: wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? 'run' : undefined, go: () => setView('workflow') }]
                   : []),
                 { id: 'traces', icon: 'traces', label: 'Traces', about: 'Messages between agents', badge: messages.length, go: () => setView('traces') },
-                ...(fileTab[current.id] ? [{ id: 'file', icon: 'file', label: fileTab[current.id]!.split('/').pop()!, about: fileTab[current.id]!, go: () => setView('file') }] : []),
+                ...(fileTab[current.id] ? [{ id: 'file', icon: 'file', label: fileTab[current.id]!.split('/').pop()!, about: fileTab[current.id]!, named: true, go: () => setView('file') }] : []),
                 { id: 'preview', icon: 'desktop', label: 'Preview', about: 'The page this agent is serving', dot: (servers[current.id] ?? []).some((s) => s.alive) ? 'live' : undefined, go: () => setView('preview') }
               ].map((t, i) => (
-                <ViewTab key={t.id} icon={t.icon as HeaderIconName} label={t.label} name={`${t.label}${t.badge ? ` ${t.badge}` : ''}${t.dot ? ' ●' : ''}`} about={t.about} number={i + 1} selected={view === t.id} onClick={t.go} badge={t.badge} dot={t.dot as 'run' | 'live' | undefined} keys={t.keys} reveal={t.reveal} />
+                <ViewTab key={t.id} icon={t.icon as HeaderIconName} label={t.label} name={`${t.label}${t.badge ? ` ${t.badge}` : ''}${t.dot ? ' ●' : ''}`} about={t.about} number={i + 1} selected={view === t.id} onClick={t.go} badge={t.badge} dot={t.dot as 'run' | 'live' | undefined} keys={t.keys} reveal={t.reveal} named={t.named} />
               ))}
               <button className="push icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
                 {wide ? '⤡' : '⤢'}
