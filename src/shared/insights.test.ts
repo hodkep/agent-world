@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, needsLook, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, needsLook, stepSummary, troubleByWorkflow, dayOutcomes, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -479,6 +479,35 @@ describe('the steps of a run, as the Runs tab lists them', () => {
     expect(m.runs[0]!.cells[0]!.note).toBe('No UI.')
     expect(m.runs[1]!.cells.map((x) => x.state)).toEqual(['passed', 'open', undefined])
     expect(stepMatrix(runs, () => c, 1)).toMatchObject({ more: 1, runs: [{ id: 'r2' }] })
+  })
+
+  describe('what keeps going wrong, per workflow', () => {
+  const runs = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2'), begin(20, QUICK, {}, 'r3')])
+  it('gives each workflow the steps it skipped or failed, worst first, with when, why and the newest run behind them', () => {
+    const t = troubleByWorkflow(runs, () => c)
+    const flow = t.find((w) => w.name === FLOW.name)!
+    expect(flow.runs).toBe(2)
+    expect(flow.cards.map((x) => `${x.step}:${x.failed}/${x.skipped}`)).toEqual(['Commit:1/0', 'Designs:0/1'])
+    expect(flow.cards[1]!.reason).toBe('No UI.')
+    expect(flow.cards[1]!.ticks).toEqual(['skipped', 'passed'])
+    expect(flow.cards[0]!.runId).toBe('r1')
+    expect(flow.clean).toEqual(['Build'])
+    expect(flow.met).toBe(2)
+    expect(flow.of).toBe(4)
+  })
+  it('keeps a workflow with no trouble and leaves out a run that followed none', () => {
+    const t = troubleByWorkflow(reduceRuns([begin(0, QUICK), begin(5, null, { auto: true }, 'r2')]), () => c)
+    expect(t.map((w) => w.name)).toEqual([QUICK.name])
+    expect(t[0]!.cards).toEqual([])
+  })
+  it('counts each day by how its runs went: failed, waiting on the person, skipped something, or clean', () => {
+    const more = reduceRuns([begin(0, FLOW), skip(1), stepDone(2, 'build'), refuse(3), begin(10, FLOW, {}, 'r2'), stepDone(11, 'designs', 'r2'), begin(20, QUICK, {}, 'r3'), begin(25, FLOW, {}, 'r4'), skip(26, 'r4')])
+    const d = dayOutcomes(more, 3, 30 * MIN, () => c)
+    expect(d).toHaveLength(3)
+    // r1 failed (its skip does not count twice), r2 and r3 have nothing wrong yet, r4 skipped a step.
+    expect(d[2]).toEqual({ ok: 2, needs: 0, failed: 1, skipped: 1 })
+    expect(d[0]).toEqual({ ok: 0, needs: 0, failed: 0, skipped: 0 })
+  })
   })
 })
 
