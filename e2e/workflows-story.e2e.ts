@@ -85,9 +85,11 @@ test('what happened in a run is its story: work added to it is a branch with its
     await expect(panel.locator('.rb-chip.identity')).toBeVisible()
     await expect(panel.locator('.rb-chip.network')).toBeVisible()
     await expect(panel).not.toContainText('No such file')
-    await panel.getByRole('tab', { name: /^Trouble/ }).click()
+    await panel.getByRole('button', { name: /^Only trouble/ }).click()
     await expect(panel.locator('.rb-tl li')).toHaveCount(2)
-    // The flow draws the added work as a branch of its own, and says what it is for.
+    // The flow draws the added work as a branch of its own, and says what it is for (a narrow panel keeps it behind a button).
+    const show = panel.getByRole('button', { name: 'Show the flow' })
+    if (await show.isVisible()) await show.click()
     await expect(panel.getByLabel(/^Item 2, Build/)).toBeVisible()
     await expect(panel.getByLabel(/^Item 2, Build/)).toContainText('for: Also add a CSV export')
     await client.close()
