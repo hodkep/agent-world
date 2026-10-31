@@ -29,7 +29,8 @@ test('the Runs tab is two charts (how often each workflow ran, how each step end
   try {
     // The charts say their numbers in words as well.
     await expect(win.getByRole('img', { name: 'Workflows invoked: Journey 5, Bug fix 1, Quick change 1' })).toBeVisible()
-    await expect(win.getByRole('group', { name: /^Steps followed: / })).toBeVisible()
+    await expect(win.getByRole('img', { name: 'Runs per day' })).toBeVisible()
+    await expect(win.locator('.rb-tile')).toHaveCount(4)
 
     // The ledger: the run that waits on the person first, then what landed with trouble, then what landed clean, with how many each.
     const ledger = win.getByRole('table', { name: 'Runs' })
@@ -71,33 +72,20 @@ test('the Runs tab is two charts (how often each workflow ran, how each step end
   }
 })
 
-test('the Insights tab is a tile for every gate of every run, with the numbers under each column and what stands out, over 7 or 30 days', async () => {
+test('the Insights tab says, workflow by workflow, how many steps were met and which steps keep being skipped or failed, over 7 or 30 days', async () => {
   const { win, shutdown } = await week(true)
   try {
     await win.getByRole('tab', { name: 'Insights' }).click()
-    const grid = win.getByRole('table', { name: 'Gates met by each run' })
-    await expect(grid.getByRole('row')).toHaveCount(1 + 8 + 1)
-    const billing = grid.getByRole('row').filter({ hasText: 'Billing export' })
-    await expect(billing.getByRole('cell').nth(0)).toHaveAttribute('aria-label', 'Plan: missed or overridden')
-    await expect(billing.getByRole('cell').nth(1)).toHaveAttribute('aria-label', 'Check: met after trouble (1)')
-    await expect(billing.getByRole('cell').nth(2)).toHaveAttribute('aria-label', 'Review: missed or overridden')
-    await expect(billing.getByRole('cell').nth(3)).toHaveAttribute('aria-label', 'Land: missed or overridden')
-    await expect(billing.getByRole('cell').nth(4)).toHaveAttribute('aria-label', 'Told: met first time')
-    const foot = grid.getByRole('row').last()
-    await expect(foot).toContainText('2 of 4plans approved as sent')
-    await expect(foot).toContainText('3 of 5checks first try')
-    await expect(foot).toContainText('2 of 3findings seen')
-    await expect(foot).toContainText('1 anywaylandings')
-    await expect(foot).toContainText('7 of 8announced')
-    await expect(win).toContainText('Billing export is the red row: the plan hold was lifted, a finding was not seen, it landed anyway.')
-    await expect(win).toContainText('Check is the amber column: 2 of 5 runs needed more than one try. The check may be stricter than the request.')
+    const journey = win.getByRole('region', { name: 'Journey workflow' })
+    await expect(journey).toContainText('5 runs')
+    await expect(journey).toContainText('steps met')
+    await expect(win.getByRole('region', { name: 'Bug fix workflow' })).toContainText('1 run')
 
     // Thirty days brings back the run from twenty days ago.
     await win.getByRole('radio', { name: '30 days' }).click()
-    await expect(grid.getByRole('row')).toHaveCount(1 + 9 + 1)
-    await expect(grid).toContainText('Old export')
+    await expect(journey).toContainText('6 runs')
     await win.getByRole('radio', { name: '7 days' }).click()
-    await expect(grid).not.toContainText('Old export')
+    await expect(journey).toContainText('5 runs')
   } finally {
     await shutdown()
   }

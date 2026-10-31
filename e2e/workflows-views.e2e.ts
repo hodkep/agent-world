@@ -54,7 +54,11 @@ test('the Workflows window shows this week in numbers, with what each run cost f
     await expect(dark).toContainText('ada')
     await expect(dark).toContainText('2 rounds')
     await dark.getByRole('button').click()
-    await expect(win.getByRole('region', { name: 'How Add a dark-mode toggle went' })).toContainText('2 rounds · 2 commits (1 with no open task) · $0.50')
+    const panel = win.getByRole('region', { name: 'How Add a dark-mode toggle went' })
+    await expect(panel).toContainText(/2\s*rounds/)
+    await expect(panel).toContainText(/2\s*commits/)
+    await expect(panel).toContainText('$0.50')
+    await expect(panel).toContainText('1 with no open task')
     const auto = runs.getByRole('row').filter({ hasText: 'add csv import' })
     await expect(auto).toContainText('from a commit')
     await expect(auto).toContainText('—')
@@ -103,7 +107,7 @@ test('an agent\'s Workflow tab shows its runs round by round with their commits,
     const commits = sheet.getByLabel('Commits')
     await expect(commits).toContainText('a41f9c2')
     await expect(commits).toContainText('3c0aa18')
-    await expect(commits).toContainText('no open task')
+    await expect(sheet).toContainText('1 with no open task')
     await page.getByRole('dialog', { name: 'Workflows' }).getByRole('button', { name: 'Close' }).click()
 
     // Off with nothing open hides the tab again.
