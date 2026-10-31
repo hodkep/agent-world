@@ -1,0 +1,31 @@
+{
+  "version": "0.9.1",
+  "tagline": "A calmer office, clearer runs.",
+  "subtitle": "A hidden-office layout with a foldable agent list, a Draw button on pictures, and Runs and Insights in plain numbers.",
+  "cards": [
+    {
+      "kicker": "Office",
+      "title": "Hide office, with a real layout",
+      "text": "With the office hidden, the agent list folds and opens on hover, the profile card docks above the chat, and the chat stays centred.",
+      "chips": [
+        "Mod+Alt+O",
+        "Foldable list"
+      ]
+    },
+    {
+      "kicker": "Workflows",
+      "title": "Runs and Insights, in plain numbers",
+      "text": "Runs shows numbers and two plain charts. Insights shows what keeps going wrong in each workflow, and the run panel is a strip of steps.",
+      "chips": [
+        "Runs",
+        "Insights",
+        "Run story"
+      ]
+    }
+  ],
+  "also": [
+    "Draw on a picture opened large",
+    "Press E for the drawing tools",
+    "Step settings dock beside the builder"
+  ]
+}
