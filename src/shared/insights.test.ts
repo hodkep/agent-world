@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
+import { type Tile, type TileKind, columnRates, todoChips, GROUP_STANDS, groupKeyOf, groupRuns, invocations, ledgerRow, ledgerTotals, stageCounts, stepCounts, stepLines, stepMatrix, needsLook, stepSummary, gateTiles, headline, runBar, runVerdict, runsWithin, says, timelineOf, weekDays } from './insights'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
 
 const MIN = 60_000
@@ -476,5 +476,22 @@ describe('the steps of a run, as the Runs tab lists them', () => {
     expect(m.runs[0]!.cells[0]!.note).toBe('No UI.')
     expect(m.runs[1]!.cells.map((x) => x.state)).toEqual(['passed', 'open', undefined])
     expect(stepMatrix(runs, () => c, 1)).toMatchObject({ more: 1, runs: [{ id: 'r2' }] })
+  })
+})
+
+describe('the runs of the week that need a look', () => {
+  const days = (kinds: [string, TileKind][][]) => kinds.map((runs, i) => ({ label: `D${i}`, today: false, runs: runs.map(([id, kind]) => ({ id, title: `Run ${id}`, kind })) }))
+  it('are the ones that missed a gate or wait for the person, newest first, and not the ones that met their gates', () => {
+    const w = days([[['a', 'bad'], ['b', 'ok']], [['c', 'trouble'], ['d', 'wait']], [['e', 'na']]])
+    expect(needsLook(w)).toEqual({ shown: [{ id: 'd', title: 'Run d', kind: 'wait', day: 'D1' }, { id: 'a', title: 'Run a', kind: 'bad', day: 'D0' }], more: 0 })
+  })
+  it('shows at most three, and says how many more there are', () => {
+    const w = days([[['a', 'bad'], ['b', 'bad'], ['c', 'bad'], ['d', 'bad'], ['e', 'wait']]])
+    const r = needsLook(w)
+    expect(r.shown.map((x) => x.id)).toEqual(['e', 'd', 'c'])
+    expect(r.more).toBe(2)
+  })
+  it('is empty when every run met its gates', () => {
+    expect(needsLook(days([[['a', 'ok'], ['b', 'trouble']]]))).toEqual({ shown: [], more: 0 })
   })
 })

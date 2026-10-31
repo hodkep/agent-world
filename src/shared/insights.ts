@@ -554,3 +554,9 @@ export function stepMatrix(runs: Run[], ctxFor: (run: Run) => StepContext, max =
     }))
   }
 }
+
+/** The runs of the week that want the person: a gate missed or overridden, or waiting for them. Newest first, at most `max`, with how many more there are. */
+export function needsLook(days: WeekDay[], max = 3): { shown: { id: string; title: string; kind: TileKind; day: string }[]; more: number } {
+  const all = days.flatMap((d) => d.runs.filter((r) => r.kind === 'bad' || r.kind === 'wait').map((r) => ({ ...r, day: d.label }))).reverse()
+  return { shown: all.slice(0, max), more: Math.max(0, all.length - max) }
+}

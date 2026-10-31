@@ -3219,17 +3219,7 @@ svg.pxg { display: block; flex: none; }
 .wt-items .n { font: 700 10px Menlo, Consolas, monospace; color: var(--muted); width: 14px; }
 .wt-items .s { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wt-cap { margin: 0; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
-.wt-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.wt-day { background: var(--well); box-shadow: 0 0 0 1px var(--ink); min-height: 62px; padding: 3px; display: flex; flex-direction: column; gap: 3px; align-items: stretch; }
-.wt-day small { font: 10px Menlo, Consolas, monospace; color: var(--dim); text-align: center; }
-.wt-day.today { box-shadow: 0 0 0 1px var(--accent); }
 
-.wt-tile { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 3px 5px; background: var(--ok); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); font-size: 11px; font-weight: 600; line-height: 1.25; cursor: pointer; overflow: hidden; }
-.wt-tile span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wt-tile.trouble { background: var(--accent); } .wt-tile.bad { background: var(--danger); color: var(--paper); } .wt-tile.na { background: var(--well); color: var(--muted); box-shadow: 0 0 0 1px var(--dim); }
-.wt-tile.wait { background: var(--panel-2); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.wt-tile:hover { filter: brightness(1.12); }
-.wt-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wt-line { margin: 0; font-size: 11px; color: var(--muted); max-width: none; }
 .rb-commits { list-style: none; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
 .rb-commits li { display: flex; gap: 8px; align-items: baseline; color: var(--text); }
@@ -4114,6 +4104,26 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .fl-mark { margin-left: auto; font: 700 9px Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 5px; color: var(--ink); }
 .fl-mark.new { background: var(--ok); } .fl-mark.changed { background: var(--think); }
 .fl-mark + .fl-n { margin-left: 8px; }
+
+/* The week in the agent's Workflow tab: a strip with a column for each day and a pip for each run, then the few runs that want a look. Every width here may shrink: nothing a run is called can widen the panel. */
+.wt-strip { display: flex; gap: 3px; min-width: 0; }
+.wt-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+.wt-pips { min-height: 44px; display: flex; flex-direction: column-reverse; gap: 2px; padding-bottom: 2px; border-bottom: 1px solid var(--line); }
+.wt-col small { font: 10px Menlo, Consolas, monospace; color: var(--dim); text-align: center; }
+.wt-col.today small { color: var(--accent); }
+.wt-pip { all: unset; box-sizing: border-box; display: block; height: 11px; background: var(--ok); box-shadow: 0 0 0 1px var(--ink); cursor: pointer; }
+.wt-pip.trouble { background: var(--accent); } .wt-pip.bad { background: var(--danger); } .wt-pip.na { background: var(--well); box-shadow: 0 0 0 1px var(--dim); }
+.wt-pip.wait { background: var(--panel-2); box-shadow: 0 0 0 1px var(--accent); }
+.wt-pip:hover { filter: brightness(1.2); }
+.wt-pip:focus-visible, .wt-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wt-look { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wt-look ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.wt-row { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 8px; background: var(--panel-3); font-size: 12px; cursor: pointer; }
+.wt-row:hover { background: var(--panel-hover); }
+.wt-row i { width: 9px; height: 9px; background: var(--danger); } .wt-row.wait i { background: transparent; box-shadow: 0 0 0 1px var(--accent); }
+.wt-row b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-row em { font-style: normal; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.wf-tab { min-width: 0; overflow-x: hidden; }
 
 /* The builder's right side: the header and the flow take the height, and the review drawer is pinned under them with the save buttons always in view. */
 .bs-side:has(.bs-draft.fills) { overflow: hidden; display: flex; flex-direction: column; }

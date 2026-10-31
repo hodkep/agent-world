@@ -1,5 +1,5 @@
 import { RestartBanner } from './RestartBanner'
-import { type TileKind, headline, weekDays } from '../../shared/insights'
+import { type TileKind, headline, needsLook, weekDays } from '../../shared/insights'
 import type { Run } from '../../shared/runs'
 import { type RunSpend, formatCost, runsThisWeek } from '../../shared/runStats'
 import { landingPill, trackOf } from '../../shared/runTrack'
@@ -36,6 +36,8 @@ export function WorkflowTab({ agentName, agentId, folder, runs, spend, ctxFor, o
   const track = trackOf(latest, ctxFor(latest))
   const week = runsThisWeek(mine, now)
   const h = headline(week, ctxFor, now)
+  const days = weekDays(week, ctxFor, now)
+  const look = needsLook(days)
   const usd = week.reduce((n, r) => n + (spend[r.id]?.usd ?? 0), 0)
   const verdict = h.finished === 0 ? 'Nothing finished yet this week.' : h.metEvery === h.finished ? 'Every finished run met its gates.' : `${h.metEvery} of ${h.finished} finished runs met every gate.`
   return (
@@ -73,18 +75,35 @@ export function WorkflowTab({ agentName, agentId, folder, runs, spend, ctxFor, o
         </div>
       )}
       <h5 className="wt-cap">This week · {week.length} run{week.length === 1 ? '' : 's'}</h5>
-      <div className="wt-week" role="list" aria-label="This week">
-        {weekDays(week, ctxFor, now).map((d) => (
-          <div key={d.label} role="listitem" aria-label={d.label} className={`wt-day ${d.today ? 'today' : ''}`}>
+      <div className="wt-strip" role="list" aria-label="This week">
+        {days.map((d) => (
+          <div key={d.label} role="listitem" aria-label={d.label} className={`wt-col ${d.today ? 'today' : ''}`}>
+            <span className="wt-pips">
+              {d.runs.map((r) => (
+                <button key={r.id} className={`wt-pip ${r.kind}`} aria-label={`${r.title}: ${VERDICT[r.kind]}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)} />
+              ))}
+            </span>
             <small>{d.label}</small>
-            {d.runs.map((r) => (
-              <button key={r.id} className={`wt-tile ${r.kind}`} aria-label={`${r.title}: ${VERDICT[r.kind]}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)}>
-                <span>{r.title}</span>
-              </button>
-            ))}
           </div>
         ))}
       </div>
+      {look.shown.length > 0 && (
+        <div className="wt-look">
+          <h5 className="wt-cap">Needs a look · {look.shown.length + look.more}</h5>
+          <ul>
+            {look.shown.map((r) => (
+              <li key={r.id}>
+                <button className={`wt-row ${r.kind}`} title={`${r.title}: ${VERDICT[r.kind]}`} onClick={() => onOpenRun(r.id)}>
+                  <i aria-hidden="true" />
+                  <b>{r.title}</b>
+                  <em>{r.kind === 'wait' ? 'waiting' : 'missed a gate'} · {r.day}</em>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {look.more > 0 && <button className="su-link" onClick={() => onOpenRun()}>and {look.more} more in Workflows ↗</button>}
+        </div>
+      )}
       <p className="wt-line">
         {verdict} {formatCost(usd)}. <button className="su-link" onClick={() => onOpenRun()}>All of {agentName}'s runs in Workflows ↗</button>
       </p>
