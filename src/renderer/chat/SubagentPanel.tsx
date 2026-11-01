@@ -8,6 +8,7 @@ import type { PictureSet } from './gallery'
 import { Lightbox } from './Images'
 import { RowView } from './ChatView'
 import { PANEL_MIN, clampPanel, liveLine, signature, tabLabel, trimFork } from './subagentView'
+import { startClock } from '../clock'
 
 const read = (key: string) => {
   try {
@@ -34,8 +35,7 @@ export function SubagentPanel({ agentId, agentName, ids, active, onActive, onClo
   const stick = useRef(true)
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
+    return startClock(() => setNow(Date.now()))
   }, [])
   useEffect(() => {
     let alive = true

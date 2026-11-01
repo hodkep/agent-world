@@ -22,9 +22,12 @@ const mount = async (on: boolean) => {
 describe('a clock that ticks only while it is wanted', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    // jsdom's document is never focused; these tests are about a window in use.
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     renders = 0
   })
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
     document.body.innerHTML = ''
   })
@@ -38,6 +41,14 @@ describe('a clock that ticks only while it is wanted', () => {
 
   it('does not tick at all while off, so a chat that is not showing is not redrawn every second', async () => {
     await mount(false)
+    const before = renders
+    await act(async () => void vi.advanceTimersByTime(10_000))
+    expect(renders).toBe(before)
+  })
+
+  it('does not tick while the window is in the background', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    await mount(true)
     const before = renders
     await act(async () => void vi.advanceTimersByTime(10_000))
     expect(renders).toBe(before)

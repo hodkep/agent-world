@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import { stepCardOf } from '../../shared/stepCard'
 import { MoveBranch, type Moved } from './MoveBranch'
+import { startClock } from '../clock'
 
 /**
  * The step that waits for the person, as the last thing in the conversation: it scrolls with the chat, takes room only inside it, and never opens by itself or sits above
@@ -16,8 +17,7 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!active) return
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
+    return startClock(() => setNow(Date.now()))
   }, [active])
   // A branch just moved onto its base: the card says so (with Undo) until it is closed, though the branch is landable now.
   const [moved, setMoved] = useState<Moved | null>(null)
