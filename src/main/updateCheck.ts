@@ -92,7 +92,7 @@ export function startChecks(run: () => Promise<unknown>, o: { startMs?: number; 
   return () => (clearTimeout(first), clearInterval(every))
 }
 
-type Fetch = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>
+type Fetch = (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text?(): Promise<string>; headers?: { get(name: string): string | null } }>
 
 /** The notes a release carries in its answer: its text, when it has some, cut so a huge one cannot weigh on the window. */
 export const NOTES_MAX = 20_000
@@ -110,14 +110,30 @@ const relOf = (current: string, tag: string): UpdateRel => (isNewer(current, tag
  * What a look found: the release, its page, and (when the person asked, `kind`) how it stands to `current`. A release that is the version installed
  * is not offered, only said ("You have 0.7.0."); an older one is offered, with its place said in the line.
  */
-function found(tag: string, repo: Repo, origins: Origins, body: unknown, date?: unknown, ask?: { current: string; kind: 'stable' | 'beta' }): ReleaseState {
+function found(tag: string, repo: Repo, origins: Origins, body: unknown, date?: unknown, ask?: { current: string; kind: 'stable' | 'beta' }, via?: string): ReleaseState {
   const notes = releaseNotesOf(body)
   const latest = tag.replace(/^v/, '')
   const rel = ask ? relOf(ask.current, tag) : undefined
   // The page is built from the repository and the tag, not taken from the answer: only a page of this repository is ever opened.
   const url = `${origins.downloads}/${repo.owner}/${repo.repo}/releases/tag/${encodeURIComponent(tag)}`
   const detail = rel === 'same' ? `You have ${latest}.` : rel === 'older' ? `${latest} is the ${ask!.kind === 'beta' ? 'newest beta' : 'latest stable'}, older than the version you have.` : `${latest} is available.`
-  return { state: rel === 'same' ? 'none' : 'available', detail, latest, ...(rel && { rel }), ...(notes && { notes }), ...(typeof date === 'string' && { date }), url }
+  return { state: rel === 'same' ? 'none' : 'available', detail: via ? detail.replace(/\.$/, ` (${via}).`) : detail, latest, ...(rel && { rel }), ...(notes && { notes }), ...(typeof date === 'string' && { date }), url }
+}
+
+/** GitHub's own words for a spent limit: 429, or a 403 whose remaining count is 0. */
+const limitSpent = (res: { status: number; headers?: { get(name: string): string | null } }) => res.status === 429 || (res.status === 403 && res.headers?.get('x-ratelimit-remaining') === '0')
+const MIRROR_NOTE = "the mirror answered: GitHub's limit is spent"
+
+/** The version the mirror's fixed latest-mac.yml names, or none: a file that cannot be read, or whose version is not a plain version, is no answer. Only the version is taken from it. */
+async function mirrorVersion(mirror: string, get: Fetch): Promise<string | null> {
+  try {
+    const res = await get(`${mirror}/latest/latest-mac.yml`)
+    if (!res.ok || !res.text) return null
+    const m = /^version:\s*['"]?(\d+\.\d+\.\d+)['"]?\s*$/m.exec((await res.text()).slice(0, 20_000))
+    return m ? m[1]! : null
+  } catch {
+    return null
+  }
 }
 
 const unreachable = (e: unknown): ReleaseState => ({ state: 'error', detail: `Could not reach GitHub: ${(e as Error).message.split('\n')[0]}` })
@@ -126,11 +142,17 @@ const unreachable = (e: unknown): ReleaseState => ({ state: 'error', detail: `Co
  * Asks GitHub for the latest release of the repository and says whether it is newer than `current`, with the page of that release.
  * With `all` (a look the person asked for in Settings) it is the latest release whatever version is installed, with how it stands to it.
  */
-export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB, o: { all?: boolean } = {}): Promise<ReleaseState> {
+export async function latestRelease(current: string, repo: Repo, get: Fetch, origins: Origins = GITHUB, o: { all?: boolean; /** The build's mirror (an origin): asked for the version when GitHub's limit is spent. */ mirror?: string } = {}): Promise<ReleaseState> {
   try {
     const res = await get(`${origins.api}/repos/${repo.owner}/${repo.repo}/releases/latest`)
     if (res.status === 404) return { state: 'none', detail: 'No release is published yet.' }
-    if (!res.ok) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
+    if (!res.ok) {
+      // The limit for asking GitHub without signing in is spent: the mirror says which version is out, and nothing else of the release.
+      const v = o.mirror && limitSpent(res) ? await mirrorVersion(o.mirror, get) : null
+      if (!v) return { state: 'error', detail: `GitHub did not answer (${res.status}).` }
+      if (!o.all && !isNewer(current, v)) return { state: 'none' }
+      return found(`v${v}`, repo, origins, undefined, undefined, o.all ? { current, kind: 'stable' } : undefined, MIRROR_NOTE)
+    }
     const answer = (await res.json()) as { tag_name?: unknown; body?: unknown }
     const tag = String(answer.tag_name ?? '')
     if (!parse(tag) || (!o.all && !isNewer(current, tag))) return { state: 'none' }
