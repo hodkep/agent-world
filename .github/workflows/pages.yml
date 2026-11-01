@@ -1,6 +1,6 @@
 name: pages
 # Builds the project site (scripts/build-site.mjs: the user guide and the documentation from this repository's Markdown, plus site/) and publishes
-# it to GitHub Pages at hodkep.github.io/agent-world. It needs Settings > Pages > Source set to "GitHub Actions", once.
+# it to GitHub Pages at agent-world.in. It needs Settings > Pages > Source set to "GitHub Actions", once.
 on:
   push:
     branches: [main]
