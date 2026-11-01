@@ -79,3 +79,10 @@ describe('the settings every step can have, in what the person will meet', () =>
     expect(rows[0]!.says).toBe('you approve the plan before any edit')
   })
 })
+
+describe('a step the person finishes, in the preview', () => {
+  it('says the agent does its part, reports it, and the person answers: nothing is asked before it starts', () => {
+    const [row] = previewOf(wf([{ id: 'verify', kind: 'work', name: 'Verify', by: 'person', start: 'run' }]))
+    expect(row).toMatchObject({ stops: true, says: 'the agent does what it says and reports it, then you say how it went' })
+  })
+})

@@ -23,6 +23,8 @@ export function previewOf(wf: Workflow): PreviewRow[] {
       case 'plan':
         return s.gate !== 'auto' ? row(true, 'you approve the plan before any edit') : row(false, 'the agent writes a plan; nothing waits for you')
       case 'work':
+        // The person's own step is answered after the agent reports it, never asked before it starts.
+        if (s.by === 'person') return { id: s.id, kind: s.kind, label: stepName(s), stops: true, says: `the agent does what it says and reports it, then you say how it went${skip}` }
         return s.gate === 'approve' ? row(true, 'you approve it when the agent says it is done') : row(false, 'no stop')
       case 'check': {
         const tries = (s.retries ?? DEFAULT_RETRIES) + 1

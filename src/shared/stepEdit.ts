@@ -1,7 +1,7 @@
-import { GATES, OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, STEPS_MAX, isLanding, type Step, type StepKind, type Workflow } from './workflow'
+import { GATES, OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, STEPS_MAX, isLanding, modernStep, type Step, type StepKind, type Workflow } from './workflow'
 
 /** The fields of a step that the draft's editor changes; an empty text or list takes the field away. */
-export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'optional' | 'skippable' | 'skills' | 'run' | 'retries' | 'model'>>
+export type StepPatch = Partial<Pick<Step, 'name' | 'gate' | 'brief' | 'start' | 'optional' | 'skippable' | 'by' | 'confirm' | 'reject' | 'skills' | 'run' | 'retries' | 'model'>>
 
 const withSteps = (w: Workflow, steps: Step[]): Workflow => ({ ...w, steps })
 
@@ -101,6 +101,12 @@ const KINDS: Record<string, StepKind> = { 'agent:none': 'work', 'agent:plan': 'p
 /** The kind of step that is done by `who` in `role`, or none when that one cannot play that part. */
 export const kindFor = (who: Who, role: Role): StepKind | undefined => KINDS[`${who}:${role}`]
 
+/** Whether `who` can do a step in `role` as the app reads it. A kind the app reads as another (a check, an audit and an approval are read as work) cannot be chosen: the step would turn back to what it is read as. */
+export const whoCan = (who: Who, role: Role): boolean => {
+  const kind = kindFor(who, role)
+  return !!kind && modernStep({ id: 'x', kind }).kind === kind
+}
+
 /** A step as another kind: its name and brief stay, and so does every setting the new kind has too; what it has no use for goes. */
 function asKind(s: Step, kind: StepKind): Step {
   const next: Step = { id: s.id, kind }
@@ -111,6 +117,8 @@ function asKind(s: Step, kind: StepKind): Step {
   if (s.optional !== undefined && OPTIONAL_KINDS.includes(kind)) next.optional = s.optional
   if (s.skippable !== undefined && SKIPPABLE_KINDS.includes(kind)) next.skippable = s.skippable
   if (s.skills !== undefined && SKILL_KINDS.includes(kind)) next.skills = s.skills
+  // Who finishes a step and the words of its buttons only mean something on a work step.
+  if (kind === 'work') for (const k of ['by', 'confirm', 'reject'] as const) if (s[k] !== undefined) Object.assign(next, { [k]: s[k] })
   if (kind === 'check') {
     next.run = s.run ?? ''
     if (s.retries !== undefined) next.retries = s.retries
@@ -119,6 +127,13 @@ function asKind(s: Step, kind: StepKind): Step {
   return next
 }
 const replaceAt = (w: Workflow, at: number, step: Step): Workflow => withSteps(w, w.steps.map((x, i) => (i === at ? step : x)))
+
+/** Who finishes a work step: the agent (the default), or the person, who is not asked before it starts since their answer comes after the agent reports it. Another kind of step is left as it is. */
+export function withBy(w: Workflow, at: number, by: 'agent' | 'person'): Workflow {
+  const s = w.steps[at]
+  if (!s || s.kind !== 'work') return w
+  return setStep(w, at, by === 'person' ? { by: 'person', start: undefined } : { by: undefined, confirm: undefined, reject: undefined })
+}
 
 /** A step done by someone else: the agent, a command, a reviewer or the person. It keeps the part it played when the new one can play it too. */
 export function withWho(w: Workflow, at: number, who: Who): Workflow {

@@ -47,6 +47,11 @@ describe('the loops drawn back up the flow', () => {
 
 describe('the chips on a step', () => {
   const words = (s: Step) => chipsOf(s).map((c) => c.text)
+  it('say a step the person finishes is theirs to answer, once, whether the draft or the saved file is read', () => {
+    expect(words(step('work', { by: 'person' }))).toEqual(['you finish it'])
+    expect(words(step('work', { by: 'person', gate: 'approve' }))).toEqual(['you finish it'])
+    expect(words(step('work', { by: 'agent' }))).toEqual([])
+  })
   it('say who has to act: approving, confirming, passing', () => {
     expect(words(step('plan', { gate: 'approve' }))).toEqual(['you approve'])
     expect(words(step('check', { run: 'npm test', gate: 'pass' }))).toEqual(['must pass', '2 retries'])
