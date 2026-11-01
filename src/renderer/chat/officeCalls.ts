@@ -6,9 +6,15 @@ import { todoPath } from '../todos/todoStore'
 
 const OFFICE_SERVER = 'agent-world'
 /** The office's tools that have a card of their own (messages and subagents): they are the agent's dealings with others, not bookkeeping. */
-const OWN_CARD = new Set(['send_message', 'list_agents', 'spawn_subagent', 'await_subagents', 'stop_subagent'])
+const OWN_CARD = new Set(['send_message', 'broadcast_message', 'list_agents', 'spawn_subagent', 'await_subagents', 'stop_subagent'])
 /** The calls that move a run along: the track above the chat shows them, so the chat does not. */
 const RUN_TOOLS = new Set(['task_begin', 'task_done', 'step_done', 'plan_submit'])
+
+/** The agent's broadcast to the whole project: it has a card of its own in the chat. */
+export function broadcastCall(name: string): boolean {
+  const m = parseMcpName(name)
+  return !!m && m.server === OFFICE_SERVER && m.tool === 'broadcast_message'
+}
 
 export function runCall(name: string): boolean {
   const m = parseMcpName(name)

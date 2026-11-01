@@ -32,7 +32,8 @@ import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
 import { StepGroupView } from './StepGroupView'
 import { OfficeLine } from './OfficeLine'
-import { type OfficeGroup, groupOffice } from './officeCalls'
+import { type OfficeGroup, broadcastCall, groupOffice } from './officeCalls'
+import { BroadcastSentCard, WaveIcon } from './BroadcastCard'
 import { type StepGroup, groupSteps } from './stepGroups'
 import { type ToolRun, ToolCard } from './ToolCard'
 import { WatchLine } from './WatchCards'
@@ -1015,7 +1016,10 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
-      if (mail) return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...mail} />
+      if (mail) {
+        const { broadcast, ...plain } = mail
+        return parseHandoff(mail.body) ? <HandoffCard who={mail.from} body={mail.body} /> : <AgentMailCard {...plain} {...(broadcast && { label: 'Broadcast from', tag: 'Broadcast', tone: 'go' as const, broadcast: true, route: `${broadcast.also.length ? `also sent to: ${broadcast.also.join(', ')}` : 'sent to you only'} · reply to “${mail.from}” only` })} />
+      }
       // What the person pressed on a workflow card is a receipt on their side, with the sentence the agent got folded under it.
       const receipt = parseWorkflowMessage(r.text)
       if (receipt) return <WorkflowReceipt msg={receipt} rowId={r.id} {...(r.at !== undefined && { at: r.at })} {...(r.pending && { pending: true })} />
@@ -1106,6 +1110,7 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
     case 'report':
       return <SubagentReport agentId={agentId} subagentId={r.agentId} body={r.body} />
     case 'tool':
+      if (broadcastCall(r.run.name)) return <BroadcastSentCard run={r.run} agentId={agentId} />
       return r.run.name === 'SendMessage' ? <SendMessageCard agentId={agentId} run={r.run} /> : <ToolCard run={r.run} working={busy} onImage={onImage} />
     case 'handoff-out':
       return <HandoffCard who={r.to} body={r.text} out status={r.status} />
@@ -1187,7 +1192,7 @@ function FormAnswerCard({ title, rows, raw }: { title?: string; rows: { label: s
   )
 }
 
-function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag, summary, tone, route }: { from: string; body: string; expectsReply: boolean; label?: string; tag?: string; /** A title over the words. */ summary?: string; tone?: 'go' | 'ok' | 'bad' | 'wait'; /** A line under the words, always shown. */ route?: string }) {
+function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag, summary, tone, route, broadcast }: { from: string; body: string; expectsReply: boolean; /** A broadcast: the wave and the yellow rim. */ broadcast?: boolean; label?: string; tag?: string; /** A title over the words. */ summary?: string; tone?: 'go' | 'ok' | 'bad' | 'wait'; /** A line under the words, always shown. */ route?: string }) {
   const box = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [long, setLong] = useState(false)
@@ -1201,12 +1206,12 @@ function AgentMailCard({ from, body, expectsReply, label = 'From agent', tag, su
     return () => watch.disconnect()
   }, [open])
   return (
-    <article className={`mail ${open ? 'open' : 'folded'}`} aria-label={label.startsWith('To ') ? `Message ${label.toLowerCase()} ${from}` : `Message from agent ${from}`}>
+    <article className={`mail ${open ? 'open' : 'folded'}${broadcast ? ' bc' : ''}`} aria-label={broadcast ? `Broadcast from agent ${from}` : label.startsWith('To ') ? `Message ${label.toLowerCase()} ${from}` : `Message from agent ${from}`}>
       <header className="mail-head">
-        <svg className="mail-env" viewBox="0 0 14 10" aria-hidden="true">
+        {broadcast ? <WaveIcon /> : <svg className="mail-env" viewBox="0 0 14 10" aria-hidden="true">
           <rect width="14" height="10" fill="currentColor" />
           <path fill="var(--ink)" d="M0 0h14v1H0zM0 9h14v1H0zM0 0h1v10H0zM13 0h1v10h-1zM1 1h1v1H1zM2 2h1v1H2zM3 3h1v1H3zM4 4h1v1H4zM5 5h3v1H5zM8 5h1v1H8zM9 4h1v1H9zM10 3h1v1h-1zM11 2h1v1h-1zM12 1h1v1h-1z" />
-        </svg>
+        </svg>}
         <span className="mail-from">
           <span className="mail-lbl">{label}</span> “{from}”
         </span>

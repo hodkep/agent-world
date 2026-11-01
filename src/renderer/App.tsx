@@ -1341,7 +1341,8 @@ export function App() {
   const outgoingBy = useMemo(() => {
     const by = new Map<string, Extract<ChatItem, { kind: 'handoff-out' }>[]>()
     for (const m of messages) {
-      if (!parseHandoff(m.text)) continue
+      // A handoff is a message to one agent that was sent; a broadcast's marks for sleeping agents are not.
+      if (m.status === 'asleep' || m.status === 'limit' || !parseHandoff(m.text)) continue
       const list = by.get(m.fromId) ?? []
       list.push({ kind: 'handoff-out', id: `handoff:${m.id}`, at: m.at, to: allAgents.find((x) => x.id === m.toId)?.name ?? 'another agent', status: m.status, text: m.text })
       by.set(m.fromId, list)
@@ -1965,7 +1966,7 @@ export function App() {
                 ...(prefs && workflowsShown(prefs.workflows.enabled, wf.open)
                   ? [{ id: 'workflow', icon: 'workflow', label: 'Workflow', about: "This agent's tasks, round by round", dot: wf.runs.some((r) => r.agent === current.id && r.status === 'open') ? 'run' : undefined, go: () => setView('workflow') }]
                   : []),
-                { id: 'traces', icon: 'traces', label: 'Traces', about: 'Messages between agents', badge: messages.length, go: () => setView('traces') },
+                { id: 'traces', icon: 'traces', label: 'Traces', about: 'Messages between agents', badge: new Set(messages.map((m) => m.broadcast ?? m.id)).size, go: () => setView('traces') },
                 ...(fileTab[current.id] ? [{ id: 'file', icon: 'file', label: fileTab[current.id]!.split('/').pop()!, about: fileTab[current.id]!, named: true, go: () => setView('file') }] : []),
                 { id: 'preview', icon: 'desktop', label: 'Preview', about: 'The page this agent is serving', dot: (servers[current.id] ?? []).some((s) => s.alive) ? 'live' : undefined, go: () => setView('preview') }
               ].map((t, i) => (
