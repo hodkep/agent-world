@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../shared/chat'
-import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, mayTrust, shownTo, staleChildren, subagentPrompt, withoutOrphans } from './subagentSpawn'
+import { DEFAULT_LIMITS, MAX_DEPTH, MAX_RUNNING, checkSpawn, childInfo, depthOf, finalReport, mayTrust, readOnlyMode, shownTo, staleChildren, subagentPrompt, withoutOrphans } from './subagentSpawn'
 
 const a = (id: string, parent?: string) => ({ id, parent })
 
@@ -136,5 +136,21 @@ describe('subagents left behind', () => {
   })
   it('are kept while their program runs, and never include an agent that is not a subagent', () => {
     expect(staleChildren([{ id: 'solo', hiredAt: 0 }], new Set(), 10 * HOUR)).toEqual([])
+  })
+})
+
+describe('readOnlyMode', () => {
+  const autonomy = { plan: 'plan', ask: 'default' }
+  it('keeps plan mode for a program or model it does not change', () => {
+    expect(readOnlyMode(autonomy, 'claude', 'sonnet')).toBe('plan')
+    expect(readOnlyMode(autonomy, 'claude', undefined)).toBe('plan')
+    expect(readOnlyMode(autonomy, 'agy', 'haiku')).toBe('plan')
+  })
+  // Claude's plan mode runs Haiku work on Sonnet, 26 times the cost; asking before any change is as safe.
+  it('asks before any change instead of planning when Claude is to run Haiku, so Haiku is what runs', () => {
+    expect(readOnlyMode(autonomy, 'claude', 'haiku')).toBe('default')
+  })
+  it('falls back to plan mode when the program has no ask mode', () => {
+    expect(readOnlyMode({ plan: 'plan', ask: null }, 'claude', 'haiku')).toBe('plan')
   })
 })

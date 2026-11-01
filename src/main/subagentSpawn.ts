@@ -2,6 +2,10 @@ import type { ChatItem, SubagentInfo } from '../shared/chat'
 import { spawnLabel } from '../shared/spawn'
 
 /** Standing limits, which Settings can change. A child may start children of its own, a grandchild may not. */
+/** How a subagent that only reads is kept from changing anything: plan mode, except where Claude's plan mode would run Haiku on Sonnet (26 times the cost); asking before any change is as safe and keeps the model. */
+export const readOnlyMode = (autonomy: { plan: string | null; ask: string | null }, program: string, model?: string): string | null =>
+  program === 'claude' && model === 'haiku' && autonomy.ask ? autonomy.ask : autonomy.plan
+
 export const MAX_DEPTH = 2
 /** Children one agent may have working at once. */
 export const MAX_RUNNING = 3

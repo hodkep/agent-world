@@ -52,7 +52,7 @@ import { shellIntegration } from './shellIntegration'
 import { createSubagents } from './subagentService'
 import { modelLabel } from '../shared/spawn'
 import { pagesOpenedBy } from '../shared/pagePath'
-import { mayTrust, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
+import { mayTrust, readOnlyMode, shownTo, staleChildren, withoutOrphans } from './subagentSpawn'
 import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import type { UsageRecord } from '../shared/tokens'
@@ -93,7 +93,7 @@ import { contextReport, contextText, resetEffects } from '../shared/contextCurve
 import { contextView } from '../shared/contextView'
 import { latestContext, nudgeFor } from '../shared/contextNudge'
 import { cleanCatalog, mergeCatalog } from '../shared/runnerCatalog'
-import { pickRunner, routeSpawn, runnerText, type Office } from '../shared/runnerPick'
+import { pickRunner, routeSpawn, runnerText, subagentHint, type Office } from '../shared/runnerPick'
 import { blendCatalog, cleanRuns } from '../shared/runnerScore'
 import { Workflows } from './workflows/service'
 import { askAgy, askClaude } from './workflows/ask'
@@ -1071,7 +1071,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && !a.builder && subagentHint(prefs.runnerMode), canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1434,7 +1434,7 @@ async function main() {
       if (wanted && (await makesBranch({ repoPath: parent.repoPath, inPlace: i.worktree === false })) && (await nameTaken({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees') }))) throw new Error(`A branch or folder named aw/${name} already exists. Pick another name.`)
       const wt = await worktreeFor({ repoPath: parent.repoPath, name, rootDir: join(HOME, 'worktrees'), inPlace: i.worktree === false, ...(parent.branch && { from: parent.branch }) })
       // It works the way its parent does (full autonomy only if the parent has it); one that only reads cannot change anything. When it stops to ask, the question comes up on its parent's card.
-      const mode = !wt ? p.autonomy.plan : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
+      const mode = !wt ? readOnlyMode(p.autonomy, p.id, i.model) : providerOf(parent).autonomy.full && parent.options?.permissionMode === providerOf(parent).autonomy.full ? p.autonomy.full : p.autonomy.edit
       const child: AgentRecord = {
         id: randomUUID(), name, sessionId: randomUUID(), repoPath: parent.repoPath, cwd: wt?.path ?? parent.cwd, branch: wt?.branch ?? null, base: wt?.base ?? null, provider: p.id, started: false, hiredAt: Date.now(), parent: parent.id, task: i.task,
         options: fitOptions(p.models, { provider: p.id, ...(mode && { permissionMode: mode as PermissionMode }), ...(i.model && p.models.some((m) => m.value === i.model) && { model: i.model }) })
