@@ -4,7 +4,7 @@ Review what an agent changed, commit and land its branch, and look at its work r
 
 ## Reach the tabs
 
-Select an agent in the office. The tabs above its panel are icons: point at one (or tab to it) to see its name, what it is for and the keys that go to it. In order they are **Chat**, **Terminal**, **Code**, **Agent Memory**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Workflow** means a run is open, **Traces** shows how many messages there are, and a dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
+Select an agent in the office. The tabs above its panel are icons: point at one (or tab to it) to see its name, what it is for and the keys that go to it. In order they are **Chat**, **Terminal**, **Code**, **Agent Memory**, **Library**, **Workflow** (only with Workflows on, see [Workflows](workflows.md)), **Traces** and **Preview**. A dot on **Workflow** means a run is open, **Traces** shows how many messages there are (a broadcast counts once), and a dot on **Preview** means a dev server of that agent is running. Clicking a file name in the chat opens an HTML page or PDF in **Preview**, a code file of the branch in **Code**, and anything else in a tab of its own with **Open with default app**.
 
 ## Review a branch
 
@@ -73,7 +73,8 @@ To zoom the page, pinch on the trackpad (the page zooms like on a phone), or pre
 
 - **Terminal** is the agent's own terminal; keys go straight to it. A selection offers **Add selection to message**.
 - **Agent Memory** holds the notes every agent in the project shares: agents save them with `remember`, and you can add your own at the top. Notes sit under day headings; pick a name to see one writer's notes, or tick **Hide finished-task log** to leave out the lines the office saves when a task closes. **Forget** removes one. MCP servers and plugins are managed in the terminal (`/mcp`) and in Settings.
-- **Traces** lists messages agents sent each other, under day headings. Pick an agent to narrow it to that agent's messages, or **Dropped only** for the ones that did not arrive. Click a message to read all of it.
+- **Traces** lists messages agents sent each other, under day headings, each as a card with a line for the agent it went to and what became of it (delivered, queued while that agent is busy, or dropped). Pick an agent to narrow it to that agent's messages, or **Dropped only** for the ones that did not arrive. Click a message to read all of it.
+- **Broadcast.** An agent can tell every other agent of its project at once with one `broadcast_message` call, instead of messaging them one by one. It shows as one card in Traces with a line for each agent, and as a card with a wave mark in the chat of the agent that sent it and of each that got it (the receiving card says who else was told, and that the reply goes to the sender only). Agents answer as they finish, with their ordinary messages. An agent that is asleep is not sent it and is marked **Asleep** with a **Wake** button, since only you can wake it; wake it and the sender can send again. An agent that has had six messages from the sender in ten minutes is marked **Not sent**.
 - **History** in the top bar opens **Past conversations** for the open folder. Click one to continue it as a new agent.
 
 Next: [Workflows](workflows.md)
