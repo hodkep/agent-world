@@ -1618,6 +1618,7 @@ async function main() {
         send('workflows')
         return name
       },
+      hint: (caller) => remote.hint(caller),
       askSkip: (caller, steps, why) => {
         const names = workflows.askSkip(caller, steps, why)
         send('workflows')
@@ -2347,6 +2348,13 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, stepStarted(name, noteOf(note)))
     send('workflows')
   })
+  // The person marks a step of theirs done, or sends it back: the agent is told what the typed words would tell it.
+  ipcMain.handle('workflows:finish-step', (_, runId: string, step: string, decision: 'done' | 'changes', note?: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    mailbox.fromOffice(run.agent, remote.finish(runId, String(step), decision === 'changes' ? 'changes' : 'done', typeof note === 'string' ? note : ''))
+    send('workflows')
+  })
   // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
   ipcMain.handle('workflows:decline-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
@@ -2354,7 +2362,7 @@ async function main() {
     if (!run || !found) throw new Error('No such step.')
     // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
     if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name, noteOf(note)))
-    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step)), noteOf(note)))
+    else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step)), noteOf(note)) + remote.hint(run.agent))
     send('workflows')
   })
   // The go-ahead to push is sent once for each head, and a lost one left the agent waiting for good: the person can send it again.

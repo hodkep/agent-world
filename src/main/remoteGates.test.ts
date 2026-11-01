@@ -4,7 +4,7 @@ import { createRemoteGates } from './remoteGates'
 
 const run = (extra: Partial<Run> = {}): Run => ({ id: 'r1', agent: 'a1', name: 'ada', project: '/p', title: 'T', status: 'open', startedAt: 1, rounds: [{ n: 1, startedAt: 1, commits: [], steps: [], checks: [], plan: { state: 'submitted', path: 'p.md', submittedAt: 5, readback: { goal: 'g', assumptions: [], outOfScope: [], questions: [{ text: 'Which?', options: ['A', 'B'] }] } } }], ...extra }) as Run
 
-function make(remote = true) {
+function make(remote = true, extra: { finishing?: boolean; skipAsk?: boolean; refused?: { id: string; name: string; rest: string[]; skippable: boolean } } = {}) {
   const calls: string[] = []
   let holds = [{ agentId: 'a1', head: 'h1', held: ['x'], declined: false }]
   const gates = createRemoteGates({
@@ -16,7 +16,16 @@ function make(remote = true) {
       seen: () => undefined,
       addToPlan: () => undefined,
       asideAudit: () => undefined,
-      allowLanding: (a: string, h: string) => void calls.push(`allow ${a} ${h}`)
+      allowLanding: (a: string, h: string) => void calls.push(`allow ${a} ${h}`),
+      skipAsked: () => (extra.skipAsk ? { run: 'r1', names: ['Build'], why: 'docs only' } : null),
+      answerSkip: (_: string, ok: boolean) => (calls.push(`skip-answer ${ok}`), { names: ['Build'], why: 'docs only', approved: ok }),
+      refusedFor: () => (extra.refused ? { run: 'r1', ask: extra.refused } : null),
+      skipRefused: (_: string, s: string) => (calls.push(`skip-refused ${s}`), 'Review'),
+      deferRefused: (_: string, s: string) => (calls.push(`defer ${s}`), 'Review'),
+      endRun: (_: string, why: string) => void calls.push(`end ${why}`),
+      nextAfter: () => ({ name: 'Commit' }),
+      finishable: () => (extra.finishing ? { run: 'r1', step: 'verify', name: 'Verify' } : null),
+      finishStep: (_: string, s: string) => (calls.push(`finish ${s}`), { name: 'Verify', next: { id: 'commit', name: 'Commit', optional: false, start: true } })
     } as never,
     held: { list: () => holds, decline: () => undefined, take: () => ((holds = []), undefined) } as never,
     send: (c) => void calls.push(`send ${c}`),
@@ -26,23 +35,26 @@ function make(remote = true) {
   return { gates, calls }
 }
 
-describe('createRemoteGates: the four gates behind one typed reply, for any provider', () => {
+describe('createRemoteGates: the gates behind one typed reply, for any provider', () => {
   it('lists the plan and the held push of an agent, each with its own code', () => {
     const { gates } = make()
-    expect(gates.gatesFor('a1').map((g) => g.kind)).toEqual(['plan', 'push'])
+    expect(gates.gatesFor('a1').map((g) => g.label)).toEqual(['the plan', 'the held push'])
     expect(gates.gatesFor('a2')).toEqual([])
   })
   it('decides a plan from a typed answer, as the card does, and tells the agent what the card tells it', () => {
     const { gates, calls } = make()
-    const code = gates.gatesFor('a1').find((g) => g.kind === 'plan')!.code
+    const code = gates.gatesFor('a1').find((g) => g.label === 'the plan')!.code
     expect(gates.reply('a1', `approve ${code} 1=2`)).toContain('Your plan was approved')
     expect(calls).toContain('decide r1 approved [{"question":"Which?","answer":"B"}]')
     expect(gates.reply('a1', `approve ${code}`)).toContain('still open')
   })
   it('lets a held push through on allow and keeps the window told', () => {
     const { gates, calls } = make()
-    const code = gates.gatesFor('a1').find((g) => g.kind === 'push')!.code
-    expect(gates.reply('a1', `allow ${code}`)).toContain('push again')
+    const code = gates.gatesFor('a1').find((g) => g.label === 'the held push')!.code
+    const told = gates.reply('a1', `allow ${code}`)!
+    expect(told).toContain('push again')
+    // The plan still waits, so the agent is told its words too.
+    expect(told).toContain('the plan: reply `approve')
     expect(calls).toEqual(['allow a1 h1', 'send landing'])
   })
   it('does nothing and says nothing for an agent that is not under remote control', () => {
@@ -51,5 +63,55 @@ describe('createRemoteGates: the four gates behind one typed reply, for any prov
     expect(gates.reply('a1', `approve ${code} 1=1`)).toBeNull()
     expect(gates.hint('a1')).toBe('')
     expect(calls).toEqual([])
+  })
+})
+
+describe('the questions that used to need a click: skip these steps, and what next after a refusal', () => {
+  const codeOf = (gates: ReturnType<typeof make>['gates'], label: string) => gates.gatesFor('a1').find((g) => g.label === label)!.code
+  it('answers the agent\'s request to skip steps with skip or keep, as the card does', () => {
+    const { gates, calls } = make(true, { skipAsk: true })
+    const code = codeOf(gates, 'the request to skip steps')
+    expect(gates.hint('a1')).toContain(`skip ${code}`)
+    expect(gates.reply('a1', `skip ${code}`)).toContain('approved skipping')
+    expect(gates.reply('a1', `keep ${code}`)).toContain('kept')
+    expect(calls).toEqual(['skip-answer true', 'send workflows', 'skip-answer false', 'send workflows'])
+  })
+  it('answers a refused step with skip, later or stop, and offers skip only when the step can be skipped', () => {
+    const asked = { id: 'review', name: 'Review', rest: ['Commit'], skippable: true }
+    const { gates, calls } = make(true, { refused: asked })
+    const code = codeOf(gates, 'the refused step "Review"')
+    expect(gates.reply('a1', `skip ${code}`)).toContain('go on')
+    expect(gates.reply('a1', `later ${code}`)).toContain('again later')
+    expect(gates.reply('a1', `stop ${code}`)).toContain('ended')
+    expect(calls).toEqual(['skip-refused review', 'send workflows', 'defer review', 'send workflows', 'end The person stopped the run after refusing a step.', 'send workflows'])
+    const fixed = make(true, { refused: { ...asked, skippable: false } })
+    expect(fixed.gates.hint('a1')).not.toContain('skip ')
+    expect(fixed.gates.reply('a1', `skip ${codeOf(fixed.gates, 'the refused step "Review"')}`)).toContain('not exactly a decision')
+  })
+})
+
+describe('a step the person started and the agent left running: done, or changes', () => {
+  const find = (gates: ReturnType<typeof make>['gates']) => gates.gatesFor('a1').find((g) => g.label.startsWith('the step "Verify"'))!
+  it('is finished by typing done, as the card does, with the person\'s words and what comes next', () => {
+    const { gates, calls } = make(true, { finishing: true })
+    const g = find(gates)
+    expect(gates.hint('a1')).toContain(`done ${g.code}`)
+    const told = gates.reply('a1', `done ${g.code}: looks good`)!
+    expect(told).toContain('finished your step "Verify"')
+    expect(told).toContain('They said: looks good')
+    expect(told).toContain('Next step: "Commit"')
+    expect(calls).toEqual(['finish verify', 'send workflows'])
+  })
+  it('is sent back by typing changes with what to change, and needs the words', () => {
+    const { gates, calls } = make(true, { finishing: true })
+    const code = find(gates).code
+    expect(gates.reply('a1', `changes ${code}`)).toContain('needs what to change')
+    expect(gates.reply('a1', `changes ${code}: the tab is blank`)).toContain('sent back: the tab is blank')
+    expect(calls).toEqual(['send workflows'])
+  })
+  it('is the same call for the card: the card\'s answer is what the agent is told', () => {
+    const { gates } = make(true, { finishing: true })
+    expect(gates.finish('r1', 'verify', 'done', 'fine')).toContain('finished your step "Verify"')
+    expect(gates.finish('r1', 'verify', 'changes', 'no')).toContain('sent back: no')
   })
 })

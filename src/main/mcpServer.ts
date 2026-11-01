@@ -93,6 +93,8 @@ interface Options {
     reopenStep: (callerId: string, step: string, why: string) => string
     /** The agent asks the person to skip steps that are not optional, with its reason; says their names. */
     askSkip: (callerId: string, steps: string[], why: string) => string[]
+    /** What to add for an agent under remote control when something waits on the person: the words that answer it. */
+    hint?: (callerId: string) => string
     /** What task_begin says about the plan: it depends on the dial in force. */
     planInstruction: () => string
     /** Hand the plan file in; the answer says how many questions it holds. Throws what to fix when the read-back block is incomplete. */
@@ -596,7 +598,7 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
     async ({ steps, why }) => {
       try {
         const names = wf.askSkip(callerId, steps, why)
-        return { content: [{ type: 'text' as const, text: `Asked the person to skip ${names.join(', ')}. Their answer arrives as your next message; change nothing meanwhile.` }] }
+        return { content: [{ type: 'text' as const, text: `Asked the person to skip ${names.join(', ')}. Their answer arrives as your next message; change nothing meanwhile.${wf.hint?.(callerId) ?? ''}` }] }
       } catch (err) {
         return fail(err)
       }
