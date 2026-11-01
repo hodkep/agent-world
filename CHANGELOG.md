@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-01
+
+### Added
+
+- Office: with the office hidden, the agent list shows the word for what an agent asks or that it finished, with a tick that marks it read, and a hovered row opens at full width.
+- Docs: the `ai-coding-workflow` skill under `docs/skills`, a one-page routine that gives any AI coding agent a plan, approval, test-first, verify and review path in a repository.
+
+### Fixed
+
+- Chat: the agent's name above a reply is plain again; the Agent Memory writer chip had made it a yellow square.
+- Panel: the tab of an opened file always shows the file's name.
+
 ## [0.9.2] - 2026-11-01
 
 ![Agent World 0.9.2: a livelier agent list, Agent Memory in place of Tools, and a terminal pane beside the chat](https://raw.githubusercontent.com/hodkep/agent-world/v0.9.2/docs/images/releases/0.9.2/poster.png)
