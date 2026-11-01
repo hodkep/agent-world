@@ -44,9 +44,9 @@ function skillNote(ids: string[] | undefined, states: Record<string, SkillState>
 }
 
 /** The things in brackets after a step's name: its skills, that it is optional, that it waits for the person's Run. */
-function notes(s: { skills?: string[]; optional?: boolean; start?: string }, skills: Record<string, SkillState> | undefined, may: { optional?: boolean; start?: boolean }): string {
+function notes(s: { skills?: string[]; optional?: boolean; start?: string; by?: string }, skills: Record<string, SkillState> | undefined, may: { optional?: boolean; start?: boolean }): string {
   const skill = skillNote(s.skills, skills).replace(/^ \(|\)$/g, '')
-  const parts = [skill, may.optional && s.optional ? 'optional: the person may skip it' : '', may.start && s.start === 'run' ? 'starts when the person presses Run: wait until you are told, and change nothing before' : ''].filter(Boolean)
+  const parts = [skill, may.optional && s.optional ? 'optional: the person may skip it' : '', may.start && s.start === 'run' ? 'starts when the person presses Run: wait until you are told, and change nothing before' : '', s.by === 'person' ? "ends with the person's verdict: do what it says, then call step_done and wait for their answer" : ''].filter(Boolean)
   return parts.length ? ` (${parts.join('; ')})` : ''
 }
 

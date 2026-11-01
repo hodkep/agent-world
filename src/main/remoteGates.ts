@@ -1,14 +1,14 @@
 import { answersOf, planReply, unanswered } from '../shared/plan'
 import { codeOf, parseAnswers } from '../shared/remoteReply'
 import { pendingPlans } from '../shared/runs'
-import { auditSetAside, runEnded, stepDeclined, stepFinished, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { auditSetAside, runEnded, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import type { Workflows } from './workflows/service'
 import type { HeldMerges } from './workflows/heldMerges'
 import { type Gate, remoteHint, resolveReply, touches } from './remoteReply'
 
 /** What the gates need from the office; the module itself knows no provider and no window. */
 export interface RemoteGateDeps {
-  workflows: Pick<Workflows, 'runs' | 'decide' | 'waitingStep' | 'approveStep' | 'startStep' | 'skipStep' | 'declineStep' | 'nextAfter' | 'seen' | 'addToPlan' | 'asideAudit' | 'allowLanding' | 'skipAsked' | 'answerSkip' | 'finishable' | 'finishStep' | 'refusedFor' | 'skipRefused' | 'deferRefused' | 'endRun'>
+  workflows: Pick<Workflows, 'runs' | 'decide' | 'waitingStep' | 'approveStep' | 'startStep' | 'skipStep' | 'declineStep' | 'nextAfter' | 'seen' | 'addToPlan' | 'asideAudit' | 'allowLanding' | 'skipAsked' | 'answerSkip' | 'refusedFor' | 'skipRefused' | 'deferRefused' | 'endRun'>
   held: Pick<HeldMerges, 'list' | 'decline' | 'take'>
   /** Tells the window a gate changed. */
   send: (channel: 'workflows' | 'landing') => void
@@ -204,39 +204,11 @@ export function createRemoteGates(d: RemoteGateDeps) {
     }]
   }
 
-  /** The person's word on a step of theirs that the agent left running: done reports it for the agent, changes sends it back. Says what the agent is told. */
-  const finish = (runId: string, step: string, decision: 'done' | 'changes', note: string): string => {
-    const text = note.slice(0, 2000)
-    if (decision === 'changes') {
-      if (!text) throw new Error('It needs what to change after the colon.')
-      d.send('workflows')
-      return stepReply(workflows.runs().find((r) => r.id === runId)?.workflow?.steps.find((x) => x.id === step)?.name ?? step, 'changes', text)
-    }
-    const r = workflows.finishStep(runId, step)
-    d.send('workflows')
-    return stepFinished(r.name, r.next, text)
-  }
-
-  const finishGates = (agentId: string): Gate[] => {
-    const f = workflows.finishable(agentId)
-    if (!f) return []
-    return [{
-      label: `the step "${f.name}", which you started`,
-      code: codeOf(`finish:${f.run}:${f.step}`),
-      replies: [
-        { verb: 'done', usage: 'done CODE', does: 'mark it done, or `done CODE: a note`' },
-        { verb: 'changes', usage: 'changes CODE: what to change', does: 'send it back to the agent' }
-      ],
-      apply: (reply) => finish(f.run, f.step, reply.verb === 'done' ? 'done' : 'changes', reply.rest)
-    }]
-  }
-
   /** The decisions waiting on the person for this agent. */
-  const gatesFor = (agentId: string): Gate[] => [...planGates(agentId), ...stepGates(agentId), ...auditGates(agentId), ...pushGates(agentId), ...skipGates(agentId), ...refusedGates(agentId), ...finishGates(agentId)]
+  const gatesFor = (agentId: string): Gate[] => [...planGates(agentId), ...stepGates(agentId), ...auditGates(agentId), ...pushGates(agentId), ...skipGates(agentId), ...refusedGates(agentId)]
 
   return {
     decidePlan,
-    finish,
     gatesFor,
     /** Whether a prompt is, or looks like, a decision on one of this agent's waiting gates (the only prompts whose origin has to be shown). */
     touches: (agentId: string, prompt: string): boolean => d.isRemote(agentId) && touches(gatesFor(agentId), prompt),

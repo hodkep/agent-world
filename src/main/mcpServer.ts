@@ -88,7 +88,7 @@ interface Options {
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
-    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string; item?: number }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } }
+    stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string; item?: number }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } }
     /** The agent puts a step back to open (one it reported, or one the person refused, once it is the right time to ask again); says its name. */
     reopenStep: (callerId: string, step: string, why: string) => string
     /** The agent asks the person to skip steps that are not optional, with its reason; says their names. */

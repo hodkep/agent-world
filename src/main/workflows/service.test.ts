@@ -1081,6 +1081,13 @@ describe('reporting a step done', () => {
     expect(logged(wf)).toEqual(['a:done', 'b:done'])
   })
 
+  it('tells the agent a step the person finishes ends with their verdict, and then waits for it once it is reported', () => {
+    const VERIFY: RunWorkflow = { id: 'v', name: 'V', steps: [{ id: 'a', kind: 'work', name: 'First' }, { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve', brief: 'Give test prompts.' }, { id: 'c', kind: 'work', name: 'Commit', start: 'run' }] }
+    const { wf } = started(VERIFY)
+    expect(wf.stepDone('a1')).toMatchObject({ done: 'a', next: { id: 'verify', start: false, by: 'person', brief: 'Give test prompts.' } })
+    expect(wf.stepDone('a1', 'verify')).toMatchObject({ done: 'verify', waiting: 'Verify', next: { id: 'c', start: true } })
+  })
+
   it('refuses a step that does not exist, is not a work step, is already done, or a task with no steps to report', () => {
     const { wf } = started()
     expect(() => wf.stepDone('a1', 'nope')).toThrow('This workflow has no step "nope". Its steps: a, b, ok, land.')

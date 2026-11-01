@@ -86,24 +86,21 @@ async function setup(remote: boolean, withWorkflow = false) {
     return text(await client.callTool({ name: 'plan_submit', arguments: {} }))
   }
   const call = async (name: string, args: Record<string, unknown>) => text(await client.callTool({ name, arguments: args }))
-  // The agent ends its turn, so it is idle.
-  const stop = () => fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'content-type': 'application/json' }, body: JSON.stringify({ session_id: flag('--session-id'), cwd: ada.cwd, hook_event_name: 'Stop' }) })
   // Its chat is the one on screen. The window learns of an agent added by the API when it is drawn again.
   const showChat = async () => {
     await page.reload()
     await page.getByText('ada', { exact: true }).first().click()
     await page.getByRole('tab', { name: 'Chat' }).click()
   }
-  const idleInChat = async () => (await stop(), showChat())
   const planState = async () => (await page.evaluate(() => window.aw.workflows.summary())).runs[0]?.rounds.at(-1)?.plan?.state
-  return { page, shutdown, submit, reply, forge, planState, text, call, idleInChat, stop, showChat }
+  return { page, shutdown, submit, reply, forge, planState, text, call, showChat }
 }
 
 const REVIEWED = { version: 1, id: 'reviewed', name: 'Reviewed', when: 'Changes that need a second look.', steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' }, { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff.' }, { id: 'land', kind: 'merge' }] }
 
 const SKIPPY = { version: 1, id: 'skippy', name: 'Skippy', when: 'Changes with a step that may be skipped.', steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build', optional: true, brief: 'Make the change.' }, { id: 'ok', kind: 'approve', name: 'Your review', brief: 'Look at the diff.' }] }
 
-const VERIFYING = { version: 1, id: 'verifying', name: 'Verifying', when: 'Changes the person tries themselves.', steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' }, { id: 'verify', kind: 'work', name: 'Verify', start: 'run', brief: 'Try the change yourself.' }, { id: 'ship', kind: 'work', name: 'Ship', brief: 'Hand it over.' }] }
+const VERIFYING = { version: 1, id: 'verifying', name: 'Verifying', when: 'Changes the person tries themselves.', steps: [{ id: 'plan', kind: 'plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build', brief: 'Make the change.' }, { id: 'verify', kind: 'work', name: 'Verify', by: 'person', confirm: 'Tested, looks good', start: 'run', brief: 'Start a test instance and give the test prompts.' }, { id: 'ship', kind: 'work', name: 'Ship', start: 'run', brief: 'Hand it over.' }] }
 
 const PLAN = `## Goal
 Add a dark-mode toggle to Settings.
@@ -246,53 +243,52 @@ test('with remote control on, an agent\'s request to skip steps tells the person
   }
 })
 
-test('with remote control on, a step the person started with Run and the agent has nothing to do in is finished by typing done, or sent back by typing changes', async () => {
-  const t = await setup(true, true)
+test('a step the person finishes: the agent is told it ends with their verdict, then there is one card, with the step\'s own words, and nothing before it', async () => {
+  const t = await setup(false, true)
   try {
     await t.call('task_begin', { title: 'Try a change', workflow: 'verifying' })
     const told = await t.call('step_done', { step: 'build' })
-    const wait = /`approve ([a-z0-9]{3})`/.exec(told)?.[1]
-    expect(wait).toBeTruthy()
-    // Run is typed as approve; the agent is told straight away how the person finishes the step they started.
-    const started = await t.reply(`approve ${wait}`)
-    expect(started).toContain('start your step "Verify" now')
-    const code = /`done ([a-z0-9]{3})`/.exec(started)?.[1]
-    expect(code).toBeTruthy()
-    // The same step has its card in the chat, with the same two answers.
-    await t.idleInChat()
-    const card = t.page.getByRole('region', { name: 'Finish Verify for ada' })
+    // Its start on Run in the file is ignored: the person is not asked before it, and the agent is told what the step is.
+    expect(told).toContain('Next step: "Verify"; it ends with the person\'s verdict: do what it says, then call step_done and wait for their answer.')
+    expect(told).not.toContain('presses Run')
+    await t.showChat()
+    await expect(t.page.getByRole('button', { name: 'Run', exact: true })).toHaveCount(0)
+    // The agent gave its instructions and reports the step: now one card asks.
+    expect(await t.call('step_done', { step: 'verify' })).toContain('"Verify" now waits for the person')
+    const card = t.page.getByRole('region', { name: 'Step from ada' })
     await expect(card).toBeVisible({ timeout: 15_000 })
-    if (process.env.AW_SHOTS) await t.page.screenshot({ path: `${process.env.AW_SHOTS}/finish-card.png` })
-    expect(await t.reply(`changes ${code}`)).toContain('needs what to change')
-    expect(await t.reply(`changes ${code}: the tab is blank`)).toContain('sent back: the tab is blank')
-    const finished = await t.reply(`done ${code}: works now`)
-    expect(finished).toContain('The person finished your step "Verify": it is reported done.')
-    expect(finished).toContain('Next step: "Ship"')
-    expect(finished).toContain('They said: works now')
-    // Once finished the same words do nothing.
-    quiet(await t.reply(`done ${code}`))
+    await expect(t.page.locator('section.plan-gate')).toHaveCount(1)
+    await expect(card.locator('.pg-tag')).toHaveText('Your verdict')
+    await expect(card.getByRole('button', { name: 'Tested, looks good' })).toBeVisible()
+    if (process.env.AW_SHOTS) await t.page.screenshot({ path: `${process.env.AW_SHOTS}/verdict-card.png` })
+    await card.getByRole('button', { name: 'Tested, looks good' }).click()
+    // The next step is the agent's, asked once before it starts: its Run card, and when it is pressed no other card follows.
+    const run = t.page.getByRole('region', { name: 'Run Ship for ada' })
+    await expect(run).toBeVisible({ timeout: 15_000 })
+    await run.getByRole('button', { name: 'Run', exact: true }).click()
+    await expect(t.page.locator('section.plan-gate')).toHaveCount(0)
+    await t.page.waitForTimeout(2500)
+    await expect(t.page.locator('section.plan-gate')).toHaveCount(0)
   } finally {
     await t.shutdown()
   }
 })
 
-test('a step the person started and the agent has nothing to do in has a card in the chat: Needs changes asks for words, It works marks it done', async () => {
-  const t = await setup(false, true)
+test('with remote control on, a step the person finishes is answered by typing approve, or changes with what to change', async () => {
+  const t = await setup(true, true)
   try {
     await t.call('task_begin', { title: 'Try a change', workflow: 'verifying' })
     await t.call('step_done', { step: 'build' })
-    await t.showChat()
-    // Run is pressed on its card; the agent is told, answers, and ends its turn: then the step's own card appears.
-    await t.page.getByRole('button', { name: 'Run', exact: true }).click({ timeout: 15_000 })
-    const card = t.page.getByRole('region', { name: 'Finish Verify for ada' })
-    // The agent answers the message and ends its turn; only then is the step the person's to finish.
-    await expect.poll(async () => (await t.stop(), card.isVisible()), { timeout: 20_000 }).toBe(true)
-    await card.getByRole('button', { name: 'Needs changes' }).click()
-    await expect(card).toContainText('Say what to change')
-    await card.getByRole('button', { name: 'It works, mark done' }).click()
-    await expect(card).toHaveCount(0, { timeout: 15_000 })
-    const verify = async () => (await t.page.evaluate(() => window.aw.workflows.summary())).runs[0]?.rounds.at(-1)?.steps.find((l) => l.step === 'verify')?.state
-    expect(await verify()).toBe('done')
+    const told = await t.call('step_done', { step: 'verify' })
+    const code = /`approve ([a-z0-9]{3})`/.exec(told)?.[1]
+    expect(code).toBeTruthy()
+    expect(await t.reply(`changes ${code}`)).toContain('needs what to change')
+    expect(await t.reply(`changes ${code}: the tab is blank`)).toContain('sent back: the tab is blank')
+    // Sent back, it is the agent's again: it reports it once more and the person approves.
+    const again = await t.call('step_done', { step: 'verify' })
+    const code2 = /`approve ([a-z0-9]{3})`/.exec(again)?.[1]
+    expect(code2).toBeTruthy()
+    expect(await t.reply(`approve ${code2}`)).toContain('was approved')
   } finally {
     await t.shutdown()
   }
