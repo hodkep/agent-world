@@ -1,4 +1,10 @@
-import { type KeyboardEvent, type ReactNode, useRef } from 'react'
+import { type KeyboardEvent, type ReactNode, useLayoutEffect, useRef } from 'react'
+
+/** How far to move a panel sideways so it lies inside the window with `margin` to spare: left if it runs past the right edge, right if it starts before the left one. */
+export function shiftIntoWindow(left: number, right: number, width: number, margin = 12): number {
+  const shift = Math.min(0, width - margin - right)
+  return left + shift < margin ? margin - left : shift
+}
 
 /**
  * The panel under a switcher button: a title with how many there are (and a search box when there are many), a grid of tiles that scrolls
@@ -6,6 +12,22 @@ import { type KeyboardEvent, type ReactNode, useRef } from 'react'
  */
 export function QuickPanel({ label, title, count, search, onSearch, onSearchEnter, footer, actions, children, className = '' }: { actions?: ReactNode; label: string; title: string; count: number; search?: string; onSearch?: (text: string) => void; onSearchEnter?: () => void; footer?: ReactNode; children: ReactNode; className?: string }) {
   const grid = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  // Opened under a button far to the right the panel would run out of the window: it is moved over by what does, and its arrow stays under the button.
+  useLayoutEffect(() => {
+    const wrap = panel.current?.parentElement
+    if (!wrap || !panel.current) return
+    const fit = () => {
+      wrap.style.left = ''
+      const r = wrap.getBoundingClientRect()
+      const shift = shiftIntoWindow(r.left, r.right, window.innerWidth)
+      wrap.style.left = shift ? `${shift}px` : ''
+      panel.current?.style.setProperty('--shift', `${-shift}px`)
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
   const tiles = () => [...(grid.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])]
   const columns = () => (grid.current ? getComputedStyle(grid.current).gridTemplateColumns.split(' ').length || 1 : 1)
   const keys = (e: KeyboardEvent) => {
@@ -23,7 +45,7 @@ export function QuickPanel({ label, title, count, search, onSearch, onSearchEnte
     }
   }
   return (
-    <div className={`qp ${className}`} role="menu" aria-label={label} onKeyDown={keys}>
+    <div ref={panel} className={`qp ${className}`} role="menu" aria-label={label} onKeyDown={keys}>
       <div className="qh">
         <b>{title}</b>
         <span>{count}</span>
