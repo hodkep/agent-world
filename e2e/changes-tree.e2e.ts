@@ -48,7 +48,7 @@ test('changed files are a tree of folders by default, or one list with the file 
     // The list puts each file's name first, with its folder after it, and the choice is kept.
     await page.getByRole('button', { name: 'List', exact: true }).click()
     const row = page.locator('.change-list li', { hasText: 'ProposalService.java' })
-    expect(await row.locator('.file').evaluate((el) => el.firstElementChild!.nextElementSibling!.textContent)).toBe('ProposalService.java')
+    await expect(row.locator('.file .nm')).toHaveText('ProposalService.java')
     await expect(row.locator('.dir')).toHaveText('backend/src/main/java/proposal')
     if (process.env.AW_SHOTS) await page.locator('.change-list').screenshot({ path: `${process.env.AW_SHOTS}/changes-list.png` })
     await page.reload()

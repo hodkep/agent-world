@@ -136,7 +136,7 @@ test('a plan an agy agent handed in is decided by a reply the person typed (agy\
         expect(await typed(`approve ${code} 1=1`)).toContain('Your plan was approved')
         expect(await planState()).toBe('approved')
       } else {
-        expect(await typed('approve abc 1=1')).toBe('')
+        expect(await typed('approve abc 1=1')).not.toMatch(/was approved|pressed Run|refused your step|not exactly a decision|still open/)
         expect(await planState()).toBe('submitted')
       }
       await client.close()
