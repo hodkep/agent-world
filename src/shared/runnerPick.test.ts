@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LimitWindow } from './types'
-import { pickRunner, routeSpawn, runnerText, type CatalogModel, type Office } from './runnerPick'
+import { pickRunner, routeSpawn, runnerText, subagentHint, type CatalogModel, type Office } from './runnerPick'
 
 const haiku: CatalogModel = { model: 'claude-haiku-5-5', program: 'claude', cost: 0.05, score: 0.704, n: 2 }
 const sonnet: CatalogModel = { model: 'claude-sonnet-5-5', program: 'claude', cost: 0.88, score: 0.979, n: 2 }
@@ -142,5 +142,16 @@ describe('routeSpawn: what a subagent is started on', () => {
     const r = routeSpawn('auto', { kind: 'edit' }, [], office)
     expect(r).toMatchObject({ provider: 'claude' })
     expect(r.model).toBeUndefined()
+  })
+})
+
+describe('subagentHint: agents hand work to the office\'s own subagent tool', () => {
+  it('says nothing when routing is off', () => expect(subagentHint('off')).toBe(''))
+  it.each(['suggest', 'auto'] as const)('in %s mode points at the office tool, not the built-in one, and names no routing tool', (mode) => {
+    const t = subagentHint(mode)
+    expect(t).toMatch(/agent-world/)
+    expect(t).toMatch(/subagent/)
+    expect(t).toMatch(/not Claude's own/)
+    expect(t).not.toMatch(/pick_runner|rate_subagent/)
   })
 })

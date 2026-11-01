@@ -88,6 +88,12 @@ export function runnerText(p: Pick): string {
 }
 
 export type RunnerMode = 'off' | 'suggest' | 'auto'
+
+/** Claude's own subagent tool is always there and is the habit; without this the office's tool, where the model is picked and the work rated, is never reached. */
+export const subagentHint = (mode: RunnerMode): string =>
+  mode === 'off'
+    ? ''
+    : "When you hand part of the work to another agent (to read, edit or review), use the agent-world subagent tool, not Claude's own: the office chooses the model that fits the kind of work and learns from how the result turns out. Check what comes back, then say whether it was accepted or rejected."
 export interface Routed {
   provider: string
   /** The model, as its program names it. Left out when the program's own default should run. */
