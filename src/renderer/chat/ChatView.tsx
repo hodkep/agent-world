@@ -51,6 +51,7 @@ import { useClock } from './useClock'
 import { noteKey, noteSent } from './ticks'
 import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
+import { startClock } from '../clock'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
 const EAGER_MS = 8000
@@ -907,8 +908,7 @@ function ProcBar({ agentId }: { agentId: string }) {
   useEffect(() => {
     if (!open) return
     setNow(Date.now())
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
+    return startClock(() => setNow(Date.now()))
   }, [open])
   const wrap = useRef<HTMLDivElement>(null)
   useEffect(() => {

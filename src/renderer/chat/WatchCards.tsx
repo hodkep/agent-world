@@ -4,6 +4,7 @@ import { elapsedLabel } from './format'
 import type { ToolRun } from './ToolCard'
 import { inWords, monitorView, scheduleView } from './watch'
 import { type Armed, armedOf } from './watching'
+import { startClock } from '../clock'
 
 const s = (v: unknown) => (typeof v === 'string' ? v : '')
 
@@ -13,8 +14,7 @@ function useNow(live: boolean) {
   useEffect(() => {
     if (!live) return
     setNow(Date.now())
-    const t = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(t)
+    return startClock(() => setNow(Date.now()))
   }, [live])
   return now
 }
