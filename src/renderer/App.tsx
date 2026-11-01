@@ -1723,6 +1723,8 @@ export function App() {
             agents={agents.map((a) => { const act = world[a.id]?.activity ?? ''; const working = ['thinking', 'researching', 'implementing', 'running', 'delegating'].includes(act); return { id: a.id, name: a.name, working, state: act === 'asleep' ? 'asleep' as const : act === 'waiting' || act === 'permission' ? 'waiting' as const : working ? 'working' as const : 'idle' as const, role: world[a.id] ? roleOf(world[a.id]!) : 'senior' } })}
             selected={selected}
             marks={tileMarks}
+            asks={new Map(agents.flatMap((a) => { const w = askWord(a.id); return w ? [[a.id, w] as [string, string]] : [] }))}
+            onRead={(id) => markRead([id])}
             slim={railSlim}
             width={railW}
             terminalOpen={termOpen && !!folder}

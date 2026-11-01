@@ -406,7 +406,8 @@ export function ChatView({
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       const text = n.nodeValue!.toLowerCase()
       // Text inside a folded-away section cannot be looked at, so it is not a match.
-      if (!text.includes(q) || !n.parentElement?.checkVisibility()) continue
+      // The agent's name above a reply is a label, not something said: a yellow block on it hid its letters.
+      if (!text.includes(q) || !n.parentElement?.checkVisibility() || n.parentElement.closest('.who')) continue
       for (let i = text.indexOf(q); i >= 0; i = text.indexOf(q, i + q.length)) {
         const r = new Range()
         r.setStart(n, i)
@@ -424,7 +425,10 @@ export function ChatView({
   useEffect(() => {
     const r = at === null ? undefined : ranges.current[at]
     if (!r) return
-    CSS.highlights.set('find-current', new Highlight(r))
+    // The match looked at lies inside the highlight of every match; at the same priority the later of the two wins the text colour, so it needs a higher one.
+    const current = new Highlight(r)
+    current.priority = 1
+    CSS.highlights.set('find-current', current)
     stick.current = false
     r.startContainer.parentElement?.scrollIntoView({ block: 'center' })
     return () => void CSS.highlights.delete('find-current')

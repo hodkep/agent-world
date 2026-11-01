@@ -47,7 +47,7 @@
 html, body, #root { margin: 0; height: 100%; }
 ::selection { background: var(--accent); color: var(--ink); }
 /* The words being asked about, while the little box has the focus and the page's own selection is not drawn. */
-::highlight(ask-selection) { background-color: var(--accent); color: var(--ink); }
+::highlight(ask-selection) { background-color: #f2c230; color: #08070c; }
 * { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
 
 .app { display: flex; flex-direction: column; height: 100%; }
@@ -1449,8 +1449,9 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 @media (max-width: 640px) { .st-cards.three { grid-template-columns: 1fr; } }
 
 /* Chat search: every match is marked, the current one stands out. */
-::highlight(find) { background-color: rgb(248 208 76 / 0.35); color: inherit; }
-::highlight(find-current) { background-color: var(--accent); color: var(--ink); }
+::highlight(find) { background-color: rgb(248 208 76 / 0.35); }
+/* Literal colours: a highlight takes its text colour from where it is drawn, and on the accent-coloured agent name a var() that does not resolve there leaves yellow letters on a yellow block. */
+::highlight(find-current) { background-color: #f2c230; color: #08070c; }
 .chat-tools .chat-step { padding: 2px 8px; }
 /* The panel's generic `aside section` rule must not lay a day group out sideways. */
 .hx-list > section { display: block; padding: 0; border-bottom: 0; }
@@ -4571,7 +4572,7 @@ button.chip[aria-pressed='true'] { background: var(--accent); color: var(--ink);
 .memory li button { font-size: 11px; padding: 1px 8px; opacity: 0.6; }
 .memory li:hover button, .memory li button:focus-visible { opacity: 1; }
 .memory .hint.bad { color: var(--danger-text); }
-.who { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; color: var(--ink); background: var(--accent); }
+.memory .who { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 11px; font-weight: 700; color: var(--ink); background: var(--accent); }
 h5.day { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 h5.day::after { content: ''; flex: 1; border-top: 1px dashed var(--dim); }
 .memory label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
@@ -4597,3 +4598,13 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .tdrawer.side .tgrip::before { content: ''; position: absolute; left: 1px; top: 50%; width: 7px; height: 36px; transform: translateY(-50%); background: repeating-linear-gradient(to bottom, var(--hint) 0 2px, transparent 2px 6px); opacity: 0.7; }
 .tdrawer.side .tgrip:hover::after, .tdrawer.side .tgrip:focus-visible::after, .tdrawer.side .tgrip:active::after { background: var(--accent); }
 .tdrawer.side .tgrip:focus-visible { outline: none; }
+
+/* The agent list with the office hidden keeps what the open office shows: the word for what an agent asks or that it finished, and a tick that marks it read. */
+.office-rail .rail-cell { position: relative; display: flex; flex-direction: column; }
+.office-rail .rail-cell > .rail-agent { width: 100%; }
+.office-rail .rail-agent small.ask { color: var(--danger-text); }
+.office-rail .rail-agent small.done { color: var(--ok-text); }
+.office-rail .rail-read { position: absolute; right: 8px; bottom: 6px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; justify-content: center; background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--ink); color: var(--ok-text); }
+.office-rail .rail-read:hover { background: var(--ok-text); color: var(--ink); }
+.office-rail.slim:not(.peek) .rail-cell > .rail-agent { width: 44px; }
+.office-rail.slim:not(.peek) .rail-read { display: none; }
