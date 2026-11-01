@@ -12,8 +12,12 @@ import pkg from '../package.json'
 
 // The update of a build without a Developer ID, against a release server of the test's own (AW_UPDATE_RELEASES: honoured only by an app that is not installed)
 // and a fake app bundle to replace (AW_UPDATE_APP_PATH). A real replacement on a real Mac, with a real codesign and open, is tried by hand.
-const NEW = '0.9.0'
-const BETA = '0.9.1-beta.1'
+// The fixture's versions come from the app's own, so they are always after it: a stable one patch up, a beta two up, and a stable far above both.
+const [MAJOR, MINOR, PATCH] = pkg.version.split('.').map(Number) as [number, number, number]
+const at = (n: number) => `${MAJOR}.${MINOR}.${PATCH + n}`
+const NEW = at(1)
+const BETA = `${at(2)}-beta.1`
+const FAR = at(10)
 const plist = (version: string) => `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.agentworld.app</string><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`
 const bundle = (parent: string, name: string, version: string, marker: string) => {
   const b = join(parent, name)
@@ -93,21 +97,21 @@ test('an unsigned Mac build is offered the update, downloads it with progress, c
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    const chip = page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ })
-    await expect(chip).toHaveText('↑ 0.9.0')
+    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) })
+    await expect(chip).toHaveText(`↑ ${NEW}`)
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
-    await expect(pop).toContainText('Agent World 0.9.0 is available')
+    await expect(pop).toContainText(`Agent World ${NEW} is available`)
     await expect(pop).toContainText(`You have ${pkg.version}`)
     await pop.getByRole('button', { name: 'Download' }).click()
-    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
     await expect(pop).toContainText("Checksum matches the release's")
     // Settings shows the same state and the same buttons.
     await page.keyboard.press('Escape')
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: 'Updates' }).click()
-    await expect(settings.getByRole('group', { name: 'Update' })).toContainText('0.9.0 is ready to install')
+    await expect(settings.getByRole('group', { name: 'Update' })).toContainText(`${NEW} is ready to install`)
     await expect(settings.getByRole('button', { name: 'Install and restart' })).toBeVisible()
     const closed = w.electron.waitForEvent('close', { timeout: 60_000 })
     await settings.getByRole('button', { name: 'Install and restart' }).click()
@@ -145,7 +149,7 @@ test("Settings > Updates has a Beta row of its own: its Check finds the newest b
     await expect(beta).toContainText("Checksum matches the release's")
     // The stable row still looks on its own, and the beta download stays as it was.
     await stable.getByRole('button', { name: 'Check now' }).click()
-    await expect(stable).toContainText('0.9.0 is available')
+    await expect(stable).toContainText(`${NEW} is available`)
     await expect(stable.getByRole('button', { name: 'Download' })).toBeVisible()
     await expect(beta).toContainText(`${BETA} is ready to install`)
     await expect(beta.getByRole('button', { name: 'Install and restart' })).toBeVisible()
@@ -157,7 +161,7 @@ test("Settings > Updates has a Beta row of its own: its Check finds the newest b
 test("Settings > Updates on a beta: the stable row's Check offers the older stable as a way back, with a warning, and the top-bar chip stays quiet", async () => {
   test.skip(process.platform !== 'darwin', 'it downloads with the Mac installer code')
   test.setTimeout(120_000)
-  const w = await world({ version: '0.9.1-beta.1' })
+  const w = await world({ version: BETA })
   try {
     const { page } = w
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
@@ -187,7 +191,7 @@ test('Settings > Updates, any installed version: each row offers its own newest 
     return { stable: settings.locator('.upd-chan', { has: page.locator('.upd-tag.stable') }), beta: settings.locator('.upd-chan', { has: page.locator('.upd-tag.beta') }) }
   }
   // A stable newer than both the latest stable and the newest beta: both are older than it, and both can be taken.
-  const a = await world({ version: '0.9.5' })
+  const a = await world({ version: FAR })
   try {
     const { stable, beta } = await rows(a.page)
     await stable.getByRole('button', { name: 'Check now' }).click()
@@ -233,7 +237,7 @@ test('a download whose checksum is not the published one is dropped, and says so
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
     await expect(pop).toContainText('The download was not used', { timeout: 30_000 })
@@ -251,10 +255,10 @@ test('where the app cannot tell what to replace it keeps the download, says why,
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
-    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
     await pop.getByRole('button', { name: 'Install and restart' }).click()
     await expect(pop).toContainText('cannot be installed from here')
     await expect(pop.getByRole('alert')).toContainText('cannot tell where it is installed')
@@ -273,10 +277,10 @@ test("Updates shows the installed version and its What's new, the new version's 
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     // The release's own text, read before Download: cleaned (no script run, no picture, no javascript: link), with its good link kept.
-    const notes = pop.getByRole('region', { name: "What's new in 0.9.0" })
+    const notes = pop.getByRole('region', { name: `What's new in ${NEW}` })
     await expect(notes).toContainText('A fast thing')
     await shot(page, 'whatsnew-1-popover-notes')
     expect(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned)).toBeUndefined()
@@ -284,7 +288,7 @@ test("Updates shows the installed version and its What's new, the new version's 
     await expect(notes.locator('a[href^="javascript"]')).toHaveCount(0)
     await expect(notes.locator('a[href="https://example.com/x"]')).toHaveCount(1)
     await pop.getByRole('button', { name: 'Download' }).click()
-    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
     await page.keyboard.press('Escape')
 
     // Settings > Updates: the version installed, its notes from the changelog that came with the app, and Check now greyed with the reason.
@@ -295,7 +299,7 @@ test("Updates shows the installed version and its What's new, the new version's 
     const check = settings.getByRole('button', { name: 'Check now' })
     await expect(check).toBeDisabled()
     await shot(page, 'whatsnew-2-settings-updates')
-    await expect(check).toHaveAttribute('title', '0.9.0 is downloaded; restart to install it.')
+    await expect(check).toHaveAttribute('title', `${NEW} is downloaded; restart to install it.`)
     await settings.getByRole('button', { name: "What's new" }).click()
     const dialog = page.getByRole('dialog', { name: `What's new in ${pkg.version}` })
     await expect(dialog).toContainText(`What's new in ${pkg.version}`)
@@ -354,15 +358,15 @@ test('a build installed with Homebrew downloads the update and replaces itself l
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    const chip = page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ })
-    await expect(chip).toHaveText('↑ 0.9.0')
+    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) })
+    await expect(chip).toHaveText(`↑ ${NEW}`)
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await expect(pop).toContainText('Homebrew installed this copy')
     await expect(pop).toContainText('may still say')
     await expect(pop).not.toContainText('brew upgrade')
     await pop.getByRole('button', { name: 'Download' }).click()
-    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
     const closed = w.electron.waitForEvent('close', { timeout: 60_000 })
     await pop.getByRole('button', { name: 'Install and restart' }).click()
     await closed
@@ -381,10 +385,10 @@ test('with a mirror, the zip comes from it, the manifest from GitHub, and the up
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
-    await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+    await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
     await expect(pop).toContainText('Downloaded from the mirror')
     await expect(pop).toContainText("Checksum matches the release's")
     expect(w.hits).toEqual({ github: 0, mirror: 1 })
@@ -401,10 +405,10 @@ for (const mode of ['500', '404', 'wrong', 'stall'] as const) {
     try {
       const { page } = w
       await page.evaluate(() => window.aw.checkUpdates())
-      await page.getByRole('button', { name: /Agent World 0\.9\.0 is available/ }).click()
+      await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
       const pop = page.getByRole('dialog', { name: 'Agent World update' })
       await pop.getByRole('button', { name: 'Download' }).click()
-      await expect(pop).toContainText('0.9.0 is ready to install', { timeout: 30_000 })
+      await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
       await expect(pop).toContainText('Downloaded from GitHub, the mirror did not answer')
       await expect(pop).toContainText("Checksum matches the release's")
       expect(w.hits).toEqual({ github: 1, mirror: 1 })
