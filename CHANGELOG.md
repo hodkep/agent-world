@@ -4,6 +4,20 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-11-01
+
+### Added
+
+- Remote control: with it on, the agent lists the words to type for each pending decision (a request to skip steps and a refused step now have them too), a step you started can be marked done from a card or by typing `done CODE`, and Ask again after a refused step is a readable button.
+
+### Changed
+
+- Energy: the clocks stop ticking while the window is in the background, and the office stops drawing while the Grid view covers it.
+
+### Fixed
+
+- Updates: Check now in Settings > Updates still finds a new version when GitHub's rate limit is spent, by asking the download mirror, and says so.
+
 ## [0.9.3] - 2026-11-01
 
 ### Added
