@@ -28,7 +28,7 @@ export interface WorkflowDiff {
   commands: ReturnType<typeof commandDiff>
 }
 
-const FIELDS = ['kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'skills', 'run', 'retries', 'model'] as const
+const FIELDS = ['kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'by', 'confirm', 'reject', 'skills', 'run', 'retries', 'model'] as const
 const show = (v: unknown) => (v === undefined ? 'none' : Array.isArray(v) ? v.join(', ') : String(v))
 const LONG = 60
 
@@ -144,7 +144,7 @@ How to work
 - After workflow_propose works, say in a sentence or two what the draft does and what to say if they want it different. Do not paste the file into the chat: the person sees the draft beside it.
 
 The file is one JSON object: version (1), id (lowercase letters, digits and dashes), name, when, steps. Each step has an id (unique, same characters), a kind, and optionally name and gate.
-Every step may also have: "brief" (up to 600 characters: what the agent is told, what a reviewer looks at, or what the person reads), "start": "run" (on a plan, work, check, audit or pr step: nothing starts, and the agent edits nothing, until the person presses Run), "optional": true (on a work, check, audit or approve step: the agent may skip it itself, saying why, and the person can too), "skippable": true or false (on a work, check, audit, approve or pr step: only the person can skip it, and the agent has to ask; a step that starts on Run is skippable unless this says false) and "skills" (on a plan, work or pr step). Use start and optional only when the person asks for that.
+Every step may also have: "brief" (up to 600 characters: what the agent is told, what a reviewer looks at, or what the person reads), "start": "run" (on a plan, work, check, audit or pr step: nothing starts, and the agent edits nothing, until the person presses Run), "optional": true (on a work, check, audit or approve step: the agent may skip it itself, saying why, and the person can too), "skippable": true or false (on a work, check, audit, approve or pr step: only the person can skip it, and the agent has to ask; a step that starts on Run is skippable unless this says false) "by": "person" (on a work step: the person finishes it. The agent does what the brief says, for example starts a test instance and gives the test prompts, then reports the step, and the person answers once on one card; such a step is never asked about before it starts) with "confirm" and "reject" (up to 40 characters each: the words of the person's done and send-back buttons, only with by person) and "skills" (on a plan, work or pr step). Use start, optional and by only when the person asks for that.
 ${kinds}
 
 Example:
