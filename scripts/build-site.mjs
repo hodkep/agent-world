@@ -1,4 +1,4 @@
-// Builds the project site (hodkep.github.io/agent-world) from the repository's own Markdown: the user guide from docs/guide and
+// Builds the project site (agent-world.in) from the repository's own Markdown: the user guide from docs/guide and
 // the project documents under Documentation. Static files, no framework: `node scripts/build-site.mjs [outDir]` (default site-dist).
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Marked } from 'marked'
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id'
 
-export const SITE = 'https://hodkep.github.io/agent-world/'
+export const SITE = 'https://agent-world.in/'
 const GITHUB = 'https://github.com/hodkep/agent-world'
 const IMAGE = /\.(png|gif|svg|jpe?g|webp)$/i
 

@@ -9,7 +9,7 @@
   <img alt="Node 22 or newer" src="https://img.shields.io/badge/node-22%2B-f2c230?style=flat-square&labelColor=12101a">
 </p>
 
-<p align="center"><a href="https://hodkep.github.io/agent-world/">Website</a> · <a href="https://hodkep.github.io/agent-world/docs/getting-started/">User guide</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="../../releases/latest">Latest release</a></p>
+<p align="center"><a href="https://agent-world.in/">Website</a> · <a href="https://agent-world.in/docs/getting-started/">User guide</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="../../releases/latest">Latest release</a></p>
 
 <p align="center"><b>Run and steer your coding agents from one place, shown as characters working in a pixel-art IT office.</b></p>
 
