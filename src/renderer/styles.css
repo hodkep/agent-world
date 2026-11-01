@@ -3540,7 +3540,7 @@ svg.pxg { display: block; flex: none; }
 /* The padding above the panel is part of it for the pointer, so crossing from the button to the tiles never leaves the menu. */
 .qp-wrap { position: absolute; top: 100%; left: 0; z-index: 40; padding-top: 8px; max-width: calc(100vw - 24px); }
 .qp { position: relative; width: min(456px, calc(100vw - 24px)); max-height: min(60vh, 560px); display: flex; flex-direction: column; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line), 0 18px 36px rgb(0 0 0 / 0.55); animation: qp-in 0.12s steps(4); }
-.qp::before { content: ''; position: absolute; left: 30px; top: -8px; width: 12px; height: 12px; background: var(--panel); border-left: 2px solid var(--ink); border-top: 2px solid var(--ink); transform: rotate(45deg); }
+.qp::before { content: ''; position: absolute; left: calc(30px + var(--shift, 0px)); top: -8px; width: 12px; height: 12px; background: var(--panel); border-left: 2px solid var(--ink); border-top: 2px solid var(--ink); transform: rotate(45deg); }
 @keyframes qp-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .qp { animation: none; } }
 .qh { display: flex; align-items: center; gap: 8px; padding: 9px 12px 4px; flex: none; }
