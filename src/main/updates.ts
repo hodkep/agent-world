@@ -55,7 +55,8 @@ export const installUpdate = (channel: UpdateChannel = 'stable') => installers[c
 export const updateState = (): UpdateState => current
 let started = false
 
-const getRelease = (url: string) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' } })
+// The mirror's file stays on the origin the build names: a redirect from it is refused. GitHub's own answers follow redirects as before.
+const getRelease = (url: string) => fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agent-world' }, redirect: url.endsWith('/latest/latest-mac.yml') ? 'error' : 'follow' })
 
 function installerFor(repo: NonNullable<ReturnType<typeof buildInfo>['repo']>, origins: ReturnType<typeof releaseOrigins>, onState: (i: InstallState) => void, any = false, named: string | null = null) {
   return createInstaller({
@@ -125,7 +126,7 @@ export async function checkForUpdates(onState: (s: UpdateState) => void, channel
   if (updateMode({ packaged: app.isPackaged || origins.testing, platform: origins.testing ? 'darwin' : process.platform, signed: info.signed }) === 'tell') {
     if (!info.repo) return set({ state: 'off', detail: 'This build does not say where its releases are.' })
     set({ state: 'checking' })
-    const found = await latestRelease(runningVersion(), info.repo, getRelease, origins, { all: manual })
+    const found = await latestRelease(runningVersion(), info.repo, getRelease, origins, { all: manual, mirror: mirrorFor(info.mirror, origins)?.base })
     if (found.state !== 'available' || !found.latest) return set(found)
     // A copy Homebrew installed is updated here like any other; the state says so, so the person is told Homebrew's record of the version may lag.
     const casks = origins.testing ? [process.env.AW_UPDATE_CASKROOM ?? ''].filter(Boolean) : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']

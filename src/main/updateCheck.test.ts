@@ -206,3 +206,57 @@ describe('the newest beta, whatever version is installed', () => {
     expect(await latestBeta('0.6.2', repo, async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com') })).toEqual({ state: 'error', detail: 'Could not reach GitHub: getaddrinfo ENOTFOUND api.github.com' })
   })
 })
+
+describe('when GitHub says its limit is spent', () => {
+  const repo = { owner: 'hodkep', repo: 'agent-world' }
+  const mirror = 'https://pub-1.r2.dev'
+  const yml = (v: string) => `version: ${v}\nfiles:\n  - url: Agent-World-${v}-arm64.zip\n    sha512: abc\n    size: 1\n`
+  const limited = { ok: false, status: 403, headers: { get: (n: string) => (n.toLowerCase() === 'x-ratelimit-remaining' ? '0' : null) }, json: async () => ({}) }
+  /** GitHub answers `gh`; the mirror's file answers `file` (or fails). */
+  const world = (gh: object, file: string | Error = yml('0.9.3')) => {
+    const asked: string[] = []
+    const get = async (url: string) => {
+      asked.push(url)
+      if (url.startsWith(mirror)) {
+        if (file instanceof Error) throw file
+        return { ok: true, status: 200, json: async () => ({}), text: async () => file }
+      }
+      return { json: async () => ({}), ...gh } as never
+    }
+    return { get, asked }
+  }
+
+  it('takes the version from the mirror, offers it when newer, and says in the row that the mirror answered', async () => {
+    const { get, asked } = world(limited)
+    expect(await latestRelease('0.9.2', repo, get, undefined, { mirror })).toEqual({
+      state: 'available',
+      detail: "0.9.3 is available (the mirror answered: GitHub's limit is spent).",
+      latest: '0.9.3',
+      url: 'https://github.com/hodkep/agent-world/releases/tag/v0.9.3'
+    })
+    expect(asked).toEqual(['https://api.github.com/repos/hodkep/agent-world/releases/latest', `${mirror}/latest/latest-mac.yml`])
+  })
+  it('does the same for a 429, and offers nothing when the mirror has no newer version', async () => {
+    const r429 = { ok: false, status: 429, json: async () => ({}) }
+    expect(await latestRelease('0.9.2', repo, world(r429).get, undefined, { mirror })).toMatchObject({ state: 'available', latest: '0.9.3' })
+    expect(await latestRelease('0.9.3', repo, world(limited).get, undefined, { mirror })).toEqual({ state: 'none' })
+  })
+  it('says "You have it" for a look the person asked for, with the mirror noted', async () => {
+    expect(await latestRelease('0.9.3', repo, world(limited).get, undefined, { mirror, all: true })).toMatchObject({ state: 'none', rel: 'same', detail: "You have 0.9.3 (the mirror answered: GitHub's limit is spent)." })
+  })
+  it('keeps the old line for every other failure: a 403 that is not the limit, a 500, no mirror, a mirror that fails or says nonsense', async () => {
+    const plain403 = { ok: false, status: 403, headers: { get: () => '12' }, json: async () => ({}) }
+    expect(await latestRelease('0.9.2', repo, world(plain403).get, undefined, { mirror })).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+    expect(await latestRelease('0.9.2', repo, world({ ok: false, status: 500 }).get, undefined, { mirror })).toEqual({ state: 'error', detail: 'GitHub did not answer (500).' })
+    const none = world(limited)
+    expect(await latestRelease('0.9.2', repo, none.get)).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+    expect(none.asked).toHaveLength(1)
+    expect(await latestRelease('0.9.2', repo, world(limited, new Error('offline')).get, undefined, { mirror })).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+    for (const bad of ['', 'files: []', 'version: nightly', 'version: ../../x']) expect(await latestRelease('0.9.2', repo, world(limited, bad).get, undefined, { mirror })).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+  })
+  it('is for the stable look only: the beta check keeps its line', async () => {
+    const { get, asked } = world(limited)
+    expect(await latestBeta('0.9.2', repo, get)).toEqual({ state: 'error', detail: 'GitHub did not answer (403).' })
+    expect(asked).toHaveLength(1)
+  })
+})
