@@ -37,7 +37,14 @@ export function RunTrack({ track, seed, agentName, variant = 'full', landing, on
             {landing.text}
           </button>
         ) : (
-          said && <span className="pill" role="status" title={said}>{said}{track.again && <button className="su-link" onClick={() => void window.aw.workflows.askAgain(track.run, track.again!)}>Ask again</button>}</span>
+          track.again ? (
+            <>
+              <span className="pill refused" role="status" title={said}>Refused</span>
+              <button className="rt-again" onClick={() => void window.aw.workflows.askAgain(track.run, track.again!)}>Ask again</button>
+            </>
+          ) : (
+            said && <span className="pill" role="status" title={said}>{said}</span>
+          )
         )}
       </div>
     )

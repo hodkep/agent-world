@@ -3268,6 +3268,9 @@ svg.pxg { display: block; flex: none; }
 .bar-st .nm { font-size: 11px; color: var(--text); font-weight: 700; }
 .bar-st .st:not(.now) .nm { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .run-track.bar .pill { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--paper); color: var(--ink); font-size: 11px; font-weight: 700; padding: 1px 8px; box-shadow: 0 0 0 2px var(--ink); }
+.run-track.bar .pill.refused { flex: none; background: var(--danger-well); color: var(--danger-text); padding: 3px 8px; }
+.run-track.bar .rt-again { flex: none; background: var(--panel-3); color: var(--accent); border: 0; box-shadow: 0 0 0 2px var(--accent); font: 700 11px/1 ui-sans-serif, system-ui, sans-serif; padding: 4px 10px; white-space: nowrap; cursor: pointer; }
+.run-track.bar .rt-again:hover { background: var(--accent-dim); color: var(--text); }
 /* ---- The fold: a row for each area (workflow, todos, library, notes), each opening to a line for each call ---- */
 .of-area { --hue: var(--muted); }
 .of-appearance { --hue: var(--look); } .of-workflow { --hue: var(--accent); } .of-todos { --hue: var(--ok-text); } .of-library { --hue: var(--think); } .of-notes { --hue: var(--claude); }
