@@ -39,8 +39,10 @@ for d in $(rclone lsf "$BUCKET" --dirs-only | sed 's#/$##'); do
   [ "$(printf '%s\n%s\n' "${v%%-*}" "${VER%%-*}" | sort -V | head -1)" = "${v%%-*}" ] || continue
   echo "removing old mirror folder $d"; rclone purge "$BUCKET/$d" "${FLAGS[@]}"
 done
-# The newest stable's dmgs also sit at fixed addresses (latest/Agent-World-arm64.dmg, latest/Agent-World-x64.dmg) that the README, the install page and the site link to.
+# The newest stable's dmgs also sit at fixed addresses (latest/Agent-World-arm64.dmg, latest/Agent-World-x64.dmg, and latest/latest-mac.yml for the update check) that the README, the install page and the site link to.
 if [ "$(kind "$VER")" = stable ]; then
   for a in arm64 x64; do rclone copyto "$BUCKET/v$VER/Agent-World-$VER-$a.dmg" "$BUCKET/latest/Agent-World-$a.dmg" "${FLAGS[@]}"; done
+  # And its latest-mac.yml, at a fixed address too: an app that GitHub will not answer (its unauthenticated limit is spent) reads the newest version from it.
+  rclone copyto "$BUCKET/v$VER/latest-mac.yml" "$BUCKET/latest/latest-mac.yml" "${FLAGS[@]}"
 fi
 echo "MIRROR-DONE $BASE/v$VER/Agent-World-$VER-arm64.dmg"

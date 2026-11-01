@@ -8,6 +8,7 @@ A release is a tag. Pushing a tag that starts with `v` builds the Mac installers
 2. Tag and push: `git tag v0.2.0 && git push origin main v0.2.0`. The tag must be the version with a `v` in front (`v0.1.0` for 0.1.0).
 3. The workflow waits for the owner to approve the run (the `release` environment, which is where the signing secrets live), then runs the type check and the unit tests, builds, and uploads:
    - macOS: `Agent-World-<version>-arm64.dmg` and `-x64.dmg` to install from, the matching `.zip` files and `latest-mac.yml` for the updater.
+   - The mirror (R2) keeps the newest stable's files at fixed addresses in `latest/`: the two dmgs and `latest-mac.yml`. `scripts/mirror-release.sh` refreshes all three for a stable release. The app reads `latest/latest-mac.yml` for the version when GitHub's API says its unauthenticated limit is spent (403 with `x-ratelimit-remaining: 0`, or 429), and says so in Settings > Updates.
 4. The release is created as a **draft**. When the upload has finished, open it on GitHub and press **Publish release**. The updater only sees published releases, so nobody is offered a half-uploaded one.
 
 ## Pictures in the release notes
