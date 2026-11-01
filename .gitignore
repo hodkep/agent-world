@@ -16,3 +16,6 @@ pilot-*report.txt
 coverage/
 build/git/
 site-dist
+
+# Screenshots and logs the Playwright MCP writes while an agent drives the app
+.playwright-mcp/
