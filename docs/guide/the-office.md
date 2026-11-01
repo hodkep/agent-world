@@ -110,8 +110,6 @@ The liquid is what is left. It turns amber once 70% is used and red once 90% is 
 
 Select an agent with Ctrl+Tab (Shift+Ctrl+Tab goes back), then Tab to **Allow**, **Deny** or **Wake**. Cmd+/ lists all shortcuts.
 
-<img src="../images/shortcuts.png" alt="The Shortcuts sheet, every key listed by where it works" width="720">
-
 Hold Ctrl and press Tab again to see a bar of the agents in the order the **Agents** panel lists them (the latest first); each Tab steps on, Shift+Tab steps back, and letting go of Ctrl switches. Esc stays where you are, and a single tap switches at once with no bar. Shift+Cmd+[ and ] (Shift+Ctrl+[ and ] elsewhere) do the same for the projects, in the order of the project panel.
 
 Cmd+Alt+1 to 9 (Ctrl+Alt+1 to 9 elsewhere) go to the first to ninth tab of the side panel, counting the tabs you see: Chat, Terminal, Code and so on.

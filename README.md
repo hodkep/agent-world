@@ -100,15 +100,9 @@ Each agent works on its own branch (`aw/<name>`) in its own git worktree, and th
 
 A run is drawn as a flow diagram in the agent's **Workflow** tab, each step a card with where it stands.
 
-<img src="docs/images/workflow-tab.png" alt="The Workflow tab: a run as a flow, with the card that waits for you" width="720">
-
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
 A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
-
-<img src="docs/images/runs.png" alt="The Runs tab: two charts and a ledger of runs grouped by outcome" width="720">
-
-<img src="docs/images/workflow-builder.png" alt="The builder&#x27;s draft as a flow of steps, edited in place before it is saved" width="720">
 
 ### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Library and playbook
 
@@ -161,8 +155,6 @@ A drawer of your own shells under the office, starting in the project's folder. 
 ### <img src="docs/images/icons/shortcuts.svg" width="24" height="24" alt=""> Shortcuts
 
 Cmd+/ lists every key: stepping between agents and projects, the tabs of the side panel, Notes, the terminals and more.
-
-<img src="docs/images/shortcuts.png" alt="The Shortcuts sheet" width="720">
 
 ### <img src="docs/images/icons/agents.svg" width="24" height="24" alt=""> Antigravity beside Claude
 
