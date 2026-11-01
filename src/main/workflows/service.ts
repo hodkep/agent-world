@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded, refusedAsk, finishable } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -337,6 +337,34 @@ export class Workflows {
     const round = run.rounds[run.rounds.length - 1]!
     this.append({ k: 'skipask', t: this.deps.now(), run: run.id, round: round.n, steps: ordered.map((s) => s.id), why: reason })
     return ordered.map((s) => s.name)
+  }
+
+  /** The step of the agent's latest run that the person started with Run and the agent has left running: only they can finish it. */
+  finishable(agentId: string): { run: string; step: string; name: string } | null {
+    const found = finishable(this.runs().filter((r) => r.agent === agentId), (r) => ({ auditOn: this.deps.dial() !== 'economy', approved: r.workflow ? this.deps.approved(r.workflow) : true })).at(-1)
+    return found ? { run: found.run.id, step: found.step.id, name: found.step.name } : null
+  }
+
+  /** The person marks a step of theirs done: it is reported for the agent, as if the agent had called step_done. */
+  finishStep(runId: string, step: string) {
+    const run = this.runs().find((r) => r.id === runId)
+    const found = run && this.finishable(run.agent)
+    if (!run || !found || found.step !== step) throw new Error('That step is not waiting for you to finish it.')
+    return { name: found.name, next: this.stepDone(run.agent, step).next }
+  }
+
+  /** The agent's open question to skip steps, with the names of those steps, or null. */
+  skipAsked(agentId: string): { run: string; names: string[]; why: string } | null {
+    const run = this.mine(agentId)[0]
+    const ask = run?.skipAsk
+    return run && ask ? { run: run.id, names: ask.steps.map((id) => run.workflow?.steps.find((s) => s.id === id)?.name ?? id), why: ask.why } : null
+  }
+
+  /** The step of the agent's latest run that the person refused and has not said what to do about, or null; a pending question to skip comes first. */
+  refusedFor(agentId: string): { run: string; ask: NonNullable<ReturnType<typeof refusedAsk>> } | null {
+    const run = this.mine(agentId)[0]
+    const ask = run && !run.skipAsk ? refusedAsk(run, { auditOn: this.deps.dial() !== 'economy', approved: run.workflow ? this.deps.approved(run.workflow) : true }) : undefined
+    return run && ask ? { run: run.id, ask } : null
   }
 
   /** The person's answer to the question to skip: yes marks every step skipped with the reason, no leaves them as they were. */

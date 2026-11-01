@@ -1,29 +1,28 @@
 import { type Reply, mentionedCode, parseReply } from '../shared/remoteReply'
 
-export type GateKind = 'plan' | 'step' | 'audit' | 'push'
+/** One word a person may type for a waiting decision: `usage` and `does` say CODE where the decision's code goes. */
+export interface Way {
+  verb: string
+  usage: string
+  does: string
+}
 
-/** A decision waiting on the person for one agent, as the office keeps it: what it is called by (the code) and what a word does to it. */
+/** A decision waiting on the person for one agent, as the office keeps it: what it is called by (the code), the words that answer it, and what each does. */
 export interface Gate {
-  kind: GateKind
+  /** What waits, in a few words ("the plan"): the agent says it to the person. */
+  label: string
   code: string
+  replies: Way[]
   /** Does what the card's button does, and returns what the agent is told. Throws a sentence when the answer cannot be taken (a question still open). */
   apply: (reply: Reply) => string
 }
 
-const WORDS: Record<GateKind, string[]> = { plan: ['approve', 'changes', 'release'], step: ['approve', 'changes'], audit: ['seen', 'plan', 'aside'], push: ['allow', 'decline'] }
+const verbsOf = (gates: Gate[]) => [...new Set(gates.flatMap((g) => g.replies.map((r) => r.verb)))]
 
-/** The words the agent tells the person to type for a waiting decision. */
-export function howToReply(kind: GateKind, code: string): string {
-  switch (kind) {
-    case 'plan':
-      return `reply \`approve ${code}\` (or \`approve ${code} 1=2, 2=words\` to answer its questions), \`changes ${code}: what to change\`, or \`release ${code}\``
-    case 'step':
-      return `reply \`approve ${code}\` or \`changes ${code}: what to change\``
-    case 'audit':
-      return `reply \`seen ${code}\` (or \`seen ${code} 1,3\`), \`plan ${code} 2\` to add an out-of-scope finding to the plan, or \`aside ${code}\``
-    case 'push':
-      return `reply \`allow ${code}\` or \`decline ${code}\``
-  }
+/** The words the agent tells the person to type for a waiting decision, read from the gate. */
+export function howToReply(gate: Gate): string {
+  const ways = gate.replies.map((r) => `\`${r.usage.replaceAll('CODE', gate.code)}\` (${r.does.replaceAll('CODE', gate.code)})`)
+  return `reply ${ways.length > 1 ? `${ways.slice(0, -1).join(', ')} or ${ways.at(-1)}` : ways[0]}`
 }
 
 /**
@@ -32,10 +31,10 @@ export function howToReply(kind: GateKind, code: string): string {
  */
 export function resolveReply(gates: Gate[], prompt: string): string | null {
   if (!gates.length) return null
-  const reply = parseReply(prompt)
+  const reply = parseReply(prompt, verbsOf(gates))
   const gate = reply && gates.find((g) => g.code === reply.code)
   if (reply && gate) {
-    if (!WORDS[gate.kind].includes(reply.verb)) return `The person replied \`${prompt.trim()}\`, but this decision does not take "${reply.verb}". Tell them to ${howToReply(gate.kind, gate.code)}.`
+    if (!gate.replies.some((r) => r.verb === reply.verb)) return `The person replied \`${prompt.trim()}\`, but this decision does not take "${reply.verb}". Tell them to ${howToReply(gate)}.`
     try {
       return `The person replied \`${prompt.trim()}\`. ${gate.apply(reply)}`
     } catch (err) {
@@ -45,21 +44,19 @@ export function resolveReply(gates: Gate[], prompt: string): string | null {
   if (reply) return null
   const code = mentionedCode(prompt, gates.map((g) => g.code))
   const named = gates.find((g) => g.code === code)
-  return named ? `The person's message names the waiting decision ${named.code}, but it is not exactly a decision, so nothing was decided. Please tell the person to ${howToReply(named.kind, named.code)}.` : null
+  return named ? `The person's message names the waiting decision ${named.code}, but it is not exactly a decision, so nothing was decided. Please tell the person to ${howToReply(named)}.` : null
 }
-
-const LABEL: Record<GateKind, string> = { plan: 'the plan', step: 'the step waiting for approval', audit: 'the audit findings', push: 'the held push' }
 
 /** The sentence added to what the agent is told when a gate waits and the agent can be reached from a phone: say what waits, and how to answer. */
 export function remoteHint(gates: Gate[]): string {
   if (!gates.length) return ''
-  return `\n\nThis agent is under remote control, so the person may be on a phone: tell them in the conversation what is waiting. ${gates.map((g) => `For ${LABEL[g.kind]}: ${howToReply(g.kind, g.code)}.`).join(' ')}`
+  return `\n\nThis agent is under remote control, so the person may be on a phone: tell them in the conversation what is waiting, and ask them to type one of the replies below exactly as written. ${gates.map((g) => `For ${g.label}: ${howToReply(g)}.`).join(' ')}`
 }
 
 /** Is this message a decision on a waiting gate, or does it use a waiting code: the only messages whose origin matters. */
 export function touches(gates: Gate[], prompt: string): boolean {
   if (!gates.length) return false
-  const reply = parseReply(prompt)
+  const reply = parseReply(prompt, verbsOf(gates))
   if (reply) return gates.some((g) => g.code === reply.code)
   return mentionedCode(prompt, gates.map((g) => g.code)) !== null
 }

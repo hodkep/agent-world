@@ -248,6 +248,17 @@ export function toRunSteps(runs: Run[], ctxFor: (run: Run) => StepContext): { ru
   })
 }
 
+/** The steps the person started with Run that are still running (the agent has not reported them): a step that is theirs to do, which only they can finish. A stopped run's never. */
+export function finishable(runs: Run[], ctxFor: (run: Run) => StepContext): { run: Run; step: RunStep }[] {
+  return runs.flatMap((run) => {
+    const round = run.rounds.at(-1)
+    if (run.status === 'stopped' || !run.workflow || !round) return []
+    return stepStates(run, ctxFor(run))
+      .filter((s) => s.state === 'running' && s.kind === 'work')
+      .flatMap((s) => run.workflow!.steps.filter((x) => x.id === s.id && x.start === 'run' && started(round, x.id)).map((step) => ({ run, step })))
+  })
+}
+
 /** What the person wrote with their answer, said after the office's own sentence: left out when it is empty, and cut at 500 characters. */
 export const said = (text: string, note?: string): string => {
   const n = (note ?? '').trim().slice(0, 500)
@@ -270,8 +281,11 @@ export const stepSkippedOnward = (name: string, next?: string, note?: string) =>
 export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }) =>
   n ? ` Next step: "${n.name}"${n.optional ? ' (optional: do it unless it clearly does not apply; to leave it out, call step_done("${n.id}", skipped, "<why>") first, never just move on)' : ''}${n.start ? '; it starts when the person presses Run, so change nothing until you are told' : ''}.${n.brief ? ` It is for: ${n.brief}` : ''}` : ' That was the last step.'
 
+/** What the agent is told when the person marks a step of theirs done: it is reported for the agent, with what follows. */
+export const stepFinished = (name: string, next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string }, note?: string) => said(`The person finished your step "${name}": it is reported done.${nextStepLine(next)}`, note)
+
 /** What the agent is told when the person presses Run on one of its steps. */
-export const stepStarted = (name: string, note?: string) => said(`The person pressed Run: start your step "${name}" now.`, note)
+export const stepStarted = (name: string, note?: string) => said(`The person pressed Run: start your step "${name}" now. If nothing in it is for you to do (it is theirs, like trying the change), tell them in the chat, once, that they mark it done on their card; do not report it yourself.`, note)
 
 
 const list = (names: string[]) => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)

@@ -8,9 +8,6 @@ export interface Reply {
   rest: string
 }
 
-const VERBS = ['approve', 'changes', 'release', 'seen', 'plan', 'aside', 'allow', 'decline']
-const REPLY = new RegExp(`^\\s*(${VERBS.join('|')})\\s+([a-z0-9]{3})(?![a-z0-9])\\s*(?::\\s*|\\s+)?([\\s\\S]*?)\\s*$`, 'i')
-
 /** Three characters from a hash of what is waiting, so the same decision has the same code after a restart and no list is kept. */
 export function codeOf(key: string): string {
   let h = 0x811c9dc5
@@ -18,9 +15,10 @@ export function codeOf(key: string): string {
   return (h >>> 0).toString(36).padStart(3, '0').slice(-3)
 }
 
-/** The decision a message is, or null when it is anything else. */
-export function parseReply(text: string): Reply | null {
-  const m = REPLY.exec(text)
+/** The decision a message is, or null when it is anything else. The verbs are the words the waiting decisions list; no others count. */
+export function parseReply(text: string, verbs: string[]): Reply | null {
+  if (!verbs.length) return null
+  const m = new RegExp(`^\\s*(${verbs.join('|')})\\s+([a-z0-9]{3})(?![a-z0-9])\\s*(?::\\s*|\\s+)?([\\s\\S]*?)\\s*$`, 'i').exec(text)
   return m ? { verb: m[1]!.toLowerCase(), code: m[2]!.toLowerCase(), rest: m[3] ?? '' } : null
 }
 
