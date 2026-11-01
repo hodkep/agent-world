@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded, refusedAsk, finishable } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded, refusedAsk } from '../../shared/steps'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -339,20 +339,6 @@ export class Workflows {
     return ordered.map((s) => s.name)
   }
 
-  /** The step of the agent's latest run that the person started with Run and the agent has left running: only they can finish it. */
-  finishable(agentId: string): { run: string; step: string; name: string } | null {
-    const found = finishable(this.runs().filter((r) => r.agent === agentId), (r) => ({ auditOn: this.deps.dial() !== 'economy', approved: r.workflow ? this.deps.approved(r.workflow) : true })).at(-1)
-    return found ? { run: found.run.id, step: found.step.id, name: found.step.name } : null
-  }
-
-  /** The person marks a step of theirs done: it is reported for the agent, as if the agent had called step_done. */
-  finishStep(runId: string, step: string) {
-    const run = this.runs().find((r) => r.id === runId)
-    const found = run && this.finishable(run.agent)
-    if (!run || !found || found.step !== step) throw new Error('That step is not waiting for you to finish it.')
-    return { name: found.name, next: this.stepDone(run.agent, step).next }
-  }
-
   /** The agent's open question to skip steps, with the names of those steps, or null. */
   skipAsked(agentId: string): { run: string; names: string[]; why: string } | null {
     const run = this.mine(agentId)[0]
@@ -464,10 +450,11 @@ export class Workflows {
   }
 
   /** The step after `id` in the run's workflow, for the agent to be told what comes next (its name, whether it may be skipped, and what it is for). */
-  nextAfter(run: Run, id: string): { id: string; name: string; optional: boolean; start: boolean; brief?: string } | undefined {
+  nextAfter(run: Run, id: string): { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } | undefined {
     const steps = run.workflow?.steps ?? []
     const n = steps[steps.findIndex((s) => s.id === id) + 1]
-    return n && { id: n.id, name: n.name, optional: !!n.optional, start: n.start === 'run' || n.gate === 'approve', ...(n.brief && { brief: n.brief }) }
+    // A step the person finishes is not waited on before it starts: its gate is their answer after the agent reports it.
+    return n && { id: n.id, name: n.name, optional: !!n.optional, start: n.start === 'run' || (n.gate === 'approve' && n.by !== 'person'), ...(n.by === 'person' && { by: 'person' as const }), ...(n.brief && { brief: n.brief }) }
   }
 
   /** The person passes a check over: it does not hold landing. */
@@ -578,7 +565,7 @@ export class Workflows {
    * The agent says a step it does is done: the one named, or the first still open. After the person sent the work back, saying so again
    * reports the last work step done once more. Says which step now waits for the person, if one does.
    */
-  stepDone(agentId: string, step?: string, o: { skipped?: boolean; why?: string; item?: number } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean; next?: { id: string; name: string; optional: boolean; start: boolean; brief?: string } } {
+  stepDone(agentId: string, step?: string, o: { skipped?: boolean; why?: string; item?: number } = {}): { done: string; waiting?: string; checking?: boolean; skipped?: boolean; next?: { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } } {
     // An agent may close the task in the same turn that its check fails, before it is told: reporting the fix then opens the task again.
     const closed = this.mine(agentId)[0]
     if (!this.openRun(agentId) && closed?.status === 'done' && this.states(closed).some((s) => s.kind === 'check' && s.state === 'running' && !!s.tries)) this.append({ k: 'reopen', t: this.deps.now(), run: closed.id })

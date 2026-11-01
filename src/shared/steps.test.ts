@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, finishable, needsApproval, readyForAudit, stepFinished, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
+import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, nextStepLine, readyForAudit, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -486,28 +486,40 @@ describe('a plan or a build that starts when the person presses Run', () => {
     expect(of([begin(STANDARD)])).toEqual(['plan:running', 'build:pending', 'review:skipped', 'land:pending'])
   })
   it('says what the agent is told when the person presses Run', () => {
-    expect(stepStarted('Generate plan')).toBe('The person pressed Run: start your step "Generate plan" now. If nothing in it is for you to do (it is theirs, like trying the change), tell them in the chat, once, that they mark it done on their card; do not report it yourself.')
+    expect(stepStarted('Generate plan')).toBe('The person pressed Run: start your step "Generate plan" now.')
   })
 })
 
-describe('a step the person started with Run and the agent has left running', () => {
-  const VERIFY: RunWorkflow = { id: 'v', name: 'V', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'verify', kind: 'work', name: 'Verify', start: 'run' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
-  const press = (id: string, t = 450): RunEvent => ({ k: 'start', t, run: 'r1', round: 1, step: id })
+describe('a step the person finishes: one card, after the agent reports it', () => {
+  // As parseWorkflow leaves it: the person's step has its gate and no start on Run.
+  const VERIFY: RunWorkflow = { id: 'v', name: 'V', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve', confirm: 'Tested, looks good' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
   const base = [begin(VERIFY), decided('released'), step('build', 'done')]
-  const ids = (events: RunEvent[]) => finishable(reduceRuns(events), () => ({ auditOn: true })).map((x) => x.step.id)
+  const ids = (events: RunEvent[]) => [toRunSteps(reduceRuns(events), () => ({ auditOn: true })).map((x) => x.step.id), waitingSteps(reduceRuns(events), { auditOn: true }).map((x) => x.step.id)]
 
-  it('is finishable by the person once Run was pressed, and not before, and not once done', () => {
-    expect(ids(base)).toEqual([])
-    expect(ids([...base, press('verify')])).toEqual(['verify'])
-    expect(ids([...base, press('verify'), step('verify', 'done', 500)])).toEqual([])
+  it('is the agent\'s to do first, with no card for the person: not a Run card and not a verdict card', () => {
+    expect(states(base)).toEqual(['plan:passed', 'build:passed', 'verify:running', 'commit:pending'])
+    expect(ids(base)).toEqual([[], []])
   })
-  it('is never a step the agent does in the ordinary way, a plan, or a stopped run\'s', () => {
-    expect(ids([begin(VERIFY), decided('released')])).toEqual([])
-    expect(ids([...base, press('verify'), { k: 'stop', t: 900, run: 'r1' }])).toEqual([])
+  it('asks the person once, after the agent reports it done, with the step\'s own words on the card', () => {
+    const done = [...base, step('verify', 'done', 500)]
+    expect(states(done)).toEqual(['plan:passed', 'build:passed', 'verify:waiting', 'commit:pending'])
+    expect(ids(done)).toEqual([[], ['verify']])
+    expect(waitingSteps(reduceRuns(done), { auditOn: true })[0]!.step.confirm).toBe('Tested, looks good')
   })
-  it('tells the agent the step is reported done and what follows, with the person\'s words', () => {
-    const next = { id: 'commit', name: 'Commit', optional: false, start: true }
-    expect(stepFinished('Verify', next, 'looks good')).toBe('The person finished your step "Verify": it is reported done.' + ' Next step: "Commit"; it starts when the person presses Run, so change nothing until you are told. They said: looks good')
-    expect(stepFinished('Verify', undefined)).toContain('That was the last step.')
+  it('goes on when the person approves it, and is the agent\'s again when they send it back', () => {
+    const done = [...base, step('verify', 'done', 500)]
+    expect(states([...done, step('verify', 'approved', 600)])).toEqual(['plan:passed', 'build:passed', 'verify:passed', 'commit:waiting'])
+    expect(states([...done, step('verify', 'changes', 600)])[2]).toBe('verify:running')
+  })
+})
+
+describe('nextStepLine for a step the person finishes', () => {
+  it('says it ends with their verdict, and does not say to wait for their Run', () => {
+    const line = nextStepLine({ id: 'verify', name: 'Verify', optional: false, start: false, by: 'person', brief: 'Give test prompts.' })
+    expect(line).toBe(' Next step: "Verify"; it ends with the person\'s verdict: do what it says, then call step_done and wait for their answer. It is for: Give test prompts.')
+    expect(line).not.toContain('presses Run')
+  })
+  it('is as before for any other step', () => {
+    expect(nextStepLine({ id: 'commit', name: 'Commit', optional: false, start: true })).toBe(' Next step: "Commit"; it starts when the person presses Run, so change nothing until you are told.')
   })
 })

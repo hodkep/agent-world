@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowEntry } from './workflow'
-import { STANDARD, checkCommands, commandDiff, isLanding, isSkippable, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, checkCommands, commandDiff, isLanding, isSkippable, modernStep, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -62,7 +62,7 @@ describe('reading a workflow file', () => {
       'Step 2: "id" must be lowercase letters, digits and dashes, up to 30 characters.',
       'Step 3 ("a"): "kind" must be one of plan, work, check, audit, approve, pr, merge.',
       'Step 4 ("a"): the id is already used by step 3.',
-      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, optional, skippable, skills, run, retries, model.'
+      'Step 4 ("a"): unknown field "colour". Allowed: id, kind, name, gate, brief, start, optional, skippable, by, confirm, reject, skills, run, retries, model.'
     ])
   })
 
@@ -304,5 +304,30 @@ describe('a Push step before a pull request step', () => {
   it('leaves a pull request step alone when no asking step of the agent comes right before it', () => {
     expect(read([{ id: 'build', kind: 'work' }, { id: 'pr', kind: 'pr', gate: 'approve' }])).toEqual([{ id: 'build', kind: 'work' }, { id: 'pr', kind: 'pr', start: 'run' }])
     expect(read([{ id: 'ask', kind: 'work', start: 'run' }, { id: 'x', kind: 'work' }, { id: 'pr', kind: 'pr' }])[2]).toMatchObject({ kind: 'pr' })
+  })
+})
+
+describe('a step the person finishes: by, confirm and reject', () => {
+  const problems = (o: unknown) => {
+    const r = parseWorkflow(JSON.stringify(o))
+    return r.ok ? [] : r.problems
+  }
+  const has = (step: Record<string, unknown>) => problems({ ...BUG_FIX, steps: [{ id: 'verify', kind: 'work', ...step }] })
+  it('takes by person on a work step, with the words of its two buttons', () => {
+    expect(has({ by: 'person', confirm: 'Tested, looks good', reject: 'Needs work' })).toEqual([])
+    expect(has({ by: 'agent' })).toEqual([])
+  })
+  it('refuses a by that is not agent or person, one on a kind that is not work, and the button words without a person', () => {
+    expect(has({ by: 'robot' })).toEqual(['Step 1 ("verify"): "by" must be agent or person.'])
+    expect(problems({ ...BUG_FIX, steps: [{ id: 'p', kind: 'plan', by: 'person' }] })).toEqual(['Step 1 ("p"): "by" only belongs on a work step.'])
+    expect(has({ confirm: 'Yes' })).toEqual(['Step 1 ("verify"): "confirm" only belongs on a step with "by": "person".'])
+    expect(has({ by: 'person', reject: 'x'.repeat(41) })).toEqual(['Step 1 ("verify"): "reject" must be text of up to 40 characters.'])
+  })
+  it('is asked of nobody before it starts and answered after the agent reports it: the person\'s step keeps its gate and loses any start on Run', () => {
+    const s = modernStep({ id: 'verify', kind: 'work', by: 'person', start: 'run', confirm: 'Tested, looks good' })
+    expect(s).toEqual({ id: 'verify', kind: 'work', by: 'person', confirm: 'Tested, looks good', gate: 'approve' })
+    // Any other step asked for on Run is asked once, before it starts, and has no gate.
+    expect(modernStep({ id: 'push', kind: 'work', start: 'run' })).toEqual({ id: 'push', kind: 'work', start: 'run' })
+    expect(modernStep({ id: 'a', kind: 'work', by: 'agent', gate: 'approve' })).toEqual({ id: 'a', kind: 'work', by: 'agent', start: 'run' })
   })
 })

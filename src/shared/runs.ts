@@ -65,6 +65,10 @@ export interface RunStep {
   start?: Start
   optional?: boolean
   skippable?: boolean
+  /** `person`: the person finishes it and answers on one card after the agent reports it; and the words of the two buttons. */
+  by?: 'agent' | 'person'
+  confirm?: string
+  reject?: string
   skills?: string[]
   run?: string
   retries?: number

@@ -8,7 +8,7 @@ const folded = new Set<string>()
  * A card that asks the person something, in the plan card's family: it folds with a chevron in its header. Folded it is one line (the tag, the title, the first words of what it says,
  * and the same buttons, which work folded or open); open it explains. A card that is being typed in (`locked`) stays open.
  */
-export function GateCard({ foldKey, label, tag, title, gist, buttons, children, locked, error, tagClass, commentable, noteOpen }: {
+export function GateCard({ foldKey, label, tag, title, gist, buttons, children, locked, error, tagClass, commentable }: {
   foldKey: string
   label: string
   tag: string
@@ -24,12 +24,10 @@ export function GateCard({ foldKey, label, tag, title, gist, buttons, children, 
   tagClass?: string
   /** The card takes an optional comment, empty by default, that goes with the button pressed. */
   commentable?: boolean
-  /** The comment box starts open, for a card whose answer needs words. */
-  noteOpen?: boolean
 }) {
   const [fold, setFold] = useState(folded.has(foldKey))
   const set = (v: boolean) => (v ? folded.add(foldKey) : folded.delete(foldKey), setFold(v))
-  const [noting, setNoting] = useState(!!noteOpen)
+  const [noting, setNoting] = useState(false)
   const [comment, setComment] = useState('')
   // A card with a comment in it stays open: folding would hide what is about to be sent.
   const one = fold && !locked && comment.trim() === ''

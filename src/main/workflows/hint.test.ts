@@ -31,6 +31,15 @@ const BUG_FIX: RunWorkflow = {
   ]
 }
 
+describe('what task_begin tells the agent about a step the person finishes', () => {
+  it('says the step ends with the person\'s verdict, in the step\'s own brief, and that it is not asked about before it starts', () => {
+    const wf: RunWorkflow = { id: 'v', name: 'V', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve', brief: 'Start a test instance and give test prompts.' }] }
+    const text = workflowBrief(wf)
+    expect(text).toContain('- verify "Verify" (ends with the person\'s verdict: do what it says, then call step_done and wait for their answer): Start a test instance and give test prompts.')
+    expect(text).not.toMatch(/verify[^\n]*presses Run/)
+  })
+})
+
 describe('what task_begin tells the agent about its workflow', () => {
   it('for a workflow with no audit step: no audit is promised, the agent reviews in a step, and a pull request waits for the person\'s word', () => {
     const modern: RunWorkflow = { id: 'm', name: 'M', steps: [{ id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'work', name: 'Review' }, { id: 'pr', kind: 'pr', name: 'Pull request', start: 'run' }] }

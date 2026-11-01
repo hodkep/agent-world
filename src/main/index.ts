@@ -2352,13 +2352,6 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, stepStarted(name, noteOf(note)))
     send('workflows')
   })
-  // The person marks a step of theirs done, or sends it back: the agent is told what the typed words would tell it.
-  ipcMain.handle('workflows:finish-step', (_, runId: string, step: string, decision: 'done' | 'changes', note?: string) => {
-    const run = workflows.runs().find((r) => r.id === runId)
-    if (!run) throw new Error('No such run.')
-    mailbox.fromOffice(run.agent, remote.finish(runId, String(step), decision === 'changes' ? 'changes' : 'done', typeof note === 'string' ? note : ''))
-    send('workflows')
-  })
   // The person does not approve a step that waits for them: nothing starts, and the agent is told to wait for their instructions.
   ipcMain.handle('workflows:decline-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)

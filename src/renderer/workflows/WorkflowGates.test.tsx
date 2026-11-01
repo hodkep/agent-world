@@ -98,20 +98,27 @@ describe('the workflow cards in an agent\'s chat', () => {
     expect(refusedAnswer).toHaveBeenCalledWith('r1', 'verify2', 'later', 'Do it next week.')
   })
 
-  it('a step the person started and the agent left running offers It works and Needs changes, and sends the verdict with the comment', async () => {
-    const finishStep = vi.fn().mockResolvedValue(undefined)
-    ;(window as unknown as { aw: unknown }).aw = { workflows: { finishStep } }
-    const verify = { id: 'verify', kind: 'work', name: 'Verify the changes', start: 'run', brief: 'Try it.' } as RunStep
+  it('a step the person finishes is one card after the agent reports it, with the words the step gives its two buttons', async () => {
+    const onDecide = vi.fn()
+    const verify = { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve', confirm: 'Tested, looks good', reject: 'Needs work', brief: 'Try it.' } as RunStep
     const host = document.body.appendChild(document.createElement('div'))
-    await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" finish={{ run, step: verify }} onDecideStep={vi.fn()} onDecidePlan={vi.fn()} />))
-    expect(host.querySelector('section')!.getAttribute('aria-label')).toBe('Finish Verify the changes for ada')
-    expect([...host.querySelectorAll('.pg-acts button')].map((b) => b.textContent)).toEqual(['It works, mark done', 'Needs changes'])
-    const press = async (label: string) => act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === label)!.click())
-    await press('It works, mark done')
-    expect(finishStep.mock.calls).toEqual([['r1', 'verify', 'done', undefined]])
-    // Sending it back needs what to change: with no comment typed it asks instead of sending.
-    await press('Needs changes')
-    expect(finishStep).toHaveBeenCalledTimes(1)
-    expect(host.textContent).toContain('Say what to change')
+    await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" step={{ run, step: verify }} onDecideStep={onDecide} onDecidePlan={vi.fn()} />))
+    expect(host.querySelectorAll('section')).toHaveLength(1)
+    expect(host.querySelector('.pg-tag')!.textContent).toBe('Your verdict')
+    expect([...host.querySelectorAll('.pg-acts button')].map((b) => b.textContent)).toEqual(['Tested, looks good', 'Needs work'])
+    await act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === 'Tested, looks good')!.click())
+    expect(onDecide.mock.calls).toEqual([['r1', 'verify', 'approved', undefined]])
+  })
+
+  it('a person\'s step with no words of its own says Approve and Send back, and sending it back needs words', async () => {
+    const onDecide = vi.fn()
+    const verify = { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve' } as RunStep
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<WorkflowGates agentName="ada" step={{ run, step: verify }} onDecideStep={onDecide} onDecidePlan={vi.fn()} />))
+    expect([...host.querySelectorAll('.pg-acts button')].map((b) => b.textContent)).toEqual(['Approve', 'Send back'])
+    await act(async () => void [...host.querySelectorAll('button')].find((b) => b.textContent === 'Send back')!.click())
+    const send = [...host.querySelectorAll('.pg-acts button')].find((b) => b.textContent === 'Send back') as HTMLButtonElement
+    expect(send.disabled).toBe(true)
+    expect(onDecide).not.toHaveBeenCalled()
   })
 })

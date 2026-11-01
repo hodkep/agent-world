@@ -478,8 +478,6 @@ export interface AwApi {
     skipStep(runId: string, step: string, note?: string): Promise<void>
     /** Press Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin. */
     startStep(runId: string, step: string, note?: string): Promise<void>
-    /** The person's word on a step of theirs the agent left running: done reports it for the agent, changes sends it back with what to change. */
-    finishStep(runId: string, step: string, decision: 'done' | 'changes', note?: string): Promise<void>
     /** The person does not approve a step of the agent's that waits for Run: the agent is told to wait for their instructions. */
     declineStep(runId: string, step: string, note?: string): Promise<void>
     /** The person's one answer to the agent's question to skip steps: yes skips them all with its reason, no keeps them. */

@@ -28,6 +28,12 @@ export interface Step {
   optional?: boolean
   /** Only the person can skip it: the agent has to ask. Unset, a step that starts when the person presses Run counts as skippable. */
   skippable?: boolean
+  /** Who finishes it. `agent` (the default): the agent does it and reports it. `person`: the agent does what its brief says (the setup, the instructions), reports it, and the person then says how it went on one card. */
+  by?: 'agent' | 'person'
+  /** The words of the person's done button on a step with `by: person`. */
+  confirm?: string
+  /** The words of the person's send-back button on a step with `by: person`. */
+  reject?: string
   skills?: string[]
   run?: string
   retries?: number
@@ -56,7 +62,7 @@ export const SKIPPABLE_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve',
 /** Whether the person can skip a step (and the agent may only ask them to): its workflow says so, and without a word a step that starts on their Run is. */
 export const isSkippable = (s: { kind: StepKind; start?: Start; skippable?: boolean }): boolean => SKIPPABLE_KINDS.includes(s.kind) && (s.skippable ?? s.start === 'run')
 const orList = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} or ${w.at(-1)}`)
-const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'skills', 'run', 'retries', 'model']
+const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'by', 'confirm', 'reject', 'skills', 'run', 'retries', 'model']
 const TOP = ['version', 'id', 'name', 'when', 'steps']
 /** Whether `v` can be a workflow's id, and so the name of its file. */
 export const isWorkflowId = (v: unknown): v is string => typeof v === 'string' && ID.test(v) && v.length <= 40
@@ -95,6 +101,15 @@ function stepProblems(raw: unknown, n: number, seen: Map<string, number>): strin
       if (!SKIPPABLE_KINDS.includes(kind)) out.push(`${at}: "skippable" only belongs on a work, check, audit, approve or pr step.`)
       else if (typeof s.skippable !== 'boolean') out.push(`${at}: "skippable" must be true or false.`)
     }
+    if (s.by !== undefined) {
+      if (kind !== 'work') out.push(`${at}: "by" only belongs on a work step.`)
+      else if (s.by !== 'agent' && s.by !== 'person') out.push(`${at}: "by" must be agent or person.`)
+    }
+    for (const f of ['confirm', 'reject'] as const) {
+      if (s[f] === undefined) continue
+      if (s.by !== 'person') out.push(`${at}: "${f}" only belongs on a step with "by": "person".`)
+      else if (!isText(s[f], 40)) out.push(`${at}: "${f}" must be text of up to 40 characters.`)
+    }
     if (s.start !== undefined) {
       if (!START_KINDS.includes(kind)) out.push(`${at}: "start" only belongs on a plan, work, check, audit or pr step.`)
       else if (s.start !== 'auto' && s.start !== 'run') out.push(`${at}: "start" must be auto or run.`)
@@ -117,6 +132,8 @@ export function modernStep(s: Step): Step {
   const { run: _run, retries: _retries, model: _model, gate, start, ...rest } = s
   const kind: StepKind = s.kind === 'check' || s.kind === 'audit' || s.kind === 'approve' ? 'work' : s.kind
   if (kind === 'plan') return { ...rest, kind, ...(gate && { gate }), ...(start && { start }) }
+  // A step the person finishes is not asked about before it starts: the agent does what its brief says, reports it, and the person answers once, after.
+  if (kind === 'work' && s.by === 'person') return { ...rest, kind, gate: 'approve' as const }
   // A merge is the person's own click on Land: nothing more to ask.
   const asks = kind !== 'merge' && (s.kind === 'approve' || gate === 'approve' || start === 'run')
   return { ...rest, kind, ...(asks && { start: 'run' as const }) }

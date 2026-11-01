@@ -9,7 +9,9 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
   const [asking, setAsking] = useState(false)
   const [note, setNote] = useState('')
   const sentence = `${run.workflow?.name}: ${
-    step.kind === 'pr'
+    step.by === 'person'
+      ? `${agentName} has done its part and is waiting. Say how it went; it goes on after your answer.`
+      : step.kind === 'pr'
       ? step.start === 'run'
         ? `nothing is pushed until you press Run. Running it lets ${agentName} push this branch and open the pull request.`
         : `nothing is pushed until you approve. Approving lets ${agentName} push this branch and open the pull request.`
@@ -21,7 +23,7 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
     <GateCard
       foldKey={`step-${run.id}-${step.id}`}
       label={`Step from ${agentName}`}
-      tag={step.kind === 'pr' && step.start === 'run' ? 'Your turn to run' : 'Your approval'}
+      tag={step.by === 'person' ? 'Your verdict' : step.kind === 'pr' && step.start === 'run' ? 'Your turn to run' : 'Your approval'}
       title={step.name}
       gist={gistOf(step.brief) || sentence}
       locked={asking}
@@ -29,14 +31,14 @@ export function StepGate({ agentName, run, step, onDecide }: { agentName: string
       buttons={(comment) =>
         !asking ? (
           <>
-              <button className="primary" onClick={() => onDecide('approved', comment || undefined)}>{step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve'}</button>
-              <button onClick={() => setAsking(true)}>Send back</button>
+              <button className="primary" onClick={() => onDecide('approved', comment || undefined)}>{step.by === 'person' && step.confirm ? step.confirm : step.kind === 'pr' && step.start === 'run' ? 'Run' : 'Approve'}</button>
+              <button onClick={() => setAsking(true)}>{step.by === 'person' && step.reject ? step.reject : 'Send back'}</button>
               {step.kind === 'pr' && <button title={step.optional ? 'It is optional: the run goes on without it.' : `Required: the workflow stops here and ${agentName} is told to wait.`} onClick={() => void window.aw.workflows.declineStep(run.id, step.id, comment || undefined)}>Not now</button>}
               {(step.optional || isSkippable(step)) && (step.kind === 'work' || step.kind === 'approve' || step.kind === 'pr') && <button title="You can skip it: the run goes on without it." onClick={() => void window.aw.workflows.skipStep(run.id, step.id, comment || undefined)}>Skip</button>}
           </>
         ) : (
           <>
-              <button className="primary" disabled={!note.trim()} onClick={() => onDecide('changes', note.trim())}>Send back</button>
+              <button className="primary" disabled={!note.trim()} onClick={() => onDecide('changes', note.trim())}>{step.by === 'person' && step.reject ? step.reject : 'Send back'}</button>
               <button onClick={() => setAsking(false)}>Cancel</button>
           </>
         )
