@@ -1395,7 +1395,7 @@ async function main() {
   idleCheck = setTimeout(sweep, 300)
   // Agents starting agents of either program as their subagents: the child is a real agent, left out of the office, that shows in its parent's subagents.
   // What came of each delegated run, by the model that did it: the score the picker uses learns from these.
-  const RUNS_FILE = join(HOME, 'runs.jsonl')
+  const RUNS_FILE = join(HOME, 'model-runs.jsonl')
   const runRated = new Set<string>()
   const recordRun = (model: string, outcome: 'accepted' | 'rejected' | 'stopped') => appendFileSync(RUNS_FILE, JSON.stringify({ t: Date.now(), model, outcome }) + '\n')
   const runnerCatalog = () => {

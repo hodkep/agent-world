@@ -88,7 +88,7 @@ test('a rated subagent moves its model\'s score, and Settings shows the benchmar
   try {
     await startAda(page)
     await expect(page.locator('.term-host:visible')).toContainText('rate_subagent → Noted: haiku accepted. It has 1 accepted of 1 rated runs.', { timeout: 60_000 })
-    expect(readFileSync(join(home, 'runs.jsonl'), 'utf8')).toContain('"model":"haiku","outcome":"accepted"')
+    expect(readFileSync(join(home, 'model-runs.jsonl'), 'utf8')).toContain('"model":"haiku","outcome":"accepted"')
     const { routing } = await openRouting(page)
     const row = routing.getByRole('row', { name: /claude-haiku-5-5/ })
     // (70.4 x 10 + 100 x 1) / 11 = 73; no other model has runs.
