@@ -36,7 +36,7 @@ describe('the rail that stays when the office is hidden', () => {
     expect(dots.map((d) => d.getAttribute('aria-label'))).toEqual(['nova', 'atlas', 'bo'])
     expect(dots.map((d) => d.querySelector('.rail-tile')!.textContent)).toEqual(['N', 'A', 'B'])
     expect(dots.map((d) => d.querySelector('.rail-name')!.textContent)).toEqual(['nova', 'atlas', 'bo'])
-    expect(dots.map((d) => d.querySelector('small')!.textContent)).toEqual(['idle', 'working', 'idle'])
+    expect(dots.map((d) => d.querySelector('small')!.textContent)).toEqual(['idle', 'working', 'finished'])
     expect(dots.map((d) => d.getAttribute('aria-pressed'))).toEqual(['true', 'false', 'false'])
   })
 
@@ -59,6 +59,18 @@ describe('the rail that stays when the office is hidden', () => {
     const { host, onSelect } = await mount()
     await act(async () => host.querySelectorAll<HTMLButtonElement>('.rail-agent')[1]!.click())
     expect(onSelect).toHaveBeenCalledWith('a2')
+  })
+
+  it('writes finished or what an agent asks of you in place of its state, with a red dot for an ask and a tick that marks a finished one read', async () => {
+    const onRead = vi.fn()
+    const { host } = await mount({ marks: new Map([['a1', 'need'], ['a3', 'done']]), asks: new Map([['a1', 'permission']]), onRead })
+    const words = [...host.querySelectorAll('.rail-agent small')].map((x) => x.textContent)
+    expect(words).toEqual(['permission', 'working', 'finished'])
+    expect(host.querySelector('.rail-agent .wt-mark.need')).not.toBeNull()
+    expect(host.querySelectorAll('button[aria-label^="Mark "]')).toHaveLength(1)
+    await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Mark bo as read"]')!.click())
+    expect(onRead).toHaveBeenCalledWith('a3')
+    expect(onRead).toHaveBeenCalledTimes(1)
   })
 
   it('has a button that folds the list to a narrow strip, and one that opens it again', async () => {
@@ -89,6 +101,16 @@ describe('the rail that stays when the office is hidden', () => {
     const nav = (host: HTMLElement) => host.querySelector<HTMLElement>('nav.office-rail')!
     const over = (el: HTMLElement) => act(async () => void el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: document.body })))
     const out = (el: HTMLElement) => act(async () => void el.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })))
+
+    it('opens as wide as the open list is, the dragged width included', async () => {
+      const { host } = await mount({ slim: true, width: 300, onWidth: () => {} })
+      await over(nav(host))
+      expect(nav(host).style.width).toBe('300px')
+      expect(nav(host).style.marginRight).toBe('-240px')
+      const plain = await mount({ slim: true })
+      await over(nav(plain.host))
+      expect(nav(plain.host).style.width).toBe('224px')
+    })
 
     it('opens the list for as long as the pointer is on it, and closes it a moment after', async () => {
       const { host } = await mount({ slim: true })
@@ -131,7 +153,7 @@ describe('the rail that stays when the office is hidden', () => {
       { id: 'a4', name: 'cy', working: false, state: 'idle' as const, role: 'intern' as const }
     ]
     it('draws a face for each, and a speech bubble for the ones that wait for you, work or sleep, none for one that is idle', async () => {
-      const { host } = await mount({ agents: three })
+      const { host } = await mount({ agents: three, marks: new Map() })
       const rows = [...host.querySelectorAll('.rail-agent')]
       expect(rows.every((r) => r.querySelector('.rail-tile canvas'))).toBe(true)
       expect(rows.map((r) => r.querySelector('.rail-bubble')?.textContent ?? '')).toEqual(['?', '...', 'zz', ''])

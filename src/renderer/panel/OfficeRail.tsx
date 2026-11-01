@@ -18,6 +18,7 @@ export interface RailAgent {
 export const RAIL_MIN = 176
 export const RAIL_MAX = 360
 export const RAIL_DEFAULT = 224
+export const SLIM_W = 60
 const clampW = (w: number) => Math.round(Math.max(RAIL_MIN, Math.min(RAIL_MAX, w)))
 const BUBBLE = { waiting: '?', working: '...', asleep: 'zz', idle: '' } as const
 const WORD = { waiting: 'waiting for you', working: 'working', asleep: 'asleep', idle: 'idle' } as const
@@ -40,7 +41,7 @@ function Face({ id, role, state }: { id: string; role: Role; state: 'idle' | 'wo
 }
 
 /** The strip left of the chat while the office is hidden: the way back to it, and each agent with its name and whether it is at work, so one can be opened without it. */
-export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, onShow, onSelect, usage, width, onWidth, terminalOpen, onTerminal }: { agents: RailAgent[]; selected: string | null; marks: Map<string, string>; /** Only the squares show, the names in tooltips. */ slim: boolean; onSlim: () => void; /** The keys that show the office, for its tooltip. */ officeKeys?: string; onShow: () => void; onSelect: (id: string) => void , /** What is left of the allowances of the account the open agent runs on; none when no agent is open. */ usage?: { five: LimitView; week: LimitView; account?: string } | null, /** How wide the open rail is, in px; none for the default. */ width?: number | null; /** Told the new width while it is dragged or keyed; none to go back to the default. */ onWidth?: (w: number | null) => void, /** Whether the terminal pane is open. */ terminalOpen?: boolean; /** Shows or hides the terminal pane; the button is only drawn when this is given. */ onTerminal?: () => void}) {
+export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, onShow, onSelect, usage, width, onWidth, terminalOpen, onTerminal, asks, onRead }: { agents: RailAgent[]; selected: string | null; marks: Map<string, string>; /** Only the squares show, the names in tooltips. */ slim: boolean; onSlim: () => void; /** The keys that show the office, for its tooltip. */ officeKeys?: string; onShow: () => void; onSelect: (id: string) => void , /** What is left of the allowances of the account the open agent runs on; none when no agent is open. */ usage?: { five: LimitView; week: LimitView; account?: string } | null, /** How wide the open rail is, in px; none for the default. */ width?: number | null; /** Told the new width while it is dragged or keyed; none to go back to the default. */ onWidth?: (w: number | null) => void, /** Whether the terminal pane is open. */ terminalOpen?: boolean; /** Shows or hides the terminal pane; the button is only drawn when this is given. */ onTerminal?: () => void; /** What each agent asks of the person, in a word (a permission, a question, a gate), by agent id. */ asks?: Map<string, string>; /** Marks a finished agent read; the tick is only drawn when this is given. */ onRead?: (id: string) => void}) {
   // Folded, pointing at it (or a key on one of its buttons) opens the list over the page for as long as that lasts; a moment after it goes, it closes.
   const [peek, setPeek] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -48,10 +49,12 @@ export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, 
   const close = () => (clearTimeout(timer.current), (timer.current = setTimeout(() => setPeek(false), 300)))
   useEffect(() => () => clearTimeout(timer.current), [])
   const peeking = slim && peek
+  // Peeking opens as wide as the open list: the width it was dragged to, else the default.
+  const openW = width ?? RAIL_DEFAULT
   return (
     <nav
       className={`office-rail ${slim ? 'slim' : ''} ${peeking ? 'peek' : ''}`}
-      style={!slim && onWidth ? { width: width ?? RAIL_DEFAULT } : undefined}
+      style={!slim && onWidth ? { width: openW } : peeking ? { width: openW, marginRight: SLIM_W - openW } : undefined}
       aria-label="Agents"
       onMouseEnter={() => slim && open()}
       onMouseLeave={() => slim && close()}
@@ -65,17 +68,27 @@ export function OfficeRail({ agents, selected, marks, slim, onSlim, officeKeys, 
       <h6 className="rail-cap">{slim && !peeking ? agents.length : 'Agents'}</h6>
       {agents.map((a) => {
         const state = a.state ?? (a.working ? 'working' : 'idle')
+        const mark = marks.get(a.id)
+        const ask = asks?.get(a.id)
+        const word = ask ?? (mark === 'done' ? 'finished' : WORD[state])
         return (
-          <button key={a.id} className={`rail-agent ${a.working ? 'working' : ''} is-${state}`} aria-label={a.name} aria-pressed={a.id === selected} title={slim ? a.name : undefined} onClick={() => onSelect(a.id)}>
-            <span className="rail-tile">
-              <Face id={a.id} role={a.role ?? 'senior'} state={state} />
-              <span className="sr-only">{a.name.charAt(0).toUpperCase()}</span>
-              {marks.has(a.id) && <span className={`wt-mark ${marks.get(a.id)}`} aria-hidden="true" />}
-            </span>
-            <span className="rail-name">{a.name}</span>
-            <small>{WORD[state]}</small>
-            {BUBBLE[state] && <span className="rail-bubble" aria-hidden="true">{BUBBLE[state]}</span>}
-          </button>
+          <div key={a.id} className="rail-cell">
+            <button className={`rail-agent ${a.working ? 'working' : ''} is-${state}`} aria-label={a.name} aria-pressed={a.id === selected} title={slim ? a.name : undefined} onClick={() => onSelect(a.id)}>
+              <span className="rail-tile">
+                <Face id={a.id} role={a.role ?? 'senior'} state={state} />
+                <span className="sr-only">{a.name.charAt(0).toUpperCase()}</span>
+                {mark && <span className={`wt-mark ${mark}`} aria-hidden="true" />}
+              </span>
+              <span className="rail-name">{a.name}</span>
+              <small className={ask ? 'ask' : mark === 'done' ? 'done' : undefined}>{word}</small>
+              {BUBBLE[state] && <span className="rail-bubble" aria-hidden="true">{BUBBLE[state]}</span>}
+            </button>
+            {mark === 'done' && onRead && (
+              <button className="rail-read" aria-label={`Mark ${a.name} as read`} title="Mark as read" onClick={() => onRead(a.id)}>
+                <OutlineIcon name="tick" size={12} />
+              </button>
+            )}
+          </div>
         )
       })}
       {usage && (
