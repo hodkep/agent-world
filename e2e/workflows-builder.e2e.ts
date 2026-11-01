@@ -498,12 +498,28 @@ test('every step has the same settings: who does it, whether it asks you first, 
     await expect(draft.getByRole('switch', { name: 'Needs my approval' })).toBeChecked()
     await expect(draft.getByRole('alert')).toHaveCount(0)
 
+    // A step the person finishes is set here, with the words of its button; it is then not asked about before it starts.
+    await draft.getByLabel('Step 4: Lint').click()
+    await expect(draft.getByLabel('Done button of step 4')).toHaveCount(0)
+    await draft.getByRole('button', { name: 'Me', exact: true }).click()
+    await draft.getByLabel('Done button of step 4').fill('Tested, looks good')
+    await draft.getByLabel('Send-back button of step 4').fill('Needs work')
+    // Every setting is reachable, however tall the settings are: the panel scrolls, and the buttons under the fields are not covered.
+    const acts = draft.getByRole('button', { name: 'Remove step 4' })
+    await acts.scrollIntoViewIfNeeded()
+    await acts.click({ trial: true })
+    // Only who can do the step as the app reads it is offered: a choice never turns back to the agent.
+    await expect(draft.getByRole('group', { name: 'Who does step 4' }).getByRole('button')).toHaveCount(1)
+    if (process.env.AW_SHOTS) await page.screenshot({ path: `${process.env.AW_SHOTS}/who-finishes.png` })
+
     await draft.getByRole('button', { name: 'Save to shop' }).click()
     const file = join(repo, '.agent-world', 'workflows', 'billing-change.json')
     await expect.poll(() => existsSync(file)).toBe(true)
     const saved = JSON.parse(readFileSync(file, 'utf8')) as typeof BILLING
     expect(saved.steps[0]).toMatchObject({ kind: 'plan', gate: 'approve' })
     expect(saved.steps[1]).toMatchObject({ kind: 'work', name: 'Build', start: 'run', optional: true })
+    expect(saved.steps[3]).toMatchObject({ kind: 'work', name: 'Lint', by: 'person', confirm: 'Tested, looks good', reject: 'Needs work' })
+    expect('start' in saved.steps[3]!).toBe(false)
     await client.close()
   } finally {
     await s.shutdown()

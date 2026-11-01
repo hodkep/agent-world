@@ -47,7 +47,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export function chipsOf(s: Step, states: Record<string, SkillState> = {}): Chip[] {
   const out: Chip[] = []
   const landing = s.kind === 'pr' || s.kind === 'merge'
-  if (s.kind === 'approve' || (s.gate === 'approve' && (s.kind === 'work' || s.kind === 'audit')) || (s.kind === 'plan' && s.gate !== 'auto')) out.push({ text: 'you approve', tone: 'stop' })
+  if (s.kind === 'work' && s.by === 'person') out.push({ text: 'you finish it', tone: 'stop' })
+  else if (s.kind === 'approve' || (s.gate === 'approve' && (s.kind === 'work' || s.kind === 'audit')) || (s.kind === 'plan' && s.gate !== 'auto')) out.push({ text: 'you approve', tone: 'stop' })
   else if (landing && (s.gate === 'approve' || s.kind === 'merge')) out.push({ text: 'you confirm', tone: 'stop' })
   if (s.kind === 'check') {
     if (s.gate === 'approve') out.push({ text: 'you approve', tone: 'stop' })

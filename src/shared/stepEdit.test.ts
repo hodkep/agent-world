@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addStep, duplicateStep, insertStepAt, kindFor, moveAfter, moveStep, moveStepTo, removeStep, roleOf, setStep, whoOf, withRole, withWho } from './stepEdit'
+import { addStep, duplicateStep, insertStepAt, kindFor, moveAfter, moveStep, moveStepTo, removeStep, roleOf, setStep, whoCan, whoOf, withBy, withRole, withWho } from './stepEdit'
 import { STEPS_MAX, type Workflow } from './workflow'
 
 const wf = (): Workflow => ({ version: 1, id: 'journey', name: 'Journey', steps: [{ id: 'plan', kind: 'plan', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', skills: ['tdd'] }, { id: 'land', kind: 'merge' }] })
@@ -139,3 +139,37 @@ describe('a step is who does it, and what part of the run it plays', () => {
   })
 })
 
+describe('who finishes a step: the agent, or the person', () => {
+  const base = (): Workflow => ({ version: 1, id: 'w', name: 'W', steps: [{ id: 'build', kind: 'work' }, { id: 'verify', kind: 'work', name: 'Verify', start: 'run', skippable: true }] })
+  it('makes it the person\'s: it is not asked before it starts, since their answer comes after', () => {
+    const w = withBy(base(), 1, 'person')
+    expect(w.steps[1]).toEqual({ id: 'verify', kind: 'work', name: 'Verify', skippable: true, by: 'person' })
+  })
+  it('gives the person\'s step words for its buttons, and takes them away with the person', () => {
+    const w = setStep(withBy(base(), 1, 'person'), 1, { confirm: 'Tested, looks good', reject: 'Needs work' })
+    expect(w.steps[1]).toMatchObject({ by: 'person', confirm: 'Tested, looks good', reject: 'Needs work' })
+    expect(withBy(w, 1, 'agent').steps[1]).toEqual({ id: 'verify', kind: 'work', name: 'Verify', skippable: true })
+  })
+  it('keeps who finishes a step when it changes in the ways a work step can, and drops it when it is not a work step any more', () => {
+    const w = setStep(withBy(base(), 1, 'person'), 1, { confirm: 'Yes' })
+    expect(withWho(w, 1, 'agent').steps[1]).toMatchObject({ by: 'person', confirm: 'Yes' })
+    expect('by' in withWho(w, 1, 'command').steps[1]!).toBe(false)
+  })
+  it('leaves a step that is not work alone', () => {
+    const plan: Workflow = { version: 1, id: 'w', name: 'W', steps: [{ id: 'p', kind: 'plan' }] }
+    expect(withBy(plan, 0, 'person')).toBe(plan)
+  })
+})
+
+describe('who can do a step, as the app reads it', () => {
+  it('only those whose kind stays what it is: a check, an audit and an approval are read as work, so choosing them would turn back at once', () => {
+    expect(whoCan('agent', 'none')).toBe(true)
+    expect(whoCan('agent', 'plan')).toBe(true)
+    expect(whoCan('agent', 'pr')).toBe(true)
+    expect(whoCan('you', 'land')).toBe(true)
+    expect(whoCan('command', 'none')).toBe(false)
+    expect(whoCan('reviewer', 'none')).toBe(false)
+    expect(whoCan('you', 'none')).toBe(false)
+    expect(whoCan('command', 'plan')).toBe(false)
+  })
+})
