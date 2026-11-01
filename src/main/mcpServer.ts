@@ -1,5 +1,6 @@
 import pkg from '../../package.json'
 import { nextStepLine } from '../shared/steps'
+import { type BroadcastRow, formatBroadcastResult } from '../shared/mail'
 import { createServer, type IncomingMessage } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -35,6 +36,8 @@ interface Options {
   agentForToken: (token: string) => string | null
   listAgents: (callerId: string) => Colleague[]
   send: (fromId: string, to: string, message: string, expectsReply: boolean) => 'delivered' | 'queued'
+  /** One message to every other agent of the caller's project: how it went for each. Throws when there is no one to tell. */
+  broadcast?: (fromId: string, message: string, expectsReply: boolean) => { id: string; results: (Omit<BroadcastRow, 'reason'> & { reason?: string })[] }
   /** Save a note for everyone working in the caller's project. */
   remember: (callerId: string, text: string) => void
   /** Notes from the caller's project that match the words (the newest when empty). */
@@ -264,6 +267,28 @@ function toolsFor(callerId: string, o: Options) {
       }
     }
   )
+  if (o.broadcast) {
+    const broadcast = o.broadcast
+    server.registerTool(
+      'broadcast_message',
+      {
+        description:
+          'Send one message to every other agent in your project at once, instead of calling send_message for each. An idle agent gets it now and a busy one when its turn ends; an agent that is asleep is not sent it (only the person can wake it) and is marked in the answer. The answer lists how it went for each agent. Do not wait: each agent replies to you with send_message as it finishes, and its reply arrives as your next message.',
+        inputSchema: {
+          message: z.string().min(1).max(4000).describe('What you want to tell them all'),
+          expects_reply: z.boolean().optional().describe('false when you only inform and want no answers. Defaults to true.')
+        }
+      },
+      async ({ message, expects_reply }) => {
+        try {
+          const r = broadcast(callerId, message, expects_reply ?? true)
+          return { content: [{ type: 'text', text: formatBroadcastResult(r.id, r.results) }] }
+        } catch (err) {
+          return { isError: true, content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }] }
+        }
+      }
+    )
+  }
   if (o.subagents) {
     const sub = o.subagents
     const ask = (run: () => Promise<unknown> | unknown) => async () => {

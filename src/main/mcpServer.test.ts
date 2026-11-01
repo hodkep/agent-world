@@ -511,3 +511,34 @@ describe('builder tools', () => {
     expect(text(none)).toBe('No workflow "nope".')
   })
 })
+
+describe('broadcast_message', () => {
+  const broadcasts: { from: string; message: string; expectsReply: boolean }[] = []
+  const start = (broadcast?: Parameters<typeof startMcpServer>[0]['broadcast']) =>
+    startMcpServer({ agentForToken: (t) => (t === 'tok-a1' ? 'a1' : null), listAgents: () => [], send: () => 'queued', remember: () => {}, recall: () => [], broadcast })
+  it('is offered only when the office can broadcast, and tells every agent once, answering with a line for each', async () => {
+    const without = await start()
+    clients.push(await connect(without.url, 'a1'))
+    expect((await clients.at(-1)!.listTools()).tools.map((t) => t.name)).not.toContain('broadcast_message')
+    await without.close()
+    broadcasts.length = 0
+    server = await start((from, message, expectsReply) => {
+      broadcasts.push({ from, message, expectsReply })
+      return { id: 'b1', results: [{ name: 'linus', status: 'delivered' }, { name: 'tester', status: 'asleep', reason: 'only the person can wake it' }] }
+    })
+    const c = await connect(server.url, 'a1')
+    const r = text(await c.callTool({ name: 'broadcast_message', arguments: { message: 'rebase please' } }))
+    expect(broadcasts).toEqual([{ from: 'a1', message: 'rebase please', expectsReply: true }])
+    expect(r).toContain('Broadcast to 2 agents (id b1):')
+    expect(r).toContain('tester: asleep (only the person can wake it)')
+    await c.callTool({ name: 'broadcast_message', arguments: { message: 'fyi', expects_reply: false } })
+    expect(broadcasts.at(-1)!.expectsReply).toBe(false)
+  })
+  it('says why when nobody can be told', async () => {
+    server = await start(() => { throw new Error('There is no other agent in this project to tell.') })
+    const c = await connect(server.url, 'a1')
+    const r = await c.callTool({ name: 'broadcast_message', arguments: { message: 'hi' } })
+    expect((r as { isError?: boolean }).isError).toBe(true)
+    expect(text(r)).toContain('no other agent')
+  })
+})
